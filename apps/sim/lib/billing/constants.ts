@@ -9,6 +9,7 @@ export const DEFAULT_FREE_CREDITS = 20
 
 /**
  * Default per-user minimum limits (in dollars) for paid plans when env vars are absent
+ * These are legacy values from the old pricing model.
  */
 export const DEFAULT_PRO_TIER_COST_LIMIT = 20
 export const DEFAULT_TEAM_TIER_COST_LIMIT = 40
@@ -36,25 +37,17 @@ export const DEFAULT_OVERAGE_THRESHOLD = 50
  * 1 credit = $0.005, so credits = dollars * 200.
  */
 export const CREDIT_TIERS = [
-  { credits: 4000, dollars: 20 },
-  { credits: 8000, dollars: 40 },
-  { credits: 12000, dollars: 60 },
-  { credits: 16000, dollars: 80 },
-  { credits: 20000, dollars: 100 },
-  { credits: 24000, dollars: 120 },
-  { credits: 28000, dollars: 140 },
-  { credits: 32000, dollars: 160 },
-  { credits: 36000, dollars: 180 },
-  { credits: 40000, dollars: 200 },
+  { credits: 5000, dollars: 25, name: 'Pro' },
+  { credits: 25000, dollars: 100, name: 'Max' },
 ] as const
 
 export type CreditTier = (typeof CREDIT_TIERS)[number]
 
 /**
- * Weekly refresh rate: 1% of plan cost per day, accumulated over 7 days.
- * E.g. $20 plan => $0.20/day => $1.40/week included usage.
+ * Daily refresh rate: 1% of plan cost per day.
+ * E.g. $25 plan => $0.25/day => 50 credits/day included usage.
  */
-export const WEEKLY_REFRESH_RATE = 0.07
+export const DAILY_REFRESH_RATE = 0.01
 
 /**
  * Annual subscribers pay 15% less than the equivalent monthly plan

@@ -11,12 +11,13 @@ type TargetPlan = 'pro' | 'team'
 
 const CONSTANTS = {
   INITIAL_TEAM_SEATS: 1,
-  DEFAULT_CREDIT_TIER: 2000,
+  DEFAULT_CREDIT_TIER: 5000,
 } as const
 
 interface UpgradeOptions {
   creditTier?: number
   annual?: boolean
+  seats?: number
 }
 
 export function useSubscriptionUpgrade() {
@@ -121,7 +122,7 @@ export function useSubscriptionUpgrade() {
           referenceId,
           successUrl,
           cancelUrl: currentUrl,
-          ...(targetPlan === 'team' && { seats: CONSTANTS.INITIAL_TEAM_SEATS }),
+          ...(targetPlan === 'team' && { seats: options?.seats ?? CONSTANTS.INITIAL_TEAM_SEATS }),
           ...(annual && { annual: true }),
         } as const
 

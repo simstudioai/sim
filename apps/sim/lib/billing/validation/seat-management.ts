@@ -3,7 +3,7 @@ import { invitation, member, organization, subscription, user, userStats } from 
 import { createLogger } from '@sim/logger'
 import { and, count, eq } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
-import { isEnterprise } from '@/lib/billing/plan-helpers'
+import { isEnterprise, isFree, isPro } from '@/lib/billing/plan-helpers'
 import { getEffectiveSeats } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -63,7 +63,7 @@ export async function validateSeatAvailability(
     }
 
     // Free and Pro plans don't support organizations
-    if (['free', 'pro'].includes(subscription.plan)) {
+    if (isFree(subscription.plan) || isPro(subscription.plan)) {
       return {
         canInvite: false,
         reason: 'Organization features require Team or Enterprise plan',

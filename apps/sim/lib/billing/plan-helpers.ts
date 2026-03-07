@@ -2,15 +2,15 @@
  * Plan type helpers for the credit-tier billing system.
  *
  * Plan names follow the convention `{type}_{credits}`:
- *   - `pro_2000`, `pro_4000`, ..., `pro_20000`
- *   - `team_2000`, `team_4000`, ..., `team_20000`
+ *   - `pro_5000`, `pro_10000`, ..., `pro_40000`
+ *   - `team_10000`, `team_15000`, ..., `team_40000`
  *   - `free`, `enterprise` (unchanged)
  *
- * Legacy plan names (`pro`, `team`) are also recognized for backward compat.
+ * Legacy plan names (`pro`, `team`) are also recognized for backward compat
+ * and map to their original dollar amounts ($20 / $40).
  */
 
 import { CREDIT_TIERS } from '@/lib/billing/constants'
-import { creditsToDollars } from '@/lib/billing/credits/conversion'
 
 export type PlanCategory = 'free' | 'pro' | 'team' | 'enterprise'
 
@@ -41,8 +41,9 @@ export function isOrgPlan(plan: string | null | undefined): boolean {
 }
 
 /**
- * Extract the credit count from a plan name (e.g. `'pro_4000'` => `4000`).
- * Falls back to the lowest tier for legacy names (`'pro'` => 2000, `'team'` => 4000).
+ * Extract the credit count from a plan name (e.g. `'pro_5000'` => `5000`).
+ * Legacy names map to their original dollar values:
+ *   `'pro'` => 4000 credits ($20 at 1:200), `'team'` => 8000 credits ($40 at 1:200).
  */
 export function getPlanTierCredits(plan: string | null | undefined): number {
   if (!plan) return 0
@@ -55,9 +56,12 @@ export function getPlanTierCredits(plan: string | null | undefined): number {
 
 /**
  * Get the dollar value of a plan's credit tier.
+ * Looks up from CREDIT_TIERS for exact mapping.
  */
 export function getPlanTierDollars(plan: string | null | undefined): number {
-  return creditsToDollars(getPlanTierCredits(plan))
+  const credits = getPlanTierCredits(plan)
+  const tier = CREDIT_TIERS.find((t) => t.credits === credits)
+  return tier?.dollars ?? 0
 }
 
 /**
@@ -72,7 +76,7 @@ export function getPlanType(plan: string | null | undefined): PlanCategory {
 
 /**
  * Build the canonical plan name for a given type and credit tier.
- * @example buildPlanName('pro', 4000) => 'pro_4000'
+ * @example buildPlanName('pro', 5000) => 'pro_5000'
  */
 export function buildPlanName(type: 'pro' | 'team', credits: number): string {
   return `${type}_${credits}`

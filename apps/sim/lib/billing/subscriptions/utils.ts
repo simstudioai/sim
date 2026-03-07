@@ -100,7 +100,8 @@ export function getPerUserMinimumLimit(subscription: any): number {
   }
 
   if (isPro(subscription.plan)) {
-    return getProTierLimit()
+    const tierDollars = getPlanTierDollars(subscription.plan)
+    return tierDollars > 0 ? tierDollars : getProTierLimit()
   }
 
   if (isOrgPlan(subscription.plan)) {

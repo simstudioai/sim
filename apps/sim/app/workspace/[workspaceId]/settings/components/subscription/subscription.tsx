@@ -3,28 +3,47 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Info } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button, Combobox, Label, Switch, Tooltip } from '@/components/emcn'
+import {
+  Button,
+  Combobox,
+  type ComboboxOption,
+  Label,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  Switch,
+  Tooltip,
+} from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession, useSubscription } from '@/lib/auth/auth-client'
 import { USAGE_THRESHOLDS } from '@/lib/billing/client/consts'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
-import { ANNUAL_DISCOUNT_RATE, CREDIT_TIERS, WEEKLY_REFRESH_RATE } from '@/lib/billing/constants'
-import { isEnterprise, isFree, isOrgPlan, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
+import { ANNUAL_DISCOUNT_RATE, CREDIT_TIERS, DAILY_REFRESH_RATE } from '@/lib/billing/constants'
+import { CREDIT_MULTIPLIER } from '@/lib/billing/credits/conversion'
+import {
+  getPlanTierCredits,
+  isEnterprise,
+  isFree,
+  isOrgPlan,
+  isPaid,
+  isPro,
+  isTeam,
+} from '@/lib/billing/plan-helpers'
 import { getEffectiveSeats } from '@/lib/billing/subscriptions/utils'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
-  CancelSubscription,
   CreditBalance,
   PlanCard,
   ReferralCode,
 } from '@/app/workspace/[workspaceId]/settings/components/subscription/components'
 import {
   ENTERPRISE_PLAN_FEATURES,
-  PRO_PLAN_FEATURES,
-  TEAM_PLAN_FEATURES,
+  TEAM_INLINE_FEATURES,
 } from '@/app/workspace/[workspaceId]/settings/components/subscription/plan-configs'
 import {
   getSubscriptionPermissions,
@@ -43,24 +62,14 @@ import { useOrganizationBilling, useOrganizations } from '@/hooks/queries/organi
 import { useSubscriptionData, useUsageLimitData } from '@/hooks/queries/subscription'
 import { useUpdateWorkspaceSettings, useWorkspaceSettings } from '@/hooks/queries/workspace'
 
+const PRO_TIER = CREDIT_TIERS[0]
+const MAX_TIER = CREDIT_TIERS[1]
+
 const CONSTANTS = {
   UPGRADE_ERROR_TIMEOUT: 3000,
   TYPEFORM_ENTERPRISE_URL: 'https://form.typeform.com/to/jqCO12pF',
   INITIAL_TEAM_SEATS: 1,
-  DEFAULT_CREDIT_TIER: 4000,
-  DEFAULT_TEAM_CREDIT_TIER: 8000,
 } as const
-
-const TEAM_MIN_TIER = 8000
-const TEAM_TIER_OPTIONS = CREDIT_TIERS.filter((t) => t.credits >= TEAM_MIN_TIER).map((t) => ({
-  label: `${t.credits.toLocaleString()} credits`,
-  value: String(t.credits),
-}))
-
-const TIER_OPTIONS = CREDIT_TIERS.map((t) => ({
-  label: `${t.credits.toLocaleString()} credits`,
-  value: String(t.credits),
-}))
 
 type TargetPlan = 'pro' | 'team'
 
@@ -70,16 +79,11 @@ interface WorkspaceAdmin {
   permissionType: string
 }
 
-/**
- * Skeleton component for subscription loading state.
- */
 function SubscriptionSkeleton() {
   return (
     <div className='flex h-full flex-col gap-[20px]'>
-      {/* UsageHeader skeleton */}
       <div className='flex flex-col gap-[12px]'>
         <div className='flex items-center justify-between'>
-          {/* Left side: plan name and usage */}
           <div className='flex flex-col gap-[4px]'>
             <div className='flex h-[18px] items-center'>
               <Skeleton className='h-[12px] w-[40px] rounded-[4px]' />
@@ -90,7 +94,6 @@ function SubscriptionSkeleton() {
               <Skeleton className='h-[14px] w-[50px] rounded-[4px]' />
             </div>
           </div>
-          {/* Right side: pills */}
           <div className='flex flex-col items-end gap-[8px]'>
             <div className='flex w-[100px] items-center gap-[4px]'>
               {[...Array(5)].map((_, i) => (
@@ -100,88 +103,127 @@ function SubscriptionSkeleton() {
           </div>
         </div>
       </div>
-
-      {/* Plan Cards */}
       <div className='flex flex-col gap-[10px]'>
-        {/* Pro and Team Cards Grid */}
         <div className='grid grid-cols-2 gap-[10px]'>
-          {/* Pro Plan Card */}
-          <article className='flex flex-1 flex-col overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-            <div className='flex items-center justify-between gap-[8px] px-[14px] py-[10px]'>
-              <Skeleton className='h-[14px] w-[24px] rounded-[4px]' />
-              <div className='flex items-baseline'>
-                <Skeleton className='h-[14px] w-[28px] rounded-[4px]' />
-                <Skeleton className='ml-[4px] h-[12px] w-[40px] rounded-[4px]' />
+          {[0, 1].map((i) => (
+            <article
+              key={i}
+              className='flex flex-1 flex-col overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'
+            >
+              <div className='flex items-center justify-between gap-[8px] px-[14px] py-[10px]'>
+                <Skeleton className='h-[14px] w-[32px] rounded-[4px]' />
+                <Skeleton className='h-[14px] w-[50px] rounded-[4px]' />
               </div>
-            </div>
-            <div className='flex flex-1 flex-col gap-[18px] rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[16px]'>
-              <ul className='flex flex-1 flex-col gap-[14px]'>
-                {[...Array(6)].map((_, i) => (
-                  <li key={i} className='flex items-center gap-[8px]'>
-                    <Skeleton className='h-[12px] w-[12px] flex-shrink-0 rounded-[4px]' />
-                    <Skeleton className='h-[12px] w-[120px] rounded-[4px]' />
-                  </li>
-                ))}
-              </ul>
-              <Skeleton className='h-[28px] w-full rounded-[5px]' />
-            </div>
-          </article>
-
-          {/* Team Plan Card */}
-          <article className='flex flex-1 flex-col overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-            <div className='flex items-center justify-between gap-[8px] px-[14px] py-[10px]'>
-              <Skeleton className='h-[14px] w-[32px] rounded-[4px]' />
-              <div className='flex items-baseline'>
-                <Skeleton className='h-[14px] w-[28px] rounded-[4px]' />
-                <Skeleton className='ml-[4px] h-[12px] w-[40px] rounded-[4px]' />
+              <div className='flex flex-1 flex-col gap-[18px] rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[16px]'>
+                <ul className='flex flex-1 flex-col gap-[14px]'>
+                  {[...Array(5)].map((_, j) => (
+                    <li key={j} className='flex items-center gap-[8px]'>
+                      <Skeleton className='h-[12px] w-[12px] flex-shrink-0 rounded-[4px]' />
+                      <Skeleton className='h-[12px] w-[120px] rounded-[4px]' />
+                    </li>
+                  ))}
+                </ul>
+                <Skeleton className='h-[28px] w-full rounded-[5px]' />
               </div>
-            </div>
-            <div className='flex flex-1 flex-col gap-[18px] rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[16px]'>
-              <ul className='flex flex-1 flex-col gap-[14px]'>
-                {[...Array(5)].map((_, i) => (
-                  <li key={i} className='flex items-center gap-[8px]'>
-                    <Skeleton className='h-[12px] w-[12px] flex-shrink-0 rounded-[4px]' />
-                    <Skeleton className='h-[12px] w-[130px] rounded-[4px]' />
-                  </li>
-                ))}
-              </ul>
-              <Skeleton className='h-[28px] w-full rounded-[5px]' />
-            </div>
-          </article>
+            </article>
+          ))}
         </div>
-
-        {/* Enterprise Card - inlineButton layout */}
-        <article className='flex flex-1 flex-col overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-          <div className='flex items-center justify-between gap-[8px] px-[14px] py-[10px]'>
-            <Skeleton className='h-[14px] w-[64px] rounded-[4px]' />
-            <div className='flex items-baseline' />
-          </div>
-          <div className='flex items-center justify-between gap-[18px] rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[12px]'>
-            <ul className='flex flex-row flex-wrap items-center gap-x-[16px] gap-y-[8px]'>
-              {[...Array(5)].map((_, i) => (
-                <li key={i} className='flex items-center gap-[8px]'>
-                  <Skeleton className='h-[12px] w-[12px] flex-shrink-0 rounded-[4px]' />
-                  <Skeleton className='h-[12px] w-[100px] rounded-[4px]' />
-                </li>
-              ))}
-            </ul>
-            <Skeleton className='h-[28px] w-[64px] flex-shrink-0 rounded-[5px]' />
-          </div>
-        </article>
       </div>
     </div>
   )
 }
 
-const formatPlanName = (plan: string): string => plan.charAt(0).toUpperCase() + plan.slice(1)
+const formatPlanName = (plan: string): string => {
+  const base = plan.replace(/_\d+$/, '')
+  return base.charAt(0).toUpperCase() + base.slice(1)
+}
+
+interface CreditPlanCardProps {
+  name: string
+  credits: number
+  dollars: number
+  dailyRefresh: number
+  isAnnual: boolean
+  buttonText: string
+  onButtonClick: () => void
+  isCurrentPlan?: boolean
+  onManagePlan?: () => void
+  isError?: boolean
+}
+
+function CreditPlanCard({
+  name,
+  credits,
+  dollars,
+  dailyRefresh,
+  isAnnual,
+  buttonText,
+  onButtonClick,
+  isError,
+  isCurrentPlan,
+  onManagePlan,
+}: CreditPlanCardProps) {
+  const discountedMonthly = Math.round(dollars * (1 - ANNUAL_DISCOUNT_RATE))
+
+  return (
+    <article className='flex flex-1 flex-col overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
+      <div className='flex items-center justify-between gap-[8px] px-[14px] py-[10px]'>
+        <span className='font-medium text-[14px] text-[var(--text-primary)]'>{name}</span>
+        <div className='flex items-baseline gap-[4px]'>
+          <span className='font-medium text-[14px] text-[var(--text-primary)]'>
+            ${isAnnual ? discountedMonthly : dollars}
+          </span>
+          <span className='text-[12px] text-[var(--text-secondary)]'>/mo</span>
+          {isAnnual && (
+            <span className='ml-[2px] text-[11px] text-[var(--text-muted)] line-through'>
+              ${dollars}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className='flex items-center gap-[12px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[10px]'>
+        <div className='flex flex-col'>
+          <span className='font-semibold text-[18px] text-[var(--text-primary)]'>
+            {credits.toLocaleString()}
+          </span>
+          <span className='text-[11px] text-[var(--text-secondary)]'>credits/mo</span>
+        </div>
+        <div className='h-[28px] w-[1px] bg-[var(--border-1)]' />
+        <div className='flex flex-col'>
+          <span className='font-semibold text-[14px] text-[var(--text-primary)]'>
+            +{dailyRefresh.toLocaleString()}
+          </span>
+          <span className='text-[11px] text-[var(--text-secondary)]'>daily refresh</span>
+        </div>
+      </div>
+
+      <div className='border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[14px]'>
+        {isCurrentPlan ? (
+          <Button onClick={onManagePlan} className='w-full' variant='default'>
+            Manage plan
+          </Button>
+        ) : (
+          <Button
+            onClick={onButtonClick}
+            className='w-full'
+            variant={isError ? 'outline' : 'tertiary'}
+          >
+            {isError ? 'Error' : buttonText}
+          </Button>
+        )}
+      </div>
+    </article>
+  )
+}
 
 /**
  * Subscription management component
- * Handles plan display, upgrades, and billing management
  */
 export function Subscription() {
   const { data: session } = useSession()
   const { handleUpgrade } = useSubscriptionUpgrade()
+  const betterAuthSubscription = useSubscription()
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
   const userPermissions = useUserPermissionsContext()
@@ -205,12 +247,10 @@ export function Subscription() {
     activeOrgId || ''
   )
 
-  const [upgradeError, setUpgradeError] = useState<'pro' | 'team' | null>(null)
-  const [selectedProTier, setSelectedProTier] = useState<number>(CONSTANTS.DEFAULT_CREDIT_TIER)
-  const [selectedTeamTier, setSelectedTeamTier] = useState<number>(
-    CONSTANTS.DEFAULT_TEAM_CREDIT_TIER
-  )
+  const [upgradeError, setUpgradeError] = useState<string | null>(null)
   const [isAnnual, setIsAnnual] = useState(false)
+  const [teamModalOpen, setTeamModalOpen] = useState(false)
+  const [managePlanModalOpen, setManagePlanModalOpen] = useState(false)
   const usageLimitRef = useRef<UsageLimitRef | null>(null)
 
   const hasOrgPlan = isOrgPlan(subscriptionData?.data?.plan)
@@ -239,7 +279,7 @@ export function Subscription() {
 
   const usageLimitData = {
     currentLimit: usageLimitResponse?.data?.currentLimit || 0,
-    minimumLimit: usageLimitResponse?.data?.minimumLimit || (subscription.isPro ? 20 : 40),
+    minimumLimit: usageLimitResponse?.data?.minimumLimit || 25,
   }
 
   const isBlocked = Boolean(subscriptionData?.data?.billingBlocked)
@@ -259,10 +299,7 @@ export function Subscription() {
   const updateWorkspaceSettings = async (updates: { billedAccountUserId?: string }) => {
     if (!workspaceId) return
     try {
-      await updateWorkspaceMutation.mutateAsync({
-        workspaceId,
-        ...updates,
-      })
+      await updateWorkspaceMutation.mutateAsync({ workspaceId, ...updates })
     } catch (error) {
       logger.error('Error updating workspace settings:', { error })
       throw error
@@ -271,9 +308,7 @@ export function Subscription() {
 
   useEffect(() => {
     if (upgradeError) {
-      const timer = setTimeout(() => {
-        setUpgradeError(null)
-      }, CONSTANTS.UPGRADE_ERROR_TIMEOUT)
+      const timer = setTimeout(() => setUpgradeError(null), CONSTANTS.UPGRADE_ERROR_TIMEOUT)
       return () => clearTimeout(timer)
     }
   }, [upgradeError])
@@ -291,10 +326,7 @@ export function Subscription() {
       plan: subscription.plan || 'free',
       status: subscription.status || 'inactive',
     },
-    {
-      isTeamAdmin,
-      userRole: userRole || 'member',
-    }
+    { isTeamAdmin, userRole: userRole || 'member' }
   )
 
   const visiblePlans = getVisiblePlans(
@@ -307,10 +339,7 @@ export function Subscription() {
       plan: subscription.plan || 'free',
       status: subscription.status || 'inactive',
     },
-    {
-      isTeamAdmin,
-      userRole: userRole || 'member',
-    }
+    { isTeamAdmin, userRole: userRole || 'member' }
   )
 
   const showBadge =
@@ -321,42 +350,38 @@ export function Subscription() {
       isBlocked)
 
   const getBadgeConfig = (): { text: string; variant: 'blue-secondary' | 'red' } => {
-    if (permissions.isEnterpriseMember) {
-      return { text: '', variant: 'blue-secondary' }
-    }
-    if (permissions.showTeamMemberView || subscription.isEnterprise) {
+    if (permissions.isEnterpriseMember) return { text: '', variant: 'blue-secondary' }
+    if (permissions.showTeamMemberView || subscription.isEnterprise)
       return { text: `${subscription.seats} seats`, variant: 'blue-secondary' }
-    }
     if (isDispute) return { text: 'Get Help', variant: 'red' }
     if (isBlocked) return { text: 'Fix Now', variant: 'red' }
     if (subscription.isFree) return { text: 'Upgrade', variant: 'blue-secondary' }
-    if (isCritical && permissions.canEditUsageLimit) {
+    if (isCritical && permissions.canEditUsageLimit)
       return { text: 'Increase Limit', variant: 'red' }
-    }
     return { text: 'Increase Limit', variant: 'blue-secondary' }
   }
   const badgeConfig = getBadgeConfig()
 
-  const handleUpgradeWithErrorHandling = useCallback(
-    async (targetPlan: TargetPlan) => {
-      const tier = targetPlan === 'team' ? selectedTeamTier : selectedProTier
+  const doUpgrade = useCallback(
+    async (targetPlan: TargetPlan, creditTier: number, seats?: number) => {
       try {
-        await handleUpgrade(targetPlan, { creditTier: tier, annual: isAnnual })
+        await handleUpgrade(targetPlan, {
+          creditTier,
+          annual: isAnnual,
+          ...(seats ? { seats } : {}),
+        })
       } catch (error) {
         alert(error instanceof Error ? error.message : 'Unknown error occurred')
       }
     },
-    [handleUpgrade, selectedProTier, selectedTeamTier, isAnnual]
+    [handleUpgrade, isAnnual]
   )
 
   const handleBadgeClick = useCallback(async () => {
-    // Dispute: open help modal
     if (isDispute) {
       window.dispatchEvent(new CustomEvent('open-help-modal'))
       return
     }
-
-    // Blocked: open billing portal
     if (isBlocked) {
       try {
         const context = subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
@@ -370,9 +395,7 @@ export function Subscription() {
           }),
         })
         const data = await res.json()
-        if (!res.ok || !data?.url) {
-          throw new Error(data?.error || 'Failed to start billing portal')
-        }
+        if (!res.ok || !data?.url) throw new Error(data?.error || 'Failed to start billing portal')
         window.location.href = data.url
       } catch (e) {
         logger.error('Failed to open billing portal', { error: e })
@@ -380,14 +403,10 @@ export function Subscription() {
       }
       return
     }
-
-    // Free: upgrade to pro
     if (subscription.isFree) {
-      handleUpgradeWithErrorHandling('pro')
+      doUpgrade('pro', PRO_TIER.credits)
       return
     }
-
-    // Paid: edit usage limit
     if (permissions.canEditUsageLimit && usageLimitRef.current) {
       usageLimitRef.current.startEdit()
     }
@@ -399,143 +418,40 @@ export function Subscription() {
     subscription.isEnterprise,
     activeOrgId,
     permissions.canEditUsageLimit,
-    handleUpgradeWithErrorHandling,
+    doUpgrade,
     logger,
   ])
 
-  const renderPlanCard = useCallback(
-    (planType: 'pro' | 'team' | 'enterprise', options?: { horizontal?: boolean }) => {
-      const handleContactEnterprise = () => window.open(CONSTANTS.TYPEFORM_ENTERPRISE_URL, '_blank')
+  const currentInterval: 'month' | 'year' =
+    subscriptionData?.data?.billingInterval === 'year' ? 'year' : 'month'
 
-      if (planType === 'enterprise') {
-        return (
-          <PlanCard
-            key='enterprise'
-            name='Enterprise'
-            price=''
-            features={ENTERPRISE_PLAN_FEATURES}
-            buttonText='Contact'
-            onButtonClick={handleContactEnterprise}
-            inlineButton={options?.horizontal}
-          />
-        )
-      }
-
-      const isPlanPro = planType === 'pro'
-      const cardTier = isPlanPro ? selectedProTier : selectedTeamTier
-      const setCardTier = isPlanPro ? setSelectedProTier : setSelectedTeamTier
-      const tierOpts = isPlanPro ? TIER_OPTIONS : TEAM_TIER_OPTIONS
-      const features = isPlanPro ? PRO_PLAN_FEATURES : TEAM_PLAN_FEATURES
-
-      const tier = CREDIT_TIERS.find((t) => t.credits === cardTier) ?? CREDIT_TIERS[0]
-      const monthly = tier.dollars
-      const discountedMonthly = Math.round(monthly * (1 - ANNUAL_DISCOUNT_RATE))
-      const weeklyRefresh = Math.round(tier.dollars * WEEKLY_REFRESH_RATE * 100)
-
-      return (
-        <article
-          key={planType}
-          className='flex flex-1 flex-col overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'
-        >
-          {/* Header: plan name + price */}
-          <div className='flex items-center justify-between gap-[8px] px-[14px] py-[10px]'>
-            <span className='font-medium text-[14px] text-[var(--text-primary)]'>
-              {isPlanPro ? 'Pro' : 'Team'}
-            </span>
-            <div className='flex items-baseline gap-[4px]'>
-              {isAnnual ? (
-                <>
-                  <span className='font-medium text-[14px] text-[var(--text-primary)]'>
-                    ${discountedMonthly}
-                  </span>
-                  <span className='text-[12px] text-[var(--text-secondary)]'>
-                    {isPlanPro ? '/mo' : '/seat/mo'}
-                  </span>
-                  <span className='ml-[2px] text-[11px] text-[var(--text-muted)] line-through'>
-                    ${monthly}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span className='font-medium text-[14px] text-[var(--text-primary)]'>
-                    ${monthly}
-                  </span>
-                  <span className='text-[12px] text-[var(--text-secondary)]'>
-                    {isPlanPro ? '/mo' : '/seat/mo'}
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Credit tier selector + weekly refresh */}
-          <div className='flex items-center gap-[10px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[10px]'>
-            <div className='w-[130px]'>
-              <Combobox
-                size='sm'
-                align='start'
-                dropdownWidth={150}
-                value={String(cardTier)}
-                onChange={(value: string) => setCardTier(Number(value))}
-                placeholder='Credits'
-                options={tierOpts}
-              />
-            </div>
-            <div className='h-[28px] w-[1px] bg-[var(--border-1)]' />
-            <div className='flex flex-col'>
-              <span className='font-semibold text-[14px] text-[var(--text-primary)]'>
-                +{weeklyRefresh.toLocaleString()}
-              </span>
-              <span className='text-[11px] text-[var(--text-secondary)]'>weekly refresh</span>
-            </div>
-          </div>
-
-          {/* Features + CTA */}
-          <div className='flex flex-1 flex-col gap-[14px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[14px]'>
-            <ul className='flex flex-1 flex-col gap-[10px]'>
-              {features.map((feature, index) => {
-                const Icon = feature.icon
-                return (
-                  <li key={`${feature.text}-${index}`} className='flex items-center gap-[8px]'>
-                    <Icon className='h-[12px] w-[12px] flex-shrink-0 text-[var(--text-secondary)]' />
-                    <span className='text-[12px] text-[var(--text-primary)]'>{feature.text}</span>
-                  </li>
-                )
-              })}
-            </ul>
-            <Button
-              onClick={() => handleUpgradeWithErrorHandling(planType)}
-              className='w-full'
-              variant={upgradeError === planType ? 'outline' : 'tertiary'}
-              aria-label={`Upgrade to ${isPlanPro ? 'Pro' : 'Team'} plan`}
-            >
-              {upgradeError === planType
-                ? 'Error'
-                : subscription.isFree
-                  ? 'Get started'
-                  : `Upgrade to ${isPlanPro ? 'Pro' : 'Team'}`}
-            </Button>
-          </div>
-        </article>
-      )
+  const handleSwitchInterval = useCallback(
+    async (interval: 'month' | 'year') => {
+      const res = await fetch('/api/billing/switch-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetPlanName: subscription.plan, interval }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Failed to switch interval')
+      await refetchSubscription()
     },
-    [
-      subscription.isFree,
-      upgradeError,
-      handleUpgradeWithErrorHandling,
-      isAnnual,
-      selectedProTier,
-      selectedTeamTier,
-    ]
+    [refetchSubscription, subscription.plan]
   )
 
-  if (isLoading) {
-    return <SubscriptionSkeleton />
-  }
+  const proDailyRefresh = Math.round(PRO_TIER.dollars * DAILY_REFRESH_RATE * CREDIT_MULTIPLIER)
+  const maxDailyRefresh = Math.round(MAX_TIER.dollars * DAILY_REFRESH_RATE * CREDIT_MULTIPLIER)
+
+  if (isLoading) return <SubscriptionSkeleton />
+
+  const showUpgradePlans = permissions.showUpgradePlans
+  const hasEnterprise = visiblePlans.includes('enterprise')
+  const showTeamCard = visiblePlans.includes('pro') || visiblePlans.includes('team')
+  const ctaText = subscription.isFree ? 'Get started' : 'Upgrade'
 
   return (
     <div className='flex h-full flex-col gap-[20px]'>
-      {/* Current Plan & Usage Overview - hidden from enterprise members (non-admin) */}
+      {/* Current Plan & Usage Overview */}
       {permissions.canViewUsageInfo ? (
         <UsageHeader
           title={formatPlanName(subscription.plan)}
@@ -554,7 +470,7 @@ export function Subscription() {
               ? organizationBillingData?.data?.totalUsageLimit
               : !subscription.isFree &&
                   (permissions.canEditUsageLimit || permissions.showTeamMemberView)
-                ? usage.current // placeholder; rightContent will render UsageLimit
+                ? usage.current
                 : usage.limit
           }
           isBlocked={isBlocked}
@@ -578,7 +494,7 @@ export function Subscription() {
                   isTeamAdmin &&
                   organizationBillingData?.data
                     ? organizationBillingData.data.minimumBillingAmount
-                    : usageLimitData.minimumLimit || (subscription.isPro ? 20 : 40)
+                    : usageLimitData.minimumLimit
                 }
                 context={
                   (subscription.isTeam || subscription.isEnterprise) && isTeamAdmin
@@ -590,9 +506,7 @@ export function Subscription() {
                     ? activeOrgId
                     : undefined
                 }
-                onLimitUpdated={() => {
-                  logger.info('Usage limit updated')
-                }}
+                onLimitUpdated={() => logger.info('Usage limit updated')}
               />
             ) : undefined
           }
@@ -606,9 +520,9 @@ export function Subscription() {
       )}
 
       {/* Upgrade Plans */}
-      {permissions.showUpgradePlans && (
+      {showUpgradePlans && (
         <div className='flex flex-col gap-[12px]'>
-          {/* Billing interval toggle */}
+          {/* Billing toggle */}
           <div className='flex items-center justify-end'>
             <div className='flex rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] p-[2px]'>
               <button
@@ -641,35 +555,192 @@ export function Subscription() {
             </div>
           </div>
 
-          {/* Render plans based on what should be visible */}
+          {/* Pro + Max cards -- hide the lower tier if user is on the higher one */}
           {(() => {
-            const hasEnterprise = visiblePlans.includes('enterprise')
-            const nonEnterprisePlans = visiblePlans.filter((plan) => plan !== 'enterprise')
-
-            const showEnterpriseHorizontal =
-              subscription.isFree || (subscription.isTeam && isTeamAdmin)
+            const currentCredits = getPlanTierCredits(subscription.plan)
+            const isPaid = isPro(subscription.plan) || isTeam(subscription.plan)
+            const isOnProTier = isPaid && currentCredits === PRO_TIER.credits
+            const isOnMaxTier = isPaid && currentCredits === MAX_TIER.credits
+            const wantsIntervalSwitch = isPaid && isAnnual !== (currentInterval === 'year')
+            const isOnPro = isOnProTier && !wantsIntervalSwitch
+            const isOnMax = isOnMaxTier && !wantsIntervalSwitch
+            const showProCard = !isOnMaxTier
+            const cardCount = (showProCard ? 1 : 0) + 1
 
             return (
-              <>
-                {nonEnterprisePlans.length > 0 && (
-                  <div
-                    className={cn(
-                      'grid gap-[10px]',
-                      nonEnterprisePlans.length === 2 ? 'grid-cols-2' : 'grid-cols-1'
-                    )}
-                  >
-                    {nonEnterprisePlans.map((plan) => renderPlanCard(plan))}
-                  </div>
+              <div
+                className={cn('grid gap-[10px]', cardCount === 2 ? 'grid-cols-2' : 'grid-cols-1')}
+              >
+                {showProCard && (
+                  <CreditPlanCard
+                    name='Pro'
+                    credits={PRO_TIER.credits}
+                    dollars={PRO_TIER.dollars}
+                    dailyRefresh={proDailyRefresh}
+                    isAnnual={isAnnual}
+                    buttonText={
+                      isOnPro
+                        ? 'Manage plan'
+                        : isOnProTier && wantsIntervalSwitch
+                          ? `Switch to ${isAnnual ? 'Annual' : 'Monthly'}`
+                          : 'Get started'
+                    }
+                    onButtonClick={
+                      isOnPro
+                        ? () => setManagePlanModalOpen(true)
+                        : isOnProTier && wantsIntervalSwitch
+                          ? () =>
+                              handleSwitchInterval(isAnnual ? 'year' : 'month').then(() =>
+                                setManagePlanModalOpen(false)
+                              )
+                          : () => doUpgrade('pro', PRO_TIER.credits)
+                    }
+                    isError={upgradeError === 'pro'}
+                    isCurrentPlan={isOnPro}
+                    onManagePlan={() => setManagePlanModalOpen(true)}
+                  />
                 )}
-                {hasEnterprise &&
-                  renderPlanCard('enterprise', { horizontal: showEnterpriseHorizontal })}
-              </>
+                <CreditPlanCard
+                  name='Max'
+                  credits={MAX_TIER.credits}
+                  dollars={MAX_TIER.dollars}
+                  dailyRefresh={maxDailyRefresh}
+                  isAnnual={isAnnual}
+                  buttonText={
+                    isOnMax
+                      ? 'Manage plan'
+                      : isOnMaxTier && wantsIntervalSwitch
+                        ? `Switch to ${isAnnual ? 'Annual' : 'Monthly'}`
+                        : subscription.isTeam
+                          ? 'Upgrade Team'
+                          : 'Upgrade'
+                  }
+                  onButtonClick={
+                    isOnMax
+                      ? () => setManagePlanModalOpen(true)
+                      : isOnMaxTier && wantsIntervalSwitch
+                        ? () => handleSwitchInterval(isAnnual ? 'year' : 'month')
+                        : subscription.isPaid
+                          ? async () => {
+                              const planType = subscription.isTeam ? 'team' : 'pro'
+                              try {
+                                const res = await fetch('/api/billing/switch-plan', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    targetPlanName: `${planType}_${MAX_TIER.credits}`,
+                                  }),
+                                })
+                                const data = await res.json()
+                                if (!res.ok) throw new Error(data?.error || 'Failed to upgrade')
+                                await refetchSubscription()
+                              } catch (e) {
+                                alert(e instanceof Error ? e.message : 'Failed to upgrade')
+                              }
+                            }
+                          : () => doUpgrade('pro', MAX_TIER.credits)
+                  }
+                  isError={upgradeError === 'max'}
+                  isCurrentPlan={isOnMax}
+                  onManagePlan={() => setManagePlanModalOpen(true)}
+                />
+              </div>
             )
           })()}
+
+          {/* Get For Team -- horizontal card */}
+          {showTeamCard && (
+            <PlanCard
+              name='Get For Team'
+              price=''
+              features={TEAM_INLINE_FEATURES}
+              buttonText='Get started'
+              onButtonClick={() => setTeamModalOpen(true)}
+              inlineButton
+            />
+          )}
+
+          {/* Enterprise */}
+          {hasEnterprise && (
+            <PlanCard
+              name='Enterprise'
+              price=''
+              features={ENTERPRISE_PLAN_FEATURES}
+              buttonText='Contact'
+              onButtonClick={() => window.open(CONSTANTS.TYPEFORM_ENTERPRISE_URL, '_blank')}
+              inlineButton
+            />
+          )}
         </div>
       )}
 
-      {/* Credit Balance - hidden from enterprise members (non-admin) */}
+      {/* Team plan selection modal */}
+      <TeamPlanModal
+        open={teamModalOpen}
+        onOpenChange={setTeamModalOpen}
+        isAnnual={isAnnual}
+        onConfirm={(creditTier, seats) => {
+          setTeamModalOpen(false)
+          doUpgrade('team', creditTier, seats)
+        }}
+      />
+
+      {/* Manage current plan modal */}
+      <ManagePlanModal
+        open={managePlanModalOpen}
+        onOpenChange={setManagePlanModalOpen}
+        currentPlanCredits={getPlanTierCredits(subscription.plan)}
+        currentInterval={currentInterval}
+        isTeamPlan={subscription.isTeam}
+        onSwitchInterval={async (interval) => {
+          await handleSwitchInterval(interval)
+          setManagePlanModalOpen(false)
+        }}
+        onUpgradeToOtherTier={async () => {
+          const currentCredits = getPlanTierCredits(subscription.plan)
+          const otherTier = currentCredits === PRO_TIER.credits ? MAX_TIER : PRO_TIER
+          const planType = subscription.isTeam ? 'team' : 'pro'
+          const targetPlanName = `${planType}_${otherTier.credits}`
+          try {
+            const res = await fetch('/api/billing/switch-plan', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ targetPlanName }),
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data?.error || 'Failed to switch plan')
+            await refetchSubscription()
+            setManagePlanModalOpen(false)
+          } catch (e) {
+            alert(e instanceof Error ? e.message : 'Failed to switch plan')
+          }
+        }}
+        onGetForTeam={() => {
+          setManagePlanModalOpen(false)
+          if (subscription.isTeam) {
+            window.location.href = `/workspace/${workspaceId}/settings/team`
+          } else {
+            setTeamModalOpen(true)
+          }
+        }}
+        onCancel={async () => {
+          setManagePlanModalOpen(false)
+          if (!betterAuthSubscription.cancel) return
+          try {
+            const referenceId =
+              (subscription.isTeam || subscription.isEnterprise) && activeOrgId
+                ? activeOrgId
+                : session?.user?.id || ''
+            const returnUrl = getBaseUrl() + window.location.pathname
+            await betterAuthSubscription.cancel({ returnUrl, referenceId })
+          } catch (e) {
+            logger.error('Failed to cancel subscription', { error: e })
+            alert(e instanceof Error ? e.message : 'Failed to cancel subscription')
+          }
+        }}
+      />
+
+      {/* Credit Balance */}
       {subscription.isPaid && permissions.canViewUsageInfo && (
         <CreditBalance
           balance={subscriptionData?.data?.creditBalance ?? 0}
@@ -684,7 +755,7 @@ export function Subscription() {
         <ReferralCode onRedeemComplete={() => refetchSubscription()} />
       )}
 
-      {/* Next Billing Date - hidden from team members and enterprise members (non-admin) */}
+      {/* Next Billing Date */}
       {subscription.isPaid &&
         subscriptionData?.data?.periodEnd &&
         !permissions.showTeamMemberView &&
@@ -697,27 +768,9 @@ export function Subscription() {
           </div>
         )}
 
-      {/* Usage notifications - hidden from enterprise members (non-admin) */}
       {subscription.isPaid && permissions.canViewUsageInfo && <BillingUsageNotificationsToggle />}
 
-      {/* Cancel Subscription */}
-      {permissions.canCancelSubscription && (
-        <CancelSubscription
-          subscription={{
-            plan: subscription.plan,
-            status: subscription.status,
-            isPaid: subscription.isPaid,
-          }}
-          subscriptionData={{
-            periodEnd: subscriptionData?.data?.periodEnd
-              ? new Date(subscriptionData.data.periodEnd)
-              : null,
-            cancelAtPeriodEnd: subscriptionData?.data?.cancelAtPeriodEnd,
-          }}
-        />
-      )}
-
-      {/* Billed Account for Workspace - Only visible to team admins */}
+      {/* Billed Account */}
       {!isLoading && isTeamAdmin && (
         <div className='mt-auto flex items-center justify-between'>
           <div className='flex items-center gap-[6px]'>
@@ -747,7 +800,7 @@ export function Subscription() {
                     try {
                       await updateWorkspaceSettings({ billedAccountUserId: value })
                     } catch {
-                      // Error is already logged in updateWorkspaceSettings
+                      /* logged above */
                     }
                   }
                 }}
@@ -763,6 +816,316 @@ export function Subscription() {
         </div>
       )}
     </div>
+  )
+}
+
+interface TeamPlanModalProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  isAnnual: boolean
+  onConfirm: (creditTier: number, seats: number) => void
+}
+
+function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModalProps) {
+  const [selectedTier, setSelectedTier] = useState<number>(PRO_TIER.credits)
+  const [selectedSeats, setSelectedSeats] = useState(1)
+
+  useEffect(() => {
+    if (open) {
+      setSelectedTier(PRO_TIER.credits)
+      setSelectedSeats(1)
+    }
+  }, [open])
+
+  const tier = CREDIT_TIERS.find((t) => t.credits === selectedTier) ?? PRO_TIER
+  const monthlyCostPerSeat = tier.dollars
+  const totalMonthly = monthlyCostPerSeat * selectedSeats
+  const discountedTotal = Math.round(totalMonthly * (1 - ANNUAL_DISCOUNT_RATE))
+
+  const seatOptions: ComboboxOption[] = [1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 40, 50].map((num) => ({
+    value: num.toString(),
+    label: `${num} ${num === 1 ? 'seat' : 'seats'}`,
+  }))
+
+  return (
+    <Modal open={open} onOpenChange={onOpenChange}>
+      <ModalContent size='sm'>
+        <ModalHeader>Get For Team</ModalHeader>
+        <ModalBody>
+          <p className='text-[13px] text-[var(--text-secondary)]'>
+            Choose a plan and number of seats for your team. Credits are pooled across all members.
+          </p>
+
+          {/* Plan toggle */}
+          <div className='mt-[16px] flex flex-col gap-[4px]'>
+            <Label className='text-[13px]'>Plan</Label>
+            <div className='flex gap-[8px]'>
+              <button
+                type='button'
+                className={cn(
+                  'flex-1 rounded-[6px] border px-[12px] py-[10px] text-left transition-colors',
+                  selectedTier === PRO_TIER.credits
+                    ? 'border-[var(--accent)] bg-[var(--accent)]/5'
+                    : 'border-[var(--border-1)] hover:border-[var(--border-2)]'
+                )}
+                onClick={() => setSelectedTier(PRO_TIER.credits)}
+              >
+                <span className='block font-medium text-[13px] text-[var(--text-primary)]'>
+                  Pro
+                </span>
+                <span className='block text-[12px] text-[var(--text-secondary)]'>
+                  {PRO_TIER.credits.toLocaleString()} credits/seat &middot; ${PRO_TIER.dollars}
+                  /seat/mo
+                </span>
+              </button>
+              <button
+                type='button'
+                className={cn(
+                  'flex-1 rounded-[6px] border px-[12px] py-[10px] text-left transition-colors',
+                  selectedTier === MAX_TIER.credits
+                    ? 'border-[var(--accent)] bg-[var(--accent)]/5'
+                    : 'border-[var(--border-1)] hover:border-[var(--border-2)]'
+                )}
+                onClick={() => setSelectedTier(MAX_TIER.credits)}
+              >
+                <span className='block font-medium text-[13px] text-[var(--text-primary)]'>
+                  Max
+                </span>
+                <span className='block text-[12px] text-[var(--text-secondary)]'>
+                  {MAX_TIER.credits.toLocaleString()} credits/seat &middot; ${MAX_TIER.dollars}
+                  /seat/mo
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Seat selector */}
+          <div className='mt-[16px] flex flex-col gap-[4px]'>
+            <Label className='text-[13px]'>Seats</Label>
+            <Combobox
+              options={seatOptions}
+              value={selectedSeats > 0 ? selectedSeats.toString() : ''}
+              onChange={(value) => {
+                const num = Number.parseInt(value, 10)
+                if (!Number.isNaN(num) && num > 0) setSelectedSeats(num)
+              }}
+              placeholder='Select seats'
+              editable
+            />
+          </div>
+
+          {/* Cost summary */}
+          <div className='mt-[16px] rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-4)] px-[12px] py-[10px]'>
+            <div className='flex justify-between text-[13px]'>
+              <span className='text-[var(--text-muted)]'>
+                {selectedSeats} {selectedSeats === 1 ? 'seat' : 'seats'} &times; $
+                {monthlyCostPerSeat}/mo
+              </span>
+              <span className='font-medium text-[var(--text-primary)]'>
+                {isAnnual ? `$${discountedTotal}/mo` : `$${totalMonthly}/mo`}
+              </span>
+            </div>
+            {isAnnual && (
+              <div className='mt-[4px] flex justify-between text-[12px]'>
+                <span className='text-[var(--text-muted)]'>Annual total</span>
+                <span className='text-[var(--text-secondary)]'>
+                  ${discountedTotal * 12}/yr
+                  <span className='ml-[4px] text-[var(--text-muted)] line-through'>
+                    ${totalMonthly * 12}
+                  </span>
+                </span>
+              </div>
+            )}
+          </div>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant='default' onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant='tertiary'
+            onClick={() => onConfirm(selectedTier, selectedSeats)}
+            disabled={selectedSeats < 1}
+          >
+            Get started
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
+  )
+}
+
+interface ManagePlanModalProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  currentPlanCredits: number
+  currentInterval: 'month' | 'year'
+  isTeamPlan: boolean
+  onSwitchInterval: (interval: 'month' | 'year') => Promise<void>
+  onUpgradeToOtherTier: () => void
+  onGetForTeam: () => void
+  onCancel: () => void
+}
+
+function ManagePlanModal({
+  open,
+  onOpenChange,
+  currentPlanCredits,
+  currentInterval,
+  isTeamPlan,
+  onSwitchInterval,
+  onUpgradeToOtherTier,
+  onGetForTeam,
+  onCancel,
+}: ManagePlanModalProps) {
+  const [selectedInterval, setSelectedInterval] = useState<'month' | 'year'>(currentInterval)
+  const [isSwitching, setIsSwitching] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (open) {
+      setSelectedInterval(currentInterval)
+      setError(null)
+    }
+  }, [open, currentInterval])
+
+  const isOnPro = currentPlanCredits === PRO_TIER.credits
+  const currentTier = isOnPro ? PRO_TIER : MAX_TIER
+  const otherTier = isOnPro ? MAX_TIER : PRO_TIER
+  const isUpgrade = otherTier.dollars > currentTier.dollars
+
+  const handleApplyInterval = async () => {
+    if (selectedInterval === currentInterval) return
+    setIsSwitching(true)
+    setError(null)
+    try {
+      await onSwitchInterval(selectedInterval)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to switch interval')
+    } finally {
+      setIsSwitching(false)
+    }
+  }
+
+  const discountedMonthly = Math.round(currentTier.dollars * (1 - ANNUAL_DISCOUNT_RATE))
+  const annualTotal = Math.round(currentTier.dollars * 12 * (1 - ANNUAL_DISCOUNT_RATE))
+
+  return (
+    <Modal open={open} onOpenChange={onOpenChange}>
+      <ModalContent size='sm'>
+        <ModalHeader>Manage {currentTier.name} Plan</ModalHeader>
+        <ModalBody>
+          {/* Switch billing interval */}
+          <div className='flex flex-col gap-[8px]'>
+            <Label className='text-[13px]'>Billing interval</Label>
+            <div className='flex flex-col gap-[6px]'>
+              <button
+                type='button'
+                className={cn(
+                  'flex items-center justify-between rounded-[6px] border px-[12px] py-[10px] text-left transition-colors',
+                  selectedInterval === 'month'
+                    ? 'border-[var(--accent)] bg-[var(--accent)]/5'
+                    : 'border-[var(--border-1)] hover:border-[var(--border-2)]'
+                )}
+                onClick={() => setSelectedInterval('month')}
+              >
+                <div>
+                  <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                    Monthly
+                  </span>
+                  {currentInterval === 'month' && (
+                    <span className='ml-[6px] text-[11px] text-[var(--text-muted)]'>current</span>
+                  )}
+                </div>
+                <span className='text-[13px] text-[var(--text-secondary)]'>
+                  ${currentTier.dollars}/mo
+                </span>
+              </button>
+              <button
+                type='button'
+                className={cn(
+                  'flex items-center justify-between rounded-[6px] border px-[12px] py-[10px] text-left transition-colors',
+                  selectedInterval === 'year'
+                    ? 'border-[var(--accent)] bg-[var(--accent)]/5'
+                    : 'border-[var(--border-1)] hover:border-[var(--border-2)]'
+                )}
+                onClick={() => setSelectedInterval('year')}
+              >
+                <div>
+                  <span className='font-medium text-[13px] text-[var(--text-primary)]'>Annual</span>
+                  <span className='ml-[6px] rounded-[3px] bg-[#10b981] px-[4px] py-[1px] text-[10px] font-semibold text-white'>
+                    Save 15%
+                  </span>
+                  {currentInterval === 'year' && (
+                    <span className='ml-[6px] text-[11px] text-[var(--text-muted)]'>current</span>
+                  )}
+                </div>
+                <span className='text-[13px] text-[var(--text-secondary)]'>
+                  ${discountedMonthly}/mo (${annualTotal}/yr)
+                </span>
+              </button>
+            </div>
+            {selectedInterval !== currentInterval && (
+              <Button
+                variant='tertiary'
+                className='mt-[4px] w-full'
+                onClick={handleApplyInterval}
+                disabled={isSwitching}
+              >
+                {isSwitching
+                  ? 'Switching...'
+                  : `Switch to ${selectedInterval === 'year' ? 'annual' : 'monthly'}`}
+              </Button>
+            )}
+            {error && <span className='text-[12px] text-[var(--text-error)]'>{error}</span>}
+          </div>
+
+          <div className='my-[12px] h-[1px] bg-[var(--border-1)]' />
+
+          {/* Upgrade/downgrade to other tier */}
+          <div className='flex items-center justify-between'>
+            <div>
+              <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                {isUpgrade ? `Upgrade to ${otherTier.name}` : `Switch to ${otherTier.name}`}
+              </span>
+              <span className='block text-[12px] text-[var(--text-secondary)]'>
+                {otherTier.credits.toLocaleString()} credits/mo &middot; ${otherTier.dollars}/mo
+              </span>
+            </div>
+            <Button variant='tertiary' onClick={onUpgradeToOtherTier}>
+              {isUpgrade ? 'Upgrade' : 'Switch'}
+            </Button>
+          </div>
+
+          <div className='my-[12px] h-[1px] bg-[var(--border-1)]' />
+
+          {/* Get for Team / Manage Team */}
+          <div className='flex items-center justify-between'>
+            <div>
+              <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                {isTeamPlan ? 'Manage Team' : 'Get for Team'}
+              </span>
+              <span className='block text-[12px] text-[var(--text-secondary)]'>
+                {isTeamPlan
+                  ? 'Manage seats, members, and permissions'
+                  : 'Shared pool, access control, higher limits'}
+              </span>
+            </div>
+            <Button variant='tertiary' onClick={onGetForTeam}>
+              {isTeamPlan ? 'Manage' : 'Get started'}
+            </Button>
+          </div>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant='destructive' onClick={onCancel}>
+            Cancel subscription
+          </Button>
+          <Button variant='default' onClick={() => onOpenChange(false)}>
+            Keep Subscription
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
   )
 }
 

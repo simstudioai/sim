@@ -5,8 +5,7 @@ import { createLogger } from '@sim/logger'
 import type { TagItem } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
-import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
-import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { getPlanTierCredits, getPlanTierDollars } from '@/lib/billing/plan-helpers'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import {
   generateSlug,
@@ -68,6 +67,9 @@ export function TeamManagement() {
   const removeMemberMutation = useRemoveMember()
   const updateSeatsMutation = useUpdateSeats()
   const createOrgMutation = useCreateOrganization()
+
+  const costPerSeat = getPlanTierDollars(subscriptionData?.plan)
+  const creditsPerSeat = getPlanTierCredits(subscriptionData?.plan)
 
   const [inviteSuccess, setInviteSuccess] = useState(false)
 
@@ -494,10 +496,8 @@ export function TeamManagement() {
               <ul className='ml-4 flex list-disc flex-col gap-[8px] text-[13px] text-[var(--text-muted)]'>
                 <li>
                   Your team is billed a minimum of{' '}
-                  {dollarsToCredits(
-                    (subscriptionData?.seats ?? 0) * DEFAULT_TEAM_TIER_COST_LIMIT
-                  ).toLocaleString()}{' '}
-                  credits/month for {subscriptionData?.seats ?? 0} licensed seats
+                  {((subscriptionData?.seats ?? 0) * creditsPerSeat).toLocaleString()} credits/month
+                  for {subscriptionData?.seats ?? 0} licensed seats
                 </li>
                 <li>All team member usage is pooled together from a shared limit</li>
                 <li>
@@ -547,7 +547,7 @@ export function TeamManagement() {
           open={isAddSeatDialogOpen}
           onOpenChange={setIsAddSeatDialogOpen}
           title='Add Team Seats'
-          description={`Each seat costs ${dollarsToCredits(DEFAULT_TEAM_TIER_COST_LIMIT).toLocaleString()} credits/month and provides ${dollarsToCredits(DEFAULT_TEAM_TIER_COST_LIMIT).toLocaleString()} monthly inference credits. Adjust the number of licensed seats for your team.`}
+          description={`Each seat costs $${costPerSeat}/month and provides ${creditsPerSeat.toLocaleString()} monthly inference credits. Adjust the number of licensed seats for your team.`}
           currentSeats={totalSeats}
           initialSeats={newSeatCount}
           isLoading={isUpdatingSeats}
@@ -559,6 +559,8 @@ export function TeamManagement() {
           confirmButtonText='Update Seats'
           showCostBreakdown={true}
           isCancelledAtPeriodEnd={subscriptionData?.cancelAtPeriodEnd}
+          costPerSeatDollars={costPerSeat}
+          creditsPerSeat={creditsPerSeat}
         />
       )}
     </div>

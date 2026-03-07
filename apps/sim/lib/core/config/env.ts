@@ -60,28 +60,18 @@ export const env = createEnv({
     BILLING_ENABLED:                       z.boolean().optional(),                 // Enable billing enforcement and usage tracking
 
     // Credit-tier Stripe prices (monthly)
-    STRIPE_PRICE_TIER_20_MO:               z.string().min(1).optional(),           // $20/mo credit tier price ID
-    STRIPE_PRICE_TIER_40_MO:               z.string().min(1).optional(),           // $40/mo credit tier price ID
-    STRIPE_PRICE_TIER_60_MO:               z.string().min(1).optional(),           // $60/mo credit tier price ID
-    STRIPE_PRICE_TIER_80_MO:               z.string().min(1).optional(),           // $80/mo credit tier price ID
-    STRIPE_PRICE_TIER_100_MO:              z.string().min(1).optional(),           // $100/mo credit tier price ID
-    STRIPE_PRICE_TIER_120_MO:              z.string().min(1).optional(),           // $120/mo credit tier price ID
-    STRIPE_PRICE_TIER_140_MO:              z.string().min(1).optional(),           // $140/mo credit tier price ID
-    STRIPE_PRICE_TIER_160_MO:              z.string().min(1).optional(),           // $160/mo credit tier price ID
-    STRIPE_PRICE_TIER_180_MO:              z.string().min(1).optional(),           // $180/mo credit tier price ID
-    STRIPE_PRICE_TIER_200_MO:              z.string().min(1).optional(),           // $200/mo credit tier price ID
+    STRIPE_PRICE_TIER_25_MO:               z.string().min(1).optional(),           // Pro: $25/mo (5,000 credits)
+    STRIPE_PRICE_TIER_100_MO:              z.string().min(1).optional(),           // Max: $100/mo (25,000 credits)
 
     // Credit-tier Stripe prices (annual, 15% discount)
-    STRIPE_PRICE_TIER_20_YR:               z.string().min(1).optional(),           // $204/yr credit tier price ID (15% off $240)
-    STRIPE_PRICE_TIER_40_YR:               z.string().min(1).optional(),           // $408/yr credit tier price ID (15% off $480)
-    STRIPE_PRICE_TIER_60_YR:               z.string().min(1).optional(),           // $612/yr credit tier price ID (15% off $720)
-    STRIPE_PRICE_TIER_80_YR:               z.string().min(1).optional(),           // $816/yr credit tier price ID (15% off $960)
-    STRIPE_PRICE_TIER_100_YR:              z.string().min(1).optional(),           // $1,020/yr credit tier price ID (15% off $1,200)
-    STRIPE_PRICE_TIER_120_YR:              z.string().min(1).optional(),           // $1,224/yr credit tier price ID (15% off $1,440)
-    STRIPE_PRICE_TIER_140_YR:              z.string().min(1).optional(),           // $1,428/yr credit tier price ID (15% off $1,680)
-    STRIPE_PRICE_TIER_160_YR:              z.string().min(1).optional(),           // $1,632/yr credit tier price ID (15% off $1,920)
-    STRIPE_PRICE_TIER_180_YR:              z.string().min(1).optional(),           // $1,836/yr credit tier price ID (15% off $2,160)
-    STRIPE_PRICE_TIER_200_YR:              z.string().min(1).optional(),           // $2,040/yr credit tier price ID (15% off $2,400)
+    STRIPE_PRICE_TIER_25_YR:               z.string().min(1).optional(),           // Pro: $255/yr (15% off $300)
+    STRIPE_PRICE_TIER_100_YR:              z.string().min(1).optional(),           // Max: $1,020/yr (15% off $1,200)
+
+    // Team-specific Stripe prices (separate products for Billing Portal compat)
+    STRIPE_PRICE_TEAM_25_MO:               z.string().min(1).optional(),           // Team Pro: $25/seat/mo
+    STRIPE_PRICE_TEAM_25_YR:               z.string().min(1).optional(),           // Team Pro: $255/seat/yr
+    STRIPE_PRICE_TEAM_100_MO:              z.string().min(1).optional(),           // Team Max: $100/seat/mo
+    STRIPE_PRICE_TEAM_100_YR:              z.string().min(1).optional(),           // Team Max: $1,020/seat/yr
     OVERAGE_THRESHOLD_DOLLARS:             z.number().optional().default(50),      // Dollar threshold for incremental overage billing (default: $50)
 
     // Email & Communication

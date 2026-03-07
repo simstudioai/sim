@@ -11,7 +11,7 @@ import {
   getHighestPrioritySubscription,
   type HighestPrioritySubscription,
 } from '@/lib/billing/core/plan'
-import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
+import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
 import {
   getPlanTierDollars,
   isEnterprise,
@@ -185,23 +185,19 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
     const billingPeriodStart = subscription?.periodStart ?? null
     const billingPeriodEnd = subscription?.periodEnd ?? null
 
-    // Compute weekly refresh deduction for paid plans with a billing period
-    let weeklyRefreshConsumed = 0
-    if (subscription && isPaid(subscription.plan) && billingPeriodStart) {
+    // Compute daily refresh deduction for individual (non-org) paid plans.
+    // Org plans apply refresh at the pooled level in getEffectiveCurrentPeriodCost.
+    let dailyRefreshConsumed = 0
+    if (
+      subscription &&
+      isPaid(subscription.plan) &&
+      !isOrgPlan(subscription.plan) &&
+      billingPeriodStart
+    ) {
       const planDollars = getPlanTierDollars(subscription.plan)
       if (planDollars > 0) {
-        let refreshUserIds: string[] = [userId]
-
-        if (isOrgPlan(subscription.plan)) {
-          const teamMembers = await db
-            .select({ userId: member.userId })
-            .from(member)
-            .where(eq(member.organizationId, subscription.referenceId))
-          refreshUserIds = teamMembers.map((m) => m.userId)
-        }
-
-        weeklyRefreshConsumed = await computeWeeklyRefreshConsumed({
-          userIds: refreshUserIds,
+        dailyRefreshConsumed = await computeDailyRefreshConsumed({
+          userIds: [userId],
           periodStart: billingPeriodStart,
           periodEnd: billingPeriodEnd,
           planDollars,
@@ -209,7 +205,7 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
       }
     }
 
-    const effectiveUsage = Math.max(0, currentUsage - weeklyRefreshConsumed)
+    const effectiveUsage = Math.max(0, currentUsage - dailyRefreshConsumed)
     const percentUsed = limit > 0 ? Math.min((effectiveUsage / limit) * 100, 100) : 0
     const isWarning = percentUsed >= 80
     const isExceeded = effectiveUsage >= limit
@@ -628,7 +624,7 @@ export async function getEffectiveCurrentPeriodCost(userId: string): Promise<num
   const planDollars = getPlanTierDollars(subscription.plan)
   if (planDollars <= 0) return rawCost
 
-  const refreshConsumed = await computeWeeklyRefreshConsumed({
+  const refreshConsumed = await computeDailyRefreshConsumed({
     userIds: refreshUserIds,
     periodStart: subscription.periodStart,
     periodEnd: subscription.periodEnd ?? null,

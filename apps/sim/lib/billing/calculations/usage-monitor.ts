@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getUserUsageLimit } from '@/lib/billing/core/usage'
-import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
+import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
 import { getPlanTierDollars, isOrgPlan, isPaid } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 
@@ -71,8 +71,8 @@ export async function checkUsageStatus(
       statsRecords[0].currentPeriodCost?.toString() || statsRecords[0].totalCost.toString()
     )
 
-    // Deduct weekly refresh credits for paid plans
-    let weeklyRefreshDeduction = 0
+    // Deduct daily refresh credits for paid plans
+    let dailyRefreshDeduction = 0
     if (
       preloadedSubscription &&
       isPaid(preloadedSubscription.plan) &&
@@ -88,7 +88,7 @@ export async function checkUsageStatus(
             .where(eq(member.organizationId, preloadedSubscription.referenceId))
           refreshIds = orgMembers.map((m) => m.userId)
         }
-        weeklyRefreshDeduction = await computeWeeklyRefreshConsumed({
+        dailyRefreshDeduction = await computeDailyRefreshConsumed({
           userIds: refreshIds,
           periodStart: preloadedSubscription.periodStart,
           periodEnd: preloadedSubscription.periodEnd ?? null,
@@ -97,7 +97,7 @@ export async function checkUsageStatus(
       }
     }
 
-    const currentUsage = Math.max(0, rawUsage - weeklyRefreshDeduction)
+    const currentUsage = Math.max(0, rawUsage - dailyRefreshDeduction)
 
     const percentUsed = Math.min((currentUsage / limit) * 100, 100)
 
@@ -136,8 +136,8 @@ export async function checkUsageStatus(
                 )
               }
             }
-            // Deduct weekly refresh from pooled usage too
-            pooledUsage = Math.max(0, pooledUsage - weeklyRefreshDeduction)
+            // Deduct daily refresh from pooled usage too
+            pooledUsage = Math.max(0, pooledUsage - dailyRefreshDeduction)
 
             const orgCap = org.orgUsageLimit ? Number.parseFloat(String(org.orgUsageLimit)) : 0
             if (!orgCap || Number.isNaN(orgCap)) {
