@@ -38,6 +38,7 @@ import { ElasticsearchBlock } from '@/blocks/blocks/elasticsearch'
 import { ElevenLabsBlock } from '@/blocks/blocks/elevenlabs'
 import { EnrichBlock } from '@/blocks/blocks/enrich'
 import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
+import { EvernoteBlock } from '@/blocks/blocks/evernote'
 import { ExaBlock } from '@/blocks/blocks/exa'
 import { FileBlock, FileV2Block, FileV3Block } from '@/blocks/blocks/file'
 import { FirecrawlBlock } from '@/blocks/blocks/firecrawl'
@@ -235,6 +236,7 @@ export const registry: Record<string, BlockConfig> = {
   elasticsearch: ElasticsearchBlock,
   elevenlabs: ElevenLabsBlock,
   enrich: EnrichBlock,
+  evernote: EvernoteBlock,
   evaluator: EvaluatorBlock,
   exa: ExaBlock,
   file: FileBlock,
