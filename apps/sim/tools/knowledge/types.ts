@@ -135,6 +135,9 @@ export interface KnowledgeDocumentSummary {
   tokenCount: number
   uploadedAt: string | null
   updatedAt: string | null
+  connectorId: string | null
+  connectorType: string | null
+  sourceUrl: string | null
 }
 
 export interface KnowledgeListDocumentsResponse {
@@ -202,6 +205,83 @@ export interface KnowledgeDeleteChunkResponse {
   output: {
     chunkId: string
     documentId: string
+    message: string
+  }
+  error?: string
+}
+
+export interface KnowledgeGetDocumentResponse {
+  success: boolean
+  output: {
+    id: string
+    filename: string
+    fileSize: number
+    mimeType: string | null
+    enabled: boolean
+    processingStatus: string | null
+    processingError: string | null
+    chunkCount: number
+    tokenCount: number
+    characterCount: number
+    uploadedAt: string | null
+    updatedAt: string | null
+    connectorId: string | null
+    sourceUrl: string | null
+    externalId: string | null
+    tags: Record<string, unknown>
+  }
+  error?: string
+}
+
+export interface KnowledgeConnectorSummary {
+  id: string
+  connectorType: string
+  status: string
+  syncIntervalMinutes: number
+  lastSyncAt: string | null
+  lastSyncError: string | null
+  lastSyncDocCount: number | null
+  nextSyncAt: string | null
+  consecutiveFailures: number
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export interface KnowledgeListConnectorsResponse {
+  success: boolean
+  output: {
+    knowledgeBaseId: string
+    connectors: KnowledgeConnectorSummary[]
+    totalConnectors: number
+  }
+  error?: string
+}
+
+export interface KnowledgeSyncLogEntry {
+  id: string
+  status: string
+  startedAt: string | null
+  completedAt: string | null
+  docsAdded: number | null
+  docsUpdated: number | null
+  docsDeleted: number | null
+  docsUnchanged: number | null
+  errorMessage: string | null
+}
+
+export interface KnowledgeGetConnectorResponse {
+  success: boolean
+  output: {
+    connector: KnowledgeConnectorSummary
+    syncLogs: KnowledgeSyncLogEntry[]
+  }
+  error?: string
+}
+
+export interface KnowledgeTriggerSyncResponse {
+  success: boolean
+  output: {
+    connectorId: string
     message: string
   }
   error?: string

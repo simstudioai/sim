@@ -10,7 +10,10 @@ export const KnowledgeBlock: BlockConfig = {
   bestPractices: `
   - Clarify which tags are available for the knowledge base to understand whether to use tag filters on a search.
   - Use List Documents to enumerate documents before operating on them.
+  - Use Get Document to retrieve full details including tags, connector metadata, and processing status.
   - Use List Chunks to inspect a document's contents before updating or deleting chunks.
+  - Use List Connectors to see which external sources are syncing documents into the knowledge base.
+  - Use Get Connector to check sync health and review recent sync logs.
   `,
   bgColor: '#00B0B0',
   icon: PackageSearchIcon,
@@ -24,6 +27,7 @@ export const KnowledgeBlock: BlockConfig = {
       options: [
         { label: 'Search', id: 'search' },
         { label: 'List Documents', id: 'list_documents' },
+        { label: 'Get Document', id: 'get_document' },
         { label: 'Create Document', id: 'create_document' },
         { label: 'Delete Document', id: 'delete_document' },
         { label: 'List Chunks', id: 'list_chunks' },
@@ -31,6 +35,9 @@ export const KnowledgeBlock: BlockConfig = {
         { label: 'Update Chunk', id: 'update_chunk' },
         { label: 'Delete Chunk', id: 'delete_chunk' },
         { label: 'List Tags', id: 'list_tags' },
+        { label: 'List Connectors', id: 'list_connectors' },
+        { label: 'Get Connector', id: 'get_connector' },
+        { label: 'Trigger Sync', id: 'trigger_sync' },
       ],
       value: () => 'search',
     },
@@ -125,7 +132,14 @@ export const KnowledgeBlock: BlockConfig = {
       mode: 'basic',
       condition: {
         field: 'operation',
-        value: ['upload_chunk', 'delete_document', 'list_chunks', 'update_chunk', 'delete_chunk'],
+        value: [
+          'get_document',
+          'upload_chunk',
+          'delete_document',
+          'list_chunks',
+          'update_chunk',
+          'delete_chunk',
+        ],
       },
     },
     // Document selector — advanced mode (manual ID input)
@@ -139,7 +153,14 @@ export const KnowledgeBlock: BlockConfig = {
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['upload_chunk', 'delete_document', 'list_chunks', 'update_chunk', 'delete_chunk'],
+        value: [
+          'get_document',
+          'upload_chunk',
+          'delete_document',
+          'list_chunks',
+          'update_chunk',
+          'delete_chunk',
+        ],
       },
     },
 
@@ -208,6 +229,16 @@ export const KnowledgeBlock: BlockConfig = {
       condition: { field: 'operation', value: 'update_chunk' },
     },
 
+    // --- Connector operations ---
+    {
+      id: 'connectorId',
+      title: 'Connector ID',
+      type: 'short-input',
+      placeholder: 'Enter connector ID',
+      required: true,
+      condition: { field: 'operation', value: ['get_connector', 'trigger_sync'] },
+    },
+
     // --- List Chunks ---
     {
       id: 'chunkSearch',
@@ -235,10 +266,14 @@ export const KnowledgeBlock: BlockConfig = {
       'knowledge_create_document',
       'knowledge_list_tags',
       'knowledge_list_documents',
+      'knowledge_get_document',
       'knowledge_delete_document',
       'knowledge_list_chunks',
       'knowledge_update_chunk',
       'knowledge_delete_chunk',
+      'knowledge_list_connectors',
+      'knowledge_get_connector',
+      'knowledge_trigger_sync',
     ],
     config: {
       tool: (params) => {
@@ -253,6 +288,8 @@ export const KnowledgeBlock: BlockConfig = {
             return 'knowledge_list_tags'
           case 'list_documents':
             return 'knowledge_list_documents'
+          case 'get_document':
+            return 'knowledge_get_document'
           case 'delete_document':
             return 'knowledge_delete_document'
           case 'list_chunks':
@@ -261,6 +298,12 @@ export const KnowledgeBlock: BlockConfig = {
             return 'knowledge_update_chunk'
           case 'delete_chunk':
             return 'knowledge_delete_chunk'
+          case 'list_connectors':
+            return 'knowledge_list_connectors'
+          case 'get_connector':
+            return 'knowledge_get_connector'
+          case 'trigger_sync':
+            return 'knowledge_trigger_sync'
           default:
             return 'knowledge_search'
         }
@@ -273,6 +316,7 @@ export const KnowledgeBlock: BlockConfig = {
         params.knowledgeBaseId = knowledgeBaseId
 
         const docOps = [
+          'get_document',
           'upload_chunk',
           'delete_document',
           'list_chunks',
@@ -294,6 +338,15 @@ export const KnowledgeBlock: BlockConfig = {
             throw new Error(`Chunk ID is required for ${params.operation} operation`)
           }
           params.chunkId = chunkId
+        }
+
+        const connectorOps = ['get_connector', 'trigger_sync']
+        if (connectorOps.includes(params.operation)) {
+          const connectorId = params.connectorId ? String(params.connectorId).trim() : ''
+          if (!connectorId) {
+            throw new Error(`Connector ID is required for ${params.operation} operation`)
+          }
+          params.connectorId = connectorId
         }
 
         // Map list_chunks sub-block fields to tool params
@@ -329,6 +382,7 @@ export const KnowledgeBlock: BlockConfig = {
     documentTags: { type: 'string', description: 'Document tags' },
     chunkSearch: { type: 'string', description: 'Search filter for chunks' },
     chunkEnabledFilter: { type: 'string', description: 'Filter chunks by enabled status' },
+    connectorId: { type: 'string', description: 'Connector identifier' },
   },
   outputs: {
     results: { type: 'json', description: 'Search results' },

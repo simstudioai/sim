@@ -78,6 +78,9 @@ export const knowledgeListDocumentsTool: ToolConfig<any, KnowledgeListDocumentsR
             tokenCount: number
             uploadedAt: string
             updatedAt: string
+            connectorId: string | null
+            connectorType: string | null
+            sourceUrl: string | null
           }) => ({
             id: doc.id,
             filename: doc.filename,
@@ -89,6 +92,9 @@ export const knowledgeListDocumentsTool: ToolConfig<any, KnowledgeListDocumentsR
             tokenCount: doc.tokenCount ?? 0,
             uploadedAt: doc.uploadedAt ?? null,
             updatedAt: doc.updatedAt ?? null,
+            connectorId: doc.connectorId ?? null,
+            connectorType: doc.connectorType ?? null,
+            sourceUrl: doc.sourceUrl ?? null,
           })
         ),
         totalDocuments: pagination.total ?? documents.length,
@@ -122,6 +128,18 @@ export const knowledgeListDocumentsTool: ToolConfig<any, KnowledgeListDocumentsR
           tokenCount: { type: 'number', description: 'Total token count across chunks' },
           uploadedAt: { type: 'string', description: 'Upload timestamp' },
           updatedAt: { type: 'string', description: 'Last update timestamp' },
+          connectorId: {
+            type: 'string',
+            description: 'Connector ID if document was synced from an external source',
+          },
+          connectorType: {
+            type: 'string',
+            description: 'Connector type (e.g. notion, github, confluence) if synced',
+          },
+          sourceUrl: {
+            type: 'string',
+            description: 'Original URL in the source system if synced from a connector',
+          },
         },
       },
     },
