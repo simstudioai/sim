@@ -207,16 +207,17 @@ export const dropboxConnector: ConnectorConfig = {
 
     const supportedFiles = data.entries.filter(isSupportedFile)
 
+    const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
+    const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
+
     const CONCURRENCY = 5
     const documents: ExternalDocument[] = []
     for (let i = 0; i < supportedFiles.length; i += CONCURRENCY) {
+      if (maxFiles > 0 && previouslyFetched + documents.length >= maxFiles) break
       const batch = supportedFiles.slice(i, i + CONCURRENCY)
       const results = await Promise.all(batch.map((entry) => fileToDocument(accessToken, entry)))
       documents.push(...(results.filter(Boolean) as ExternalDocument[]))
     }
-
-    const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
-    const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
     if (maxFiles > 0) {
       const remaining = maxFiles - previouslyFetched
       if (documents.length > remaining) {

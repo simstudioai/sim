@@ -239,16 +239,17 @@ export const onedriveConnector: ConnectorConfig = {
         item.file && isSupportedTextFile(item.name) && (!item.size || item.size <= MAX_FILE_SIZE)
     )
 
+    const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
+    const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
+
     const CONCURRENCY = 5
     const documents: ExternalDocument[] = []
     for (let i = 0; i < textFiles.length; i += CONCURRENCY) {
+      if (maxFiles > 0 && previouslyFetched + documents.length >= maxFiles) break
       const batch = textFiles.slice(i, i + CONCURRENCY)
       const results = await Promise.all(batch.map((item) => itemToDocument(accessToken, item)))
       documents.push(...(results.filter(Boolean) as ExternalDocument[]))
     }
-
-    const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
-    const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
     if (maxFiles > 0) {
       const remaining = maxFiles - previouslyFetched
       if (documents.length > remaining) {
