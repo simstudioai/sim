@@ -1,6 +1,25 @@
 import type { PerplexityChatParams, PerplexityChatResponse } from '@/tools/perplexity/types'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Per-token rates by model from https://docs.perplexity.ai/guides/pricing
+ * Per-request fees assume Low context size (the API default).
+ */
+const MODEL_PRICING: Record<string, { inputPerM: number; outputPerM: number; requestPer1K: number }> =
+  {
+    'sonar-deep-research': { inputPerM: 2, outputPerM: 8, requestPer1K: 0 },
+    'sonar-reasoning-pro': { inputPerM: 2, outputPerM: 8, requestPer1K: 6 },
+    'sonar-pro': { inputPerM: 3, outputPerM: 15, requestPer1K: 6 },
+    sonar: { inputPerM: 1, outputPerM: 1, requestPer1K: 5 },
+  }
+
+function getModelPricing(model: string) {
+  for (const [key, pricing] of Object.entries(MODEL_PRICING)) {
+    if (model.includes(key)) return pricing
+  }
+  return MODEL_PRICING.sonar
+}
+
 export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> = {
   id: 'perplexity_chat',
   name: 'Perplexity Chat',
@@ -46,6 +65,41 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
       visibility: 'user-only',
       description: 'Perplexity API key',
     },
+  },
+
+  hosting: {
+    envKeyPrefix: 'PERPLEXITY_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'perplexity',
+    pricing: {
+      type: 'custom',
+      getCost: (params, output) => {
+        const usage = output.usage as
+          | { prompt_tokens?: number; completion_tokens?: number }
+          | undefined
+        if (!usage || usage.prompt_tokens == null || usage.completion_tokens == null) {
+          throw new Error('Perplexity chat response missing token usage data')
+        }
+
+        const model = ((output.model as string) || params.model) as string
+        const pricing = getModelPricing(model)
+        const inputTokens = usage.prompt_tokens
+        const outputTokens = usage.completion_tokens
+
+        const tokenCost =
+          (inputTokens * pricing.inputPerM) / 1_000_000 +
+          (outputTokens * pricing.outputPerM) / 1_000_000
+        const requestFee = pricing.requestPer1K / 1000
+        const cost = tokenCost + requestFee
+
+        return { cost, metadata: { model, inputTokens, outputTokens, tokenCost, requestFee } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 20,
+    },
+    skipFixedUsageLog: true,
   },
 
   request: {
