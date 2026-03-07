@@ -58,11 +58,13 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     byokProviderId: 'serper',
     pricing: {
       type: 'custom',
-      getCost: (params, _output) => {
+      getCost: (params, output) => {
+        if (!Array.isArray(output.searchResults)) {
+          throw new Error('Serper response missing searchResults, cannot determine cost')
+        }
         const num = Number(params.num) || 10
         const credits = num > 10 ? 2 : 1
         const cost = credits * 0.001
-        logger.info('Serper hosted key cost calculated', { num, credits, cost })
         return { cost, metadata: { num, credits } }
       },
     },

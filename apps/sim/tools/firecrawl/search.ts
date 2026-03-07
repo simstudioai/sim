@@ -31,8 +31,15 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     apiKeyParam: 'apiKey',
     byokProviderId: 'firecrawl',
     pricing: {
-      type: 'per_request',
-      cost: 0.002,
+      type: 'custom',
+      getCost: (_params, output) => {
+        if (output.creditsUsed == null) {
+          throw new Error('Firecrawl search response missing creditsUsed field')
+        }
+        const creditsUsed = output.creditsUsed as number
+        const cost = creditsUsed * 0.001
+        return { cost, metadata: { creditsUsed } }
+      },
     },
     rateLimit: {
       mode: 'per_request',
@@ -75,6 +82,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       success: true,
       output: {
         data: data.data,
+        creditsUsed: data.creditsUsed ?? 2,
       },
     }
   },
@@ -88,5 +96,6 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
         properties: SEARCH_RESULT_OUTPUT_PROPERTIES,
       },
     },
+    creditsUsed: { type: 'number', description: 'Number of Firecrawl credits consumed' },
   },
 }

@@ -74,8 +74,15 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
     apiKeyParam: 'apiKey',
     byokProviderId: 'firecrawl',
     pricing: {
-      type: 'per_request',
-      cost: 0.001,
+      type: 'custom',
+      getCost: (_params, output) => {
+        if (output.creditsUsed == null) {
+          throw new Error('Firecrawl map response missing creditsUsed field')
+        }
+        const creditsUsed = output.creditsUsed as number
+        const cost = creditsUsed * 0.001
+        return { cost, metadata: { creditsUsed } }
+      },
     },
     rateLimit: {
       mode: 'per_request',
@@ -117,6 +124,7 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
       output: {
         success: data.success,
         links: data.links || [],
+        creditsUsed: data.creditsUsed ?? 1,
       },
     }
   },
@@ -133,5 +141,6 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
         type: 'string',
       },
     },
+    creditsUsed: { type: 'number', description: 'Number of Firecrawl credits consumed' },
   },
 }

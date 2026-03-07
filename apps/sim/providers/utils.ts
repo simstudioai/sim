@@ -718,61 +718,6 @@ export function shouldBillModelUsage(model: string): boolean {
 }
 
 /**
- * Get an API key for a specific provider, handling rotation and fallbacks
- * For use server-side only
- */
-export function getApiKey(provider: string, model: string, userProvidedKey?: string): string {
-  const hasUserKey = !!userProvidedKey
-
-  const isOllamaModel =
-    provider === 'ollama' || useProvidersStore.getState().providers.ollama.models.includes(model)
-  if (isOllamaModel) {
-    return 'empty'
-  }
-
-  const isVllmModel =
-    provider === 'vllm' || useProvidersStore.getState().providers.vllm.models.includes(model)
-  if (isVllmModel) {
-    return userProvidedKey || 'empty'
-  }
-
-  // Bedrock uses its own credentials (bedrockAccessKeyId/bedrockSecretKey), not apiKey
-  const isBedrockModel = provider === 'bedrock' || model.startsWith('bedrock/')
-  if (isBedrockModel) {
-    return 'bedrock-uses-own-credentials'
-  }
-
-  const isOpenAIModel = provider === 'openai'
-  const isClaudeModel = provider === 'anthropic'
-  const isGeminiModel = provider === 'google'
-
-  if (isHosted && (isOpenAIModel || isClaudeModel || isGeminiModel)) {
-    const hostedModels = getHostedModels()
-    const isModelHosted = hostedModels.some((m) => m.toLowerCase() === model.toLowerCase())
-
-    if (isModelHosted) {
-      try {
-        const { getRotatingApiKey } = require('@/lib/core/config/api-keys')
-        const serverKey = getRotatingApiKey(isGeminiModel ? 'gemini' : provider)
-        return serverKey
-      } catch (_error) {
-        if (hasUserKey) {
-          return userProvidedKey!
-        }
-
-        throw new Error(`No API key available for ${provider} ${model}`)
-      }
-    }
-  }
-
-  if (!hasUserKey) {
-    throw new Error(`API key is required for ${provider} ${model}`)
-  }
-
-  return userProvidedKey!
-}
-
-/**
  * Prepares tool configuration for provider requests with consistent tool usage control behavior
  *
  * @param tools Array of tools in provider-specific format

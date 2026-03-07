@@ -39,8 +39,15 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
     apiKeyParam: 'apiKey',
     byokProviderId: 'firecrawl',
     pricing: {
-      type: 'per_request',
-      cost: 0.001,
+      type: 'custom',
+      getCost: (_params, output) => {
+        if (output.creditsUsed == null) {
+          throw new Error('Firecrawl scrape response missing creditsUsed field')
+        }
+        const creditsUsed = output.creditsUsed as number
+        const cost = creditsUsed * 0.001
+        return { cost, metadata: { creditsUsed } }
+      },
     },
     rateLimit: {
       mode: 'per_request',
@@ -99,6 +106,7 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
         markdown: data.data.markdown,
         html: data.data.html,
         metadata: data.data.metadata,
+        creditsUsed: data.creditsUsed ?? 1,
       },
     }
   },
@@ -111,5 +119,6 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
       description: 'Page metadata including SEO and Open Graph information',
       properties: PAGE_METADATA_OUTPUT_PROPERTIES,
     },
+    creditsUsed: { type: 'number', description: 'Number of Firecrawl credits consumed' },
   },
 }

@@ -76,9 +76,11 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
     pricing: {
       type: 'custom',
       getCost: (_params, output) => {
-        const creditsUsed = (output.creditsUsed as number) || 0
+        if (output.creditsUsed == null) {
+          throw new Error('Firecrawl crawl response missing creditsUsed field')
+        }
+        const creditsUsed = output.creditsUsed as number
         const cost = creditsUsed * 0.001
-        logger.info('Firecrawl crawl hosted key cost calculated', { creditsUsed, cost })
         return { cost, metadata: { creditsUsed } }
       },
     },

@@ -2,8 +2,8 @@ import { db } from '@sim/db'
 import { workspaceBYOKKeys } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
-import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { isHosted } from '@/lib/core/config/feature-flags'
+import { getHostedKeyRateLimiter } from '@/lib/core/rate-limiter'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { getHostedModels } from '@/providers/models'
 import { useProvidersStore } from '@/stores/providers/store'
@@ -97,15 +97,43 @@ export async function getApiKeyWithBYOK(
       logger.debug('No BYOK key found, falling back', { provider, model, workspaceId })
 
       if (isModelHosted) {
-        try {
-          const serverKey = getRotatingApiKey(isGeminiModel ? 'gemini' : provider)
-          return { apiKey: serverKey, isBYOK: false }
-        } catch (_error) {
-          if (userProvidedKey) {
-            return { apiKey: userProvidedKey, isBYOK: false }
-          }
-          throw new Error(`No API key available for ${provider} ${model}`)
+        const envKeyPrefix = isGeminiModel
+          ? 'GEMINI_API_KEY'
+          : `${provider.toUpperCase()}_API_KEY`
+        const rateLimiter = getHostedKeyRateLimiter()
+        const acquireResult = await rateLimiter.acquireKey(
+          provider,
+          envKeyPrefix,
+          { mode: 'per_request', requestsPerMinute: 100 },
+          workspaceId
+        )
+
+        if (acquireResult.success) {
+          logger.info('Using hosted key via rate limiter', {
+            provider,
+            model,
+            workspaceId,
+            envVarName: acquireResult.envVarName,
+          })
+          return { apiKey: acquireResult.key!, isBYOK: false }
         }
+
+        if (acquireResult.billingActorRateLimited) {
+          const error = new Error(acquireResult.error || `Rate limit exceeded for ${provider}`)
+          ;(error as any).status = 429
+          ;(error as any).retryAfterMs = acquireResult.retryAfterMs
+          throw error
+        }
+
+        logger.warn('No hosted keys available via rate limiter', {
+          provider,
+          model,
+          error: acquireResult.error,
+        })
+        if (userProvidedKey) {
+          return { apiKey: userProvidedKey, isBYOK: false }
+        }
+        throw new Error(`No API key available for ${provider} ${model}`)
       }
     }
   }

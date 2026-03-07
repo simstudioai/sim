@@ -263,6 +263,9 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
     pricing: {
       type: 'custom',
       getCost: (params, output) => {
+        if (!Array.isArray(output.steps)) {
+          throw new Error('Browser Use response missing steps array, cannot determine cost')
+        }
         const INIT_COST = 0.01
         const STEP_COSTS: Record<string, number> = {
           'browser-use-llm': 0.002,
@@ -291,16 +294,8 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
           logger.warn(`Unknown Browser Use model "${model}", using default step cost $${DEFAULT_STEP_COST}`)
         }
         const stepCost = knownCost ?? DEFAULT_STEP_COST
-        const steps = output.steps as unknown[] | undefined
-        const stepCount = steps?.length || 0
+        const stepCount = output.steps.length
         const total = INIT_COST + stepCount * stepCost
-        logger.info('Browser Use hosted key cost calculated', {
-          model,
-          stepCount,
-          stepCost,
-          initCost: INIT_COST,
-          total,
-        })
         return { cost: total, metadata: { model, stepCount, stepCost, initCost: INIT_COST } }
       },
     },
