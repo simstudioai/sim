@@ -47,6 +47,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
         { label: 'Add Watcher', id: 'add_watcher' },
         { label: 'Remove Watcher', id: 'remove_watcher' },
         { label: 'Get Users', id: 'get_users' },
+        { label: 'Search Users', id: 'search_users' },
       ],
       value: () => 'read',
     },
@@ -673,6 +674,31 @@ Return ONLY the comment text - no explanations.`,
       placeholder: 'Maximum users to return (default: 50)',
       condition: { field: 'operation', value: 'get_users' },
     },
+    // Search Users fields
+    {
+      id: 'searchUsersQuery',
+      title: 'Search Query',
+      type: 'short-input',
+      required: true,
+      placeholder: 'Enter email address or display name to search',
+      condition: { field: 'operation', value: 'search_users' },
+    },
+    {
+      id: 'searchUsersMaxResults',
+      title: 'Max Results',
+      type: 'short-input',
+      placeholder: 'Maximum users to return (default: 50)',
+      condition: { field: 'operation', value: 'search_users' },
+      mode: 'advanced',
+    },
+    {
+      id: 'searchUsersStartAt',
+      title: 'Start At',
+      type: 'short-input',
+      placeholder: 'Pagination start index (default: 0)',
+      condition: { field: 'operation', value: 'search_users' },
+      mode: 'advanced',
+    },
     // Trigger SubBlocks
     ...getTrigger('jira_issue_created').subBlocks,
     ...getTrigger('jira_issue_updated').subBlocks,
@@ -707,6 +733,7 @@ Return ONLY the comment text - no explanations.`,
       'jira_add_watcher',
       'jira_remove_watcher',
       'jira_get_users',
+      'jira_search_users',
     ],
     config: {
       tool: (params) => {
@@ -767,6 +794,8 @@ Return ONLY the comment text - no explanations.`,
             return 'jira_remove_watcher'
           case 'get_users':
             return 'jira_get_users'
+          case 'search_users':
+            return 'jira_search_users'
           default:
             return 'jira_retrieve'
         }
@@ -1023,6 +1052,18 @@ Return ONLY the comment text - no explanations.`,
                 : undefined,
             }
           }
+          case 'search_users': {
+            return {
+              ...baseParams,
+              query: params.searchUsersQuery,
+              maxResults: params.searchUsersMaxResults
+                ? Number.parseInt(params.searchUsersMaxResults)
+                : undefined,
+              startAt: params.searchUsersStartAt
+                ? Number.parseInt(params.searchUsersStartAt)
+                : undefined,
+            }
+          }
           default:
             return baseParams
         }
@@ -1102,6 +1143,13 @@ Return ONLY the comment text - no explanations.`,
     },
     usersStartAt: { type: 'string', description: 'Pagination start index for users' },
     usersMaxResults: { type: 'string', description: 'Maximum users to return' },
+    // Search Users operation inputs
+    searchUsersQuery: {
+      type: 'string',
+      description: 'Search query (email address or display name)',
+    },
+    searchUsersMaxResults: { type: 'string', description: 'Maximum users to return from search' },
+    searchUsersStartAt: { type: 'string', description: 'Pagination start index for user search' },
   },
   outputs: {
     // Common outputs across all Jira operations
