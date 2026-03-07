@@ -1445,6 +1445,15 @@ export function ToolCall({
     }
   }, [params])
 
+  // Sync expanded state when toolCall arrives from store after initial render
+  const prevToolCallRef = useRef(toolCall)
+  useEffect(() => {
+    if (!prevToolCallRef.current && toolCall && isExpandablePending) {
+      setExpanded(true)
+    }
+    prevToolCallRef.current = toolCall
+  }, [toolCall, isExpandablePending])
+
   // Guard: nothing to render without a toolCall
   if (!toolCall) return null
 

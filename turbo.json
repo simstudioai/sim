@@ -3,7 +3,8 @@
   "envMode": "loose",
   "tasks": {
     "transit": {
-      "dependsOn": ["^transit"]
+      "dependsOn": ["^transit"],
+      "outputs": []
     },
     "build": {
       "dependsOn": ["^build"],
