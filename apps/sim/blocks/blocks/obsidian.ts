@@ -255,9 +255,9 @@ export const ObsidianBlock: BlockConfig = {
   outputs: {
     content: { type: 'string', description: 'Markdown content of the note' },
     filename: { type: 'string', description: 'Path to the note' },
-    files: { type: 'json', description: 'List of files and directories' },
-    results: { type: 'json', description: 'Search results with filenames and matches' },
-    commands: { type: 'json', description: 'List of available commands' },
+    files: { type: 'json', description: 'List of files and directories (path, type)' },
+    results: { type: 'json', description: 'Search results (filename, score, matches)' },
+    commands: { type: 'json', description: 'List of available commands (id, name)' },
     created: { type: 'boolean', description: 'Whether the note was created' },
     appended: { type: 'boolean', description: 'Whether content was appended' },
     patched: { type: 'boolean', description: 'Whether content was patched' },
