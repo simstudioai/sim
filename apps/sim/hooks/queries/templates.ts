@@ -269,6 +269,7 @@ export function useUpdateTemplate() {
     onSettled: (_data, _error, { id }) => {
       queryClient.invalidateQueries({ queryKey: templateKeys.lists() })
       queryClient.invalidateQueries({ queryKey: templateKeys.detail(id) })
+      queryClient.invalidateQueries({ queryKey: templateKeys.byWorkflows() })
     },
   })
 }
