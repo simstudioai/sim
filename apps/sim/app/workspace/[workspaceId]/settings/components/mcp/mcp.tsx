@@ -440,7 +440,7 @@ export function MCP({ initialServerId }: MCPProps) {
   const [isAddingServer, setIsAddingServer] = useState(false)
 
   const [searchTerm, setSearchTerm] = useState('')
-  const [deletingServers, setDeletingServers] = useState<Set<string>>(new Set())
+  const [deletingServers, setDeletingServers] = useState<Set<string>>(() => new Set())
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [serverToDelete, setServerToDelete] = useState<{ id: string; name: string } | null>(null)
@@ -449,7 +449,7 @@ export function MCP({ initialServerId }: MCPProps) {
   const [refreshingServers, setRefreshingServers] = useState<
     Record<string, { status: 'refreshing' | 'refreshed'; workflowsUpdated?: number }>
   >({})
-  const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set())
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(() => new Set())
 
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [envSearchTerm, setEnvSearchTerm] = useState('')

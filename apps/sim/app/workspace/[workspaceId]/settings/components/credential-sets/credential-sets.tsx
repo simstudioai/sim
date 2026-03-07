@@ -130,9 +130,9 @@ export function CredentialSets() {
   const resendInvitation = useResendCredentialSetInvitation()
 
   const [deletingSet, setDeletingSet] = useState<{ id: string; name: string } | null>(null)
-  const [deletingSetIds, setDeletingSetIds] = useState<Set<string>>(new Set())
-  const [cancellingInvitations, setCancellingInvitations] = useState<Set<string>>(new Set())
-  const [resendingInvitations, setResendingInvitations] = useState<Set<string>>(new Set())
+  const [deletingSetIds, setDeletingSetIds] = useState<Set<string>>(() => new Set())
+  const [cancellingInvitations, setCancellingInvitations] = useState<Set<string>>(() => new Set())
+  const [resendingInvitations, setResendingInvitations] = useState<Set<string>>(() => new Set())
   const [resendCooldowns, setResendCooldowns] = useState<Record<string, number>>({})
 
   const addEmail = useCallback(

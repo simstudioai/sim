@@ -236,7 +236,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         scrollContainer.addEventListener('scroll', checkPosition, { passive: true })
       }
 
-      window.addEventListener('scroll', checkPosition, true)
+      window.addEventListener('scroll', checkPosition, { capture: true, passive: true })
       window.addEventListener('resize', checkPosition)
 
       return () => {

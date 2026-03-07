@@ -552,7 +552,7 @@ export function useUndoRedo() {
           const { edgeSnapshots } = batchRemoveInverse.data
 
           const edgesToRemove = edgeSnapshots
-            .filter((e) => useWorkflowStore.getState().edges.find((edge) => edge.id === e.id))
+            .filter(((edgeIdSet) => (e: { id: string }) => edgeIdSet.has(e.id))(new Set(useWorkflowStore.getState().edges.map((edge) => edge.id))))
             .map((e) => e.id)
 
           if (edgesToRemove.length > 0) {
@@ -577,7 +577,7 @@ export function useUndoRedo() {
           const { edgeSnapshots } = batchAddInverse.data
 
           const edgesToAdd = edgeSnapshots.filter(
-            (e) => !useWorkflowStore.getState().edges.find((edge) => edge.id === e.id)
+            ((edgeIdSet) => (e: { id: string }) => !edgeIdSet.has(e.id))(new Set(useWorkflowStore.getState().edges.map((edge) => edge.id)))
           )
 
           if (edgesToAdd.length > 0) {
@@ -632,7 +632,7 @@ export function useUndoRedo() {
           if (useWorkflowStore.getState().blocks[blockId]) {
             if (newParentId && affectedEdges && affectedEdges.length > 0) {
               const edgesToAdd = affectedEdges.filter(
-                (e) => !useWorkflowStore.getState().edges.find((edge) => edge.id === e.id)
+                ((edgeIdSet) => (e: { id: string }) => !edgeIdSet.has(e.id))(new Set(useWorkflowStore.getState().edges.map((edge) => edge.id)))
               )
               if (edgesToAdd.length > 0) {
                 addToQueue({
@@ -696,7 +696,7 @@ export function useUndoRedo() {
             // If we're removing FROM a subflow (undo of add to subflow), remove edges after
             if (!newParentId && affectedEdges && affectedEdges.length > 0) {
               const edgeIdsToRemove = affectedEdges
-                .filter((edge) => useWorkflowStore.getState().edges.find((e) => e.id === edge.id))
+                .filter(((edgeIdSet) => (edge: { id: string }) => edgeIdSet.has(edge.id))(new Set(useWorkflowStore.getState().edges.map((e) => e.id))))
                 .map((edge) => edge.id)
               if (edgeIdsToRemove.length > 0) {
                 useWorkflowStore.getState().batchRemoveEdges(edgeIdsToRemove)
@@ -739,7 +739,7 @@ export function useUndoRedo() {
             // Moving OUT of subflow (undoing insert) → restore edges first
             if (!newParentId && affectedEdges && affectedEdges.length > 0) {
               const edgesToAdd = affectedEdges.filter(
-                (e) => !useWorkflowStore.getState().edges.find((edge) => edge.id === e.id)
+                ((edgeIdSet) => (e: { id: string }) => !edgeIdSet.has(e.id))(new Set(useWorkflowStore.getState().edges.map((edge) => edge.id)))
               )
               allEdgesToAdd.push(...edgesToAdd)
             }
@@ -747,7 +747,7 @@ export function useUndoRedo() {
             // Moving INTO subflow (undoing removal) → remove edges first
             if (newParentId && affectedEdges && affectedEdges.length > 0) {
               const edgeIds = affectedEdges
-                .filter((edge) => useWorkflowStore.getState().edges.find((e) => e.id === edge.id))
+                .filter(((edgeIdSet) => (edge: { id: string }) => edgeIdSet.has(edge.id))(new Set(useWorkflowStore.getState().edges.map((e) => e.id))))
                 .map((edge) => edge.id)
               allEdgeIdsToRemove.push(...edgeIds)
             }
@@ -1166,7 +1166,7 @@ export function useUndoRedo() {
           const { edgeSnapshots } = batchRemoveOp.data
 
           const edgesToRemove = edgeSnapshots
-            .filter((e) => useWorkflowStore.getState().edges.find((edge) => edge.id === e.id))
+            .filter(((edgeIdSet) => (e: { id: string }) => edgeIdSet.has(e.id))(new Set(useWorkflowStore.getState().edges.map((edge) => edge.id))))
             .map((e) => e.id)
 
           if (edgesToRemove.length > 0) {
@@ -1192,7 +1192,7 @@ export function useUndoRedo() {
           const { edgeSnapshots } = batchAddOp.data
 
           const edgesToAdd = edgeSnapshots.filter(
-            (e) => !useWorkflowStore.getState().edges.find((edge) => edge.id === e.id)
+            ((edgeIdSet) => (e: { id: string }) => !edgeIdSet.has(e.id))(new Set(useWorkflowStore.getState().edges.map((edge) => edge.id)))
           )
 
           if (edgesToAdd.length > 0) {
@@ -1250,7 +1250,7 @@ export function useUndoRedo() {
             // If we're removing FROM a subflow, remove edges first
             if (!newParentId && affectedEdges && affectedEdges.length > 0) {
               const edgeIdsToRemove = affectedEdges
-                .filter((edge) => useWorkflowStore.getState().edges.find((e) => e.id === edge.id))
+                .filter(((edgeIdSet) => (edge: { id: string }) => edgeIdSet.has(edge.id))(new Set(useWorkflowStore.getState().edges.map((e) => e.id))))
                 .map((edge) => edge.id)
               if (edgeIdsToRemove.length > 0) {
                 useWorkflowStore.getState().batchRemoveEdges(edgeIdsToRemove)
@@ -1317,7 +1317,7 @@ export function useUndoRedo() {
             // If we're adding TO a subflow, restore edges after
             if (newParentId && affectedEdges && affectedEdges.length > 0) {
               const edgesToAdd = affectedEdges.filter(
-                (e) => !useWorkflowStore.getState().edges.find((edge) => edge.id === e.id)
+                ((edgeIdSet) => (e: { id: string }) => !edgeIdSet.has(e.id))(new Set(useWorkflowStore.getState().edges.map((edge) => edge.id)))
               )
               if (edgesToAdd.length > 0) {
                 addToQueue({
@@ -1358,7 +1358,7 @@ export function useUndoRedo() {
             // Moving INTO subflow (redoing insert) → remove edges first
             if (newParentId && affectedEdges && affectedEdges.length > 0) {
               const edgeIds = affectedEdges
-                .filter((edge) => useWorkflowStore.getState().edges.find((e) => e.id === edge.id))
+                .filter(((edgeIdSet) => (edge: { id: string }) => edgeIdSet.has(edge.id))(new Set(useWorkflowStore.getState().edges.map((e) => e.id))))
                 .map((edge) => edge.id)
               allEdgeIdsToRemove.push(...edgeIds)
             }
@@ -1366,7 +1366,7 @@ export function useUndoRedo() {
             // Moving OUT of subflow (redoing removal) → restore edges after
             if (!newParentId && affectedEdges && affectedEdges.length > 0) {
               const edgesToAdd = affectedEdges.filter(
-                (e) => !useWorkflowStore.getState().edges.find((edge) => edge.id === e.id)
+                ((edgeIdSet) => (e: { id: string }) => !edgeIdSet.has(e.id))(new Set(useWorkflowStore.getState().edges.map((edge) => edge.id)))
               )
               allEdgesToAdd.push(...edgesToAdd)
             }

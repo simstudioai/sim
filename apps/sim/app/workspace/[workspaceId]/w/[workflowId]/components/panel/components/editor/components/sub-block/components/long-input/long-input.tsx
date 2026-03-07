@@ -4,7 +4,6 @@ import {
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -182,10 +181,7 @@ export function LongInput({
   )
 
   // During streaming, use local content; otherwise use the controller value
-  const value = useMemo(() => {
-    if (wandHook.isStreaming) return localContent
-    return ctrl.valueString
-  }, [wandHook.isStreaming, localContent, ctrl.valueString])
+  const value = wandHook.isStreaming ? localContent : ctrl.valueString
 
   // Base value for syncing (not including streaming)
   const baseValue = isPreview
