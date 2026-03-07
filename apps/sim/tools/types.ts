@@ -16,10 +16,6 @@ export type BYOKProviderId =
   | 'google_cloud'
   | 'huggingface'
   | 'linkup'
-  | 'runway'
-  | 'luma'
-  | 'minimax'
-  | 'falai'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 
