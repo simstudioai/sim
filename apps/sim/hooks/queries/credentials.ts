@@ -130,9 +130,9 @@ export function useCreateWorkspaceCredential() {
 
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: workspaceCredentialKeys.list(variables.workspaceId),
+        queryKey: workspaceCredentialKeys.lists(),
       })
     },
   })
