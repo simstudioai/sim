@@ -82,6 +82,27 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
     },
   },
 
+  hosting: {
+    envKeyPrefix: 'LINKUP_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'linkup',
+    pricing: {
+      type: 'custom',
+      getCost: (params) => {
+        // Linkup pricing (https://docs.linkup.so/pages/documentation/development/pricing):
+        //   Standard: €0.005/call ≈ $0.006
+        //   Deep:     €0.05/call  ≈ $0.055
+        const depth = params.depth as string
+        const cost = depth === 'deep' ? 0.055 : 0.006
+        return { cost, metadata: { depth } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 60,
+    },
+  },
+
   request: {
     url: 'https://api.linkup.so/v1/search',
     method: 'POST',
