@@ -113,6 +113,7 @@ import { MySQLBlock } from '@/blocks/blocks/mysql'
 import { Neo4jBlock } from '@/blocks/blocks/neo4j'
 import { NoteBlock } from '@/blocks/blocks/note'
 import { NotionBlock, NotionV2Block } from '@/blocks/blocks/notion'
+import { ObsidianBlock } from '@/blocks/blocks/obsidian'
 import { OneDriveBlock } from '@/blocks/blocks/onedrive'
 import { OnePasswordBlock } from '@/blocks/blocks/onepassword'
 import { OpenAIBlock } from '@/blocks/blocks/openai'
@@ -320,6 +321,7 @@ export const registry: Record<string, BlockConfig> = {
   note: NoteBlock,
   notion: NotionBlock,
   notion_v2: NotionV2Block,
+  obsidian: ObsidianBlock,
   onepassword: OnePasswordBlock,
   onedrive: OneDriveBlock,
   openai: OpenAIBlock,
