@@ -30,7 +30,7 @@ export const knowledgeListConnectorsTool: ToolConfig<any, KnowledgeListConnector
     const connectors = result.data || []
 
     return {
-      success: true,
+      success: result.success ?? true,
       output: {
         knowledgeBaseId: params?.knowledgeBaseId ?? '',
         connectors: connectors.map(

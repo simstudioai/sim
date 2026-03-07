@@ -32,7 +32,7 @@ export const knowledgeGetDocumentTool: ToolConfig<any, KnowledgeGetDocumentRespo
     }),
   },
 
-  transformResponse: async (response, params): Promise<KnowledgeGetDocumentResponse> => {
+  transformResponse: async (response, _params): Promise<KnowledgeGetDocumentResponse> => {
     const result = await response.json()
     const doc = result.data || {}
 
@@ -63,7 +63,7 @@ export const knowledgeGetDocumentTool: ToolConfig<any, KnowledgeGetDocumentRespo
     }
 
     return {
-      success: true,
+      success: result.success ?? true,
       output: {
         id: doc.id,
         filename: doc.filename,

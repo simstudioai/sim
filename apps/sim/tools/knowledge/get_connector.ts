@@ -37,7 +37,7 @@ export const knowledgeGetConnectorTool: ToolConfig<any, KnowledgeGetConnectorRes
     const data = result.data || {}
 
     return {
-      success: true,
+      success: result.success ?? true,
       output: {
         connector: {
           id: data.id,
@@ -99,7 +99,7 @@ export const knowledgeGetConnectorTool: ToolConfig<any, KnowledgeGetConnectorRes
     },
     syncLogs: {
       type: 'array',
-      description: 'Recent sync log entries (up to 10)',
+      description: 'Recent sync log entries',
       items: {
         type: 'object',
         properties: {
