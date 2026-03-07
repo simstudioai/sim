@@ -150,7 +150,6 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
         jobId: data.id,
         success: false,
         data: {},
-        creditsUsed: 0,
       },
     }
   },
@@ -186,7 +185,7 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
             jobId,
             success: true,
             data: extractData.data || {},
-            creditsUsed: extractData.creditsUsed || 0,
+            creditsUsed: extractData.creditsUsed,
           }
           return result
         }

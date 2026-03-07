@@ -511,7 +511,7 @@ export interface ExtractResponse extends ToolResponse {
     jobId: string
     success: boolean
     data: Record<string, any>
-    creditsUsed: number
+    creditsUsed?: number
   }
 }
 
