@@ -693,7 +693,7 @@ const TraceSpanNode = memo(function TraceSpanNode({
  */
 export const TraceSpans = memo(function TraceSpans({ traceSpans }: TraceSpansProps) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set())
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(() => new Set())
   const toggleSet = useSetToggle()
 
   const { workflowStartTime, actualTotalDuration, normalizedSpans } = useMemo(() => {

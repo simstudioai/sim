@@ -34,7 +34,7 @@ export function CustomTools() {
   const deleteToolMutation = useDeleteCustomTool()
 
   const [searchTerm, setSearchTerm] = useState('')
-  const [deletingTools, setDeletingTools] = useState<Set<string>>(new Set())
+  const [deletingTools, setDeletingTools] = useState<Set<string>>(() => new Set())
   const [editingTool, setEditingTool] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
   const [toolToDelete, setToolToDelete] = useState<{ id: string; name: string } | null>(null)

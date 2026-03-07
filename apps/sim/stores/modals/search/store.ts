@@ -97,7 +97,7 @@ export const useSearchModalStore = create<SearchModalState>()(
         const filteredTriggers = filterBlocks(allTriggers) as typeof allTriggers
         const priorityOrder = ['Start', 'Schedule', 'Webhook']
 
-        const sortedTriggers = [...filteredTriggers].sort((a, b) => {
+        const sortedTriggers = filteredTriggers.toSorted((a, b) => {
           const aIndex = priorityOrder.indexOf(a.name)
           const bIndex = priorityOrder.indexOf(b.name)
           const aHasPriority = aIndex !== -1

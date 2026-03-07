@@ -620,7 +620,7 @@ export const Terminal = memo(function Terminal() {
   const exportConsoleCSV = useTerminalConsoleStore((state) => state.exportConsoleCSV)
 
   const [selectedEntry, setSelectedEntry] = useState<ConsoleEntry | null>(null)
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set())
   const [isToggling, setIsToggling] = useState(false)
   const [showCopySuccess, setShowCopySuccess] = useState(false)
   const [showInput, setShowInput] = useState(false)

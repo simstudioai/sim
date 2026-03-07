@@ -127,7 +127,7 @@ export const useChatStore = create<ChatState>()(
 
           const headers = ['timestamp', 'type', 'content']
 
-          const sortedMessages = messages.sort(
+          const sortedMessages = messages.toSorted(
             (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
           )
 

@@ -392,7 +392,7 @@ export function KnowledgeBase({
     setCurrentPage(1)
   }, [])
 
-  const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set())
+  const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(() => new Set())
   const [isSelectAllMode, setIsSelectAllMode] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showAddDocumentsModal, setShowAddDocumentsModal] = useState(false)

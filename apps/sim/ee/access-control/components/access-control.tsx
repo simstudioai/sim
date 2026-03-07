@@ -271,7 +271,7 @@ export function AccessControl() {
   const [newGroupAutoAdd, setNewGroupAutoAdd] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [deletingGroup, setDeletingGroup] = useState<{ id: string; name: string } | null>(null)
-  const [deletingGroupIds, setDeletingGroupIds] = useState<Set<string>>(new Set())
+  const [deletingGroupIds, setDeletingGroupIds] = useState<Set<string>>(() => new Set())
 
   const { data: members = [], isPending: membersLoading } = usePermissionGroupMembers(
     viewingGroup?.id
@@ -281,7 +281,7 @@ export function AccessControl() {
   const [showConfigModal, setShowConfigModal] = useState(false)
   const [editingConfig, setEditingConfig] = useState<PermissionGroupConfig | null>(null)
   const [showAddMembersModal, setShowAddMembersModal] = useState(false)
-  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set())
+  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(() => new Set())
   const [providerSearchTerm, setProviderSearchTerm] = useState('')
   const [integrationSearchTerm, setIntegrationSearchTerm] = useState('')
   const [platformSearchTerm, setPlatformSearchTerm] = useState('')

@@ -294,7 +294,7 @@ export function Document({
 
   const searchError = searchQueryError instanceof Error ? searchQueryError.message : null
 
-  const [selectedChunks, setSelectedChunks] = useState<Set<string>>(new Set())
+  const [selectedChunks, setSelectedChunks] = useState<Set<string>>(() => new Set())
   const [selectedChunk, setSelectedChunk] = useState<ChunkData | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 

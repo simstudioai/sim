@@ -117,9 +117,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
   }, [toolToView])
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null)
 
-  const mcpServerUrl = useMemo(() => {
-    return `${getBaseUrl()}/api/mcp/serve/${serverId}`
-  }, [serverId])
+  const mcpServerUrl = `${getBaseUrl()}/api/mcp/serve/${serverId}`
 
   const handleDeleteTool = async () => {
     if (!toolToDelete) return
@@ -879,7 +877,7 @@ export function WorkflowMcpServers() {
   const [selectedWorkflowIds, setSelectedWorkflowIds] = useState<string[]>([])
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null)
   const [serverToDelete, setServerToDelete] = useState<WorkflowMcpServer | null>(null)
-  const [deletingServers, setDeletingServers] = useState<Set<string>>(new Set())
+  const [deletingServers, setDeletingServers] = useState<Set<string>>(() => new Set())
 
   const filteredServers = useMemo(() => {
     if (!searchTerm.trim()) return servers

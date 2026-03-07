@@ -49,9 +49,9 @@ export function TeamMembers({
   isAdminOrOwner,
   onRemoveMember,
 }: TeamMembersProps) {
-  const [cancellingInvitations, setCancellingInvitations] = useState<Set<string>>(new Set())
-  const [resendingInvitations, setResendingInvitations] = useState<Set<string>>(new Set())
-  const [resentInvitations, setResentInvitations] = useState<Set<string>>(new Set())
+  const [cancellingInvitations, setCancellingInvitations] = useState<Set<string>>(() => new Set())
+  const [resendingInvitations, setResendingInvitations] = useState<Set<string>>(() => new Set())
+  const [resentInvitations, setResentInvitations] = useState<Set<string>>(() => new Set())
   const [resendCooldowns, setResendCooldowns] = useState<Record<string, number>>({})
 
   const { data: memberUsageResponse, isLoading: isLoadingUsage } = useOrganizationMembers(

@@ -148,7 +148,7 @@ export function McpDeploy({
     return isDefaultDescription ? '' : workflowDescription
   })
   const [parameterDescriptions, setParameterDescriptions] = useState<Record<string, string>>({})
-  const [pendingServerChanges, setPendingServerChanges] = useState<Set<string>>(new Set())
+  const [pendingServerChanges, setPendingServerChanges] = useState<Set<string>>(() => new Set())
   const [saveErrors, setSaveErrors] = useState<string[]>([])
 
   const parameterSchema = useMemo(
