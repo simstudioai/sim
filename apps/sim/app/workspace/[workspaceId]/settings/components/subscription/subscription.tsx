@@ -378,6 +378,7 @@ export function Subscription() {
     if (permissions.canEditUsageLimit && usageLimitRef.current) {
       usageLimitRef.current.startEdit()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- openBillingPortal.mutate is stable in TanStack Query v5
   }, [
     isDispute,
     isBlocked,
@@ -387,7 +388,6 @@ export function Subscription() {
     activeOrgId,
     permissions.canEditUsageLimit,
     handleUpgradeWithErrorHandling,
-    openBillingPortal,
     logger,
   ])
 
