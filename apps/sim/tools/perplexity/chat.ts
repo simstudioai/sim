@@ -5,13 +5,15 @@ import type { ToolConfig } from '@/tools/types'
  * Per-token rates by model from https://docs.perplexity.ai/guides/pricing
  * Per-request fees assume Low context size (the API default).
  */
-const MODEL_PRICING: Record<string, { inputPerM: number; outputPerM: number; requestPer1K: number }> =
-  {
-    'sonar-deep-research': { inputPerM: 2, outputPerM: 8, requestPer1K: 0 },
-    'sonar-reasoning-pro': { inputPerM: 2, outputPerM: 8, requestPer1K: 6 },
-    'sonar-pro': { inputPerM: 3, outputPerM: 15, requestPer1K: 6 },
-    sonar: { inputPerM: 1, outputPerM: 1, requestPer1K: 5 },
-  }
+const MODEL_PRICING: Record<
+  string,
+  { inputPerM: number; outputPerM: number; requestPer1K: number }
+> = {
+  'sonar-deep-research': { inputPerM: 2, outputPerM: 8, requestPer1K: 0 },
+  'sonar-reasoning-pro': { inputPerM: 2, outputPerM: 8, requestPer1K: 6 },
+  'sonar-pro': { inputPerM: 3, outputPerM: 15, requestPer1K: 6 },
+  sonar: { inputPerM: 1, outputPerM: 1, requestPer1K: 5 },
+}
 
 function getModelPricing(model: string) {
   for (const [key, pricing] of Object.entries(MODEL_PRICING)) {

@@ -20,14 +20,10 @@ const VALID_PROVIDERS = [
   'mistral',
   'exa',
   'huggingface',
-  'tavily',
   'linkup',
   'perplexity',
-  'zep',
   'jina',
   'google_cloud',
-  'ahrefs',
-  'apify',
   'elevenlabs',
 ] as const
 

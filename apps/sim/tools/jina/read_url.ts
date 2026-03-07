@@ -188,8 +188,8 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
 
     const tokensHeader = response.headers.get('x-tokens')
     if (tokensHeader) {
-      const parsed = parseInt(tokensHeader, 10)
-      if (!isNaN(parsed)) {
+      const parsed = Number.parseInt(tokensHeader, 10)
+      if (!Number.isNaN(parsed)) {
         tokensUsed = parsed
       }
     }

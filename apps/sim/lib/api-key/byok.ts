@@ -97,9 +97,7 @@ export async function getApiKeyWithBYOK(
       logger.debug('No BYOK key found, falling back', { provider, model, workspaceId })
 
       if (isModelHosted) {
-        const envKeyPrefix = isGeminiModel
-          ? 'GEMINI_API_KEY'
-          : `${provider.toUpperCase()}_API_KEY`
+        const envKeyPrefix = isGeminiModel ? 'GEMINI_API_KEY' : `${provider.toUpperCase()}_API_KEY`
         const rateLimiter = getHostedKeyRateLimiter()
         const acquireResult = await rateLimiter.acquireKey(
           provider,

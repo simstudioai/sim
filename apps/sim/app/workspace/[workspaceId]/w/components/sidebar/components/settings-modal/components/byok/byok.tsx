@@ -14,9 +14,7 @@ import {
   ModalHeader,
 } from '@/components/emcn'
 import {
-  AhrefsIcon,
   AnthropicIcon,
-  ApifyIcon,
   BrowserUseIcon,
   ElevenLabsIcon,
   ExaAIIcon,
@@ -30,8 +28,6 @@ import {
   OpenAIIcon,
   PerplexityIcon,
   SerperIcon,
-  TavilyIcon,
-  ZepIcon,
 } from '@/components/icons'
 import { Skeleton } from '@/components/ui'
 import {
@@ -122,32 +118,11 @@ const PROVIDERS: {
     placeholder: 'Enter your Linkup API key',
   },
   {
-    id: 'tavily',
-    name: 'Tavily',
-    icon: TavilyIcon,
-    description: 'AI-powered web search and content extraction',
-    placeholder: 'Enter your Tavily API key',
-  },
-  {
     id: 'perplexity',
     name: 'Perplexity',
     icon: PerplexityIcon,
     description: 'AI-powered chat and web search',
     placeholder: 'pplx-...',
-  },
-  {
-    id: 'zep',
-    name: 'Zep',
-    icon: ZepIcon,
-    description: 'Long-term memory for AI agents',
-    placeholder: 'Enter your Zep API key',
-  },
-  {
-    id: 'ahrefs',
-    name: 'Ahrefs',
-    icon: AhrefsIcon,
-    description: 'SEO analysis, backlinks, and keyword research',
-    placeholder: 'Enter your Ahrefs API key',
   },
   {
     id: 'jina',
@@ -169,13 +144,6 @@ const PROVIDERS: {
     icon: GoogleIcon,
     description: 'Translate, Maps, PageSpeed, and Books APIs',
     placeholder: 'Enter your Google Cloud API key',
-  },
-  {
-    id: 'apify',
-    name: 'Apify',
-    icon: ApifyIcon,
-    description: 'Web scraping, automation, and actor execution',
-    placeholder: 'Enter your Apify API token',
   },
 ]
 

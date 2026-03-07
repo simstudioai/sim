@@ -29,7 +29,14 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
         // https://huggingface.co/docs/api-inference/rate-limits
         const totalTokens = usage.total_tokens
         const cost = (totalTokens / 1_000_000) * 3
-        return { cost, metadata: { promptTokens: usage.prompt_tokens, completionTokens: usage.completion_tokens, totalTokens } }
+        return {
+          cost,
+          metadata: {
+            promptTokens: usage.prompt_tokens,
+            completionTokens: usage.completion_tokens,
+            totalTokens,
+          },
+        }
       },
     },
     rateLimit: {

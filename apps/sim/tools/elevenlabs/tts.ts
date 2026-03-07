@@ -1,11 +1,7 @@
 import type { ElevenLabsTtsParams, ElevenLabsTtsResponse } from '@/tools/elevenlabs/types'
 import type { ToolConfig } from '@/tools/types'
 
-const FLASH_TURBO_MODELS = new Set([
-  'eleven_turbo_v2',
-  'eleven_turbo_v2_5',
-  'eleven_flash_v2_5',
-])
+const FLASH_TURBO_MODELS = new Set(['eleven_turbo_v2', 'eleven_turbo_v2_5', 'eleven_flash_v2_5'])
 
 export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsResponse> = {
   id: 'elevenlabs_tts',

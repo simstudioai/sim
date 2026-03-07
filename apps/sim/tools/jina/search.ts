@@ -178,8 +178,8 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     let tokensUsed: number | undefined
     const tokensHeader = response.headers.get('x-tokens')
     if (tokensHeader) {
-      const parsed = parseInt(tokensHeader, 10)
-      if (!isNaN(parsed) && parsed > 0) {
+      const parsed = Number.parseInt(tokensHeader, 10)
+      if (!Number.isNaN(parsed) && parsed > 0) {
         tokensUsed = parsed
       }
     }

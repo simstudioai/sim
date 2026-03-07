@@ -270,7 +270,7 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
         const STEP_COSTS: Record<string, number> = {
           'browser-use-llm': 0.002,
           'browser-use-2.0': 0.006,
-          'o3': 0.03,
+          o3: 0.03,
           'o4-mini': 0.03,
           'gemini-3-pro-preview': 0.03,
           'gemini-3-flash-preview': 0.015,
@@ -291,7 +291,9 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
         const model = (params.model as string) || 'browser-use-2.0'
         const knownCost = STEP_COSTS[model]
         if (!knownCost) {
-          logger.warn(`Unknown Browser Use model "${model}", using default step cost $${DEFAULT_STEP_COST}`)
+          logger.warn(
+            `Unknown Browser Use model "${model}", using default step cost $${DEFAULT_STEP_COST}`
+          )
         }
         const stepCost = knownCost ?? DEFAULT_STEP_COST
         const stepCount = output.steps.length

@@ -3,7 +3,6 @@ import type OpenAI from 'openai'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import { env } from '@/lib/core/config/env'
-import { isHosted } from '@/lib/core/config/feature-flags'
 import {
   buildCanonicalIndex,
   type CanonicalGroup,
@@ -38,7 +37,6 @@ import {
   updateOllamaModels as updateOllamaModelsInDefinitions,
 } from '@/providers/models'
 import type { ProviderId, ProviderToolConfig } from '@/providers/types'
-import { useProvidersStore } from '@/stores/providers/store'
 import { mergeToolParameters } from '@/tools/params'
 
 const logger = createLogger('ProviderUtils')
