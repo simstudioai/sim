@@ -117,6 +117,10 @@ export async function loadDeployedWorkflowState(
       resolvedWorkspaceId = wfRow?.workspaceId ?? undefined
     }
 
+    if (!resolvedWorkspaceId) {
+      throw new Error(`Workflow ${workflowId} has no workspace`)
+    }
+
     const { blocks: migratedBlocks } = await applyBlockMigrations(
       state.blocks || {},
       resolvedWorkspaceId
@@ -139,7 +143,7 @@ export async function loadDeployedWorkflowState(
 
 interface MigrationContext {
   blocks: Record<string, BlockState>
-  workspaceId?: string
+  workspaceId: string
   migrated: boolean
 }
 
@@ -148,7 +152,7 @@ type BlockMigration = (ctx: MigrationContext) => MigrationContext | Promise<Migr
 function createMigrationPipeline(migrations: BlockMigration[]) {
   return async (
     blocks: Record<string, BlockState>,
-    workspaceId?: string
+    workspaceId: string
   ): Promise<{ blocks: Record<string, BlockState>; migrated: boolean }> => {
     let ctx: MigrationContext = { blocks, workspaceId, migrated: false }
     for (const migration of migrations) {
@@ -170,7 +174,6 @@ const applyBlockMigrations = createMigrationPipeline([
   }),
 
   async (ctx) => {
-    if (!ctx.workspaceId) return ctx
     const { blocks, migrated } = await migrateCredentialIds(ctx.blocks, ctx.workspaceId)
     return { ...ctx, blocks, migrated: ctx.migrated || migrated }
   },
@@ -409,9 +412,13 @@ export async function loadWorkflowFromNormalizedTables(
       blocksMap[block.id] = assembled
     })
 
+    if (!workflowRow?.workspaceId) {
+      throw new Error(`Workflow ${workflowId} has no workspace`)
+    }
+
     const { blocks: finalBlocks, migrated } = await applyBlockMigrations(
       blocksMap,
-      workflowRow?.workspaceId ?? undefined
+      workflowRow.workspaceId
     )
 
     if (migrated) {
