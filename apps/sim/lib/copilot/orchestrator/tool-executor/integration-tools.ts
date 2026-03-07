@@ -6,19 +6,18 @@ import type {
   ToolCallResult,
   ToolCallState,
 } from '@/lib/copilot/orchestrator/types'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { executeTool } from '@/tools'
+import type { ToolConfig } from '@/tools/types'
 import { resolveToolId } from '@/tools/utils'
 
 export async function executeIntegrationToolDirect(
   toolCall: ToolCallState,
-  toolConfig: {
-    oauth?: { required?: boolean; provider?: string }
-    params?: { apiKey?: { required?: boolean } }
-  },
+  toolConfig: ToolConfig,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   const { userId, workflowId } = context
@@ -74,7 +73,8 @@ export async function executeIntegrationToolDirect(
     executionParams.accessToken = accessToken
   }
 
-  if (toolConfig.params?.apiKey?.required && !executionParams.apiKey) {
+  const hasHostedKeySupport = isHosted && !!toolConfig.hosting
+  if (toolConfig.params?.apiKey?.required && !executionParams.apiKey && !hasHostedKeySupport) {
     return {
       success: false,
       error: `API key not provided for ${toolName}. Use {{YOUR_API_KEY_ENV_VAR}} to reference your environment variable.`,
@@ -83,6 +83,7 @@ export async function executeIntegrationToolDirect(
 
   executionParams._context = {
     workflowId,
+    workspaceId,
     userId,
   }
 

@@ -9,6 +9,7 @@ import {
   isCanonicalPair,
   isNonEmptyValue,
   isSubBlockFeatureEnabled,
+  isSubBlockHiddenByHostedKey,
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
@@ -48,6 +49,7 @@ function shouldSerializeSubBlock(
   canonicalModeOverrides?: CanonicalModeOverrides
 ): boolean {
   if (!isSubBlockFeatureEnabled(subBlockConfig)) return false
+  if (isSubBlockHiddenByHostedKey(subBlockConfig)) return false
 
   if (subBlockConfig.mode === 'trigger') {
     if (!isTriggerContext && !isTriggerCategory) return false

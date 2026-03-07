@@ -181,6 +181,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           input: number
           output: number
           total: number
+          toolCost?: number
           tokens: { input: number; output: number; total: number }
         }
       >
@@ -507,6 +508,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           input: number
           output: number
           total: number
+          toolCost?: number
           tokens: { input: number; output: number; total: number }
         }
       >

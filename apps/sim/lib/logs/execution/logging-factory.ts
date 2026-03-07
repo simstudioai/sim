@@ -95,6 +95,7 @@ export function calculateCostSummary(traceSpans: any[]): {
       input: number
       output: number
       total: number
+      toolCost?: number
       tokens: { input: number; output: number; total: number }
     }
   >
@@ -143,6 +144,7 @@ export function calculateCostSummary(traceSpans: any[]): {
       input: number
       output: number
       total: number
+      toolCost?: number
       tokens: { input: number; output: number; total: number }
     }
   > = {}
@@ -171,6 +173,10 @@ export function calculateCostSummary(traceSpans: any[]): {
       models[model].tokens.input += span.tokens?.input ?? span.tokens?.prompt ?? 0
       models[model].tokens.output += span.tokens?.output ?? span.tokens?.completion ?? 0
       models[model].tokens.total += span.tokens?.total || 0
+
+      if (span.cost.toolCost) {
+        models[model].toolCost = (models[model].toolCost || 0) + span.cost.toolCost
+      }
     }
   }
 

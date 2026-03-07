@@ -7,10 +7,9 @@ import { isHosted } from '@/lib/core/config/feature-flags'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { getHostedModels } from '@/providers/models'
 import { useProvidersStore } from '@/stores/providers/store'
+import type { BYOKProviderId } from '@/tools/types'
 
 const logger = createLogger('BYOKKeys')
-
-export type BYOKProviderId = 'openai' | 'anthropic' | 'google' | 'mistral'
 
 export interface BYOKKeyResult {
   apiKey: string

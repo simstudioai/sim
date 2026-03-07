@@ -16,6 +16,7 @@ import {
   evaluateSubBlockCondition,
   hasAdvancedValues,
   isSubBlockFeatureEnabled,
+  isSubBlockHiddenByHostedKey,
   isSubBlockVisibleForMode,
   resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'
@@ -977,6 +978,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       if (block.hidden) return false
       if (block.hideFromPreview) return false
       if (!isSubBlockFeatureEnabled(block)) return false
+      if (isSubBlockHiddenByHostedKey(block)) return false
 
       const isPureTriggerBlock = config?.triggers?.enabled && config.category === 'triggers'
 
