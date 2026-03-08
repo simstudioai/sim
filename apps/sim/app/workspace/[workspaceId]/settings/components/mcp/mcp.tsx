@@ -194,6 +194,8 @@ export function MCP({ initialServerId }: MCPProps) {
 
   const [selectedServerId, setSelectedServerId] = useState<string | null>(initialServerId ?? null)
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- initialServerId and workspaceId
+  // are stable for the component's lifetime (route changes remount the settings page).
   useEffect(() => {
     if (initialServerId) {
       forceRefreshTools(workspaceId)

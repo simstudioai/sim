@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Button,
@@ -341,6 +341,14 @@ export function McpServerFormModal({
   if (open !== prevOpen) {
     setPrevOpen(open)
   }
+
+  // Clear stale TanStack Query mutation state when the modal opens.
+  // mutation.reset() is a side effect that can't be called during render.
+  useEffect(() => {
+    if (open) {
+      clearTestResult()
+    }
+  }, [open, clearTestResult])
 
   const resetEnvVarState = useCallback(() => {
     setShowEnvVars(false)
