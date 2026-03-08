@@ -27,7 +27,7 @@ export const revalidate = 0
 
 const StructuredTagFilterSchema = z.object({
   tagName: z.string(),
-  fieldType: z.enum(['text', 'number', 'date', 'boolean']).default('text'),
+  fieldType: z.enum(['text', 'number', 'date', 'boolean']).optional(),
   operator: z.string().default('eq'),
   value: z.union([z.string(), z.number(), z.boolean()]),
   valueTo: z.union([z.string(), z.number()]).optional(),
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
         const tagDef = displayNameToTagDef[filter.tagName]!
         return {
           tagSlot: tagDef.tagSlot,
-          fieldType: filter.fieldType || tagDef.fieldType,
+          fieldType: tagDef.fieldType,
           operator: filter.operator,
           value: filter.value,
           valueTo: filter.valueTo,

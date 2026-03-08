@@ -13,6 +13,7 @@
     "(generated)/usage",
     "(generated)/audit-logs",
     "(generated)/tables",
-    "(generated)/files"
+    "(generated)/files",
+    "(generated)/knowledge-bases"
   ]
 }

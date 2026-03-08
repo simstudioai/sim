@@ -37,8 +37,11 @@ async function listDirectory(
   dirPath: string,
   retryOptions?: Parameters<typeof fetchWithRetry>[2]
 ): Promise<string[]> {
-  const endpoint = dirPath
-    ? `${baseUrl}/vault/${encodeURIComponent(dirPath)}/`
+  const encodedDir = dirPath
+    ? dirPath.split('/').map(encodeURIComponent).join('/')
+    : ''
+  const endpoint = encodedDir
+    ? `${baseUrl}/vault/${encodedDir}/`
     : `${baseUrl}/vault/`
 
   const response = await fetchWithRetry(
@@ -111,7 +114,7 @@ async function fetchNote(
   retryOptions?: Parameters<typeof fetchWithRetry>[2]
 ): Promise<NoteJson> {
   const response = await fetchWithRetry(
-    `${baseUrl}/vault/${encodeURIComponent(filePath)}`,
+    `${baseUrl}/vault/${filePath.split('/').map(encodeURIComponent).join('/')}`,
     {
       method: 'GET',
       headers: {
@@ -204,7 +207,7 @@ export const obsidianConnector: ConnectorConfig = {
           title: titleFromPath(filePath),
           content,
           mimeType: 'text/plain',
-          sourceUrl: `${baseUrl}/vault/${encodeURIComponent(filePath)}`,
+          sourceUrl: `${baseUrl}/vault/${filePath.split('/').map(encodeURIComponent).join('/')}`,
           contentHash,
           metadata: {
             tags: note.tags,
@@ -252,7 +255,7 @@ export const obsidianConnector: ConnectorConfig = {
         title: titleFromPath(externalId),
         content,
         mimeType: 'text/plain',
-        sourceUrl: `${baseUrl}/vault/${encodeURIComponent(externalId)}`,
+        sourceUrl: `${baseUrl}/vault/${externalId.split('/').map(encodeURIComponent).join('/')}`,
         contentHash,
         metadata: {
           tags: note.tags,

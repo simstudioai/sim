@@ -147,7 +147,7 @@ export async function POST(request: NextRequest, { params }: DocumentsRouteParam
         {
           error: `File size exceeds 100MB limit (${(file.size / (1024 * 1024)).toFixed(2)}MB)`,
         },
-        { status: 400 }
+        { status: 413 }
       )
     }
 
