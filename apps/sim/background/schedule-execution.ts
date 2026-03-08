@@ -238,6 +238,8 @@ async function runWorkflowExecution({
       await PauseResumeManager.processQueuedResumes(executionId)
     }
 
+    await loggingSession.waitForPostExecution()
+
     logger.info(`[${requestId}] Workflow execution completed: ${payload.workflowId}`, {
       success: executionResult.success,
       executionTime: executionResult.metadata?.duration,
