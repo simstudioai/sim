@@ -444,12 +444,17 @@ export function McpServerFormModal({
             setJsonError('No servers found in mcpServers')
             return null
           }
+          if (entries.length > 1) {
+            setJsonError(
+              `Only the first server ("${entries[0][0]}") will be imported. Paste each config separately to add others.`
+            )
+          }
           const [name, config] = entries[0] as [string, Record<string, unknown>]
           if (!config.url || typeof config.url !== 'string') {
             setJsonError('Server config must include a "url" field')
             return null
           }
-          setJsonError(null)
+          if (entries.length <= 1) setJsonError(null)
           return { name, url: config.url, headers: extractStringHeaders(config.headers) }
         }
 
