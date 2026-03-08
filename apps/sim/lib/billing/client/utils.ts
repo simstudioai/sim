@@ -4,6 +4,7 @@
  */
 
 import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
+import { isFree, isPro } from '@/lib/billing/plan-helpers'
 import { USAGE_PILL_COLORS } from './consts'
 import type { BillingStatus, SubscriptionData, UsageData } from './types'
 
@@ -125,7 +126,7 @@ export function isAtLeastTeam(subscriptionData: SubscriptionData | null | undefi
 
 export function canUpgrade(subscriptionData: SubscriptionData | null | undefined): boolean {
   const status = getSubscriptionStatus(subscriptionData)
-  return status.plan === 'free' || status.plan === 'pro'
+  return isFree(status.plan) || isPro(status.plan)
 }
 
 /**

@@ -13,6 +13,7 @@ import {
 import { organization, subscription, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import { getPlanTypeForLimits, isEnterprise, isFree, isOrgPlan } from '@/lib/billing/plan-helpers'
 import { getEnv } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 
@@ -55,22 +56,15 @@ export function getStorageLimits() {
 export function getStorageLimitForPlan(plan: string, metadata?: any): number {
   const limits = getStorageLimits()
 
-  switch (plan) {
-    case 'free':
-      return limits.free
-    case 'pro':
-      return limits.pro
-    case 'team':
-      return limits.team
-    case 'enterprise':
-      // Check for custom limit in metadata (stored in GB)
-      if (metadata?.storageLimitGB) {
-        return gbToBytes(Number.parseInt(metadata.storageLimitGB))
-      }
-      return limits.enterpriseDefault
-    default:
-      return limits.free
+  if (isEnterprise(plan)) {
+    if (metadata?.storageLimitGB) {
+      return gbToBytes(Number.parseInt(metadata.storageLimitGB))
+    }
+    return limits.enterpriseDefault
   }
+
+  const effectivePlan = getPlanTypeForLimits(plan)
+  return limits[effectivePlan] ?? limits.free
 }
 
 /**
@@ -85,16 +79,16 @@ export async function getUserStorageLimit(userId: string): Promise<number> {
 
     const limits = getStorageLimits()
 
-    if (!sub || sub.plan === 'free') {
+    if (!sub || isFree(sub.plan)) {
       return limits.free
     }
 
-    if (sub.plan === 'pro') {
-      return limits.pro
+    if (!isOrgPlan(sub.plan)) {
+      const effectivePlan = getPlanTypeForLimits(sub.plan)
+      return limits[effectivePlan] ?? limits.free
     }
 
-    // Team/Enterprise: Use organization limit
-    if (sub.plan === 'team' || sub.plan === 'enterprise') {
+    if (isOrgPlan(sub.plan)) {
       // Get organization storage limit
       const orgRecord = await db
         .select({ metadata: subscription.metadata })
@@ -110,7 +104,7 @@ export async function getUserStorageLimit(userId: string): Promise<number> {
       }
 
       // Default for team/enterprise
-      return sub.plan === 'enterprise' ? limits.enterpriseDefault : limits.team
+      return isEnterprise(sub.plan) ? limits.enterpriseDefault : limits.team
     }
 
     return limits.free
@@ -130,8 +124,7 @@ export async function getUserStorageUsage(userId: string): Promise<number> {
     const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
     const sub = await getHighestPrioritySubscription(userId)
 
-    if (sub && (sub.plan === 'team' || sub.plan === 'enterprise')) {
-      // Use organization storage
+    if (sub && isOrgPlan(sub.plan)) {
       const orgRecord = await db
         .select({ storageUsedBytes: organization.storageUsedBytes })
         .from(organization)

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Avatar, AvatarFallback, AvatarImage, Badge, Button } from '@/components/emcn'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getUserColor } from '@/lib/workspaces/colors'
 import type { Invitation, Member, Organization } from '@/lib/workspaces/organization'
 import {
@@ -88,7 +89,7 @@ export function TeamMembers({
         avatarInitial: name.charAt(0).toUpperCase(),
         avatarUrl: member.user?.image,
         userId: member.user?.id,
-        usage: `$${usageAmount.toFixed(2)}`,
+        usage: `${dollarsToCredits(usageAmount).toLocaleString()} credits`,
         role: member.role,
         member,
       }

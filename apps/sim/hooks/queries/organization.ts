@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { client } from '@/lib/auth/auth-client'
+import { isEnterprise, isTeam } from '@/lib/billing/plan-helpers'
 
 const logger = createLogger('OrganizationQueries')
 
@@ -86,10 +87,10 @@ async function fetchOrganizationSubscription(orgId: string, _signal?: AbortSigna
   }
 
   const teamSubscription = response.data?.find(
-    (sub: any) => sub.status === 'active' && sub.plan === 'team'
+    (sub: any) => sub.status === 'active' && isTeam(sub.plan)
   )
   const enterpriseSubscription = response.data?.find(
-    (sub: any) => sub.plan === 'enterprise' || sub.plan === 'enterprise-plus'
+    (sub: any) => isEnterprise(sub.plan) || sub.plan === 'enterprise-plus'
   )
   const activeSubscription = enterpriseSubscription || teamSubscription
 

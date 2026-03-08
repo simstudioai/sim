@@ -4,6 +4,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { createLogger } from '@sim/logger'
 import { Check, X } from 'lucide-react'
 import { Badge, Button } from '@/components/emcn'
+import { formatCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
 import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useUpdateUsageLimit } from '@/hooks/queries/subscription'
@@ -96,7 +97,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
     }, [hasError])
 
     const handleSubmit = async () => {
-      const newLimit = Number.parseInt(inputValue, 10)
+      const newLimit = Number.parseFloat(inputValue)
 
       if (Number.isNaN(newLimit) || newLimit < minimumLimit) {
         setInputValue(currentLimit.toString())
@@ -169,15 +170,13 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
       }
     }
 
-    const inputWidthCh = Math.max(3, inputValue.length + 1)
+    const inputWidthCh = Math.max(3, inputValue.length + 2)
 
     return (
       <div className='flex items-center gap-[6px]'>
         {isEditing ? (
           <>
-            <span className='font-medium text-[15px] text-[var(--text-primary)] tabular-nums'>
-              $
-            </span>
+            <span className='font-medium text-[15px] text-[var(--text-muted)]'>$</span>
             <input
               ref={inputRef}
               type='number'
@@ -198,7 +197,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
                 hasError && 'text-[var(--text-error)]'
               )}
               min={minimumLimit}
-              step='1'
+              step='0.01'
               disabled={isUpdating}
               autoComplete='off'
               autoCorrect='off'
@@ -223,7 +222,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
         ) : (
           <>
             <span className='font-medium text-[15px] text-[var(--text-primary)] tabular-nums'>
-              ${pendingLimit !== null ? pendingLimit : currentLimit}
+              {formatCredits(pendingLimit !== null ? pendingLimit : currentLimit)} credits
             </span>
             {canEdit && (
               <Badge

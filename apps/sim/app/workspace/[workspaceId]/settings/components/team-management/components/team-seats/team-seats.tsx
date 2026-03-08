@@ -11,7 +11,6 @@ import {
   ModalHeader,
   Tooltip,
 } from '@/components/emcn'
-import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
 
 interface TeamSeatsProps {
   open: boolean
@@ -26,6 +25,8 @@ interface TeamSeatsProps {
   confirmButtonText: string
   showCostBreakdown?: boolean
   isCancelledAtPeriodEnd?: boolean
+  costPerSeatDollars: number
+  creditsPerSeat: number
 }
 
 export function TeamSeats({
@@ -41,6 +42,8 @@ export function TeamSeats({
   confirmButtonText,
   showCostBreakdown = false,
   isCancelledAtPeriodEnd = false,
+  costPerSeatDollars,
+  creditsPerSeat: creditsPerSeatProp,
 }: TeamSeatsProps) {
   const [selectedSeats, setSelectedSeats] = useState(initialSeats)
 
@@ -50,7 +53,8 @@ export function TeamSeats({
     }
   }, [open, initialSeats])
 
-  const costPerSeat = DEFAULT_TEAM_TIER_COST_LIMIT
+  const costPerSeat = costPerSeatDollars
+  const seatCredits = creditsPerSeatProp
   const totalMonthlyCost = selectedSeats * costPerSeat
   const costChange = currentSeats ? (selectedSeats - currentSeats) * costPerSeat : 0
 
@@ -87,7 +91,7 @@ export function TeamSeats({
 
           <p className='mt-[12px] text-[13px] text-[var(--text-muted)]'>
             Your team will have {selectedSeats} {selectedSeats === 1 ? 'seat' : 'seats'} with a
-            total of ${totalMonthlyCost} inference credits per month.
+            total of {(selectedSeats * seatCredits).toLocaleString()} inference credits per month.
           </p>
 
           {showCostBreakdown && currentSeats !== undefined && (
@@ -101,9 +105,15 @@ export function TeamSeats({
                 <span className='text-[var(--text-primary)]'>{selectedSeats}</span>
               </div>
               <div className='mt-[12px] flex justify-between border-[var(--border-1)] border-t pt-[12px] text-[13px]'>
-                <span className='font-medium text-[var(--text-primary)]'>Monthly cost change:</span>
                 <span className='font-medium text-[var(--text-primary)]'>
-                  {costChange > 0 ? '+' : ''}${costChange}
+                  Monthly credit change:
+                </span>
+                <span className='font-medium text-[var(--text-primary)]'>
+                  {costChange > 0 ? '+' : ''}
+                  {(
+                    (currentSeats ? selectedSeats - currentSeats : 0) * seatCredits
+                  ).toLocaleString()}{' '}
+                  credits
                 </span>
               </div>
             </div>

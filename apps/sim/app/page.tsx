@@ -80,7 +80,8 @@ export const metadata: Metadata = {
       'AI agents, agentic workforce, agentic workflows, knowledge bases, tables, document creation, email automation, Slack bots, data analysis, customer support, content generation',
     'llm:integrations':
       'OpenAI, Anthropic, Google AI, Mistral, xAI, Perplexity, Slack, Gmail, Discord, Notion, Airtable, Supabase',
-    'llm:pricing': 'free tier available, pro $20/month, team $40/month, enterprise custom',
+    'llm:pricing':
+      'free tier available, pro $25/month, max $100/month, team plans available, enterprise custom',
     'llm:region': 'global',
     'llm:languages': 'en',
   },

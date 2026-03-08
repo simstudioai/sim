@@ -5,7 +5,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface PlanWelcomeEmailProps {
-  planName: 'Pro' | 'Team'
+  planName: string
   userName?: string
   loginLink?: string
 }

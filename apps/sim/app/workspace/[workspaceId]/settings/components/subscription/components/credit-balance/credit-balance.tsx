@@ -13,6 +13,7 @@ import {
   ModalHeader,
   ModalTrigger,
 } from '@/components/emcn'
+import { dollarsToCredits, formatCredits } from '@/lib/billing/credits/conversion'
 import { usePurchaseCredits } from '@/hooks/queries/subscription'
 
 interface CreditBalanceProps {
@@ -38,6 +39,9 @@ export function CreditBalance({
   const [validationError, setValidationError] = useState<string | null>(null)
   const [requestId, setRequestId] = useState<string | null>(null)
   const purchaseCredits = usePurchaseCredits()
+
+  const dollarAmount = Number.parseInt(amount, 10) || 0
+  const creditPreview = dollarsToCredits(dollarAmount)
 
   const handleAmountChange = (value: string) => {
     const numericValue = value.replace(/[^0-9]/g, '')
@@ -90,9 +94,9 @@ export function CreditBalance({
   return (
     <div className='flex items-center justify-between'>
       <div className='flex items-center gap-[8px]'>
-        <Label>Credit Balance:</Label>
+        <Label>Additional Credits Balance:</Label>
         <span className='text-[13px] text-[var(--text-secondary)]'>
-          {isLoading ? '...' : `$${balance.toFixed(2)}`}
+          {isLoading ? '...' : `${formatCredits(balance)} credits`}
         </span>
       </div>
 
@@ -129,16 +133,16 @@ export function CreditBalance({
                         disabled={purchaseCredits.isPending}
                       />
                     </div>
+                    {dollarAmount > 0 && !displayError && (
+                      <span className='text-[12px] text-[var(--text-secondary)]'>
+                        You'll receive {creditPreview.toLocaleString()} credits
+                      </span>
+                    )}
                     {displayError && (
                       <span className='text-[13px] text-[var(--text-error)]'>{displayError}</span>
                     )}
                   </div>
 
-                  <div className='rounded-[6px] bg-[var(--surface-4)] p-[12px]'>
-                    <p className='text-[13px] text-[var(--text-secondary)]'>
-                      Credits are used before overage charges. Min: $10, Max: $1,000.
-                    </p>
-                  </div>
                   <div className='rounded-[6px] bg-[var(--surface-4)] p-[12px]'>
                     <p className='text-[13px] text-[var(--text-secondary)]'>
                       Credits are non-refundable and don't expire. They'll be applied automatically

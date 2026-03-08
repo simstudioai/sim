@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { getUserUsageLogs, type UsageLogSource } from '@/lib/billing/core/usage-log'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 
 const logger = createLogger('UsageLogsAPI')
 
@@ -78,6 +79,16 @@ export async function GET(req: NextRequest) {
       cursor,
     })
 
+    const logsWithCredits = result.logs.map((log) => ({
+      ...log,
+      creditCost: dollarsToCredits(log.cost),
+    }))
+
+    const bySourceCredits: Record<string, number> = {}
+    for (const [src, cost] of Object.entries(result.summary.bySource)) {
+      bySourceCredits[src] = dollarsToCredits(cost)
+    }
+
     logger.debug('Retrieved usage logs', {
       userId,
       source,
@@ -88,7 +99,13 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      ...result,
+      logs: logsWithCredits,
+      summary: {
+        ...result.summary,
+        totalCostCredits: dollarsToCredits(result.summary.totalCost),
+        bySourceCredits,
+      },
+      pagination: result.pagination,
     })
   } catch (error) {
     logger.error('Failed to get usage logs', {

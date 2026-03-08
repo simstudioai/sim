@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import { Badge } from '@/components/emcn'
 import { getFilledPillColor, USAGE_PILL_COLORS, USAGE_THRESHOLDS } from '@/lib/billing/client'
+import { formatCredits } from '@/lib/billing/credits/conversion'
 
 const PILL_COUNT = 5
 
@@ -63,12 +64,12 @@ export function UsageHeader({
             ) : (
               <>
                 <span className='font-medium text-[15px] text-[var(--text-primary)] tabular-nums'>
-                  ${current.toFixed(2)}
+                  {formatCredits(current)}
                 </span>
                 <span className='font-medium text-[15px] text-[var(--text-primary)]'>/</span>
                 {rightContent ?? (
                   <span className='font-medium text-[15px] text-[var(--text-primary)] tabular-nums'>
-                    ${limit.toFixed(2)}
+                    {formatCredits(limit)} credits
                   </span>
                 )}
               </>

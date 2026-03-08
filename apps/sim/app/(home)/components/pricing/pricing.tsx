@@ -20,7 +20,7 @@ const PRICING_TIERS: PricingTier[] = [
     price: 'Free',
     color: '#2ABBF8',
     features: [
-      '$20 usage limit',
+      '3,000 credits/mo',
       '5GB file storage',
       '5 min execution limit',
       'Limited log retention',
@@ -29,37 +29,34 @@ const PRICING_TIERS: PricingTier[] = [
     cta: { label: 'Get started', href: '/signup' },
   },
   {
-    id: 'professional',
-    name: 'Professional',
+    id: 'pro',
+    name: 'Pro',
     description: 'For professionals building production workflows',
-    price: '$20',
+    price: '$25',
     billingPeriod: 'per month',
     color: '#00F701',
     features: [
-      '150 runs per minute (sync)',
-      '1,000 runs per minute (async)',
+      '6,000 credits/mo',
+      '+50 daily refresh credits',
+      '150 runs/min (sync)',
       '50 min sync execution limit',
       '50GB file storage',
-      'Unlimited invites',
-      'Unlimited log retention',
     ],
     cta: { label: 'Get started', href: '/signup' },
   },
   {
-    id: 'team',
-    name: 'Team',
-    description: 'For teams collaborating on complex agents',
-    price: '$40',
+    id: 'max',
+    name: 'Max',
+    description: 'For power users and teams building at scale',
+    price: '$100',
     billingPeriod: 'per month',
     color: '#FA4EDF',
     features: [
-      '300 runs per minute (sync)',
-      '2,500 runs per minute (async)',
-      '500GB file storage (pooled)',
+      '25,000 credits/mo',
+      '+200 daily refresh credits',
+      '300 runs/min (sync)',
       '50 min sync execution limit',
-      'Unlimited invites',
-      'Unlimited log retention',
-      'Dedicated Slack channel',
+      '500GB file storage',
     ],
     cta: { label: 'Get started', href: '/signup' },
   },
@@ -69,7 +66,7 @@ const PRICING_TIERS: PricingTier[] = [
     description: 'For organizations needing security and scale',
     price: 'Custom',
     color: '#FFCC02',
-    features: ['Custom rate limits', 'Custom file storage', 'SSO', 'SOC2', 'Dedicated support'],
+    features: ['Custom infra limits', 'SSO', 'SOC2', 'Self hosting', 'Dedicated support'],
     cta: { label: 'Book a demo', href: '/contact' },
   },
 ]
@@ -94,7 +91,7 @@ interface PricingCardProps {
 
 function PricingCard({ tier }: PricingCardProps) {
   const isEnterprise = tier.id === 'enterprise'
-  const isProfessional = tier.id === 'professional'
+  const isPro = tier.id === 'pro'
 
   return (
     <article className='flex flex-1 flex-col' aria-labelledby={`${tier.id}-heading`}>
@@ -123,7 +120,7 @@ function PricingCard({ tier }: PricingCardProps) {
               >
                 {tier.cta.label}
               </a>
-            ) : isProfessional ? (
+            ) : isPro ? (
               <Link
                 href={tier.cta.href}
                 className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#33C482] bg-[#33C482] px-[10px] font-[430] font-season text-[14px] text-white transition-[filter] hover:brightness-110'
@@ -172,18 +169,7 @@ function PricingCard({ tier }: PricingCardProps) {
 }
 
 /**
- * Pricing section — tiered pricing plans with feature comparison.
- *
- * SEO:
- * - `<section id="pricing" aria-labelledby="pricing-heading">`.
- * - `<h2 id="pricing-heading">` for the section title.
- * - Each tier: `<h3>` plan name + semantic `<ul>` feature list.
- * - Free tier CTA uses `<Link href="/signup">` (crawlable). Enterprise CTA uses `<a>`.
- *
- * GEO:
- * - Each plan has consistent structure: name, price, billing period, feature list.
- * - Lead with a summary: "Sim offers a free Community plan, $20/mo Pro, $40/mo Team, custom Enterprise."
- * - Prices must match the `Offer` items in structured-data.tsx exactly.
+ * Pricing section -- tiered pricing plans with feature comparison.
  */
 export default function Pricing() {
   return (
