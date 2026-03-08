@@ -8,8 +8,10 @@
 export const DEFAULT_FREE_CREDITS = 15
 
 /**
- * Default per-user minimum limits (in dollars) for paid plans when env vars are absent
- * These are legacy values from the old pricing model.
+ * Default per-user minimum limits (in dollars) for paid plans when env vars are absent.
+ * These are intentionally kept at legacy pricing ($20 Pro, $40 Team) for backward
+ * compatibility with existing subscribers on the old plan names ('pro', 'team').
+ * New tiered plans (pro_6000, team_25000, etc.) derive their limits from CREDIT_TIERS.
  */
 export const DEFAULT_PRO_TIER_COST_LIMIT = 20
 export const DEFAULT_TEAM_TIER_COST_LIMIT = 40

@@ -98,7 +98,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
 
     const handleSubmit = async () => {
       const creditInput = Number.parseInt(inputValue, 10)
-      const newLimit = creditsToDollars(creditInput)
+      const newLimit = Math.round(creditsToDollars(creditInput) * 100) / 100
 
       if (Number.isNaN(creditInput) || newLimit < minimumLimit) {
         setInputValue(dollarsToCredits(currentLimit).toString())

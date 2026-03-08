@@ -18,10 +18,7 @@ import {
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
 import { inter } from '@/app/_styles/fonts/inter/inter'
-import {
-  ENTERPRISE_PLAN_FEATURES,
-  PRO_PLAN_FEATURES,
-} from '@/app/workspace/[workspaceId]/settings/components/subscription/plan-configs'
+import { ENTERPRISE_PLAN_FEATURES } from '@/app/workspace/[workspaceId]/settings/components/subscription/plan-configs'
 
 const logger = createLogger('LandingPricing')
 
@@ -50,7 +47,9 @@ const FREE_PLAN_FEATURES: PricingFeature[] = [
 const PRO_LANDING_FEATURES: PricingFeature[] = [
   { icon: DollarSign, text: '6,000 credits/mo' },
   { icon: RefreshCw, text: '+50 daily refresh credits' },
-  ...PRO_PLAN_FEATURES,
+  { icon: Zap, text: '150 runs/min (sync)' },
+  { icon: Timer, text: '50 min sync execution limit' },
+  { icon: HardDrive, text: '50GB file storage' },
 ]
 
 const MAX_LANDING_FEATURES: PricingFeature[] = [
