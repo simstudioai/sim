@@ -115,6 +115,8 @@ export async function calculateSubscriptionOverage(sub: {
   plan: string | null
   referenceId: string
   seats?: number | null
+  periodStart?: Date | null
+  periodEnd?: Date | null
 }): Promise<number> {
   // Enterprise plans have no overages
   if (isEnterprise(sub.plan)) {
@@ -152,23 +154,15 @@ export async function calculateSubscriptionOverage(sub: {
 
     let dailyRefreshDeduction = 0
     const planDollars = getPlanTierDollars(sub.plan)
-    if (planDollars > 0) {
-      const subRecord = await db
-        .select({ periodStart: subscription.periodStart, periodEnd: subscription.periodEnd })
-        .from(subscription)
-        .where(eq(subscription.id, sub.id))
-        .limit(1)
-
-      if (subRecord.length > 0 && subRecord[0].periodStart) {
-        const memberIds = members.map((m) => m.userId)
-        dailyRefreshDeduction = await computeDailyRefreshConsumed({
-          userIds: memberIds,
-          periodStart: subRecord[0].periodStart,
-          periodEnd: subRecord[0].periodEnd ?? null,
-          planDollars,
-          seats: sub.seats ?? 1,
-        })
-      }
+    if (planDollars > 0 && sub.periodStart) {
+      const memberIds = members.map((m) => m.userId)
+      dailyRefreshDeduction = await computeDailyRefreshConsumed({
+        userIds: memberIds,
+        periodStart: sub.periodStart,
+        periodEnd: sub.periodEnd ?? null,
+        planDollars,
+        seats: sub.seats ?? 1,
+      })
     }
 
     const effectiveUsageDecimal = Decimal.max(
