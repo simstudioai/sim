@@ -1,9 +1,12 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { ArrowUpDown, ListFilter, Plus, Search } from 'lucide-react'
-import { Button, Skeleton } from '@/components/emcn'
+import { useCallback, useRef } from 'react'
+import { Plus } from 'lucide-react'
+import { Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { ResourceHeader } from './components/resource-header'
+import { ResourceOptionsBar } from './components/resource-options-bar'
 
 export interface ResourceColumn {
   id: string
@@ -52,7 +55,7 @@ const EMPTY_CELL_PLACEHOLDER = '-  -  -'
  * Renders the header, toolbar with search, and a data table from column/row definitions.
  */
 export function Resource({
-  icon: Icon,
+  icon,
   title,
   create,
   search,
@@ -67,90 +70,49 @@ export function Resource({
   loadingRows = 5,
   onContextMenu,
 }: ResourceProps) {
-  const hasOptionsBar = search || onSort || onFilter
+  const headerRef = useRef<HTMLDivElement>(null)
+
+  const handleBodyScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (headerRef.current) {
+      headerRef.current.scrollLeft = e.currentTarget.scrollLeft
+    }
+  }, [])
+
   return (
     <div
       className='flex h-full flex-1 flex-col overflow-hidden bg-white dark:bg-[var(--bg)]'
       onContextMenu={onContextMenu}
     >
-      <div className='border-[var(--border)] border-b px-[24px] py-[10px]'>
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-[12px]'>
-            <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
-            <h1 className='font-medium text-[14px] text-[var(--text-body)]'>{title}</h1>
-          </div>
-          {create && (
-            <Button
-              onClick={create.onClick}
-              disabled={create.disabled}
-              variant='subtle'
-              className='px-[8px] py-[4px] text-[12px]'
-            >
-              <Plus className='mr-[6px] h-[14px] w-[14px]' />
-              {create.label}
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {hasOptionsBar && (
-        <div className='border-[var(--border)] border-b px-[24px] py-[10px]'>
-          <div className='flex items-center justify-between'>
-            {search && (
-              <div className='relative flex-1'>
-                <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-0 h-[14px] w-[14px] text-[var(--text-muted)]' />
-                <input
-                  type='text'
-                  value={search.value}
-                  onChange={(e) => search.onChange(e.target.value)}
-                  placeholder={search.placeholder ?? 'Search...'}
-                  className='w-full bg-transparent py-[4px] pl-[24px] font-base text-[12px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-subtle)]'
-                />
-              </div>
-            )}
-            <div className='flex items-center gap-[6px]'>
-              {onFilter && (
-                <Button
-                  variant='subtle'
-                  className='px-[8px] py-[4px] text-[12px]'
-                  onClick={onFilter}
-                >
-                  <ListFilter className='mr-[6px] h-[14px] w-[14px]' />
-                  Filter
-                </Button>
-              )}
-              {onSort && (
-                <Button variant='subtle' className='px-[8px] py-[4px] text-[12px]' onClick={onSort}>
-                  <ArrowUpDown className='mr-[6px] h-[14px] w-[14px]' />
-                  Sort
-                </Button>
-              )}
-              {toolbarActions}
-            </div>
-          </div>
-        </div>
-      )}
+      <ResourceHeader icon={icon} title={title} create={create} />
+      <ResourceOptionsBar
+        search={search}
+        onSort={onSort}
+        onFilter={onFilter}
+        toolbarActions={toolbarActions}
+      />
 
       {isLoading ? (
         <DataTableSkeleton columns={columns} rowCount={loadingRows} />
       ) : (
         <>
-          <table className='w-full table-fixed text-[13px]'>
-            <ResourceColGroup columns={columns} />
-            <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
-              <tr>
-                {columns.map((col) => (
-                  <th
-                    key={col.id}
-                    className='h-10 px-[24px] py-[10px] text-left align-middle font-base text-[var(--text-muted)]'
-                  >
-                    {col.header}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-          </table>
-          <div className='min-h-0 flex-1 overflow-auto'>
+          <div ref={headerRef} className='overflow-hidden'>
+            <table className='w-full table-fixed text-[13px]'>
+              <ResourceColGroup columns={columns} />
+              <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
+                <tr>
+                  {columns.map((col) => (
+                    <th
+                      key={col.id}
+                      className='h-10 px-[24px] py-[10px] text-left align-middle font-base text-[var(--text-muted)]'
+                    >
+                      {col.header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+            </table>
+          </div>
+          <div className='min-h-0 flex-1 overflow-auto' onScroll={handleBodyScroll}>
             <table className='w-full table-fixed text-[13px]'>
               <ResourceColGroup columns={columns} />
               <tbody>
@@ -182,7 +144,9 @@ export function Resource({
                   <tr
                     className={cn(
                       'transition-colors',
-                      create.disabled ? 'opacity-40' : 'cursor-pointer hover:bg-[var(--surface-3)]'
+                      create.disabled
+                        ? 'cursor-not-allowed'
+                        : 'cursor-pointer hover:bg-[var(--surface-3)]'
                     )}
                     onClick={create.disabled ? undefined : create.onClick}
                   >
@@ -221,7 +185,7 @@ function ResourceColGroup({ columns }: { columns: ResourceColumn[] }) {
   return (
     <colgroup>
       {columns.map((col, colIdx) => (
-        <col key={col.id} className={colIdx === 0 ? undefined : 'w-[160px]'} />
+        <col key={col.id} className={colIdx === 0 ? 'min-w-[200px]' : 'w-[160px]'} />
       ))}
     </colgroup>
   )
@@ -230,23 +194,25 @@ function ResourceColGroup({ columns }: { columns: ResourceColumn[] }) {
 function DataTableSkeleton({ columns, rowCount }: { columns: ResourceColumn[]; rowCount: number }) {
   return (
     <>
-      <table className='w-full table-fixed text-[13px]'>
-        <ResourceColGroup columns={columns} />
-        <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
-          <tr>
-            {columns.map((col) => (
-              <th
-                key={col.id}
-                className='h-10 px-[24px] py-[10px] text-left align-middle font-base text-[var(--text-muted)]'
-              >
-                <div className='flex min-h-[20px] items-center'>
-                  <Skeleton className='h-[12px] w-[56px]' />
-                </div>
-              </th>
-            ))}
-          </tr>
-        </thead>
-      </table>
+      <div className='overflow-hidden'>
+        <table className='w-full table-fixed text-[13px]'>
+          <ResourceColGroup columns={columns} />
+          <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
+            <tr>
+              {columns.map((col) => (
+                <th
+                  key={col.id}
+                  className='h-10 px-[24px] py-[10px] text-left align-middle font-base text-[var(--text-muted)]'
+                >
+                  <div className='flex min-h-[20px] items-center'>
+                    <Skeleton className='h-[12px] w-[56px]' />
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+        </table>
+      </div>
       <div className='min-h-0 flex-1 overflow-auto'>
         <table className='w-full table-fixed text-[13px]'>
           <ResourceColGroup columns={columns} />

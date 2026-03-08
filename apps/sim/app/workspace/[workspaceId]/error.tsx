@@ -1,11 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
-import { createLogger } from '@sim/logger'
-import { RefreshCw } from 'lucide-react'
-import { Button } from '@/components/emcn'
-
-const logger = createLogger('WorkspaceError')
+import { ErrorState } from '@/app/workspace/[workspaceId]/components'
 
 interface WorkspaceErrorProps {
   error: Error & { digest?: string }
@@ -13,26 +8,13 @@ interface WorkspaceErrorProps {
 }
 
 export default function WorkspaceError({ error, reset }: WorkspaceErrorProps) {
-  useEffect(() => {
-    logger.error('Workspace error:', { error: error.message, digest: error.digest })
-  }, [error])
-
   return (
-    <div className='flex h-full flex-1 items-center justify-center bg-white dark:bg-[var(--bg)]'>
-      <div className='flex flex-col items-center gap-[16px] text-center'>
-        <div className='flex flex-col gap-[8px]'>
-          <h2 className='font-semibold text-[16px] text-[var(--text-primary)]'>
-            Something went wrong
-          </h2>
-          <p className='max-w-[300px] text-[13px] text-[var(--text-tertiary)]'>
-            An unexpected error occurred. Please try again or refresh the page.
-          </p>
-        </div>
-        <Button variant='default' size='sm' onClick={reset}>
-          <RefreshCw className='mr-[6px] h-[14px] w-[14px]' />
-          Try again
-        </Button>
-      </div>
-    </div>
+    <ErrorState
+      error={error}
+      reset={reset}
+      title='Something went wrong'
+      description='An unexpected error occurred. Please try again or refresh the page.'
+      loggerName='WorkspaceError'
+    />
   )
 }

@@ -5,13 +5,15 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   Badge,
   Checkbox,
-  Table,
+  Table as EmcnTable,
   TableBody,
   TableHead,
   TableHeader,
   TableRow,
 } from '@/components/emcn'
+import { Table as TableIcon } from '@/components/emcn/icons'
 import type { TableRow as TableRowType } from '@/lib/table'
+import { ResourceHeader, ResourceOptionsBar } from '@/app/workspace/[workspaceId]/components'
 import { useUpdateTableRow } from '@/hooks/queries/tables'
 import { useContextMenu, useRowSelection, useTableData } from '../../hooks'
 import type { CellViewerData, EditingCell, QueryOptions } from '../../types'
@@ -19,16 +21,14 @@ import { ActionBar } from '../action-bar'
 import { EmptyRows, LoadingRows } from '../body-states'
 import { CellViewerModal } from '../cell-viewer-modal'
 import { ContextMenu } from '../context-menu'
-import { HeaderBar } from '../header-bar'
 import { Pagination } from '../pagination'
-import { QueryBuilder } from '../query-builder'
 import { RowModal } from '../row-modal'
 import { SchemaModal } from '../schema-modal'
 import { TableRowCells } from '../table-row-cells'
 
 const EMPTY_COLUMNS: never[] = []
 
-export function TableViewer() {
+export function Table() {
   const params = useParams()
   const router = useRouter()
 
@@ -50,13 +50,12 @@ export function TableViewer() {
   const [cellViewer, setCellViewer] = useState<CellViewerData | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const { tableData, isLoadingTable, rows, totalCount, totalPages, isLoadingRows, refetchRows } =
-    useTableData({
-      workspaceId,
-      tableId,
-      queryOptions,
-      currentPage,
-    })
+  const { tableData, isLoadingTable, rows, totalCount, totalPages, isLoadingRows } = useTableData({
+    workspaceId,
+    tableId,
+    queryOptions,
+    currentPage,
+  })
 
   const { selectedRows, handleSelectAll, handleSelectRow, clearSelection } = useRowSelection(rows)
 
@@ -90,18 +89,13 @@ export function TableViewer() {
     router.push(`/workspace/${workspaceId}/tables`)
   }, [router, workspaceId])
 
-  const handleShowSchema = useCallback(() => {
-    setShowSchemaModal(true)
-  }, [])
-
   const handleAddRow = useCallback(() => {
     setShowAddModal(true)
   }, [])
 
-  const handleApplyQueryOptions = useCallback((options: QueryOptions) => {
-    setQueryOptions(options)
-    setCurrentPage(0)
-  }, [])
+  const handleSort = useCallback(() => {}, [])
+
+  const handleFilter = useCallback(() => {}, [])
 
   const handleDeleteSelected = useCallback(() => {
     setDeletingRows(Array.from(selectedRows))
@@ -214,26 +208,12 @@ export function TableViewer() {
 
   return (
     <div className='flex h-full flex-col'>
-      <HeaderBar
-        tableName={tableData.name}
-        totalCount={totalCount}
-        isLoading={isLoadingRows}
-        onNavigateBack={handleNavigateBack}
-        onShowSchema={handleShowSchema}
-        onRefresh={refetchRows}
+      <ResourceHeader
+        icon={TableIcon}
+        breadcrumbs={[{ label: 'Tables', onClick: handleNavigateBack }, { label: tableData.name }]}
       />
 
-      <div className='flex shrink-0 flex-col gap-[8px] border-[var(--border)] border-b px-[16px] py-[10px]'>
-        <QueryBuilder
-          columns={columns}
-          onApply={handleApplyQueryOptions}
-          onAddRow={handleAddRow}
-          isLoading={isLoadingRows}
-        />
-        {hasSelection && (
-          <span className='text-[11px] text-[var(--text-tertiary)]'>{selectedCount} selected</span>
-        )}
-      </div>
+      <ResourceOptionsBar onSort={handleSort} onFilter={handleFilter} />
 
       {hasSelection && (
         <ActionBar
@@ -244,7 +224,7 @@ export function TableViewer() {
       )}
 
       <div className='flex-1 overflow-auto'>
-        <Table>
+        <EmcnTable>
           <TableHeader className='sticky top-0 z-10 bg-[var(--surface-3)]'>
             <TableRow>
               <TableHead className='w-[40px]'>
@@ -293,7 +273,7 @@ export function TableViewer() {
               ))
             )}
           </TableBody>
-        </Table>
+        </EmcnTable>
       </div>
 
       <Pagination

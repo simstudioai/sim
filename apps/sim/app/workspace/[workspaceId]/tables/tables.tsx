@@ -2,10 +2,9 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Columns, Rows3 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
-import { Table as TableIcon } from '@/components/emcn/icons'
+import { Columns3, Rows3, Table as TableIcon } from '@/components/emcn/icons'
 import type { TableDefinition } from '@/lib/table'
 import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
 import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
@@ -80,7 +79,7 @@ export function Tables() {
             label: table.name,
           },
           columns: {
-            icon: <Columns className='h-[14px] w-[14px]' />,
+            icon: <Columns3 className='h-[14px] w-[14px]' />,
             label: String(table.schema.columns.length),
           },
           rows: {
