@@ -831,7 +831,7 @@ export const Sidebar = memo(function Sidebar() {
                 </div>
 
                 {/* Workflows */}
-                <div className='workflows-section mt-[14px] flex flex-col'>
+                <div className='workflows-section relative mt-[14px] flex flex-col'>
                   <div className='flex flex-shrink-0 flex-col space-y-[4px] px-[16px]'>
                     <div className='flex items-center justify-between'>
                       <div className='font-base text-[var(--text-icon)] text-small'>Workflows</div>
@@ -896,21 +896,18 @@ export const Sidebar = memo(function Sidebar() {
                   </div>
 
                   <div className='mt-[6px] px-[8px]'>
-                    {workflowsLoading ? (
-                      <SidebarItemSkeleton />
-                    ) : (
-                      <WorkflowList
-                        regularWorkflows={regularWorkflows}
-                        isLoading={isLoading}
-                        canReorder={canEdit}
-                        handleFileChange={handleImportFileChange}
-                        fileInputRef={fileInputRef}
-                        scrollContainerRef={scrollContainerRef}
-                        onCreateWorkflow={handleCreateWorkflow}
-                        onCreateFolder={handleCreateFolder}
-                        disableCreate={!canEdit || isCreatingWorkflow || isCreatingFolder}
-                      />
-                    )}
+                    {workflowsLoading && regularWorkflows.length === 0 && <SidebarItemSkeleton />}
+                    <WorkflowList
+                      regularWorkflows={regularWorkflows}
+                      isLoading={isLoading}
+                      canReorder={canEdit}
+                      handleFileChange={handleImportFileChange}
+                      fileInputRef={fileInputRef}
+                      scrollContainerRef={scrollContainerRef}
+                      onCreateWorkflow={handleCreateWorkflow}
+                      onCreateFolder={handleCreateFolder}
+                      disableCreate={!canEdit || isCreatingWorkflow || isCreatingFolder}
+                    />
                   </div>
                 </div>
               </div>
