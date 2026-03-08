@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { document, knowledgeBase, knowledgeConnector, permissions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm'
+import { and, count, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -24,7 +24,7 @@ export async function getKnowledgeBases(
       id: knowledgeBase.id,
       name: knowledgeBase.name,
       description: knowledgeBase.description,
-      tokenCount: knowledgeBase.tokenCount,
+      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
       embeddingModel: knowledgeBase.embeddingModel,
       embeddingDimension: knowledgeBase.embeddingDimension,
       chunkingConfig: knowledgeBase.chunkingConfig,
@@ -204,7 +204,7 @@ export async function updateKnowledgeBase(
       id: knowledgeBase.id,
       name: knowledgeBase.name,
       description: knowledgeBase.description,
-      tokenCount: knowledgeBase.tokenCount,
+      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
       embeddingModel: knowledgeBase.embeddingModel,
       embeddingDimension: knowledgeBase.embeddingDimension,
       chunkingConfig: knowledgeBase.chunkingConfig,
@@ -247,7 +247,7 @@ export async function getKnowledgeBaseById(
       id: knowledgeBase.id,
       name: knowledgeBase.name,
       description: knowledgeBase.description,
-      tokenCount: knowledgeBase.tokenCount,
+      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
       embeddingModel: knowledgeBase.embeddingModel,
       embeddingDimension: knowledgeBase.embeddingDimension,
       chunkingConfig: knowledgeBase.chunkingConfig,
