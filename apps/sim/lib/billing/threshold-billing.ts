@@ -148,6 +148,8 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
         plan: userSubscription.plan,
         referenceId: userSubscription.referenceId,
         seats: userSubscription.seats,
+        periodStart: userSubscription.periodStart,
+        periodEnd: userSubscription.periodEnd,
       })
       const billedOverageThisPeriod = parseDecimal(stats.billedOverageThisPeriod)
       const unbilledOverage = Math.max(0, currentOverage - billedOverageThisPeriod)
