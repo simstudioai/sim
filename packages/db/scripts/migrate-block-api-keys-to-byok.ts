@@ -91,7 +91,9 @@ if (!DRY_RUN && !FROM_FILE) {
   process.exit(1)
 }
 if (DRY_RUN && FROM_FILE) {
-  console.error('--from-file cannot be used with --dry-run. Dry runs always discover workspaces from the database.')
+  console.error(
+    '--from-file cannot be used with --dry-run. Dry runs always discover workspaces from the database.'
+  )
   process.exit(1)
 }
 
@@ -363,7 +365,7 @@ async function run() {
       console.log(`Found ${workspaceIds.length} workspaces with candidate blocks\n`)
 
       const outPath = resolve('migrate-byok-workspace-ids.txt')
-      writeFileSync(outPath, workspaceIds.join('\n') + '\n')
+      writeFileSync(outPath, `${workspaceIds.join('\n')}\n`)
       console.log(`[DRY RUN] Wrote ${workspaceIds.length} workspace IDs to ${outPath}\n`)
     } else {
       const raw = readFileSync(resolve(FROM_FILE!), 'utf-8')
