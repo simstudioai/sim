@@ -1,9 +1,8 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { useCallback, useRef } from 'react'
-import { Plus } from 'lucide-react'
-import { Skeleton } from '@/components/emcn'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { ArrowDown, ArrowUp, Button, Plus, Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { ResourceHeader } from './components/resource-header'
 import { ResourceOptionsBar } from './components/resource-options-bar'
@@ -36,6 +35,7 @@ interface ResourceProps {
     onChange: (value: string) => void
     placeholder?: string
   }
+  defaultSort: string
   onSort?: () => void
   onFilter?: () => void
   toolbarActions?: ReactNode
@@ -59,6 +59,7 @@ export function Resource({
   title,
   create,
   search,
+  defaultSort,
   onSort,
   onFilter,
   toolbarActions,
@@ -71,12 +72,32 @@ export function Resource({
   onContextMenu,
 }: ResourceProps) {
   const headerRef = useRef<HTMLDivElement>(null)
+  const [sort, setSort] = useState<{ column: string; direction: 'asc' | 'desc' }>({
+    column: defaultSort,
+    direction: 'desc',
+  })
 
   const handleBodyScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     if (headerRef.current) {
       headerRef.current.scrollLeft = e.currentTarget.scrollLeft
     }
   }, [])
+
+  const handleColumnSort = useCallback((columnId: string) => {
+    setSort((prev) => {
+      if (prev.column !== columnId) return { column: columnId, direction: 'asc' }
+      return { column: columnId, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+    })
+  }, [])
+
+  const sortedRows = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      const aLabel = a.cells[sort.column]?.label ?? ''
+      const bLabel = b.cells[sort.column]?.label ?? ''
+      const cmp = aLabel.localeCompare(bLabel)
+      return sort.direction === 'asc' ? -cmp : cmp
+    })
+  }, [rows, sort])
 
   return (
     <div
@@ -100,14 +121,23 @@ export function Resource({
               <ResourceColGroup columns={columns} />
               <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
                 <tr>
-                  {columns.map((col) => (
-                    <th
-                      key={col.id}
-                      className='h-10 px-[24px] py-[10px] text-left align-middle font-base text-[var(--text-muted)]'
-                    >
-                      {col.header}
-                    </th>
-                  ))}
+                  {columns.map((col) => {
+                    const SortIcon = sort.direction === 'asc' ? ArrowUp : ArrowDown
+                    return (
+                      <th key={col.id} className='h-10 px-[16px] py-[6px] text-left align-middle'>
+                        <Button
+                          variant='subtle'
+                          className='px-[8px] py-[4px] font-base text-[var(--text-muted)] hover:text-[var(--text-muted)]'
+                          onClick={() => handleColumnSort(col.id)}
+                        >
+                          {col.header}
+                          {sort.column === col.id && (
+                            <SortIcon className='ml-[4px] h-[12px] w-[12px]' />
+                          )}
+                        </Button>
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
             </table>
@@ -116,7 +146,7 @@ export function Resource({
             <table className='w-full table-fixed text-[13px]'>
               <ResourceColGroup columns={columns} />
               <tbody>
-                {rows.map((row) => (
+                {sortedRows.map((row) => (
                   <tr
                     key={row.id}
                     data-resource-row

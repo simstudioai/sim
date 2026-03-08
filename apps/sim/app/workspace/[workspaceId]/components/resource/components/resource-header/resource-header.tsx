@@ -1,6 +1,5 @@
 import { Fragment } from 'react'
-import { Plus } from 'lucide-react'
-import { Button } from '@/components/emcn'
+import { Button, Plus } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 
 export interface BreadcrumbItem {

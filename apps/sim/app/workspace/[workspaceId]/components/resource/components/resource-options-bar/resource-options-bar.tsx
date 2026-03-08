@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
-import { ArrowUpDown, ListFilter, Search } from 'lucide-react'
-import { Button } from '@/components/emcn'
+import { ArrowUpDown, Button, ListFilter, Search } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 
 interface ResourceOptionsBarProps {

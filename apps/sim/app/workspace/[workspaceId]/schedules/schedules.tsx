@@ -107,6 +107,7 @@ export function Schedules() {
         onChange: setSearchQuery,
         placeholder: 'Search schedules...',
       }}
+      defaultSort='nextRun'
       onSort={() => {}}
       onFilter={() => {}}
       columns={COLUMNS}

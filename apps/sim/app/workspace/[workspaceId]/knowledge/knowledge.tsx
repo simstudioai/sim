@@ -201,6 +201,7 @@ export function Knowledge() {
           onChange: setSearchQuery,
           placeholder: 'Search knowledge bases...',
         }}
+        defaultSort='created'
         onSort={handleSort}
         onFilter={handleFilter}
         columns={COLUMNS}

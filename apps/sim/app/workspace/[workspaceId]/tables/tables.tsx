@@ -156,6 +156,7 @@ export function Tables() {
           onChange: setSearchTerm,
           placeholder: 'Search tables...',
         }}
+        defaultSort='created'
         onSort={handleSort}
         onFilter={handleFilter}
         columns={COLUMNS}

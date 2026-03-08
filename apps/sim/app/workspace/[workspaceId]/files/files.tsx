@@ -206,6 +206,7 @@ export function Files() {
           onChange: setSearchTerm,
           placeholder: 'Search files...',
         }}
+        defaultSort='created'
         onSort={() => {}}
         onFilter={() => {}}
         columns={COLUMNS}
