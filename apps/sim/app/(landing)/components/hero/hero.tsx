@@ -448,7 +448,7 @@ export default function Hero() {
                 onClick={() => handleServiceClick(service.key as keyof typeof SERVICE_TEMPLATES)}
                 onMouseEnter={() => setLastHoveredIndex(index)}
                 style={service.style}
-                isAutoHovered={!isUserHovering && index === autoHoverIndex}
+                highlightFromParent
               >
                 <Icon className='h-5 w-5 sm:h-6 sm:w-6' />
               </IconButton>

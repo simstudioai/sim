@@ -9,6 +9,7 @@ interface IconButtonProps {
   style?: React.CSSProperties
   'aria-label': string
   isAutoHovered?: boolean
+  highlightFromParent?: boolean
 }
 
 export function IconButton({
@@ -18,7 +19,13 @@ export function IconButton({
   style,
   'aria-label': ariaLabel,
   isAutoHovered = false,
+  highlightFromParent = false,
 }: IconButtonProps) {
+  const showOwnHighlight = !highlightFromParent && isAutoHovered
+  const hoverHighlight = !highlightFromParent
+    ? 'hover:border-[#E5E5E5] hover:shadow-[0_2px_4px_0_rgba(0,0,0,0.08)]'
+    : ''
+
   return (
     <button
       type='button'
@@ -26,9 +33,9 @@ export function IconButton({
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       className={`flex items-center justify-center rounded-xl border p-2 outline-none transition-all duration-300 ${
-        isAutoHovered
+        showOwnHighlight
           ? 'border-[#E5E5E5] shadow-[0_2px_4px_0_rgba(0,0,0,0.08)]'
-          : 'border-transparent hover:border-[#E5E5E5] hover:shadow-[0_2px_4px_0_rgba(0,0,0,0.08)]'
+          : `border-transparent ${hoverHighlight}`
       }`}
       style={style}
     >
