@@ -156,6 +156,7 @@ interface CreditPlanCardProps {
   isTeamPlan?: boolean
   isCancelledAtPeriodEnd?: boolean
   features?: Array<{ icon: any; text: string }>
+  isLegacyPlan?: boolean
 }
 
 function CreditPlanCard({
@@ -171,6 +172,7 @@ function CreditPlanCard({
   isTeamPlan,
   isCancelledAtPeriodEnd,
   features,
+  isLegacyPlan,
 }: CreditPlanCardProps) {
   const discountedMonthly = Math.round(dollars * (1 - ANNUAL_DISCOUNT_RATE))
   const perUnit = isTeamPlan ? '/seat' : ''
@@ -217,6 +219,14 @@ function CreditPlanCard({
             </li>
           ))}
         </ul>
+      )}
+
+      {isCurrentPlan && isLegacyPlan && (
+        <div className='border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[8px]'>
+          <Badge variant='amber' size='sm' dot>
+            You are on an old version of this plan
+          </Badge>
+        </div>
       )}
 
       <div className='border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[14px]'>
@@ -644,6 +654,7 @@ export function Subscription() {
                     isTeamPlan={subscription.isTeam}
                     isCancelledAtPeriodEnd={isCancelledAtPeriodEnd}
                     features={PRO_PLAN_FEATURES}
+                    isLegacyPlan={isLegacyPlan && isOnProTier}
                   />
                 )}
                 <CreditPlanCard
@@ -678,6 +689,7 @@ export function Subscription() {
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({
                                     targetPlanName: `${planType}_${MAX_TIER.credits}`,
+                                    interval: isAnnual ? 'year' : 'month',
                                   }),
                                 })
                                 const data = await res.json()
@@ -694,6 +706,7 @@ export function Subscription() {
                   isTeamPlan={subscription.isTeam}
                   isCancelledAtPeriodEnd={isCancelledAtPeriodEnd}
                   features={MAX_PLAN_FEATURES}
+                  isLegacyPlan={isLegacyPlan && isOnMaxTier}
                 />
               </div>
             )
