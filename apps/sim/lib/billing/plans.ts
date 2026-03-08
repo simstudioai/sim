@@ -59,20 +59,21 @@ export function getPlans(): BillingPlan[] {
   for (const tier of CREDIT_TIERS) {
     const proPrices = proPriceMap[tier.dollars]
     const teamPrices = teamPriceMap[tier.dollars]
-    if (!proPrices) continue
 
-    plans.push({
-      name: `pro_${tier.credits}`,
-      priceId: proPrices.monthly,
-      annualDiscountPriceId: proPrices.annual,
-      limits: { cost: tier.dollars },
-    })
+    if (proPrices?.monthly) {
+      plans.push({
+        name: `pro_${tier.credits}`,
+        priceId: proPrices.monthly,
+        annualDiscountPriceId: proPrices.annual || undefined,
+        limits: { cost: tier.dollars },
+      })
+    }
 
-    if (teamPrices) {
+    if (teamPrices?.monthly) {
       plans.push({
         name: `team_${tier.credits}`,
         priceId: teamPrices.monthly,
-        annualDiscountPriceId: teamPrices.annual,
+        annualDiscountPriceId: teamPrices.annual || undefined,
         limits: { cost: tier.dollars },
       })
     }
@@ -99,6 +100,7 @@ export function getPlanByName(planName: string): BillingPlan | undefined {
  * Matches against both monthly (`priceId`) and annual (`annualDiscountPriceId`) prices.
  */
 export function getPlanByPriceId(priceId: string): BillingPlan | undefined {
+  if (!priceId) return undefined
   return getPlans().find(
     (plan) => plan.priceId === priceId || plan.annualDiscountPriceId === priceId
   )

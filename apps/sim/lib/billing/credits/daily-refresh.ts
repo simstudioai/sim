@@ -54,7 +54,7 @@ export async function computeDailyRefreshConsumed(params: {
   const rows = await db
     .select({
       dayIndex:
-        sql<number>`FLOOR(EXTRACT(EPOCH FROM ${usageLog.createdAt} - ${periodStart.toISOString()}::timestamptz) / 86400)`.as(
+        sql<number>`FLOOR((EXTRACT(EPOCH FROM ${usageLog.createdAt}) - ${Math.floor(periodStart.getTime() / 1000)}) / 86400)`.as(
           'day_index'
         ),
       dayTotal: sum(usageLog.cost).as('day_total'),

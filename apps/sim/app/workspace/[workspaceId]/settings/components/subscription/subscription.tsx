@@ -484,7 +484,6 @@ export function Subscription() {
   const showUpgradePlans = permissions.showUpgradePlans
   const hasEnterprise = visiblePlans.includes('enterprise')
   const showTeamCard = visiblePlans.includes('pro') || visiblePlans.includes('team')
-  const ctaText = subscription.isFree ? 'Get started' : 'Upgrade'
 
   return (
     <div className='flex h-full flex-col gap-[20px]'>
