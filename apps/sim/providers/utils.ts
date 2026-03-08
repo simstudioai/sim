@@ -665,11 +665,12 @@ export function getModelPricing(modelId: string): any {
  * Internally cost is in USD; this converts to credits (1 USD = 200 credits).
  *
  * @param cost Cost in USD
- * @returns Formatted credit string (e.g. "4.2 credits", "<1 credit")
+ * @returns Formatted credit string (e.g. "200 credits", "<1 credit", "0 credits")
  */
 export function formatCost(cost: number): string {
   if (cost === undefined || cost === null) return '—'
   const credits = dollarsToCredits(cost)
+  if (credits <= 0 && cost > 0) return '<1 credit'
   if (credits <= 0) return '0 credits'
   return `${credits.toLocaleString()} credits`
 }
