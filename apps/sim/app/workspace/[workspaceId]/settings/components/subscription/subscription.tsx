@@ -141,8 +141,15 @@ function SubscriptionSkeleton() {
 }
 
 const formatPlanName = (plan: string): string => {
-  const base = plan.replace(/_\d+$/, '')
-  return base.charAt(0).toUpperCase() + base.slice(1)
+  if (plan === 'free') return 'Free'
+  if (plan === 'enterprise') return 'Enterprise'
+  const credits = getPlanTierCredits(plan)
+  const tier = CREDIT_TIERS.find((t) => t.credits === credits)
+  const isLegacy = plan === 'pro' || plan === 'team'
+  const tierName = tier?.name ?? (plan === 'team' ? 'Max' : 'Pro')
+  const prefix = isLegacy ? 'Legacy ' : ''
+  const suffix = isTeam(plan) ? ' (Team)' : ''
+  return `${prefix}${tierName}${suffix}`
 }
 
 interface CreditPlanCardProps {
