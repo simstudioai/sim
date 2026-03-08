@@ -569,7 +569,7 @@ export function Subscription() {
               <button
                 type='button'
                 className={cn(
-                  'rounded-[4px] px-[10px] py-[4px] text-[12px] font-medium transition-colors',
+                  'rounded-[4px] px-[10px] py-[4px] font-medium text-[12px] transition-colors',
                   !isAnnual
                     ? 'bg-[var(--surface-3)] text-[var(--text-primary)]'
                     : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
@@ -581,7 +581,7 @@ export function Subscription() {
               <button
                 type='button'
                 className={cn(
-                  'flex items-center gap-[4px] rounded-[4px] px-[10px] py-[4px] text-[12px] font-medium transition-colors',
+                  'flex items-center gap-[4px] rounded-[4px] px-[10px] py-[4px] font-medium text-[12px] transition-colors',
                   isAnnual
                     ? 'bg-[var(--surface-3)] text-[var(--text-primary)]'
                     : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
@@ -589,7 +589,7 @@ export function Subscription() {
                 onClick={() => setIsAnnual(true)}
               >
                 Annual
-                <span className='rounded-[3px] bg-[#10b981] px-[4px] py-[1px] text-[10px] font-semibold text-white'>
+                <span className='rounded-[3px] bg-[#10b981] px-[4px] py-[1px] font-semibold text-[10px] text-white'>
                   -15%
                 </span>
               </button>

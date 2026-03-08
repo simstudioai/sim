@@ -64,7 +64,7 @@ const DropIndicatorLine = memo(function DropIndicatorLine({
       className='pointer-events-none absolute right-0 left-0 z-20'
       style={{ ...positionStyle, paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}
     >
-      <div className='h-[2px] rounded-full bg-[#33b4ff]/70' />
+      <div className='h-[2px] rounded-full bg-[var(--text-subtle)]' />
     </div>
   )
 })
@@ -301,7 +301,7 @@ export function WorkflowList({
           <div
             className={clsx(
               'pointer-events-none absolute inset-0 z-10 rounded-[4px]',
-              showInside && isDragging ? 'bg-[#33b4ff1a]' : 'hidden'
+              showInside && isDragging ? 'bg-[var(--text-subtle)] opacity-10' : 'hidden'
             )}
           />
           <div
@@ -392,10 +392,6 @@ export function WorkflowList({
   const firstItemId = rootItems[0]?.id ?? null
   const lastItemId = rootItems[rootItems.length - 1]?.id ?? null
   const showRootInside = dropIndicator?.targetId === 'root' && dropIndicator?.position === 'inside'
-  const showTopIndicator =
-    firstItemId && dropIndicator?.targetId === firstItemId && dropIndicator?.position === 'before'
-  const showBottomIndicator =
-    lastItemId && dropIndicator?.targetId === lastItemId && dropIndicator?.position === 'after'
 
   const handleContainerClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -437,7 +433,7 @@ export function WorkflowList({
           <div
             className={clsx(
               'pointer-events-none absolute inset-0 z-10 rounded-[4px]',
-              showRootInside && isDragging ? 'bg-[#33b4ff1a]' : 'hidden'
+              showRootInside && isDragging ? 'bg-[var(--text-subtle)] opacity-10' : 'hidden'
             )}
           />
           {isDragging && hasRootItems && (
@@ -445,11 +441,6 @@ export function WorkflowList({
               className='absolute top-0 right-0 left-0 z-30 h-[12px]'
               {...createEdgeDropZone(firstItemId, 'before')}
             />
-          )}
-          {showTopIndicator && (
-            <div className='pointer-events-none absolute top-0 right-0 left-0 z-20'>
-              <div className='h-[2px] rounded-full bg-[#33b4ff]/70' />
-            </div>
           )}
           <div className='space-y-[2px]' data-empty-area>
             {rootItems.map((item) =>
@@ -463,11 +454,6 @@ export function WorkflowList({
               className='absolute right-0 bottom-0 left-0 z-30 h-[12px]'
               {...createEdgeDropZone(lastItemId, 'after')}
             />
-          )}
-          {showBottomIndicator && (
-            <div className='pointer-events-none absolute right-0 bottom-0 left-0 z-20'>
-              <div className='h-[2px] rounded-full bg-[#33b4ff]/70' />
-            </div>
           )}
         </div>
 

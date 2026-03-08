@@ -184,13 +184,8 @@ Variables (i=0) → Loop (While i<10) → Agent (Process) → Variables (i++)
 
 ### Limitations
 
-<Callout type="warning">
-  Container blocks (Loops and Parallels) cannot be nested inside each other. This means:
-  - You cannot place a Loop block inside another Loop block
-  - You cannot place a Parallel block inside a Loop block
-  - You cannot place any container block inside another container block
-  
-  If you need multi-dimensional iteration, consider restructuring your workflow to use sequential loops or process data in stages.
+<Callout type="info">
+  Container blocks (Loops and Parallels) support nesting. You can place loops inside loops, parallels inside loops, and any combination of container blocks to build complex multi-dimensional workflows.
 </Callout>
 
 <Callout type="info">
