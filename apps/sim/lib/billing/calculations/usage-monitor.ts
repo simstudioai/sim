@@ -71,29 +71,22 @@ export async function checkUsageStatus(
       statsRecords[0].currentPeriodCost?.toString() || statsRecords[0].totalCost.toString()
     )
 
-    // Deduct daily refresh credits for paid plans
+    // Deduct daily refresh credits for individual paid plans only.
+    // Org plans apply refresh at the pooled level in the org usage check below.
     let dailyRefreshDeduction = 0
     if (
       preloadedSubscription &&
       isPaid(preloadedSubscription.plan) &&
+      !isOrgPlan(preloadedSubscription.plan) &&
       preloadedSubscription.periodStart
     ) {
       const planDollars = getPlanTierDollars(preloadedSubscription.plan)
       if (planDollars > 0) {
-        let refreshIds: string[] = [userId]
-        if (isOrgPlan(preloadedSubscription.plan)) {
-          const orgMembers = await db
-            .select({ userId: member.userId })
-            .from(member)
-            .where(eq(member.organizationId, preloadedSubscription.referenceId))
-          refreshIds = orgMembers.map((m) => m.userId)
-        }
         dailyRefreshDeduction = await computeDailyRefreshConsumed({
-          userIds: refreshIds,
+          userIds: [userId],
           periodStart: preloadedSubscription.periodStart,
           periodEnd: preloadedSubscription.periodEnd ?? null,
           planDollars,
-          seats: preloadedSubscription.seats ?? 1,
         })
       }
     }
@@ -137,8 +130,24 @@ export async function checkUsageStatus(
                 )
               }
             }
-            // Deduct daily refresh from pooled usage too
-            pooledUsage = Math.max(0, pooledUsage - dailyRefreshDeduction)
+            if (
+              preloadedSubscription &&
+              isPaid(preloadedSubscription.plan) &&
+              preloadedSubscription.periodStart
+            ) {
+              const planDollars = getPlanTierDollars(preloadedSubscription.plan)
+              if (planDollars > 0) {
+                const memberIds = teamMembers.map((tm) => tm.userId)
+                const orgRefreshDeduction = await computeDailyRefreshConsumed({
+                  userIds: memberIds,
+                  periodStart: preloadedSubscription.periodStart,
+                  periodEnd: preloadedSubscription.periodEnd ?? null,
+                  planDollars,
+                  seats: preloadedSubscription.seats ?? 1,
+                })
+                pooledUsage = Math.max(0, pooledUsage - orgRefreshDeduction)
+              }
+            }
 
             const orgCap = org.orgUsageLimit ? Number.parseFloat(String(org.orgUsageLimit)) : 0
             if (!orgCap || Number.isNaN(orgCap)) {

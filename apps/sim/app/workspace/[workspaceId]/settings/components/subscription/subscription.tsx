@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { Info } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
+  Badge,
   Button,
   Combobox,
   type ComboboxOption,
@@ -153,7 +154,6 @@ interface CreditPlanCardProps {
   onButtonClick: () => void
   isCurrentPlan?: boolean
   onManagePlan?: () => void
-  isError?: boolean
   isTeamPlan?: boolean
   isCancelledAtPeriodEnd?: boolean
   features?: Array<{ icon: any; text: string }>
@@ -167,7 +167,6 @@ function CreditPlanCard({
   isAnnual,
   buttonText,
   onButtonClick,
-  isError,
   isCurrentPlan,
   onManagePlan,
   isTeamPlan,
@@ -227,12 +226,8 @@ function CreditPlanCard({
             {isCancelledAtPeriodEnd ? 'Restore Subscription' : 'Manage plan'}
           </Button>
         ) : (
-          <Button
-            onClick={onButtonClick}
-            className='w-full'
-            variant={isError ? 'outline' : 'tertiary'}
-          >
-            {isError ? 'Error' : buttonText}
+          <Button onClick={onButtonClick} className='w-full' variant='tertiary'>
+            {buttonText}
           </Button>
         )}
       </div>
@@ -296,6 +291,8 @@ export function Subscription() {
     status: subscriptionData?.data?.status || 'inactive',
     seats: getEffectiveSeats(subscriptionData?.data),
   }
+
+  const isLegacyPlan = subscription.plan === 'pro' || subscription.plan === 'team'
 
   const usage = {
     current: subscriptionData?.data?.usage?.current || 0,
@@ -453,6 +450,11 @@ export function Subscription() {
 
   const handleSwitchInterval = useCallback(
     async (interval: 'month' | 'year') => {
+      if (isLegacyPlan) {
+        throw new Error(
+          'Interval switching is not available on legacy plans. Please upgrade first.'
+        )
+      }
       const res = await fetch('/api/billing/switch-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -462,7 +464,7 @@ export function Subscription() {
       if (!res.ok) throw new Error(data?.error || 'Failed to switch interval')
       await refetchSubscription()
     },
-    [refetchSubscription, subscription.plan]
+    [refetchSubscription, subscription.plan, isLegacyPlan]
   )
 
   const proDailyRefresh = Math.round(PRO_TIER.dollars * DAILY_REFRESH_RATE * CREDIT_MULTIPLIER)
@@ -490,7 +492,12 @@ export function Subscription() {
               ? `${subscription.seats} seats`
               : undefined
           }
-          current={usage.current}
+          current={
+            (subscription.isTeam || subscription.isEnterprise) &&
+            organizationBillingData?.data?.totalCurrentUsage != null
+              ? organizationBillingData.data.totalCurrentUsage
+              : usage.current
+          }
           limit={
             subscription.isEnterprise || subscription.isTeam
               ? organizationBillingData?.data?.totalUsageLimit
@@ -585,9 +592,20 @@ export function Subscription() {
           {(() => {
             const currentCredits = getPlanTierCredits(subscription.plan)
             const hasPaidPlan = isPro(subscription.plan) || isTeam(subscription.plan)
-            const isOnProTier = hasPaidPlan && currentCredits === PRO_TIER.credits
-            const isOnMaxTier = hasPaidPlan && currentCredits === MAX_TIER.credits
-            const wantsIntervalSwitch = hasPaidPlan && isAnnual !== (currentInterval === 'year')
+            const isLegacyTeam = subscription.plan === 'team'
+            const isOnKnownTier =
+              currentCredits === PRO_TIER.credits || currentCredits === MAX_TIER.credits
+            const isOnProTier =
+              hasPaidPlan &&
+              !isLegacyTeam &&
+              (currentCredits === PRO_TIER.credits || (!isOnKnownTier && !subscription.isTeam))
+            const isOnMaxTier =
+              hasPaidPlan &&
+              (currentCredits === MAX_TIER.credits ||
+                isLegacyTeam ||
+                (!isOnKnownTier && subscription.isTeam))
+            const wantsIntervalSwitch =
+              hasPaidPlan && !isLegacyPlan && isAnnual !== (currentInterval === 'year')
             const isOnPro = isOnProTier && !wantsIntervalSwitch
             const isOnMax = isOnMaxTier && !wantsIntervalSwitch
             const showProCard = !isOnMaxTier
@@ -737,6 +755,26 @@ export function Subscription() {
             alert(e instanceof Error ? e.message : 'Failed to switch plan')
           }
         }}
+        onUpgradeToCurrentTier={async () => {
+          const currentCredits = getPlanTierCredits(subscription.plan)
+          const isOnMax = currentCredits === MAX_TIER.credits || subscription.plan === 'team'
+          const tier = isOnMax ? MAX_TIER : PRO_TIER
+          const planType = subscription.isTeam ? 'team' : 'pro'
+          const targetPlanName = `${planType}_${tier.credits}`
+          try {
+            const res = await fetch('/api/billing/switch-plan', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ targetPlanName }),
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data?.error || 'Failed to migrate plan')
+            await refetchSubscription()
+            setManagePlanModalOpen(false)
+          } catch (e) {
+            alert(e instanceof Error ? e.message : 'Failed to migrate plan')
+          }
+        }}
         onGetForTeam={() => {
           setManagePlanModalOpen(false)
           if (subscription.isTeam) {
@@ -746,6 +784,7 @@ export function Subscription() {
           }
         }}
         isCancelledAtPeriodEnd={isCancelledAtPeriodEnd}
+        isLegacyPlan={isLegacyPlan}
         onCancel={async () => {
           setManagePlanModalOpen(false)
           if (!betterAuthSubscription.cancel) return
@@ -1008,8 +1047,10 @@ interface ManagePlanModalProps {
   currentInterval: 'month' | 'year'
   isTeamPlan: boolean
   isCancelledAtPeriodEnd: boolean
+  isLegacyPlan: boolean
   onSwitchInterval: (interval: 'month' | 'year') => Promise<void>
   onUpgradeToOtherTier: () => void
+  onUpgradeToCurrentTier: () => void
   onGetForTeam: () => void
   onCancel: () => void
   onRestore: () => void
@@ -1022,8 +1063,10 @@ function ManagePlanModal({
   currentInterval,
   isTeamPlan,
   isCancelledAtPeriodEnd,
+  isLegacyPlan,
   onSwitchInterval,
   onUpgradeToOtherTier,
+  onUpgradeToCurrentTier,
   onGetForTeam,
   onCancel,
   onRestore,
@@ -1058,16 +1101,31 @@ function ManagePlanModal({
   }
 
   const actions = [
-    {
-      title: currentInterval === 'month' ? 'Switch to annual billing' : 'Switch to monthly billing',
-      description:
-        currentInterval === 'month'
-          ? `$${discountedMonthly}/mo${perUnit} ($${annualTotal}/yr${perUnit}) — save 15%`
-          : `$${currentTier.dollars}/mo${perUnit} — billed monthly`,
-      buttonText: isSwitching ? 'Switching...' : 'Switch',
-      onClick: handleSwitchInterval,
-      disabled: isSwitching,
-    },
+    ...(!isLegacyPlan
+      ? [
+          {
+            title:
+              currentInterval === 'month'
+                ? 'Switch to annual billing'
+                : 'Switch to monthly billing',
+            description:
+              currentInterval === 'month'
+                ? `$${discountedMonthly}/mo${perUnit} ($${annualTotal}/yr${perUnit}) — save 15%`
+                : `$${currentTier.dollars}/mo${perUnit} — billed monthly`,
+            buttonText: isSwitching ? 'Switching...' : 'Switch',
+            onClick: handleSwitchInterval,
+            disabled: isSwitching,
+          },
+        ]
+      : [
+          {
+            title: `Upgrade to current ${currentTier.name} plan`,
+            description: `${currentTier.credits.toLocaleString()} credits/mo · $${currentTier.dollars}/mo${perUnit} — unlocks annual billing`,
+            buttonText: isSwitching ? 'Upgrading...' : 'Upgrade',
+            onClick: onUpgradeToCurrentTier,
+            disabled: isSwitching,
+          },
+        ]),
     {
       title: isUpgrade ? `Upgrade to ${otherTier.name}` : `Switch to ${otherTier.name}`,
       description: `${otherTier.credits.toLocaleString()} credits/mo · $${otherTier.dollars}/mo${perUnit}`,
@@ -1100,6 +1158,12 @@ function ManagePlanModal({
               : `$${annualTotal}/yr${perUnit} ($${discountedMonthly}/mo${perUnit})`}
             .
           </p>
+
+          {isLegacyPlan && (
+            <Badge variant='amber' size='lg' dot className='mt-[8px]'>
+              You're on an older version of this plan
+            </Badge>
+          )}
 
           <div className='mt-[16px] flex flex-col'>
             {actions.map((action, i) => (

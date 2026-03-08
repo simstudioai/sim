@@ -669,18 +669,9 @@ export function getModelPricing(modelId: string): any {
  */
 export function formatCost(cost: number): string {
   if (cost === undefined || cost === null) return '—'
-
   const credits = dollarsToCredits(cost)
-
   if (credits <= 0) return '0 credits'
-
-  const rounded = Math.round(credits * 100) / 100
-  const display =
-    rounded % 1 === 0
-      ? rounded.toLocaleString()
-      : rounded.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
-  return `${display} credits`
+  return `${credits.toLocaleString()} credits`
 }
 
 /**

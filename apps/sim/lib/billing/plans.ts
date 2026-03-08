@@ -18,7 +18,7 @@ export interface BillingPlan {
  *
  * Plans:
  *   - free
- *   - pro_5000  (Pro, $25/mo)   + team_5000
+ *   - pro_6000  (Pro, $25/mo)   + team_6000
  *   - pro_25000 (Max, $100/mo)  + team_25000
  *   - enterprise (dynamic pricing)
  *
