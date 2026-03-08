@@ -72,7 +72,6 @@ const PRO_TIER = CREDIT_TIERS[0]
 const MAX_TIER = CREDIT_TIERS[1]
 
 const CONSTANTS = {
-  UPGRADE_ERROR_TIMEOUT: 3000,
   TYPEFORM_ENTERPRISE_URL: 'https://form.typeform.com/to/jqCO12pF',
   INITIAL_TEAM_SEATS: 1,
 } as const
@@ -272,7 +271,6 @@ export function Subscription() {
   )
 
   const openBillingPortal = useOpenBillingPortal()
-  const [upgradeError, setUpgradeError] = useState<string | null>(null)
   const [isAnnual, setIsAnnual] = useState(false)
   const [teamModalOpen, setTeamModalOpen] = useState(false)
   const [managePlanModalOpen, setManagePlanModalOpen] = useState(false)
@@ -340,13 +338,6 @@ export function Subscription() {
       setIsAnnual(subscriptionData.data.billingInterval === 'year')
     }
   }, [subscriptionData?.data?.billingInterval])
-
-  useEffect(() => {
-    if (upgradeError) {
-      const timer = setTimeout(() => setUpgradeError(null), CONSTANTS.UPGRADE_ERROR_TIMEOUT)
-      return () => clearTimeout(timer)
-    }
-  }, [upgradeError])
 
   const userRole = getUserRole(activeOrganization, session?.user?.email)
   const isTeamAdmin = ['owner', 'admin'].includes(userRole)
@@ -622,12 +613,15 @@ export function Subscription() {
                         ? () => setManagePlanModalOpen(true)
                         : isOnProTier && wantsIntervalSwitch
                           ? () =>
-                              handleSwitchInterval(isAnnual ? 'year' : 'month').then(() =>
-                                setManagePlanModalOpen(false)
-                              )
+                              handleSwitchInterval(isAnnual ? 'year' : 'month')
+                                .then(() => setManagePlanModalOpen(false))
+                                .catch((e) =>
+                                  alert(
+                                    e instanceof Error ? e.message : 'Failed to switch interval'
+                                  )
+                                )
                           : () => doUpgrade('pro', PRO_TIER.credits)
                     }
-                    isError={upgradeError === 'pro'}
                     isCurrentPlan={isOnPro}
                     onManagePlan={() => setManagePlanModalOpen(true)}
                     isTeamPlan={subscription.isTeam}
@@ -654,7 +648,10 @@ export function Subscription() {
                     isOnMax
                       ? () => setManagePlanModalOpen(true)
                       : isOnMaxTier && wantsIntervalSwitch
-                        ? () => handleSwitchInterval(isAnnual ? 'year' : 'month')
+                        ? () =>
+                            handleSwitchInterval(isAnnual ? 'year' : 'month').catch((e) =>
+                              alert(e instanceof Error ? e.message : 'Failed to switch interval')
+                            )
                         : subscription.isPaid
                           ? async () => {
                               const planType = subscription.isTeam ? 'team' : 'pro'
@@ -675,7 +672,6 @@ export function Subscription() {
                             }
                           : () => doUpgrade('pro', MAX_TIER.credits)
                   }
-                  isError={upgradeError === 'max'}
                   isCurrentPlan={isOnMax}
                   onManagePlan={() => setManagePlanModalOpen(true)}
                   isTeamPlan={subscription.isTeam}

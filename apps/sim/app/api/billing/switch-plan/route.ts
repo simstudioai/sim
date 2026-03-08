@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import { getPlanType } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
@@ -60,6 +61,15 @@ export async function POST(request: NextRequest) {
     const targetPlan = getPlanByName(targetPlanName)
     if (!targetPlan) {
       return NextResponse.json({ error: 'Target plan not found' }, { status: 400 })
+    }
+
+    const currentPlanType = getPlanType(sub.plan)
+    const targetPlanType = getPlanType(targetPlanName)
+    if (currentPlanType !== targetPlanType) {
+      return NextResponse.json(
+        { error: 'Cannot switch between individual and team plans via this endpoint' },
+        { status: 400 }
+      )
     }
 
     const stripe = requireStripeClient()
