@@ -151,6 +151,7 @@ export default function Hero() {
   const [autoHoverIndex, setAutoHoverIndex] = React.useState(1)
   const [isUserHovering, setIsUserHovering] = React.useState(false)
   const [lastHoveredIndex, setLastHoveredIndex] = React.useState<number | null>(null)
+  const [selectedIconIndex, setSelectedIconIndex] = React.useState<number | null>(null)
   const intervalRef = React.useRef<NodeJS.Timeout | null>(null)
 
   const iconRowRef = React.useRef<HTMLDivElement | null>(null)
@@ -166,7 +167,12 @@ export default function Hero() {
   /**
    * Handle service icon click to populate textarea with template
    */
-  const handleServiceClick = (service: keyof typeof SERVICE_TEMPLATES) => {
+  const handleServiceClick = (index: number, service: keyof typeof SERVICE_TEMPLATES) => {
+    setSelectedIconIndex(index)
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
     setTextValue(SERVICE_TEMPLATES[service])
   }
 
@@ -187,6 +193,21 @@ export default function Hero() {
 
     return () => window.removeEventListener('resize', updateVisibleIcons)
   }, [])
+
+  React.useEffect(() => {
+    const maxIndex = visibleIconCount - 1
+    setAutoHoverIndex((i) => Math.min(i, maxIndex))
+    setLastHoveredIndex((idx) =>
+      idx !== null ? Math.min(idx, maxIndex) : null
+    )
+    setSelectedIconIndex((idx) =>
+      idx !== null ? Math.min(idx, maxIndex) : null
+    )
+  }, [visibleIconCount])
+
+  React.useEffect(() => {
+    if (textValue.trim().length === 0) setSelectedIconIndex(null)
+  }, [textValue])
 
   /**
    * Service icons array for easier indexing
@@ -216,25 +237,20 @@ export default function Hero() {
    * Auto-hover animation effect
    */
   React.useEffect(() => {
-    // Start the interval when component mounts
     const startInterval = () => {
       intervalRef.current = setInterval(() => {
         setAutoHoverIndex((prev) => (prev + 1) % visibleIconCount)
       }, 2000)
     }
 
-    // Only run interval when user is not hovering
-    if (!isUserHovering) {
-      startInterval()
-    }
+    if (selectedIconIndex === null && !isUserHovering) startInterval()
 
-    // Cleanup on unmount or when hovering state changes
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
       }
     }
-  }, [isUserHovering, visibleIconCount])
+  }, [selectedIconIndex, isUserHovering, visibleIconCount])
 
   /**
    * Handle mouse enter on icon container
@@ -258,11 +274,19 @@ export default function Hero() {
   }
 
   const activeIconIndex =
-    isUserHovering && lastHoveredIndex !== null ? lastHoveredIndex : autoHoverIndex
+    selectedIconIndex !== null
+      ? selectedIconIndex
+      : isUserHovering && lastHoveredIndex !== null
+        ? lastHoveredIndex
+        : autoHoverIndex
+  const pillTargetIndex = Math.max(
+    0,
+    Math.min(activeIconIndex, visibleIconCount - 1)
+  )
 
   React.useLayoutEffect(() => {
     const container = iconRowRef.current
-    const target = buttonRefs.current[activeIconIndex]
+    const target = buttonRefs.current[pillTargetIndex]
     if (!container || !target) return
     const cr = container.getBoundingClientRect()
     const tr = target.getBoundingClientRect()
@@ -272,7 +296,7 @@ export default function Hero() {
       width: tr.width,
       height: tr.height,
     })
-  }, [activeIconIndex, layoutVersion, visibleIconCount])
+  }, [pillTargetIndex, layoutVersion, visibleIconCount])
 
   React.useEffect(() => {
     const onResize = () => setLayoutVersion((v) => v + 1)
@@ -445,7 +469,9 @@ export default function Hero() {
             >
               <IconButton
                 aria-label={service.label}
-                onClick={() => handleServiceClick(service.key as keyof typeof SERVICE_TEMPLATES)}
+                onClick={() =>
+                  handleServiceClick(index, service.key as keyof typeof SERVICE_TEMPLATES)
+                }
                 onMouseEnter={() => setLastHoveredIndex(index)}
                 style={service.style}
                 highlightFromParent
