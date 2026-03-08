@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   Bug,
   KeySquare,
   LogIn,
@@ -30,6 +31,7 @@ export type SettingsSection =
   | 'custom-tools'
   | 'skills'
   | 'workflow-mcp-servers'
+  | 'docs'
   | 'debug'
 
 export type NavigationSection =
@@ -51,6 +53,7 @@ export interface NavigationItem {
   requiresHosted?: boolean
   selfHostedOverride?: boolean
   requiresSuperUser?: boolean
+  externalUrl?: string
 }
 
 const isSSOEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
@@ -132,6 +135,14 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresEnterprise: true,
     selfHostedOverride: isSSOEnabled,
+  },
+  {
+    id: 'docs',
+    label: 'Docs',
+    icon: BookOpen,
+    section: 'system',
+    requiresHosted: true,
+    externalUrl: 'https://docs.sim.ai',
   },
   {
     id: 'debug',

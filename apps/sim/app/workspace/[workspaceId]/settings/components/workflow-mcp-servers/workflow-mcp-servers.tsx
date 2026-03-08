@@ -337,7 +337,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
             <SModalTabsTrigger value='workflows'>Workflows</SModalTabsTrigger>
           </SModalTabsList>
 
-          <SModalTabsBody>
+          <SModalTabsBody className='min-h-[300px]'>
             <SModalTabsContent value='workflows'>
               <div className='flex flex-col gap-[18px]'>
                 <div className='flex items-center justify-between'>
