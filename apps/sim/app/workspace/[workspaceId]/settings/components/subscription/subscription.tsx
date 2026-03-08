@@ -925,7 +925,8 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
   const tier = CREDIT_TIERS.find((t) => t.credits === selectedTier) ?? PRO_TIER
   const monthlyCostPerSeat = tier.dollars
   const totalMonthly = monthlyCostPerSeat * selectedSeats
-  const discountedTotal = Math.round(totalMonthly * (1 - ANNUAL_DISCOUNT_RATE))
+  const annualTotal = Math.round(totalMonthly * 12 * (1 - ANNUAL_DISCOUNT_RATE))
+  const discountedMonthlyTotal = Math.round(annualTotal / 12)
 
   const seatOptions: ComboboxOption[] = [1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 40, 50].map((num) => ({
     value: num.toString(),
@@ -1007,14 +1008,14 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
                 {monthlyCostPerSeat}/mo
               </span>
               <span className='font-medium text-[var(--text-primary)]'>
-                {isAnnual ? `$${discountedTotal}/mo` : `$${totalMonthly}/mo`}
+                {isAnnual ? `$${discountedMonthlyTotal}/mo` : `$${totalMonthly}/mo`}
               </span>
             </div>
             {isAnnual && (
               <div className='mt-[4px] flex justify-between text-[12px]'>
                 <span className='text-[var(--text-muted)]'>Annual total</span>
                 <span className='text-[var(--text-secondary)]'>
-                  ${discountedTotal * 12}/yr
+                  ${annualTotal}/yr
                   <span className='ml-[4px] text-[var(--text-muted)] line-through'>
                     ${totalMonthly * 12}
                   </span>
@@ -1078,15 +1079,15 @@ function ManagePlanModal({
     if (open) setError(null)
   }, [open])
 
-  const isOnPro = currentPlanCredits === PRO_TIER.credits
-  const currentTier = isOnPro ? PRO_TIER : MAX_TIER
-  const otherTier = isOnPro ? MAX_TIER : PRO_TIER
+  const isOnMax = currentPlanCredits === MAX_TIER.credits || (isLegacyPlan && isTeamPlan)
+  const currentTier = isOnMax ? MAX_TIER : PRO_TIER
+  const otherTier = isOnMax ? PRO_TIER : MAX_TIER
   const isUpgrade = otherTier.dollars > currentTier.dollars
   const targetInterval = currentInterval === 'month' ? 'year' : 'month'
 
   const perUnit = isTeamPlan ? '/seat' : ''
-  const discountedMonthly = Math.round(currentTier.dollars * (1 - ANNUAL_DISCOUNT_RATE))
   const annualTotal = Math.round(currentTier.dollars * 12 * (1 - ANNUAL_DISCOUNT_RATE))
+  const discountedMonthly = Math.round(annualTotal / 12)
 
   const handleSwitchInterval = async () => {
     setIsSwitching(true)
