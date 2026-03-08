@@ -1,7 +1,6 @@
 import { Link, Section, Text } from '@react-email/components'
 import { baseStyles, colors } from '@/components/emails/_styles'
 import { EmailLayout } from '@/components/emails/components'
-import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface PaymentFailedEmailProps {
@@ -67,7 +66,7 @@ export function PaymentFailedEmail({
           Payment Details
         </Text>
         <Text style={{ ...baseStyles.paragraph, margin: '4px 0' }}>
-          Amount due: {dollarsToCredits(amountDue).toLocaleString()} credits
+          Amount due: ${amountDue.toFixed(2)}
         </Text>
         {lastFourDigits && (
           <Text style={{ ...baseStyles.paragraph, margin: '4px 0' }}>

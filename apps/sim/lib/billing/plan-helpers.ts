@@ -10,7 +10,11 @@
  * and map to their original dollar amounts ($20 / $40).
  */
 
-import { CREDIT_TIERS } from '@/lib/billing/constants'
+import {
+  CREDIT_TIERS,
+  DEFAULT_PRO_TIER_COST_LIMIT,
+  DEFAULT_TEAM_TIER_COST_LIMIT,
+} from '@/lib/billing/constants'
 
 export type PlanCategory = 'free' | 'pro' | 'team' | 'enterprise'
 
@@ -56,12 +60,16 @@ export function getPlanTierCredits(plan: string | null | undefined): number {
 
 /**
  * Get the dollar value of a plan's credit tier.
- * Looks up from CREDIT_TIERS for exact mapping.
+ * Looks up from CREDIT_TIERS for exact mapping, with legacy plan fallbacks.
  */
 export function getPlanTierDollars(plan: string | null | undefined): number {
+  if (!plan) return 0
   const credits = getPlanTierCredits(plan)
   const tier = CREDIT_TIERS.find((t) => t.credits === credits)
-  return tier?.dollars ?? 0
+  if (tier) return tier.dollars
+  if (plan === 'pro') return DEFAULT_PRO_TIER_COST_LIMIT
+  if (plan === 'team') return DEFAULT_TEAM_TIER_COST_LIMIT
+  return 0
 }
 
 /**
