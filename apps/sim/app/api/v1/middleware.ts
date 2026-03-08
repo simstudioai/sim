@@ -33,7 +33,10 @@ export async function checkRateLimit(
     | 'table-rows'
     | 'table-row-detail'
     | 'files'
-    | 'file-detail' = 'logs'
+    | 'file-detail'
+    | 'knowledge'
+    | 'knowledge-detail'
+    | 'knowledge-search' = 'logs'
 ): Promise<RateLimitResult> {
   try {
     const auth = await authenticateV1Request(request)
