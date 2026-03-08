@@ -150,6 +150,7 @@ interface CreditPlanCardProps {
   onManagePlan?: () => void
   isError?: boolean
   isTeamPlan?: boolean
+  isCancelledAtPeriodEnd?: boolean
 }
 
 function CreditPlanCard({
@@ -164,6 +165,7 @@ function CreditPlanCard({
   isCurrentPlan,
   onManagePlan,
   isTeamPlan,
+  isCancelledAtPeriodEnd,
 }: CreditPlanCardProps) {
   const discountedMonthly = Math.round(dollars * (1 - ANNUAL_DISCOUNT_RATE))
   const perUnit = isTeamPlan ? '/seat' : ''
@@ -204,7 +206,7 @@ function CreditPlanCard({
       <div className='border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[14px]'>
         {isCurrentPlan ? (
           <Button onClick={onManagePlan} className='w-full' variant='default'>
-            Manage plan
+            {isCancelledAtPeriodEnd ? 'Restore Subscription' : 'Manage plan'}
           </Button>
         ) : (
           <Button
@@ -263,6 +265,8 @@ export function Subscription() {
     isUsageLimitLoading ||
     isWorkspaceLoading ||
     (hasOrgPlan && isOrgBillingLoading)
+
+  const isCancelledAtPeriodEnd = subscriptionData?.data?.cancelAtPeriodEnd === true
 
   const subscription = {
     isFree: isFree(subscriptionData?.data?.plan),
@@ -607,6 +611,7 @@ export function Subscription() {
                     isCurrentPlan={isOnPro}
                     onManagePlan={() => setManagePlanModalOpen(true)}
                     isTeamPlan={subscription.isTeam}
+                    isCancelledAtPeriodEnd={isCancelledAtPeriodEnd}
                   />
                 )}
                 <CreditPlanCard
@@ -653,6 +658,7 @@ export function Subscription() {
                   isCurrentPlan={isOnMax}
                   onManagePlan={() => setManagePlanModalOpen(true)}
                   isTeamPlan={subscription.isTeam}
+                  isCancelledAtPeriodEnd={isCancelledAtPeriodEnd}
                 />
               </div>
             )
@@ -721,19 +727,31 @@ export function Subscription() {
             setTeamModalOpen(true)
           }
         }}
+        isCancelledAtPeriodEnd={isCancelledAtPeriodEnd}
         onCancel={async () => {
           setManagePlanModalOpen(false)
           if (!betterAuthSubscription.cancel) return
           try {
-            const referenceId =
-              (subscription.isTeam || subscription.isEnterprise) && activeOrgId
-                ? activeOrgId
-                : session?.user?.id || ''
+            const isOrgSub = (subscription.isTeam || subscription.isEnterprise) && activeOrgId
+            const referenceId = isOrgSub ? activeOrgId : session?.user?.id || ''
             const returnUrl = getBaseUrl() + window.location.pathname
             await betterAuthSubscription.cancel({ returnUrl, referenceId })
           } catch (e) {
             logger.error('Failed to cancel subscription', { error: e })
             alert(e instanceof Error ? e.message : 'Failed to cancel subscription')
+          }
+        }}
+        onRestore={async () => {
+          if (!betterAuthSubscription.restore) return
+          try {
+            const isOrgSub = (subscription.isTeam || subscription.isEnterprise) && activeOrgId
+            const referenceId = isOrgSub ? activeOrgId : session?.user?.id || ''
+            await betterAuthSubscription.restore({ referenceId })
+            await refetchSubscription()
+            setManagePlanModalOpen(false)
+          } catch (e) {
+            logger.error('Failed to restore subscription', { error: e })
+            alert(e instanceof Error ? e.message : 'Failed to restore subscription')
           }
         }}
       />
@@ -759,7 +777,7 @@ export function Subscription() {
           !permissions.showTeamMemberView &&
           !permissions.isEnterpriseMember && (
             <div className='flex items-center justify-between'>
-              <Label>Next Billing Date</Label>
+              <Label>{isCancelledAtPeriodEnd ? 'Access Until' : 'Next Billing Date'}</Label>
               <span className='text-[13px] text-[var(--text-secondary)]'>
                 {new Date(subscriptionData.data.periodEnd).toLocaleDateString()}
               </span>
@@ -971,10 +989,12 @@ interface ManagePlanModalProps {
   currentPlanCredits: number
   currentInterval: 'month' | 'year'
   isTeamPlan: boolean
+  isCancelledAtPeriodEnd: boolean
   onSwitchInterval: (interval: 'month' | 'year') => Promise<void>
   onUpgradeToOtherTier: () => void
   onGetForTeam: () => void
   onCancel: () => void
+  onRestore: () => void
 }
 
 function ManagePlanModal({
@@ -983,10 +1003,12 @@ function ManagePlanModal({
   currentPlanCredits,
   currentInterval,
   isTeamPlan,
+  isCancelledAtPeriodEnd,
   onSwitchInterval,
   onUpgradeToOtherTier,
   onGetForTeam,
   onCancel,
+  onRestore,
 }: ManagePlanModalProps) {
   const [isSwitching, setIsSwitching] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1095,12 +1117,25 @@ function ManagePlanModal({
           )}
         </ModalBody>
         <ModalFooter>
-          <Button variant='destructive' onClick={onCancel}>
-            Cancel subscription
-          </Button>
-          <Button variant='default' onClick={() => onOpenChange(false)}>
-            Keep Subscription
-          </Button>
+          {isCancelledAtPeriodEnd ? (
+            <>
+              <Button variant='default' onClick={() => onOpenChange(false)}>
+                Close
+              </Button>
+              <Button variant='tertiary' onClick={onRestore}>
+                Restore Subscription
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant='destructive' onClick={onCancel}>
+                Cancel subscription
+              </Button>
+              <Button variant='default' onClick={() => onOpenChange(false)}>
+                Keep Subscription
+              </Button>
+            </>
+          )}
         </ModalFooter>
       </ModalContent>
     </Modal>

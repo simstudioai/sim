@@ -3064,8 +3064,8 @@ export const auth = betterAuth({
             subscription: {
               enabled: true,
               plans: getPlans(),
-              authorizeReference: async ({ user, referenceId }) => {
-                return await authorizeSubscriptionReference(user.id, referenceId)
+              authorizeReference: async ({ user, referenceId, action }) => {
+                return await authorizeSubscriptionReference(user.id, referenceId, action)
               },
               getCheckoutSessionParams: async ({ plan, subscription }) => {
                 if (isTeam(plan.name)) {
