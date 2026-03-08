@@ -183,13 +183,8 @@ while (count < items.length) {
 
 ### Limitaciones
 
-<Callout type="warning">
-  Los bloques contenedores (Bucles y Paralelos) no pueden anidarse unos dentro de otros. Esto significa:
-  - No puedes colocar un bloque de Bucle dentro de otro bloque de Bucle
-  - No puedes colocar un bloque Paralelo dentro de un bloque de Bucle
-  - No puedes colocar ningún bloque contenedor dentro de otro bloque contenedor
-  
-  Si necesitas iteración multidimensional, considera reestructurar tu flujo de trabajo para usar bucles secuenciales o procesar datos por etapas.
+<Callout type="info">
+  Los bloques contenedores (Bucles y Paralelos) admiten anidamiento. Puedes colocar bucles dentro de bucles, paralelos dentro de bucles, y cualquier combinación de bloques contenedores para construir flujos de trabajo multidimensionales complejos.
 </Callout>
 
 <Callout type="info">
