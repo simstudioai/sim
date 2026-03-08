@@ -217,7 +217,7 @@ export async function POST(request: NextRequest, { params }: DocumentsRouteParam
       actorId: userId,
       action: AuditAction.DOCUMENT_UPLOADED,
       resourceType: AuditResourceType.DOCUMENT,
-      resourceId: knowledgeBaseId,
+      resourceId: newDocument.id,
       resourceName: file.name,
       description: `Uploaded document "${file.name}" to knowledge base via API`,
       request,
