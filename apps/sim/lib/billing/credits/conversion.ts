@@ -10,10 +10,6 @@ export function dollarsToCredits(dollars: number): number {
   return Math.round(dollars * CREDIT_MULTIPLIER)
 }
 
-export function creditsToDollars(credits: number): number {
-  return credits / CREDIT_MULTIPLIER
-}
-
 /**
  * Format a dollar amount as a comma-separated credit string.
  * @example formatCredits(20) => "2,000"

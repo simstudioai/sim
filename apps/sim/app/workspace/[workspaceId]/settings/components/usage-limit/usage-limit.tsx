@@ -4,7 +4,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { createLogger } from '@sim/logger'
 import { Check, X } from 'lucide-react'
 import { Badge, Button } from '@/components/emcn'
-import { creditsToDollars, dollarsToCredits, formatCredits } from '@/lib/billing/credits/conversion'
+import { formatCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
 import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useUpdateUsageLimit } from '@/hooks/queries/subscription'
@@ -38,7 +38,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
     },
     ref
   ) => {
-    const [inputValue, setInputValue] = useState(() => dollarsToCredits(currentLimit).toString())
+    const [inputValue, setInputValue] = useState(() => currentLimit.toString())
     const [hasError, setHasError] = useState(false)
     const [errorType, setErrorType] = useState<'general' | 'belowUsage' | null>(null)
     const [isEditing, setIsEditing] = useState(false)
@@ -57,7 +57,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
       if (!canEdit) return
       setIsEditing(true)
       const displayLimit = pendingLimit !== null ? pendingLimit : currentLimit
-      setInputValue(dollarsToCredits(displayLimit).toString())
+      setInputValue(displayLimit.toString())
     }
 
     useImperativeHandle(
@@ -72,10 +72,10 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
       if (pendingLimit !== null) {
         if (currentLimit === pendingLimit) {
           setPendingLimit(null)
-          setInputValue(dollarsToCredits(currentLimit).toString())
+          setInputValue(currentLimit.toString())
         }
       } else {
-        setInputValue(dollarsToCredits(currentLimit).toString())
+        setInputValue(currentLimit.toString())
       }
     }, [currentLimit, pendingLimit])
 
@@ -97,11 +97,10 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
     }, [hasError])
 
     const handleSubmit = async () => {
-      const creditInput = Number.parseInt(inputValue, 10)
-      const newLimit = Math.round(creditsToDollars(creditInput) * 100) / 100
+      const newLimit = Number.parseFloat(inputValue)
 
-      if (Number.isNaN(creditInput) || newLimit < minimumLimit) {
-        setInputValue(dollarsToCredits(currentLimit).toString())
+      if (Number.isNaN(newLimit) || newLimit < minimumLimit) {
+        setInputValue(currentLimit.toString())
         setIsEditing(false)
         return
       }
@@ -132,7 +131,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
         }
 
         setPendingLimit(newLimit)
-        setInputValue(dollarsToCredits(newLimit).toString())
+        setInputValue(newLimit.toString())
         onLimitUpdated?.(newLimit)
         setIsEditing(false)
         setErrorType(null)
@@ -148,7 +147,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
         }
 
         setPendingLimit(null)
-        setInputValue(dollarsToCredits(currentLimit).toString())
+        setInputValue(currentLimit.toString())
         setHasError(true)
       }
     }
@@ -156,7 +155,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
     const handleCancelEdit = () => {
       setIsEditing(false)
       const displayLimit = pendingLimit !== null ? pendingLimit : currentLimit
-      setInputValue(dollarsToCredits(displayLimit).toString())
+      setInputValue(displayLimit.toString())
       setHasError(false)
       setErrorType(null)
     }
@@ -171,12 +170,13 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
       }
     }
 
-    const inputWidthCh = Math.max(3, inputValue.length + 1)
+    const inputWidthCh = Math.max(3, inputValue.length + 2)
 
     return (
       <div className='flex items-center gap-[6px]'>
         {isEditing ? (
           <>
+            <span className='font-medium text-[15px] text-[var(--text-muted)]'>$</span>
             <input
               ref={inputRef}
               type='number'
@@ -196,8 +196,8 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
                 '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
                 hasError && 'text-[var(--text-error)]'
               )}
-              min={dollarsToCredits(minimumLimit)}
-              step='1'
+              min={minimumLimit}
+              step='0.01'
               disabled={isUpdating}
               autoComplete='off'
               autoCorrect='off'

@@ -67,9 +67,7 @@ export async function computeDailyRefreshConsumed(params: {
         lt(usageLog.createdAt, cap)
       )
     )
-    .groupBy(
-      sql`FLOOR(EXTRACT(EPOCH FROM ${usageLog.createdAt} - ${periodStart.toISOString()}::timestamptz) / 86400)`
-    )
+    .groupBy(sql`day_index`)
 
   let totalConsumed = 0
   for (const row of rows) {
