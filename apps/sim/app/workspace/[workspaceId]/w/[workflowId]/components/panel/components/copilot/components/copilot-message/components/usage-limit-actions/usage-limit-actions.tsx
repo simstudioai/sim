@@ -29,7 +29,7 @@ export function UsageLimitActions() {
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
   const [isHidden, setIsHidden] = useState(false)
 
-  const currentLimit = subscription?.usage_limit ?? 0
+  const currentLimit = subscription?.usageLimit ?? 0
   const baseLimit = roundUpToNearest50(currentLimit) || 50
   const limitOptions = LIMIT_INCREMENTS.map((increment) => baseLimit + increment)
 

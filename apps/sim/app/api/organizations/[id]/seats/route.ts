@@ -175,7 +175,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       .where(eq(subscription.id, orgSubscription.id))
 
     // Update orgUsageLimit to reflect new seat count (seats × basePrice as minimum)
-    const { basePrice } = getPlanPricing('team')
+    const { basePrice } = getPlanPricing(orgSubscription.plan)
     const newMinimumLimit = newSeatCount * basePrice
 
     const orgData = await db

@@ -2768,15 +2768,9 @@ export const auth = betterAuth({
                   status: subscription.status,
                 })
 
-                const subscriptionForOrgCreation = isTeamPlan
-                  ? { ...subscription, plan: 'team' }
-                  : subscription
-
                 let resolvedSubscription = subscription
                 try {
-                  resolvedSubscription = await ensureOrganizationForTeamSubscription(
-                    subscriptionForOrgCreation
-                  )
+                  resolvedSubscription = await ensureOrganizationForTeamSubscription(subscription)
                 } catch (orgError) {
                   logger.error(
                     '[onSubscriptionComplete] Failed to ensure organization for team subscription',
@@ -2837,15 +2831,9 @@ export const auth = betterAuth({
                   referenceId: subscription.referenceId,
                 })
 
-                const subscriptionForOrgCreation = isUpgradeToTeam
-                  ? { ...subscription, plan: 'team' }
-                  : subscription
-
                 let resolvedSubscription = subscription
                 try {
-                  resolvedSubscription = await ensureOrganizationForTeamSubscription(
-                    subscriptionForOrgCreation
-                  )
+                  resolvedSubscription = await ensureOrganizationForTeamSubscription(subscription)
 
                   if (isUpgradeToTeam) {
                     logger.info(
@@ -2884,7 +2872,7 @@ export const auth = betterAuth({
                   })
                 }
 
-                if (effectivePlanForTeamFeatures === 'team') {
+                if (isTeam(effectivePlanForTeamFeatures)) {
                   try {
                     const quantity = stripeSubscription.items?.data?.[0]?.quantity || 1
 

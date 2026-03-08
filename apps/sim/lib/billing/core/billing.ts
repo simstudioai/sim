@@ -5,8 +5,10 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getUserUsageData } from '@/lib/billing/core/usage'
 import { getCreditBalance } from '@/lib/billing/credits/balance'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
 import {
   getPlanTierCredits,
+  getPlanTierDollars,
   isEnterprise,
   isOrgPlan,
   isPaid,
@@ -147,12 +149,35 @@ export async function calculateSubscriptionOverage(sub: {
       orgData.length > 0 ? toDecimal(orgData[0].departedMemberUsage) : new Decimal(0)
 
     const totalUsageWithDepartedDecimal = totalTeamUsageDecimal.plus(departedUsageDecimal)
-    const { basePrice } = getPlanPricing(sub.plan)
-    const baseSubscriptionAmount = (sub.seats ?? 0) * basePrice
-    totalOverageDecimal = Decimal.max(
+
+    let dailyRefreshDeduction = 0
+    const planDollars = getPlanTierDollars(sub.plan)
+    if (planDollars > 0) {
+      const subRecord = await db
+        .select({ periodStart: subscription.periodStart, periodEnd: subscription.periodEnd })
+        .from(subscription)
+        .where(eq(subscription.id, sub.id))
+        .limit(1)
+
+      if (subRecord.length > 0 && subRecord[0].periodStart) {
+        const memberIds = members.map((m) => m.userId)
+        dailyRefreshDeduction = await computeDailyRefreshConsumed({
+          userIds: memberIds,
+          periodStart: subRecord[0].periodStart,
+          periodEnd: subRecord[0].periodEnd ?? null,
+          planDollars,
+          seats: sub.seats ?? 1,
+        })
+      }
+    }
+
+    const effectiveUsageDecimal = Decimal.max(
       0,
-      totalUsageWithDepartedDecimal.minus(baseSubscriptionAmount)
+      totalUsageWithDepartedDecimal.minus(toDecimal(dailyRefreshDeduction))
     )
+    const { basePrice } = getPlanPricing(sub.plan ?? '')
+    const baseSubscriptionAmount = (sub.seats ?? 0) * basePrice
+    totalOverageDecimal = Decimal.max(0, effectiveUsageDecimal.minus(baseSubscriptionAmount))
 
     logger.info('Calculated team overage', {
       subscriptionId: sub.id,
@@ -185,7 +210,7 @@ export async function calculateSubscriptionOverage(sub: {
       })
     }
 
-    const { basePrice } = getPlanPricing(sub.plan)
+    const { basePrice } = getPlanPricing(sub.plan ?? '')
     totalOverageDecimal = Decimal.max(0, totalProUsageDecimal.minus(basePrice))
 
     logger.info('Calculated pro overage', {
