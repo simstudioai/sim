@@ -37,12 +37,8 @@ async function listDirectory(
   dirPath: string,
   retryOptions?: Parameters<typeof fetchWithRetry>[2]
 ): Promise<string[]> {
-  const encodedDir = dirPath
-    ? dirPath.split('/').map(encodeURIComponent).join('/')
-    : ''
-  const endpoint = encodedDir
-    ? `${baseUrl}/vault/${encodedDir}/`
-    : `${baseUrl}/vault/`
+  const encodedDir = dirPath ? dirPath.split('/').map(encodeURIComponent).join('/') : ''
+  const endpoint = encodedDir ? `${baseUrl}/vault/${encodedDir}/` : `${baseUrl}/vault/`
 
   const response = await fetchWithRetry(
     endpoint,

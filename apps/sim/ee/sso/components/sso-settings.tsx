@@ -436,11 +436,7 @@ export function SSO() {
                   <span className='sr-only'>Copy callback URL</span>
                 </Button>
               </div>
-              <div className='flex h-9 items-center rounded-[6px] border bg-[var(--surface-1)] px-[10px]'>
-                <code className='flex-1 truncate font-mono text-[14px] text-[var(--text-primary)]'>
-                  {providerCallbackUrl}
-                </code>
-              </div>
+              <Input value={providerCallbackUrl} readOnly className='h-9' />
               <p className='text-[14px] text-[var(--text-muted)]'>
                 Configure this in your identity provider
               </p>
@@ -870,11 +866,7 @@ export function SSO() {
                 <span className='sr-only'>Copy callback URL</span>
               </Button>
             </div>
-            <div className='flex h-9 items-center rounded-[6px] border bg-[var(--surface-1)] px-[10px]'>
-              <code className='flex-1 truncate font-mono text-[14px] text-[var(--text-primary)]'>
-                {callbackUrl}
-              </code>
-            </div>
+            <Input value={callbackUrl} readOnly className='h-9' />
             <p className='text-[14px] text-[var(--text-muted)]'>
               Configure this in your identity provider
             </p>
