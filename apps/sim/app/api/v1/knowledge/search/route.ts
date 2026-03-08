@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
     }
 
     let structuredFilters: StructuredFilter[] = []
-    let cachedTagDefs: Awaited<ReturnType<typeof getDocumentTagDefinitions>> | undefined
+    const tagDefsCache = new Map<string, Awaited<ReturnType<typeof getDocumentTagDefinitions>>>()
 
     if (tagFilters && tagFilters.length > 0 && accessibleKbIds.length > 1) {
       return NextResponse.json(
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
     if (tagFilters && tagFilters.length > 0 && accessibleKbIds.length > 0) {
       const kbId = accessibleKbIds[0]
       const tagDefs = await getDocumentTagDefinitions(kbId)
-      cachedTagDefs = tagDefs
+      tagDefsCache.set(kbId, tagDefs)
 
       const displayNameToTagDef: Record<string, { tagSlot: string; fieldType: string }> = {}
       tagDefs.forEach((def) => {
@@ -207,10 +207,9 @@ export async function POST(request: NextRequest) {
     }
 
     const tagDefsResults = await Promise.all(
-      accessibleKbIds.map(async (kbId, idx) => {
+      accessibleKbIds.map(async (kbId) => {
         try {
-          const tagDefs =
-            idx === 0 && cachedTagDefs ? cachedTagDefs : await getDocumentTagDefinitions(kbId)
+          const tagDefs = tagDefsCache.get(kbId) ?? (await getDocumentTagDefinitions(kbId))
           const map: Record<string, string> = {}
           tagDefs.forEach((def) => {
             map[def.tagSlot] = def.displayName

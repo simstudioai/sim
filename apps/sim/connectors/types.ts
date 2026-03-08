@@ -112,11 +112,16 @@ export interface ConnectorConfig {
     lastSyncAt?: Date
   ) => Promise<ExternalDocumentList>
 
-  /** Fetch a single document by its external ID */
+  /**
+   * Fetch a single document by its external ID.
+   * syncContext is an optional mutable object for caching expensive lookups
+   * (e.g. tag maps, notebook lists) across multiple getDocument calls.
+   */
   getDocument: (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    externalId: string
+    externalId: string,
+    syncContext?: Record<string, unknown>
   ) => Promise<ExternalDocument | null>
 
   /** Validate that sourceConfig is correct and accessible (called on save) */

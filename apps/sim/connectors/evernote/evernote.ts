@@ -453,7 +453,8 @@ export const evernoteConnector: ConnectorConfig = {
   getDocument: async (
     accessToken: string,
     _sourceConfig: Record<string, unknown>,
-    externalId: string
+    externalId: string,
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     try {
       const note = await apiGetNote(accessToken, externalId)
@@ -463,12 +464,29 @@ export const evernoteConnector: ConnectorConfig = {
       const userId = extractUserId(accessToken)
       const host = getHost(accessToken)
 
-      const tags = await apiListTags(accessToken)
-      const tagMap = Object.fromEntries(tags.map((t) => [t.guid, t.name]))
-      const tagNames = note.tagGuids.map((g) => tagMap[g]).filter(Boolean)
+      if (syncContext && !syncContext.tagMap) {
+        const tags = await apiListTags(accessToken)
+        syncContext.tagMap = Object.fromEntries(tags.map((t) => [t.guid, t.name]))
+      }
+      if (syncContext && !syncContext.notebookMap) {
+        const notebooks = await apiListNotebooks(accessToken)
+        syncContext.notebookMap = Object.fromEntries(notebooks.map((nb) => [nb.guid, nb.name]))
+      }
 
-      const notebooks = await apiListNotebooks(accessToken)
-      const notebookName = notebooks.find((nb) => nb.guid === note.notebookGuid)?.name || ''
+      let tagMap: Record<string, string>
+      let notebookMap: Record<string, string>
+      if (syncContext) {
+        tagMap = syncContext.tagMap as Record<string, string>
+        notebookMap = syncContext.notebookMap as Record<string, string>
+      } else {
+        const tags = await apiListTags(accessToken)
+        tagMap = Object.fromEntries(tags.map((t) => [t.guid, t.name]))
+        const notebooks = await apiListNotebooks(accessToken)
+        notebookMap = Object.fromEntries(notebooks.map((nb) => [nb.guid, nb.name]))
+      }
+
+      const tagNames = note.tagGuids.map((g) => tagMap[g]).filter(Boolean)
+      const notebookName = notebookMap[note.notebookGuid] || ''
 
       return {
         externalId,
