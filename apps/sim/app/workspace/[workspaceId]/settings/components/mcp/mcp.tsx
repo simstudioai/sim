@@ -1,13 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ChevronDown, Plus, Search, X } from 'lucide-react'
+import { ChevronDown, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
-  Input as EmcnInput,
   Modal,
   ModalBody,
   ModalContent,
@@ -25,17 +24,11 @@ import {
 } from '@/lib/mcp/tool-validation'
 import type { McpTransport } from '@/lib/mcp/types'
 import {
-  checkEnvVarTrigger,
-  EnvVarDropdown,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
-import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
-import {
   useAllowedMcpDomains,
   useCreateMcpServer,
   useDeleteMcpServer,
   useForceRefreshMcpTools,
   useMcpServers,
-  useMcpServerTest,
   useMcpToolsQuery,
   useRefreshMcpServer,
   useStoredMcpTools,
@@ -44,41 +37,9 @@ import {
 import { useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { FormField, McpServerSkeleton } from './components'
+import { McpServerFormModal, McpServerSkeleton } from './components'
 
-/**
- * Represents a single header entry in the form.
- * Using an array of objects allows duplicate keys during editing.
- */
-interface HeaderEntry {
-  key: string
-  value: string
-}
-
-interface McpServerFormData {
-  name: string
-  transport: McpTransport
-  url?: string
-  timeout?: number
-  headers?: HeaderEntry[]
-}
-
-interface McpServerTestResult {
-  success: boolean
-  message?: string
-  error?: string
-  warnings?: string[]
-}
-
-type InputFieldType = 'url' | 'header-key' | 'header-value'
-
-interface EnvVarDropdownConfig {
-  searchTerm: string
-  cursorPosition: number
-  workspaceId: string
-  onSelect: (value: string) => void
-  onClose: () => void
-}
+const logger = createLogger('McpSettings')
 
 interface McpToolSchema {
   type: 'object'
@@ -105,53 +66,6 @@ interface McpServer {
   lastConnected?: string
 }
 
-const logger = createLogger('McpSettings')
-
-/**
- * Checks if a URL's hostname is in the allowed domains list.
- * Returns true if no allowlist is configured (null) or the domain matches.
- * Env var references in the hostname bypass the check since the domain
- * can't be determined until resolution — but env vars only in the path/query
- * do NOT bypass the check.
- */
-const ENV_VAR_PATTERN = /\{\{[^}]+\}\}/
-
-function hasEnvVarInHostname(url: string): boolean {
-  // If the entire URL is an env var, hostname is unknown
-  const globalPattern = new RegExp(ENV_VAR_PATTERN.source, 'g')
-  if (url.trim().replace(globalPattern, '').trim() === '') return true
-  const protocolEnd = url.indexOf('://')
-  if (protocolEnd === -1) return ENV_VAR_PATTERN.test(url)
-  // Extract authority per RFC 3986 (terminated by /, ?, or #)
-  const afterProtocol = url.substring(protocolEnd + 3)
-  const authorityEnd = afterProtocol.search(/[/?#]/)
-  const authority = authorityEnd === -1 ? afterProtocol : afterProtocol.substring(0, authorityEnd)
-  return ENV_VAR_PATTERN.test(authority)
-}
-
-function isDomainAllowed(url: string | undefined, allowedDomains: string[] | null): boolean {
-  if (allowedDomains === null) return true
-  if (!url) return false
-  if (hasEnvVarInHostname(url)) return true
-  try {
-    const hostname = new URL(url).hostname.toLowerCase()
-    return allowedDomains.includes(hostname)
-  } catch {
-    return false
-  }
-}
-
-const DEFAULT_FORM_DATA: McpServerFormData = {
-  name: '',
-  transport: 'streamable-http',
-  url: '',
-  timeout: 30000,
-  headers: [{ key: '', value: '' }],
-}
-
-/**
- * Formats a transport type string for display.
- */
 function formatTransportLabel(transport: string): string {
   return transport
     .split('-')
@@ -163,9 +77,6 @@ function formatTransportLabel(transport: string): string {
     .join('-')
 }
 
-/**
- * Formats a tools list for display in the server list.
- */
 function formatToolsLabel(tools: McpTool[], connectionStatus?: string): string {
   if (connectionStatus === 'error') {
     return 'Unable to connect'
@@ -174,163 +85,6 @@ function formatToolsLabel(tools: McpTool[], connectionStatus?: string): string {
   const plural = count !== 1 ? 's' : ''
   const names = count > 0 ? `: ${tools.map((t) => t.name).join(', ')}` : ''
   return `${count} tool${plural}${names}`
-}
-
-/**
- * Determines the label for the test connection button based on current state.
- */
-function getTestButtonLabel(
-  testResult: McpServerTestResult | null,
-  isTestingConnection: boolean
-): string {
-  if (isTestingConnection) return 'Testing...'
-  if (testResult?.success) return 'Connection success'
-  if (testResult && !testResult.success) return 'No connection: retry'
-  return 'Test Connection'
-}
-
-interface FormattedInputProps {
-  ref?: React.RefObject<HTMLInputElement | null>
-  placeholder: string
-  value: string
-  scrollLeft: number
-  showEnvVars: boolean
-  envVarProps: EnvVarDropdownConfig
-  availableEnvVars?: Set<string>
-  className?: string
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-  onScroll: (scrollLeft: number) => void
-}
-
-function FormattedInput({
-  ref,
-  placeholder,
-  value,
-  scrollLeft,
-  showEnvVars,
-  envVarProps,
-  availableEnvVars,
-  className,
-  onChange,
-  onScroll,
-}: FormattedInputProps) {
-  const handleScroll = (e: { currentTarget: HTMLInputElement }) => {
-    onScroll(e.currentTarget.scrollLeft)
-  }
-
-  return (
-    <div className={cn('relative', className)}>
-      <EmcnInput
-        ref={ref}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        onScroll={handleScroll}
-        onInput={handleScroll}
-        className='h-9 text-transparent caret-foreground placeholder:text-[var(--text-muted)]'
-      />
-      <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-[8px] py-[6px] font-medium font-sans text-sm'>
-        <div className='whitespace-nowrap' style={{ transform: `translateX(-${scrollLeft}px)` }}>
-          {formatDisplayText(value, { availableEnvVars })}
-        </div>
-      </div>
-      {showEnvVars && (
-        <EnvVarDropdown
-          visible={showEnvVars}
-          onSelect={envVarProps.onSelect}
-          searchTerm={envVarProps.searchTerm}
-          inputValue={value}
-          cursorPosition={envVarProps.cursorPosition}
-          workspaceId={envVarProps.workspaceId}
-          onClose={envVarProps.onClose}
-          className='w-full'
-          maxHeight='200px'
-          style={{ position: 'absolute', top: '100%', left: 0, zIndex: 99999 }}
-        />
-      )}
-    </div>
-  )
-}
-
-interface HeaderRowProps {
-  header: HeaderEntry
-  index: number
-  headerScrollLeft: Record<string, number>
-  showEnvVars: boolean
-  activeInputField: InputFieldType | null
-  activeHeaderIndex: number | null
-  envSearchTerm: string
-  cursorPosition: number
-  workspaceId: string
-  availableEnvVars?: Set<string>
-  onInputChange: (field: InputFieldType, value: string, index?: number) => void
-  onHeaderScroll: (key: string, scrollLeft: number) => void
-  onEnvVarSelect: (value: string) => void
-  onEnvVarClose: () => void
-  onRemove: () => void
-}
-
-function HeaderRow({
-  header,
-  index,
-  headerScrollLeft,
-  showEnvVars,
-  activeInputField,
-  activeHeaderIndex,
-  envSearchTerm,
-  cursorPosition,
-  workspaceId,
-  availableEnvVars,
-  onInputChange,
-  onHeaderScroll,
-  onEnvVarSelect,
-  onEnvVarClose,
-  onRemove,
-}: HeaderRowProps) {
-  const isKeyActive =
-    showEnvVars && activeInputField === 'header-key' && activeHeaderIndex === index
-  const isValueActive =
-    showEnvVars && activeInputField === 'header-value' && activeHeaderIndex === index
-
-  const envVarProps: EnvVarDropdownConfig = {
-    searchTerm: envSearchTerm,
-    cursorPosition,
-    workspaceId,
-    onSelect: onEnvVarSelect,
-    onClose: onEnvVarClose,
-  }
-
-  return (
-    <div className='relative flex items-center gap-[8px]'>
-      <FormattedInput
-        placeholder='Name'
-        value={header.key || ''}
-        scrollLeft={headerScrollLeft[`key-${index}`] || 0}
-        showEnvVars={isKeyActive}
-        envVarProps={envVarProps}
-        availableEnvVars={availableEnvVars}
-        className='flex-1'
-        onChange={(e) => onInputChange('header-key', e.target.value, index)}
-        onScroll={(scrollLeft) => onHeaderScroll(`key-${index}`, scrollLeft)}
-      />
-
-      <FormattedInput
-        placeholder='Value'
-        value={header.value || ''}
-        scrollLeft={headerScrollLeft[`value-${index}`] || 0}
-        showEnvVars={isValueActive}
-        envVarProps={envVarProps}
-        availableEnvVars={availableEnvVars}
-        className='flex-1'
-        onChange={(e) => onInputChange('header-value', e.target.value, index)}
-        onScroll={(scrollLeft) => onHeaderScroll(`value-${index}`, scrollLeft)}
-      />
-
-      <Button type='button' variant='ghost' onClick={onRemove} className='h-6 w-6 shrink-0 p-0'>
-        <X className='h-3 w-3' />
-      </Button>
-    </div>
-  )
 }
 
 interface ServerListItemProps {
@@ -415,23 +169,22 @@ export function MCP({ initialServerId }: MCPProps) {
   const createServerMutation = useCreateMcpServer()
   const deleteServerMutation = useDeleteMcpServer()
   const refreshServerMutation = useRefreshMcpServer()
-  const { testResult, isTestingConnection, testConnection, clearTestResult } = useMcpServerTest()
   const updateServerMutation = useUpdateMcpServer()
-  const {
-    testResult: editTestResult,
-    isTestingConnection: isEditTestingConnection,
-    testConnection: editTestConnection,
-    clearTestResult: clearEditTestResult,
-  } = useMcpServerTest()
   const availableEnvVars = useAvailableEnvVarKeys(workspaceId)
-
   const { data: allowedMcpDomains = null } = useAllowedMcpDomains()
 
-  const urlInputRef = useRef<HTMLInputElement>(null)
-
-  const [showAddForm, setShowAddForm] = useState(false)
-  const [formData, setFormData] = useState<McpServerFormData>(DEFAULT_FORM_DATA)
-  const [isAddingServer, setIsAddingServer] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editInitialData, setEditInitialData] = useState<
+    | {
+        name: string
+        transport: McpTransport
+        url?: string
+        timeout?: number
+        headers?: { key: string; value: string }[]
+      }
+    | undefined
+  >(undefined)
 
   const [searchTerm, setSearchTerm] = useState('')
   const [deletingServers, setDeletingServers] = useState<Set<string>>(() => new Set())
@@ -439,218 +192,22 @@ export function MCP({ initialServerId }: MCPProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [serverToDelete, setServerToDelete] = useState<{ id: string; name: string } | null>(null)
 
-  const [selectedServerId, setSelectedServerId] = useState<string | null>(null)
+  const [selectedServerId, setSelectedServerId] = useState<string | null>(initialServerId ?? null)
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- initialServerId and workspaceId
+  // are stable for the component's lifetime (route changes remount the settings page).
+  useEffect(() => {
+    if (initialServerId) {
+      forceRefreshTools(workspaceId)
+      refetchStoredTools()
+    }
+  }, [])
+
   const [refreshingServers, setRefreshingServers] = useState<
     Record<string, { status: 'refreshing' | 'refreshed'; workflowsUpdated?: number }>
   >({})
   const [expandedTools, setExpandedTools] = useState<Set<string>>(() => new Set())
 
-  const [showEnvVars, setShowEnvVars] = useState(false)
-  const [envSearchTerm, setEnvSearchTerm] = useState('')
-  const [cursorPosition, setCursorPosition] = useState(0)
-  const [activeInputField, setActiveInputField] = useState<InputFieldType | null>(null)
-  const [activeHeaderIndex, setActiveHeaderIndex] = useState<number | null>(null)
-
-  const [urlScrollLeft, setUrlScrollLeft] = useState(0)
-  const [headerScrollLeft, setHeaderScrollLeft] = useState<Record<string, number>>({})
-
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [editFormData, setEditFormData] = useState<McpServerFormData>(DEFAULT_FORM_DATA)
-  const [editOriginalData, setEditOriginalData] = useState<McpServerFormData>(DEFAULT_FORM_DATA)
-  const [isUpdatingServer, setIsUpdatingServer] = useState(false)
-  const [editSaveError, setEditSaveError] = useState<string | null>(null)
-  const [editShowEnvVars, setEditShowEnvVars] = useState(false)
-  const [editEnvSearchTerm, setEditEnvSearchTerm] = useState('')
-  const [editCursorPosition, setEditCursorPosition] = useState(0)
-  const [editActiveInputField, setEditActiveInputField] = useState<InputFieldType | null>(null)
-  const [editActiveHeaderIndex, setEditActiveHeaderIndex] = useState<number | null>(null)
-  const [editUrlScrollLeft, setEditUrlScrollLeft] = useState(0)
-  const [editHeaderScrollLeft, setEditHeaderScrollLeft] = useState<Record<string, number>>({})
-
-  useEffect(() => {
-    if (initialServerId && servers.some((s) => s.id === initialServerId)) {
-      setSelectedServerId(initialServerId)
-    }
-  }, [initialServerId, servers])
-
-  useEffect(() => {
-    if (selectedServerId) {
-      forceRefreshTools(workspaceId)
-      refetchStoredTools()
-    }
-  }, [selectedServerId, workspaceId, forceRefreshTools, refetchStoredTools])
-
-  /**
-   * Resets environment variable dropdown state.
-   */
-  const resetEnvVarState = useCallback(() => {
-    setShowEnvVars(false)
-    setActiveInputField(null)
-    setActiveHeaderIndex(null)
-  }, [])
-
-  /**
-   * Resets the form to its default state.
-   */
-  const resetForm = useCallback(() => {
-    setFormData(DEFAULT_FORM_DATA)
-    setShowAddForm(false)
-    resetEnvVarState()
-    clearTestResult()
-  }, [clearTestResult, resetEnvVarState])
-
-  /**
-   * Updates a header field at the specified index.
-   */
-  const updateHeader = useCallback((index: number, field: 'key' | 'value', value: string) => {
-    setFormData((prev) => {
-      const newHeaders = [...(prev.headers || [])]
-      if (newHeaders[index]) {
-        newHeaders[index] = { ...newHeaders[index], [field]: value }
-      }
-      return { ...prev, headers: newHeaders }
-    })
-  }, [])
-
-  /**
-   * Handles environment variable selection and updates the appropriate field.
-   */
-  const handleEnvVarSelect = useCallback(
-    (newValue: string) => {
-      if (activeInputField === 'url') {
-        setFormData((prev) => ({ ...prev, url: newValue }))
-      } else if (activeHeaderIndex !== null) {
-        const field = activeInputField === 'header-key' ? 'key' : 'value'
-        const processedValue = field === 'key' ? newValue.replace(/[{}]/g, '') : newValue
-        updateHeader(activeHeaderIndex, field, processedValue)
-      }
-      resetEnvVarState()
-    },
-    [activeInputField, activeHeaderIndex, updateHeader, resetEnvVarState]
-  )
-
-  /**
-   * Handles input changes and manages environment variable dropdown visibility.
-   */
-  const handleInputChange = useCallback(
-    (field: InputFieldType, value: string, headerIndex?: number) => {
-      const input = document.activeElement as HTMLInputElement
-      const pos = input?.selectionStart || 0
-
-      setCursorPosition(pos)
-
-      if (testResult) {
-        clearTestResult()
-      }
-
-      const envVarTrigger = checkEnvVarTrigger(value, pos)
-      setShowEnvVars(envVarTrigger.show)
-      setEnvSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
-
-      if (envVarTrigger.show) {
-        setActiveInputField(field)
-        setActiveHeaderIndex(headerIndex ?? null)
-      } else {
-        resetEnvVarState()
-      }
-
-      if (field === 'url') {
-        setFormData((prev) => ({ ...prev, url: value }))
-      } else if (headerIndex !== undefined) {
-        const headerField = field === 'header-key' ? 'key' : 'value'
-        updateHeader(headerIndex, headerField, value)
-      }
-    },
-    [testResult, clearTestResult, updateHeader, resetEnvVarState]
-  )
-
-  /**
-   * Converts headers array to Record format for API calls.
-   * Filters out entries with empty keys.
-   */
-  const headersToRecord = useCallback(
-    (headers: typeof formData.headers): Record<string, string> => {
-      const record: Record<string, string> = {}
-      for (const header of headers || []) {
-        if (header.key.trim()) {
-          record[header.key] = header.value
-        }
-      }
-      return record
-    },
-    []
-  )
-
-  /**
-   * Tests the connection to the MCP server with current form data.
-   */
-  const handleTestConnection = useCallback(async () => {
-    if (!formData.name.trim() || !formData.url?.trim()) return
-
-    try {
-      await testConnection({
-        name: formData.name,
-        transport: formData.transport,
-        url: formData.url,
-        headers: headersToRecord(formData.headers),
-        timeout: formData.timeout,
-        workspaceId,
-      })
-    } catch {
-      // Error is captured by the mutation's error state and displayed via testResult
-    }
-  }, [formData, testConnection, workspaceId, headersToRecord])
-
-  /**
-   * Adds a new MCP server after validating and testing the connection.
-   * Only creates the server if connection test succeeds.
-   */
-  const handleAddServer = useCallback(async () => {
-    if (!formData.name.trim()) return
-
-    setIsAddingServer(true)
-    try {
-      const headersRecord = headersToRecord(formData.headers)
-      const serverConfig = {
-        name: formData.name,
-        transport: formData.transport,
-        url: formData.url,
-        headers: headersRecord,
-        timeout: formData.timeout,
-        workspaceId,
-      }
-
-      const connectionResult = await testConnection(serverConfig)
-
-      if (!connectionResult.success) {
-        logger.error('Connection test failed, server not added:', connectionResult.error)
-        return
-      }
-
-      await createServerMutation.mutateAsync({
-        workspaceId,
-        config: {
-          name: formData.name.trim(),
-          transport: formData.transport,
-          url: formData.url,
-          timeout: formData.timeout || 30000,
-          headers: headersRecord,
-          enabled: true,
-        },
-      })
-
-      logger.info(`Added MCP server: ${formData.name}`)
-      resetForm()
-    } catch (error) {
-      logger.error('Failed to add MCP server:', error)
-    } finally {
-      setIsAddingServer(false)
-    }
-  }, [formData, testConnection, createServerMutation, workspaceId, headersToRecord, resetForm])
-
-  /**
-   * Opens the delete confirmation dialog for an MCP server.
-   */
   const handleRemoveServer = useCallback((serverId: string, serverName: string) => {
     setServerToDelete({ id: serverId, name: serverName })
     setShowDeleteDialog(true)
@@ -679,9 +236,6 @@ export function MCP({ initialServerId }: MCPProps) {
     }
   }, [serverToDelete, deleteServerMutation, workspaceId])
 
-  /**
-   * Groups tools by their server ID for display.
-   */
   const toolsByServer = useMemo(() => {
     return (mcpToolsData || []).reduce(
       (acc, tool) => {
@@ -696,64 +250,26 @@ export function MCP({ initialServerId }: MCPProps) {
     )
   }, [mcpToolsData])
 
-  /**
-   * Filters servers based on search term.
-   */
   const filteredServers = useMemo(() => {
     return (servers || []).filter((server) =>
       server.name?.toLowerCase().includes(searchTerm.toLowerCase())
     )
   }, [servers, searchTerm])
 
-  const handleNameChange = useCallback((value: string) => {
-    setFormData((prev) => ({ ...prev, name: value }))
-  }, [])
+  const handleViewDetails = useCallback(
+    (serverId: string) => {
+      setSelectedServerId(serverId)
+      forceRefreshTools(workspaceId)
+      refetchStoredTools()
+    },
+    [workspaceId, forceRefreshTools, refetchStoredTools]
+  )
 
-  const handleUrlScroll = useCallback((scrollLeft: number) => {
-    setUrlScrollLeft(scrollLeft)
-  }, [])
-
-  const handleHeaderScroll = useCallback((key: string, scrollLeft: number) => {
-    setHeaderScrollLeft((prev) => ({ ...prev, [key]: scrollLeft }))
-  }, [])
-
-  const handleAddHeader = useCallback(() => {
-    setFormData((prev) => ({
-      ...prev,
-      headers: [...(prev.headers || []), { key: '', value: '' }],
-    }))
-  }, [])
-
-  const handleRemoveHeader = useCallback((index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      headers: (prev.headers || []).filter((_, i) => i !== index),
-    }))
-  }, [])
-
-  const handleCancelForm = useCallback(() => {
-    setShowAddForm(false)
-  }, [])
-
-  /**
-   * Opens the detail view for a specific server.
-   * Note: Tool refresh is handled by the useEffect that watches selectedServerId
-   */
-  const handleViewDetails = useCallback((serverId: string) => {
-    setSelectedServerId(serverId)
-  }, [])
-
-  /**
-   * Closes the detail view and returns to the server list.
-   */
   const handleBackToList = useCallback(() => {
     setSelectedServerId(null)
     setExpandedTools(new Set())
   }, [])
 
-  /**
-   * Toggles the expanded state of a tool's parameters.
-   */
   const toggleToolExpanded = useCallback((toolName: string) => {
     setExpandedTools((prev) => {
       const newSet = new Set(prev)
@@ -766,11 +282,6 @@ export function MCP({ initialServerId }: MCPProps) {
     })
   }, [])
 
-  /**
-   * Refreshes a server's tools by re-discovering them from the MCP server.
-   * Also syncs updated tool schemas to all workflows using those tools.
-   * If the active workflow was updated, reloads its subblock values.
-   */
   const handleRefreshServer = useCallback(
     async (serverId: string) => {
       try {
@@ -821,218 +332,27 @@ export function MCP({ initialServerId }: MCPProps) {
     [refreshServerMutation, workspaceId]
   )
 
-  /**
-   * Resets edit modal environment variable dropdown state.
-   */
-  const resetEditEnvVarState = useCallback(() => {
-    setEditShowEnvVars(false)
-    setEditActiveInputField(null)
-    setEditActiveHeaderIndex(null)
-  }, [])
+  const handleOpenEditModal = useCallback((server: McpServer) => {
+    const headers: { key: string; value: string }[] = server.headers
+      ? Object.entries(server.headers).map(([key, value]) => ({ key, value }))
+      : [{ key: '', value: '' }]
+    if (headers.length === 0) headers.push({ key: '', value: '' })
 
-  /**
-   * Opens the edit modal and populates form with current server data.
-   */
-  const handleOpenEditModal = useCallback(
-    (server: McpServer) => {
-      const headers: HeaderEntry[] = server.headers
-        ? Object.entries(server.headers).map(([key, value]) => ({ key, value }))
-        : [{ key: '', value: '' }]
-      if (headers.length === 0) headers.push({ key: '', value: '' })
-
-      const data: McpServerFormData = {
-        name: server.name || '',
-        transport: (server.transport as McpTransport) || 'streamable-http',
-        url: server.url || '',
-        timeout: 30000,
-        headers,
-      }
-      setEditFormData(data)
-      setEditOriginalData(JSON.parse(JSON.stringify(data)))
-      setShowEditModal(true)
-      setEditSaveError(null)
-      clearEditTestResult()
-      resetEditEnvVarState()
-      setEditUrlScrollLeft(0)
-      setEditHeaderScrollLeft({})
-    },
-    [clearEditTestResult, resetEditEnvVarState]
-  )
-
-  /**
-   * Closes the edit modal and resets state.
-   */
-  const handleCloseEditModal = useCallback(() => {
-    setShowEditModal(false)
-    setEditFormData(DEFAULT_FORM_DATA)
-    setEditOriginalData(DEFAULT_FORM_DATA)
-    setEditSaveError(null)
-    clearEditTestResult()
-    resetEditEnvVarState()
-  }, [clearEditTestResult, resetEditEnvVarState])
-
-  /**
-   * Handles environment variable selection in the edit modal.
-   */
-  const handleEditEnvVarSelect = useCallback(
-    (newValue: string) => {
-      if (editActiveInputField === 'url') {
-        setEditFormData((prev) => ({ ...prev, url: newValue }))
-      } else if (editActiveHeaderIndex !== null) {
-        const field = editActiveInputField === 'header-key' ? 'key' : 'value'
-        const processedValue = field === 'key' ? newValue.replace(/[{}]/g, '') : newValue
-        setEditFormData((prev) => {
-          const newHeaders = [...(prev.headers || [])]
-          if (newHeaders[editActiveHeaderIndex]) {
-            newHeaders[editActiveHeaderIndex] = {
-              ...newHeaders[editActiveHeaderIndex],
-              [field]: processedValue,
-            }
-          }
-          return { ...prev, headers: newHeaders }
-        })
-      }
-      resetEditEnvVarState()
-    },
-    [editActiveInputField, editActiveHeaderIndex, resetEditEnvVarState]
-  )
-
-  /**
-   * Handles input changes in the edit modal and manages env var dropdown.
-   */
-  const handleEditInputChange = useCallback(
-    (field: InputFieldType, value: string, headerIndex?: number) => {
-      const input = document.activeElement as HTMLInputElement
-      const pos = input?.selectionStart || 0
-      setEditCursorPosition(pos)
-
-      if (editTestResult) {
-        clearEditTestResult()
-      }
-
-      const envVarTrigger = checkEnvVarTrigger(value, pos)
-      setEditShowEnvVars(envVarTrigger.show)
-      setEditEnvSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
-
-      if (envVarTrigger.show) {
-        setEditActiveInputField(field)
-        setEditActiveHeaderIndex(headerIndex ?? null)
-      } else {
-        resetEditEnvVarState()
-      }
-
-      if (field === 'url') {
-        setEditFormData((prev) => ({ ...prev, url: value }))
-      } else if (headerIndex !== undefined) {
-        const headerField = field === 'header-key' ? 'key' : 'value'
-        setEditFormData((prev) => {
-          const newHeaders = [...(prev.headers || [])]
-          if (newHeaders[headerIndex]) {
-            newHeaders[headerIndex] = { ...newHeaders[headerIndex], [headerField]: value }
-          }
-          return { ...prev, headers: newHeaders }
-        })
-      }
-    },
-    [editTestResult, clearEditTestResult, resetEditEnvVarState]
-  )
-
-  const handleEditHeaderScroll = useCallback((key: string, scrollLeft: number) => {
-    setEditHeaderScrollLeft((prev) => ({ ...prev, [key]: scrollLeft }))
-  }, [])
-
-  const handleEditAddHeader = useCallback(() => {
-    setEditFormData((prev) => ({
-      ...prev,
-      headers: [...(prev.headers || []), { key: '', value: '' }],
-    }))
-  }, [])
-
-  const handleEditRemoveHeader = useCallback((index: number) => {
-    setEditFormData((prev) => ({
-      ...prev,
-      headers: (prev.headers || []).filter((_, i) => i !== index),
-    }))
-  }, [])
-
-  /**
-   * Tests the connection with the edit modal's form data.
-   */
-  const handleEditTestConnection = useCallback(async () => {
-    if (!editFormData.name.trim() || !editFormData.url?.trim()) return
-
-    await editTestConnection({
-      name: editFormData.name,
-      transport: editFormData.transport,
-      url: editFormData.url,
-      headers: headersToRecord(editFormData.headers),
-      timeout: editFormData.timeout,
-      workspaceId,
-    })
-  }, [editFormData, editTestConnection, workspaceId, headersToRecord])
-
-  /**
-   * Saves the edited MCP server after validating and testing the connection.
-   */
-  const handleSaveEdit = useCallback(async () => {
-    if (!selectedServerId || !editFormData.name.trim()) return
-
-    setEditSaveError(null)
-    try {
-      const headersRecord = headersToRecord(editFormData.headers)
-      const serverConfig = {
-        name: editFormData.name,
-        transport: editFormData.transport,
-        url: editFormData.url,
-        headers: headersRecord,
-        timeout: editFormData.timeout,
-        workspaceId,
-      }
-
-      const connectionResult = await editTestConnection(serverConfig)
-
-      if (!connectionResult.success) {
-        setEditSaveError(connectionResult.error || 'Connection test failed')
-        return
-      }
-
-      setIsUpdatingServer(true)
-      const currentServer = servers.find((s) => s.id === selectedServerId)
-      await updateServerMutation.mutateAsync({
-        workspaceId,
-        serverId: selectedServerId,
-        updates: {
-          name: editFormData.name.trim(),
-          transport: editFormData.transport,
-          url: editFormData.url,
-          headers: headersRecord,
-          timeout: editFormData.timeout || 30000,
-          enabled: currentServer?.enabled ?? true,
-        },
-      })
-
-      setShowEditModal(false)
-      logger.info(`Updated MCP server: ${editFormData.name}`)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update server'
-      setEditSaveError(message)
-      logger.error('Failed to update MCP server:', error)
-    } finally {
-      setIsUpdatingServer(false)
+    const lastHeader = headers[headers.length - 1]
+    if (lastHeader.key !== '' || lastHeader.value !== '') {
+      headers.push({ key: '', value: '' })
     }
-  }, [
-    selectedServerId,
-    editFormData,
-    editTestConnection,
-    updateServerMutation,
-    workspaceId,
-    headersToRecord,
-    servers,
-  ])
 
-  /**
-   * Gets the selected server and its tools for the detail view.
-   */
+    setEditInitialData({
+      name: server.name || '',
+      transport: (server.transport as McpTransport) || 'streamable-http',
+      url: server.url || '',
+      timeout: 30000,
+      headers,
+    })
+    setShowEditModal(true)
+  }, [])
+
   const selectedServer = useMemo(() => {
     if (!selectedServerId) return null
     const server = servers.find((s) => s.id === selectedServerId) as McpServer | undefined
@@ -1041,43 +361,6 @@ export function MCP({ initialServerId }: MCPProps) {
     return { server, tools: serverTools }
   }, [selectedServerId, servers, toolsByServer])
 
-  const error = toolsError || serversError
-  const hasServers = servers && servers.length > 0
-  const shouldShowForm = showAddForm || !hasServers
-  const showNoResults = searchTerm.trim() && filteredServers.length === 0 && servers.length > 0
-
-  const isFormValid = formData.name.trim() && formData.url?.trim()
-  const isAddDomainBlocked =
-    !!formData.url?.trim() && !isDomainAllowed(formData.url, allowedMcpDomains)
-  const isSubmitDisabled = serversLoading || isAddingServer || !isFormValid || isAddDomainBlocked
-  const testButtonLabel = getTestButtonLabel(testResult, isTestingConnection)
-
-  const isEditFormValid = editFormData.name.trim() && editFormData.url?.trim()
-  const isEditDomainBlocked =
-    !!editFormData.url?.trim() && !isDomainAllowed(editFormData.url, allowedMcpDomains)
-  const editTestButtonLabel = getTestButtonLabel(editTestResult, isEditTestingConnection)
-  const hasEditChanges = useMemo(() => {
-    if (editFormData.name !== editOriginalData.name) return true
-    if (editFormData.url !== editOriginalData.url) return true
-    if (editFormData.transport !== editOriginalData.transport) return true
-
-    const currentHeaders = editFormData.headers || []
-    const originalHeaders = editOriginalData.headers || []
-    if (currentHeaders.length !== originalHeaders.length) return true
-    for (let i = 0; i < currentHeaders.length; i++) {
-      if (
-        currentHeaders[i].key !== originalHeaders[i].key ||
-        currentHeaders[i].value !== originalHeaders[i].value
-      )
-        return true
-    }
-    return false
-  }, [editFormData, editOriginalData])
-
-  /**
-   * Gets issues for stored tools that reference a specific server tool.
-   * Returns issues from all workflows that have stored this tool.
-   */
   const getStoredToolIssues = useCallback(
     (serverId: string, toolName: string): { issue: McpToolIssue; workflowName: string }[] => {
       const relevantStoredTools = storedTools.filter(
@@ -1120,6 +403,10 @@ export function MCP({ initialServerId }: MCPProps) {
     },
     [storedTools, servers, mcpToolsData]
   )
+
+  const error = toolsError || serversError
+  const hasServers = servers && servers.length > 0
+  const showNoResults = searchTerm.trim() && filteredServers.length === 0 && servers.length > 0
 
   if (selectedServer) {
     const { server, tools } = selectedServer
@@ -1310,119 +597,26 @@ export function MCP({ initialServerId }: MCPProps) {
           </Button>
         </div>
 
-        <Modal open={showEditModal} onOpenChange={setShowEditModal}>
-          <ModalContent>
-            <ModalHeader>Edit MCP Server</ModalHeader>
-            <ModalBody>
-              <div className='flex flex-col gap-[8px]'>
-                <FormField label='Server Name'>
-                  <EmcnInput
-                    placeholder='e.g., My MCP Server'
-                    value={editFormData.name}
-                    onChange={(e) => {
-                      if (editTestResult) clearEditTestResult()
-                      setEditFormData((prev) => ({ ...prev, name: e.target.value }))
-                    }}
-                    className='h-9'
-                  />
-                </FormField>
-
-                <FormField label='Server URL'>
-                  <FormattedInput
-                    placeholder='https://mcp.server.dev/{{YOUR_API_KEY}}/sse'
-                    value={editFormData.url || ''}
-                    scrollLeft={editUrlScrollLeft}
-                    showEnvVars={editShowEnvVars && editActiveInputField === 'url'}
-                    envVarProps={{
-                      searchTerm: editEnvSearchTerm,
-                      cursorPosition: editCursorPosition,
-                      workspaceId,
-                      onSelect: handleEditEnvVarSelect,
-                      onClose: resetEditEnvVarState,
-                    }}
-                    availableEnvVars={availableEnvVars}
-                    onChange={(e) => handleEditInputChange('url', e.target.value)}
-                    onScroll={setEditUrlScrollLeft}
-                  />
-                  {isEditDomainBlocked && (
-                    <p className='mt-[4px] text-[13px] text-[var(--text-error)]'>
-                      Domain not permitted by server policy
-                    </p>
-                  )}
-                </FormField>
-
-                <div className='flex flex-col gap-[8px]'>
-                  <div className='flex items-center justify-between'>
-                    <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
-                      Headers
-                    </span>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      onClick={handleEditAddHeader}
-                      className='h-6 w-6 p-0'
-                    >
-                      <Plus className='h-3 w-3' />
-                    </Button>
-                  </div>
-
-                  <div className='flex max-h-[140px] flex-col gap-[8px] overflow-y-auto'>
-                    {(editFormData.headers || []).map((header, index) => (
-                      <HeaderRow
-                        key={index}
-                        header={header}
-                        index={index}
-                        headerScrollLeft={editHeaderScrollLeft}
-                        showEnvVars={editShowEnvVars}
-                        activeInputField={editActiveInputField}
-                        activeHeaderIndex={editActiveHeaderIndex}
-                        envSearchTerm={editEnvSearchTerm}
-                        cursorPosition={editCursorPosition}
-                        workspaceId={workspaceId}
-                        availableEnvVars={availableEnvVars}
-                        onInputChange={handleEditInputChange}
-                        onHeaderScroll={handleEditHeaderScroll}
-                        onEnvVarSelect={handleEditEnvVarSelect}
-                        onEnvVarClose={resetEditEnvVarState}
-                        onRemove={() => handleEditRemoveHeader(index)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </ModalBody>
-            <ModalFooter>
-              {editSaveError && (
-                <p className='mb-[8px] w-full text-[13px] text-[var(--text-error)]'>
-                  {editSaveError}
-                </p>
-              )}
-              <div className='flex w-full items-center justify-between'>
-                <Button
-                  variant='default'
-                  onClick={handleEditTestConnection}
-                  disabled={isEditTestingConnection || !isEditFormValid || isEditDomainBlocked}
-                >
-                  {editTestButtonLabel}
-                </Button>
-                <div className='flex items-center gap-[8px]'>
-                  <Button variant='ghost' onClick={handleCloseEditModal}>
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleSaveEdit}
-                    disabled={
-                      !hasEditChanges || isUpdatingServer || !isEditFormValid || isEditDomainBlocked
-                    }
-                    variant='tertiary'
-                  >
-                    {isUpdatingServer ? 'Saving...' : 'Save'}
-                  </Button>
-                </div>
-              </div>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+        <McpServerFormModal
+          open={showEditModal}
+          onOpenChange={setShowEditModal}
+          mode='edit'
+          initialData={editInitialData}
+          onSubmit={async (config) => {
+            const currentServer = servers.find((s) => s.id === selectedServerId)
+            await updateServerMutation.mutateAsync({
+              workspaceId,
+              serverId: selectedServerId!,
+              updates: {
+                ...config,
+                enabled: currentServer?.enabled ?? true,
+              },
+            })
+          }}
+          workspaceId={workspaceId}
+          availableEnvVars={availableEnvVars}
+          allowedMcpDomains={allowedMcpDomains}
+        />
       </div>
     )
   }
@@ -1444,7 +638,7 @@ export function MCP({ initialServerId }: MCPProps) {
             />
           </div>
           <Button
-            onClick={() => setShowAddForm(!showAddForm)}
+            onClick={() => setShowAddModal(true)}
             variant='tertiary'
             disabled={serversLoading}
           >
@@ -1452,109 +646,6 @@ export function MCP({ initialServerId }: MCPProps) {
             Add
           </Button>
         </div>
-
-        {shouldShowForm && !serversLoading && (
-          <div className='rounded-[8px] border p-[10px]'>
-            <div className='flex flex-col gap-[8px]'>
-              <FormField label='Server Name'>
-                <EmcnInput
-                  placeholder='e.g., My MCP Server'
-                  value={formData.name}
-                  onChange={(e) => {
-                    if (testResult) clearTestResult()
-                    handleNameChange(e.target.value)
-                  }}
-                  className='h-9'
-                />
-              </FormField>
-
-              <FormField label='Server URL'>
-                <FormattedInput
-                  ref={urlInputRef}
-                  placeholder='https://mcp.server.dev/{{YOUR_API_KEY}}/sse'
-                  value={formData.url || ''}
-                  scrollLeft={urlScrollLeft}
-                  showEnvVars={showEnvVars && activeInputField === 'url'}
-                  envVarProps={{
-                    searchTerm: envSearchTerm,
-                    cursorPosition,
-                    workspaceId,
-                    onSelect: handleEnvVarSelect,
-                    onClose: resetEnvVarState,
-                  }}
-                  availableEnvVars={availableEnvVars}
-                  onChange={(e) => handleInputChange('url', e.target.value)}
-                  onScroll={(scrollLeft) => handleUrlScroll(scrollLeft)}
-                />
-                {isAddDomainBlocked && (
-                  <p className='mt-[4px] text-[13px] text-[var(--text-error)]'>
-                    Domain not permitted by server policy
-                  </p>
-                )}
-              </FormField>
-
-              <div className='flex flex-col gap-[8px]'>
-                <div className='flex items-center justify-between'>
-                  <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
-                    Headers
-                  </span>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    onClick={handleAddHeader}
-                    className='h-6 w-6 p-0'
-                  >
-                    <Plus className='h-3 w-3' />
-                  </Button>
-                </div>
-
-                <div className='flex max-h-[140px] flex-col gap-[8px] overflow-y-auto'>
-                  {(formData.headers || []).map((header, index) => (
-                    <HeaderRow
-                      key={index}
-                      header={header}
-                      index={index}
-                      headerScrollLeft={headerScrollLeft}
-                      showEnvVars={showEnvVars}
-                      activeInputField={activeInputField}
-                      activeHeaderIndex={activeHeaderIndex}
-                      envSearchTerm={envSearchTerm}
-                      cursorPosition={cursorPosition}
-                      workspaceId={workspaceId}
-                      availableEnvVars={availableEnvVars}
-                      onInputChange={handleInputChange}
-                      onHeaderScroll={handleHeaderScroll}
-                      onEnvVarSelect={handleEnvVarSelect}
-                      onEnvVarClose={resetEnvVarState}
-                      onRemove={() => handleRemoveHeader(index)}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className='flex items-center justify-between pt-[12px]'>
-                <Button
-                  variant='default'
-                  onClick={handleTestConnection}
-                  disabled={isTestingConnection || !isFormValid || isAddDomainBlocked}
-                >
-                  {testButtonLabel}
-                </Button>
-
-                <div className='flex items-center gap-[8px]'>
-                  <Button variant='ghost' onClick={handleCancelForm}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleAddServer} disabled={isSubmitDisabled} variant='tertiary'>
-                    {isSubmitDisabled && isFormValid && !isAddDomainBlocked
-                      ? 'Adding...'
-                      : 'Add Server'}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         <div className='min-h-0 flex-1 overflow-y-auto'>
           {error ? (
@@ -1568,6 +659,12 @@ export function MCP({ initialServerId }: MCPProps) {
               <McpServerSkeleton />
               <McpServerSkeleton />
               <McpServerSkeleton />
+            </div>
+          ) : !hasServers ? (
+            <div className='flex h-full items-center justify-center'>
+              <p className='text-[14px] text-[var(--text-muted)]'>
+                Click "Add" above to get started
+              </p>
             </div>
           ) : (
             <div className='flex flex-col gap-[8px]'>
@@ -1598,6 +695,21 @@ export function MCP({ initialServerId }: MCPProps) {
           )}
         </div>
       </div>
+
+      <McpServerFormModal
+        open={showAddModal}
+        onOpenChange={setShowAddModal}
+        mode='add'
+        onSubmit={async (config) => {
+          await createServerMutation.mutateAsync({
+            workspaceId,
+            config: { ...config, enabled: true },
+          })
+        }}
+        workspaceId={workspaceId}
+        availableEnvVars={availableEnvVars}
+        allowedMcpDomains={allowedMcpDomains}
+      />
 
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <ModalContent size='sm'>
