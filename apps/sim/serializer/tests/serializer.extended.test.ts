@@ -1,5 +1,5 @@
 /**
- * @vitest-environment jsdom
+ * @vitest-environment node
  *
  * Extended Serializer Tests
  *

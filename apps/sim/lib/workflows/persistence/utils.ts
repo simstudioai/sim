@@ -14,6 +14,10 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
 import type { DbOrTx } from '@/lib/db/types'
+import {
+  backfillCanonicalModes,
+  migrateSubblockIds,
+} from '@/lib/workflows/migrations/subblock-migrations'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 import { SUBFLOW_TYPES } from '@/stores/workflows/workflow/types'
@@ -113,10 +117,14 @@ export async function loadDeployedWorkflowState(
       resolvedWorkspaceId = wfRow?.workspaceId ?? undefined
     }
 
-    const resolvedBlocks = state.blocks || {}
-    const { blocks: migratedBlocks } = resolvedWorkspaceId
-      ? await migrateCredentialIds(resolvedBlocks, resolvedWorkspaceId)
-      : { blocks: resolvedBlocks }
+    if (!resolvedWorkspaceId) {
+      throw new Error(`Workflow ${workflowId} has no workspace`)
+    }
+
+    const { blocks: migratedBlocks } = await applyBlockMigrations(
+      state.blocks || {},
+      resolvedWorkspaceId
+    )
 
     return {
       blocks: migratedBlocks,
@@ -132,6 +140,54 @@ export async function loadDeployedWorkflowState(
     throw error
   }
 }
+
+interface MigrationContext {
+  blocks: Record<string, BlockState>
+  workspaceId: string
+  migrated: boolean
+}
+
+type BlockMigration = (ctx: MigrationContext) => MigrationContext | Promise<MigrationContext>
+
+function createMigrationPipeline(migrations: BlockMigration[]) {
+  return async (
+    blocks: Record<string, BlockState>,
+    workspaceId: string
+  ): Promise<{ blocks: Record<string, BlockState>; migrated: boolean }> => {
+    let ctx: MigrationContext = { blocks, workspaceId, migrated: false }
+    for (const migration of migrations) {
+      ctx = await migration(ctx)
+    }
+    return { blocks: ctx.blocks, migrated: ctx.migrated }
+  }
+}
+
+const applyBlockMigrations = createMigrationPipeline([
+  (ctx) => {
+    const { blocks } = sanitizeAgentToolsInBlocks(ctx.blocks)
+    return { ...ctx, blocks }
+  },
+
+  (ctx) => ({
+    ...ctx,
+    blocks: migrateAgentBlocksToMessagesFormat(ctx.blocks),
+  }),
+
+  async (ctx) => {
+    const { blocks, migrated } = await migrateCredentialIds(ctx.blocks, ctx.workspaceId)
+    return { ...ctx, blocks, migrated: ctx.migrated || migrated }
+  },
+
+  (ctx) => {
+    const { blocks, migrated } = migrateSubblockIds(ctx.blocks)
+    return { ...ctx, blocks, migrated: ctx.migrated || migrated }
+  },
+
+  (ctx) => {
+    const { blocks, migrated } = backfillCanonicalModes(ctx.blocks)
+    return { ...ctx, blocks, migrated: ctx.migrated || migrated }
+  },
+])
 
 /**
  * Migrates agent blocks from old format (systemPrompt/userPrompt) to new format (messages array)
@@ -356,32 +412,34 @@ export async function loadWorkflowFromNormalizedTables(
       blocksMap[block.id] = assembled
     })
 
-    // Sanitize any invalid custom tools in agent blocks to prevent client crashes
-    const { blocks: sanitizedBlocks } = sanitizeAgentToolsInBlocks(blocksMap)
+    if (!workflowRow?.workspaceId) {
+      throw new Error(`Workflow ${workflowId} has no workspace`)
+    }
 
-    // Migrate old agent block format (systemPrompt/userPrompt) to new messages array format
-    const migratedBlocks = migrateAgentBlocksToMessagesFormat(sanitizedBlocks)
+    const { blocks: finalBlocks, migrated } = await applyBlockMigrations(
+      blocksMap,
+      workflowRow.workspaceId
+    )
 
-    // Migrate legacy account.id → credential.id in OAuth subblocks
-    const { blocks: credMigratedBlocks, migrated: credentialsMigrated } = workflowRow?.workspaceId
-      ? await migrateCredentialIds(migratedBlocks, workflowRow.workspaceId)
-      : { blocks: migratedBlocks, migrated: false }
-
-    if (credentialsMigrated) {
+    if (migrated) {
       Promise.resolve().then(async () => {
         try {
-          for (const [blockId, block] of Object.entries(credMigratedBlocks)) {
-            if (block.subBlocks !== migratedBlocks[blockId]?.subBlocks) {
+          for (const [blockId, block] of Object.entries(finalBlocks)) {
+            if (block !== blocksMap[blockId]) {
               await db
                 .update(workflowBlocks)
-                .set({ subBlocks: block.subBlocks, updatedAt: new Date() })
+                .set({
+                  subBlocks: block.subBlocks,
+                  data: block.data,
+                  updatedAt: new Date(),
+                })
                 .where(
                   and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId))
                 )
             }
           }
         } catch (err) {
-          logger.warn('Failed to persist credential ID migration', { workflowId, error: err })
+          logger.warn('Failed to persist block migrations', { workflowId, error: err })
         }
       })
     }
@@ -422,13 +480,13 @@ export async function loadWorkflowFromNormalizedTables(
           forEachItems: (config as Loop).forEachItems ?? '',
           whileCondition: (config as Loop).whileCondition ?? '',
           doWhileCondition: (config as Loop).doWhileCondition ?? '',
-          enabled: credMigratedBlocks[subflow.id]?.enabled ?? true,
+          enabled: finalBlocks[subflow.id]?.enabled ?? true,
         }
         loops[subflow.id] = loop
 
-        if (credMigratedBlocks[subflow.id]) {
-          const block = credMigratedBlocks[subflow.id]
-          credMigratedBlocks[subflow.id] = {
+        if (finalBlocks[subflow.id]) {
+          const block = finalBlocks[subflow.id]
+          finalBlocks[subflow.id] = {
             ...block,
             data: {
               ...block.data,
@@ -449,7 +507,7 @@ export async function loadWorkflowFromNormalizedTables(
             (config as Parallel).parallelType === 'collection'
               ? (config as Parallel).parallelType
               : 'count',
-          enabled: credMigratedBlocks[subflow.id]?.enabled ?? true,
+          enabled: finalBlocks[subflow.id]?.enabled ?? true,
         }
         parallels[subflow.id] = parallel
       } else {
@@ -458,7 +516,7 @@ export async function loadWorkflowFromNormalizedTables(
     })
 
     return {
-      blocks: credMigratedBlocks,
+      blocks: finalBlocks,
       edges: edgesArray,
       loops,
       parallels,

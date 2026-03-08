@@ -1549,6 +1549,34 @@ export interface JiraGetUsersParams {
   cloudId?: string
 }
 
+export interface JiraSearchUsersParams {
+  accessToken: string
+  domain: string
+  query: string
+  maxResults?: number
+  startAt?: number
+  cloudId?: string
+}
+
+export interface JiraSearchUsersResponse extends ToolResponse {
+  output: {
+    ts: string
+    users: Array<{
+      accountId: string
+      accountType?: string | null
+      active?: boolean | null
+      displayName: string
+      emailAddress?: string | null
+      avatarUrl?: string | null
+      timeZone?: string | null
+      self?: string | null
+    }>
+    total: number
+    startAt: number
+    maxResults: number
+  }
+}
+
 export interface JiraGetUsersResponse extends ToolResponse {
   output: {
     ts: string
@@ -1594,3 +1622,4 @@ export type JiraResponse =
   | JiraAddWatcherResponse
   | JiraRemoveWatcherResponse
   | JiraGetUsersResponse
+  | JiraSearchUsersResponse

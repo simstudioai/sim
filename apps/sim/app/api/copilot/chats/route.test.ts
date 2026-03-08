@@ -3,76 +3,84 @@
  *
  * @vitest-environment node
  */
-import { mockCryptoUuid, setupCommonApiMocks } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-describe('Copilot Chats List API Route', () => {
-  const mockSelect = vi.fn()
-  const mockFrom = vi.fn()
-  const mockWhere = vi.fn()
-  const mockOrderBy = vi.fn()
+const {
+  mockSelect,
+  mockFrom,
+  mockWhere,
+  mockOrderBy,
+  mockAuthenticate,
+  mockCreateUnauthorizedResponse,
+  mockCreateInternalServerErrorResponse,
+} = vi.hoisted(() => ({
+  mockSelect: vi.fn(),
+  mockFrom: vi.fn(),
+  mockWhere: vi.fn(),
+  mockOrderBy: vi.fn(),
+  mockAuthenticate: vi.fn(),
+  mockCreateUnauthorizedResponse: vi.fn(),
+  mockCreateInternalServerErrorResponse: vi.fn(),
+}))
 
+vi.mock('@sim/db', () => ({
+  db: {
+    select: mockSelect,
+  },
+}))
+
+vi.mock('@sim/db/schema', () => ({
+  copilotChats: {
+    id: 'id',
+    title: 'title',
+    workflowId: 'workflowId',
+    userId: 'userId',
+    updatedAt: 'updatedAt',
+  },
+}))
+
+vi.mock('drizzle-orm', () => ({
+  and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
+  eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
+  desc: vi.fn((field: unknown) => ({ field, type: 'desc' })),
+}))
+
+vi.mock('@/lib/copilot/request-helpers', () => ({
+  authenticateCopilotRequestSessionOnly: mockAuthenticate,
+  createUnauthorizedResponse: mockCreateUnauthorizedResponse,
+  createInternalServerErrorResponse: mockCreateInternalServerErrorResponse,
+}))
+
+import { GET } from '@/app/api/copilot/chats/route'
+
+describe('Copilot Chats List API Route', () => {
   beforeEach(() => {
-    vi.resetModules()
-    setupCommonApiMocks()
-    mockCryptoUuid()
+    vi.clearAllMocks()
 
     mockSelect.mockReturnValue({ from: mockFrom })
     mockFrom.mockReturnValue({ where: mockWhere })
     mockWhere.mockReturnValue({ orderBy: mockOrderBy })
     mockOrderBy.mockResolvedValue([])
 
-    vi.doMock('@sim/db', () => ({
-      db: {
-        select: mockSelect,
-      },
-    }))
-
-    vi.doMock('@sim/db/schema', () => ({
-      copilotChats: {
-        id: 'id',
-        title: 'title',
-        workflowId: 'workflowId',
-        userId: 'userId',
-        updatedAt: 'updatedAt',
-      },
-    }))
-
-    vi.doMock('drizzle-orm', () => ({
-      and: vi.fn((...conditions) => ({ conditions, type: 'and' })),
-      eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
-      desc: vi.fn((field) => ({ field, type: 'desc' })),
-    }))
-
-    vi.doMock('@/lib/copilot/request-helpers', () => ({
-      authenticateCopilotRequestSessionOnly: vi.fn(),
-      createUnauthorizedResponse: vi
-        .fn()
-        .mockReturnValue(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })),
-      createInternalServerErrorResponse: vi
-        .fn()
-        .mockImplementation(
-          (message) => new Response(JSON.stringify({ error: message }), { status: 500 })
-        ),
-    }))
+    mockCreateUnauthorizedResponse.mockReturnValue(
+      new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+    )
+    mockCreateInternalServerErrorResponse.mockImplementation(
+      (message: string) => new Response(JSON.stringify({ error: message }), { status: 500 })
+    )
   })
 
   afterEach(() => {
-    vi.clearAllMocks()
     vi.restoreAllMocks()
   })
 
   describe('GET', () => {
     it('should return 401 when user is not authenticated', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: null,
         isAuthenticated: false,
       })
 
-      const { GET } = await import('@/app/api/copilot/chats/route')
       const request = new Request('http://localhost:3000/api/copilot/chats')
       const response = await GET(request as any)
 
@@ -82,17 +90,13 @@ describe('Copilot Chats List API Route', () => {
     })
 
     it('should return empty chats array when user has no chats', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
 
       mockOrderBy.mockResolvedValueOnce([])
 
-      const { GET } = await import('@/app/api/copilot/chats/route')
       const request = new Request('http://localhost:3000/api/copilot/chats')
       const response = await GET(request as any)
 
@@ -105,10 +109,7 @@ describe('Copilot Chats List API Route', () => {
     })
 
     it('should return list of chats for authenticated user', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -129,7 +130,6 @@ describe('Copilot Chats List API Route', () => {
       ]
       mockOrderBy.mockResolvedValueOnce(mockChats)
 
-      const { GET } = await import('@/app/api/copilot/chats/route')
       const request = new Request('http://localhost:3000/api/copilot/chats')
       const response = await GET(request as any)
 
@@ -143,10 +143,7 @@ describe('Copilot Chats List API Route', () => {
     })
 
     it('should return chats ordered by updatedAt descending', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -173,7 +170,6 @@ describe('Copilot Chats List API Route', () => {
       ]
       mockOrderBy.mockResolvedValueOnce(mockChats)
 
-      const { GET } = await import('@/app/api/copilot/chats/route')
       const request = new Request('http://localhost:3000/api/copilot/chats')
       const response = await GET(request as any)
 
@@ -184,10 +180,7 @@ describe('Copilot Chats List API Route', () => {
     })
 
     it('should handle chats with null workflowId', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -202,7 +195,6 @@ describe('Copilot Chats List API Route', () => {
       ]
       mockOrderBy.mockResolvedValueOnce(mockChats)
 
-      const { GET } = await import('@/app/api/copilot/chats/route')
       const request = new Request('http://localhost:3000/api/copilot/chats')
       const response = await GET(request as any)
 
@@ -212,17 +204,13 @@ describe('Copilot Chats List API Route', () => {
     })
 
     it('should handle database errors gracefully', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
 
       mockOrderBy.mockRejectedValueOnce(new Error('Database connection failed'))
 
-      const { GET } = await import('@/app/api/copilot/chats/route')
       const request = new Request('http://localhost:3000/api/copilot/chats')
       const response = await GET(request as any)
 
@@ -232,10 +220,7 @@ describe('Copilot Chats List API Route', () => {
     })
 
     it('should only return chats belonging to authenticated user', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -250,7 +235,6 @@ describe('Copilot Chats List API Route', () => {
       ]
       mockOrderBy.mockResolvedValueOnce(mockChats)
 
-      const { GET } = await import('@/app/api/copilot/chats/route')
       const request = new Request('http://localhost:3000/api/copilot/chats')
       await GET(request as any)
 
@@ -259,15 +243,11 @@ describe('Copilot Chats List API Route', () => {
     })
 
     it('should return 401 when userId is null despite isAuthenticated being true', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: null,
         isAuthenticated: true,
       })
 
-      const { GET } = await import('@/app/api/copilot/chats/route')
       const request = new Request('http://localhost:3000/api/copilot/chats')
       const response = await GET(request as any)
 

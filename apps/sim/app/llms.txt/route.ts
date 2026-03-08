@@ -5,7 +5,7 @@ export async function GET() {
 
   const llmsContent = `# Sim
 
-> Sim is an open-source AI agent workflow builder. 60,000+ developers at startups to Fortune 500 companies deploy agentic workflows on the Sim platform. SOC2 and HIPAA compliant.
+> Sim is an open-source AI agent workflow builder. 70,000+ developers at startups to Fortune 500 companies deploy agentic workflows on the Sim platform. SOC2 and HIPAA compliant.
 
 Sim provides a visual drag-and-drop interface for building and deploying AI agent workflows. Connect to 100+ integrations and ship production-ready AI automations.
 
@@ -55,7 +55,7 @@ Sim provides a visual drag-and-drop interface for building and deploying AI agen
 
 ## Optional
 
-- [Careers](${baseUrl}/careers): Join the Sim team
+- [Careers](https://jobs.ashbyhq.com/sim): Join the Sim team
 - [Terms of Service](${baseUrl}/terms): Legal terms
 - [Privacy Policy](${baseUrl}/privacy): Data handling practices
 `

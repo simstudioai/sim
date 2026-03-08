@@ -1,4 +1,5 @@
 import { MicrosoftDataverseIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
@@ -46,13 +47,7 @@ export const MicrosoftDataverseBlock: BlockConfig<DataverseResponse> = {
       title: 'Microsoft Account',
       type: 'oauth-input',
       serviceId: 'microsoft-dataverse',
-      requiredScopes: [
-        'openid',
-        'profile',
-        'email',
-        'https://dynamics.microsoft.com/user_impersonation',
-        'offline_access',
-      ],
+      requiredScopes: getScopesForService('microsoft-dataverse'),
       placeholder: 'Select Microsoft account',
       required: true,
     },

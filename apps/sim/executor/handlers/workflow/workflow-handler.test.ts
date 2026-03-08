@@ -9,6 +9,20 @@ vi.mock('@/lib/auth/internal', () => ({
   generateInternalToken: vi.fn().mockResolvedValue('test-token'),
 }))
 
+vi.mock('@/executor/utils/http', () => ({
+  buildAuthHeaders: vi.fn().mockResolvedValue({ 'Content-Type': 'application/json' }),
+  buildAPIUrl: vi.fn((path: string) => new URL(path, 'http://localhost:3000')),
+  extractAPIErrorMessage: vi.fn(async (response: Response) => {
+    const defaultMessage = `API request failed with status ${response.status}`
+    try {
+      const errorData = await response.json()
+      return errorData.error || defaultMessage
+    } catch {
+      return defaultMessage
+    }
+  }),
+}))
+
 // Mock fetch globally
 setupGlobalFetchMock()
 
@@ -128,6 +142,7 @@ describe('WorkflowBlockHandler', () => {
         ok: false,
         status: 404,
         statusText: 'Not Found',
+        text: () => Promise.resolve(''),
       })
 
       await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
@@ -154,6 +169,7 @@ describe('WorkflowBlockHandler', () => {
         ok: false,
         status: 404,
         statusText: 'Not Found',
+        text: () => Promise.resolve(''),
       })
 
       const result = await (handler as any).loadChildWorkflow(workflowId)

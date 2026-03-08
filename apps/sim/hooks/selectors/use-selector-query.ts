@@ -1,7 +1,9 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { extractEnvVarName, isEnvVarReference, isReference } from '@/executor/constants'
 import { getSelectorDefinition, mergeOption } from '@/hooks/selectors/registry'
 import type { SelectorKey, SelectorOption, SelectorQueryArgs } from '@/hooks/selectors/types'
+import { useEnvironmentStore } from '@/stores/settings/environment'
 
 interface SelectorHookArgs extends Omit<SelectorQueryArgs, 'key'> {
   search?: string
@@ -29,14 +31,27 @@ export function useSelectorOptionDetail(
   key: SelectorKey,
   args: SelectorHookArgs & { detailId?: string }
 ) {
+  const envVariables = useEnvironmentStore((s) => s.variables)
   const definition = getSelectorDefinition(key)
+
+  const resolvedDetailId = useMemo(() => {
+    if (!args.detailId) return undefined
+    if (isReference(args.detailId)) return undefined
+    if (isEnvVarReference(args.detailId)) {
+      const varName = extractEnvVarName(args.detailId)
+      return envVariables[varName]?.value || undefined
+    }
+    return args.detailId
+  }, [args.detailId, envVariables])
+
   const queryArgs: SelectorQueryArgs = {
     key,
     context: args.context,
-    detailId: args.detailId,
+    detailId: resolvedDetailId,
   }
+  const hasRealDetailId = Boolean(resolvedDetailId)
   const baseEnabled =
-    Boolean(args.detailId) && definition.fetchById !== undefined
+    hasRealDetailId && definition.fetchById !== undefined
       ? definition.enabled
         ? definition.enabled(queryArgs)
         : true
@@ -44,7 +59,7 @@ export function useSelectorOptionDetail(
   const enabled = args.enabled ?? baseEnabled
 
   const query = useQuery<SelectorOption | null>({
-    queryKey: [...definition.getQueryKey(queryArgs), 'detail', args.detailId ?? 'none'],
+    queryKey: [...definition.getQueryKey(queryArgs), 'detail', resolvedDetailId ?? 'none'],
     queryFn: () => definition.fetchById!(queryArgs),
     enabled,
     staleTime: definition.staleTime ?? 300_000,

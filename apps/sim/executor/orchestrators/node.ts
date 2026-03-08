@@ -56,14 +56,6 @@ export class NodeExecutionOrchestrator {
       this.loopOrchestrator.initializeLoopScope(ctx, loopId)
     }
 
-    if (loopId && !this.loopOrchestrator.shouldExecuteLoopNode(ctx, nodeId, loopId)) {
-      return {
-        nodeId,
-        output: {},
-        isFinalOutput: false,
-      }
-    }
-
     const parallelId = node.metadata.parallelId
     if (parallelId && !this.parallelOrchestrator.getParallelScope(ctx, parallelId)) {
       const parallelConfig = this.dag.parallelConfigs.get(parallelId)
@@ -276,7 +268,7 @@ export class NodeExecutionOrchestrator {
     ) {
       const loopId = node.metadata.loopId
       if (loopId) {
-        this.loopOrchestrator.clearLoopExecutionState(loopId)
+        this.loopOrchestrator.clearLoopExecutionState(loopId, ctx)
         this.loopOrchestrator.restoreLoopEdges(loopId)
       }
     }

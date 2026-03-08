@@ -1,10 +1,8 @@
-import { createLogger } from '@sim/logger'
-import { LOOP, PARALLEL, PARSING, REFERENCE } from '@/executor/constants'
+import { DEFAULTS, LOOP, PARALLEL, REFERENCE } from '@/executor/constants'
 import type { ContextExtensions } from '@/executor/execution/types'
 import { type BlockLog, type ExecutionContext, getNextExecutionOrder } from '@/executor/types'
+import { buildContainerIterationContext } from '@/executor/utils/iteration-context'
 import type { VariableResolver } from '@/executor/variables/resolver'
-
-const logger = createLogger('SubflowUtils')
 
 const BRANCH_PATTERN = new RegExp(`${PARALLEL.BRANCH.PREFIX}\\d+${PARALLEL.BRANCH.SUFFIX}$`)
 const BRANCH_INDEX_PATTERN = new RegExp(`${PARALLEL.BRANCH.PREFIX}(\\d+)${PARALLEL.BRANCH.SUFFIX}$`)
@@ -38,12 +36,17 @@ export function buildParallelSentinelEndId(parallelId: string): string {
 }
 
 export function isLoopSentinelNodeId(nodeId: string): boolean {
-  return nodeId.includes(LOOP.SENTINEL.START_SUFFIX) || nodeId.includes(LOOP.SENTINEL.END_SUFFIX)
+  return (
+    nodeId.startsWith(LOOP.SENTINEL.PREFIX) &&
+    (nodeId.endsWith(LOOP.SENTINEL.START_SUFFIX) || nodeId.endsWith(LOOP.SENTINEL.END_SUFFIX))
+  )
 }
 
 export function isParallelSentinelNodeId(nodeId: string): boolean {
   return (
-    nodeId.includes(PARALLEL.SENTINEL.START_SUFFIX) || nodeId.includes(PARALLEL.SENTINEL.END_SUFFIX)
+    nodeId.startsWith(PARALLEL.SENTINEL.PREFIX) &&
+    (nodeId.endsWith(PARALLEL.SENTINEL.START_SUFFIX) ||
+      nodeId.endsWith(PARALLEL.SENTINEL.END_SUFFIX))
   )
 }
 
@@ -80,19 +83,82 @@ export function extractBaseBlockId(branchNodeId: string): string {
 
 export function extractBranchIndex(branchNodeId: string): number | null {
   const match = branchNodeId.match(BRANCH_INDEX_PATTERN)
-  return match ? Number.parseInt(match[1], PARSING.JSON_RADIX) : null
+  return match ? Number.parseInt(match[1], 10) : null
 }
 
 export function isBranchNodeId(nodeId: string): boolean {
   return BRANCH_PATTERN.test(nodeId)
 }
 
-export function isLoopNode(nodeId: string): boolean {
-  return isLoopSentinelNodeId(nodeId) || nodeId.startsWith(LOOP.SENTINEL.PREFIX)
+const OUTER_BRANCH_PATTERN = /__obranch-(\d+)/
+const OUTER_BRANCH_STRIP_PATTERN = /__obranch-\d+/g
+const CLONE_SEQ_STRIP_PATTERN = /__clone\d+/g
+
+/**
+ * Extracts the outer branch index from a cloned subflow ID.
+ * Cloned IDs follow the pattern `{originalId}__obranch-{index}`.
+ * Returns undefined if the ID is not a clone.
+ */
+export function extractOuterBranchIndex(clonedId: string): number | undefined {
+  const match = clonedId.match(OUTER_BRANCH_PATTERN)
+  return match ? Number.parseInt(match[1], 10) : undefined
 }
 
-export function isParallelNode(nodeId: string): boolean {
-  return isBranchNodeId(nodeId) || isParallelSentinelNodeId(nodeId)
+/**
+ * Strips all clone suffixes (`__obranch-N`) and branch subscripts (`₍N₎`)
+ * from a node ID, returning the original workflow-level block ID.
+ */
+export function stripCloneSuffixes(nodeId: string): string {
+  return extractBaseBlockId(
+    nodeId.replace(OUTER_BRANCH_STRIP_PATTERN, '').replace(CLONE_SEQ_STRIP_PATTERN, '')
+  )
+}
+
+/**
+ * Builds a cloned subflow ID from an original ID and outer branch index.
+ */
+export function buildClonedSubflowId(originalId: string, branchIndex: number): string {
+  return `${originalId}__obranch-${branchIndex}`
+}
+
+/**
+ * Strips outer-branch clone suffixes (`__obranch-N`) from an ID,
+ * returning the original workflow-level subflow ID.
+ */
+export function stripOuterBranchSuffix(id: string): string {
+  return id.replace(OUTER_BRANCH_STRIP_PATTERN, '').replace(CLONE_SEQ_STRIP_PATTERN, '')
+}
+
+/**
+ * Finds the effective (possibly cloned) container ID for a subflow,
+ * given the current node's ID and an execution map (loopExecutions or parallelExecutions).
+ *
+ * When inside a cloned subflow (e.g., loop-1__obranch-2), the execution scope is
+ * stored under the cloned ID, not the original. This function extracts the `__obranch-N`
+ * suffix from the current node ID, constructs the candidate cloned container ID, and
+ * checks if it exists in the execution map.
+ *
+ * Returns the effective ID (cloned or original) that exists in the map.
+ */
+export function findEffectiveContainerId(
+  originalId: string,
+  currentNodeId: string,
+  executionMap: Map<string, unknown>
+): string {
+  // Prefer the cloned variant when currentNodeId carries an __obranch-N suffix.
+  // During concurrent parallel-in-loop execution both the original (branch 0)
+  // and cloned variants coexist in the map; the clone is the correct scope.
+  const match = currentNodeId.match(OUTER_BRANCH_PATTERN)
+  if (match) {
+    const candidateId = buildClonedSubflowId(originalId, Number.parseInt(match[1], 10))
+    if (executionMap.has(candidateId)) {
+      return candidateId
+    }
+  }
+
+  // Return original ID — for branch-0 (non-cloned) or when scope is missing.
+  // Callers handle the missing-scope case gracefully.
+  return originalId
 }
 
 export function normalizeNodeId(nodeId: string): string {
@@ -242,5 +308,56 @@ export function addSubflowErrorLog(
       executionOrder: execOrder,
       endedAt: now,
     })
+  }
+}
+
+/**
+ * Emits block log + SSE events for a loop/parallel that was skipped due to an
+ * empty collection or false initial condition. This ensures the container block
+ * appears in terminal logs, execution snapshots, and edge highlighting.
+ */
+export function emitEmptySubflowEvents(
+  ctx: ExecutionContext,
+  blockId: string,
+  blockType: 'loop' | 'parallel',
+  contextExtensions: ContextExtensions | null
+): void {
+  const now = new Date().toISOString()
+  const executionOrder = getNextExecutionOrder(ctx)
+  const output = { results: [] }
+  const block = ctx.workflow?.blocks.find((b) => b.id === blockId)
+  const blockName = block?.metadata?.name ?? blockType
+  const iterationContext = buildContainerIterationContext(ctx, blockId)
+
+  ctx.blockLogs.push({
+    blockId,
+    blockName,
+    blockType,
+    startedAt: now,
+    endedAt: now,
+    durationMs: DEFAULTS.EXECUTION_TIME,
+    success: true,
+    output,
+    executionOrder,
+  })
+
+  if (contextExtensions?.onBlockStart) {
+    contextExtensions.onBlockStart(blockId, blockName, blockType, executionOrder)
+  }
+
+  if (contextExtensions?.onBlockComplete) {
+    contextExtensions.onBlockComplete(
+      blockId,
+      blockName,
+      blockType,
+      {
+        output,
+        executionTime: DEFAULTS.EXECUTION_TIME,
+        startedAt: now,
+        executionOrder,
+        endedAt: now,
+      },
+      iterationContext
+    )
   }
 }

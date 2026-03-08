@@ -39,11 +39,22 @@ export interface AgentInputs {
   thinkingLevel?: string
 }
 
+/**
+ * Represents a tool input for the agent block.
+ *
+ * @remarks
+ * Valid types include:
+ * - Standard block types (e.g., 'api', 'search', 'function')
+ * - 'custom-tool': User-defined tools with custom code
+ * - 'mcp': Individual MCP tool from a connected server
+ */
 export interface ToolInput {
+  /** Tool type identifier */
   type?: string
   schema?: any
   title?: string
   code?: string
+  /** Tool parameters */
   params?: Record<string, any>
   timeout?: number
   usageControl?: 'auto' | 'force' | 'none'

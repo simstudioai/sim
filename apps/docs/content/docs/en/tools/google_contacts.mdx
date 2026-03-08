@@ -1,0 +1,144 @@
+---
+title: Google Contacts
+description: Manage Google Contacts
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_contacts"
+  color="#E0E0E0"
+/>
+
+## Usage Instructions
+
+Integrate Google Contacts into the workflow. Can create, read, update, delete, list, and search contacts.
+
+
+
+## Tools
+
+### `google_contacts_create`
+
+Create a new contact in Google Contacts
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `givenName` | string | Yes | First name of the contact |
+| `familyName` | string | No | Last name of the contact |
+| `email` | string | No | Email address of the contact |
+| `emailType` | string | No | Email type: home, work, or other |
+| `phone` | string | No | Phone number of the contact |
+| `phoneType` | string | No | Phone type: mobile, home, work, or other |
+| `organization` | string | No | Organization/company name |
+| `jobTitle` | string | No | Job title at the organization |
+| `notes` | string | No | Notes or biography for the contact |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Contact creation confirmation message |
+| `metadata` | json | Created contact metadata including resource name and details |
+
+### `google_contacts_get`
+
+Get a specific contact from Google Contacts
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `resourceName` | string | Yes | Resource name of the contact \(e.g., people/c1234567890\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Contact retrieval confirmation message |
+| `metadata` | json | Contact details including name, email, phone, and organization |
+
+### `google_contacts_list`
+
+List contacts from Google Contacts
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | No | Number of contacts to return \(1-1000, default 100\) |
+| `pageToken` | string | No | Page token from a previous list request for pagination |
+| `sortOrder` | string | No | Sort order for contacts |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Summary of found contacts count |
+| `metadata` | json | List of contacts with pagination tokens |
+
+### `google_contacts_search`
+
+Search contacts in Google Contacts by name, email, phone, or organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search query to match against contact names, emails, phones, and organizations |
+| `pageSize` | number | No | Number of results to return \(default 10, max 30\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Summary of search results count |
+| `metadata` | json | Search results with matching contacts |
+
+### `google_contacts_update`
+
+Update an existing contact in Google Contacts
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `resourceName` | string | Yes | Resource name of the contact \(e.g., people/c1234567890\) |
+| `etag` | string | Yes | ETag from a previous get request \(required for concurrency control\) |
+| `givenName` | string | No | Updated first name |
+| `familyName` | string | No | Updated last name |
+| `email` | string | No | Updated email address |
+| `emailType` | string | No | Email type: home, work, or other |
+| `phone` | string | No | Updated phone number |
+| `phoneType` | string | No | Phone type: mobile, home, work, or other |
+| `organization` | string | No | Updated organization/company name |
+| `jobTitle` | string | No | Updated job title |
+| `notes` | string | No | Updated notes or biography |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Contact update confirmation message |
+| `metadata` | json | Updated contact metadata |
+
+### `google_contacts_delete`
+
+Delete a contact from Google Contacts
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `resourceName` | string | Yes | Resource name of the contact to delete \(e.g., people/c1234567890\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Contact deletion confirmation message |
+| `metadata` | json | Deletion details including resource name |
+
+

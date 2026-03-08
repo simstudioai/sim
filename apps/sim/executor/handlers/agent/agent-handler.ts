@@ -249,7 +249,7 @@ export class AgentBlockHandler implements BlockHandler {
     const otherResults = await Promise.all(
       otherTools.map(async (tool) => {
         try {
-          if (tool.type && tool.type !== 'custom-tool' && tool.type !== 'mcp') {
+          if (tool.type && tool.type !== 'custom-tool') {
             await validateBlockType(ctx.userId, tool.type, ctx)
           }
           if (tool.type === 'custom-tool' && (tool.schema || tool.customToolId)) {
@@ -357,6 +357,7 @@ export class AgentBlockHandler implements BlockHandler {
       })
 
       if (!response.ok) {
+        await response.text().catch(() => {})
         logger.error(`Failed to fetch custom tools: ${response.status}`)
         return null
       }
@@ -590,12 +591,15 @@ export class AgentBlockHandler implements BlockHandler {
     serverId: string
     toolName: string
     description: string
-    schema: any
-    userProvidedParams: Record<string, any>
-    usageControl?: string
-  }): Promise<any> {
+    schema: Record<string, unknown>
+    userProvidedParams: Record<string, unknown>
+    usageControl?: 'auto' | 'force' | 'none'
+  }) {
     const { filterSchemaForLLM } = await import('@/tools/params')
-    const filteredSchema = filterSchemaForLLM(config.schema, config.userProvidedParams)
+    const filteredSchema = filterSchemaForLLM(
+      config.schema as unknown as Parameters<typeof filterSchemaForLLM>[0],
+      config.userProvidedParams as Record<string, unknown>
+    )
     const toolId = createMcpToolId(config.serverId, config.toolName)
 
     return {

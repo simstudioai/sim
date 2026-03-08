@@ -2,6 +2,26 @@ import type React from 'react'
 import type { QueryKey } from '@tanstack/react-query'
 
 export type SelectorKey =
+  | 'airtable.bases'
+  | 'airtable.tables'
+  | 'asana.workspaces'
+  | 'attio.lists'
+  | 'attio.objects'
+  | 'bigquery.datasets'
+  | 'bigquery.tables'
+  | 'calcom.eventTypes'
+  | 'calcom.schedules'
+  | 'confluence.spaces'
+  | 'google.tasks.lists'
+  | 'jsm.requestTypes'
+  | 'jsm.serviceDesks'
+  | 'microsoft.planner.plans'
+  | 'notion.databases'
+  | 'notion.pages'
+  | 'pipedrive.pipelines'
+  | 'sharepoint.lists'
+  | 'trello.boards'
+  | 'zoom.meetings'
   | 'slack.channels'
   | 'slack.users'
   | 'gmail.labels'
@@ -41,7 +61,7 @@ export interface SelectorOption {
 export interface SelectorContext {
   workspaceId?: string
   workflowId?: string
-  credentialId?: string
+  oauthCredential?: string
   serviceId?: string
   domain?: string
   teamId?: string
@@ -54,6 +74,9 @@ export interface SelectorContext {
   collectionId?: string
   spreadsheetId?: string
   excludeWorkflowId?: string
+  baseId?: string
+  datasetId?: string
+  serviceDeskId?: string
 }
 
 export interface SelectorQueryArgs {

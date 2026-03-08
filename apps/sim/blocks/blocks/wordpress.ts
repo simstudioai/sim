@@ -1,4 +1,5 @@
 import { WordpressIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
@@ -68,7 +69,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'wordpress',
-      requiredScopes: ['global'],
+      requiredScopes: getScopesForService('wordpress'),
       placeholder: 'Select WordPress account',
       required: true,
     },
@@ -175,6 +176,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'Excerpt',
       type: 'long-input',
       placeholder: 'Post or page excerpt',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
@@ -192,6 +194,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'Slug',
       type: 'short-input',
       placeholder: 'URL slug (optional)',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
@@ -209,6 +212,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'Categories',
       type: 'short-input',
       placeholder: 'Comma-separated category IDs',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: ['wordpress_create_post', 'wordpress_update_post'],
@@ -221,6 +225,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'Tags',
       type: 'short-input',
       placeholder: 'Comma-separated tag IDs',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: ['wordpress_create_post', 'wordpress_update_post'],
@@ -233,6 +238,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'Featured Image ID',
       type: 'short-input',
       placeholder: 'Media ID for featured image',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
@@ -266,6 +272,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'Parent Page ID',
       type: 'short-input',
       placeholder: 'Parent page ID (for hierarchy)',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: ['wordpress_create_page', 'wordpress_update_page'],
@@ -278,6 +285,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'Menu Order',
       type: 'short-input',
       placeholder: 'Order in menu (number)',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: ['wordpress_create_page', 'wordpress_update_page'],
@@ -312,6 +320,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'Filename Override',
       type: 'short-input',
       placeholder: 'Optional: Override filename (e.g., image.jpg)',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'wordpress_upload_media' },
     },
     {
@@ -319,6 +328,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'Media Title',
       type: 'short-input',
       placeholder: 'Title for the media',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'wordpress_upload_media' },
     },
     {
@@ -326,6 +336,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'Caption',
       type: 'short-input',
       placeholder: 'Media caption',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'wordpress_upload_media' },
     },
     {
@@ -333,6 +344,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'Alt Text',
       type: 'short-input',
       placeholder: 'Alternative text for accessibility',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'wordpress_upload_media' },
     },
     {
@@ -361,6 +373,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
         { label: 'Application', id: 'application' },
       ],
       value: () => '',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'wordpress_list_media' },
     },
 
@@ -409,6 +422,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
         { label: 'Trash', id: 'trash' },
       ],
       value: () => 'approved',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'wordpress_update_comment' },
     },
 
@@ -426,6 +440,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'Description',
       type: 'long-input',
       placeholder: 'Category description',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'wordpress_create_category' },
     },
     {
@@ -433,6 +448,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'Parent Category ID',
       type: 'short-input',
       placeholder: 'Parent category ID',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'wordpress_create_category' },
     },
     {
@@ -440,6 +456,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'Category Slug',
       type: 'short-input',
       placeholder: 'URL slug (optional)',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'wordpress_create_category' },
     },
 
@@ -457,6 +474,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'Description',
       type: 'long-input',
       placeholder: 'Tag description',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'wordpress_create_tag' },
     },
     {
@@ -464,6 +482,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'Tag Slug',
       type: 'short-input',
       placeholder: 'URL slug (optional)',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'wordpress_create_tag' },
     },
 
@@ -481,6 +500,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'User Roles',
       type: 'short-input',
       placeholder: 'Comma-separated role names (e.g., administrator, editor)',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'wordpress_list_users' },
     },
 
@@ -504,6 +524,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
         { label: 'Attachment', id: 'attachment' },
       ],
       value: () => '',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'wordpress_search_content' },
     },
 
@@ -513,6 +534,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'Results Per Page',
       type: 'short-input',
       placeholder: '10 (max 100)',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
@@ -532,6 +554,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'Page Number',
       type: 'short-input',
       placeholder: '1',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
@@ -551,6 +574,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'Search Filter',
       type: 'short-input',
       placeholder: 'Search term to filter results',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
@@ -576,6 +600,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
         { label: 'Modified', id: 'modified' },
       ],
       value: () => 'date',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
@@ -595,6 +620,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
         { label: 'Ascending', id: 'asc' },
       ],
       value: () => 'desc',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
@@ -622,6 +648,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
         { label: 'Private', id: 'private' },
       ],
       value: () => '',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: ['wordpress_list_posts', 'wordpress_list_pages'],
@@ -633,6 +660,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       id: 'force',
       title: 'Force Delete',
       type: 'switch',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [

@@ -14,6 +14,7 @@ import { getSession } from '@/lib/auth'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { mcpConnectionManager } from '@/lib/mcp/connection-manager'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
+import { decrementSSEConnections, incrementSSEConnections } from '@/lib/monitoring/sse-connections'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('McpEventsSSE')
@@ -41,10 +42,24 @@ export async function GET(request: NextRequest) {
 
   const encoder = new TextEncoder()
   const unsubscribers: Array<() => void> = []
+  let cleaned = false
+
+  const cleanup = () => {
+    if (cleaned) return
+    cleaned = true
+    for (const unsub of unsubscribers) {
+      unsub()
+    }
+    decrementSSEConnections('mcp-events')
+    logger.info(`SSE connection closed for workspace ${workspaceId}`)
+  }
 
   const stream = new ReadableStream({
     start(controller) {
+      incrementSSEConnections('mcp-events')
+
       const send = (eventName: string, data: Record<string, unknown>) => {
+        if (cleaned) return
         try {
           controller.enqueue(
             encoder.encode(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`)
@@ -82,6 +97,10 @@ export async function GET(request: NextRequest) {
 
       // Heartbeat to keep the connection alive
       const heartbeat = setInterval(() => {
+        if (cleaned) {
+          clearInterval(heartbeat)
+          return
+        }
         try {
           controller.enqueue(encoder.encode(': heartbeat\n\n'))
         } catch {
@@ -91,19 +110,23 @@ export async function GET(request: NextRequest) {
       unsubscribers.push(() => clearInterval(heartbeat))
 
       // Cleanup when client disconnects
-      request.signal.addEventListener('abort', () => {
-        for (const unsub of unsubscribers) {
-          unsub()
-        }
-        try {
-          controller.close()
-        } catch {
-          // Already closed
-        }
-        logger.info(`SSE connection closed for workspace ${workspaceId}`)
-      })
+      request.signal.addEventListener(
+        'abort',
+        () => {
+          cleanup()
+          try {
+            controller.close()
+          } catch {
+            // Already closed
+          }
+        },
+        { once: true }
+      )
 
       logger.info(`SSE connection opened for workspace ${workspaceId}`)
+    },
+    cancel() {
+      cleanup()
     },
   })
 

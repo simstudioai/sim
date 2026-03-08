@@ -119,6 +119,7 @@ Output: {"short_description": "Network outage", "description": "Network connecti
       placeholder: 'active=true^priority=1',
       condition: { field: 'operation', value: 'servicenow_read_record' },
       description: 'ServiceNow encoded query string',
+      mode: 'advanced',
     },
     {
       id: 'limit',
@@ -126,6 +127,31 @@ Output: {"short_description": "Network outage", "description": "Network connecti
       type: 'short-input',
       placeholder: '10',
       condition: { field: 'operation', value: 'servicenow_read_record' },
+      mode: 'advanced',
+    },
+    {
+      id: 'offset',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'servicenow_read_record' },
+      description: 'Number of records to skip for pagination',
+      mode: 'advanced',
+    },
+    {
+      id: 'displayValue',
+      title: 'Display Value',
+      type: 'dropdown',
+      options: [
+        { label: 'Default (not set)', id: '' },
+        { label: 'False (sys_id only)', id: 'false' },
+        { label: 'True (display value only)', id: 'true' },
+        { label: 'All (both)', id: 'all' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'servicenow_read_record' },
+      description: 'Return display values for reference fields instead of sys_ids',
+      mode: 'advanced',
     },
     {
       id: 'fields',
@@ -134,6 +160,7 @@ Output: {"short_description": "Network outage", "description": "Network connecti
       placeholder: 'number,short_description,priority',
       condition: { field: 'operation', value: 'servicenow_read_record' },
       description: 'Comma-separated list of fields',
+      mode: 'advanced',
     },
     // Update-specific: sysId and fields
     {
@@ -200,6 +227,9 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
         const isCreateOrUpdate =
           operation === 'servicenow_create_record' || operation === 'servicenow_update_record'
 
+        if (rest.limit != null && rest.limit !== '') rest.limit = Number(rest.limit)
+        if (rest.offset != null && rest.offset !== '') rest.offset = Number(rest.offset)
+
         if (fields && isCreateOrUpdate) {
           const parsedFields = typeof fields === 'string' ? JSON.parse(fields) : fields
           return { ...rest, fields: parsedFields }
@@ -219,7 +249,9 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     number: { type: 'string', description: 'Record number' },
     query: { type: 'string', description: 'Query string' },
     limit: { type: 'number', description: 'Result limit' },
+    offset: { type: 'number', description: 'Pagination offset' },
     fields: { type: 'json', description: 'Fields object or JSON string' },
+    displayValue: { type: 'string', description: 'Display value mode for reference fields' },
   },
   outputs: {
     record: { type: 'json', description: 'Single ServiceNow record' },

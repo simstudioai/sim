@@ -11,12 +11,14 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  */
 export const POST_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Post ID' },
+  name: { type: 'string', description: 'Thing fullname (t3_xxxxx)' },
   title: { type: 'string', description: 'Post title (may contain newlines)' },
   author: { type: 'string', description: 'Poster account name (null for promotional links)' },
   url: { type: 'string', description: 'External link URL or self-post permalink' },
   permalink: { type: 'string', description: 'Relative permanent link URL' },
   created_utc: { type: 'number', description: 'Creation time in UTC epoch seconds' },
   score: { type: 'number', description: 'Net upvotes minus downvotes' },
+  upvote_ratio: { type: 'number', description: 'Ratio of upvotes to total votes' },
   num_comments: { type: 'number', description: 'Total comments including removed ones' },
   is_self: { type: 'boolean', description: 'Indicates self-post vs external link' },
   selftext: {
@@ -55,6 +57,7 @@ export const POST_OUTPUT_PROPERTIES = {
  */
 export const COMMENT_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Comment ID' },
+  name: { type: 'string', description: 'Thing fullname (t1_xxxxx)' },
   author: { type: 'string', description: 'Commenter account name' },
   body: { type: 'string', description: 'Raw unformatted comment text with markup characters' },
   body_html: { type: 'string', description: 'Formatted HTML version of comment' },
@@ -70,6 +73,7 @@ export const COMMENT_OUTPUT_PROPERTIES = {
     type: 'string',
     description: 'Distinction: null/"moderator"/"admin"/"special"',
   },
+  is_submitter: { type: 'boolean', description: 'Whether commenter is the post author' },
   ups: { type: 'number', description: 'Upvote count' },
   downs: { type: 'number', description: 'Downvote count' },
   likes: { type: 'boolean', description: 'User vote: true (up), false (down), null (none)' },
@@ -88,6 +92,7 @@ export const COMMENT_OUTPUT_PROPERTIES = {
  */
 export const POST_LISTING_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Post ID' },
+  name: { type: 'string', description: 'Thing fullname (t3_xxxxx)' },
   title: { type: 'string', description: 'Post title' },
   author: { type: 'string', description: 'Author username' },
   url: { type: 'string', description: 'Post URL' },
@@ -106,6 +111,7 @@ export const POST_LISTING_OUTPUT_PROPERTIES = {
  */
 export const COMMENT_LISTING_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Comment ID' },
+  name: { type: 'string', description: 'Thing fullname (t1_xxxxx)' },
   author: { type: 'string', description: 'Comment author' },
   body: { type: 'string', description: 'Comment text' },
   score: { type: 'number', description: 'Comment score' },
@@ -130,6 +136,7 @@ export const COMMENT_WITH_REPLIES_OUTPUT_PROPERTIES = {
  */
 export const POST_METADATA_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Post ID' },
+  name: { type: 'string', description: 'Thing fullname (t3_xxxxx)' },
   title: { type: 'string', description: 'Post title' },
   author: { type: 'string', description: 'Post author' },
   selftext: { type: 'string', description: 'Post text content' },
@@ -237,6 +244,7 @@ export const EDIT_DATA_OUTPUT: OutputProperty = {
 
 export interface RedditPost {
   id: string
+  name: string
   title: string
   author: string
   url: string
@@ -248,11 +256,11 @@ export interface RedditPost {
   thumbnail?: string
   is_self: boolean
   subreddit: string
-  subreddit_name_prefixed: string
 }
 
 export interface RedditComment {
   id: string
+  name: string
   author: string
   body: string
   created_utc: number
@@ -261,62 +269,72 @@ export interface RedditComment {
   replies: RedditComment[]
 }
 
+export interface RedditMessage {
+  id: string
+  name: string
+  author: string
+  dest: string
+  subject: string
+  body: string
+  created_utc: number
+  new: boolean
+  was_comment: boolean
+  context: string
+  distinguished: string | null
+}
+
 export interface RedditHotPostsResponse extends ToolResponse {
   output: {
     subreddit: string
     posts: RedditPost[]
+    after: string | null
+    before: string | null
   }
 }
 
-// Parameters for the generalized get_posts tool
 export interface RedditPostsParams {
   subreddit: string
-  sort?: 'hot' | 'new' | 'top' | 'rising'
+  sort?: 'hot' | 'new' | 'top' | 'rising' | 'controversial'
   limit?: number
-  time?: 'day' | 'week' | 'month' | 'year' | 'all'
-  // Pagination parameters
+  time?: 'hour' | 'day' | 'week' | 'month' | 'year' | 'all'
   after?: string
   before?: string
   count?: number
   show?: string
   sr_detail?: boolean
+  g?: string
   accessToken?: string
 }
 
-// Response for the generalized get_posts tool
 export interface RedditPostsResponse extends ToolResponse {
   output: {
     subreddit: string
     posts: RedditPost[]
+    after: string | null
+    before: string | null
   }
 }
 
-// Parameters for the get_comments tool
 export interface RedditCommentsParams {
   postId: string
   subreddit: string
   sort?: 'confidence' | 'top' | 'new' | 'controversial' | 'old' | 'random' | 'qa'
   limit?: number
-  // Comment-specific parameters
   depth?: number
   context?: number
   showedits?: boolean
   showmore?: boolean
-  showtitle?: boolean
   threaded?: boolean
   truncate?: number
-  // Pagination parameters
-  after?: string
-  before?: string
-  count?: number
+  comment?: string
   accessToken?: string
 }
 
-// Response for the get_comments tool
 export interface RedditCommentsResponse extends ToolResponse {
   output: {
     post: {
       id: string
+      name: string
       title: string
       author: string
       selftext?: string
@@ -328,7 +346,6 @@ export interface RedditCommentsResponse extends ToolResponse {
   }
 }
 
-// Parameters for controversial posts
 export interface RedditControversialParams {
   subreddit: string
   time?: 'hour' | 'day' | 'week' | 'month' | 'year' | 'all'
@@ -341,7 +358,6 @@ export interface RedditControversialParams {
   accessToken?: string
 }
 
-// Parameters for search
 export interface RedditSearchParams {
   subreddit: string
   query: string
@@ -353,10 +369,11 @@ export interface RedditSearchParams {
   count?: number
   show?: string
   restrict_sr?: boolean
+  type?: 'link' | 'sr' | 'user'
+  sr_detail?: boolean
   accessToken?: string
 }
 
-// Parameters for submit post
 export interface RedditSubmitParams {
   subreddit: string
   title: string
@@ -365,51 +382,81 @@ export interface RedditSubmitParams {
   nsfw?: boolean
   spoiler?: boolean
   send_replies?: boolean
+  flair_id?: string
+  flair_text?: string
+  collection_id?: string
   accessToken?: string
 }
 
-// Parameters for vote
 export interface RedditVoteParams {
-  id: string // Thing fullname (e.g., t3_xxxxx for post, t1_xxxxx for comment)
-  dir: 1 | 0 | -1 // 1 = upvote, 0 = unvote, -1 = downvote
+  id: string
+  dir: 1 | 0 | -1
   accessToken?: string
 }
 
-// Parameters for save/unsave
 export interface RedditSaveParams {
-  id: string // Thing fullname
-  category?: string // Save category
+  id: string
+  category?: string
   accessToken?: string
 }
 
-// Parameters for reply
 export interface RedditReplyParams {
-  parent_id: string // Thing fullname to reply to
-  text: string // Comment text in markdown
+  parent_id: string
+  text: string
+  return_rtjson?: boolean
   accessToken?: string
 }
 
-// Parameters for edit
 export interface RedditEditParams {
-  thing_id: string // Thing fullname to edit
-  text: string // New text in markdown
+  thing_id: string
+  text: string
   accessToken?: string
 }
 
-// Parameters for delete
 export interface RedditDeleteParams {
-  id: string // Thing fullname to delete
+  id: string
   accessToken?: string
 }
 
-// Parameters for subscribe/unsubscribe
 export interface RedditSubscribeParams {
   subreddit: string
   action: 'sub' | 'unsub'
   accessToken?: string
 }
 
-// Generic success response for write operations
+export interface RedditGetMeParams {
+  accessToken?: string
+}
+
+export interface RedditGetUserParams {
+  username: string
+  accessToken?: string
+}
+
+export interface RedditSendMessageParams {
+  to: string
+  subject: string
+  text: string
+  from_sr?: string
+  accessToken?: string
+}
+
+export interface RedditGetMessagesParams {
+  where?: 'inbox' | 'unread' | 'sent' | 'messages' | 'comments' | 'selfreply' | 'mentions'
+  limit?: number
+  after?: string
+  before?: string
+  mark?: boolean
+  count?: number
+  show?: string
+  accessToken?: string
+}
+
+export interface RedditGetSubredditInfoParams {
+  subreddit: string
+  accessToken?: string
+}
+
 export interface RedditWriteResponse extends ToolResponse {
   output: {
     success: boolean
@@ -418,8 +465,54 @@ export interface RedditWriteResponse extends ToolResponse {
   }
 }
 
+export interface RedditUserResponse extends ToolResponse {
+  output: {
+    id: string
+    name: string
+    created_utc: number
+    link_karma: number
+    comment_karma: number
+    total_karma: number
+    is_gold: boolean
+    is_mod: boolean
+    has_verified_email: boolean
+    icon_img: string
+  }
+}
+
+export interface RedditMessagesResponse extends ToolResponse {
+  output: {
+    messages: RedditMessage[]
+    after: string | null
+    before: string | null
+  }
+}
+
+export interface RedditSubredditInfoResponse extends ToolResponse {
+  output: {
+    id: string
+    name: string
+    display_name: string
+    title: string
+    description: string
+    public_description: string
+    subscribers: number
+    accounts_active: number
+    created_utc: number
+    over18: boolean
+    lang: string
+    subreddit_type: string
+    url: string
+    icon_img: string | null
+    banner_img: string | null
+  }
+}
+
 export type RedditResponse =
   | RedditHotPostsResponse
   | RedditPostsResponse
   | RedditCommentsResponse
   | RedditWriteResponse
+  | RedditUserResponse
+  | RedditMessagesResponse
+  | RedditSubredditInfoResponse

@@ -554,6 +554,51 @@ export function validateMicrosoftGraphId(
 }
 
 /**
+ * Validates SharePoint site IDs used in Microsoft Graph API.
+ *
+ * Site IDs are compound identifiers: `hostname,spsite-guid,spweb-guid`
+ * (e.g. `contoso.sharepoint.com,2C712604-1370-44E7-A1F5-426573FDA80A,2D2244C3-251A-49EA-93A8-39E1C3A060FE`).
+ * The API also accepts partial forms like a single GUID or just a hostname.
+ *
+ * Allowed characters: alphanumeric, periods, hyphens, and commas.
+ *
+ * @param value - The SharePoint site ID to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ */
+export function validateSharePointSiteId(
+  value: string | null | undefined,
+  paramName = 'siteId'
+): ValidationResult {
+  if (value === null || value === undefined || value === '') {
+    return {
+      isValid: false,
+      error: `${paramName} is required`,
+    }
+  }
+
+  if (value.length > 512) {
+    return {
+      isValid: false,
+      error: `${paramName} exceeds maximum length`,
+    }
+  }
+
+  if (!/^[a-zA-Z0-9.\-,]+$/.test(value)) {
+    logger.warn('Invalid characters in SharePoint site ID', {
+      paramName,
+      value: value.substring(0, 100),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} contains invalid characters`,
+    }
+  }
+
+  return { isValid: true, sanitized: value }
+}
+
+/**
  * Validates Jira Cloud IDs (typically UUID format)
  *
  * @param value - The Jira Cloud ID to validate

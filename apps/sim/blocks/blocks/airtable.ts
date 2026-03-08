@@ -1,4 +1,5 @@
 import { AirtableIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { AirtableResponse } from '@/tools/airtable/types'
@@ -10,7 +11,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
   description: 'Read, create, and update Airtable',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrates Airtable into the workflow. Can create, get, list, or update Airtable records. Can be used in trigger mode to trigger a workflow when an update is made to an Airtable table.',
+    'Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, or update records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.',
   docsLink: 'https://docs.sim.ai/tools/airtable',
   category: 'tools',
   bgColor: '#E0E0E0',
@@ -21,10 +22,13 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       title: 'Operation',
       type: 'dropdown',
       options: [
+        { label: 'List Bases', id: 'listBases' },
+        { label: 'List Tables', id: 'listTables' },
         { label: 'List Records', id: 'list' },
         { label: 'Get Record', id: 'get' },
         { label: 'Create Records', id: 'create' },
         { label: 'Update Record', id: 'update' },
+        { label: 'Update Multiple Records', id: 'updateMultiple' },
       ],
       value: () => 'list',
     },
@@ -35,12 +39,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'airtable',
-      requiredScopes: [
-        'data.records:read',
-        'data.records:write',
-        'user.email:read',
-        'webhook:manage',
-      ],
+      requiredScopes: getScopesForService('airtable'),
       placeholder: 'Select Airtable account',
       required: true,
     },
@@ -54,20 +53,52 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       required: true,
     },
     {
+      id: 'baseSelector',
+      title: 'Base',
+      type: 'project-selector',
+      canonicalParamId: 'baseId',
+      serviceId: 'airtable',
+      selectorKey: 'airtable.bases',
+      selectorAllowSearch: false,
+      placeholder: 'Select Airtable base',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: { field: 'operation', value: 'listBases', not: true },
+      required: { field: 'operation', value: 'listBases', not: true },
+    },
+    {
       id: 'baseId',
       title: 'Base ID',
       type: 'short-input',
+      canonicalParamId: 'baseId',
       placeholder: 'Enter your base ID (e.g., appXXXXXXXXXXXXXX)',
-      dependsOn: ['credential'],
-      required: true,
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'listBases', not: true },
+      required: { field: 'operation', value: 'listBases', not: true },
+    },
+    {
+      id: 'tableSelector',
+      title: 'Table',
+      type: 'file-selector',
+      canonicalParamId: 'tableId',
+      serviceId: 'airtable',
+      selectorKey: 'airtable.tables',
+      selectorAllowSearch: false,
+      placeholder: 'Select Airtable table',
+      dependsOn: ['credential', 'baseSelector'],
+      mode: 'basic',
+      condition: { field: 'operation', value: ['listBases', 'listTables'], not: true },
+      required: { field: 'operation', value: ['listBases', 'listTables'], not: true },
     },
     {
       id: 'tableId',
       title: 'Table ID',
       type: 'short-input',
+      canonicalParamId: 'tableId',
       placeholder: 'Enter table ID (e.g., tblXXXXXXXXXXXXXX)',
-      dependsOn: ['credential', 'baseId'],
-      required: true,
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['listBases', 'listTables'], not: true },
+      required: { field: 'operation', value: ['listBases', 'listTables'], not: true },
     },
     {
       id: 'recordId',
@@ -83,6 +114,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       type: 'short-input',
       placeholder: 'Maximum records to return',
       condition: { field: 'operation', value: 'list' },
+      mode: 'advanced',
     },
     {
       id: 'filterFormula',
@@ -90,6 +122,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       type: 'long-input',
       placeholder: 'Airtable formula to filter records (optional)',
       condition: { field: 'operation', value: 'list' },
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate an Airtable filter formula based on the user's description.
@@ -206,6 +239,8 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
   ],
   tools: {
     access: [
+      'airtable_list_bases',
+      'airtable_list_tables',
       'airtable_list_records',
       'airtable_get_record',
       'airtable_create_records',
@@ -215,6 +250,10 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
     config: {
       tool: (params) => {
         switch (params.operation) {
+          case 'listBases':
+            return 'airtable_list_bases'
+          case 'listTables':
+            return 'airtable_list_tables'
           case 'list':
             return 'airtable_list_records'
           case 'get':
@@ -278,6 +317,11 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
   },
   // Output structure depends on the operation, covered by AirtableResponse union type
   outputs: {
+    // List Bases output
+    bases: { type: 'json', description: 'List of accessible Airtable bases' },
+    // List Tables output
+    tables: { type: 'json', description: 'List of tables in the base with schema' },
+    // Record outputs
     records: { type: 'json', description: 'Retrieved record data' }, // Optional: for list, create, updateMultiple
     record: { type: 'json', description: 'Single record data' }, // Optional: for get, update single
     metadata: { type: 'json', description: 'Operation metadata' }, // Required: present in all responses

@@ -95,6 +95,7 @@ const nextConfig: NextConfig = {
     optimizeCss: true,
     turbopackSourceMaps: false,
     turbopackFileSystemCacheForDev: true,
+    preloadEntriesOnStart: false,
   },
   ...(isDev && {
     allowedDevOrigins: [
@@ -328,6 +329,11 @@ const nextConfig: NextConfig = {
         source: '/team',
         destination: 'https://cal.com/emirkarabeg/sim-team',
         permanent: false,
+      },
+      {
+        source: '/careers',
+        destination: 'https://jobs.ashbyhq.com/sim',
+        permanent: true,
       }
     )
 

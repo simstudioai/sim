@@ -1,4 +1,5 @@
 import { MicrosoftExcelIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
@@ -39,14 +40,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'microsoft-excel',
-      requiredScopes: [
-        'openid',
-        'profile',
-        'email',
-        'Files.Read',
-        'Files.ReadWrite',
-        'offline_access',
-      ],
+      requiredScopes: getScopesForService('microsoft-excel'),
       placeholder: 'Select Microsoft account',
       required: true,
     },
@@ -65,6 +59,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       type: 'file-selector',
       canonicalParamId: 'spreadsheetId',
       serviceId: 'microsoft-excel',
+      selectorKey: 'microsoft.excel',
       requiredScopes: [],
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       placeholder: 'Select a spreadsheet',
@@ -365,14 +360,7 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'microsoft-excel',
-      requiredScopes: [
-        'openid',
-        'profile',
-        'email',
-        'Files.Read',
-        'Files.ReadWrite',
-        'offline_access',
-      ],
+      requiredScopes: getScopesForService('microsoft-excel'),
       placeholder: 'Select Microsoft account',
       required: true,
     },
@@ -392,6 +380,7 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       type: 'file-selector',
       canonicalParamId: 'spreadsheetId',
       serviceId: 'microsoft-excel',
+      selectorKey: 'microsoft.excel',
       requiredScopes: [],
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       placeholder: 'Select a spreadsheet',
@@ -415,6 +404,8 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       type: 'sheet-selector',
       canonicalParamId: 'sheetName',
       serviceId: 'microsoft-excel',
+      selectorKey: 'microsoft.excel.sheets',
+      selectorAllowSearch: false,
       placeholder: 'Select a sheet',
       required: true,
       dependsOn: { all: ['credential'], any: ['spreadsheetId', 'manualSpreadsheetId'] },

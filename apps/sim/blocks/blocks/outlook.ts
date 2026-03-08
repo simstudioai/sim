@@ -1,4 +1,5 @@
 import { OutlookIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
@@ -42,16 +43,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'outlook',
-      requiredScopes: [
-        'Mail.ReadWrite',
-        'Mail.ReadBasic',
-        'Mail.Read',
-        'Mail.Send',
-        'offline_access',
-        'openid',
-        'profile',
-        'email',
-      ],
+      requiredScopes: getScopesForService('outlook'),
       placeholder: 'Select Microsoft account',
       required: true,
     },
@@ -187,7 +179,8 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       type: 'folder-selector',
       canonicalParamId: 'folder',
       serviceId: 'outlook',
-      requiredScopes: ['Mail.ReadWrite', 'Mail.ReadBasic', 'Mail.Read'],
+      selectorKey: 'outlook.folders',
+      requiredScopes: getScopesForService('outlook'),
       placeholder: 'Select Outlook folder',
       dependsOn: ['credential'],
       mode: 'basic',
@@ -232,7 +225,8 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       type: 'folder-selector',
       canonicalParamId: 'destinationId',
       serviceId: 'outlook',
-      requiredScopes: ['Mail.ReadWrite', 'Mail.ReadBasic', 'Mail.Read'],
+      selectorKey: 'outlook.folders',
+      requiredScopes: getScopesForService('outlook'),
       placeholder: 'Select destination folder',
       dependsOn: ['credential'],
       mode: 'basic',
@@ -278,7 +272,8 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       type: 'folder-selector',
       canonicalParamId: 'copyDestinationId',
       serviceId: 'outlook',
-      requiredScopes: ['Mail.ReadWrite', 'Mail.ReadBasic', 'Mail.Read'],
+      selectorKey: 'outlook.folders',
+      requiredScopes: getScopesForService('outlook'),
       placeholder: 'Select destination folder',
       dependsOn: ['credential'],
       mode: 'basic',

@@ -1,4 +1,5 @@
 import { GoogleSlidesIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
@@ -50,10 +51,7 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
       mode: 'basic',
       required: true,
       serviceId: 'google-drive',
-      requiredScopes: [
-        'https://www.googleapis.com/auth/drive.file',
-        'https://www.googleapis.com/auth/drive',
-      ],
+      requiredScopes: getScopesForService('google-drive'),
       placeholder: 'Select Google account',
     },
     {
@@ -72,6 +70,7 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
       type: 'file-selector',
       canonicalParamId: 'presentationId',
       serviceId: 'google-drive',
+      selectorKey: 'google.drive',
       requiredScopes: [],
       mimeType: 'application/vnd.google-apps.presentation',
       placeholder: 'Select a presentation',
@@ -185,6 +184,7 @@ Return ONLY the title - no explanations, no quotes, no extra text.`,
       type: 'file-selector',
       canonicalParamId: 'folderId',
       serviceId: 'google-drive',
+      selectorKey: 'google.drive',
       requiredScopes: [],
       mimeType: 'application/vnd.google-apps.folder',
       placeholder: 'Select a parent folder',

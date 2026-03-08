@@ -2,8 +2,6 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import {
   renderBatchInvitationEmail,
-  renderCareersConfirmationEmail,
-  renderCareersSubmissionEmail,
   renderCreditPurchaseEmail,
   renderEnterpriseSubscriptionEmail,
   renderFreeTierUpgradeEmail,
@@ -94,22 +92,6 @@ const emailTemplates = {
       failureReason: 'Card declined',
     }),
 
-  // Careers emails
-  'careers-confirmation': () => renderCareersConfirmationEmail('John Doe', 'Senior Engineer'),
-  'careers-submission': () =>
-    renderCareersSubmissionEmail({
-      name: 'John Doe',
-      email: 'john@example.com',
-      phone: '+1 (555) 123-4567',
-      position: 'Senior Engineer',
-      linkedin: 'https://linkedin.com/in/johndoe',
-      portfolio: 'https://johndoe.dev',
-      experience: '5-10',
-      location: 'San Francisco, CA',
-      message:
-        'I have 10 years of experience building scalable distributed systems. Most recently, I led a team at a Series B startup where we scaled from 100K to 10M users.',
-    }),
-
   // Notification emails
   'workflow-notification-success': () =>
     renderWorkflowNotificationEmail({
@@ -176,7 +158,6 @@ export async function GET(request: NextRequest) {
         'credit-purchase',
         'payment-failed',
       ],
-      Careers: ['careers-confirmation', 'careers-submission'],
       Notifications: [
         'workflow-notification-success',
         'workflow-notification-error',

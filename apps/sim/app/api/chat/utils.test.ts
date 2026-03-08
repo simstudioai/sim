@@ -1,11 +1,19 @@
-import { databaseMock, loggerMock, requestUtilsMock } from '@sim/testing'
-import type { NextResponse } from 'next/server'
 /**
  * Tests for chat API utils
  *
  * @vitest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { databaseMock, loggerMock, requestUtilsMock } from '@sim/testing'
+import type { NextResponse } from 'next/server'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockDecryptSecret, mockMergeSubblockStateWithValues, mockMergeSubBlockValues } = vi.hoisted(
+  () => ({
+    mockDecryptSecret: vi.fn(),
+    mockMergeSubblockStateWithValues: vi.fn().mockReturnValue({}),
+    mockMergeSubBlockValues: vi.fn().mockReturnValue({}),
+  })
+)
 
 vi.mock('@sim/db', () => databaseMock)
 vi.mock('@sim/logger', () => loggerMock)
@@ -27,11 +35,9 @@ vi.mock('@/serializer', () => ({
 }))
 
 vi.mock('@/lib/workflows/subblocks', () => ({
-  mergeSubblockStateWithValues: vi.fn().mockReturnValue({}),
-  mergeSubBlockValues: vi.fn().mockReturnValue({}),
+  mergeSubblockStateWithValues: mockMergeSubblockStateWithValues,
+  mergeSubBlockValues: mockMergeSubBlockValues,
 }))
-
-const mockDecryptSecret = vi.fn()
 
 vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: mockDecryptSecret,
@@ -49,8 +55,13 @@ vi.mock('@/lib/workflows/utils', () => ({
   authorizeWorkflowByWorkspacePermission: vi.fn(),
 }))
 
+import { addCorsHeaders, validateAuthToken } from '@/lib/core/security/deployment'
+import { decryptSecret } from '@/lib/core/security/encryption'
+import { setChatAuthCookie, validateChatAuth } from '@/app/api/chat/utils'
+
 describe('Chat API Utils', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     vi.stubGlobal('process', {
       ...process,
       env: {
@@ -60,14 +71,8 @@ describe('Chat API Utils', () => {
     })
   })
 
-  afterEach(() => {
-    vi.clearAllMocks()
-  })
-
   describe('Auth token utils', () => {
-    it.concurrent('should validate auth tokens', async () => {
-      const { validateAuthToken } = await import('@/lib/core/security/deployment')
-
+    it.concurrent('should validate auth tokens', () => {
       const chatId = 'test-chat-id'
       const type = 'password'
 
@@ -82,9 +87,7 @@ describe('Chat API Utils', () => {
       expect(isInvalidChat).toBe(false)
     })
 
-    it.concurrent('should reject expired tokens', async () => {
-      const { validateAuthToken } = await import('@/lib/core/security/deployment')
-
+    it.concurrent('should reject expired tokens', () => {
       const chatId = 'test-chat-id'
       const expiredToken = Buffer.from(
         `${chatId}:password:${Date.now() - 25 * 60 * 60 * 1000}`
@@ -96,9 +99,7 @@ describe('Chat API Utils', () => {
   })
 
   describe('Cookie handling', () => {
-    it('should set auth cookie correctly', async () => {
-      const { setChatAuthCookie } = await import('@/app/api/chat/utils')
-
+    it('should set auth cookie correctly', () => {
       const mockSet = vi.fn()
       const mockResponse = {
         cookies: {
@@ -125,9 +126,7 @@ describe('Chat API Utils', () => {
   })
 
   describe('CORS handling', () => {
-    it('should add CORS headers for localhost in development', async () => {
-      const { addCorsHeaders } = await import('@/lib/core/security/deployment')
-
+    it('should add CORS headers for localhost in development', () => {
       const mockRequest = {
         headers: {
           get: vi.fn().mockReturnValue('http://localhost:3000'),
@@ -162,28 +161,11 @@ describe('Chat API Utils', () => {
   })
 
   describe('Chat auth validation', () => {
-    beforeEach(async () => {
-      vi.clearAllMocks()
+    beforeEach(() => {
       mockDecryptSecret.mockResolvedValue({ decrypted: 'correct-password' })
-
-      vi.doMock('@/app/api/chat/utils', async (importOriginal) => {
-        const original = (await importOriginal()) as any
-        return {
-          ...original,
-          validateAuthToken: vi.fn((token, id) => {
-            if (token === 'valid-token' && id === 'chat-id') {
-              return true
-            }
-            return false
-          }),
-        }
-      })
     })
 
     it('should allow access to public chats', async () => {
-      const utils = await import('@/app/api/chat/utils')
-      const { validateChatAuth } = utils
-
       const deployment = {
         id: 'chat-id',
         authType: 'public',
@@ -201,8 +183,6 @@ describe('Chat API Utils', () => {
     })
 
     it('should request password auth for GET requests', async () => {
-      const { validateChatAuth } = await import('@/app/api/chat/utils')
-
       const deployment = {
         id: 'chat-id',
         authType: 'password',
@@ -222,9 +202,6 @@ describe('Chat API Utils', () => {
     })
 
     it('should validate password for POST requests', async () => {
-      const { validateChatAuth } = await import('@/app/api/chat/utils')
-      const { decryptSecret } = await import('@/lib/core/security/encryption')
-
       const deployment = {
         id: 'chat-id',
         authType: 'password',
@@ -249,8 +226,6 @@ describe('Chat API Utils', () => {
     })
 
     it('should reject incorrect password', async () => {
-      const { validateChatAuth } = await import('@/app/api/chat/utils')
-
       const deployment = {
         id: 'chat-id',
         authType: 'password',
@@ -275,8 +250,6 @@ describe('Chat API Utils', () => {
     })
 
     it('should request email auth for email-protected chats', async () => {
-      const { validateChatAuth } = await import('@/app/api/chat/utils')
-
       const deployment = {
         id: 'chat-id',
         authType: 'email',
@@ -297,8 +270,6 @@ describe('Chat API Utils', () => {
     })
 
     it('should check allowed emails for email auth', async () => {
-      const { validateChatAuth } = await import('@/app/api/chat/utils')
-
       const deployment = {
         id: 'chat-id',
         authType: 'email',

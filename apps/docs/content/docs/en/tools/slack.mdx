@@ -1,6 +1,6 @@
 ---
 title: Slack
-description: Send, update, delete messages, send ephemeral messages, add reactions in Slack or trigger workflows from Slack events
+description: Send, update, delete messages, manage views and modals, add or remove reactions, manage canvases, get channel info and user presence in Slack
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -13,39 +13,19 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 {/* MANUAL-CONTENT-START:intro */}
 [Slack](https://www.slack.com/) is a business communication platform that offers teams a unified place for messaging, tools, and files.
 
-With Slack, you can:
+With the Slack integration in Sim, you can:
 
-- **Automate agent notifications**: Send real-time updates from your Sim agents to any Slack channel
-- **Create webhook endpoints**: Configure Slack bots as webhooks to trigger Sim workflows from Slack activities
-- **Enhance agent workflows**: Integrate Slack messaging into your agents to deliver results, alerts, and status updates
-- **Create and share Slack canvases**: Programmatically generate collaborative documents (canvases) in Slack channels
-- **Read messages from channels**: Retrieve and process recent messages from any Slack channel for monitoring or workflow triggers
-- **Manage bot messages**: Update, delete, and add reactions to messages sent by your bot
-
-In Sim, the Slack integration enables your agents to programmatically interact with Slack with full message management capabilities as part of their workflows:
-
-- **Send messages**: Agents can send formatted messages to any Slack channel or user, supporting Slack's mrkdwn syntax for rich formatting
+- **Send messages**: Send formatted messages to any Slack channel or user, supporting Slack's mrkdwn syntax for rich formatting
+- **Send ephemeral messages**: Send temporary messages visible only to a specific user in a channel
 - **Update messages**: Edit previously sent bot messages to correct information or provide status updates
 - **Delete messages**: Remove bot messages when they're no longer needed or contain errors
 - **Add reactions**: Express sentiment or acknowledgment by adding emoji reactions to any message
-- **Create canvases**: Create and share Slack canvases (collaborative documents) directly in channels, enabling richer content sharing and documentation
-- **Read messages**: Read recent messages from channels, allowing for monitoring, reporting, or triggering further actions based on channel activity
+- **Create canvases**: Create and share Slack canvases (collaborative documents) directly in channels
+- **Read messages**: Retrieve recent messages from channels or DMs, with filtering by time range
+- **Manage channels and users**: List channels, members, and users in your Slack workspace
 - **Download files**: Retrieve files shared in Slack channels for processing or archival
 
-This allows for powerful automation scenarios such as sending notifications with dynamic updates, managing conversational flows with editable status messages, acknowledging important messages with reactions, and maintaining clean channels by removing outdated bot messages. Your agents can deliver timely information, update messages as workflows progress, create collaborative documents, or alert team members when attention is needed. This integration bridges the gap between your AI workflows and your team's communication, ensuring everyone stays informed with accurate, up-to-date information. By connecting Sim with Slack, you can create agents that keep your team updated with relevant information at the right time, enhance collaboration by sharing and updating insights automatically, and reduce the need for manual status updates—all while leveraging your existing Slack workspace where your team already communicates.
-
-## Getting Started
-
-To connect Slack to your Sim workflows:
-
-1. Sign up or log in at [sim.ai](https://sim.ai)
-2. Create a new workflow or open an existing one
-3. Drag a **Slack** block onto your canvas
-4. Click the credential selector and choose **Connect**
-5. Authorize Sim to access your Slack workspace
-6. Select your target channel or user
-
-Once connected, you can use any of the Slack operations listed below.
+In Sim, the Slack integration enables your agents to programmatically interact with Slack as part of their workflows. This allows for automation scenarios such as sending notifications with dynamic updates, managing conversational flows with editable status messages, acknowledging important messages with reactions, and maintaining clean channels by removing outdated bot messages. The integration can also be used in trigger mode to start a workflow when a message is sent to a channel.
 
 ## AI-Generated Content
 
@@ -59,7 +39,7 @@ If you encounter issues with the Slack integration, contact us at [help@sim.ai](
 
 ## Usage Instructions
 
-Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, create canvases, read messages, and add reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.
+Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, open/update/push modal views, publish Home tab views, create canvases, read messages, and add or remove reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.
 
 
 
@@ -818,5 +798,314 @@ Add an emoji reaction to a Slack message
 |   ↳ `channel` | string | Channel ID |
 |   ↳ `timestamp` | string | Message timestamp |
 |   ↳ `reaction` | string | Emoji reaction name |
+
+### `slack_remove_reaction`
+
+Remove an emoji reaction from a Slack message
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID where the message was posted \(e.g., C1234567890\) |
+| `timestamp` | string | Yes | Timestamp of the message to remove reaction from \(e.g., 1405894322.002768\) |
+| `name` | string | Yes | Name of the emoji reaction to remove \(without colons, e.g., thumbsup, heart, eyes\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Success message |
+| `metadata` | object | Reaction metadata |
+|   ↳ `channel` | string | Channel ID |
+|   ↳ `timestamp` | string | Message timestamp |
+|   ↳ `reaction` | string | Emoji reaction name |
+
+### `slack_get_channel_info`
+
+Get detailed information about a Slack channel by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID to get information about \(e.g., C1234567890\) |
+| `includeNumMembers` | boolean | No | Whether to include the member count in the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `channelInfo` | object | Detailed channel information |
+|   ↳ `id` | string | Channel ID \(e.g., C1234567890\) |
+|   ↳ `name` | string | Channel name without # prefix |
+|   ↳ `is_channel` | boolean | Whether this is a channel |
+|   ↳ `is_private` | boolean | Whether channel is private |
+|   ↳ `is_archived` | boolean | Whether channel is archived |
+|   ↳ `is_general` | boolean | Whether this is the general channel |
+|   ↳ `is_member` | boolean | Whether the bot/user is a member |
+|   ↳ `is_shared` | boolean | Whether channel is shared across workspaces |
+|   ↳ `is_ext_shared` | boolean | Whether channel is externally shared |
+|   ↳ `is_org_shared` | boolean | Whether channel is org-wide shared |
+|   ↳ `num_members` | number | Number of members in the channel |
+|   ↳ `topic` | string | Channel topic |
+|   ↳ `purpose` | string | Channel purpose/description |
+|   ↳ `created` | number | Unix timestamp when channel was created |
+|   ↳ `creator` | string | User ID of channel creator |
+|   ↳ `updated` | number | Unix timestamp of last update |
+
+### `slack_get_user_presence`
+
+Check whether a Slack user is currently active or away
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `userId` | string | Yes | User ID to check presence for \(e.g., U1234567890\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `presence` | string | User presence status: "active" or "away" |
+| `online` | boolean | Whether user has an active client connection \(only available when checking own presence\) |
+| `autoAway` | boolean | Whether user was automatically set to away due to inactivity \(only available when checking own presence\) |
+| `manualAway` | boolean | Whether user manually set themselves as away \(only available when checking own presence\) |
+| `connectionCount` | number | Total number of active connections for the user \(only available when checking own presence\) |
+| `lastActivity` | number | Unix timestamp of last detected activity \(only available when checking own presence\) |
+
+### `slack_edit_canvas`
+
+Edit an existing Slack canvas by inserting, replacing, or deleting content
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `canvasId` | string | Yes | Canvas ID to edit \(e.g., F1234ABCD\) |
+| `operation` | string | Yes | Edit operation: insert_at_start, insert_at_end, insert_after, insert_before, replace, delete, or rename |
+| `content` | string | No | Markdown content for the operation \(required for insert/replace operations\) |
+| `sectionId` | string | No | Section ID to target \(required for insert_after, insert_before, replace, and delete\) |
+| `title` | string | No | New title for the canvas \(only used with rename operation\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Success message |
+
+### `slack_create_channel_canvas`
+
+Create a canvas pinned to a Slack channel as its resource hub
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID to create the canvas in \(e.g., C1234567890\) |
+| `title` | string | No | Title for the channel canvas |
+| `content` | string | No | Canvas content in markdown format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `canvas_id` | string | ID of the created channel canvas |
+
+### `slack_open_view`
+
+Open a modal view in Slack using a trigger_id from an interaction payload. Used to display forms, confirmations, and other interactive modals.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `triggerId` | string | Yes | Exchange a trigger to post to the user. Obtained from an interaction payload \(e.g., slash command, button click\) |
+| `interactivityPointer` | string | No | Alternative to trigger_id for posting to user |
+| `view` | json | Yes | A view payload object defining the modal. Must include type \("modal"\), title, and blocks array |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `view` | object | The opened modal view object |
+|   ↳ `id` | string | Unique view identifier |
+|   ↳ `team_id` | string | Workspace/team ID |
+|   ↳ `type` | string | View type \(e.g., "modal"\) |
+|   ↳ `title` | json | Plain text title object with type and text fields |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Title text content |
+|   ↳ `submit` | json | Plain text submit button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Submit button text |
+|   ↳ `close` | json | Plain text close button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Close button text |
+|   ↳ `blocks` | array | Block Kit blocks in the view |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `private_metadata` | string | Private metadata string passed with the view |
+|   ↳ `callback_id` | string | Custom identifier for the view |
+|   ↳ `external_id` | string | Custom external identifier \(max 255 chars, unique per workspace\) |
+|   ↳ `state` | json | Current state of the view with input values |
+|   ↳ `hash` | string | View version hash for updates |
+|   ↳ `clear_on_close` | boolean | Whether to clear all views in the stack when this view is closed |
+|   ↳ `notify_on_close` | boolean | Whether to send a view_closed event when this view is closed |
+|   ↳ `root_view_id` | string | ID of the root view in the view stack |
+|   ↳ `previous_view_id` | string | ID of the previous view in the view stack |
+|   ↳ `app_id` | string | Application identifier |
+|   ↳ `bot_id` | string | Bot identifier |
+
+### `slack_update_view`
+
+Update an existing modal view in Slack. Identify the view by view_id or external_id, and provide the updated view payload.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `viewId` | string | No | Unique identifier of the view to update. Either viewId or externalId is required |
+| `externalId` | string | No | Developer-set unique identifier of the view to update \(max 255 chars\). Either viewId or externalId is required |
+| `hash` | string | No | View state hash to protect against race conditions. Obtained from a previous views response |
+| `view` | json | Yes | A view payload object defining the updated modal. Must include type \("modal"\), title, and blocks array. Use identical block_id and action_id values to preserve input data |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `view` | object | The updated modal view object |
+|   ↳ `id` | string | Unique view identifier |
+|   ↳ `team_id` | string | Workspace/team ID |
+|   ↳ `type` | string | View type \(e.g., "modal"\) |
+|   ↳ `title` | json | Plain text title object with type and text fields |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Title text content |
+|   ↳ `submit` | json | Plain text submit button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Submit button text |
+|   ↳ `close` | json | Plain text close button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Close button text |
+|   ↳ `blocks` | array | Block Kit blocks in the view |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `private_metadata` | string | Private metadata string passed with the view |
+|   ↳ `callback_id` | string | Custom identifier for the view |
+|   ↳ `external_id` | string | Custom external identifier \(max 255 chars, unique per workspace\) |
+|   ↳ `state` | json | Current state of the view with input values |
+|   ↳ `hash` | string | View version hash for updates |
+|   ↳ `clear_on_close` | boolean | Whether to clear all views in the stack when this view is closed |
+|   ↳ `notify_on_close` | boolean | Whether to send a view_closed event when this view is closed |
+|   ↳ `root_view_id` | string | ID of the root view in the view stack |
+|   ↳ `previous_view_id` | string | ID of the previous view in the view stack |
+|   ↳ `app_id` | string | Application identifier |
+|   ↳ `bot_id` | string | Bot identifier |
+
+### `slack_push_view`
+
+Push a new view onto an existing modal stack in Slack. Limited to 2 additional views after the initial modal is opened.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `triggerId` | string | Yes | Exchange a trigger to post to the user. Obtained from an interaction payload \(e.g., button click within an existing modal\) |
+| `interactivityPointer` | string | No | Alternative to trigger_id for posting to user |
+| `view` | json | Yes | A view payload object defining the modal to push. Must include type \("modal"\), title, and blocks array |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `view` | object | The pushed modal view object |
+|   ↳ `id` | string | Unique view identifier |
+|   ↳ `team_id` | string | Workspace/team ID |
+|   ↳ `type` | string | View type \(e.g., "modal"\) |
+|   ↳ `title` | json | Plain text title object with type and text fields |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Title text content |
+|   ↳ `submit` | json | Plain text submit button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Submit button text |
+|   ↳ `close` | json | Plain text close button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Close button text |
+|   ↳ `blocks` | array | Block Kit blocks in the view |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `private_metadata` | string | Private metadata string passed with the view |
+|   ↳ `callback_id` | string | Custom identifier for the view |
+|   ↳ `external_id` | string | Custom external identifier \(max 255 chars, unique per workspace\) |
+|   ↳ `state` | json | Current state of the view with input values |
+|   ↳ `hash` | string | View version hash for updates |
+|   ↳ `clear_on_close` | boolean | Whether to clear all views in the stack when this view is closed |
+|   ↳ `notify_on_close` | boolean | Whether to send a view_closed event when this view is closed |
+|   ↳ `root_view_id` | string | ID of the root view in the view stack |
+|   ↳ `previous_view_id` | string | ID of the previous view in the view stack |
+|   ↳ `app_id` | string | Application identifier |
+|   ↳ `bot_id` | string | Bot identifier |
+
+### `slack_publish_view`
+
+Publish a static view to a user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `userId` | string | Yes | The user ID to publish the Home tab view to \(e.g., U0BPQUNTA\) |
+| `hash` | string | No | View state hash to protect against race conditions. Obtained from a previous views response |
+| `view` | json | Yes | A view payload object defining the Home tab. Must include type \("home"\) and blocks array |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `view` | object | The published Home tab view object |
+|   ↳ `id` | string | Unique view identifier |
+|   ↳ `team_id` | string | Workspace/team ID |
+|   ↳ `type` | string | View type \(e.g., "modal"\) |
+|   ↳ `title` | json | Plain text title object with type and text fields |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Title text content |
+|   ↳ `submit` | json | Plain text submit button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Submit button text |
+|   ↳ `close` | json | Plain text close button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Close button text |
+|   ↳ `blocks` | array | Block Kit blocks in the view |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `private_metadata` | string | Private metadata string passed with the view |
+|   ↳ `callback_id` | string | Custom identifier for the view |
+|   ↳ `external_id` | string | Custom external identifier \(max 255 chars, unique per workspace\) |
+|   ↳ `state` | json | Current state of the view with input values |
+|   ↳ `hash` | string | View version hash for updates |
+|   ↳ `clear_on_close` | boolean | Whether to clear all views in the stack when this view is closed |
+|   ↳ `notify_on_close` | boolean | Whether to send a view_closed event when this view is closed |
+|   ↳ `root_view_id` | string | ID of the root view in the view stack |
+|   ↳ `previous_view_id` | string | ID of the previous view in the view stack |
+|   ↳ `app_id` | string | Application identifier |
+|   ↳ `bot_id` | string | Bot identifier |
 
 

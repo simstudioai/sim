@@ -1,0 +1,156 @@
+---
+title: Google Meet
+description: Create and manage Google Meet meetings
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_meet"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Meet](https://meet.google.com) is Google's video conferencing and online meeting platform, providing secure, high-quality video calls for individuals and teams. As a core component of Google Workspace, Google Meet enables real-time collaboration through video meetings, screen sharing, and integrated chat.
+
+The Google Meet REST API (v2) allows programmatic management of meeting spaces and conference records, enabling automated workflows to create meetings, track participation, and manage active conferences without manual intervention.
+
+Key features of the Google Meet API include:
+
+- **Meeting Space Management**: Create, retrieve, and configure meeting spaces with customizable access controls.
+- **Conference Records**: Access historical conference data including start/end times and associated spaces.
+- **Participant Tracking**: View participant details for any conference including join/leave times and user types.
+- **Access Controls**: Configure who can join meetings (open, trusted, or restricted) and which entry points are allowed.
+- **Active Conference Management**: Programmatically end active conferences in meeting spaces.
+
+In Sim, the Google Meet integration allows your agents to create meeting spaces on demand, monitor conference activity, track participation across meetings, and manage active conferences as part of automated workflows. This enables scenarios such as automatically provisioning meeting rooms for scheduled events, generating attendance reports, ending stale conferences, and building meeting analytics dashboards.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Google Meet into your workflow. Create meeting spaces, get space details, end conferences, list conference records, and view participants.
+
+
+
+## Tools
+
+### `google_meet_create_space`
+
+Create a new Google Meet meeting space
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessType` | string | No | Who can join the meeting without knocking: OPEN \(anyone with link\), TRUSTED \(org members\), RESTRICTED \(only invited\) |
+| `entryPointAccess` | string | No | Entry points allowed: ALL \(all entry points\) or CREATOR_APP_ONLY \(only via app\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Resource name of the space \(e.g., spaces/abc123\) |
+| `meetingUri` | string | Meeting URL \(e.g., https://meet.google.com/abc-defg-hij\) |
+| `meetingCode` | string | Meeting code \(e.g., abc-defg-hij\) |
+| `accessType` | string | Access type configuration |
+| `entryPointAccess` | string | Entry point access configuration |
+
+### `google_meet_get_space`
+
+Get details of a Google Meet meeting space by name or meeting code
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spaceName` | string | Yes | Space resource name \(spaces/abc123\) or meeting code \(abc-defg-hij\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Resource name of the space |
+| `meetingUri` | string | Meeting URL |
+| `meetingCode` | string | Meeting code |
+| `accessType` | string | Access type configuration |
+| `entryPointAccess` | string | Entry point access configuration |
+| `activeConference` | string | Active conference record name |
+
+### `google_meet_end_conference`
+
+End the active conference in a Google Meet space
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spaceName` | string | Yes | Space resource name \(e.g., spaces/abc123\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ended` | boolean | Whether the conference was ended successfully |
+
+### `google_meet_list_conference_records`
+
+List conference records for meetings you organized
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filter` | string | No | Filter by space name \(e.g., space.name = "spaces/abc123"\) or time range \(e.g., start_time &gt; "2024-01-01T00:00:00Z"\) |
+| `pageSize` | number | No | Maximum number of conference records to return \(max 100\) |
+| `pageToken` | string | No | Page token from a previous list request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conferenceRecords` | json | List of conference records with name, start/end times, and space |
+| `nextPageToken` | string | Token for next page of results |
+
+### `google_meet_get_conference_record`
+
+Get details of a specific conference record
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conferenceName` | string | Yes | Conference record resource name \(e.g., conferenceRecords/abc123\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Conference record resource name |
+| `startTime` | string | Conference start time |
+| `endTime` | string | Conference end time |
+| `expireTime` | string | Conference record expiration time |
+| `space` | string | Associated space resource name |
+
+### `google_meet_list_participants`
+
+List participants of a conference record
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conferenceName` | string | Yes | Conference record resource name \(e.g., conferenceRecords/abc123\) |
+| `filter` | string | No | Filter participants \(e.g., earliest_start_time &gt; "2024-01-01T00:00:00Z"\) |
+| `pageSize` | number | No | Maximum number of participants to return \(default 100, max 250\) |
+| `pageToken` | string | No | Page token from a previous list request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `participants` | json | List of participants with name, times, display name, and user type |
+| `nextPageToken` | string | Token for next page of results |
+| `totalSize` | number | Total number of participants |
+
+

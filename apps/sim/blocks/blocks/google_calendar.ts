@@ -1,4 +1,5 @@
 import { GoogleCalendarIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
@@ -43,7 +44,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       mode: 'basic',
       required: true,
       serviceId: 'google-calendar',
-      requiredScopes: ['https://www.googleapis.com/auth/calendar'],
+      requiredScopes: getScopesForService('google-calendar'),
       placeholder: 'Select Google Calendar account',
     },
     {
@@ -62,7 +63,9 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       type: 'file-selector',
       canonicalParamId: 'calendarId',
       serviceId: 'google-calendar',
-      requiredScopes: ['https://www.googleapis.com/auth/calendar'],
+      selectorKey: 'google.calendar',
+      selectorAllowSearch: false,
+      requiredScopes: getScopesForService('google-calendar'),
       placeholder: 'Select calendar',
       dependsOn: ['credential'],
       mode: 'basic',
@@ -326,7 +329,9 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'file-selector',
       canonicalParamId: 'destinationCalendarId',
       serviceId: 'google-calendar',
-      requiredScopes: ['https://www.googleapis.com/auth/calendar'],
+      selectorKey: 'google.calendar',
+      selectorAllowSearch: false,
+      requiredScopes: getScopesForService('google-calendar'),
       placeholder: 'Select destination calendar',
       dependsOn: ['credential'],
       condition: { field: 'operation', value: 'move' },

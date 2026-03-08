@@ -81,14 +81,41 @@ export function useNodeUtilities(blocks: Record<string, any>) {
    * @returns Array of node IDs representing the hierarchy path
    */
   const getNodeHierarchy = useCallback(
-    (nodeId: string): string[] => {
+    (nodeId: string, maxDepth = 100): string[] => {
       const node = getNodes().find((n) => n.id === nodeId)
-      if (!node) return [nodeId]
+      if (!node || maxDepth <= 0) return [nodeId]
       const parentId = blocks?.[nodeId]?.data?.parentId
       if (!parentId) return [nodeId]
-      return [...getNodeHierarchy(parentId), nodeId]
+      return [...getNodeHierarchy(parentId, maxDepth - 1), nodeId]
     },
     [getNodes, blocks]
+  )
+
+  /**
+   * Returns true if nodeId is in the subtree of ancestorId (i.e. walking from nodeId
+   * up the parentId chain we reach ancestorId). Used to reject parent assignments that
+   * would create a cycle (e.g. setting dragged node's parent to a container inside it).
+   *
+   * @param ancestorId - Node that might be an ancestor
+   * @param nodeId - Node to walk from (upward)
+   * @returns True if ancestorId appears in the parent chain of nodeId
+   */
+  const isDescendantOf = useCallback(
+    (ancestorId: string, nodeId: string): boolean => {
+      const visited = new Set<string>()
+      const maxDepth = 100
+      let currentId: string | undefined = nodeId
+      let depth = 0
+      while (currentId && depth < maxDepth) {
+        if (currentId === ancestorId) return true
+        if (visited.has(currentId)) return false
+        visited.add(currentId)
+        currentId = blocks?.[currentId]?.data?.parentId
+        depth += 1
+      }
+      return false
+    },
+    [blocks]
   )
 
   /**
@@ -379,6 +406,7 @@ export function useNodeUtilities(blocks: Record<string, any>) {
   return {
     getNodeDepth,
     getNodeHierarchy,
+    isDescendantOf,
     getNodeAbsolutePosition,
     calculateRelativePosition,
     isPointInLoopNode,

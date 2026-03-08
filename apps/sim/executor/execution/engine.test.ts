@@ -251,19 +251,19 @@ describe('ExecutionEngine', () => {
         if (node.id === 'start') return ['slow']
         return []
       })
-      const nodeOrchestrator = createMockNodeOrchestrator(500)
+      const nodeOrchestrator = createMockNodeOrchestrator(1)
 
       const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
 
       const executionPromise = engine.run('start')
-      setTimeout(() => abortController.abort(), 50)
+      setTimeout(() => abortController.abort(), 1)
 
       const startTime = Date.now()
       const result = await executionPromise
       const duration = Date.now() - startTime
 
       expect(result.status).toBe('cancelled')
-      expect(duration).toBeLessThan(400)
+      expect(duration).toBeLessThan(100)
     })
 
     it('should return cancelled status even if error thrown during cancellation', async () => {
@@ -304,11 +304,7 @@ describe('ExecutionEngine', () => {
     it('should stop execution when Redis reports cancellation', async () => {
       ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
 
-      let checkCount = 0
-      ;(isExecutionCancelled as Mock).mockImplementation(async () => {
-        checkCount++
-        return checkCount > 1
-      })
+      ;(isExecutionCancelled as Mock).mockResolvedValue(true)
 
       const nodes = Array.from({ length: 5 }, (_, i) => createMockNode(`node${i}`, 'function'))
       for (let i = 0; i < nodes.length - 1; i++) {
@@ -322,7 +318,7 @@ describe('ExecutionEngine', () => {
         if (idx < 4) return [`node${idx + 1}`]
         return []
       })
-      const nodeOrchestrator = createMockNodeOrchestrator(150)
+      const nodeOrchestrator = createMockNodeOrchestrator(1)
 
       const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
       const result = await engine.run('node0')
@@ -382,7 +378,7 @@ describe('ExecutionEngine', () => {
         }
         return []
       })
-      const nodeOrchestrator = createMockNodeOrchestrator(5)
+      const nodeOrchestrator = createMockNodeOrchestrator(1)
 
       const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
       const result = await engine.run('loop-start')
@@ -413,12 +409,12 @@ describe('ExecutionEngine', () => {
         }
         return []
       })
-      const nodeOrchestrator = createMockNodeOrchestrator(50)
+      const nodeOrchestrator = createMockNodeOrchestrator(1)
 
       const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
 
       const executionPromise = engine.run('start')
-      setTimeout(() => abortController.abort(), 30)
+      setTimeout(() => abortController.abort(), 1)
 
       const result = await executionPromise
 
@@ -442,19 +438,19 @@ describe('ExecutionEngine', () => {
         if (node.id === 'start') return slowNodes.map((_, i) => `slow${i}`)
         return []
       })
-      const nodeOrchestrator = createMockNodeOrchestrator(200)
+      const nodeOrchestrator = createMockNodeOrchestrator(2)
 
       const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
 
       const executionPromise = engine.run('start')
-      setTimeout(() => abortController.abort(), 50)
+      setTimeout(() => abortController.abort(), 1)
 
       const startTime = Date.now()
       const result = await executionPromise
       const duration = Date.now() - startTime
 
       expect(result.status).toBe('cancelled')
-      expect(duration).toBeLessThan(500)
+      expect(duration).toBeLessThan(100)
     })
   })
 
@@ -606,10 +602,10 @@ describe('ExecutionEngine', () => {
         executeNode: vi.fn().mockImplementation(async (_ctx: ExecutionContext, nodeId: string) => {
           executedNodes.push(nodeId)
           if (nodeId === 'parallel0') {
-            await new Promise((resolve) => setTimeout(resolve, 10))
+            await new Promise((resolve) => setTimeout(resolve, 1))
             throw new Error('Parallel branch failed')
           }
-          await new Promise((resolve) => setTimeout(resolve, 100))
+          await new Promise((resolve) => setTimeout(resolve, 2))
           return { nodeId, output: {}, isFinalOutput: false }
         }),
         handleNodeCompletion: vi.fn(),
@@ -641,15 +637,15 @@ describe('ExecutionEngine', () => {
         executionCount: 0,
         executeNode: vi.fn().mockImplementation(async (_ctx: ExecutionContext, nodeId: string) => {
           if (nodeId === 'parallel0') {
-            await new Promise((resolve) => setTimeout(resolve, 10))
+            await new Promise((resolve) => setTimeout(resolve, 1))
             throw new Error('First error')
           }
           if (nodeId === 'parallel1') {
-            await new Promise((resolve) => setTimeout(resolve, 20))
+            await new Promise((resolve) => setTimeout(resolve, 1))
             throw new Error('Second error')
           }
           if (nodeId === 'parallel2') {
-            await new Promise((resolve) => setTimeout(resolve, 30))
+            await new Promise((resolve) => setTimeout(resolve, 1))
             throw new Error('Third error')
           }
           return { nodeId, output: {}, isFinalOutput: false }
@@ -682,11 +678,11 @@ describe('ExecutionEngine', () => {
         executionCount: 0,
         executeNode: vi.fn().mockImplementation(async (_ctx: ExecutionContext, nodeId: string) => {
           if (nodeId === 'fast-error') {
-            await new Promise((resolve) => setTimeout(resolve, 10))
+            await new Promise((resolve) => setTimeout(resolve, 1))
             throw new Error('Fast error')
           }
           if (nodeId === 'slow') {
-            await new Promise((resolve) => setTimeout(resolve, 50))
+            await new Promise((resolve) => setTimeout(resolve, 1))
             slowNodeCompleted = true
             return { nodeId, output: {}, isFinalOutput: false }
           }

@@ -401,6 +401,7 @@ async function fetchCustomToolFromAPI(
     })
 
     if (!response.ok) {
+      await response.text().catch(() => {})
       logger.error(`Failed to fetch custom tools: ${response.statusText}`)
       return undefined
     }

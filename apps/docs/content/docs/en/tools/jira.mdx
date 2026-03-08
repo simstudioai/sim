@@ -11,18 +11,22 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Jira](https://www.atlassian.com/jira) is a leading project management and issue tracking platform that helps teams plan, track, and manage agile software development projects effectively. As part of the Atlassian suite, Jira has become the industry standard for software development teams and project management professionals worldwide.
+[Jira](https://www.atlassian.com/jira) is a leading project management and issue tracking platform from Atlassian that helps teams plan, track, and manage agile software development projects. Jira supports Scrum and Kanban methodologies with customizable boards, workflows, and advanced reporting.
 
-Jira provides a comprehensive set of tools for managing complex projects through its flexible and customizable workflow system. With its robust API and integration capabilities, Jira enables teams to streamline their development processes and maintain clear visibility of project progress.
+With the Jira integration in Sim, you can:
 
-Key features of Jira include:
+- **Manage issues**: Create, retrieve, update, delete, and bulk-read issues in your Jira projects
+- **Transition issues**: Move issues through workflow stages programmatically
+- **Assign issues**: Set or change issue assignees
+- **Search issues**: Use JQL (Jira Query Language) to find and filter issues
+- **Manage comments**: Add, retrieve, update, and delete comments on issues
+- **Handle attachments**: Upload, retrieve, and delete file attachments on issues
+- **Track work**: Add, retrieve, update, and delete worklogs for time tracking
+- **Link issues**: Create and delete issue links to establish relationships between issues
+- **Manage watchers**: Add or remove watchers from issues
+- **Access users**: Retrieve user information from your Jira instance
 
-- Agile Project Management: Support for Scrum and Kanban methodologies with customizable boards and workflows
-- Issue Tracking: Sophisticated tracking system for bugs, stories, epics, and tasks with detailed reporting
-- Workflow Automation: Powerful automation rules to streamline repetitive tasks and processes
-- Advanced Search: JQL (Jira Query Language) for complex issue filtering and reporting
-
-In Sim, the Jira integration allows your agents to seamlessly interact with your project management workflow. This creates opportunities for automated issue creation, updates, and tracking as part of your AI workflows. The integration enables agents to create, retrieve, and update Jira issues programmatically, facilitating automated project management tasks and ensuring that important information is properly tracked and documented. By connecting Sim with Jira, you can build intelligent agents that maintain project visibility while automating routine project management tasks, enhancing team productivity and ensuring consistent project tracking.
+In Sim, the Jira integration enables your agents to interact with your project management workflow as part of automated processes. Agents can create issues from external triggers, update statuses, track progress, and manage project data—enabling intelligent project management automation.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -1007,6 +1011,38 @@ Get Jira users. If an account ID is provided, returns a single user. Otherwise, 
 |   ↳ `avatarUrls` | json | User avatar URLs in multiple sizes \(16x16, 24x24, 32x32, 48x48\) |
 |   ↳ `self` | string | REST API URL for this user |
 | `total` | number | Total number of users returned |
+| `startAt` | number | Pagination start index |
+| `maxResults` | number | Maximum results per page |
+
+### `jira_search_users`
+
+Search for Jira users by email address or display name. Returns matching users with their accountId, displayName, and emailAddress.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `query` | string | Yes | A query string to search for users. Can be an email address, display name, or partial match. |
+| `maxResults` | number | No | Maximum number of users to return \(default: 50, max: 1000\) |
+| `startAt` | number | No | The index of the first user to return \(for pagination, default: 0\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `users` | array | Array of matching Jira users |
+|   ↳ `accountId` | string | Atlassian account ID of the user |
+|   ↳ `displayName` | string | Display name of the user |
+|   ↳ `active` | boolean | Whether the user account is active |
+|   ↳ `emailAddress` | string | Email address of the user |
+|   ↳ `accountType` | string | Type of account \(e.g., atlassian, app, customer\) |
+|   ↳ `avatarUrl` | string | URL to the user avatar \(48x48\) |
+|   ↳ `timeZone` | string | User timezone |
+|   ↳ `self` | string | REST API URL for this user |
+| `total` | number | Number of users returned in this page \(may be less than total matches\) |
 | `startAt` | number | Pagination start index |
 | `maxResults` | number | Maximum results per page |
 

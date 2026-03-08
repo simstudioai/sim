@@ -145,7 +145,7 @@ interface PreviewWorkflowProps {
   /** Cursor style to show when hovering the canvas */
   cursorStyle?: 'default' | 'pointer' | 'grab'
   /** Map of executed block IDs to their status for highlighting the execution path */
-  executedBlocks?: Record<string, { status: string }>
+  executedBlocks?: Record<string, { status: string; output?: unknown }>
   /** Currently selected block ID for highlighting */
   selectedBlockId?: string | null
   /** Skips expensive subblock computations for thumbnails/template previews */
@@ -274,9 +274,9 @@ export function PreviewWorkflow({
 
   /** Maps base block IDs to execution data, handling parallel iteration variants (blockId₍n₎). */
   const blockExecutionMap = useMemo(() => {
-    if (!executedBlocks) return new Map<string, { status: string }>()
+    if (!executedBlocks) return new Map<string, { status: string; output?: unknown }>()
 
-    const map = new Map<string, { status: string }>()
+    const map = new Map<string, { status: string; output?: unknown }>()
     for (const [key, value] of Object.entries(executedBlocks)) {
       // Extract base ID (remove iteration suffix like ₍0₎)
       const baseId = key.includes('₍') ? key.split('₍')[0] : key
@@ -289,21 +289,38 @@ export function PreviewWorkflow({
     return map
   }, [executedBlocks])
 
-  /** Derives subflow status from children. Error takes precedence. */
+  /** Derives subflow status from children. Recursively checks nested subflows. Error takes precedence. */
   const getSubflowExecutionStatus = useMemo(() => {
-    return (subflowId: string): ExecutionStatus | undefined => {
+    const derive = (
+      subflowId: string,
+      visited: Set<string> = new Set()
+    ): ExecutionStatus | undefined => {
+      if (visited.has(subflowId)) return undefined
+      visited.add(subflowId)
+
       const childIds = subflowChildrenMap.get(subflowId)
       if (!childIds?.length) return undefined
 
-      const executedChildren = childIds
-        .map((id) => blockExecutionMap.get(id))
-        .filter((status): status is { status: string } => Boolean(status))
+      const childStatuses: string[] = []
+      for (const childId of childIds) {
+        const direct = blockExecutionMap.get(childId)
+        if (direct) {
+          childStatuses.push(direct.status)
+        } else {
+          const childBlock = workflowState.blocks?.[childId]
+          if (childBlock?.type === 'loop' || childBlock?.type === 'parallel') {
+            const nested = derive(childId, visited)
+            if (nested) childStatuses.push(nested)
+          }
+        }
+      }
 
-      if (executedChildren.length === 0) return undefined
-      if (executedChildren.some((s) => s.status === 'error')) return 'error'
+      if (childStatuses.length === 0) return undefined
+      if (childStatuses.some((s) => s === 'error')) return 'error'
       return 'success'
     }
-  }, [subflowChildrenMap, blockExecutionMap])
+    return derive
+  }, [subflowChildrenMap, blockExecutionMap, workflowState.blocks])
 
   /** Gets block status. Subflows derive status from children. */
   const getBlockExecutionStatus = useMemo(() => {
@@ -434,7 +451,6 @@ export function PreviewWorkflow({
   const edges: Edge[] = useMemo(() => {
     if (!isValidWorkflowState) return []
 
-    /** Edge is green if target executed and source condition met by edge type. */
     const getEdgeExecutionStatus = (edge: {
       source: string
       target: string
@@ -446,17 +462,40 @@ export function PreviewWorkflow({
       if (!targetStatus?.executed) return 'not-executed'
 
       const sourceStatus = getBlockExecutionStatus(edge.source)
-      const { sourceHandle } = edge
+      if (!sourceStatus?.executed) return 'not-executed'
 
-      if (sourceHandle === 'error') {
-        return sourceStatus?.status === 'error' ? 'success' : 'not-executed'
+      const handle = edge.sourceHandle
+      if (!handle) {
+        return sourceStatus.status === 'success' ? 'success' : 'not-executed'
       }
 
-      if (sourceHandle === 'loop-start-source' || sourceHandle === 'parallel-start-source') {
-        return 'success'
+      const sourceOutput = blockExecutionMap.get(edge.source)?.output as
+        | Record<string, any>
+        | undefined
+
+      if (handle.startsWith('condition-')) {
+        const conditionValue = handle.substring('condition-'.length)
+        return sourceOutput?.selectedOption === conditionValue ? 'success' : 'not-executed'
       }
 
-      return sourceStatus?.status === 'success' ? 'success' : 'not-executed'
+      if (handle.startsWith('router-')) {
+        const routeId = handle.substring('router-'.length)
+        return sourceOutput?.selectedRoute === routeId ? 'success' : 'not-executed'
+      }
+
+      switch (handle) {
+        case 'error':
+          return sourceStatus.status === 'error' ? 'error' : 'not-executed'
+        case 'source':
+          return sourceStatus.status === 'success' ? 'success' : 'not-executed'
+        case 'loop-start-source':
+        case 'loop-end-source':
+        case 'parallel-start-source':
+        case 'parallel-end-source':
+          return 'success'
+        default:
+          return sourceStatus.status === 'success' ? 'success' : 'not-executed'
+      }
     }
 
     return (workflowState.edges || []).map((edge) => {

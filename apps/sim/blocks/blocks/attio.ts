@@ -87,10 +87,46 @@ export const AttioBlock: BlockConfig<AttioResponse> = {
 
     // Record fields
     {
+      id: 'objectTypeSelector',
+      title: 'Object Type',
+      type: 'project-selector',
+      canonicalParamId: 'objectType',
+      serviceId: 'attio',
+      selectorKey: 'attio.objects',
+      selectorAllowSearch: false,
+      placeholder: 'Select object type',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: {
+        field: 'operation',
+        value: [
+          'list_records',
+          'get_record',
+          'create_record',
+          'update_record',
+          'delete_record',
+          'assert_record',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'list_records',
+          'get_record',
+          'create_record',
+          'update_record',
+          'delete_record',
+          'assert_record',
+        ],
+      },
+    },
+    {
       id: 'objectType',
       title: 'Object Type',
       type: 'short-input',
+      canonicalParamId: 'objectType',
       placeholder: 'e.g. people, companies',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
@@ -525,10 +561,48 @@ Return ONLY the JSON array. No explanations, no markdown, no extra text.
 
     // List fields
     {
+      id: 'listSelector',
+      title: 'List',
+      type: 'project-selector',
+      canonicalParamId: 'listIdOrSlug',
+      serviceId: 'attio',
+      selectorKey: 'attio.lists',
+      selectorAllowSearch: false,
+      placeholder: 'Select Attio list',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: {
+        field: 'operation',
+        value: [
+          'get_list',
+          'update_list',
+          'query_list_entries',
+          'get_list_entry',
+          'create_list_entry',
+          'update_list_entry',
+          'delete_list_entry',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'get_list',
+          'update_list',
+          'query_list_entries',
+          'get_list_entry',
+          'create_list_entry',
+          'update_list_entry',
+          'delete_list_entry',
+        ],
+      },
+    },
+    {
       id: 'listIdOrSlug',
       title: 'List ID or Slug',
       type: 'short-input',
+      canonicalParamId: 'listIdOrSlug',
       placeholder: 'Enter the list ID or slug',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [

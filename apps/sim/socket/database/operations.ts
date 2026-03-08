@@ -39,6 +39,56 @@ const db = socketDb
 const DEFAULT_LOOP_ITERATIONS = 5
 const DEFAULT_PARALLEL_COUNT = 5
 
+/** Minimal block shape needed for protection and descendant checks */
+interface DbBlockRef {
+  id: string
+  locked?: boolean | null
+  data: unknown
+}
+
+/**
+ * Checks if a block is protected (locked or inside a locked ancestor).
+ * Works with raw DB records.
+ */
+function isDbBlockProtected(blockId: string, blocksById: Record<string, DbBlockRef>): boolean {
+  const block = blocksById[blockId]
+  if (!block) return false
+  if (block.locked) return true
+  const visited = new Set<string>()
+  let parentId = (block.data as Record<string, unknown> | null)?.parentId as string | undefined
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId)
+    if (blocksById[parentId]?.locked) return true
+    parentId = (blocksById[parentId]?.data as Record<string, unknown> | null)?.parentId as
+      | string
+      | undefined
+  }
+  return false
+}
+
+/**
+ * Finds all descendant block IDs of a container (recursive).
+ * Works with raw DB block arrays.
+ */
+function findDbDescendants(containerId: string, allBlocks: DbBlockRef[]): string[] {
+  const descendants: string[] = []
+  const visited = new Set<string>()
+  const stack = [containerId]
+  while (stack.length > 0) {
+    const current = stack.pop()!
+    if (visited.has(current)) continue
+    visited.add(current)
+    for (const b of allBlocks) {
+      const pid = (b.data as Record<string, unknown> | null)?.parentId
+      if (pid === current) {
+        descendants.push(b.id)
+        stack.push(b.id)
+      }
+    }
+  }
+  return descendants
+}
+
 /**
  * Shared function to handle auto-connect edge insertion
  * @param tx - Database transaction
@@ -753,20 +803,8 @@ async function handleBlocksOperationTx(
         allBlocks.map((b: BlockRecord) => [b.id, b])
       )
 
-      // Helper to check if a block is protected (locked or inside locked parent)
-      const isProtected = (blockId: string): boolean => {
-        const block = blocksById[blockId]
-        if (!block) return false
-        if (block.locked) return true
-        const parentId = (block.data as Record<string, unknown> | null)?.parentId as
-          | string
-          | undefined
-        if (parentId && blocksById[parentId]?.locked) return true
-        return false
-      }
-
       // Filter out protected blocks from deletion request
-      const deletableIds = ids.filter((id) => !isProtected(id))
+      const deletableIds = ids.filter((id) => !isDbBlockProtected(id, blocksById))
       if (deletableIds.length === 0) {
         logger.info('All requested blocks are protected, skipping deletion')
         return
@@ -778,18 +816,14 @@ async function handleBlocksOperationTx(
         )
       }
 
-      // Collect all block IDs including children of subflows
+      // Collect all block IDs including all descendants of subflows
       const allBlocksToDelete = new Set<string>(deletableIds)
 
       for (const id of deletableIds) {
         const block = blocksById[id]
         if (block && isSubflowBlockType(block.type)) {
-          // Include all children of the subflow (they should be deleted with parent)
-          for (const b of allBlocks) {
-            const parentId = (b.data as Record<string, unknown> | null)?.parentId
-            if (parentId === id) {
-              allBlocksToDelete.add(b.id)
-            }
+          for (const descId of findDbDescendants(id, allBlocks)) {
+            allBlocksToDelete.add(descId)
           }
         }
       }
@@ -902,19 +936,18 @@ async function handleBlocksOperationTx(
       )
       const blocksToToggle = new Set<string>()
 
-      // Collect all blocks to toggle including children of containers
+      // Collect all blocks to toggle including descendants of containers
       for (const id of blockIds) {
         const block = blocksById[id]
-        if (!block || block.locked) continue
+        if (!block || isDbBlockProtected(id, blocksById)) continue
 
         blocksToToggle.add(id)
 
-        // If it's a loop or parallel, also include all children
+        // If it's a loop or parallel, also include all non-locked descendants
         if (block.type === 'loop' || block.type === 'parallel') {
-          for (const b of allBlocks) {
-            const parentId = (b.data as Record<string, unknown> | null)?.parentId
-            if (parentId === id && !b.locked) {
-              blocksToToggle.add(b.id)
+          for (const descId of findDbDescendants(id, allBlocks)) {
+            if (!isDbBlockProtected(descId, blocksById)) {
+              blocksToToggle.add(descId)
             }
           }
         }
@@ -966,20 +999,10 @@ async function handleBlocksOperationTx(
         allBlocks.map((b: HandleBlockRecord) => [b.id, b])
       )
 
-      // Helper to check if a block is protected (locked or inside locked parent)
-      const isProtected = (blockId: string): boolean => {
-        const block = blocksById[blockId]
-        if (!block) return false
-        if (block.locked) return true
-        const parentId = (block.data as Record<string, unknown> | null)?.parentId as
-          | string
-          | undefined
-        if (parentId && blocksById[parentId]?.locked) return true
-        return false
-      }
-
       // Filter to only toggle handles on unprotected blocks
-      const blocksToToggle = blockIds.filter((id) => blocksById[id] && !isProtected(id))
+      const blocksToToggle = blockIds.filter(
+        (id) => blocksById[id] && !isDbBlockProtected(id, blocksById)
+      )
       if (blocksToToggle.length === 0) {
         logger.info('All requested blocks are protected, skipping handles toggle')
         break
@@ -1025,20 +1048,17 @@ async function handleBlocksOperationTx(
       )
       const blocksToToggle = new Set<string>()
 
-      // Collect all blocks to toggle including children of containers
+      // Collect all blocks to toggle including descendants of containers
       for (const id of blockIds) {
         const block = blocksById[id]
         if (!block) continue
 
         blocksToToggle.add(id)
 
-        // If it's a loop or parallel, also include all children
+        // If it's a loop or parallel, also include all descendants
         if (block.type === 'loop' || block.type === 'parallel') {
-          for (const b of allBlocks) {
-            const parentId = (b.data as Record<string, unknown> | null)?.parentId
-            if (parentId === id) {
-              blocksToToggle.add(b.id)
-            }
+          for (const descId of findDbDescendants(id, allBlocks)) {
+            blocksToToggle.add(descId)
           }
         }
       }
@@ -1088,31 +1108,19 @@ async function handleBlocksOperationTx(
         allBlocks.map((b: ParentBlockRecord) => [b.id, b])
       )
 
-      // Helper to check if a block is protected (locked or inside locked parent)
-      const isProtected = (blockId: string): boolean => {
-        const block = blocksById[blockId]
-        if (!block) return false
-        if (block.locked) return true
-        const currentParentId = (block.data as Record<string, unknown> | null)?.parentId as
-          | string
-          | undefined
-        if (currentParentId && blocksById[currentParentId]?.locked) return true
-        return false
-      }
-
       for (const update of updates) {
         const { id, parentId, position } = update
         if (!id) continue
 
         // Skip protected blocks (locked or inside locked container)
-        if (isProtected(id)) {
+        if (isDbBlockProtected(id, blocksById)) {
           logger.info(`Skipping block ${id} parent update - block is protected`)
           continue
         }
 
-        // Skip if trying to move into a locked container
-        if (parentId && blocksById[parentId]?.locked) {
-          logger.info(`Skipping block ${id} parent update - target parent ${parentId} is locked`)
+        // Skip if trying to move into a locked container (or any of its ancestors)
+        if (parentId && isDbBlockProtected(parentId, blocksById)) {
+          logger.info(`Skipping block ${id} parent update - target parent ${parentId} is protected`)
           continue
         }
 
@@ -1235,19 +1243,8 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         }
       }
 
-      const isBlockProtected = (blockId: string): boolean => {
-        const block = blocksById[blockId]
-        if (!block) return false
-        if (block.locked) return true
-        const parentId = (block.data as Record<string, unknown> | null)?.parentId as
-          | string
-          | undefined
-        if (parentId && blocksById[parentId]?.locked) return true
-        return false
-      }
-
-      if (isBlockProtected(payload.source) || isBlockProtected(payload.target)) {
-        logger.info(`Skipping edge add - source or target block is protected`)
+      if (isDbBlockProtected(payload.target, blocksById)) {
+        logger.info(`Skipping edge add - target block is protected`)
         break
       }
 
@@ -1269,7 +1266,7 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         throw new Error('Missing edge ID for remove operation')
       }
 
-      // Get the edge to check if connected blocks are protected
+      // Get the edge to check if target block is protected
       const [edgeToRemove] = await tx
         .select({
           sourceBlockId: workflowEdges.sourceBlockId,
@@ -1283,7 +1280,7 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         throw new Error(`Edge ${payload.id} not found in workflow ${workflowId}`)
       }
 
-      // Check if source or target blocks are protected
+      // Check if target block is protected
       const connectedBlocks = await tx
         .select({
           id: workflowBlocks.id,
@@ -1334,22 +1331,8 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         }
       }
 
-      const isBlockProtected = (blockId: string): boolean => {
-        const block = blocksById[blockId]
-        if (!block) return false
-        if (block.locked) return true
-        const parentId = (block.data as Record<string, unknown> | null)?.parentId as
-          | string
-          | undefined
-        if (parentId && blocksById[parentId]?.locked) return true
-        return false
-      }
-
-      if (
-        isBlockProtected(edgeToRemove.sourceBlockId) ||
-        isBlockProtected(edgeToRemove.targetBlockId)
-      ) {
-        logger.info(`Skipping edge remove - source or target block is protected`)
+      if (isDbBlockProtected(edgeToRemove.targetBlockId, blocksById)) {
+        logger.info(`Skipping edge remove - target block is protected`)
         break
       }
 
@@ -1458,26 +1441,12 @@ async function handleEdgesOperationTx(
         }
       }
 
-      const isBlockProtected = (blockId: string): boolean => {
-        const block = blocksById[blockId]
-        if (!block) return false
-        if (block.locked) return true
-        const parentId = (block.data as Record<string, unknown> | null)?.parentId as
-          | string
-          | undefined
-        if (parentId && blocksById[parentId]?.locked) return true
-        return false
-      }
-
       const safeEdgeIds = edgesToRemove
-        .filter(
-          (e: EdgeToRemove) =>
-            !isBlockProtected(e.sourceBlockId) && !isBlockProtected(e.targetBlockId)
-        )
+        .filter((e: EdgeToRemove) => !isDbBlockProtected(e.targetBlockId, blocksById))
         .map((e: EdgeToRemove) => e.id)
 
       if (safeEdgeIds.length === 0) {
-        logger.info('All edges are connected to protected blocks, skipping removal')
+        logger.info('All edges target protected blocks, skipping removal')
         return
       }
 
@@ -1558,24 +1527,13 @@ async function handleEdgesOperationTx(
         }
       }
 
-      const isBlockProtected = (blockId: string): boolean => {
-        const block = blocksById[blockId]
-        if (!block) return false
-        if (block.locked) return true
-        const parentId = (block.data as Record<string, unknown> | null)?.parentId as
-          | string
-          | undefined
-        if (parentId && blocksById[parentId]?.locked) return true
-        return false
-      }
-
-      // Filter edges - only add edges where neither block is protected
+      // Filter edges - only add edges where target block is not protected
       const safeEdges = (edges as Array<Record<string, unknown>>).filter(
-        (e) => !isBlockProtected(e.source as string) && !isBlockProtected(e.target as string)
+        (e) => !isDbBlockProtected(e.target as string, blocksById)
       )
 
       if (safeEdges.length === 0) {
-        logger.info('All edges connect to protected blocks, skipping add')
+        logger.info('All edges target protected blocks, skipping add')
         return
       }
 

@@ -57,6 +57,7 @@ import {
   estimateBlockDimensions,
   filterProtectedBlocks,
   getClampedPositionForNode,
+  getDescendantBlockIds,
   getWorkflowLockToggleIds,
   isBlockProtected,
   isEdgeProtected,
@@ -195,17 +196,14 @@ const edgeTypes: EdgeTypes = {
 const defaultEdgeOptions = { type: 'custom' }
 
 const reactFlowStyles = [
-  'bg-[var(--bg)]',
   '[&_.react-flow__edges]:!z-0',
-  '[&_.react-flow__node]:!z-[21]',
+  '[&_.react-flow__node]:z-[21]',
   '[&_.react-flow__handle]:!z-[30]',
-  '[&_.react-flow__edge-labels]:!z-[60]',
-  '[&_.react-flow__pane]:!bg-[var(--bg)]',
+  '[&_.react-flow__edge-labels]:!z-[1001]',
   '[&_.react-flow__pane]:select-none',
   '[&_.react-flow__selectionpane]:select-none',
-  '[&_.react-flow__renderer]:!bg-[var(--bg)]',
-  '[&_.react-flow__viewport]:!bg-[var(--bg)]',
   '[&_.react-flow__background]:hidden',
+  '[&_.react-flow__node-subflowNode.selected]:!shadow-none',
 ].join(' ')
 const reactFlowFitViewOptions = { padding: 0.6, maxZoom: 1.0 } as const
 const reactFlowProOptions = { hideAttribution: true } as const
@@ -416,6 +414,7 @@ const WorkflowContent = React.memo(() => {
   const {
     getNodeDepth,
     getNodeAbsolutePosition,
+    isDescendantOf,
     calculateRelativePosition,
     isPointInLoopNode,
     resizeLoopNodes,
@@ -432,7 +431,6 @@ const WorkflowContent = React.memo(() => {
   const canNodeEnterContainer = useCallback(
     (node: Node): boolean => {
       if (node.data?.type === 'starter') return false
-      if (node.type === 'subflowNode') return false
       const block = blocks[node.id]
       return !(block && TriggerUtils.isTriggerBlock(block))
     },
@@ -681,9 +679,14 @@ const WorkflowContent = React.memo(() => {
       if (nodesNeedingUpdate.length === 0) return
 
       // Filter out nodes that cannot enter containers (when target is a container)
-      const validNodes = targetParentId
+      let validNodes = targetParentId
         ? nodesNeedingUpdate.filter(canNodeEnterContainer)
         : nodesNeedingUpdate
+
+      // Exclude nodes that would create a cycle (moving a container into one of its descendants)
+      if (targetParentId) {
+        validNodes = validNodes.filter((n) => !isDescendantOf(n.id, targetParentId))
+      }
 
       if (validNodes.length === 0) return
 
@@ -744,6 +747,7 @@ const WorkflowContent = React.memo(() => {
       blocks,
       edgesForDisplay,
       canNodeEnterContainer,
+      isDescendantOf,
       calculateRelativePosition,
       getNodeAbsolutePosition,
       shiftUpdatesToContainerBounds,
@@ -1014,12 +1018,22 @@ const WorkflowContent = React.memo(() => {
           return
         }
 
-        // Check if any pasted block is a subflow - subflows cannot be nested
-        const hasSubflow = pastedBlocksArray.some((b) => b.type === 'loop' || b.type === 'parallel')
-        if (hasSubflow) {
+        // Prevent cycle: pasting a container that is the target container itself or one of its ancestors.
+        // Use original clipboard IDs since preparePasteData regenerates them via uuidv4().
+        const ancestorIds = new Set<string>()
+        let walkId: string | undefined = targetContainer.loopId
+        while (walkId && !ancestorIds.has(walkId)) {
+          ancestorIds.add(walkId)
+          walkId = blocks[walkId]?.data?.parentId as string | undefined
+        }
+        const originalClipboardBlocks = clipboard ? Object.values(clipboard.blocks) : []
+        const wouldCreateCycle = originalClipboardBlocks.some(
+          (b) => (b.type === 'loop' || b.type === 'parallel') && ancestorIds.has(b.id)
+        )
+        if (wouldCreateCycle) {
           addNotification({
             level: 'error',
-            message: 'Subflows cannot be nested inside other subflows.',
+            message: 'Cannot paste a subflow inside itself or its own descendant.',
             workflowId: activeWorkflowId || undefined,
           })
           return
@@ -1702,31 +1716,75 @@ const WorkflowContent = React.memo(() => {
         const containerInfo = isPointInLoopNode(position)
 
         clearDragHighlights()
-        document.body.classList.remove('sim-drag-subflow')
 
         if (data.type === 'loop' || data.type === 'parallel') {
           const id = crypto.randomUUID()
           const baseName = data.type === 'loop' ? 'Loop' : 'Parallel'
           const name = getUniqueBlockName(baseName, blocks)
 
-          const autoConnectEdge = tryCreateAutoConnectEdge(position, id, {
-            targetParentId: null,
-          })
+          if (containerInfo) {
+            const rawPosition = {
+              x: position.x - containerInfo.loopPosition.x,
+              y: position.y - containerInfo.loopPosition.y,
+            }
 
-          addBlock(
-            id,
-            data.type,
-            name,
-            position,
-            {
-              width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-              height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
-              type: 'subflowNode',
-            },
-            undefined,
-            undefined,
-            autoConnectEdge
-          )
+            const relativePosition = clampPositionToContainer(
+              rawPosition,
+              containerInfo.dimensions,
+              {
+                width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+                height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+              }
+            )
+
+            const existingChildBlocks = Object.values(blocks)
+              .filter((b) => b.data?.parentId === containerInfo.loopId)
+              .map((b) => ({ id: b.id, type: b.type, position: b.position }))
+
+            const autoConnectEdge = tryCreateAutoConnectEdge(relativePosition, id, {
+              targetParentId: containerInfo.loopId,
+              existingChildBlocks,
+              containerId: containerInfo.loopId,
+            })
+
+            addBlock(
+              id,
+              data.type,
+              name,
+              relativePosition,
+              {
+                width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+                height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+                type: 'subflowNode',
+                parentId: containerInfo.loopId,
+                extent: 'parent',
+              },
+              containerInfo.loopId,
+              'parent',
+              autoConnectEdge
+            )
+
+            resizeLoopNodesWrapper()
+          } else {
+            const autoConnectEdge = tryCreateAutoConnectEdge(position, id, {
+              targetParentId: null,
+            })
+
+            addBlock(
+              id,
+              data.type,
+              name,
+              position,
+              {
+                width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+                height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+                type: 'subflowNode',
+              },
+              undefined,
+              undefined,
+              autoConnectEdge
+            )
+          }
 
           return
         }
@@ -2113,11 +2171,9 @@ const WorkflowContent = React.memo(() => {
         // Check if hovering over a container node
         const containerInfo = isPointInLoopNode(position)
 
-        // Highlight container if hovering over it and not dragging a subflow
-        // Subflow drag is marked by body class flag set by toolbar
-        const isSubflowDrag = document.body.classList.contains('sim-drag-subflow')
+        // Highlight container if hovering over it
 
-        if (containerInfo && !isSubflowDrag) {
+        if (containerInfo) {
           const containerNode = getNodes().find((n) => n.id === containerInfo.loopId)
           if (containerNode?.type === 'subflowNode') {
             const kind = (containerNode.data as SubflowNodeData)?.kind
@@ -2308,6 +2364,13 @@ const WorkflowContent = React.memo(() => {
 
       // Handle container nodes differently
       if (block.type === 'loop' || block.type === 'parallel') {
+        // Compute nesting depth so children always render above parents
+        let depth = 0
+        let pid = block.data?.parentId as string | undefined
+        while (pid && depth < 100) {
+          depth++
+          pid = blocks[pid]?.data?.parentId as string | undefined
+        }
         nodeArray.push({
           id: block.id,
           type: 'subflowNode',
@@ -2316,6 +2379,8 @@ const WorkflowContent = React.memo(() => {
           extent: block.data?.extent || undefined,
           dragHandle: '.workflow-drag-handle',
           draggable: !isBlockProtected(block.id, blocks),
+          zIndex: depth,
+          className: block.data?.parentId ? 'nested-subflow-node' : undefined,
           data: {
             ...block.data,
             name: block.name,
@@ -2344,6 +2409,12 @@ const WorkflowContent = React.memo(() => {
       const nodeType = block.type === 'note' ? 'noteBlock' : 'workflowBlock'
       const dragHandle = block.type === 'note' ? '.note-drag-handle' : '.workflow-drag-handle'
 
+      // Compute zIndex for blocks inside containers so they render above the
+      // parent subflow's interactive body area (which needs pointer-events for
+      // click-to-select). Container nodes use zIndex: depth (0, 1, 2...),
+      // so child blocks use a baseline that is always above any container.
+      const childZIndex = block.data?.parentId ? 1000 : undefined
+
       // Create stable node object - React Flow will handle shallow comparison
       nodeArray.push({
         id: block.id,
@@ -2352,6 +2423,7 @@ const WorkflowContent = React.memo(() => {
         parentId: block.data?.parentId,
         dragHandle,
         draggable: !isBlockProtected(block.id, blocks),
+        ...(childZIndex !== undefined && { zIndex: childZIndex }),
         extent: (() => {
           // Clamp children to subflow body (exclude header)
           const parentId = block.data?.parentId as string | undefined
@@ -2476,15 +2548,35 @@ const WorkflowContent = React.memo(() => {
         })
         if (validBlockIds.length === 0) return
 
-        const movingNodeIds = new Set(validBlockIds)
+        const validBlockIdSet = new Set(validBlockIds)
+        const descendantIds = getDescendantBlockIds(validBlockIds, blocks)
+        const movingNodeIds = new Set([...validBlockIds, ...descendantIds])
 
-        // Find boundary edges (edges that cross the subflow boundary)
+        // Find boundary edges (one end inside the subtree, one end outside)
         const boundaryEdges = edgesForDisplay.filter((e) => {
           const sourceInSelection = movingNodeIds.has(e.source)
           const targetInSelection = movingNodeIds.has(e.target)
           return sourceInSelection !== targetInSelection
         })
-        const boundaryEdgesByNode = mapEdgesByNode(boundaryEdges, movingNodeIds)
+
+        // Attribute each boundary edge to the validBlockId that is the ancestor of the moved endpoint
+        const boundaryEdgesByNode = new Map<string, Edge[]>()
+        for (const edge of boundaryEdges) {
+          const movedEnd = movingNodeIds.has(edge.source) ? edge.source : edge.target
+          let id: string | undefined = movedEnd
+          const seen = new Set<string>()
+          while (id) {
+            if (seen.has(id)) break
+            seen.add(id)
+            if (validBlockIdSet.has(id)) {
+              const list = boundaryEdgesByNode.get(id) ?? []
+              list.push(edge)
+              boundaryEdgesByNode.set(id, list)
+              break
+            }
+            id = blocks[id]?.data?.parentId
+          }
+        }
 
         // Collect absolute positions BEFORE any mutations
         const absolutePositions = new Map<string, { x: number; y: number }>()
@@ -2546,42 +2638,54 @@ const WorkflowContent = React.memo(() => {
 
   /**
    * Updates container dimensions in displayNodes during drag or keyboard movement.
+   * Resizes the moved node's immediate parent and all ancestor containers (for nested loops/parallels).
    */
   const updateContainerDimensionsDuringMove = useCallback(
     (movedNodeId: string, movedNodePosition: { x: number; y: number }) => {
-      const parentId = blocks[movedNodeId]?.data?.parentId
-      if (!parentId) return
+      const ancestorIds: string[] = []
+      const visited = new Set<string>()
+      let currentId = blocks[movedNodeId]?.data?.parentId
+      while (currentId && !visited.has(currentId)) {
+        visited.add(currentId)
+        ancestorIds.push(currentId)
+        currentId = blocks[currentId]?.data?.parentId
+      }
+      if (ancestorIds.length === 0) return
 
       setDisplayNodes((currentNodes) => {
-        const childNodes = currentNodes.filter((n) => n.parentId === parentId)
-        if (childNodes.length === 0) return currentNodes
+        const computedDimensions = new Map<string, { width: number; height: number }>()
 
-        const childPositions = childNodes.map((node) => {
-          const nodePosition = node.id === movedNodeId ? movedNodePosition : node.position
-          const { width, height } = getBlockDimensions(node.id)
-          return { x: nodePosition.x, y: nodePosition.y, width, height }
-        })
+        for (const containerId of ancestorIds) {
+          const childNodes = currentNodes.filter((n) => n.parentId === containerId)
+          if (childNodes.length === 0) continue
 
-        const { width: newWidth, height: newHeight } = calculateContainerDimensions(childPositions)
+          const childPositions = childNodes.map((node) => {
+            const nodePosition = node.id === movedNodeId ? movedNodePosition : node.position
+            const dims = computedDimensions.get(node.id)
+            const width = dims?.width ?? node.data?.width ?? getBlockDimensions(node.id).width
+            const height = dims?.height ?? node.data?.height ?? getBlockDimensions(node.id).height
+            return { x: nodePosition.x, y: nodePosition.y, width, height }
+          })
+
+          computedDimensions.set(containerId, calculateContainerDimensions(childPositions))
+        }
 
         return currentNodes.map((node) => {
-          if (node.id === parentId) {
-            const currentWidth = node.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH
-            const currentHeight = node.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
-
-            // Only update if dimensions changed
-            if (newWidth !== currentWidth || newHeight !== currentHeight) {
-              return {
-                ...node,
-                data: {
-                  ...node.data,
-                  width: newWidth,
-                  height: newHeight,
-                },
-              }
-            }
+          const newDims = computedDimensions.get(node.id)
+          if (!newDims) return node
+          const currentWidth = node.data?.width ?? CONTAINER_DIMENSIONS.DEFAULT_WIDTH
+          const currentHeight = node.data?.height ?? CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
+          if (newDims.width === currentWidth && newDims.height === currentHeight) {
+            return node
           }
-          return node
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              width: newDims.width,
+              height: newDims.height,
+            },
+          }
         })
       })
     },
@@ -2914,16 +3018,6 @@ const WorkflowContent = React.memo(() => {
       // Get the node's absolute position to properly calculate intersections
       const nodeAbsolutePos = getNodeAbsolutePosition(node.id)
 
-      // Prevent subflows from being dragged into other subflows
-      if (node.type === 'subflowNode') {
-        // Clear any highlighting for subflow nodes
-        if (potentialParentId) {
-          clearDragHighlights()
-          setPotentialParentId(null)
-        }
-        return // Exit early - subflows cannot be placed inside other subflows
-      }
-
       // Find intersections with container nodes using absolute coordinates
       const intersectingNodes = getNodes()
         .filter((n) => {
@@ -2993,15 +3087,25 @@ const WorkflowContent = React.memo(() => {
           return a.size - b.size // Smaller container takes precedence
         })
 
+        // Exclude containers that are inside the dragged node (would create a cycle)
+        const validContainers = sortedContainers.filter(
+          ({ container }) => !isDescendantOf(node.id, container.id)
+        )
+
         // Use the most appropriate container (deepest or smallest at same depth)
-        const bestContainerMatch = sortedContainers[0]
+        const bestContainerMatch = validContainers[0]
 
-        setPotentialParentId(bestContainerMatch.container.id)
+        if (bestContainerMatch) {
+          setPotentialParentId(bestContainerMatch.container.id)
 
-        // Add highlight class and change cursor
-        const kind = (bestContainerMatch.container.data as SubflowNodeData)?.kind
-        if (kind === 'loop' || kind === 'parallel') {
-          highlightContainerNode(bestContainerMatch.container.id, kind)
+          // Add highlight class and change cursor
+          const kind = (bestContainerMatch.container.data as SubflowNodeData)?.kind
+          if (kind === 'loop' || kind === 'parallel') {
+            highlightContainerNode(bestContainerMatch.container.id, kind)
+          }
+        } else {
+          clearDragHighlights()
+          setPotentialParentId(null)
         }
       } else {
         // Remove highlighting if no longer over a container
@@ -3017,6 +3121,7 @@ const WorkflowContent = React.memo(() => {
       blocks,
       getNodeAbsolutePosition,
       getNodeDepth,
+      isDescendantOf,
       updateContainerDimensionsDuringMove,
       highlightContainerNode,
     ]
@@ -3159,6 +3264,17 @@ const WorkflowContent = React.memo(() => {
         }
       }
 
+      // Prevent placing a container inside one of its own nested containers (would create cycle)
+      if (potentialParentId && isDescendantOf(node.id, potentialParentId)) {
+        addNotification({
+          level: 'info',
+          message: 'Cannot place a container inside one of its own nested containers',
+          workflowId: activeWorkflowId || undefined,
+        })
+        setPotentialParentId(null)
+        return
+      }
+
       // Update the node's parent relationship
       if (potentialParentId) {
         // Remove existing edges before moving into container
@@ -3275,6 +3391,7 @@ const WorkflowContent = React.memo(() => {
       getNodes,
       dragStartParentId,
       potentialParentId,
+      isDescendantOf,
       updateNodeParent,
       updateBlockPosition,
       collaborativeBatchAddEdges,
@@ -3655,21 +3772,20 @@ const WorkflowContent = React.memo(() => {
   return (
     <div className='flex h-full w-full flex-col overflow-hidden'>
       <div className='relative h-full w-full flex-1'>
-        {/* Loading spinner - always mounted, animation paused when hidden to avoid overhead */}
-        <div
-          className={`absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)] transition-opacity duration-150 ${isWorkflowReady ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
-        >
-          <div
-            className={`h-[18px] w-[18px] rounded-full ${isWorkflowReady ? '' : 'animate-spin'}`}
-            style={{
-              background:
-                'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
-              mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-              WebkitMask:
-                'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-            }}
-          />
-        </div>
+        {!isWorkflowReady && (
+          <div className='absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)]'>
+            <div
+              className='h-[18px] w-[18px] animate-spin rounded-full'
+              style={{
+                background:
+                  'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
+                mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+                WebkitMask:
+                  'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+              }}
+            />
+          </div>
+        )}
 
         {isWorkflowReady && (
           <>
@@ -3722,7 +3838,7 @@ const WorkflowContent = React.memo(() => {
               noWheelClassName='allow-scroll'
               edgesFocusable={true}
               edgesUpdatable={effectivePermissions.canEdit}
-              className={`workflow-container h-full transition-opacity duration-150 ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
+              className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
               onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
               onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
               onSelectionDragStart={effectivePermissions.canEdit ? onSelectionDragStart : undefined}
@@ -3734,7 +3850,7 @@ const WorkflowContent = React.memo(() => {
               elevateEdgesOnSelect={true}
               onlyRenderVisibleElements={false}
               deleteKeyCode={null}
-              elevateNodesOnSelect={true}
+              elevateNodesOnSelect={false}
               autoPanOnConnect={effectivePermissions.canEdit}
               autoPanOnNodeDrag={effectivePermissions.canEdit}
             />

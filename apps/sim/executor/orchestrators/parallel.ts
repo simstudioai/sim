@@ -9,9 +9,11 @@ import {
   type NormalizedBlockOutput,
 } from '@/executor/types'
 import type { ParallelConfigWithNodes } from '@/executor/types/parallel'
+import { buildContainerIterationContext } from '@/executor/utils/iteration-context'
 import { ParallelExpander } from '@/executor/utils/parallel-expansion'
 import {
   addSubflowErrorLog,
+  emitEmptySubflowEvents,
   extractBranchIndex,
   resolveArrayInput,
   validateMaxCount,
@@ -36,22 +38,14 @@ export interface ParallelAggregationResult {
 }
 
 export class ParallelOrchestrator {
-  private resolver: VariableResolver | null = null
-  private contextExtensions: ContextExtensions | null = null
   private expander = new ParallelExpander()
 
   constructor(
     private dag: DAG,
-    private state: BlockStateWriter
+    private state: BlockStateWriter,
+    private resolver: VariableResolver | null = null,
+    private contextExtensions: ContextExtensions | null = null
   ) {}
-
-  setResolver(resolver: VariableResolver): void {
-    this.resolver = resolver
-  }
-
-  setContextExtensions(contextExtensions: ContextExtensions): void {
-    this.contextExtensions = contextExtensions
-  }
 
   initializeParallelScope(
     ctx: ExecutionContext,
@@ -97,7 +91,6 @@ export class ParallelOrchestrator {
       throw new Error(branchError)
     }
 
-    // Handle empty distribution - skip parallel body
     if (isEmpty || branchCount === 0) {
       const scope: ParallelScope = {
         parallelId,
@@ -114,8 +107,9 @@ export class ParallelOrchestrator {
       }
       ctx.parallelExecutions.set(parallelId, scope)
 
-      // Set empty output for the parallel
       this.state.setBlockOutput(parallelId, { results: [] })
+
+      emitEmptySubflowEvents(ctx, parallelId, 'parallel', this.contextExtensions)
 
       logger.info('Parallel scope initialized with empty distribution, skipping body', {
         parallelId,
@@ -125,7 +119,56 @@ export class ParallelOrchestrator {
       return scope
     }
 
-    const { entryNodes } = this.expander.expandParallel(this.dag, parallelId, branchCount, items)
+    const { entryNodes, clonedSubflows } = this.expander.expandParallel(
+      this.dag,
+      parallelId,
+      branchCount,
+      items
+    )
+
+    // Register cloned subflows in the parent map so iteration context resolves correctly.
+    // Build a per-branch clone map so nested clones point to the cloned parent, not the original.
+    if (clonedSubflows.length > 0 && ctx.subflowParentMap) {
+      const branchCloneMaps = new Map<number, Map<string, string>>()
+      for (const clone of clonedSubflows) {
+        let map = branchCloneMaps.get(clone.outerBranchIndex)
+        if (!map) {
+          map = new Map()
+          branchCloneMaps.set(clone.outerBranchIndex, map)
+        }
+        map.set(clone.originalId, clone.clonedId)
+      }
+
+      for (const clone of clonedSubflows) {
+        const originalEntry = ctx.subflowParentMap.get(clone.originalId)
+        if (originalEntry) {
+          const cloneMap = branchCloneMaps.get(clone.outerBranchIndex)
+          const clonedParentId = cloneMap?.get(originalEntry.parentId)
+          if (clonedParentId) {
+            // Parent was also cloned — this is the original (branch 0) inside the cloned parent
+            ctx.subflowParentMap.set(clone.clonedId, {
+              parentId: clonedParentId,
+              parentType: originalEntry.parentType,
+              branchIndex: 0,
+            })
+          } else {
+            // Parent was not cloned — direct child of the expanding parallel
+            ctx.subflowParentMap.set(clone.clonedId, {
+              parentId: parallelId,
+              parentType: 'parallel',
+              branchIndex: clone.outerBranchIndex,
+            })
+          }
+        } else {
+          // Not in parent map — direct child of the expanding parallel
+          ctx.subflowParentMap.set(clone.clonedId, {
+            parentId: parallelId,
+            parentType: 'parallel',
+            branchIndex: clone.outerBranchIndex,
+          })
+        }
+      }
+    }
 
     const scope: ParallelScope = {
       parallelId,
@@ -210,10 +253,6 @@ export class ParallelOrchestrator {
   }
 
   private resolveDistributionItems(ctx: ExecutionContext, config: SerializedParallel): any[] {
-    if (config.parallelType === 'count') {
-      return []
-    }
-
     if (
       config.distribution === undefined ||
       config.distribution === null ||
@@ -261,22 +300,35 @@ export class ParallelOrchestrator {
 
     const results: NormalizedBlockOutput[][] = []
     for (let i = 0; i < scope.totalBranches; i++) {
-      const branchOutputs = scope.branchOutputs.get(i) || []
-      results.push(branchOutputs)
+      const branchOutputs = scope.branchOutputs.get(i)
+      if (!branchOutputs) {
+        logger.warn('Missing branch output during parallel aggregation', { parallelId, branch: i })
+      }
+      results.push(branchOutputs ?? [])
     }
     const output = { results }
     this.state.setBlockOutput(parallelId, output)
 
-    // Emit onBlockComplete for the parallel container so the UI can track it
+    // Emit onBlockComplete for the parallel container so the UI can track it.
+    // When this parallel is nested inside a parent subflow (parallel or loop), emit
+    // iteration context so the terminal can group this event under the parent container.
     if (this.contextExtensions?.onBlockComplete) {
       const now = new Date().toISOString()
-      this.contextExtensions.onBlockComplete(parallelId, 'Parallel', 'parallel', {
-        output,
-        executionTime: 0,
-        startedAt: now,
-        executionOrder: getNextExecutionOrder(ctx),
-        endedAt: now,
-      })
+      const iterationContext = buildContainerIterationContext(ctx, parallelId)
+
+      this.contextExtensions.onBlockComplete(
+        parallelId,
+        'Parallel',
+        'parallel',
+        {
+          output,
+          executionTime: 0,
+          startedAt: now,
+          executionOrder: getNextExecutionOrder(ctx),
+          endedAt: now,
+        },
+        iterationContext
+      )
     }
 
     return {

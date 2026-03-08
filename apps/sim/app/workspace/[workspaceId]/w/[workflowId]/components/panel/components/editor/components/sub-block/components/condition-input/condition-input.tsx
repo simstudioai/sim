@@ -31,6 +31,7 @@ import {
   TagDropdown,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { restoreCursorAfterInsertion } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/utils'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { normalizeName } from '@/executor/constants'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
@@ -554,8 +555,16 @@ export function ConditionInput({
     )
   }
 
-  const handleTagSelectImmediate = (blockId: string, newValue: string) => {
+  const handleTagSelectImmediate = (
+    blockId: string,
+    newValue: string,
+    newCursorPosition: number
+  ) => {
     if (isPreview || disabled) return
+
+    const textarea = containerRef.current?.querySelector(
+      `[data-block-id="${CSS.escape(blockId)}"] textarea`
+    ) as HTMLTextAreaElement | null
 
     shouldPersistRef.current = true
     setConditionalBlocks((blocks) =>
@@ -582,10 +591,20 @@ export function ConditionInput({
         : block
     )
     emitTagSelection(JSON.stringify(updatedBlocks))
+
+    restoreCursorAfterInsertion(textarea, newCursorPosition)
   }
 
-  const handleEnvVarSelectImmediate = (blockId: string, newValue: string) => {
+  const handleEnvVarSelectImmediate = (
+    blockId: string,
+    newValue: string,
+    newCursorPosition: number
+  ) => {
     if (isPreview || disabled) return
+
+    const textarea = containerRef.current?.querySelector(
+      `[data-block-id="${CSS.escape(blockId)}"] textarea`
+    ) as HTMLTextAreaElement | null
 
     shouldPersistRef.current = true
     setConditionalBlocks((blocks) =>
@@ -612,6 +631,8 @@ export function ConditionInput({
         : block
     )
     emitTagSelection(JSON.stringify(updatedBlocks))
+
+    restoreCursorAfterInsertion(textarea, newCursorPosition)
   }
 
   /**
@@ -999,7 +1020,9 @@ export function ConditionInput({
               {block.showEnvVars && (
                 <EnvVarDropdown
                   visible={block.showEnvVars}
-                  onSelect={(newValue) => handleEnvVarSelectImmediate(block.id, newValue)}
+                  onSelect={(newValue, newCursorPosition) =>
+                    handleEnvVarSelectImmediate(block.id, newValue, newCursorPosition)
+                  }
                   searchTerm={block.searchTerm}
                   inputValue={block.value}
                   cursorPosition={block.cursorPosition}
@@ -1023,7 +1046,9 @@ export function ConditionInput({
               {block.showTags && (
                 <TagDropdown
                   visible={block.showTags}
-                  onSelect={(newValue) => handleTagSelectImmediate(block.id, newValue)}
+                  onSelect={(newValue, newCursorPosition) =>
+                    handleTagSelectImmediate(block.id, newValue, newCursorPosition)
+                  }
                   blockId={blockId}
                   activeSourceBlockId={block.activeSourceBlockId}
                   inputValue={block.value}
@@ -1207,7 +1232,9 @@ export function ConditionInput({
                       {block.showEnvVars && (
                         <EnvVarDropdown
                           visible={block.showEnvVars}
-                          onSelect={(newValue) => handleEnvVarSelectImmediate(block.id, newValue)}
+                          onSelect={(newValue, newCursorPosition) =>
+                            handleEnvVarSelectImmediate(block.id, newValue, newCursorPosition)
+                          }
                           searchTerm={block.searchTerm}
                           inputValue={block.value}
                           cursorPosition={block.cursorPosition}
@@ -1225,7 +1252,9 @@ export function ConditionInput({
                       {block.showTags && (
                         <TagDropdown
                           visible={block.showTags}
-                          onSelect={(newValue) => handleTagSelectImmediate(block.id, newValue)}
+                          onSelect={(newValue, newCursorPosition) =>
+                            handleTagSelectImmediate(block.id, newValue, newCursorPosition)
+                          }
                           blockId={blockId}
                           activeSourceBlockId={block.activeSourceBlockId}
                           inputValue={block.value}

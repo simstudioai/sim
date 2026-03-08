@@ -71,6 +71,7 @@ export async function saveMessageCheckpoint(
     })
 
     if (!response.ok) {
+      await response.text().catch(() => {})
       throw new Error(`Failed to create checkpoint: ${response.statusText}`)
     }
 

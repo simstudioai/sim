@@ -22,6 +22,7 @@ import { createExecutionEventWriter, setExecutionMeta } from '@/lib/execution/ev
 import { processInputFileFields } from '@/lib/execution/files'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { decrementSSEConnections, incrementSSEConnections } from '@/lib/monitoring/sse-connections'
 import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
@@ -763,6 +764,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const encoder = new TextEncoder()
     const timeoutController = createTimeoutAbortController(preprocessResult.executionTimeout?.sync)
     let isStreamClosed = false
+    let sseDecremented = false
 
     const eventWriter = createExecutionEventWriter(executionId)
     setExecutionMeta(executionId, {
@@ -773,6 +775,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
+        incrementSSEConnections('workflow-execute')
         let finalMetaStatus: 'complete' | 'error' | 'cancelled' | null = null
 
         const sendEvent = (event: ExecutionEvent) => {
@@ -825,6 +828,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   iterationTotal: iterationContext.iterationTotal,
                   iterationType: iterationContext.iterationType,
                   iterationContainerId: iterationContext.iterationContainerId,
+                  ...(iterationContext.parentIterations?.length && {
+                    parentIterations: iterationContext.parentIterations,
+                  }),
                 }),
                 ...(childWorkflowContext && {
                   childWorkflowBlockId: childWorkflowContext.parentBlockId,
@@ -881,6 +887,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                     iterationTotal: iterationContext.iterationTotal,
                     iterationType: iterationContext.iterationType,
                     iterationContainerId: iterationContext.iterationContainerId,
+                    ...(iterationContext.parentIterations?.length && {
+                      parentIterations: iterationContext.parentIterations,
+                    }),
                   }),
                   ...childWorkflowData,
                   ...instanceData,
@@ -912,6 +921,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                     iterationTotal: iterationContext.iterationTotal,
                     iterationType: iterationContext.iterationType,
                     iterationContainerId: iterationContext.iterationContainerId,
+                    ...(iterationContext.parentIterations?.length && {
+                      parentIterations: iterationContext.parentIterations,
+                    }),
                   }),
                   ...childWorkflowData,
                   ...instanceData,
@@ -952,7 +964,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               logger.error(`[${requestId}] Error streaming block content:`, error)
             } finally {
               try {
-                reader.releaseLock()
+                await reader.cancel().catch(() => {})
               } catch {}
             }
           }
@@ -1147,6 +1159,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           if (executionId) {
             await cleanupExecutionBase64Cache(executionId)
           }
+          if (!sseDecremented) {
+            sseDecremented = true
+            decrementSSEConnections('workflow-execute')
+          }
           if (!isStreamClosed) {
             try {
               controller.enqueue(encoder.encode('data: [DONE]\n\n'))
@@ -1158,6 +1174,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       cancel() {
         isStreamClosed = true
         logger.info(`[${requestId}] Client disconnected from SSE stream`)
+        if (!sseDecremented) {
+          sseDecremented = true
+          decrementSSEConnections('workflow-execute')
+        }
       },
     })
 

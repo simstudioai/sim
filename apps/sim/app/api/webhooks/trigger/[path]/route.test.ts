@@ -100,6 +100,7 @@ const {
   fetchAndProcessAirtablePayloadsMock,
   processWebhookMock,
   executeMock,
+  getWorkspaceBilledAccountUserIdMock,
 } = vi.hoisted(() => ({
   generateRequestHashMock: vi.fn().mockResolvedValue('test-hash-123'),
   validateSlackSignatureMock: vi.fn().mockResolvedValue(true),
@@ -119,6 +120,11 @@ const {
       endTime: new Date().toISOString(),
     },
   }),
+  getWorkspaceBilledAccountUserIdMock: vi
+    .fn()
+    .mockImplementation(async (workspaceId: string | null | undefined) =>
+      workspaceId ? 'test-user-id' : null
+    ),
 }))
 
 vi.mock('@trigger.dev/sdk', () => ({
@@ -192,17 +198,10 @@ vi.mock('@/lib/logs/execution/logging-session', () => ({
   })),
 }))
 
-vi.mock('@/lib/workspaces/utils', async () => {
-  const actual = await vi.importActual('@/lib/workspaces/utils')
-  return {
-    ...(actual as Record<string, unknown>),
-    getWorkspaceBilledAccountUserId: vi
-      .fn()
-      .mockImplementation(async (workspaceId: string | null | undefined) =>
-        workspaceId ? 'test-user-id' : null
-      ),
-  }
-})
+vi.mock('@/lib/workspaces/utils', () => ({
+  getWorkspaceBillingSettings: vi.fn().mockResolvedValue(null),
+  getWorkspaceBilledAccountUserId: getWorkspaceBilledAccountUserIdMock,
+}))
 
 vi.mock('@/lib/core/rate-limiter', () => ({
   RateLimiter: vi.fn().mockImplementation(() => ({
@@ -502,12 +501,6 @@ describe('Webhook Trigger API Route', () => {
         workspaceId: 'test-workspace-id',
       })
 
-      vi.doMock('@trigger.dev/sdk', () => ({
-        tasks: {
-          trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }),
-        },
-      }))
-
       const testCases = [
         'Bearer case-test-token',
         'bearer case-test-token',
@@ -547,12 +540,6 @@ describe('Webhook Trigger API Route', () => {
         userId: 'test-user-id',
         workspaceId: 'test-workspace-id',
       })
-
-      vi.doMock('@trigger.dev/sdk', () => ({
-        tasks: {
-          trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }),
-        },
-      }))
 
       const testCases = ['X-Secret-Key', 'x-secret-key', 'X-SECRET-KEY', 'x-Secret-Key']
 

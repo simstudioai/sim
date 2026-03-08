@@ -9,6 +9,7 @@
  * - Edge cases
  */
 
+import { randomBytes } from 'crypto'
 import {
   createEncryptedApiKey,
   createLegacyApiKey,
@@ -16,6 +17,28 @@ import {
   expectApiKeyValid,
 } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
+
+const cryptoMock = vi.hoisted(() => ({
+  isEncryptedApiKeyFormat: (key: string) => key.startsWith('sk-sim-'),
+  isLegacyApiKeyFormat: (key: string) => key.startsWith('sim_') && !key.startsWith('sk-sim-'),
+  generateApiKey: () => `sim_${randomBytes(24).toString('base64url')}`,
+  generateEncryptedApiKey: () => `sk-sim-${randomBytes(24).toString('base64url')}`,
+  encryptApiKey: async (apiKey: string) => ({
+    encrypted: `mock-iv:${Buffer.from(apiKey).toString('hex')}:mock-tag`,
+    iv: 'mock-iv',
+  }),
+  decryptApiKey: async (encryptedValue: string) => {
+    if (!encryptedValue.includes(':') || encryptedValue.split(':').length !== 3) {
+      return { decrypted: encryptedValue }
+    }
+    const parts = encryptedValue.split(':')
+    const hexPart = parts[1]
+    return { decrypted: Buffer.from(hexPart, 'hex').toString('utf8') }
+  },
+}))
+
+vi.mock('@/lib/api-key/crypto', () => cryptoMock)
+
 import {
   authenticateApiKey,
   formatApiKeyForDisplay,
@@ -23,36 +46,9 @@ import {
   isEncryptedKey,
   isValidApiKeyFormat,
 } from '@/lib/api-key/auth'
-import {
-  generateApiKey,
-  generateEncryptedApiKey,
-  isEncryptedApiKeyFormat,
-  isLegacyApiKeyFormat,
-} from '@/lib/api-key/crypto'
 
-// Mock the crypto module's encryption functions for predictable testing
-vi.mock('@/lib/api-key/crypto', async () => {
-  const actual = await vi.importActual('@/lib/api-key/crypto')
-  return {
-    ...actual,
-    // Keep the format detection functions as-is
-    isEncryptedApiKeyFormat: (key: string) => key.startsWith('sk-sim-'),
-    isLegacyApiKeyFormat: (key: string) => key.startsWith('sim_') && !key.startsWith('sk-sim-'),
-    // Mock encryption/decryption to be reversible for testing
-    encryptApiKey: async (apiKey: string) => ({
-      encrypted: `mock-iv:${Buffer.from(apiKey).toString('hex')}:mock-tag`,
-      iv: 'mock-iv',
-    }),
-    decryptApiKey: async (encryptedValue: string) => {
-      if (!encryptedValue.includes(':') || encryptedValue.split(':').length !== 3) {
-        return { decrypted: encryptedValue }
-      }
-      const parts = encryptedValue.split(':')
-      const hexPart = parts[1]
-      return { decrypted: Buffer.from(hexPart, 'hex').toString('utf8') }
-    },
-  }
-})
+const { generateApiKey, generateEncryptedApiKey, isEncryptedApiKeyFormat, isLegacyApiKeyFormat } =
+  cryptoMock
 
 describe('isEncryptedKey', () => {
   it('should detect encrypted storage format (iv:encrypted:authTag)', () => {

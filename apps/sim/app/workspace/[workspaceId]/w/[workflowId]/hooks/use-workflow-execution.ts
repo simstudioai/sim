@@ -20,7 +20,10 @@ import {
   TriggerUtils,
 } from '@/lib/workflows/triggers/triggers'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
-import { updateActiveBlockRefCount } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
+import {
+  markOutgoingEdgesFromOutput,
+  updateActiveBlockRefCount,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { getBlock } from '@/blocks'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type {
@@ -32,6 +35,7 @@ import type {
 } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { coerceValue } from '@/executor/utils/start-block'
+import { stripCloneSuffixes } from '@/executor/utils/subflow-utils'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { WorkflowValidationError } from '@/serializer'
@@ -62,7 +66,7 @@ interface DebugValidationResult {
 interface BlockEventHandlerConfig {
   workflowId?: string
   executionIdRef: { current: string }
-  workflowEdges: Array<{ id: string; target: string; sourceHandle?: string | null }>
+  workflowEdges: Array<{ id: string; source: string; target: string; sourceHandle?: string | null }>
   activeBlocksSet: Set<string>
   activeBlockRefCounts: Map<string, number>
   accumulatedBlockLogs: BlockLog[]
@@ -334,18 +338,30 @@ export function useWorkflowExecution() {
         setActiveBlocks(workflowId, new Set(activeBlocksSet))
       }
 
-      const markIncomingEdges = (blockId: string) => {
+      const markOutgoingEdges = (blockId: string, output: Record<string, any> | undefined) => {
         if (!workflowId) return
-        const incomingEdges = workflowEdges.filter((edge) => edge.target === blockId)
-        incomingEdges.forEach((edge) => {
-          const status = edge.sourceHandle === 'error' ? 'error' : 'success'
-          setEdgeRunStatus(workflowId, edge.id, status)
-        })
+        markOutgoingEdgesFromOutput(blockId, output, workflowEdges, workflowId, setEdgeRunStatus)
       }
 
       const isContainerBlockType = (blockType?: string) => {
         return blockType === 'loop' || blockType === 'parallel'
       }
+
+      /** Extracts iteration and child-workflow fields shared across console entry call sites. */
+      const extractIterationFields = (
+        data: BlockStartedData | BlockCompletedData | BlockErrorData
+      ) => ({
+        iterationCurrent: data.iterationCurrent,
+        iterationTotal: data.iterationTotal,
+        iterationType: data.iterationType,
+        iterationContainerId: data.iterationContainerId,
+        parentIterations: data.parentIterations,
+        childWorkflowBlockId: data.childWorkflowBlockId,
+        childWorkflowName: data.childWorkflowName,
+        ...('childWorkflowInstanceId' in data && {
+          childWorkflowInstanceId: data.childWorkflowInstanceId,
+        }),
+      })
 
       const createBlockLogEntry = (
         data: BlockCompletedData | BlockErrorData,
@@ -379,13 +395,7 @@ export function useWorkflowExecution() {
           executionId: executionIdRef.current,
           blockName: data.blockName || 'Unknown Block',
           blockType: data.blockType || 'unknown',
-          iterationCurrent: data.iterationCurrent,
-          iterationTotal: data.iterationTotal,
-          iterationType: data.iterationType,
-          iterationContainerId: data.iterationContainerId,
-          childWorkflowBlockId: data.childWorkflowBlockId,
-          childWorkflowName: data.childWorkflowName,
-          childWorkflowInstanceId: data.childWorkflowInstanceId,
+          ...extractIterationFields(data),
         })
       }
 
@@ -405,13 +415,7 @@ export function useWorkflowExecution() {
           executionId: executionIdRef.current,
           blockName: data.blockName || 'Unknown Block',
           blockType: data.blockType || 'unknown',
-          iterationCurrent: data.iterationCurrent,
-          iterationTotal: data.iterationTotal,
-          iterationType: data.iterationType,
-          iterationContainerId: data.iterationContainerId,
-          childWorkflowBlockId: data.childWorkflowBlockId,
-          childWorkflowName: data.childWorkflowName,
-          childWorkflowInstanceId: data.childWorkflowInstanceId,
+          ...extractIterationFields(data),
         })
       }
 
@@ -427,13 +431,7 @@ export function useWorkflowExecution() {
             startedAt: data.startedAt,
             endedAt: data.endedAt,
             isRunning: false,
-            iterationCurrent: data.iterationCurrent,
-            iterationTotal: data.iterationTotal,
-            iterationType: data.iterationType,
-            iterationContainerId: data.iterationContainerId,
-            childWorkflowBlockId: data.childWorkflowBlockId,
-            childWorkflowName: data.childWorkflowName,
-            childWorkflowInstanceId: data.childWorkflowInstanceId,
+            ...extractIterationFields(data),
           },
           executionIdRef.current
         )
@@ -452,13 +450,7 @@ export function useWorkflowExecution() {
             startedAt: data.startedAt,
             endedAt: data.endedAt,
             isRunning: false,
-            iterationCurrent: data.iterationCurrent,
-            iterationTotal: data.iterationTotal,
-            iterationType: data.iterationType,
-            iterationContainerId: data.iterationContainerId,
-            childWorkflowBlockId: data.childWorkflowBlockId,
-            childWorkflowName: data.childWorkflowName,
-            childWorkflowInstanceId: data.childWorkflowInstanceId,
+            ...extractIterationFields(data),
           },
           executionIdRef.current
         )
@@ -467,7 +459,6 @@ export function useWorkflowExecution() {
       const onBlockStarted = (data: BlockStartedData) => {
         if (isStaleExecution()) return
         updateActiveBlocks(data.blockId, true)
-        markIncomingEdges(data.blockId)
 
         if (!includeStartConsoleEntry || !workflowId) return
 
@@ -486,12 +477,7 @@ export function useWorkflowExecution() {
           blockName: data.blockName || 'Unknown Block',
           blockType: data.blockType || 'unknown',
           isRunning: true,
-          iterationCurrent: data.iterationCurrent,
-          iterationTotal: data.iterationTotal,
-          iterationType: data.iterationType,
-          iterationContainerId: data.iterationContainerId,
-          childWorkflowBlockId: data.childWorkflowBlockId,
-          childWorkflowName: data.childWorkflowName,
+          ...extractIterationFields(data),
         })
       }
 
@@ -499,7 +485,7 @@ export function useWorkflowExecution() {
         if (isStaleExecution()) return
         updateActiveBlocks(data.blockId, false)
         if (workflowId) setBlockRunStatus(workflowId, data.blockId, 'success')
-
+        markOutgoingEdges(data.blockId, data.output as Record<string, any> | undefined)
         executedBlockIds.add(data.blockId)
         accumulatedBlockStates.set(data.blockId, {
           output: data.output,
@@ -507,8 +493,20 @@ export function useWorkflowExecution() {
           executionTime: data.durationMs,
         })
 
+        // For nested containers, the SSE blockId may be a cloned ID (e.g. P1__obranch-0).
+        // Also record the original workflow-level ID so the canvas can highlight it.
         if (isContainerBlockType(data.blockType)) {
-          return
+          const originalId = stripCloneSuffixes(data.blockId)
+          if (originalId !== data.blockId) {
+            executedBlockIds.add(originalId)
+            if (workflowId) setBlockRunStatus(workflowId, originalId, 'success')
+          }
+        }
+
+        if (isContainerBlockType(data.blockType) && !data.iterationContainerId) {
+          const output = data.output as Record<string, any> | undefined
+          const isEmptySubflow = Array.isArray(output?.results) && output.results.length === 0
+          if (!isEmptySubflow) return
         }
 
         accumulatedBlockLogs.push(createBlockLogEntry(data, { success: true, output: data.output }))
@@ -530,6 +528,7 @@ export function useWorkflowExecution() {
         if (isStaleExecution()) return
         updateActiveBlocks(data.blockId, false)
         if (workflowId) setBlockRunStatus(workflowId, data.blockId, 'error')
+        markOutgoingEdges(data.blockId, { error: data.error })
 
         executedBlockIds.add(data.blockId)
         accumulatedBlockStates.set(data.blockId, {
@@ -537,6 +536,15 @@ export function useWorkflowExecution() {
           executed: true,
           executionTime: data.durationMs || 0,
         })
+
+        // For nested containers, also record the original workflow-level ID
+        if (isContainerBlockType(data.blockType)) {
+          const originalId = stripCloneSuffixes(data.blockId)
+          if (originalId !== data.blockId) {
+            executedBlockIds.add(originalId)
+            if (workflowId) setBlockRunStatus(workflowId, originalId, 'error')
+          }
+        }
 
         accumulatedBlockLogs.push(
           createBlockLogEntry(data, { success: false, output: {}, error: data.error })
@@ -745,7 +753,7 @@ export function useWorkflowExecution() {
         const stream = new ReadableStream({
           async start(controller) {
             const { encodeSSE } = await import('@/lib/core/utils/sse')
-            const streamedContent = new Map<string, string>()
+            const streamedChunks = new Map<string, string[]>()
             const streamReadingPromises: Promise<void>[] = []
 
             const safeEnqueue = (data: Uint8Array) => {
@@ -845,8 +853,8 @@ export function useWorkflowExecution() {
                 const reader = streamingExecution.stream.getReader()
                 const blockId = (streamingExecution.execution as any)?.blockId
 
-                if (blockId && !streamedContent.has(blockId)) {
-                  streamedContent.set(blockId, '')
+                if (blockId && !streamedChunks.has(blockId)) {
+                  streamedChunks.set(blockId, [])
                 }
 
                 try {
@@ -860,13 +868,13 @@ export function useWorkflowExecution() {
                     }
                     const chunk = new TextDecoder().decode(value)
                     if (blockId) {
-                      streamedContent.set(blockId, (streamedContent.get(blockId) || '') + chunk)
+                      streamedChunks.get(blockId)!.push(chunk)
                     }
 
                     let chunkToSend = chunk
                     if (blockId && !processedFirstChunk.has(blockId)) {
                       processedFirstChunk.add(blockId)
-                      if (streamedContent.size > 1) {
+                      if (streamedChunks.size > 1) {
                         chunkToSend = `\n\n${chunk}`
                       }
                     }
@@ -884,7 +892,7 @@ export function useWorkflowExecution() {
             // Handle non-streaming blocks (like Function blocks)
             const onBlockComplete = async (blockId: string, output: any) => {
               // Skip if this block already had streaming content (avoid duplicates)
-              if (streamedContent.has(blockId)) {
+              if (streamedChunks.has(blockId)) {
                 logger.debug('[handleRunWorkflow] Skipping onBlockComplete for streaming block', {
                   blockId,
                 })
@@ -921,13 +929,13 @@ export function useWorkflowExecution() {
                       : JSON.stringify(outputValue, null, 2)
 
                   // Add separator if this isn't the first output
-                  const separator = streamedContent.size > 0 ? '\n\n' : ''
+                  const separator = streamedChunks.size > 0 ? '\n\n' : ''
 
                   // Send the non-streaming block output as a chunk
                   safeEnqueue(encodeSSE({ blockId, chunk: separator + formattedOutput }))
 
                   // Track that we've sent output for this block
-                  streamedContent.set(blockId, formattedOutput)
+                  streamedChunks.set(blockId, [formattedOutput])
                 }
               }
             }
@@ -967,6 +975,12 @@ export function useWorkflowExecution() {
                       log.durationMs = completionTime - startTime
                     }
                   })
+                }
+
+                // Resolve chunks to final strings for consumption
+                const streamedContent = new Map<string, string>()
+                for (const [id, chunks] of streamedChunks) {
+                  streamedContent.set(id, chunks.join(''))
                 }
 
                 // Update streamed content and apply tokenization
@@ -1112,9 +1126,7 @@ export function useWorkflowExecution() {
       {} as typeof workflowBlocks
     )
 
-    const isExecutingFromChat =
-      overrideTriggerType === 'chat' ||
-      (workflowInput && typeof workflowInput === 'object' && 'input' in workflowInput)
+    const isExecutingFromChat = overrideTriggerType === 'chat'
 
     logger.info('Executing workflow', {
       isDiffMode: currentWorkflow.isDiffMode,
@@ -1316,7 +1328,7 @@ export function useWorkflowExecution() {
 
       const activeBlocksSet = new Set<string>()
       const activeBlockRefCounts = new Map<string, number>()
-      const streamedContent = new Map<string, string>()
+      const streamedChunks = new Map<string, string[]>()
       const accumulatedBlockLogs: BlockLog[] = []
       const accumulatedBlockStates = new Map<string, BlockState>()
       const executedBlockIds = new Set<string>()
@@ -1374,8 +1386,10 @@ export function useWorkflowExecution() {
             onBlockChildWorkflowStarted: blockHandlers.onBlockChildWorkflowStarted,
 
             onStreamChunk: (data) => {
-              const existing = streamedContent.get(data.blockId) || ''
-              streamedContent.set(data.blockId, existing + data.chunk)
+              if (!streamedChunks.has(data.blockId)) {
+                streamedChunks.set(data.blockId, [])
+              }
+              streamedChunks.get(data.blockId)!.push(data.chunk)
 
               // Call onStream callback if provided (create a fake StreamingExecution)
               if (onStream && isExecutingFromChat) {
@@ -1390,7 +1404,7 @@ export function useWorkflowExecution() {
                   stream,
                   execution: {
                     success: true,
-                    output: { content: existing + data.chunk },
+                    output: { content: '' },
                     blockId: data.blockId,
                   } as any,
                 }
@@ -1481,8 +1495,13 @@ export function useWorkflowExecution() {
                 : null
               if (activeWorkflowId && !workflowExecState?.isDebugging) {
                 setExecutionResult(executionResult)
-                setIsExecuting(activeWorkflowId, false)
-                setActiveBlocks(activeWorkflowId, new Set())
+                // For chat executions, don't set isExecuting=false here — the chat's
+                // client-side stream wrapper still has buffered data to deliver.
+                // The chat's finally block handles cleanup after the stream is fully consumed.
+                if (!isExecutingFromChat) {
+                  setIsExecuting(activeWorkflowId, false)
+                  setActiveBlocks(activeWorkflowId, new Set())
+                }
                 setTimeout(() => {
                   queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
                 }, 1000)
@@ -1522,7 +1541,7 @@ export function useWorkflowExecution() {
                 isPreExecutionError,
               })
 
-              if (activeWorkflowId) {
+              if (activeWorkflowId && !isExecutingFromChat) {
                 setIsExecuting(activeWorkflowId, false)
                 setIsDebugging(activeWorkflowId, false)
                 setActiveBlocks(activeWorkflowId, new Set())
@@ -1548,7 +1567,7 @@ export function useWorkflowExecution() {
                 durationMs: data?.duration,
               })
 
-              if (activeWorkflowId) {
+              if (activeWorkflowId && !isExecutingFromChat) {
                 setIsExecuting(activeWorkflowId, false)
                 setIsDebugging(activeWorkflowId, false)
                 setActiveBlocks(activeWorkflowId, new Set())

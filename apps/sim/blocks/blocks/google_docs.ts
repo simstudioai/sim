@@ -1,4 +1,5 @@
 import { GoogleDocsIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { GoogleDocsResponse } from '@/tools/google_docs/types'
@@ -36,10 +37,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       mode: 'basic',
       required: true,
       serviceId: 'google-docs',
-      requiredScopes: [
-        'https://www.googleapis.com/auth/drive.file',
-        'https://www.googleapis.com/auth/drive',
-      ],
+      requiredScopes: getScopesForService('google-docs'),
       placeholder: 'Select Google account',
     },
     {
@@ -58,6 +56,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       type: 'file-selector',
       canonicalParamId: 'documentId',
       serviceId: 'google-docs',
+      selectorKey: 'google.drive',
       requiredScopes: [],
       mimeType: 'application/vnd.google-apps.document',
       placeholder: 'Select a document',
@@ -100,6 +99,7 @@ Return ONLY the document title - no explanations, no extra text.`,
       type: 'file-selector',
       canonicalParamId: 'folderId',
       serviceId: 'google-docs',
+      selectorKey: 'google.drive',
       requiredScopes: [],
       mimeType: 'application/vnd.google-apps.folder',
       placeholder: 'Select a parent folder',

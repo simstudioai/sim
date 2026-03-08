@@ -4,19 +4,19 @@ export interface JSONProperty {
   id: string
   name: string
   type: string
-  value: any
+  value: unknown
   collapsed?: boolean
 }
 
 /**
  * Converts builder data (structured JSON properties) into a plain JSON object.
  */
-export function convertBuilderDataToJson(builderData: JSONProperty[]): any {
+export function convertBuilderDataToJson(builderData: JSONProperty[]): Record<string, unknown> {
   if (!Array.isArray(builderData)) {
     return {}
   }
 
-  const result: any = {}
+  const result: Record<string, unknown> = {}
 
   for (const prop of builderData) {
     if (!prop.name || !prop.name.trim()) {
@@ -38,7 +38,7 @@ export function convertBuilderDataToJsonString(builderData: JSONProperty[]): str
     return '{\n  \n}'
   }
 
-  const result: any = {}
+  const result: Record<string, unknown> = {}
 
   for (const prop of builderData) {
     if (!prop.name || !prop.name.trim()) {
@@ -55,7 +55,7 @@ export function convertBuilderDataToJsonString(builderData: JSONProperty[]): str
   return jsonString
 }
 
-export function convertPropertyValue(prop: JSONProperty): any {
+export function convertPropertyValue(prop: JSONProperty): unknown {
   switch (prop.type) {
     case 'object':
       return convertObjectValue(prop.value)
@@ -72,9 +72,9 @@ export function convertPropertyValue(prop: JSONProperty): any {
   }
 }
 
-function convertObjectValue(value: any): any {
+function convertObjectValue(value: unknown): unknown {
   if (Array.isArray(value)) {
-    return convertBuilderDataToJson(value)
+    return convertBuilderDataToJson(value as JSONProperty[])
   }
 
   if (typeof value === 'string' && !isVariableReference(value)) {
@@ -84,9 +84,9 @@ function convertObjectValue(value: any): any {
   return value
 }
 
-function convertArrayValue(value: any): any {
+function convertArrayValue(value: unknown): unknown {
   if (Array.isArray(value)) {
-    return value.map((item: any) => convertArrayItem(item))
+    return value.map((item: unknown) => convertArrayItem(item))
   }
 
   if (typeof value === 'string' && !isVariableReference(value)) {
@@ -97,25 +97,34 @@ function convertArrayValue(value: any): any {
   return value
 }
 
-function convertArrayItem(item: any): any {
-  if (typeof item !== 'object' || !item.type) {
+function convertArrayItem(item: unknown): unknown {
+  if (typeof item !== 'object' || item === null || !('type' in item)) {
     return item
   }
 
-  if (item.type === 'object' && Array.isArray(item.value)) {
-    return convertBuilderDataToJson(item.value)
+  const record = item as Record<string, unknown>
+  if (typeof record.type !== 'string') {
+    return item
   }
 
-  if (item.type === 'array' && Array.isArray(item.value)) {
-    return item.value.map((subItem: any) =>
-      typeof subItem === 'object' && subItem.type ? subItem.value : subItem
+  const typed = record as { type: string; value: unknown }
+
+  if (typed.type === 'object' && Array.isArray(typed.value)) {
+    return convertBuilderDataToJson(typed.value as JSONProperty[])
+  }
+
+  if (typed.type === 'array' && Array.isArray(typed.value)) {
+    return (typed.value as unknown[]).map((subItem: unknown) =>
+      typeof subItem === 'object' && subItem !== null && 'value' in subItem
+        ? (subItem as { value: unknown }).value
+        : subItem
     )
   }
 
-  return item.value
+  return typed.value
 }
 
-function convertNumberValue(value: any): any {
+function convertNumberValue(value: unknown): unknown {
   if (isVariableReference(value)) {
     return value
   }
@@ -124,7 +133,7 @@ function convertNumberValue(value: any): any {
   return Number.isNaN(numValue) ? value : numValue
 }
 
-function convertBooleanValue(value: any): any {
+function convertBooleanValue(value: unknown): unknown {
   if (isVariableReference(value)) {
     return value
   }
@@ -132,7 +141,7 @@ function convertBooleanValue(value: any): any {
   return value === 'true' || value === true
 }
 
-function tryParseJson(jsonString: string, fallback: any): any {
+function tryParseJson(jsonString: string, fallback: unknown): unknown {
   try {
     return JSON.parse(jsonString)
   } catch {
@@ -140,7 +149,7 @@ function tryParseJson(jsonString: string, fallback: any): any {
   }
 }
 
-function isVariableReference(value: any): boolean {
+function isVariableReference(value: unknown): boolean {
   return (
     typeof value === 'string' &&
     value.trim().startsWith(REFERENCE.START) &&
