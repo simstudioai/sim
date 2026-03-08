@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { motion } from 'framer-motion'
 import { ArrowUp, CodeIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { type Edge, type Node, Position } from 'reactflow'
@@ -152,6 +153,16 @@ export default function Hero() {
   const [lastHoveredIndex, setLastHoveredIndex] = React.useState<number | null>(null)
   const intervalRef = React.useRef<NodeJS.Timeout | null>(null)
 
+  const iconRowRef = React.useRef<HTMLDivElement | null>(null)
+  const buttonRefs = React.useRef<(HTMLDivElement | null)[]>([])
+  const [pillLayout, setPillLayout] = React.useState<{
+    left: number
+    top: number
+    width: number
+    height: number
+  } | null>(null)
+  const [layoutVersion, setLayoutVersion] = React.useState(0)
+
   /**
    * Handle service icon click to populate textarea with template
    */
@@ -245,6 +256,29 @@ export default function Hero() {
       setAutoHoverIndex((lastHoveredIndex + 1) % visibleIconCount)
     }
   }
+
+  const activeIconIndex =
+    isUserHovering && lastHoveredIndex !== null ? lastHoveredIndex : autoHoverIndex
+
+  React.useLayoutEffect(() => {
+    const container = iconRowRef.current
+    const target = buttonRefs.current[activeIconIndex]
+    if (!container || !target) return
+    const cr = container.getBoundingClientRect()
+    const tr = target.getBoundingClientRect()
+    setPillLayout({
+      left: tr.left - cr.left,
+      top: tr.top - cr.top,
+      width: tr.width,
+      height: tr.height,
+    })
+  }, [activeIconIndex, layoutVersion, visibleIconCount])
+
+  React.useEffect(() => {
+    const onResize = () => setLayoutVersion((v) => v + 1)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   /**
    * Handle form submission
@@ -377,24 +411,48 @@ export default function Hero() {
         Build and deploy AI agent workflows
       </p>
       <div
-        className='flex items-center justify-center gap-[2px] pt-[18px] sm:pt-[32px]'
+        ref={iconRowRef}
+        className='relative flex items-center justify-center gap-[2px] pt-[18px] sm:pt-[32px]'
         onMouseEnter={handleIconContainerMouseEnter}
         onMouseLeave={handleIconContainerMouseLeave}
       >
-        {/* Service integration buttons */}
+        {pillLayout !== null && (
+          <motion.div
+            className='pointer-events-none absolute rounded-xl border border-[#E5E5E5] shadow-[0_2px_4px_0_rgba(0,0,0,0.08)]'
+            initial={false}
+            animate={{
+              left: pillLayout.left,
+              top: pillLayout.top,
+              width: pillLayout.width,
+              height: pillLayout.height,
+            }}
+            transition={{
+              type: 'spring',
+              stiffness: 325,
+              damping: 33,
+              mass: 1.12,
+            }}
+          />
+        )}
         {serviceIcons.slice(0, visibleIconCount).map((service, index) => {
           const Icon = service.icon
           return (
-            <IconButton
+            <div
               key={service.key}
-              aria-label={service.label}
-              onClick={() => handleServiceClick(service.key as keyof typeof SERVICE_TEMPLATES)}
-              onMouseEnter={() => setLastHoveredIndex(index)}
-              style={service.style}
-              isAutoHovered={!isUserHovering && index === autoHoverIndex}
+              ref={(el) => {
+                buttonRefs.current[index] = el
+              }}
             >
-              <Icon className='h-5 w-5 sm:h-6 sm:w-6' />
-            </IconButton>
+              <IconButton
+                aria-label={service.label}
+                onClick={() => handleServiceClick(service.key as keyof typeof SERVICE_TEMPLATES)}
+                onMouseEnter={() => setLastHoveredIndex(index)}
+                style={service.style}
+                isAutoHovered={!isUserHovering && index === autoHoverIndex}
+              >
+                <Icon className='h-5 w-5 sm:h-6 sm:w-6' />
+              </IconButton>
+            </div>
           )
         })}
       </div>
