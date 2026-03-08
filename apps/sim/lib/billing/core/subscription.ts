@@ -518,15 +518,17 @@ export async function sendPlanWelcomeEmail(subscription: any): Promise<void> {
         const { sendEmail } = await import('@/lib/messaging/email/mailer')
 
         const baseUrl = getBaseUrl()
+        const { getDisplayPlanName } = await import('@/lib/billing/plan-helpers')
         const html = await renderPlanWelcomeEmail({
-          planName: isPlanPro(subPlan) ? 'Pro' : 'Team',
+          planName: getDisplayPlanName(subPlan),
           userName: users[0].name || undefined,
           loginLink: `${baseUrl}/login`,
         })
 
+        const displayName = getDisplayPlanName(subPlan)
         await sendEmail({
           to: users[0].email,
-          subject: getEmailSubject(isPlanPro(subPlan) ? 'plan-welcome-pro' : 'plan-welcome-team'),
+          subject: `Your ${displayName} plan is now active on ${(await import('@/ee/whitelabeling')).getBrandConfig().name}`,
           html,
           emailType: 'updates',
         })

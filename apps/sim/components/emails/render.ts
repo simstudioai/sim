@@ -142,7 +142,7 @@ export async function renderFreeTierUpgradeEmail(params: {
 }
 
 export async function renderPlanWelcomeEmail(params: {
-  planName: 'Pro' | 'Team'
+  planName: string
   userName?: string
   loginLink?: string
 }): Promise<string> {

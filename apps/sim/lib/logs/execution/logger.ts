@@ -318,7 +318,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
           const costDelta = costSummary.totalCost
 
-          const planName = sub?.plan || 'Free'
+          const { getDisplayPlanName } = await import('@/lib/billing/plan-helpers')
+          const planName = getDisplayPlanName(sub?.plan)
           const scope: 'user' | 'organization' =
             sub && isOrgPlan(sub.plan) ? 'organization' : 'user'
 

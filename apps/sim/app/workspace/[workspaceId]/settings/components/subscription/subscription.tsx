@@ -24,6 +24,7 @@ import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
 import { ANNUAL_DISCOUNT_RATE, CREDIT_TIERS, DAILY_REFRESH_RATE } from '@/lib/billing/constants'
 import { CREDIT_MULTIPLIER } from '@/lib/billing/credits/conversion'
 import {
+  getDisplayPlanName,
   getPlanTierCredits,
   getPlanTierDollars,
   isEnterprise,
@@ -140,17 +141,7 @@ function SubscriptionSkeleton() {
   )
 }
 
-const formatPlanName = (plan: string): string => {
-  if (plan === 'free') return 'Free'
-  if (plan === 'enterprise') return 'Enterprise'
-  const credits = getPlanTierCredits(plan)
-  const tier = CREDIT_TIERS.find((t) => t.credits === credits)
-  const isLegacy = plan === 'pro' || plan === 'team'
-  const tierName = tier?.name ?? (plan === 'team' ? 'Max' : 'Pro')
-  const prefix = isLegacy ? 'Legacy ' : ''
-  const suffix = isTeam(plan) ? ' (Team)' : ''
-  return `${prefix}${tierName}${suffix}`
-}
+const formatPlanName = getDisplayPlanName
 
 interface CreditPlanCardProps {
   name: string

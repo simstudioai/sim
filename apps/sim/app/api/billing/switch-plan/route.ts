@@ -105,7 +105,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (subscriptionItem.price?.id === targetPriceId) {
+    const alreadyOnStripePrice = subscriptionItem.price?.id === targetPriceId
+    const alreadyInDb = sub.plan === targetPlanName
+
+    if (alreadyOnStripePrice && alreadyInDb) {
       return NextResponse.json({ success: true, message: 'Already on this plan and interval' })
     }
 
@@ -120,20 +123,22 @@ export async function POST(request: NextRequest) {
       targetPriceId,
     })
 
-    const currentQuantity = subscriptionItem.quantity ?? 1
+    if (!alreadyOnStripePrice) {
+      const currentQuantity = subscriptionItem.quantity ?? 1
 
-    await stripe.subscriptions.update(sub.stripeSubscriptionId, {
-      items: [
-        {
-          id: subscriptionItem.id,
-          price: targetPriceId,
-          quantity: currentQuantity,
-        },
-      ],
-      proration_behavior: 'create_prorations',
-    })
+      await stripe.subscriptions.update(sub.stripeSubscriptionId, {
+        items: [
+          {
+            id: subscriptionItem.id,
+            price: targetPriceId,
+            quantity: currentQuantity,
+          },
+        ],
+        proration_behavior: 'create_prorations',
+      })
+    }
 
-    if (sub.plan !== targetPlanName) {
+    if (!alreadyInDb) {
       await db
         .update(subscriptionTable)
         .set({ plan: targetPlanName })
