@@ -8,7 +8,6 @@ import {
   listWorkspaceFiles,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace'
-import { validateFileType } from '@/lib/uploads/utils/validation'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import {
   checkRateLimit,
@@ -128,11 +127,6 @@ export async function POST(request: NextRequest) {
         },
         { status: 400 }
       )
-    }
-
-    const fileTypeError = validateFileType(file.name, file.type || '')
-    if (fileTypeError) {
-      return NextResponse.json({ error: fileTypeError.message }, { status: 415 })
     }
 
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)

@@ -2368,21 +2368,6 @@
               }
             }
           },
-          "415": {
-            "description": "Unsupported file type. See error message for supported types.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           }

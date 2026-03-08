@@ -180,15 +180,14 @@ export const obsidianConnector: ConnectorConfig = {
     )
     const folderPath = (sourceConfig.folderPath as string) || ''
 
-    if (!syncContext?.allFiles) {
+    let allFiles = syncContext?.allFiles as string[] | undefined
+    if (!allFiles) {
       logger.info('Listing all vault files', { baseUrl, folderPath })
-      const allFiles = await listVaultFiles(baseUrl, accessToken, folderPath || undefined)
+      allFiles = await listVaultFiles(baseUrl, accessToken, folderPath || undefined)
       if (syncContext) {
         syncContext.allFiles = allFiles
       }
     }
-
-    const allFiles = (syncContext?.allFiles as string[]) || []
     const offset = cursor ? Number(cursor) : 0
     const pageFiles = allFiles.slice(offset, offset + DOCS_PER_PAGE)
 

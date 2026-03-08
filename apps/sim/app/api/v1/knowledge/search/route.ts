@@ -101,10 +101,19 @@ export async function POST(request: NextRequest) {
     }
 
     let structuredFilters: StructuredFilter[] = []
+    let cachedTagDefs: Awaited<ReturnType<typeof getDocumentTagDefinitions>> | undefined
+
+    if (tagFilters && tagFilters.length > 0 && accessibleKbIds.length > 1) {
+      return NextResponse.json(
+        { error: 'Tag filters are only supported when searching a single knowledge base' },
+        { status: 400 }
+      )
+    }
 
     if (tagFilters && tagFilters.length > 0 && accessibleKbIds.length > 0) {
       const kbId = accessibleKbIds[0]
       const tagDefs = await getDocumentTagDefinitions(kbId)
+      cachedTagDefs = tagDefs
 
       const displayNameToTagDef: Record<string, { tagSlot: string; fieldType: string }> = {}
       tagDefs.forEach((def) => {
@@ -198,9 +207,10 @@ export async function POST(request: NextRequest) {
     }
 
     const tagDefsResults = await Promise.all(
-      accessibleKbIds.map(async (kbId) => {
+      accessibleKbIds.map(async (kbId, idx) => {
         try {
-          const tagDefs = await getDocumentTagDefinitions(kbId)
+          const tagDefs =
+            idx === 0 && cachedTagDefs ? cachedTagDefs : await getDocumentTagDefinitions(kbId)
           const map: Record<string, string> = {}
           tagDefs.forEach((def) => {
             map[def.tagSlot] = def.displayName
