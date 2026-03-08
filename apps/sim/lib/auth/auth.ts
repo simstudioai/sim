@@ -2768,9 +2768,20 @@ export const auth = betterAuth({
                   status: subscription.status,
                 })
 
+                if (!planFromStripe) {
+                  logger.warn(
+                    '[onSubscriptionComplete] Could not resolve plan from Stripe price, using DB plan as fallback',
+                    { subscriptionId: subscription.id, dbPlan: subscription.plan, priceId }
+                  )
+                }
+                const subscriptionForOrg = planFromStripe
+                  ? { ...subscription, plan: planFromStripe }
+                  : subscription
+
                 let resolvedSubscription = subscription
                 try {
-                  resolvedSubscription = await ensureOrganizationForTeamSubscription(subscription)
+                  resolvedSubscription =
+                    await ensureOrganizationForTeamSubscription(subscriptionForOrg)
                 } catch (orgError) {
                   logger.error(
                     '[onSubscriptionComplete] Failed to ensure organization for team subscription',
@@ -2831,9 +2842,20 @@ export const auth = betterAuth({
                   referenceId: subscription.referenceId,
                 })
 
+                if (!planFromStripe) {
+                  logger.warn(
+                    '[onSubscriptionUpdate] Could not resolve plan from Stripe price, using DB plan as fallback',
+                    { subscriptionId: subscription.id, dbPlan: subscription.plan }
+                  )
+                }
+                const subscriptionForOrg = planFromStripe
+                  ? { ...subscription, plan: planFromStripe }
+                  : subscription
+
                 let resolvedSubscription = subscription
                 try {
-                  resolvedSubscription = await ensureOrganizationForTeamSubscription(subscription)
+                  resolvedSubscription =
+                    await ensureOrganizationForTeamSubscription(subscriptionForOrg)
 
                   if (isUpgradeToTeam) {
                     logger.info(

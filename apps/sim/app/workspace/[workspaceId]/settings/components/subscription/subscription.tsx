@@ -729,6 +729,7 @@ export function Subscription() {
         open={managePlanModalOpen}
         onOpenChange={setManagePlanModalOpen}
         currentPlanCredits={getPlanTierCredits(subscription.plan)}
+        currentPlanDollars={getPlanTierDollars(subscription.plan)}
         currentInterval={currentInterval}
         isTeamPlan={subscription.isTeam}
         onSwitchInterval={async (interval) => {
@@ -1047,6 +1048,7 @@ interface ManagePlanModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   currentPlanCredits: number
+  currentPlanDollars: number
   currentInterval: 'month' | 'year'
   isTeamPlan: boolean
   isCancelledAtPeriodEnd: boolean
@@ -1063,6 +1065,7 @@ function ManagePlanModal({
   open,
   onOpenChange,
   currentPlanCredits,
+  currentPlanDollars,
   currentInterval,
   isTeamPlan,
   isCancelledAtPeriodEnd,
@@ -1088,8 +1091,8 @@ function ManagePlanModal({
   const targetInterval = currentInterval === 'month' ? 'year' : 'month'
 
   const perUnit = isTeamPlan ? '/seat' : ''
-  const annualTotal = Math.round(currentTier.dollars * 12 * (1 - ANNUAL_DISCOUNT_RATE))
-  const discountedMonthly = Math.round(annualTotal / 12)
+  const actualAnnualTotal = Math.round(currentPlanDollars * 12 * (1 - ANNUAL_DISCOUNT_RATE))
+  const actualDiscountedMonthly = Math.round(actualAnnualTotal / 12)
 
   const handleSwitchInterval = async () => {
     setIsSwitching(true)
@@ -1113,7 +1116,7 @@ function ManagePlanModal({
                 : 'Switch to monthly billing',
             description:
               currentInterval === 'month'
-                ? `$${discountedMonthly}/mo${perUnit} ($${annualTotal}/yr${perUnit}) — save 15%`
+                ? `$${actualDiscountedMonthly}/mo${perUnit} ($${actualAnnualTotal}/yr${perUnit}) — save 15%`
                 : `$${currentTier.dollars}/mo${perUnit} — billed monthly`,
             buttonText: isSwitching ? 'Switching...' : 'Switch',
             onClick: handleSwitchInterval,
@@ -1157,8 +1160,8 @@ function ManagePlanModal({
             <span className='font-medium text-[var(--text-primary)]'>{currentTier.name}</span> plan
             {isTeamPlan ? ' for your team' : ''}, billed{' '}
             {currentInterval === 'month'
-              ? `$${currentTier.dollars}/mo${perUnit}`
-              : `$${annualTotal}/yr${perUnit} ($${discountedMonthly}/mo${perUnit})`}
+              ? `$${currentPlanDollars}/mo${perUnit}`
+              : `$${actualAnnualTotal}/yr${perUnit} ($${actualDiscountedMonthly}/mo${perUnit})`}
             .
           </p>
 
