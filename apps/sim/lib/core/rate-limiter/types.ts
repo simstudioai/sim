@@ -1,4 +1,4 @@
-import { getPlanType } from '@/lib/billing/plan-helpers'
+import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
 import { env } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
@@ -96,7 +96,7 @@ export function getRateLimit(
   if (!isBillingEnabled) {
     return RATE_LIMITS.free[key]
   }
-  return RATE_LIMITS[getPlanType(plan)][key]
+  return RATE_LIMITS[getPlanTypeForLimits(plan)][key]
 }
 
 export class RateLimitError extends Error {

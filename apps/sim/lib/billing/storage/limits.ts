@@ -13,7 +13,7 @@ import {
 import { organization, subscription, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { isEnterprise, isFree, isOrgPlan, isPro, isTeam } from '@/lib/billing/plan-helpers'
+import { getPlanTypeForLimits, isEnterprise, isFree, isOrgPlan } from '@/lib/billing/plan-helpers'
 import { getEnv } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 
@@ -56,16 +56,15 @@ export function getStorageLimits() {
 export function getStorageLimitForPlan(plan: string, metadata?: any): number {
   const limits = getStorageLimits()
 
-  if (isFree(plan)) return limits.free
-  if (isPro(plan)) return limits.pro
-  if (isTeam(plan)) return limits.team
   if (isEnterprise(plan)) {
     if (metadata?.storageLimitGB) {
       return gbToBytes(Number.parseInt(metadata.storageLimitGB))
     }
     return limits.enterpriseDefault
   }
-  return limits.free
+
+  const effectivePlan = getPlanTypeForLimits(plan)
+  return limits[effectivePlan] ?? limits.free
 }
 
 /**
@@ -84,8 +83,9 @@ export async function getUserStorageLimit(userId: string): Promise<number> {
       return limits.free
     }
 
-    if (isPro(sub.plan)) {
-      return limits.pro
+    if (!isOrgPlan(sub.plan)) {
+      const effectivePlan = getPlanTypeForLimits(sub.plan)
+      return limits[effectivePlan] ?? limits.free
     }
 
     if (isOrgPlan(sub.plan)) {

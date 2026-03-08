@@ -2,8 +2,8 @@
  * Plan type helpers for the credit-tier billing system.
  *
  * Plan names follow the convention `{type}_{credits}`:
- *   - `pro_5000`, `pro_10000`, ..., `pro_40000`
- *   - `team_10000`, `team_15000`, ..., `team_40000`
+ *   - `pro_6000` (Pro), `pro_25000` (Max)
+ *   - `team_6000` (Team Pro), `team_25000` (Team Max)
  *   - `free`, `enterprise` (unchanged)
  *
  * Legacy plan names (`pro`, `team`) are also recognized for backward compat
@@ -41,7 +41,7 @@ export function isOrgPlan(plan: string | null | undefined): boolean {
 }
 
 /**
- * Extract the credit count from a plan name (e.g. `'pro_5000'` => `5000`).
+ * Extract the credit count from a plan name (e.g. `'pro_6000'` => `6000`).
  * Legacy names map to their original dollar values:
  *   `'pro'` => 4000 credits ($20 at 1:200), `'team'` => 8000 credits ($40 at 1:200).
  */
@@ -75,8 +75,18 @@ export function getPlanType(plan: string | null | undefined): PlanCategory {
 }
 
 /**
+ * Return the plan category used for rate limits, storage, and execution timeouts.
+ * Max plans (>= 25K credits) are promoted to team-level limits.
+ */
+export function getPlanTypeForLimits(plan: string | null | undefined): PlanCategory {
+  const credits = getPlanTierCredits(plan)
+  if (credits >= 25000 && isPro(plan)) return 'team'
+  return getPlanType(plan)
+}
+
+/**
  * Build the canonical plan name for a given type and credit tier.
- * @example buildPlanName('pro', 5000) => 'pro_5000'
+ * @example buildPlanName('pro', 6000) => 'pro_6000'
  */
 export function buildPlanName(type: 'pro' | 'team', credits: number): string {
   return `${type}_${credits}`

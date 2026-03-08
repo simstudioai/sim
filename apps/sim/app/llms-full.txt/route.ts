@@ -16,7 +16,7 @@ Sim lets teams create agents, workflows, knowledge bases, tables, and docs. Over
 - **Product Name**: Sim
 - **Category**: AI Agent Platform / Agentic Workflow Orchestration
 - **Deployment**: Cloud (SaaS) and Self-hosted options
-- **Pricing**: Free tier, Pro ($20/month), Team ($40/month), Enterprise (custom)
+- **Pricing**: Free tier, Pro ($25/month, 6K credits), Max ($100/month, 25K credits), Team plans available, Enterprise (custom)
 - **Compliance**: SOC2 Type II, HIPAA compliant
 
 ## Core Concepts

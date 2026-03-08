@@ -43,6 +43,8 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/subscription/components'
 import {
   ENTERPRISE_PLAN_FEATURES,
+  MAX_PLAN_FEATURES,
+  PRO_PLAN_FEATURES,
   TEAM_INLINE_FEATURES,
 } from '@/app/workspace/[workspaceId]/settings/components/subscription/plan-configs'
 import {
@@ -155,6 +157,7 @@ interface CreditPlanCardProps {
   isError?: boolean
   isTeamPlan?: boolean
   isCancelledAtPeriodEnd?: boolean
+  features?: Array<{ icon: any; text: string }>
 }
 
 function CreditPlanCard({
@@ -170,6 +173,7 @@ function CreditPlanCard({
   onManagePlan,
   isTeamPlan,
   isCancelledAtPeriodEnd,
+  features,
 }: CreditPlanCardProps) {
   const discountedMonthly = Math.round(dollars * (1 - ANNUAL_DISCOUNT_RATE))
   const perUnit = isTeamPlan ? '/seat' : ''
@@ -206,6 +210,17 @@ function CreditPlanCard({
           <span className='text-[11px] text-[var(--text-secondary)]'>daily refresh</span>
         </div>
       </div>
+
+      {features && features.length > 0 && (
+        <ul className='flex flex-col gap-[10px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[12px]'>
+          {features.map((feature, idx) => (
+            <li key={idx} className='flex items-center gap-[8px]'>
+              <feature.icon className='h-[13px] w-[13px] flex-shrink-0 text-[var(--text-muted)]' />
+              <span className='text-[12px] text-[var(--text-secondary)]'>{feature.text}</span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div className='border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[14px]'>
         {isCurrentPlan ? (
@@ -617,6 +632,7 @@ export function Subscription() {
                     onManagePlan={() => setManagePlanModalOpen(true)}
                     isTeamPlan={subscription.isTeam}
                     isCancelledAtPeriodEnd={isCancelledAtPeriodEnd}
+                    features={PRO_PLAN_FEATURES}
                   />
                 )}
                 <CreditPlanCard
@@ -664,6 +680,7 @@ export function Subscription() {
                   onManagePlan={() => setManagePlanModalOpen(true)}
                   isTeamPlan={subscription.isTeam}
                   isCancelledAtPeriodEnd={isCancelledAtPeriodEnd}
+                  features={MAX_PLAN_FEATURES}
                 />
               </div>
             )

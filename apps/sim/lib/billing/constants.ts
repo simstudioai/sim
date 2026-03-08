@@ -5,7 +5,7 @@
 /**
  * Fallback free credits (in dollars) when env var is not set
  */
-export const DEFAULT_FREE_CREDITS = 20
+export const DEFAULT_FREE_CREDITS = 15
 
 /**
  * Default per-user minimum limits (in dollars) for paid plans when env vars are absent
@@ -37,7 +37,7 @@ export const DEFAULT_OVERAGE_THRESHOLD = 50
  * 1 credit = $0.005, so credits = dollars * 200.
  */
 export const CREDIT_TIERS = [
-  { credits: 5000, dollars: 25, name: 'Pro' },
+  { credits: 6000, dollars: 25, name: 'Pro' },
   { credits: 25000, dollars: 100, name: 'Max' },
 ] as const
 

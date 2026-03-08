@@ -1,4 +1,4 @@
-import { getPlanType } from '@/lib/billing/plan-helpers'
+import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
 import { env } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
@@ -68,7 +68,7 @@ export function getExecutionTimeout(
   if (!isBillingEnabled) {
     return EXECUTION_TIMEOUTS.free[type]
   }
-  return EXECUTION_TIMEOUTS[getPlanType(plan)][type]
+  return EXECUTION_TIMEOUTS[getPlanTypeForLimits(plan)][type]
 }
 
 export function getMaxExecutionTimeout(): number {
