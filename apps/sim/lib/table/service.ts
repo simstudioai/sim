@@ -90,9 +90,22 @@ export async function countTables(workspaceId: string): Promise<number> {
 
 export async function listTables(workspaceId: string): Promise<TableDefinition[]> {
   const tables = await db
-    .select()
+    .select({
+      id: userTableDefinitions.id,
+      name: userTableDefinitions.name,
+      description: userTableDefinitions.description,
+      schema: userTableDefinitions.schema,
+      maxRows: userTableDefinitions.maxRows,
+      workspaceId: userTableDefinitions.workspaceId,
+      createdBy: userTableDefinitions.createdBy,
+      createdAt: userTableDefinitions.createdAt,
+      updatedAt: userTableDefinitions.updatedAt,
+      rowCount: sql<number>`coalesce(${count(userTableRows.id)}, 0)`.mapWith(Number),
+    })
     .from(userTableDefinitions)
+    .leftJoin(userTableRows, eq(userTableRows.tableId, userTableDefinitions.id))
     .where(eq(userTableDefinitions.workspaceId, workspaceId))
+    .groupBy(userTableDefinitions.id)
     .orderBy(userTableDefinitions.createdAt)
 
   return tables.map((t) => ({
