@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 // Self-contained script for migrating block-level API keys into workspace BYOK keys.
-// Original block-level values are left untouched for safety.
+// Iterates per workspace. Original block-level values are left untouched for safety.
 // Handles both literal keys ("sk-xxx...") and env var references ("{{VAR_NAME}}").
 //
 // Usage:
@@ -20,9 +20,8 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { v4 as uuidv4 } from 'uuid'
 
-// ---------- CLI parsing ----------
+// ---------- CLI ----------
 const DRY_RUN = process.argv.includes('--dry-run')
-const BATCH_SIZE = 50
 
 function parseMapArgs(): Record<string, string> {
   const mapping: Record<string, string> = {}
@@ -71,7 +70,7 @@ if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 64) {
   process.exit(1)
 }
 
-// ---------- Inlined encryption helpers (mirrors apps/sim/lib/core/security/encryption.ts) ----------
+// ---------- Encryption (mirrors apps/sim/lib/core/security/encryption.ts) ----------
 function getEncryptionKeyBuffer(): Buffer {
   return Buffer.from(ENCRYPTION_KEY!, 'hex')
 }
@@ -108,7 +107,7 @@ async function decryptSecret(encryptedValue: string): Promise<string> {
   return decrypted
 }
 
-// ---------- Minimal schema ----------
+// ---------- Schema ----------
 const workflow = pgTable('workflow', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull(),
@@ -164,7 +163,7 @@ const workspaceEnvironment = pgTable('workspace_environment', {
   variables: json('variables').notNull().default('{}'),
 })
 
-// ---------- DB client ----------
+// ---------- DB ----------
 const postgresClient = postgres(CONNECTION_STRING, {
   prepare: false,
   idle_timeout: 20,
@@ -174,7 +173,7 @@ const postgresClient = postgres(CONNECTION_STRING, {
 })
 const db = drizzle(postgresClient)
 
-// ---------- Agent/HITL nested tool handling ----------
+// ---------- Helpers ----------
 const TOOL_INPUT_SUBBLOCK_IDS: Record<string, string> = {
   agent: 'tools',
   human_in_the_loop: 'notification',
@@ -207,28 +206,33 @@ function parseToolInputValue(value: unknown): any[] {
   return []
 }
 
-// ---------- Types ----------
-type KeyEntry = {
-  workspaceId: string
-  providerId: string
-  apiKey: string
-  userId: string
-  blockId: string
-  blockName: string
-  workflowId: string
-  workflowName: string
+type RawKeyRef = {
   rawValue: string
-  isEnvVar: boolean
+  blockName: string
+  workflowName: string
+  userId: string
 }
 
 // ---------- Main ----------
 async function run() {
   console.log(`Mode: ${DRY_RUN ? 'DRY RUN (audit + preview)' : 'LIVE'}`)
-  console.log(`Mappings: ${Object.entries(BLOCK_TYPE_TO_PROVIDER).map(([b, p]) => `${b}=${p}`).join(', ')}`)
+  console.log(
+    `Mappings: ${Object.entries(BLOCK_TYPE_TO_PROVIDER).map(([b, p]) => `${b}=${p}`).join(', ')}`
+  )
   console.log('---\n')
 
+  const stats = {
+    workspacesProcessed: 0,
+    workspacesSkipped: 0,
+    conflicts: 0,
+    inserted: 0,
+    skippedExisting: 0,
+    errors: 0,
+    envVarFailures: 0,
+  }
+
   try {
-    // 1. Build block type list: mapped types + agent/HITL for nested tools
+    // 1. Find all blocks that match our mapped types or contain nested tools
     const mappedBlockTypes = Object.keys(BLOCK_TYPE_TO_PROVIDER)
     const agentTypes = Object.keys(TOOL_INPUT_SUBBLOCK_IDS)
     const allBlockTypes = [...new Set([...mappedBlockTypes, ...agentTypes])]
@@ -253,296 +257,227 @@ async function run() {
         )})`
       )
 
-    console.log(`Found ${rows.length} candidate blocks\n`)
-
-    // 2. Pre-load env vars for resolving {{VAR}} references
-    const personalEnvRows = await db.select().from(environment)
-    const workspaceEnvRows = await db.select().from(workspaceEnvironment)
-
-    const personalEnvByUser = new Map<string, Record<string, string>>()
-    for (const row of personalEnvRows) {
-      personalEnvByUser.set(row.userId, (row.variables as Record<string, string>) || {})
-    }
-
-    const workspaceEnvByWs = new Map<string, Record<string, string>>()
-    for (const row of workspaceEnvRows) {
-      workspaceEnvByWs.set(row.workspaceId, (row.variables as Record<string, string>) || {})
-    }
-
-    console.log(
-      `Loaded env vars: ${personalEnvByUser.size} users, ${workspaceEnvByWs.size} workspaces\n`
-    )
-
-    async function resolveApiKeyValue(
-      value: string,
-      workspaceId: string,
-      userId: string,
-      context: string
-    ): Promise<{ resolvedKey: string | null; isEnvVar: boolean; failed: boolean }> {
-      if (isEnvVarReference(value)) {
-        const varName = extractEnvVarName(value)
-        if (varName) {
-          const wsVars = workspaceEnvByWs.get(workspaceId)
-          const personalVars = personalEnvByUser.get(userId)
-          const encryptedValue = wsVars?.[varName] ?? personalVars?.[varName]
-
-          if (encryptedValue) {
-            try {
-              const resolved = await decryptSecret(encryptedValue)
-              return { resolvedKey: resolved, isEnvVar: true, failed: false }
-            } catch (error) {
-              console.warn(
-                `  [WARN] Failed to decrypt env var "${varName}" for ${context}: ${error}`
-              )
-              return { resolvedKey: null, isEnvVar: true, failed: true }
-            }
-          } else {
-            console.warn(`  [WARN] Env var "${varName}" not found for ${context}`)
-            return { resolvedKey: null, isEnvVar: true, failed: true }
-          }
-        }
-        return { resolvedKey: null, isEnvVar: true, failed: true }
-      }
-
-      return { resolvedKey: value, isEnvVar: false, failed: false }
-    }
-
-    // 3. Scan all blocks and collect resolved keys
-    const allEntries: KeyEntry[] = []
-    let literalCount = 0
-    let envVarCount = 0
-    let nestedToolKeyCount = 0
-    let envVarResolutionFailures = 0
+    // Group rows by workspace
+    const workspaceRows = new Map<string, typeof rows>()
     let skippedNoWorkspace = 0
-    let skippedEmptyKey = 0
-
-    for (const row of rows as any[]) {
-      const subBlocks = row.subBlocks as Record<string, { id: string; type: string; value?: any }>
-      const workspaceId = row.workspaceId as string | null
-      if (!workspaceId) {
+    for (const row of rows) {
+      if (!row.workspaceId) {
         skippedNoWorkspace++
         continue
       }
+      if (!workspaceRows.has(row.workspaceId)) workspaceRows.set(row.workspaceId, [])
+      workspaceRows.get(row.workspaceId)!.push(row)
+    }
 
-      // --- Direct apiKey on the block ---
-      const providerId = BLOCK_TYPE_TO_PROVIDER[row.blockType]
-      if (providerId) {
-        const apiKeyValue = subBlocks?.apiKey?.value
-        if (typeof apiKeyValue === 'string' && apiKeyValue.trim()) {
-          const { resolvedKey, isEnvVar, failed } = await resolveApiKeyValue(
-            apiKeyValue,
-            workspaceId,
-            row.userId,
-            `block ${row.blockId}`
-          )
+    console.log(`Found ${rows.length} candidate blocks across ${workspaceRows.size} workspaces`)
+    if (skippedNoWorkspace > 0) console.log(`Skipped ${skippedNoWorkspace} blocks with no workspace`)
+    console.log()
 
-          if (isEnvVar) envVarCount++
-          else literalCount++
-          if (failed) envVarResolutionFailures++
+    // 2. Iterate per workspace
+    for (const [workspaceId, blocks] of workspaceRows) {
+      console.log(`[Workspace ${workspaceId}] ${blocks.length} blocks`)
 
-          if (resolvedKey?.trim()) {
-            allEntries.push({
-              workspaceId,
-              providerId,
-              apiKey: resolvedKey,
-              userId: row.userId,
-              blockId: row.blockId,
-              blockName: row.blockName,
-              workflowId: row.workflowId,
-              workflowName: row.workflowName,
-              rawValue: apiKeyValue,
-              isEnvVar,
-            })
-          }
-        } else {
-          skippedEmptyKey++
-        }
+      // 2a. Extract all raw key references grouped by provider
+      const providerKeys = new Map<string, RawKeyRef[]>()
+
+      function addRef(providerId: string, ref: RawKeyRef) {
+        if (!providerKeys.has(providerId)) providerKeys.set(providerId, [])
+        providerKeys.get(providerId)!.push(ref)
       }
 
-      // --- Nested tools inside agent / human_in_the_loop ---
-      const toolInputId = TOOL_INPUT_SUBBLOCK_IDS[row.blockType]
-      if (toolInputId) {
-        const toolInputSubBlock = subBlocks?.[toolInputId]
-        if (toolInputSubBlock) {
-          const tools = parseToolInputValue(toolInputSubBlock.value)
+      for (const block of blocks) {
+        const subBlocks = block.subBlocks as Record<string, { value?: any }>
+
+        const providerId = BLOCK_TYPE_TO_PROVIDER[block.blockType]
+        if (providerId) {
+          const val = subBlocks?.apiKey?.value
+          if (typeof val === 'string' && val.trim()) {
+            addRef(providerId, {
+              rawValue: val,
+              blockName: block.blockName,
+              workflowName: block.workflowName,
+              userId: block.userId,
+            })
+          }
+        }
+
+        const toolInputId = TOOL_INPUT_SUBBLOCK_IDS[block.blockType]
+        if (toolInputId) {
+          const tools = parseToolInputValue(subBlocks?.[toolInputId]?.value)
           for (const tool of tools) {
             const toolType = tool?.type as string | undefined
             const toolApiKey = tool?.params?.apiKey as string | undefined
             if (!toolType || !toolApiKey || !toolApiKey.trim()) continue
-
             const toolProviderId = BLOCK_TYPE_TO_PROVIDER[toolType]
             if (!toolProviderId) continue
-
-            nestedToolKeyCount++
-
-            const { resolvedKey, isEnvVar, failed } = await resolveApiKeyValue(
-              toolApiKey,
-              workspaceId,
-              row.userId,
-              `nested tool "${toolType}" in block ${row.blockId}`
-            )
-
-            if (isEnvVar) envVarCount++
-            else literalCount++
-            if (failed) envVarResolutionFailures++
-
-            if (resolvedKey?.trim()) {
-              allEntries.push({
-                workspaceId,
-                providerId: toolProviderId,
-                apiKey: resolvedKey,
-                userId: row.userId,
-                blockId: row.blockId,
-                blockName: `${row.blockName} > tool "${tool.title || toolType}"`,
-                workflowId: row.workflowId,
-                workflowName: row.workflowName,
-                rawValue: toolApiKey,
-                isEnvVar,
-              })
-            }
+            addRef(toolProviderId, {
+              rawValue: toolApiKey,
+              blockName: `${block.blockName} > tool "${tool.title || toolType}"`,
+              workflowName: block.workflowName,
+              userId: block.userId,
+            })
           }
         }
       }
-    }
 
-    console.log(`Literal API keys: ${literalCount}`)
-    console.log(`Env var references: ${envVarCount}`)
-    console.log(`Nested tool keys (agent/HITL): ${nestedToolKeyCount}`)
-    console.log(`Env var resolution failures: ${envVarResolutionFailures}`)
-    console.log(`Skipped (no workspace): ${skippedNoWorkspace}`)
-    console.log(`Skipped (empty key): ${skippedEmptyKey}`)
-    console.log(`Total resolved key entries: ${allEntries.length}\n`)
-
-    // 4. Deduplicate by (workspaceId, providerId) — first key wins
-    const byokInserts = new Map<
-      string,
-      { workspaceId: string; providerId: string; apiKey: string; userId: string }
-    >()
-    for (const entry of allEntries) {
-      const dedupeKey = `${entry.workspaceId}::${entry.providerId}`
-      if (!byokInserts.has(dedupeKey)) {
-        byokInserts.set(dedupeKey, {
-          workspaceId: entry.workspaceId,
-          providerId: entry.providerId,
-          apiKey: entry.apiKey,
-          userId: entry.userId,
-        })
-      }
-    }
-
-    console.log(`Unique (workspace, provider) pairs to insert: ${byokInserts.size}\n`)
-
-    // 5. Dry run: audit for conflicts + preview
-    if (DRY_RUN) {
-      // Group entries by (workspace, provider) to detect conflicts
-      const groupMap = new Map<string, KeyEntry[]>()
-      for (const entry of allEntries) {
-        const key = `${entry.workspaceId}::${entry.providerId}`
-        if (!groupMap.has(key)) groupMap.set(key, [])
-        groupMap.get(key)!.push(entry)
+      if (providerKeys.size === 0) {
+        console.log('  No API keys found, skipping\n')
+        stats.workspacesSkipped++
+        continue
       }
 
-      let conflictCount = 0
-      for (const [groupKey, entries] of groupMap) {
-        const distinctKeys = new Set(entries.map((e) => e.apiKey))
-        if (distinctKeys.size <= 1) continue
+      // 2b. Load env vars only if this workspace has env var references
+      const needsEnvVars = [...providerKeys.values()]
+        .flat()
+        .some((ref) => isEnvVarReference(ref.rawValue))
 
-        conflictCount++
-        const [wsId, provId] = groupKey.split('::')
-        console.log(
-          `  [CONFLICT] workspace ${wsId}, provider "${provId}" has ${distinctKeys.size} distinct keys:`
-        )
-        for (const entry of entries) {
-          const keyDisplay = entry.isEnvVar ? entry.rawValue : maskKey(entry.rawValue)
-          const typeLabel = entry.isEnvVar ? 'env var' : 'literal'
-          const resolvedNote = entry.isEnvVar ? ` -> resolves to ${maskKey(entry.apiKey)}` : ''
-          console.log(
-            `    Block "${entry.blockName}" in workflow "${entry.workflowName}": ${keyDisplay} (${typeLabel})${resolvedNote}`
-          )
+      let wsEnvVars: Record<string, string> = {}
+      const personalEnvCache = new Map<string, Record<string, string>>()
+
+      if (needsEnvVars) {
+        const wsEnvRows = await db
+          .select()
+          .from(workspaceEnvironment)
+          .where(sql`${workspaceEnvironment.workspaceId} = ${workspaceId}`)
+          .limit(1)
+        if (wsEnvRows[0]) {
+          wsEnvVars = (wsEnvRows[0].variables as Record<string, string>) || {}
         }
-        console.log()
+
+        const userIds = [...new Set([...providerKeys.values()].flat().map((r) => r.userId))]
+        if (userIds.length > 0) {
+          const personalRows = await db
+            .select()
+            .from(environment)
+            .where(
+              sql`${environment.userId} IN (${sql.join(
+                userIds.map((id) => sql`${id}`),
+                sql`, `
+              )})`
+            )
+          for (const row of personalRows) {
+            personalEnvCache.set(row.userId, (row.variables as Record<string, string>) || {})
+          }
+        }
       }
 
-      if (conflictCount === 0) {
-        console.log('No conflicts detected.\n')
-      } else {
-        console.log(
-          `${conflictCount} conflict(s) found. First key per (workspace, provider) will be used.\n`
-        )
-      }
+      async function resolveKey(
+        ref: RawKeyRef,
+        context: string
+      ): Promise<string | null> {
+        if (!isEnvVarReference(ref.rawValue)) return ref.rawValue
 
-      for (const entry of byokInserts.values()) {
-        console.log(
-          `  [DRY RUN] Would insert BYOK key for workspace ${entry.workspaceId}, provider "${entry.providerId}": ${maskKey(entry.apiKey)}`
-        )
-      }
+        const varName = extractEnvVarName(ref.rawValue)
+        if (!varName) {
+          stats.envVarFailures++
+          return null
+        }
 
-      console.log('\n[DRY RUN] No changes were made to the database.')
-      console.log('Run without --dry-run to apply changes.')
-      return
-    }
+        const personalVars = personalEnvCache.get(ref.userId)
+        const encryptedValue = wsEnvVars[varName] ?? personalVars?.[varName]
+        if (!encryptedValue) {
+          console.warn(`  [WARN] Env var "${varName}" not found (${context})`)
+          stats.envVarFailures++
+          return null
+        }
 
-    // 6. Live: insert into workspace_byok_keys
-    const insertEntries = Array.from(byokInserts.values())
-    let insertedCount = 0
-    let skippedConflictCount = 0
-    let insertErrorCount = 0
-
-    for (let i = 0; i < insertEntries.length; i += BATCH_SIZE) {
-      const batch = insertEntries.slice(i, i + BATCH_SIZE)
-      const batchNum = Math.floor(i / BATCH_SIZE) + 1
-      console.log(
-        `Insert batch ${batchNum} (${i + 1}-${Math.min(i + BATCH_SIZE, insertEntries.length)} of ${insertEntries.length})`
-      )
-
-      for (const entry of batch) {
         try {
-          const encrypted = await encryptSecret(entry.apiKey)
+          return await decryptSecret(encryptedValue)
+        } catch (error) {
+          console.warn(`  [WARN] Failed to decrypt env var "${varName}" (${context}): ${error}`)
+          stats.envVarFailures++
+          return null
+        }
+      }
 
+      // 2c. For each provider, detect conflicts then resolve and insert
+      stats.workspacesProcessed++
+
+      for (const [providerId, refs] of providerKeys) {
+        // Resolve all keys for this provider to check for conflicts
+        const resolved: { ref: RawKeyRef; key: string }[] = []
+        for (const ref of refs) {
+          const key = await resolveKey(ref, `"${ref.blockName}" in "${ref.workflowName}"`)
+          if (key?.trim()) resolved.push({ ref, key })
+        }
+
+        if (resolved.length === 0) continue
+
+        // Detect conflicting values
+        const distinctKeys = new Set(resolved.map((r) => r.key))
+        if (distinctKeys.size > 1) {
+          stats.conflicts++
+          console.log(`  [CONFLICT] provider "${providerId}": ${distinctKeys.size} distinct keys`)
+          for (const { ref, key } of resolved) {
+            const display = isEnvVarReference(ref.rawValue)
+              ? `${ref.rawValue} -> ${maskKey(key)}`
+              : maskKey(ref.rawValue)
+            console.log(`    "${ref.blockName}" in "${ref.workflowName}": ${display}`)
+          }
+          console.log('    Using first resolved key')
+        }
+
+        // Use the first resolved key
+        const chosen = resolved[0]
+
+        if (DRY_RUN) {
+          console.log(
+            `  [DRY RUN] Would insert BYOK for provider "${providerId}": ${maskKey(chosen.key)}`
+          )
+          continue
+        }
+
+        // Insert into BYOK
+        try {
+          const encrypted = await encryptSecret(chosen.key)
           const result = await db
             .insert(workspaceBYOKKeys)
             .values({
               id: uuidv4(),
-              workspaceId: entry.workspaceId,
-              providerId: entry.providerId,
+              workspaceId,
+              providerId,
               encryptedApiKey: encrypted,
-              createdBy: entry.userId,
+              createdBy: chosen.ref.userId,
             })
             .onConflictDoNothing({
               target: [workspaceBYOKKeys.workspaceId, workspaceBYOKKeys.providerId],
             })
 
           if ((result as any).rowCount === 0) {
-            console.log(
-              `  [SKIP] BYOK key already exists for workspace ${entry.workspaceId}, provider "${entry.providerId}"`
-            )
-            skippedConflictCount++
+            console.log(`  [SKIP] BYOK already exists for provider "${providerId}"`)
+            stats.skippedExisting++
           } else {
-            console.log(
-              `  [INSERT] BYOK key for workspace ${entry.workspaceId}, provider "${entry.providerId}": ${maskKey(entry.apiKey)}`
-            )
-            insertedCount++
+            console.log(`  [INSERT] BYOK for provider "${providerId}": ${maskKey(chosen.key)}`)
+            stats.inserted++
           }
         } catch (error) {
-          console.error(
-            `  [ERROR] Failed to insert BYOK key for workspace ${entry.workspaceId}, provider "${entry.providerId}":`,
-            error
-          )
-          insertErrorCount++
+          console.error(`  [ERROR] Failed to insert BYOK for provider "${providerId}":`, error)
+          stats.errors++
         }
       }
+
+      console.log()
     }
 
-    // 7. Summary
-    console.log('\n---')
-    console.log('Migration Summary:')
-    console.log(`  BYOK keys inserted: ${insertedCount}`)
-    console.log(`  BYOK keys skipped (already existed): ${skippedConflictCount}`)
-    console.log(`  BYOK insert errors: ${insertErrorCount}`)
-    console.log(`  Env var resolution failures: ${envVarResolutionFailures}`)
-    console.log('\nMigration completed successfully!')
+    // 3. Summary
+    console.log('---')
+    console.log('Summary:')
+    console.log(`  Workspaces processed: ${stats.workspacesProcessed}`)
+    console.log(`  Workspaces skipped (no keys): ${stats.workspacesSkipped}`)
+    console.log(`  BYOK keys inserted: ${stats.inserted}`)
+    console.log(`  BYOK keys skipped (already existed): ${stats.skippedExisting}`)
+    console.log(`  Conflicts (multiple distinct keys): ${stats.conflicts}`)
+    console.log(`  Insert errors: ${stats.errors}`)
+    console.log(`  Env var resolution failures: ${stats.envVarFailures}`)
+
+    if (DRY_RUN) {
+      console.log('\n[DRY RUN] No changes were made to the database.')
+      console.log('Run without --dry-run to apply changes.')
+    } else {
+      console.log('\nMigration completed successfully!')
+    }
   } catch (error) {
-    console.error('Fatal error during migration:', error)
+    console.error('Fatal error:', error)
     process.exit(1)
   } finally {
     try {
