@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Button, Input, Label } from '@/components/emcn'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { useRedeemReferralCode } from '@/hooks/queries/subscription'
 
 interface ReferralCodeProps {
@@ -36,7 +37,7 @@ export function ReferralCode({ onRedeemComplete }: ReferralCodeProps) {
       <div className='flex items-center justify-between'>
         <Label>Referral Code</Label>
         <span className='text-[13px] text-[var(--text-secondary)]'>
-          +{(redeemCode.data.bonusAmount ?? 0).toLocaleString()} credits applied
+          +{dollarsToCredits(redeemCode.data.bonusAmount ?? 0).toLocaleString()} credits applied
         </span>
       </div>
     )
