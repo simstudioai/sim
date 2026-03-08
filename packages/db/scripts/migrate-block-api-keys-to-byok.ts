@@ -12,6 +12,10 @@
 //   # Live run: insert BYOK keys
 //   bun run packages/db/scripts/migrate-block-api-keys-to-byok.ts \
 //     --map jina=jina --map perplexity=perplexity --map google_books=google_cloud
+//
+//   # Optionally scope to specific users (repeatable)
+//   bun run packages/db/scripts/migrate-block-api-keys-to-byok.ts --dry-run \
+//     --map jina=jina --user user_abc123 --user user_def456
 
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 import { eq, sql } from 'drizzle-orm'
@@ -49,6 +53,20 @@ if (Object.keys(BLOCK_TYPE_TO_PROVIDER).length === 0) {
   )
   process.exit(1)
 }
+
+function parseUserArgs(): string[] {
+  const users: string[] = []
+  const args = process.argv.slice(2)
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--user' && args[i + 1]) {
+      users.push(args[i + 1])
+      i++
+    }
+  }
+  return users
+}
+
+const USER_FILTER = parseUserArgs()
 
 // ---------- Env ----------
 function getEnv(name: string): string | undefined {
@@ -250,6 +268,7 @@ async function run() {
   console.log(
     `Mappings: ${Object.entries(BLOCK_TYPE_TO_PROVIDER).map(([b, p]) => `${b}=${p}`).join(', ')}`
   )
+  console.log(`Users: ${USER_FILTER.length > 0 ? USER_FILTER.join(', ') : 'all'}`)
   console.log('---\n')
 
   const stats = {
@@ -268,6 +287,14 @@ async function run() {
     const agentTypes = Object.keys(TOOL_INPUT_SUBBLOCK_IDS)
     const allBlockTypes = [...new Set([...mappedBlockTypes, ...agentTypes])]
 
+    const userFilter =
+      USER_FILTER.length > 0
+        ? sql` AND ${workflow.userId} IN (${sql.join(
+            USER_FILTER.map((id) => sql`${id}`),
+            sql`, `
+          )})`
+        : sql``
+
     const workspaceIdRows = await db
       .selectDistinct({ workspaceId: workflow.workspaceId })
       .from(workflowBlocks)
@@ -276,7 +303,7 @@ async function run() {
         sql`${workflow.workspaceId} IS NOT NULL AND ${workflowBlocks.type} IN (${sql.join(
           allBlockTypes.map((t) => sql`${t}`),
           sql`, `
-        )})`
+        )})${userFilter}`
       )
 
     const workspaceIds = workspaceIdRows
@@ -303,7 +330,7 @@ async function run() {
           sql`${workflow.workspaceId} = ${workspaceId} AND ${workflowBlocks.type} IN (${sql.join(
             allBlockTypes.map((t) => sql`${t}`),
             sql`, `
-          )})`
+          )})${userFilter}`
         )
 
       console.log(`[Workspace ${workspaceId}] ${blocks.length} blocks`)
@@ -447,8 +474,9 @@ async function run() {
             .onConflictDoNothing({
               target: [workspaceBYOKKeys.workspaceId, workspaceBYOKKeys.providerId],
             })
+            .returning({ id: workspaceBYOKKeys.id })
 
-          if ((result as any).rowCount === 0) {
+          if (result.length === 0) {
             console.log(`  [SKIP] BYOK already exists for provider "${providerId}"`)
             stats.skippedExisting++
           } else {
