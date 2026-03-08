@@ -1,11 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/constants'
-import {
-  parseResponseFormat,
-  processStructuredResponse,
-  resolveMessages,
-} from '@/executor/handlers/shared/response-format'
+import { resolveMessages } from '@/executor/handlers/shared/response-format'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
 import type { SerializedBlock } from '@/serializer/types'
@@ -30,13 +26,7 @@ export class MothershipBlockHandler implements BlockHandler {
     inputs: Record<string, any>
   ): Promise<BlockOutput> {
     const messages = resolveMessages(inputs.messages)
-    const responseFormat = parseResponseFormat(inputs.responseFormat)
-
-    const memoryType = inputs.memoryType || 'none'
-    const chatId =
-      memoryType === 'conversation' && inputs.conversationId
-        ? inputs.conversationId
-        : crypto.randomUUID()
+    const chatId = crypto.randomUUID()
 
     const url = buildAPIUrl('/api/mothership/execute')
     const headers = await buildAuthHeaders()
@@ -47,16 +37,10 @@ export class MothershipBlockHandler implements BlockHandler {
       userId: ctx.userId || '',
       chatId,
     }
-    if (responseFormat) {
-      body.responseFormat = responseFormat
-    }
 
     logger.info('Executing Mothership block', {
       blockId: block.id,
       messageCount: messages.length,
-      hasResponseFormat: !!responseFormat,
-      memoryType,
-      hasConversationId: memoryType === 'conversation',
     })
 
     const response = await fetch(url.toString(), {
@@ -80,11 +64,6 @@ export class MothershipBlockHandler implements BlockHandler {
       duration: tc.durationMs || 0,
     }))
     const toolCalls = { list: formattedList, count: formattedList.length }
-
-    if (responseFormat && result.content) {
-      const structured = processStructuredResponse(result, 'mothership') as Record<string, unknown>
-      return { ...structured, toolCalls, cost: result.cost || undefined } as BlockOutput
-    }
 
     return {
       content: result.content || '',

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
-import { SchedulesView } from './components/schedules-view'
+import { Schedules } from './schedules'
 
 interface SchedulesPageProps {
   params: Promise<{
@@ -22,5 +22,5 @@ export default async function SchedulesPage({ params }: SchedulesPageProps) {
     redirect('/')
   }
 
-  return <SchedulesView />
+  return <Schedules />
 }

@@ -49,11 +49,11 @@ function defineServices(): ServiceInfo[] {
   return servicesList
 }
 
-async function fetchOAuthConnections(): Promise<ServiceInfo[]> {
+async function fetchOAuthConnections(signal?: AbortSignal): Promise<ServiceInfo[]> {
   try {
     const serviceDefinitions = defineServices()
 
-    const response = await fetch('/api/auth/oauth/connections')
+    const response = await fetch('/api/auth/oauth/connections', { signal })
 
     if (response.status === 404) {
       return serviceDefinitions
@@ -119,10 +119,9 @@ async function fetchOAuthConnections(): Promise<ServiceInfo[]> {
 export function useOAuthConnections() {
   return useQuery({
     queryKey: oauthConnectionsKeys.connections(),
-    queryFn: fetchOAuthConnections,
+    queryFn: ({ signal }) => fetchOAuthConnections(signal),
     staleTime: 30 * 1000,
     retry: false,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -248,8 +247,11 @@ export interface ConnectedAccount {
   displayName?: string
 }
 
-async function fetchConnectedAccounts(provider: string): Promise<ConnectedAccount[]> {
-  const response = await fetch(`/api/auth/accounts?provider=${provider}`)
+async function fetchConnectedAccounts(
+  provider: string,
+  signal?: AbortSignal
+): Promise<ConnectedAccount[]> {
+  const response = await fetch(`/api/auth/accounts?provider=${provider}`, { signal })
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}))
@@ -268,7 +270,7 @@ async function fetchConnectedAccounts(provider: string): Promise<ConnectedAccoun
 export function useConnectedAccounts(provider: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: oauthConnectionsKeys.accounts(provider),
-    queryFn: () => fetchConnectedAccounts(provider),
+    queryFn: ({ signal }) => fetchConnectedAccounts(provider, signal),
     enabled: options?.enabled ?? true,
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,

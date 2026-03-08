@@ -243,13 +243,17 @@ export const googleDocsConnector: ConnectorConfig = {
     const data = await response.json()
     const files = (data.files || []) as DriveFile[]
 
-    const documentResults = await Promise.all(
-      files.map((file) => fileToDocument(accessToken, file))
-    )
-    const documents = documentResults.filter(Boolean) as ExternalDocument[]
-
     const maxDocs = sourceConfig.maxDocs ? Number(sourceConfig.maxDocs) : 0
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
+
+    const CONCURRENCY = 5
+    const documents: ExternalDocument[] = []
+    for (let i = 0; i < files.length; i += CONCURRENCY) {
+      if (maxDocs > 0 && previouslyFetched + documents.length >= maxDocs) break
+      const batch = files.slice(i, i + CONCURRENCY)
+      const results = await Promise.all(batch.map((file) => fileToDocument(accessToken, file)))
+      documents.push(...(results.filter(Boolean) as ExternalDocument[]))
+    }
     if (maxDocs > 0) {
       const remaining = maxDocs - previouslyFetched
       if (documents.length > remaining) {

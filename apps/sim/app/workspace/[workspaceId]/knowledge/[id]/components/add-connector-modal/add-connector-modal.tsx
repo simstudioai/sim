@@ -51,7 +51,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
   const [sourceConfig, setSourceConfig] = useState<Record<string, string>>({})
   const [syncInterval, setSyncInterval] = useState(1440)
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
-  const [disabledTagIds, setDisabledTagIds] = useState<Set<string>>(new Set())
+  const [disabledTagIds, setDisabledTagIds] = useState<Set<string>>(() => new Set())
   const [error, setError] = useState<string | null>(null)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
 

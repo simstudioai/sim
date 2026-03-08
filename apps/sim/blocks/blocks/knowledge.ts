@@ -127,7 +127,7 @@ export const KnowledgeBlock: BlockConfig = {
       type: 'document-selector',
       canonicalParamId: 'documentId',
       placeholder: 'Select document',
-      dependsOn: ['knowledgeBaseId'],
+      dependsOn: ['knowledgeBaseSelector'],
       required: true,
       mode: 'basic',
       condition: {
@@ -144,7 +144,7 @@ export const KnowledgeBlock: BlockConfig = {
     },
     // Document selector — advanced mode (manual ID input)
     {
-      id: 'manualDocumentId',
+      id: 'documentId',
       title: 'Document ID',
       type: 'short-input',
       canonicalParamId: 'documentId',

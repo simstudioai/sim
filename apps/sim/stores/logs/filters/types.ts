@@ -113,6 +113,7 @@ export interface WorkflowLog {
   trigger: string | null
   createdAt: string
   workflow?: WorkflowData | null
+  jobTitle?: string | null
   files?: Array<{
     id: string
     name: string

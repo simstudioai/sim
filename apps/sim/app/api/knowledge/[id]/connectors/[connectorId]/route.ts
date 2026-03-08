@@ -253,9 +253,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: status === 404 ? 'Not found' : 'Unauthorized' }, { status })
     }
 
+    const now = new Date()
+
     await db
       .update(knowledgeConnector)
-      .set({ deletedAt: new Date(), status: 'paused', updatedAt: new Date() })
+      .set({ deletedAt: now, status: 'paused', updatedAt: now })
       .where(
         and(
           eq(knowledgeConnector.id, connectorId),
@@ -267,7 +269,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     // Soft-delete all documents belonging to this connector
     await db
       .update(document)
-      .set({ deletedAt: new Date() })
+      .set({ deletedAt: now })
       .where(and(eq(document.connectorId, connectorId), isNull(document.deletedAt)))
 
     // Reclaim tag slots that are no longer used by any active connector

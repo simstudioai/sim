@@ -289,9 +289,7 @@ export const LogDetails = memo(function LogDetails({
     )
   }, [log])
 
-  const hasCostInfo = useMemo(() => {
-    return isWorkflowExecutionLog && log?.cost
-  }, [log, isWorkflowExecutionLog])
+  const hasCostInfo = isWorkflowExecutionLog && log?.cost
 
   const workflowOutput = useMemo(() => {
     const executionData = log?.executionData as
@@ -329,7 +327,7 @@ export const LogDetails = memo(function LogDetails({
     [log?.createdAt]
   )
 
-  const logStatus = useMemo(() => getDisplayStatus(log?.status), [log?.status])
+  const logStatus = getDisplayStatus(log?.status)
 
   return (
     <>
@@ -427,7 +425,7 @@ export const LogDetails = memo(function LogDetails({
                       })()}
                       <span className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-secondary)]'>
                         {log.trigger === 'mothership'
-                          ? (log.executionData as any)?.trigger?.source || 'Mothership Job'
+                          ? log.jobTitle || 'Untitled Job'
                           : log.workflow?.name ||
                             (!log.workflowId ? DELETED_WORKFLOW_LABEL : 'Unknown')}
                       </span>

@@ -58,8 +58,14 @@ function createRowsParamsKey({
   })
 }
 
-async function fetchTable(workspaceId: string, tableId: string): Promise<TableDefinition> {
-  const res = await fetch(`/api/table/${tableId}?workspaceId=${encodeURIComponent(workspaceId)}`)
+async function fetchTable(
+  workspaceId: string,
+  tableId: string,
+  signal?: AbortSignal
+): Promise<TableDefinition> {
+  const res = await fetch(`/api/table/${tableId}?workspaceId=${encodeURIComponent(workspaceId)}`, {
+    signal,
+  })
   if (!res.ok) {
     const error = await res.json().catch(() => ({}))
     throw new Error(error.error || 'Failed to fetch table')
@@ -77,7 +83,8 @@ async function fetchTableRows({
   offset,
   filter,
   sort,
-}: TableRowsParams): Promise<TableRowsResponse> {
+  signal,
+}: TableRowsParams & { signal?: AbortSignal }): Promise<TableRowsResponse> {
   const searchParams = new URLSearchParams({
     workspaceId,
     limit: String(limit),
@@ -92,7 +99,7 @@ async function fetchTableRows({
     searchParams.set('sort', JSON.stringify(sort))
   }
 
-  const res = await fetch(`/api/table/${tableId}/rows?${searchParams}`)
+  const res = await fetch(`/api/table/${tableId}/rows?${searchParams}`, { signal })
   if (!res.ok) {
     const error = await res.json().catch(() => ({}))
     throw new Error(error.error || 'Failed to fetch rows')
@@ -127,10 +134,12 @@ function invalidateTableData(
 export function useTablesList(workspaceId?: string) {
   return useQuery({
     queryKey: tableKeys.list(workspaceId),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!workspaceId) throw new Error('Workspace ID required')
 
-      const res = await fetch(`/api/table?workspaceId=${encodeURIComponent(workspaceId)}`)
+      const res = await fetch(`/api/table?workspaceId=${encodeURIComponent(workspaceId)}`, {
+        signal,
+      })
 
       if (!res.ok) {
         const error = await res.json()
@@ -151,7 +160,7 @@ export function useTablesList(workspaceId?: string) {
 export function useTable(workspaceId: string | undefined, tableId: string | undefined) {
   return useQuery({
     queryKey: tableKeys.detail(tableId ?? ''),
-    queryFn: () => fetchTable(workspaceId as string, tableId as string),
+    queryFn: ({ signal }) => fetchTable(workspaceId as string, tableId as string, signal),
     enabled: Boolean(workspaceId && tableId),
     staleTime: 30 * 1000,
   })
@@ -173,7 +182,7 @@ export function useTableRows({
 
   return useQuery({
     queryKey: tableKeys.rows(tableId, paramsKey),
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       fetchTableRows({
         workspaceId,
         tableId,
@@ -181,8 +190,10 @@ export function useTableRows({
         offset,
         filter,
         sort,
+        signal,
       }),
     enabled: Boolean(workspaceId && tableId) && enabled,
+    staleTime: 30 * 1000, // 30 seconds
     placeholderData: keepPreviousData,
   })
 }

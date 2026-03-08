@@ -47,7 +47,7 @@ const LogRow = memo(
     const isMothershipJob = log.trigger === 'mothership'
     const isDeletedWorkflow = !isMothershipJob && !log.workflow?.id && !log.workflowId
     const workflowName = isMothershipJob
-      ? (log.executionData as any)?.trigger?.source || 'Mothership Job'
+      ? log.jobTitle || 'Untitled Job'
       : isDeletedWorkflow
         ? DELETED_WORKFLOW_LABEL
         : log.workflow?.name || 'Unknown'

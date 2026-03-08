@@ -593,6 +593,7 @@ function buildJobPrompt(jobRecord: {
   maxRuns: number | null
   sourceTaskName: string | null
   sourceChatId: string | null
+  jobHistory: Array<{ timestamp: string; summary: string }> | null
 }): string {
   const parts: string[] = []
 
@@ -622,6 +623,29 @@ function buildJobPrompt(jobRecord: {
 
   if (jobRecord.sourceChatId) {
     parts.push("Read the task's session.md in the VFS for conversation context.")
+  }
+
+  if (jobRecord.jobHistory && jobRecord.jobHistory.length > 0) {
+    parts.push('')
+    parts.push('PREVIOUS RUN HISTORY (for idempotency -- do NOT reprocess items already handled):')
+    const recentHistory = jobRecord.jobHistory.slice(-10)
+    for (const entry of recentHistory) {
+      parts.push(`- [${entry.timestamp}] ${entry.summary}`)
+    }
+    parts.push('')
+    parts.push(
+      'Use this history to avoid duplicate work. After completing meaningful work this run, call update_job_history to record what you did.'
+    )
+  } else if (jobRecord.runCount > 0) {
+    parts.push('')
+    parts.push(
+      'No previous run history recorded. After completing meaningful work, call update_job_history to record what you did for future runs.'
+    )
+  } else {
+    parts.push('')
+    parts.push(
+      'This is the first run. After completing meaningful work, call update_job_history to record what you did so future runs have context.'
+    )
   }
 
   if (jobRecord.lifecycle === 'until_complete') {

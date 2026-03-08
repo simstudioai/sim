@@ -504,3 +504,59 @@ export async function executeCompleteJob(
     return { success: false, error: 'Failed to complete job' }
   }
 }
+
+export async function executeUpdateJobHistory(
+  params: Record<string, unknown>,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  const { jobId, summary } = params as { jobId?: string; summary?: string }
+
+  if (!jobId || !summary) {
+    return { success: false, error: 'jobId and summary are required' }
+  }
+
+  if (!context.workspaceId) {
+    return { success: false, error: 'Missing workspace context' }
+  }
+
+  try {
+    const [job] = await db
+      .select({
+        id: workflowSchedule.id,
+        jobHistory: workflowSchedule.jobHistory,
+      })
+      .from(workflowSchedule)
+      .where(
+        and(
+          eq(workflowSchedule.id, jobId),
+          eq(workflowSchedule.sourceType, 'job'),
+          eq(workflowSchedule.sourceWorkspaceId, context.workspaceId)
+        )
+      )
+      .limit(1)
+
+    if (!job) {
+      return { success: false, error: `Job not found: ${jobId}` }
+    }
+
+    const existing = (job.jobHistory || []) as Array<{ timestamp: string; summary: string }>
+    const updated = [...existing, { timestamp: new Date().toISOString(), summary }].slice(-50)
+
+    await db
+      .update(workflowSchedule)
+      .set({ jobHistory: updated, updatedAt: new Date() })
+      .where(eq(workflowSchedule.id, jobId))
+
+    logger.info('Job history updated', { jobId, entryCount: updated.length })
+
+    return {
+      success: true,
+      output: { jobId, entryCount: updated.length, message: 'History entry recorded.' },
+    }
+  } catch (err) {
+    logger.error('Failed to update job history', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return { success: false, error: 'Failed to update job history' }
+  }
+}

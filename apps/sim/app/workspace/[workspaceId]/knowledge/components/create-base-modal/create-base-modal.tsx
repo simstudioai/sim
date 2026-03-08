@@ -91,7 +91,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragCounter, setDragCounter] = useState(0)
-  const [retryingIndexes, setRetryingIndexes] = useState<Set<number>>(new Set())
+  const [retryingIndexes, setRetryingIndexes] = useState<Set<number>>(() => new Set())
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 

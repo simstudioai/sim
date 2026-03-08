@@ -14,7 +14,10 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
 import type { DbOrTx } from '@/lib/db/types'
-import { migrateSubblockIds } from '@/lib/workflows/migrations/subblock-migrations'
+import {
+  backfillCanonicalModes,
+  migrateSubblockIds,
+} from '@/lib/workflows/migrations/subblock-migrations'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 import { SUBFLOW_TYPES } from '@/stores/workflows/workflow/types'
@@ -114,6 +117,10 @@ export async function loadDeployedWorkflowState(
       resolvedWorkspaceId = wfRow?.workspaceId ?? undefined
     }
 
+    if (!resolvedWorkspaceId) {
+      throw new Error(`Workflow ${workflowId} has no workspace`)
+    }
+
     const { blocks: migratedBlocks } = await applyBlockMigrations(
       state.blocks || {},
       resolvedWorkspaceId
@@ -136,7 +143,7 @@ export async function loadDeployedWorkflowState(
 
 interface MigrationContext {
   blocks: Record<string, BlockState>
-  workspaceId?: string
+  workspaceId: string
   migrated: boolean
 }
 
@@ -145,7 +152,7 @@ type BlockMigration = (ctx: MigrationContext) => MigrationContext | Promise<Migr
 function createMigrationPipeline(migrations: BlockMigration[]) {
   return async (
     blocks: Record<string, BlockState>,
-    workspaceId?: string
+    workspaceId: string
   ): Promise<{ blocks: Record<string, BlockState>; migrated: boolean }> => {
     let ctx: MigrationContext = { blocks, workspaceId, migrated: false }
     for (const migration of migrations) {
@@ -167,13 +174,17 @@ const applyBlockMigrations = createMigrationPipeline([
   }),
 
   async (ctx) => {
-    if (!ctx.workspaceId) return ctx
     const { blocks, migrated } = await migrateCredentialIds(ctx.blocks, ctx.workspaceId)
     return { ...ctx, blocks, migrated: ctx.migrated || migrated }
   },
 
   (ctx) => {
     const { blocks, migrated } = migrateSubblockIds(ctx.blocks)
+    return { ...ctx, blocks, migrated: ctx.migrated || migrated }
+  },
+
+  (ctx) => {
+    const { blocks, migrated } = backfillCanonicalModes(ctx.blocks)
     return { ...ctx, blocks, migrated: ctx.migrated || migrated }
   },
 ])
@@ -401,19 +412,27 @@ export async function loadWorkflowFromNormalizedTables(
       blocksMap[block.id] = assembled
     })
 
+    if (!workflowRow?.workspaceId) {
+      throw new Error(`Workflow ${workflowId} has no workspace`)
+    }
+
     const { blocks: finalBlocks, migrated } = await applyBlockMigrations(
       blocksMap,
-      workflowRow?.workspaceId ?? undefined
+      workflowRow.workspaceId
     )
 
     if (migrated) {
       Promise.resolve().then(async () => {
         try {
           for (const [blockId, block] of Object.entries(finalBlocks)) {
-            if (block.subBlocks !== blocksMap[blockId]?.subBlocks) {
+            if (block !== blocksMap[blockId]) {
               await db
                 .update(workflowBlocks)
-                .set({ subBlocks: block.subBlocks, updatedAt: new Date() })
+                .set({
+                  subBlocks: block.subBlocks,
+                  data: block.data,
+                  updatedAt: new Date(),
+                })
                 .where(
                   and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId))
                 )

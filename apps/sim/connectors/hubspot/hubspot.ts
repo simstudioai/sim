@@ -185,7 +185,7 @@ export const hubspotConnector: ConnectorConfig = {
       'crm.objects.contacts.read',
       'crm.objects.companies.read',
       'crm.objects.deals.read',
-      'tickets',
+      'crm.objects.tickets.read',
     ],
   },
 
@@ -269,7 +269,7 @@ export const hubspotConnector: ConnectorConfig = {
       results.map((record) => recordToDocument(record, objectType, portalId))
     )
 
-    const previouslyFetched = (syncContext?.totalFetched as number) ?? 0
+    const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
     if (maxRecords > 0) {
       const remaining = maxRecords - previouslyFetched
       if (documents.length > remaining) {
@@ -279,7 +279,7 @@ export const hubspotConnector: ConnectorConfig = {
 
     const totalFetched = previouslyFetched + documents.length
     if (syncContext) {
-      syncContext.totalFetched = totalFetched
+      syncContext.totalDocsFetched = totalFetched
     }
 
     const hasMore = Boolean(nextCursor) && (maxRecords <= 0 || totalFetched < maxRecords)

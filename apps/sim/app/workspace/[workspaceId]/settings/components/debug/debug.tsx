@@ -1,14 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { Button, Input as EmcnInput } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
-import { workflowKeys } from '@/hooks/queries/workflows'
-
-const logger = createLogger('DebugSettings')
+import { useImportWorkflow } from '@/hooks/queries/workflows'
 
 /**
  * Debug settings component for superusers.
@@ -16,57 +12,25 @@ const logger = createLogger('DebugSettings')
  */
 export function Debug() {
   const params = useParams()
-  const queryClient = useQueryClient()
   const workspaceId = params?.workspaceId as string
 
   const [workflowId, setWorkflowId] = useState('')
-  const [isImporting, setIsImporting] = useState(false)
-  const [importError, setImportError] = useState<string | null>(null)
-  const [importSuccess, setImportSuccess] = useState<string | null>(null)
+  const importWorkflow = useImportWorkflow()
 
-  const handleImport = async () => {
+  const handleImport = () => {
     if (!workflowId.trim()) return
 
-    setIsImporting(true)
-    setImportError(null)
-    setImportSuccess(null)
-
-    try {
-      const response = await fetch('/api/superuser/import-workflow', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workflowId: workflowId.trim(),
-          targetWorkspaceId: workspaceId,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        const message = data?.error || `Import failed with status ${response.status}`
-        setImportError(message)
-        logger.error('Failed to import workflow', { status: response.status, error: message })
-        return
+    importWorkflow.mutate(
+      {
+        workflowId: workflowId.trim(),
+        targetWorkspaceId: workspaceId,
+      },
+      {
+        onSuccess: () => {
+          setWorkflowId('')
+        },
       }
-
-      await queryClient.invalidateQueries({ queryKey: workflowKeys.list(workspaceId) })
-      setWorkflowId('')
-      setImportSuccess(
-        `Workflow imported successfully (new ID: ${data.newWorkflowId}, ${data.copilotChatsImported ?? 0} copilot chats imported)`
-      )
-      logger.info('Workflow imported successfully', {
-        originalWorkflowId: workflowId.trim(),
-        newWorkflowId: data.newWorkflowId,
-        copilotChatsImported: data.copilotChatsImported,
-      })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'An unexpected error occurred'
-      setImportError(message)
-      logger.error('Failed to import workflow', { error })
-    } finally {
-      setIsImporting(false)
-    }
+    )
   }
 
   return (
@@ -80,26 +44,32 @@ export function Debug() {
           value={workflowId}
           onChange={(e) => {
             setWorkflowId(e.target.value)
-            setImportError(null)
-            setImportSuccess(null)
+            importWorkflow.reset()
           }}
           placeholder='Enter workflow ID'
-          disabled={isImporting}
+          disabled={importWorkflow.isPending}
         />
         <Button
           variant='tertiary'
           onClick={handleImport}
-          disabled={isImporting || !workflowId.trim()}
+          disabled={importWorkflow.isPending || !workflowId.trim()}
         >
-          {isImporting ? 'Importing...' : 'Import'}
+          {importWorkflow.isPending ? 'Importing...' : 'Import'}
         </Button>
       </div>
 
-      {isImporting && <DebugSkeleton />}
+      {importWorkflow.isPending && <DebugSkeleton />}
 
-      {importError && <p className='text-[13px] text-[var(--text-error)]'>{importError}</p>}
+      {importWorkflow.error && (
+        <p className='text-[13px] text-[var(--text-error)]'>{importWorkflow.error.message}</p>
+      )}
 
-      {importSuccess && <p className='text-[13px] text-[var(--text-secondary)]'>{importSuccess}</p>}
+      {importWorkflow.isSuccess && (
+        <p className='text-[13px] text-[var(--text-secondary)]'>
+          Workflow imported successfully (new ID: {importWorkflow.data.newWorkflowId},{' '}
+          {importWorkflow.data.copilotChatsImported ?? 0} copilot chats imported)
+        </p>
+      )}
     </div>
   )
 }

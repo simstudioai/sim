@@ -34,8 +34,8 @@ function mapFolder(folder: any): WorkflowFolder {
   }
 }
 
-async function fetchFolders(workspaceId: string): Promise<WorkflowFolder[]> {
-  const response = await fetch(`/api/folders?workspaceId=${workspaceId}`)
+async function fetchFolders(workspaceId: string, signal?: AbortSignal): Promise<WorkflowFolder[]> {
+  const response = await fetch(`/api/folders?workspaceId=${workspaceId}`, { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch folders')
@@ -50,7 +50,7 @@ export function useFolders(workspaceId?: string) {
 
   const query = useQuery({
     queryKey: folderKeys.list(workspaceId),
-    queryFn: () => fetchFolders(workspaceId as string),
+    queryFn: ({ signal }) => fetchFolders(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,

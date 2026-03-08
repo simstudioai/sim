@@ -1,6 +1,7 @@
 export { Blimp } from './blimp'
 export { BubbleChatClose } from './bubble-chat-close'
 export { BubbleChatPreview } from './bubble-chat-preview'
+export { Calendar } from './calendar'
 export { Card } from './card'
 export { ChevronDown } from './chevron-down'
 export { Connections } from './connections'

@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
-import { TablesView } from './components'
+import { Tables } from './tables'
 
 interface TablesPageProps {
   params: Promise<{
@@ -28,5 +28,5 @@ export default async function TablesPage({ params }: TablesPageProps) {
     redirect(`/workspace/${workspaceId}`)
   }
 
-  return <TablesView />
+  return <Tables />
 }

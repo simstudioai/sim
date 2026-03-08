@@ -1,7 +1,11 @@
 {
-  "$schema": "https://v2-8-10.turborepo.dev/schema.json",
+  "$schema": "https://v2-8-13.turborepo.dev/schema.json",
   "envMode": "loose",
   "tasks": {
+    "transit": {
+      "dependsOn": ["^transit"],
+      "outputs": []
+    },
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
@@ -18,16 +22,22 @@
       "dependsOn": ["^build"],
       "outputs": []
     },
+    "lint": {
+      "dependsOn": ["transit"],
+      "outputs": []
+    },
     "format": {
       "outputs": []
     },
     "format:check": {
       "outputs": []
     },
-    "lint": {
+    "lint:check": {
+      "dependsOn": ["transit"],
       "outputs": []
     },
     "type-check": {
+      "dependsOn": ["transit"],
       "outputs": []
     }
   }

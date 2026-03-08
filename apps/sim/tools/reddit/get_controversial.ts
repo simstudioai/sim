@@ -74,7 +74,7 @@ export const getControversialTool: ToolConfig<RedditControversialParams, RedditP
   request: {
     url: (params: RedditControversialParams) => {
       const subreddit = normalizeSubreddit(params.subreddit)
-      const limit = Math.min(Math.max(1, params.limit || 10), 100)
+      const limit = Math.min(Math.max(1, params.limit ?? 10), 100)
 
       // Build URL with appropriate parameters using OAuth endpoint
       const urlParams = new URLSearchParams({
@@ -115,25 +115,26 @@ export const getControversialTool: ToolConfig<RedditControversialParams, RedditP
 
     // Extract subreddit name from response (with fallback)
     const subredditName =
-      data.data?.children[0]?.data?.subreddit || requestParams?.subreddit || 'unknown'
+      data.data?.children?.[0]?.data?.subreddit || requestParams?.subreddit || 'unknown'
 
     // Transform posts data
     const posts =
       data.data?.children?.map((child: any) => {
         const post = child.data || {}
         return {
-          id: post.id || '',
-          title: post.title || '',
+          id: post.id ?? '',
+          name: post.name ?? '',
+          title: post.title ?? '',
           author: post.author || '[deleted]',
-          url: post.url || '',
+          url: post.url ?? '',
           permalink: post.permalink ? `https://www.reddit.com${post.permalink}` : '',
-          created_utc: post.created_utc || 0,
-          score: post.score || 0,
-          num_comments: post.num_comments || 0,
+          created_utc: post.created_utc ?? 0,
+          score: post.score ?? 0,
+          num_comments: post.num_comments ?? 0,
           is_self: !!post.is_self,
-          selftext: post.selftext || '',
-          thumbnail: post.thumbnail || '',
-          subreddit: post.subreddit || subredditName,
+          selftext: post.selftext ?? '',
+          thumbnail: post.thumbnail ?? '',
+          subreddit: post.subreddit ?? subredditName,
         }
       }) || []
 
@@ -142,6 +143,8 @@ export const getControversialTool: ToolConfig<RedditControversialParams, RedditP
       output: {
         subreddit: subredditName,
         posts,
+        after: data.data?.after ?? null,
+        before: data.data?.before ?? null,
       },
     }
   },
@@ -159,6 +162,7 @@ export const getControversialTool: ToolConfig<RedditControversialParams, RedditP
         type: 'object',
         properties: {
           id: { type: 'string', description: 'Post ID' },
+          name: { type: 'string', description: 'Thing fullname (t3_xxxxx)' },
           title: { type: 'string', description: 'Post title' },
           author: { type: 'string', description: 'Author username' },
           url: { type: 'string', description: 'Post URL' },
@@ -172,6 +176,16 @@ export const getControversialTool: ToolConfig<RedditControversialParams, RedditP
           subreddit: { type: 'string', description: 'Subreddit name' },
         },
       },
+    },
+    after: {
+      type: 'string',
+      description: 'Fullname of the last item for forward pagination',
+      optional: true,
+    },
+    before: {
+      type: 'string',
+      description: 'Fullname of the first item for backward pagination',
+      optional: true,
     },
   },
 }

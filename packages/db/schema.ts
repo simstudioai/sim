@@ -514,6 +514,7 @@ export const workflowSchedule = pgTable(
     sourceWorkspaceId: text('source_workspace_id').references(() => workspace.id, {
       onDelete: 'cascade',
     }),
+    jobHistory: jsonb('job_history').$type<Array<{ timestamp: string; summary: string }>>(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

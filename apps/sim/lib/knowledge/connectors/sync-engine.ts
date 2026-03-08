@@ -255,9 +255,12 @@ export async function executeSync(
         .where(eq(knowledgeConnectorSyncLog.id, syncLogId))
 
       const now = new Date()
+      const jitterMs = Math.floor(
+        Math.random() * Math.min(connector.syncIntervalMinutes * 6_000, 300_000)
+      )
       const nextSync =
         connector.syncIntervalMinutes > 0
-          ? new Date(now.getTime() + connector.syncIntervalMinutes * 60 * 1000)
+          ? new Date(now.getTime() + connector.syncIntervalMinutes * 60 * 1000 + jitterMs)
           : null
 
       await db
@@ -387,9 +390,12 @@ export async function executeSync(
       .where(eq(knowledgeConnectorSyncLog.id, syncLogId))
 
     const now = new Date()
+    const jitterMs = Math.floor(
+      Math.random() * Math.min(connector.syncIntervalMinutes * 6_000, 300_000)
+    )
     const nextSync =
       connector.syncIntervalMinutes > 0
-        ? new Date(now.getTime() + connector.syncIntervalMinutes * 60 * 1000)
+        ? new Date(now.getTime() + connector.syncIntervalMinutes * 60 * 1000 + jitterMs)
         : null
 
     await db

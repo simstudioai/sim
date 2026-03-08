@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
+import { Skeleton } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionStatus } from '@/lib/billing/client'
 import { isHosted } from '@/lib/core/config/feature-flags'
@@ -28,8 +29,8 @@ export function SettingsSidebar() {
   const pathname = usePathname()
   const router = useRouter()
 
-  const { data: session } = useSession()
-  const { data: organizationsData } = useOrganizations()
+  const { data: session, isPending: sessionLoading } = useSession()
+  const { data: organizationsData, isLoading: orgsLoading } = useOrganizations()
   const { data: generalSettings } = useGeneralSettings()
   const { data: subscriptionData } = useSubscriptionData({ enabled: isBillingEnabled })
   const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders()
@@ -65,7 +66,7 @@ export function SettingsSidebar() {
         return false
       }
 
-      if (item.id === 'template-profile' && permissionConfig.hideTemplates) {
+      if (item.id === 'template-profile') {
         return false
       }
       if (item.id === 'apikeys' && permissionConfig.hideApiKeysTab) {
@@ -142,51 +143,64 @@ export function SettingsSidebar() {
           onClick={handleBack}
           className='group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]'
         >
-          <ArrowLeft className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-muted)]' />
-          <span className='truncate font-base text-[var(--text-secondary)]'>Back</span>
+          <ArrowLeft className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+          <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
+            Back
+          </span>
         </button>
       </div>
 
       {/* Settings sections */}
-      <div className='mt-[14px] flex flex-1 flex-col overflow-y-auto overflow-x-hidden'>
-        {sectionConfig.map(({ key, title }) => {
-          const sectionItems = navigationItems.filter((item) => item.section === key)
-          if (sectionItems.length === 0) return null
-
-          return (
-            <div key={key} className='flex flex-shrink-0 flex-col pb-[5px]'>
-              <div className='px-[16px] pb-[6px]'>
-                <div className='font-base text-[var(--text-tertiary)] text-small'>{title}</div>
+      <div className='mt-[14px] flex flex-1 flex-col gap-[14px] overflow-y-auto overflow-x-hidden'>
+        {sessionLoading || orgsLoading
+          ? Array.from({ length: 3 }, (_, i) => (
+              <div key={i} className='flex flex-shrink-0 flex-col'>
+                <div className='px-[16px] pb-[6px]'>
+                  <Skeleton className='h-[14px] w-[64px] rounded-[4px]' />
+                </div>
+                <div className='flex flex-col gap-[2px] px-[8px]'>
+                  {Array.from({ length: i === 0 ? 3 : 2 }, (_, j) => (
+                    <div key={j} className='mx-[2px] flex h-[30px] items-center px-[8px]'>
+                      <Skeleton className='h-[24px] w-full rounded-[4px]' />
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className='flex flex-col gap-[2px] px-[8px]'>
-                {sectionItems.map((item) => {
-                  const Icon = item.icon
-                  const active = activeSection === item.id
-                  const textColor = active
-                    ? 'text-[var(--text-primary)]'
-                    : 'text-[var(--text-secondary)]'
-                  const iconColor = active
-                    ? 'text-[var(--text-primary)]'
-                    : 'text-[var(--text-muted)]'
+            ))
+          : sectionConfig.map(({ key, title }) => {
+              const sectionItems = navigationItems.filter((item) => item.section === key)
+              if (sectionItems.length === 0) return null
 
-                  return (
-                    <Link
-                      key={item.id}
-                      href={`/workspace/${workspaceId}/settings/${item.id}`}
-                      className={cn(
-                        'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
-                        active && 'bg-[var(--surface-active)]'
-                      )}
-                    >
-                      <Icon className={`h-[16px] w-[16px] flex-shrink-0 ${iconColor}`} />
-                      <span className={`truncate font-base ${textColor}`}>{item.label}</span>
-                    </Link>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        })}
+              return (
+                <div key={key} className='flex flex-shrink-0 flex-col'>
+                  <div className='px-[16px] pb-[6px]'>
+                    <div className='font-base text-[var(--text-icon)] text-small'>{title}</div>
+                  </div>
+                  <div className='flex flex-col gap-[2px] px-[8px]'>
+                    {sectionItems.map((item) => {
+                      const Icon = item.icon
+                      const active = activeSection === item.id
+
+                      return (
+                        <Link
+                          key={item.id}
+                          href={`/workspace/${workspaceId}/settings/${item.id}`}
+                          className={cn(
+                            'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
+                            active && 'bg-[var(--surface-active)]'
+                          )}
+                        >
+                          <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                          <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
+                            {item.label}
+                          </span>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
       </div>
     </div>
   )

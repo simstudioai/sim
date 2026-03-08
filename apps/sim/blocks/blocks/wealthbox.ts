@@ -1,4 +1,5 @@
 import { WealthboxIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { WealthboxResponse } from '@/tools/wealthbox/types'
@@ -36,7 +37,7 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'wealthbox',
-      requiredScopes: ['login', 'data'],
+      requiredScopes: getScopesForService('wealthbox'),
       placeholder: 'Select Wealthbox account',
       required: true,
     },
@@ -62,7 +63,7 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       type: 'file-selector',
       serviceId: 'wealthbox',
       selectorKey: 'wealthbox.contacts',
-      requiredScopes: ['login', 'data'],
+      requiredScopes: getScopesForService('wealthbox'),
       placeholder: 'Enter Contact ID',
       mode: 'basic',
       canonicalParamId: 'contactId',

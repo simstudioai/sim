@@ -1,4 +1,5 @@
 import { SalesforceIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { SalesforceResponse } from '@/tools/salesforce/types'
@@ -65,7 +66,7 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'salesforce',
-      requiredScopes: ['api', 'refresh_token', 'openid', 'offline_access'],
+      requiredScopes: getScopesForService('salesforce'),
       placeholder: 'Select Salesforce account',
       required: true,
     },

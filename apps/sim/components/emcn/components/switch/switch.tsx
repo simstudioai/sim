@@ -15,7 +15,7 @@ const Switch = React.forwardRef<
   <SwitchPrimitives.Root
     disabled={disabled}
     className={cn(
-      'peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full bg-[var(--border-1)] transition-colors focus-visible:outline-none data-[disabled]:cursor-not-allowed data-[state=checked]:bg-[var(--brand-tertiary-2)] data-[disabled]:opacity-50',
+      'peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full bg-[var(--border-1)] transition-colors focus-visible:outline-none data-[disabled]:cursor-not-allowed data-[state=checked]:bg-[var(--c-2A2A2A)] data-[disabled]:opacity-50',
       className
     )}
     {...props}

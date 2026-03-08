@@ -100,13 +100,13 @@ describe('Schedule PUT API (Reactivate)', () => {
   })
 
   describe('Request Validation', () => {
-    it('returns 400 when action is not reactivate', async () => {
+    it('returns 400 when action is not a valid enum value', async () => {
       mockDbChain([
         [{ id: 'sched-1', workflowId: 'wf-1', status: 'disabled' }],
         [{ userId: 'user-1', workspaceId: null }],
       ])
 
-      const res = await PUT(createRequest({ action: 'disable' }), createParams('sched-1'))
+      const res = await PUT(createRequest({ action: 'invalid-action' }), createParams('sched-1'))
 
       expect(res.status).toBe(400)
       const data = await res.json()

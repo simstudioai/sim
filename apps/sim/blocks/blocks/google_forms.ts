@@ -1,4 +1,5 @@
 import { GoogleFormsIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 
@@ -38,13 +39,7 @@ export const GoogleFormsBlock: BlockConfig = {
       mode: 'basic',
       required: true,
       serviceId: 'google-forms',
-      requiredScopes: [
-        'https://www.googleapis.com/auth/userinfo.email',
-        'https://www.googleapis.com/auth/userinfo.profile',
-        'https://www.googleapis.com/auth/drive',
-        'https://www.googleapis.com/auth/forms.body',
-        'https://www.googleapis.com/auth/forms.responses.readonly',
-      ],
+      requiredScopes: getScopesForService('google-forms'),
       placeholder: 'Select Google account',
     },
     {

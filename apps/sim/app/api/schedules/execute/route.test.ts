@@ -71,6 +71,7 @@ vi.mock('@/lib/core/async-jobs', () => ({
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
   eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
+  ne: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'ne' })),
   lte: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'lte' })),
   lt: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'lt' })),
   not: vi.fn((condition: unknown) => ({ type: 'not', condition })),
@@ -94,6 +95,7 @@ vi.mock('@sim/db', () => ({
     nextRunAt: 'nextRunAt',
     lastQueuedAt: 'lastQueuedAt',
     deploymentVersionId: 'deploymentVersionId',
+    sourceType: 'sourceType',
   },
   workflowDeploymentVersion: {
     id: 'id',
@@ -161,7 +163,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should execute scheduled workflows with Trigger.dev disabled', async () => {
-    mockDbReturning.mockReturnValue(SINGLE_SCHEDULE)
+    mockDbReturning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
 
@@ -174,7 +176,7 @@ describe('Scheduled Workflow Execution API Route', () => {
 
   it('should queue schedules to Trigger.dev when enabled', async () => {
     mockFeatureFlags.isTriggerDevEnabled = true
-    mockDbReturning.mockReturnValue(SINGLE_SCHEDULE)
+    mockDbReturning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
 
@@ -185,7 +187,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should handle case with no due schedules', async () => {
-    mockDbReturning.mockReturnValue([])
+    mockDbReturning.mockReturnValueOnce([]).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
 
@@ -196,7 +198,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should execute multiple schedules in parallel', async () => {
-    mockDbReturning.mockReturnValue(MULTIPLE_SCHEDULES)
+    mockDbReturning.mockReturnValueOnce(MULTIPLE_SCHEDULES).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
 

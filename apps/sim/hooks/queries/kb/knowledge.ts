@@ -27,9 +27,12 @@ export const knowledgeKeys = {
     [...knowledgeKeys.document(knowledgeBaseId, documentId), 'chunks', paramsKey] as const,
 }
 
-export async function fetchKnowledgeBases(workspaceId?: string): Promise<KnowledgeBaseData[]> {
+export async function fetchKnowledgeBases(
+  workspaceId?: string,
+  signal?: AbortSignal
+): Promise<KnowledgeBaseData[]> {
   const url = workspaceId ? `/api/knowledge?workspaceId=${workspaceId}` : '/api/knowledge'
-  const response = await fetch(url)
+  const response = await fetch(url, { signal })
 
   if (!response.ok) {
     throw new Error(`Failed to fetch knowledge bases: ${response.status} ${response.statusText}`)
@@ -43,8 +46,11 @@ export async function fetchKnowledgeBases(workspaceId?: string): Promise<Knowled
   return Array.isArray(result?.data) ? result.data : []
 }
 
-export async function fetchKnowledgeBase(knowledgeBaseId: string): Promise<KnowledgeBaseData> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}`)
+export async function fetchKnowledgeBase(
+  knowledgeBaseId: string,
+  signal?: AbortSignal
+): Promise<KnowledgeBaseData> {
+  const response = await fetch(`/api/knowledge/${knowledgeBaseId}`, { signal })
 
   if (!response.ok) {
     throw new Error(`Failed to fetch knowledge base: ${response.status} ${response.statusText}`)
@@ -60,9 +66,12 @@ export async function fetchKnowledgeBase(knowledgeBaseId: string): Promise<Knowl
 
 export async function fetchDocument(
   knowledgeBaseId: string,
-  documentId: string
+  documentId: string,
+  signal?: AbortSignal
 ): Promise<DocumentData> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`)
+  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`, {
+    signal,
+  })
 
   if (!response.ok) {
     if (response.status === 404) {
@@ -103,16 +112,19 @@ export interface KnowledgeDocumentsResponse {
   pagination: DocumentsPagination
 }
 
-export async function fetchKnowledgeDocuments({
-  knowledgeBaseId,
-  search,
-  limit = 50,
-  offset = 0,
-  sortBy,
-  sortOrder,
-  enabledFilter,
-  tagFilters,
-}: KnowledgeDocumentsParams): Promise<KnowledgeDocumentsResponse> {
+export async function fetchKnowledgeDocuments(
+  {
+    knowledgeBaseId,
+    search,
+    limit = 50,
+    offset = 0,
+    sortBy,
+    sortOrder,
+    enabledFilter,
+    tagFilters,
+  }: KnowledgeDocumentsParams,
+  signal?: AbortSignal
+): Promise<KnowledgeDocumentsResponse> {
   const params = new URLSearchParams()
   if (search) params.set('search', search)
   if (sortBy) params.set('sortBy', sortBy)
@@ -123,7 +135,7 @@ export async function fetchKnowledgeDocuments({
   if (tagFilters && tagFilters.length > 0) params.set('tagFilters', JSON.stringify(tagFilters))
 
   const url = `/api/knowledge/${knowledgeBaseId}/documents${params.toString() ? `?${params.toString()}` : ''}`
-  const response = await fetch(url)
+  const response = await fetch(url, { signal })
 
   if (!response.ok) {
     throw new Error(`Failed to fetch documents: ${response.status} ${response.statusText}`)
@@ -168,14 +180,17 @@ export interface KnowledgeChunksResponse {
   pagination: ChunksPagination
 }
 
-export async function fetchKnowledgeChunks({
-  knowledgeBaseId,
-  documentId,
-  search,
-  enabledFilter,
-  limit = 50,
-  offset = 0,
-}: KnowledgeChunksParams): Promise<KnowledgeChunksResponse> {
+export async function fetchKnowledgeChunks(
+  {
+    knowledgeBaseId,
+    documentId,
+    search,
+    enabledFilter,
+    limit = 50,
+    offset = 0,
+  }: KnowledgeChunksParams,
+  signal?: AbortSignal
+): Promise<KnowledgeChunksResponse> {
   const params = new URLSearchParams()
   if (search) params.set('search', search)
   if (enabledFilter && enabledFilter !== 'all') {
@@ -185,7 +200,8 @@ export async function fetchKnowledgeChunks({
   if (offset) params.set('offset', offset.toString())
 
   const response = await fetch(
-    `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks${params.toString() ? `?${params.toString()}` : ''}`
+    `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks${params.toString() ? `?${params.toString()}` : ''}`,
+    { signal }
   )
 
   if (!response.ok) {
@@ -216,7 +232,7 @@ export function useKnowledgeBasesQuery(
 ) {
   return useQuery({
     queryKey: knowledgeKeys.list(workspaceId),
-    queryFn: () => fetchKnowledgeBases(workspaceId),
+    queryFn: ({ signal }) => fetchKnowledgeBases(workspaceId, signal),
     enabled: options?.enabled ?? true,
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
@@ -226,7 +242,7 @@ export function useKnowledgeBasesQuery(
 export function useKnowledgeBaseQuery(knowledgeBaseId?: string) {
   return useQuery({
     queryKey: knowledgeKeys.detail(knowledgeBaseId),
-    queryFn: () => fetchKnowledgeBase(knowledgeBaseId as string),
+    queryFn: ({ signal }) => fetchKnowledgeBase(knowledgeBaseId as string, signal),
     enabled: Boolean(knowledgeBaseId),
     staleTime: 60 * 1000,
   })
@@ -235,7 +251,7 @@ export function useKnowledgeBaseQuery(knowledgeBaseId?: string) {
 export function useDocumentQuery(knowledgeBaseId?: string, documentId?: string) {
   return useQuery({
     queryKey: knowledgeKeys.document(knowledgeBaseId ?? '', documentId ?? ''),
-    queryFn: () => fetchDocument(knowledgeBaseId as string, documentId as string),
+    queryFn: ({ signal }) => fetchDocument(knowledgeBaseId as string, documentId as string, signal),
     enabled: Boolean(knowledgeBaseId && documentId),
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
@@ -266,7 +282,7 @@ export function useKnowledgeDocumentsQuery(
   const paramsKey = serializeDocumentParams(params)
   return useQuery({
     queryKey: knowledgeKeys.documents(params.knowledgeBaseId, paramsKey),
-    queryFn: () => fetchKnowledgeDocuments(params),
+    queryFn: ({ signal }) => fetchKnowledgeDocuments(params, signal),
     enabled: (options?.enabled ?? true) && Boolean(params.knowledgeBaseId),
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
@@ -291,7 +307,7 @@ export function useKnowledgeChunksQuery(
   const paramsKey = serializeChunkParams(params)
   return useQuery({
     queryKey: knowledgeKeys.chunks(params.knowledgeBaseId, params.documentId, paramsKey),
-    queryFn: () => fetchKnowledgeChunks(params),
+    queryFn: ({ signal }) => fetchKnowledgeChunks(params, signal),
     enabled: (options?.enabled ?? true) && Boolean(params.knowledgeBaseId && params.documentId),
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
@@ -308,24 +324,26 @@ export interface DocumentChunkSearchParams {
  * Fetches all chunks matching a search query by paginating through results.
  * This is used for search functionality where we need all matching chunks.
  */
-export async function fetchAllDocumentChunks({
-  knowledgeBaseId,
-  documentId,
-  search,
-}: DocumentChunkSearchParams): Promise<ChunkData[]> {
+export async function fetchAllDocumentChunks(
+  { knowledgeBaseId, documentId, search }: DocumentChunkSearchParams,
+  signal?: AbortSignal
+): Promise<ChunkData[]> {
   const allResults: ChunkData[] = []
   let hasMore = true
   let offset = 0
   const limit = 100
 
   while (hasMore) {
-    const response = await fetchKnowledgeChunks({
-      knowledgeBaseId,
-      documentId,
-      search,
-      limit,
-      offset,
-    })
+    const response = await fetchKnowledgeChunks(
+      {
+        knowledgeBaseId,
+        documentId,
+        search,
+        limit,
+        offset,
+      },
+      signal
+    )
 
     allResults.push(...response.chunks)
     hasMore = response.pagination.hasMore
@@ -357,7 +375,7 @@ export function useDocumentChunkSearchQuery(
       'search',
       searchKey,
     ],
-    queryFn: () => fetchAllDocumentChunks(params),
+    queryFn: ({ signal }) => fetchAllDocumentChunks(params, signal),
     enabled:
       (options?.enabled ?? true) &&
       Boolean(params.knowledgeBaseId && params.documentId && params.search.trim()),
@@ -903,8 +921,11 @@ export interface TagDefinitionData {
   updatedAt: string
 }
 
-export async function fetchTagDefinitions(knowledgeBaseId: string): Promise<TagDefinitionData[]> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/tag-definitions`)
+export async function fetchTagDefinitions(
+  knowledgeBaseId: string,
+  signal?: AbortSignal
+): Promise<TagDefinitionData[]> {
+  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/tag-definitions`, { signal })
 
   if (!response.ok) {
     throw new Error(`Failed to fetch tag definitions: ${response.status} ${response.statusText}`)
@@ -921,7 +942,7 @@ export async function fetchTagDefinitions(knowledgeBaseId: string): Promise<TagD
 export function useTagDefinitionsQuery(knowledgeBaseId?: string | null) {
   return useQuery({
     queryKey: knowledgeKeys.tagDefinitions(knowledgeBaseId ?? ''),
-    queryFn: () => fetchTagDefinitions(knowledgeBaseId as string),
+    queryFn: ({ signal }) => fetchTagDefinitions(knowledgeBaseId as string, signal),
     enabled: Boolean(knowledgeBaseId),
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
@@ -934,7 +955,18 @@ export interface CreateTagDefinitionParams {
   fieldType: string
 }
 
-async function fetchNextAvailableSlot(knowledgeBaseId: string, fieldType: string): Promise<string> {
+interface NextAvailableSlotData {
+  nextAvailableSlot: string | null
+  fieldType: string
+  usedSlots: string[]
+  totalSlots: number
+  availableSlots: number
+}
+
+async function fetchNextAvailableSlotData(
+  knowledgeBaseId: string,
+  fieldType: string
+): Promise<NextAvailableSlotData> {
   const response = await fetch(
     `/api/knowledge/${knowledgeBaseId}/next-available-slot?fieldType=${fieldType}`
   )
@@ -944,11 +976,31 @@ async function fetchNextAvailableSlot(knowledgeBaseId: string, fieldType: string
   }
 
   const result = await response.json()
-  if (!result.success || !result.data?.nextAvailableSlot) {
+  if (!result.success || !result.data) {
     throw new Error('No available tag slots for this field type')
   }
 
-  return result.data.nextAvailableSlot
+  return result.data
+}
+
+async function fetchNextAvailableSlot(knowledgeBaseId: string, fieldType: string): Promise<string> {
+  const data = await fetchNextAvailableSlotData(knowledgeBaseId, fieldType)
+  if (!data.nextAvailableSlot) {
+    throw new Error('No available tag slots for this field type')
+  }
+  return data.nextAvailableSlot
+}
+
+interface NextAvailableSlotParams {
+  knowledgeBaseId: string
+  fieldType: string
+}
+
+export function useNextAvailableSlotMutation() {
+  return useMutation({
+    mutationFn: async ({ knowledgeBaseId, fieldType }: NextAvailableSlotParams) =>
+      fetchNextAvailableSlot(knowledgeBaseId, fieldType),
+  })
 }
 
 export async function createTagDefinition({
@@ -1039,10 +1091,12 @@ export interface DocumentTagDefinitionData {
 
 export async function fetchDocumentTagDefinitions(
   knowledgeBaseId: string,
-  documentId: string
+  documentId: string,
+  signal?: AbortSignal
 ): Promise<DocumentTagDefinitionData[]> {
   const response = await fetch(
-    `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/tag-definitions`
+    `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/tag-definitions`,
+    { signal }
   )
 
   if (!response.ok) {
@@ -1065,7 +1119,8 @@ export function useDocumentTagDefinitionsQuery(
 ) {
   return useQuery({
     queryKey: knowledgeKeys.documentTagDefinitions(knowledgeBaseId ?? '', documentId ?? ''),
-    queryFn: () => fetchDocumentTagDefinitions(knowledgeBaseId as string, documentId as string),
+    queryFn: ({ signal }) =>
+      fetchDocumentTagDefinitions(knowledgeBaseId as string, documentId as string, signal),
     enabled: Boolean(knowledgeBaseId && documentId),
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,

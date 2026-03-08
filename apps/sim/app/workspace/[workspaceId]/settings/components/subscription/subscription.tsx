@@ -59,7 +59,11 @@ import {
   useUpdateGeneralSetting,
 } from '@/hooks/queries/general-settings'
 import { useOrganizationBilling, useOrganizations } from '@/hooks/queries/organization'
-import { useSubscriptionData, useUsageLimitData } from '@/hooks/queries/subscription'
+import {
+  useOpenBillingPortal,
+  useSubscriptionData,
+  useUsageLimitData,
+} from '@/hooks/queries/subscription'
 import { useUpdateWorkspaceSettings, useWorkspaceSettings } from '@/hooks/queries/workspace'
 
 const PRO_TIER = CREDIT_TIERS[0]
@@ -252,6 +256,7 @@ export function Subscription() {
     activeOrgId || ''
   )
 
+  const openBillingPortal = useOpenBillingPortal()
   const [upgradeError, setUpgradeError] = useState<string | null>(null)
   const [isAnnual, setIsAnnual] = useState(false)
   const [teamModalOpen, setTeamModalOpen] = useState(false)
@@ -398,24 +403,23 @@ export function Subscription() {
       return
     }
     if (isBlocked) {
-      try {
-        const context = subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
-        const res = await fetch('/api/billing/portal', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            context,
-            organizationId: activeOrgId,
-            returnUrl: `${getBaseUrl()}/workspace?billing=updated`,
-          }),
-        })
-        const data = await res.json()
-        if (!res.ok || !data?.url) throw new Error(data?.error || 'Failed to start billing portal')
-        window.location.href = data.url
-      } catch (e) {
-        logger.error('Failed to open billing portal', { error: e })
-        alert(e instanceof Error ? e.message : 'Failed to open billing portal')
-      }
+      const context = subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
+      openBillingPortal.mutate(
+        {
+          context,
+          organizationId: activeOrgId,
+          returnUrl: `${getBaseUrl()}/workspace?billing=updated`,
+        },
+        {
+          onSuccess: (data) => {
+            window.location.href = data.url
+          },
+          onError: (error) => {
+            logger.error('Failed to open billing portal', { error })
+            alert(error.message)
+          },
+        }
+      )
       return
     }
     if (subscription.isFree) {
@@ -425,6 +429,7 @@ export function Subscription() {
     if (permissions.canEditUsageLimit && usageLimitRef.current) {
       usageLimitRef.current.startEdit()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- openBillingPortal.mutate is stable in TanStack Query v5
   }, [
     isDispute,
     isBlocked,

@@ -1,7 +1,7 @@
 import type { TableDefinition, TableRow } from '@/lib/table'
 import { useTable, useTableRows } from '@/hooks/queries/tables'
-import { ROWS_PER_PAGE } from '../lib/constants'
-import type { QueryOptions } from '../lib/types'
+import { ROWS_PER_PAGE } from '../constants'
+import type { QueryOptions } from '../types'
 
 interface UseTableDataParams {
   workspaceId: string

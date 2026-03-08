@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { MicrosoftSharepointIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
@@ -41,15 +42,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'sharepoint',
-      requiredScopes: [
-        'openid',
-        'profile',
-        'email',
-        'Sites.Read.All',
-        'Sites.ReadWrite.All',
-        'Sites.Manage.All',
-        'offline_access',
-      ],
+      requiredScopes: getScopesForService('sharepoint'),
       placeholder: 'Select Microsoft account',
     },
     {
@@ -68,14 +61,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       canonicalParamId: 'siteId',
       serviceId: 'sharepoint',
       selectorKey: 'sharepoint.sites',
-      requiredScopes: [
-        'openid',
-        'profile',
-        'email',
-        'Files.Read',
-        'Files.ReadWrite',
-        'offline_access',
-      ],
+      requiredScopes: getScopesForService('sharepoint'),
       mimeType: 'application/vnd.microsoft.graph.folder',
       placeholder: 'Select a site',
       dependsOn: ['credential'],
@@ -113,11 +99,25 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
     },
 
     {
+      id: 'listSelector',
+      title: 'List',
+      type: 'file-selector',
+      canonicalParamId: 'listId',
+      serviceId: 'sharepoint',
+      selectorKey: 'sharepoint.lists',
+      selectorAllowSearch: false,
+      placeholder: 'Select a list',
+      dependsOn: ['credential', 'siteSelector'],
+      mode: 'basic',
+      condition: { field: 'operation', value: ['read_list', 'update_list', 'add_list_items'] },
+    },
+    {
       id: 'listId',
       title: 'List ID',
       type: 'short-input',
-      placeholder: 'Enter list ID (GUID). Required for Update; optional for Read.',
       canonicalParamId: 'listId',
+      placeholder: 'Enter list ID (GUID). Required for Update; optional for Read.',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['read_list', 'update_list', 'add_list_items'] },
     },
 
@@ -425,7 +425,9 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           includeColumns,
           includeItems,
           files, // canonical param from uploadFiles (basic) or files (advanced)
+          driveId, // canonical param from driveId
           columnDefinitions,
+          listId,
           ...others
         } = rest as any
 
@@ -457,7 +459,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           try {
             logger.info('SharepointBlock list item param check', {
               siteId: effectiveSiteId || undefined,
-              listId: (others as any)?.listId,
+              listId: listId,
               listTitle: (others as any)?.listTitle,
               itemId: sanitizedItemId,
               hasItemFields: !!parsedItemFields && typeof parsedItemFields === 'object',
@@ -477,6 +479,8 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           pageSize: others.pageSize ? Number.parseInt(others.pageSize as string, 10) : undefined,
           mimeType: mimeType,
           ...others,
+          ...(listId ? { listId } : {}),
+          ...(driveId ? { driveId } : {}),
           itemId: sanitizedItemId,
           listItemFields: parsedItemFields,
           includeColumns: coerceBoolean(includeColumns),
@@ -517,10 +521,13 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     includeItems: { type: 'boolean', description: 'Include items in response' },
     itemId: { type: 'string', description: 'List item ID (canonical param)' },
     listItemFields: { type: 'string', description: 'List item fields (canonical param)' },
-    driveId: { type: 'string', description: 'Document library (drive) ID (canonical param)' },
+    driveId: {
+      type: 'string',
+      description: 'Document library (drive) ID',
+    },
     folderPath: { type: 'string', description: 'Folder path for file upload' },
     fileName: { type: 'string', description: 'File name override' },
-    files: { type: 'array', description: 'Files to upload (canonical param)' },
+    files: { type: 'array', description: 'Files to upload' },
   },
   outputs: {
     sites: {

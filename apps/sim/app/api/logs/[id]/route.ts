@@ -109,6 +109,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         return NextResponse.json({ error: 'Not found' }, { status: 404 })
       }
 
+      const execData = jobLog.executionData as Record<string, any> | null
       const response = {
         id: jobLog.id,
         workflowId: null,
@@ -122,9 +123,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         trigger: jobLog.trigger,
         createdAt: jobLog.startedAt.toISOString(),
         workflow: null,
+        jobTitle: (execData?.trigger?.source as string) || null,
         executionData: {
           totalDuration: jobLog.totalDurationMs,
-          ...(jobLog.executionData as any),
+          ...execData,
           enhanced: true,
         },
         cost: jobLog.cost as any,

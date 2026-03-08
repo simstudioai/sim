@@ -125,8 +125,11 @@ export function getCustomTool(
 /**
  * Fetch custom tools for a workspace
  */
-async function fetchCustomTools(workspaceId: string): Promise<CustomToolDefinition[]> {
-  const response = await fetch(`${API_ENDPOINT}?workspaceId=${workspaceId}`)
+async function fetchCustomTools(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<CustomToolDefinition[]> {
+  const response = await fetch(`${API_ENDPOINT}?workspaceId=${workspaceId}`, { signal })
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
@@ -190,7 +193,7 @@ async function fetchCustomTools(workspaceId: string): Promise<CustomToolDefiniti
 export function useCustomTools(workspaceId: string) {
   return useQuery<CustomToolDefinition[]>({
     queryKey: customToolsKeys.list(workspaceId),
-    queryFn: () => fetchCustomTools(workspaceId),
+    queryFn: ({ signal }) => fetchCustomTools(workspaceId, signal),
     enabled: !!workspaceId,
     staleTime: 60 * 1000, // 1 minute - tools don't change frequently
     placeholderData: keepPreviousData,

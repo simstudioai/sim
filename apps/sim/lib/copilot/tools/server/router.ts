@@ -22,8 +22,31 @@ export type ExecuteResponseSuccess = (typeof ExecuteResponseSuccessSchema)['_typ
 const logger = createLogger('ServerToolRouter')
 
 const WRITE_ACTIONS: Record<string, string[]> = {
-  knowledge_base: ['create', 'add_document', 'delete'],
-  user_table: ['create', 'insert', 'update', 'delete', 'delete_table'],
+  knowledge_base: [
+    'create',
+    'add_file',
+    'update',
+    'delete',
+    'create_tag',
+    'update_tag',
+    'delete_tag',
+    'add_connector',
+    'update_connector',
+    'delete_connector',
+    'sync_connector',
+  ],
+  user_table: [
+    'create',
+    'create_from_file',
+    'import_file',
+    'delete',
+    'insert_row',
+    'batch_insert_rows',
+    'update_row',
+    'delete_row',
+    'update_rows_by_filter',
+    'delete_rows_by_filter',
+  ],
   manage_custom_tool: ['add', 'edit', 'delete'],
   manage_mcp_tool: ['add', 'edit', 'delete'],
   manage_skill: ['add', 'edit', 'delete'],
@@ -71,7 +94,8 @@ export async function routeExecution(
 
   // Action-level permission enforcement for mixed read/write tools
   if (context?.userPermission && WRITE_ACTIONS[toolName]) {
-    const action = (payload as Record<string, unknown>)?.action as string
+    const p = payload as Record<string, unknown>
+    const action = (p?.operation ?? p?.action) as string
     if (action && !isActionAllowed(toolName, action, context.userPermission)) {
       throw new Error(
         `Permission denied: '${action}' on ${toolName} requires write access. You have '${context.userPermission}' permission.`

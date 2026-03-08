@@ -35,7 +35,7 @@ export function Skills() {
   const deleteSkillMutation = useDeleteSkill()
 
   const [searchTerm, setSearchTerm] = useState('')
-  const [deletingSkills, setDeletingSkills] = useState<Set<string>>(new Set())
+  const [deletingSkills, setDeletingSkills] = useState<Set<string>>(() => new Set())
   const [editingSkill, setEditingSkill] = useState<SkillDefinition | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
   const [skillToDelete, setSkillToDelete] = useState<{ id: string; name: string } | null>(null)

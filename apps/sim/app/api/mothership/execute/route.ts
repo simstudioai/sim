@@ -83,6 +83,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const clientToolNames = new Set(integrationTools.map((t) => t.name))
+    const clientToolCalls = (result.toolCalls || []).filter(
+      (tc: { name: string }) => clientToolNames.has(tc.name) || tc.name.startsWith('mcp-')
+    )
+
     return NextResponse.json({
       content: result.content,
       model: 'mothership',
@@ -94,7 +99,7 @@ export async function POST(req: NextRequest) {
           }
         : {},
       cost: result.cost || undefined,
-      toolCalls: result.toolCalls,
+      toolCalls: clientToolCalls,
     })
   } catch (error) {
     if (error instanceof z.ZodError) {

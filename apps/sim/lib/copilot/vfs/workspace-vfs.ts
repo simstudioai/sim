@@ -15,7 +15,7 @@ import {
   workflowSchedule,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull, ne } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
 import type { DirEntry, GrepMatch, GrepOptions, ReadResult } from '@/lib/copilot/vfs/operations'
 import * as ops from '@/lib/copilot/vfs/operations'
@@ -266,6 +266,7 @@ function getStaticComponentFiles(): Map<string, string> {
  *   tables/{name}/meta.json
  *   files/{name}/meta.json
  *   jobs/{title}/meta.json
+ *   jobs/{title}/history.json
  *   jobs/{title}/executions.json
  *   tasks/{title}/session.md
  *   tasks/{title}/chat.json
@@ -1047,7 +1048,8 @@ export class WorkspaceVFS {
         .where(
           and(
             eq(workflowSchedule.sourceWorkspaceId, workspaceId),
-            eq(workflowSchedule.sourceType, 'job')
+            eq(workflowSchedule.sourceType, 'job'),
+            ne(workflowSchedule.status, 'completed')
           )
         )
 
@@ -1073,6 +1075,11 @@ export class WorkspaceVFS {
             createdAt: job.createdAt,
           })
         )
+
+        const history = job.jobHistory as Array<{ timestamp: string; summary: string }> | null
+        if (history && history.length > 0) {
+          this.files.set(`jobs/${safeName}/history.json`, JSON.stringify(history, null, 2))
+        }
 
         try {
           const execRows = await db

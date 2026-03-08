@@ -1,4 +1,5 @@
 import { WordpressIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
@@ -68,7 +69,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'wordpress',
-      requiredScopes: ['global'],
+      requiredScopes: getScopesForService('wordpress'),
       placeholder: 'Select WordPress account',
       required: true,
     },

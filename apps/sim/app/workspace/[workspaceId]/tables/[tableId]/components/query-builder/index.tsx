@@ -8,7 +8,7 @@ import type { FilterRule, SortRule } from '@/lib/table/query-builder/constants'
 import { filterRulesToFilter, sortRuleToSort } from '@/lib/table/query-builder/converters'
 import { useFilterBuilder } from '@/lib/table/query-builder/use-query-builder'
 import type { ColumnDefinition } from '@/lib/table/types'
-import type { QueryOptions } from '../../lib/types'
+import type { QueryOptions } from '../../types'
 import { FilterRow } from './filter-row'
 import { SortRow } from './sort-row'
 

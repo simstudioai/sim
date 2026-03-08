@@ -57,9 +57,9 @@ import { useWebhookManagement } from '@/hooks/use-webhook-management'
 const SLACK_OVERRIDES: SelectorOverrides = {
   transformContext: (context, deps) => {
     const authMethod = deps.authMethod as string
-    const credentialId =
+    const oauthCredential =
       authMethod === 'bot_token' ? String(deps.botToken ?? '') : String(deps.credential ?? '')
-    return { ...context, credentialId }
+    return { ...context, oauthCredential }
   },
 }
 

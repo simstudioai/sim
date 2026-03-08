@@ -11,7 +11,7 @@ const TEXTAREA_CLASSES = cn(
   'overflow-y-auto overflow-x-hidden break-words border-0 bg-transparent',
   'px-[4px] py-[4px] font-body text-[15px] leading-[24px] tracking-[-0.015em]',
   'text-[var(--text-primary)] outline-none',
-  'placeholder:font-[350] placeholder:text-[var(--text-subtle)]',
+  'placeholder:font-[380] placeholder:text-[var(--text-subtle)]',
   'focus-visible:ring-0 focus-visible:ring-offset-0',
   '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 )

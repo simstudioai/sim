@@ -955,13 +955,15 @@ export function trackForcedToolUsage(
   if (forcedToolNames.length > 0 && toolCallsResponse && toolCallsResponse.length > 0) {
     const toolNames = toolCallsResponse.map((tc) => tc.function?.name || tc.name || tc.id)
 
-    const usedTools = forcedToolNames.filter((toolName) => toolNames.includes(toolName))
+    const toolNameSet = new Set(toolNames)
+    const usedTools = forcedToolNames.filter((toolName) => toolNameSet.has(toolName))
 
     if (usedTools.length > 0) {
       hasUsedForcedTool = true
       updatedUsedForcedTools.push(...usedTools)
 
-      const remainingTools = forcedTools.filter((tool) => !updatedUsedForcedTools.includes(tool))
+      const usedSet = new Set(updatedUsedForcedTools)
+      const remainingTools = forcedTools.filter((tool) => !usedSet.has(tool))
 
       if (remainingTools.length > 0) {
         const nextToolToForce = remainingTools[0]

@@ -1,4 +1,5 @@
 import { LinearIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
@@ -132,7 +133,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'linear',
-      requiredScopes: ['read', 'write'],
+      requiredScopes: getScopesForService('linear'),
       placeholder: 'Select Linear account',
       required: true,
     },

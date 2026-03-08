@@ -1,4 +1,11 @@
 import { createLogger } from '@sim/logger'
+import {
+  buildCanonicalIndex,
+  buildSubBlockValues,
+  isCanonicalPair,
+  resolveCanonicalMode,
+} from '@/lib/workflows/subblocks/visibility'
+import { getBlock } from '@/blocks'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('SubblockMigrations')
@@ -81,6 +88,62 @@ export function migrateSubblockIds(blocks: Record<string, BlockState>): {
       })
       anyMigrated = true
       result[blockId] = { ...block, subBlocks }
+    } else {
+      result[blockId] = block
+    }
+  }
+
+  return { blocks: result, migrated: anyMigrated }
+}
+
+/**
+ * Backfills missing `canonicalModes` entries in block data.
+ *
+ * When a canonical pair is added to a block definition, existing blocks
+ * won't have the entry in `data.canonicalModes`. Without it the editor
+ * toggle may not render correctly. This resolves the correct mode based
+ * on which subblock value is populated and adds the missing entry.
+ */
+export function backfillCanonicalModes(blocks: Record<string, BlockState>): {
+  blocks: Record<string, BlockState>
+  migrated: boolean
+} {
+  let anyMigrated = false
+  const result: Record<string, BlockState> = {}
+
+  for (const [blockId, block] of Object.entries(blocks)) {
+    const blockConfig = getBlock(block.type)
+    if (!blockConfig?.subBlocks || !block.subBlocks) {
+      result[blockId] = block
+      continue
+    }
+
+    const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
+    const pairs = Object.values(canonicalIndex.groupsById).filter(isCanonicalPair)
+    if (pairs.length === 0) {
+      result[blockId] = block
+      continue
+    }
+
+    const existing = (block.data?.canonicalModes ?? {}) as Record<string, 'basic' | 'advanced'>
+    let patched: Record<string, 'basic' | 'advanced'> | null = null
+
+    const values = buildSubBlockValues(block.subBlocks)
+
+    for (const group of pairs) {
+      if (existing[group.canonicalId] != null) continue
+
+      const resolved = resolveCanonicalMode(group, values)
+      if (!patched) patched = { ...existing }
+      patched[group.canonicalId] = resolved
+    }
+
+    if (patched) {
+      anyMigrated = true
+      result[blockId] = {
+        ...block,
+        data: { ...(block.data ?? {}), canonicalModes: patched },
+      }
     } else {
       result[blockId] = block
     }

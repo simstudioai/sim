@@ -39,7 +39,12 @@ import {
   executeUpdateWorkspaceMcpServer,
 } from './deployment-tools'
 import { executeIntegrationToolDirect } from './integration-tools'
-import { executeCompleteJob, executeCreateJob, executeManageJob } from './job-tools'
+import {
+  executeCompleteJob,
+  executeCreateJob,
+  executeManageJob,
+  executeUpdateJobHistory,
+} from './job-tools'
 import type {
   CheckDeploymentStatusParams,
   CreateFolderParams,
@@ -863,6 +868,7 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
   create_job: (p, c) => executeCreateJob(p, c),
   manage_job: (p, c) => executeManageJob(p, c),
   complete_job: (p, c) => executeCompleteJob(p, c),
+  update_job_history: (p, c) => executeUpdateJobHistory(p, c),
   oauth_get_auth_link: async (p, c) => {
     const providerName = (p.providerName || p.provider_name || 'the provider') as string
     const baseUrl = getBaseUrl()
@@ -1050,6 +1056,28 @@ async function executeSimWorkflowTool(
 ): Promise<ToolCallResult> {
   const handler = SIM_WORKFLOW_TOOL_HANDLERS[toolName]
   if (!handler) return { success: false, error: `Unsupported workflow tool: ${toolName}` }
+
+  if (context.workflowId) {
+    if (toolName === 'create_workflow') {
+      return {
+        success: false,
+        error:
+          'Cannot create new workflows from the workflow copilot. You are scoped to the current workflow. Use the workspace chat to create new workflows.',
+      }
+    }
+
+    if (
+      toolName === 'edit_workflow' &&
+      params.workflowId &&
+      params.workflowId !== context.workflowId
+    ) {
+      return {
+        success: false,
+        error: `Cannot edit a different workflow. You are scoped to workflow ${context.workflowId}.`,
+      }
+    }
+  }
+
   return handler(params, context)
 }
 
