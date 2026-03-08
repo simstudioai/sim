@@ -138,6 +138,11 @@ export function Files() {
             owner: ownerCell(file.uploadedBy, members),
             updated: timeCell(file.uploadedAt),
           },
+          sortValues: {
+            size: file.size,
+            created: -new Date(file.uploadedAt).getTime(),
+            updated: -new Date(file.uploadedAt).getTime(),
+          },
         }
       }),
     [filteredFiles, members]

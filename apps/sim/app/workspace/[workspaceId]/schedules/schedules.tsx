@@ -79,6 +79,10 @@ export function Schedules() {
             from: { label: isJob ? item.prompt : item.workflowName },
             lifecycle: { label: item.cronExpression ? 'Recurring' : 'One-time' },
           },
+          sortValues: {
+            nextRun: item.nextRunAt ? -new Date(item.nextRunAt).getTime() : 0,
+            lastRun: item.lastRanAt ? -new Date(item.lastRanAt).getTime() : 0,
+          },
         }
       }),
     [filteredItems]

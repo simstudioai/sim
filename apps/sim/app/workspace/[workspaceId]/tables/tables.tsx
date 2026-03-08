@@ -90,6 +90,12 @@ export function Tables() {
           owner: ownerCell(table.createdBy, members),
           updated: timeCell(table.updatedAt),
         },
+        sortValues: {
+          columns: table.schema.columns.length,
+          rows: table.rowCount,
+          created: -new Date(table.createdAt).getTime(),
+          updated: -new Date(table.updatedAt).getTime(),
+        },
       })),
     [filteredTables, members]
   )

@@ -20,6 +20,7 @@ export interface ResourceCell {
 export interface ResourceRow {
   id: string
   cells: Record<string, ResourceCell>
+  sortValues?: Record<string, string | number>
 }
 
 interface ResourceProps {
@@ -85,16 +86,20 @@ export function Resource({
 
   const handleColumnSort = useCallback((columnId: string) => {
     setSort((prev) => {
-      if (prev.column !== columnId) return { column: columnId, direction: 'asc' }
-      return { column: columnId, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+      if (prev.column !== columnId) return { column: columnId, direction: 'desc' }
+      return { column: columnId, direction: prev.direction === 'desc' ? 'asc' : 'desc' }
     })
   }, [])
 
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => {
-      const aLabel = a.cells[sort.column]?.label ?? ''
-      const bLabel = b.cells[sort.column]?.label ?? ''
-      const cmp = aLabel.localeCompare(bLabel)
+      const col = sort.column
+      const aVal = a.sortValues?.[col] ?? a.cells[col]?.label ?? ''
+      const bVal = b.sortValues?.[col] ?? b.cells[col]?.label ?? ''
+      const cmp =
+        typeof aVal === 'number' && typeof bVal === 'number'
+          ? aVal - bVal
+          : String(aVal).localeCompare(String(bVal))
       return sort.direction === 'asc' ? -cmp : cmp
     })
   }, [rows, sort])

@@ -149,6 +149,12 @@ export function Knowledge() {
             owner: ownerCell(kb.userId, members),
             updated: timeCell(kb.updatedAt),
           },
+          sortValues: {
+            documents: kbWithCount.docCount || 0,
+            tokens: kb.tokenCount || 0,
+            created: -new Date(kb.createdAt).getTime(),
+            updated: -new Date(kb.updatedAt).getTime(),
+          },
         }
       }),
     [filteredKnowledgeBases, members]
