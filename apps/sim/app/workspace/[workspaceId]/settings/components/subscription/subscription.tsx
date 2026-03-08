@@ -25,6 +25,7 @@ import { ANNUAL_DISCOUNT_RATE, CREDIT_TIERS, DAILY_REFRESH_RATE } from '@/lib/bi
 import { CREDIT_MULTIPLIER } from '@/lib/billing/credits/conversion'
 import {
   getPlanTierCredits,
+  getPlanTierDollars,
   isEnterprise,
   isFree,
   isOrgPlan,
@@ -302,7 +303,7 @@ export function Subscription() {
 
   const usageLimitData = {
     currentLimit: usageLimitResponse?.data?.currentLimit || 0,
-    minimumLimit: usageLimitResponse?.data?.minimumLimit || 25,
+    minimumLimit: usageLimitResponse?.data?.minimumLimit || getPlanTierDollars(subscription.plan),
   }
 
   const isBlocked = Boolean(subscriptionData?.data?.billingBlocked)
@@ -737,10 +738,12 @@ export function Subscription() {
           setManagePlanModalOpen(false)
         }}
         onUpgradeToOtherTier={async () => {
-          const currentCredits = getPlanTierCredits(subscription.plan)
-          const otherTier = currentCredits === PRO_TIER.credits ? MAX_TIER : PRO_TIER
+          const isOnMax =
+            getPlanTierCredits(subscription.plan) === MAX_TIER.credits ||
+            subscription.plan === 'team'
+          const targetTier = isOnMax ? PRO_TIER : MAX_TIER
           const planType = subscription.isTeam ? 'team' : 'pro'
-          const targetPlanName = `${planType}_${otherTier.credits}`
+          const targetPlanName = `${planType}_${targetTier.credits}`
           try {
             const res = await fetch('/api/billing/switch-plan', {
               method: 'POST',
@@ -756,11 +759,12 @@ export function Subscription() {
           }
         }}
         onUpgradeToCurrentTier={async () => {
-          const currentCredits = getPlanTierCredits(subscription.plan)
-          const isOnMax = currentCredits === MAX_TIER.credits || subscription.plan === 'team'
-          const tier = isOnMax ? MAX_TIER : PRO_TIER
+          const isOnMax =
+            getPlanTierCredits(subscription.plan) === MAX_TIER.credits ||
+            subscription.plan === 'team'
+          const currentTier = isOnMax ? MAX_TIER : PRO_TIER
           const planType = subscription.isTeam ? 'team' : 'pro'
-          const targetPlanName = `${planType}_${tier.credits}`
+          const targetPlanName = `${planType}_${currentTier.credits}`
           try {
             const res = await fetch('/api/billing/switch-plan', {
               method: 'POST',
