@@ -20,11 +20,11 @@ import { useDeleteTable, useTablesList } from '@/hooks/queries/tables'
 const logger = createLogger('Tables')
 
 const COLUMNS: ResourceColumn[] = [
-  { id: 'name', header: 'Name', width: 'w-[40%]' },
-  { id: 'columns', header: 'Columns', width: 'w-[15%]' },
-  { id: 'rows', header: 'Rows', width: 'w-[15%]' },
-  { id: 'updated', header: 'Updated', width: 'w-[18%]' },
-  { id: 'id', header: 'ID', width: 'w-[12%]' },
+  { id: 'name', header: 'Name' },
+  { id: 'columns', header: 'Columns' },
+  { id: 'rows', header: 'Rows' },
+  { id: 'updated', header: 'Updated' },
+  { id: 'id', header: 'ID' },
 ]
 
 export function Tables() {
@@ -34,6 +34,10 @@ export function Tables() {
   const userPermissions = useUserPermissionsContext()
 
   const { data: tables = [], isLoading, error } = useTablesList(workspaceId)
+
+  if (error) {
+    logger.error('Failed to load tables:', error)
+  }
   const deleteTable = useDeleteTable(workspaceId)
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -145,7 +149,7 @@ export function Tables() {
         icon={TableIcon}
         title='Tables'
         create={{
-          label: 'Create Table',
+          label: 'New table',
           onClick: () => setIsCreateModalOpen(true),
           disabled: userPermissions.canEdit !== true,
         }}
@@ -161,18 +165,6 @@ export function Tables() {
         onRowClick={handleRowClick}
         onRowContextMenu={handleRowContextMenu}
         isLoading={isLoading}
-        error={
-          error
-            ? {
-                title: 'Error loading tables',
-                description: error instanceof Error ? error.message : 'An error occurred',
-              }
-            : undefined
-        }
-        emptyState={{
-          title: 'No tables yet',
-          description: 'Create your first table to store structured data for your workflows',
-        }}
         onContextMenu={handleContentContextMenu}
       />
 

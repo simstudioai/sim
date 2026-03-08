@@ -30,11 +30,11 @@ interface KnowledgeBaseWithDocCount extends KnowledgeBaseData {
 }
 
 const COLUMNS: ResourceColumn[] = [
-  { id: 'name', header: 'Name', width: 'w-[35%]' },
-  { id: 'documents', header: 'Documents', width: 'w-[12%]' },
-  { id: 'description', header: 'Description', width: 'w-[28%]' },
-  { id: 'updated', header: 'Updated', width: 'w-[13%]' },
-  { id: 'id', header: 'ID', width: 'w-[12%]' },
+  { id: 'name', header: 'Name' },
+  { id: 'documents', header: 'Documents' },
+  { id: 'description', header: 'Description' },
+  { id: 'updated', header: 'Updated' },
+  { id: 'id', header: 'ID' },
 ]
 
 export function Knowledge() {
@@ -43,6 +43,10 @@ export function Knowledge() {
   const workspaceId = params.workspaceId as string
 
   const { knowledgeBases, isLoading, error } = useKnowledgeBasesList(workspaceId)
+
+  if (error) {
+    logger.error('Failed to load knowledge bases:', error)
+  }
   const userPermissions = useUserPermissionsContext()
 
   const { mutateAsync: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase(workspaceId)
@@ -183,29 +187,13 @@ export function Knowledge() {
     }
   }, [activeKnowledgeBase, handleDeleteKnowledgeBase])
 
-  const emptyState = useMemo(() => {
-    if (debouncedSearchQuery) {
-      return {
-        title: 'No knowledge bases found',
-        description: 'Try a different search term',
-      }
-    }
-    return {
-      title: 'No knowledge bases yet',
-      description:
-        userPermissions.canEdit === true
-          ? 'Create a knowledge base to get started'
-          : 'Knowledge bases will appear here once created',
-    }
-  }, [debouncedSearchQuery, userPermissions.canEdit])
-
   return (
     <>
       <Resource
         icon={Database}
         title='Knowledge Base'
         create={{
-          label: 'Create',
+          label: 'New base',
           onClick: () => setIsCreateModalOpen(true),
           disabled: userPermissions.canEdit !== true,
         }}
@@ -221,15 +209,6 @@ export function Knowledge() {
         onRowClick={handleRowClick}
         onRowContextMenu={handleRowContextMenu}
         isLoading={isLoading}
-        error={
-          error
-            ? {
-                title: 'Error loading knowledge bases',
-                description: error,
-              }
-            : undefined
-        }
-        emptyState={emptyState}
         onContextMenu={handleContentContextMenu}
       />
 

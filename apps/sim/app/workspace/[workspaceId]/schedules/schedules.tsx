@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { Calendar, MoreHorizontal } from '@/components/emcn/icons'
 import { formatAbsoluteDate, formatRelativeTime } from '@/lib/core/utils/formatting'
@@ -11,6 +12,8 @@ import type { WorkspaceScheduleData } from '@/hooks/queries/schedules'
 import { useWorkspaceSchedules } from '@/hooks/queries/schedules'
 import { useDebounce } from '@/hooks/use-debounce'
 
+const logger = createLogger('Schedules')
+
 function getHumanReadable(s: WorkspaceScheduleData) {
   if (!s.cronExpression && s.nextRunAt) return `Once at ${formatAbsoluteDate(s.nextRunAt)}`
   if (s.cronExpression) return parseCronToHumanReadable(s.cronExpression, s.timezone)
@@ -18,12 +21,12 @@ function getHumanReadable(s: WorkspaceScheduleData) {
 }
 
 const COLUMNS: ResourceColumn[] = [
-  { id: 'name', header: 'Name', width: 'w-[25%]' },
-  { id: 'type', header: 'Type', width: 'w-[13%]' },
-  { id: 'schedule', header: 'Schedule', width: 'w-[24%]' },
-  { id: 'status', header: 'Status', width: 'w-[10%]' },
-  { id: 'nextRun', header: 'Next Run', width: 'w-[18%]' },
-  { id: 'actions', header: 'Actions', width: 'w-[10%]' },
+  { id: 'name', header: 'Name' },
+  { id: 'type', header: 'Type' },
+  { id: 'schedule', header: 'Schedule' },
+  { id: 'status', header: 'Status' },
+  { id: 'nextRun', header: 'Next Run' },
+  { id: 'actions', header: 'Actions' },
 ]
 
 export function Schedules() {
@@ -32,6 +35,10 @@ export function Schedules() {
   const workspaceId = params.workspaceId as string
 
   const { data: allItems = [], isLoading, error } = useWorkspaceSchedules(workspaceId)
+
+  if (error) {
+    logger.error('Failed to load schedules:', error)
+  }
 
   const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
@@ -90,22 +97,12 @@ export function Schedules() {
     [filteredItems, router, workspaceId]
   )
 
-  const emptyState = useMemo(() => {
-    if (debouncedSearchQuery) {
-      return { title: 'No schedules found', description: 'Try a different search term' }
-    }
-    return {
-      title: 'No schedules yet',
-      description: 'Scheduled workflows and tasks will appear here',
-    }
-  }, [debouncedSearchQuery])
-
   return (
     <Resource
       icon={Calendar}
       title='Schedules'
       create={{
-        label: 'Create',
+        label: 'New schedule',
         onClick: () => {},
       }}
       search={{
@@ -119,15 +116,6 @@ export function Schedules() {
       rows={rows}
       onRowClick={handleRowClick}
       isLoading={isLoading}
-      error={
-        error
-          ? {
-              title: 'Error loading schedules',
-              description: error instanceof Error ? error.message : 'An error occurred',
-            }
-          : undefined
-      }
-      emptyState={emptyState}
     />
   )
 }

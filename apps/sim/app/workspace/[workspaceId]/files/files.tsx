@@ -48,10 +48,10 @@ const ACCEPT_ATTR =
   '.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt,.json,.yaml,.yml,.mp3,.m4a,.wav,.webm,.ogg,.flac,.aac,.opus,.mp4,.mov,.avi,.mkv'
 
 const COLUMNS: ResourceColumn[] = [
-  { id: 'name', header: 'Name', width: 'w-[45%]' },
-  { id: 'size', header: 'Size', width: 'w-[15%]' },
-  { id: 'uploaded', header: 'Uploaded', width: 'w-[20%]' },
-  { id: 'actions', header: 'Actions', width: 'w-[20%]' },
+  { id: 'name', header: 'Name' },
+  { id: 'size', header: 'Size' },
+  { id: 'uploaded', header: 'Uploaded' },
+  { id: 'actions', header: 'Actions' },
 ]
 
 function formatFileSize(bytes: number): string {
@@ -75,6 +75,10 @@ export function Files() {
 
   const { data: files = [], isLoading, error } = useWorkspaceFiles(workspaceId)
   const uploadFile = useUploadWorkspaceFile()
+
+  if (error) {
+    logger.error('Failed to load files:', error)
+  }
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
@@ -160,7 +164,7 @@ export function Files() {
       ? `${uploadProgress.completed}/${uploadProgress.total}`
       : uploading
         ? 'Uploading...'
-        : 'Upload'
+        : 'New file'
 
   return (
     <>
@@ -180,18 +184,6 @@ export function Files() {
         columns={COLUMNS}
         rows={rows}
         isLoading={isLoading}
-        error={
-          error
-            ? {
-                title: 'Error loading files',
-                description: error instanceof Error ? error.message : 'An error occurred',
-              }
-            : undefined
-        }
-        emptyState={{
-          title: 'No files yet',
-          description: 'Upload files to make them accessible across all your workflows',
-        }}
       />
 
       <input

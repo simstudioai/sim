@@ -17,7 +17,6 @@ import { cn } from '@/lib/core/utils/cn'
 export interface ResourceColumn {
   id: string
   header: string
-  width: string
 }
 
 export interface ResourceCell {
@@ -52,8 +51,6 @@ interface ResourceProps {
   onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
   isLoading?: boolean
   loadingRows?: number
-  emptyState?: { title: string; description?: string }
-  error?: { title: string; description?: string }
   onContextMenu?: (e: React.MouseEvent) => void
 }
 
@@ -75,8 +72,6 @@ export function Resource({
   onRowContextMenu,
   isLoading,
   loadingRows = 5,
-  emptyState,
-  error,
   onContextMenu,
 }: ResourceProps) {
   const hasOptionsBar = search || onSort || onFilter
@@ -152,19 +147,15 @@ export function Resource({
           <div className='flex min-h-0 flex-1 flex-col'>
             {isLoading ? (
               <DataTableSkeleton columns={columns} rowCount={loadingRows} />
-            ) : error ? (
-              <EmptyMessage title={error.title} description={error.description} />
-            ) : rows.length === 0 && emptyState ? (
-              <EmptyMessage title={emptyState.title} description={emptyState.description} />
             ) : (
               <Table className='table-fixed text-[13px]'>
                 <TableHeader>
                   <TableRow className='hover:bg-transparent'>
-                    {columns.map((col) => (
+                    {columns.map((col, colIdx) => (
                       <TableHead
                         key={col.id}
                         className={cn(
-                          col.width,
+                          colIdx === 0 ? 'min-w-[400px]' : 'w-[160px]',
                           'px-[24px] py-[10px] font-base text-[var(--text-muted)]'
                         )}
                       >
@@ -185,19 +176,37 @@ export function Resource({
                       onClick={() => onRowClick?.(row.id)}
                       onContextMenu={(e) => onRowContextMenu?.(e, row.id)}
                     >
-                      {columns.map((col) => {
+                      {columns.map((col, colIdx) => {
                         const cell = row.cells[col.id]
                         if (!cell) {
                           return <TableCell key={col.id} className='px-[24px] py-[10px]' />
                         }
                         return (
                           <TableCell key={col.id} className='px-[24px] py-[10px]'>
-                            <CellContent cell={cell} />
+                            <CellContent cell={cell} primary={colIdx === 0} />
                           </TableCell>
                         )
                       })}
                     </TableRow>
                   ))}
+                  {create && (
+                    <TableRow
+                      className={cn(
+                        'border-b-0',
+                        create.disabled
+                          ? 'opacity-40'
+                          : 'cursor-pointer hover:bg-[var(--surface-3)]'
+                      )}
+                      onClick={create.disabled ? undefined : create.onClick}
+                    >
+                      <TableCell colSpan={columns.length} className='px-[24px] py-[10px]'>
+                        <span className='flex items-center gap-[12px] font-medium text-[14px] text-[var(--text-secondary)]'>
+                          <Plus className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
+                          {create.label}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             )}
@@ -208,22 +217,14 @@ export function Resource({
   )
 }
 
-function EmptyMessage({ title, description }: { title: string; description?: string }) {
+function CellContent({ cell, primary }: { cell: ResourceCell; primary?: boolean }) {
   return (
-    <div className='flex flex-1 items-center justify-center'>
-      <div className='text-center'>
-        <p className='font-medium text-[14px] text-[var(--text-secondary)]'>{title}</p>
-        {description && (
-          <p className='mt-[4px] text-[12px] text-[var(--text-muted)]'>{description}</p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function CellContent({ cell }: { cell: ResourceCell }) {
-  return (
-    <span className='flex min-w-0 items-center gap-[12px] font-medium text-[14px] text-[var(--text-secondary)]'>
+    <span
+      className={cn(
+        'flex min-w-0 items-center gap-[12px] font-medium text-[14px]',
+        primary ? 'text-[var(--text-body)]' : 'text-[var(--text-secondary)]'
+      )}
+    >
       {cell.icon && <span className='flex-shrink-0 text-[var(--text-subtle)]'>{cell.icon}</span>}
       <span className='truncate'>{cell.label}</span>
     </span>
@@ -235,10 +236,13 @@ function DataTableSkeleton({ columns, rowCount }: { columns: ResourceColumn[]; r
     <Table className='table-fixed text-[13px]'>
       <TableHeader>
         <TableRow className='hover:bg-transparent'>
-          {columns.map((col) => (
+          {columns.map((col, colIdx) => (
             <TableHead
               key={col.id}
-              className={cn(col.width, 'px-[24px] py-[10px] font-base text-[var(--text-muted)]')}
+              className={cn(
+                colIdx === 0 ? 'min-w-[400px]' : 'w-[160px]',
+                'px-[24px] py-[10px] font-base text-[var(--text-muted)]'
+              )}
             >
               <div className='flex min-h-[20px] items-center'>
                 <Skeleton className='h-[12px] w-[56px]' />
