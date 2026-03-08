@@ -5,19 +5,23 @@
 // Handles both literal keys ("sk-xxx...") and env var references ("{{VAR_NAME}}").
 //
 // Usage:
-//   # Dry run: audit for conflicts + preview inserts (no DB writes)
+//   # Step 1 — Dry run: audit for conflicts + preview inserts (no DB writes)
+//   #   Outputs migrate-byok-workspace-ids.txt for the live run.
 //   bun run packages/db/scripts/migrate-block-api-keys-to-byok.ts --dry-run \
 //     --map jina=jina --map perplexity=perplexity --map google_books=google_cloud
 //
-//   # Live run: insert BYOK keys
+//   # Step 2 — Live run: insert BYOK keys (--from-file is required)
 //   bun run packages/db/scripts/migrate-block-api-keys-to-byok.ts \
-//     --map jina=jina --map perplexity=perplexity --map google_books=google_cloud
+//     --map jina=jina --map perplexity=perplexity --map google_books=google_cloud \
+//     --from-file migrate-byok-workspace-ids.txt
 //
-//   # Optionally scope to specific users (repeatable)
+//   # Optionally scope dry run to specific users (repeatable)
 //   bun run packages/db/scripts/migrate-block-api-keys-to-byok.ts --dry-run \
 //     --map jina=jina --user user_abc123 --user user_def456
 
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
+import { readFileSync, writeFileSync } from 'fs'
+import { resolve } from 'path'
 import { eq, sql } from 'drizzle-orm'
 import { index, json, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -36,7 +40,9 @@ function parseMapArgs(): Record<string, string> {
       if (blockType && providerId) {
         mapping[blockType] = providerId
       } else {
-        console.error(`Invalid --map value: "${args[i + 1]}". Expected format: blockType=providerId`)
+        console.error(
+          `Invalid --map value: "${args[i + 1]}". Expected format: blockType=providerId`
+        )
         process.exit(1)
       }
       i++
@@ -67,6 +73,27 @@ function parseUserArgs(): string[] {
 }
 
 const USER_FILTER = parseUserArgs()
+
+function parseFromFileArg(): string | null {
+  const args = process.argv.slice(2)
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--from-file' && args[i + 1]) {
+      return args[i + 1]
+    }
+  }
+  return null
+}
+
+const FROM_FILE = parseFromFileArg()
+
+if (!DRY_RUN && !FROM_FILE) {
+  console.error('Live runs require --from-file. Run with --dry-run first to generate the file.')
+  process.exit(1)
+}
+if (DRY_RUN && FROM_FILE) {
+  console.error('--from-file cannot be used with --dry-run. Dry runs always discover workspaces from the database.')
+  process.exit(1)
+}
 
 // ---------- Env ----------
 function getEnv(name: string): string | undefined {
@@ -191,6 +218,23 @@ const postgresClient = postgres(CONNECTION_STRING, {
 })
 const db = drizzle(postgresClient)
 
+// ---------- Throttle ----------
+const BATCH_SIZE = 1000
+const SLEEP_MS = 30_000
+let requestCount = 0
+let lastWorkspaceId = ''
+
+async function throttle(workspaceId?: string) {
+  if (workspaceId) lastWorkspaceId = workspaceId
+  requestCount++
+  if (requestCount % BATCH_SIZE === 0) {
+    console.log(
+      `  [THROTTLE] ${requestCount} DB requests — last workspace: ${lastWorkspaceId} — sleeping ${SLEEP_MS / 1000}s`
+    )
+    await new Promise((r) => setTimeout(r, SLEEP_MS))
+  }
+}
+
 // ---------- Helpers ----------
 const TOOL_INPUT_SUBBLOCK_IDS: Record<string, string> = {
   agent: 'tools',
@@ -266,9 +310,12 @@ async function resolveKey(
 async function run() {
   console.log(`Mode: ${DRY_RUN ? 'DRY RUN (audit + preview)' : 'LIVE'}`)
   console.log(
-    `Mappings: ${Object.entries(BLOCK_TYPE_TO_PROVIDER).map(([b, p]) => `${b}=${p}`).join(', ')}`
+    `Mappings: ${Object.entries(BLOCK_TYPE_TO_PROVIDER)
+      .map(([b, p]) => `${b}=${p}`)
+      .join(', ')}`
   )
   console.log(`Users: ${USER_FILTER.length > 0 ? USER_FILTER.join(', ') : 'all'}`)
+  if (FROM_FILE) console.log(`From file: ${FROM_FILE}`)
   console.log('---\n')
 
   const stats = {
@@ -295,22 +342,37 @@ async function run() {
           )})`
         : sql``
 
-    const workspaceIdRows = await db
-      .selectDistinct({ workspaceId: workflow.workspaceId })
-      .from(workflowBlocks)
-      .innerJoin(workflow, eq(workflowBlocks.workflowId, workflow.id))
-      .where(
-        sql`${workflow.workspaceId} IS NOT NULL AND ${workflowBlocks.type} IN (${sql.join(
-          allBlockTypes.map((t) => sql`${t}`),
-          sql`, `
-        )})${userFilter}`
-      )
+    let workspaceIds: string[]
 
-    const workspaceIds = workspaceIdRows
-      .map((r) => r.workspaceId)
-      .filter((id): id is string => id !== null)
+    if (DRY_RUN) {
+      const workspaceIdRows = await db
+        .selectDistinct({ workspaceId: workflow.workspaceId })
+        .from(workflowBlocks)
+        .innerJoin(workflow, eq(workflowBlocks.workflowId, workflow.id))
+        .where(
+          sql`${workflow.workspaceId} IS NOT NULL AND ${workflowBlocks.type} IN (${sql.join(
+            allBlockTypes.map((t) => sql`${t}`),
+            sql`, `
+          )})${userFilter}`
+        )
 
-    console.log(`Found ${workspaceIds.length} workspaces with candidate blocks\n`)
+      workspaceIds = workspaceIdRows
+        .map((r) => r.workspaceId)
+        .filter((id): id is string => id !== null)
+
+      console.log(`Found ${workspaceIds.length} workspaces with candidate blocks\n`)
+
+      const outPath = resolve('migrate-byok-workspace-ids.txt')
+      writeFileSync(outPath, workspaceIds.join('\n') + '\n')
+      console.log(`[DRY RUN] Wrote ${workspaceIds.length} workspace IDs to ${outPath}\n`)
+    } else {
+      const raw = readFileSync(resolve(FROM_FILE!), 'utf-8')
+      workspaceIds = raw
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean)
+      console.log(`Loaded ${workspaceIds.length} workspace IDs from ${FROM_FILE}\n`)
+    }
 
     // 2. Process one workspace at a time
     for (const workspaceId of workspaceIds) {
@@ -332,6 +394,7 @@ async function run() {
             sql`, `
           )})${userFilter}`
         )
+      await throttle(workspaceId)
 
       console.log(`[Workspace ${workspaceId}] ${blocks.length} blocks`)
 
@@ -397,6 +460,7 @@ async function run() {
           .from(workspaceEnvironment)
           .where(sql`${workspaceEnvironment.workspaceId} = ${workspaceId}`)
           .limit(1)
+        await throttle()
         if (wsEnvRows[0]) {
           wsEnvVars = (wsEnvRows[0].variables as Record<string, string>) || {}
         }
@@ -412,6 +476,7 @@ async function run() {
                 sql`, `
               )})`
             )
+          await throttle()
           for (const row of personalRows) {
             personalEnvCache.set(row.userId, (row.variables as Record<string, string>) || {})
           }
@@ -475,6 +540,7 @@ async function run() {
               target: [workspaceBYOKKeys.workspaceId, workspaceBYOKKeys.providerId],
             })
             .returning({ id: workspaceBYOKKeys.id })
+          await throttle()
 
           if (result.length === 0) {
             console.log(`  [SKIP] BYOK already exists for provider "${providerId}"`)
