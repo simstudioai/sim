@@ -27,23 +27,6 @@ function normalizeVaultUrl(url: string): string {
   return url.replace(/\/+$/, '')
 }
 
-const PRIVATE_IP_PATTERN =
-  /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|0\.|100\.(6[4-9]|[7-9]\d|1[0-2]\d)\.|::1|fd|fe80|fc|localhost$)/i
-
-/**
- * Validates that a URL does not point to private/internal infrastructure.
- */
-function isSafeUrl(rawUrl: string): boolean {
-  try {
-    const { protocol, hostname } = new URL(rawUrl)
-    if (protocol !== 'http:' && protocol !== 'https:') return false
-    if (PRIVATE_IP_PATTERN.test(hostname)) return false
-    return true
-  } catch {
-    return false
-  }
-}
-
 /**
  * Lists entries in a single vault directory (non-recursive).
  * Returns raw entries: files as names, subdirectories with trailing slash.
@@ -312,10 +295,6 @@ export const obsidianConnector: ConnectorConfig = {
     }
 
     const baseUrl = normalizeVaultUrl(rawUrl)
-
-    if (!isSafeUrl(baseUrl)) {
-      return { valid: false, error: 'Vault URL must not point to a private or loopback address' }
-    }
 
     try {
       const response = await fetchWithRetry(
