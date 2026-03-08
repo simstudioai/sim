@@ -2769,14 +2769,15 @@ export const auth = betterAuth({
                 })
 
                 if (!planFromStripe) {
-                  logger.warn(
-                    '[onSubscriptionComplete] Could not resolve plan from Stripe price, using DB plan as fallback',
+                  logger.error(
+                    '[onSubscriptionComplete] Could not resolve plan from Stripe price — check env var configuration',
                     { subscriptionId: subscription.id, dbPlan: subscription.plan, priceId }
                   )
                 }
-                const subscriptionForOrg = planFromStripe
-                  ? { ...subscription, plan: planFromStripe }
-                  : subscription
+                const subscriptionForOrg = {
+                  ...subscription,
+                  plan: planFromStripe ?? subscription.plan,
+                }
 
                 let resolvedSubscription = subscription
                 try {
@@ -2843,14 +2844,15 @@ export const auth = betterAuth({
                 })
 
                 if (!planFromStripe) {
-                  logger.warn(
-                    '[onSubscriptionUpdate] Could not resolve plan from Stripe price, using DB plan as fallback',
+                  logger.error(
+                    '[onSubscriptionUpdate] Could not resolve plan from Stripe price — org creation may be skipped for team upgrades',
                     { subscriptionId: subscription.id, dbPlan: subscription.plan }
                   )
                 }
-                const subscriptionForOrg = planFromStripe
-                  ? { ...subscription, plan: planFromStripe }
-                  : subscription
+                const subscriptionForOrg = {
+                  ...subscription,
+                  plan: planFromStripe ?? subscription.plan,
+                }
 
                 let resolvedSubscription = subscription
                 try {
