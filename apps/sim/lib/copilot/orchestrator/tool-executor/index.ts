@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { mcpServers, pendingCredentialDraft } from '@sim/db/schema'
+import { mcpServers, pendingCredentialDraft, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, lt } from 'drizzle-orm'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
@@ -769,6 +769,17 @@ async function generateOAuthLink(
     }
   }
 
+  // Build display name: "User Name's ServiceName" or just "ServiceName"
+  let displayName = serviceName
+  try {
+    const [row] = await db.select({ name: user.name }).from(user).where(eq(user.id, userId))
+    if (row?.name) {
+      displayName = `${row.name}'s ${serviceName}`
+    }
+  } catch {
+    // Fall back to service name only
+  }
+
   // Create credential draft so the callback hook creates the credential
   const now = new Date()
   await db
@@ -783,7 +794,7 @@ async function generateOAuthLink(
       userId,
       workspaceId,
       providerId,
-      displayName: serviceName,
+      displayName,
       expiresAt: new Date(now.getTime() + 15 * 60 * 1000),
       createdAt: now,
     })
@@ -794,7 +805,7 @@ async function generateOAuthLink(
         pendingCredentialDraft.workspaceId,
       ],
       set: {
-        displayName: serviceName,
+        displayName,
         expiresAt: new Date(now.getTime() + 15 * 60 * 1000),
         createdAt: now,
       },

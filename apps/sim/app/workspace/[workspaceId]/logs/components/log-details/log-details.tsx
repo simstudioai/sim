@@ -409,7 +409,7 @@ export const LogDetails = memo(function LogDetails({
                       {(() => {
                         const c =
                           log.trigger === 'mothership'
-                            ? '#802FDE'
+                            ? '#ec4899'
                             : log.workflow?.color ||
                               (!log.workflowId ? DELETED_WORKFLOW_COLOR : undefined)
                         return (

@@ -51,7 +51,7 @@ const LogRow = memo(
         ? DELETED_WORKFLOW_LABEL
         : log.workflow?.name || 'Unknown'
     const workflowColor = isMothershipJob
-      ? '#802FDE'
+      ? '#ec4899'
       : isDeletedWorkflow
         ? DELETED_WORKFLOW_COLOR
         : log.workflow?.color
