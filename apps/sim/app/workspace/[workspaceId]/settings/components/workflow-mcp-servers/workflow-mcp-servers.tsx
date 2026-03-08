@@ -464,11 +464,11 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                     value={activeConfigTab}
                     onValueChange={(v) => setActiveConfigTab(v as McpClientType)}
                   >
-                    <ButtonGroupItem value='sim'>Sim</ButtonGroupItem>
                     <ButtonGroupItem value='cursor'>Cursor</ButtonGroupItem>
                     <ButtonGroupItem value='claude-code'>Claude Code</ButtonGroupItem>
                     <ButtonGroupItem value='claude-desktop'>Claude Desktop</ButtonGroupItem>
                     <ButtonGroupItem value='vscode'>VS Code</ButtonGroupItem>
+                    <ButtonGroupItem value='sim'>Sim</ButtonGroupItem>
                   </ButtonGroup>
                 </div>
 

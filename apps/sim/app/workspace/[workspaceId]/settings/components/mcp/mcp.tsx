@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ChevronDown, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -193,6 +193,14 @@ export function MCP({ initialServerId }: MCPProps) {
   const [serverToDelete, setServerToDelete] = useState<{ id: string; name: string } | null>(null)
 
   const [selectedServerId, setSelectedServerId] = useState<string | null>(initialServerId ?? null)
+
+  useEffect(() => {
+    if (initialServerId) {
+      forceRefreshTools(workspaceId)
+      refetchStoredTools()
+    }
+  }, [])
+
   const [refreshingServers, setRefreshingServers] = useState<
     Record<string, { status: 'refreshing' | 'refreshed'; workflowsUpdated?: number }>
   >({})

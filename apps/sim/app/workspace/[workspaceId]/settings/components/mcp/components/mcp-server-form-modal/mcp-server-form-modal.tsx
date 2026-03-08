@@ -302,9 +302,8 @@ export function McpServerFormModal({
 }: McpServerFormModalProps) {
   const urlInputRef = useRef<HTMLInputElement>(null)
 
-  const effectiveInitialData = initialData ?? DEFAULT_FORM_DATA
-  const [formData, setFormData] = useState<McpServerFormData>(effectiveInitialData)
-  const [originalData, setOriginalData] = useState<McpServerFormData>(effectiveInitialData)
+  const [formData, setFormData] = useState<McpServerFormData>(DEFAULT_FORM_DATA)
+  const [originalData, setOriginalData] = useState<McpServerFormData>(DEFAULT_FORM_DATA)
 
   const [formMode, setFormMode] = useState<'form' | 'json'>('form')
   const [jsonInput, setJsonInput] = useState('')
@@ -323,32 +322,25 @@ export function McpServerFormModal({
   const [urlScrollLeft, setUrlScrollLeft] = useState(0)
   const [headerScrollLeft, setHeaderScrollLeft] = useState<Record<string, number>>({})
 
-  const resetInternalState = useCallback(() => {
+  const [prevOpen, setPrevOpen] = useState(false)
+  if (open && !prevOpen) {
+    const data = initialData ?? DEFAULT_FORM_DATA
+    setFormData(data)
+    setOriginalData(JSON.parse(JSON.stringify(data)))
     setFormMode('form')
     setJsonInput('')
     setJsonError(null)
     setIsSubmitting(false)
     setSubmitError(null)
-    clearTestResult()
     setShowEnvVars(false)
     setActiveInputField(null)
     setActiveHeaderIndex(null)
     setUrlScrollLeft(0)
     setHeaderScrollLeft({})
-  }, [clearTestResult])
-
-  const handleOpenChange = useCallback(
-    (nextOpen: boolean) => {
-      if (nextOpen && !open) {
-        const data = initialData ?? DEFAULT_FORM_DATA
-        setFormData(data)
-        setOriginalData(JSON.parse(JSON.stringify(data)))
-        resetInternalState()
-      }
-      onOpenChange(nextOpen)
-    },
-    [open, initialData, onOpenChange, resetInternalState]
-  )
+  }
+  if (open !== prevOpen) {
+    setPrevOpen(open)
+  }
 
   const resetEnvVarState = useCallback(() => {
     setShowEnvVars(false)
@@ -498,7 +490,9 @@ export function McpServerFormModal({
       })
 
       if (!connectionResult.success) {
-        logger.error('Connection test failed:', connectionResult.error)
+        setSubmitError(
+          connectionResult.error || 'Connection test failed. Please check the URL and try again.'
+        )
         return
       }
 
@@ -547,7 +541,9 @@ export function McpServerFormModal({
       })
 
       if (!connectionResult.success) {
-        logger.error('Connection test failed:', connectionResult.error)
+        setSubmitError(
+          connectionResult.error || 'Connection test failed. Please check the URL and try again.'
+        )
         return
       }
 
@@ -584,7 +580,7 @@ export function McpServerFormModal({
   const submitLabel = mode === 'add' ? 'Add MCP' : 'Save'
 
   return (
-    <Modal open={open} onOpenChange={handleOpenChange}>
+    <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent>
         <ModalHeader>{title}</ModalHeader>
         <ModalBody>
