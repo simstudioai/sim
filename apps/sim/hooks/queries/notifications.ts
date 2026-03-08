@@ -76,7 +76,10 @@ export interface NotificationSubscription {
 /**
  * Fetch notifications for a workspace
  */
-async function fetchNotifications(workspaceId: string, signal?: AbortSignal): Promise<NotificationSubscription[]> {
+async function fetchNotifications(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<NotificationSubscription[]> {
   const response = await fetch(`/api/workspaces/${workspaceId}/notifications`, { signal })
   if (!response.ok) {
     throw new Error('Failed to fetch notifications')

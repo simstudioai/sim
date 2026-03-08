@@ -55,7 +55,12 @@ export const workspaceCredentialKeys = {
   all: ['workspaceCredentials'] as const,
   lists: () => [...workspaceCredentialKeys.all, 'list'] as const,
   list: (workspaceId?: string, type?: string, providerId?: string) =>
-    [...workspaceCredentialKeys.lists(), workspaceId ?? 'none', type ?? 'all', providerId ?? 'all'] as const,
+    [
+      ...workspaceCredentialKeys.lists(),
+      workspaceId ?? 'none',
+      type ?? 'all',
+      providerId ?? 'all',
+    ] as const,
   details: () => [...workspaceCredentialKeys.all, 'detail'] as const,
   detail: (credentialId?: string) =>
     [...workspaceCredentialKeys.details(), credentialId ?? 'none'] as const,
@@ -95,7 +100,9 @@ export function useWorkspaceCredential(credentialId?: string, enabled = true) {
     queryKey: workspaceCredentialKeys.detail(credentialId),
     queryFn: async ({ signal }) => {
       if (!credentialId) return null
-      const data = await fetchJson<CredentialResponse>(`/api/credentials/${credentialId}`, { signal })
+      const data = await fetchJson<CredentialResponse>(`/api/credentials/${credentialId}`, {
+        signal,
+      })
       return data.credential ?? null
     },
     enabled: Boolean(credentialId) && enabled,
@@ -201,7 +208,9 @@ export function useWorkspaceCredentialMembers(credentialId?: string) {
     queryKey: workspaceCredentialKeys.members(credentialId),
     queryFn: async ({ signal }) => {
       if (!credentialId) return []
-      const data = await fetchJson<MembersResponse>(`/api/credentials/${credentialId}/members`, { signal })
+      const data = await fetchJson<MembersResponse>(`/api/credentials/${credentialId}/members`, {
+        signal,
+      })
       return data.members ?? []
     },
     enabled: Boolean(credentialId),

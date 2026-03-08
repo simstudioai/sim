@@ -51,7 +51,11 @@ export interface ScheduleInfo {
 /**
  * Fetches schedule data for a specific workflow block
  */
-async function fetchSchedule(workflowId: string, blockId: string, signal?: AbortSignal): Promise<ScheduleData | null> {
+async function fetchSchedule(
+  workflowId: string,
+  blockId: string,
+  signal?: AbortSignal
+): Promise<ScheduleData | null> {
   const params = new URLSearchParams({ workflowId, blockId })
   const response = await fetch(`/api/schedules?${params}`, {
     signal,

@@ -35,7 +35,10 @@ export const workflowKeys = {
  * Fetches workflow state from the API.
  * Used as the base query for both state preview and input fields extraction.
  */
-async function fetchWorkflowState(workflowId: string, signal?: AbortSignal): Promise<WorkflowState | null> {
+async function fetchWorkflowState(
+  workflowId: string,
+  signal?: AbortSignal
+): Promise<WorkflowState | null> {
   const response = await fetch(`/api/workflows/${workflowId}`, { signal })
   if (!response.ok) throw new Error('Failed to fetch workflow')
   const { data } = await response.json()
@@ -73,7 +76,10 @@ function mapWorkflow(workflow: any): WorkflowMetadata {
   }
 }
 
-async function fetchWorkflows(workspaceId: string, signal?: AbortSignal): Promise<WorkflowMetadata[]> {
+async function fetchWorkflows(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<WorkflowMetadata[]> {
   const response = await fetch(`/api/workflows?workspaceId=${workspaceId}`, { signal })
 
   if (!response.ok) {
@@ -465,7 +471,8 @@ export async function fetchDeploymentVersionState(
 export function useDeploymentVersionState(workflowId: string | null, version: number | null) {
   return useQuery({
     queryKey: workflowKeys.deploymentVersion(workflowId ?? undefined, version ?? undefined),
-    queryFn: ({ signal }) => fetchDeploymentVersionState(workflowId as string, version as number, signal),
+    queryFn: ({ signal }) =>
+      fetchDeploymentVersionState(workflowId as string, version as number, signal),
     enabled: Boolean(workflowId) && version !== null,
     staleTime: 5 * 60 * 1000, // 5 minutes - deployment versions don't change
   })
@@ -580,7 +587,10 @@ export interface ChildDeploymentStatus {
  * Fetches deployment status for a child workflow.
  * Uses Promise.all to fetch status and deployments in parallel for better performance.
  */
-async function fetchChildDeploymentStatus(workflowId: string, signal?: AbortSignal): Promise<ChildDeploymentStatus> {
+async function fetchChildDeploymentStatus(
+  workflowId: string,
+  signal?: AbortSignal
+): Promise<ChildDeploymentStatus> {
   const fetchOptions = {
     signal,
     cache: 'no-store' as const,

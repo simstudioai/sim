@@ -7,7 +7,9 @@ export interface WorkspaceEnvironmentData {
   conflicts: string[]
 }
 
-export async function fetchPersonalEnvironment(signal?: AbortSignal): Promise<Record<string, EnvironmentVariable>> {
+export async function fetchPersonalEnvironment(
+  signal?: AbortSignal
+): Promise<Record<string, EnvironmentVariable>> {
   const response = await fetch(API_ENDPOINTS.ENVIRONMENT, { signal })
 
   if (!response.ok) {

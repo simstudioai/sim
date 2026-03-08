@@ -21,7 +21,10 @@ export const providerKeys = {
   models: (provider: string) => [...providerKeys.all, provider] as const,
 }
 
-async function fetchProviderModels(provider: ProviderName, signal?: AbortSignal): Promise<ProviderModelsResponse> {
+async function fetchProviderModels(
+  provider: ProviderName,
+  signal?: AbortSignal
+): Promise<ProviderModelsResponse> {
   const response = await fetch(providerEndpoints[provider], { signal })
 
   if (!response.ok) {

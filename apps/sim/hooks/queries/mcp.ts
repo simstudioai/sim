@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { sanitizeForHttp, sanitizeHeaders } from '@/lib/mcp/shared'
-import type { McpServerStatusConfig, McpTransport, McpTool, StoredMcpTool } from '@/lib/mcp/types'
+import type { McpServerStatusConfig, McpTool, McpTransport, StoredMcpTool } from '@/lib/mcp/types'
 import { workflowMcpServerKeys } from '@/hooks/queries/workflow-mcp-servers'
 
 const logger = createLogger('McpQueries')
@@ -76,7 +76,11 @@ export function useMcpServers(workspaceId: string) {
   })
 }
 
-async function fetchMcpTools(workspaceId: string, forceRefresh = false, signal?: AbortSignal): Promise<McpTool[]> {
+async function fetchMcpTools(
+  workspaceId: string,
+  forceRefresh = false,
+  signal?: AbortSignal
+): Promise<McpTool[]> {
   const params = new URLSearchParams({ workspaceId })
   if (forceRefresh) {
     params.set('refresh', 'true')
@@ -344,7 +348,10 @@ export function useRefreshMcpServer() {
   })
 }
 
-async function fetchStoredMcpTools(workspaceId: string, signal?: AbortSignal): Promise<StoredMcpTool[]> {
+async function fetchStoredMcpTools(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<StoredMcpTool[]> {
   const response = await fetch(`/api/mcp/tools/stored?workspaceId=${workspaceId}`, { signal })
 
   if (!response.ok) {
@@ -449,7 +456,10 @@ export interface McpServerTestResult {
   warnings?: string[]
 }
 
-async function testMcpServerConnection(config: McpServerTestConfig, signal?: AbortSignal): Promise<McpServerTestResult> {
+async function testMcpServerConnection(
+  config: McpServerTestConfig,
+  signal?: AbortSignal
+): Promise<McpServerTestResult> {
   const cleanConfig = {
     ...config,
     url: config.url ? sanitizeForHttp(config.url) : config.url,
@@ -484,10 +494,7 @@ export function useMcpServerTest() {
   const mutation = useMutation({
     mutationFn: (config: McpServerTestConfig) => testMcpServerConnection(config),
     onSuccess: (result, variables) => {
-      logger.info(
-        `MCP server test ${result.success ? 'passed' : 'failed'}:`,
-        variables.name
-      )
+      logger.info(`MCP server test ${result.success ? 'passed' : 'failed'}:`, variables.name)
     },
     onError: (error) => {
       logger.error('MCP server test failed:', error instanceof Error ? error.message : error)
@@ -495,11 +502,16 @@ export function useMcpServerTest() {
   })
 
   return {
-    testResult: mutation.data ?? (mutation.error ? {
-      success: false,
-      message: 'Connection failed',
-      error: mutation.error instanceof Error ? mutation.error.message : 'Unknown error occurred',
-    } as McpServerTestResult : null),
+    testResult:
+      mutation.data ??
+      (mutation.error
+        ? ({
+            success: false,
+            message: 'Connection failed',
+            error:
+              mutation.error instanceof Error ? mutation.error.message : 'Unknown error occurred',
+          } as McpServerTestResult)
+        : null),
     isTestingConnection: mutation.isPending,
     testConnection: mutation.mutateAsync,
     clearTestResult: mutation.reset,
@@ -528,4 +540,3 @@ export function useAllowedMcpDomains() {
     staleTime: 5 * 60 * 1000,
   })
 }
-

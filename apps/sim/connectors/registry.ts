@@ -2,6 +2,7 @@ import { airtableConnector } from '@/connectors/airtable'
 import { asanaConnector } from '@/connectors/asana'
 import { confluenceConnector } from '@/connectors/confluence'
 import { dropboxConnector } from '@/connectors/dropbox'
+import { evernoteConnector } from '@/connectors/evernote'
 import { firefliesConnector } from '@/connectors/fireflies'
 import { githubConnector } from '@/connectors/github'
 import { googleDocsConnector } from '@/connectors/google-docs'
@@ -10,6 +11,7 @@ import { hubspotConnector } from '@/connectors/hubspot'
 import { jiraConnector } from '@/connectors/jira'
 import { linearConnector } from '@/connectors/linear'
 import { notionConnector } from '@/connectors/notion'
+import { obsidianConnector } from '@/connectors/obsidian'
 import { onedriveConnector } from '@/connectors/onedrive'
 import { salesforceConnector } from '@/connectors/salesforce'
 import { sharepointConnector } from '@/connectors/sharepoint'
@@ -23,6 +25,7 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   asana: asanaConnector,
   confluence: confluenceConnector,
   dropbox: dropboxConnector,
+  evernote: evernoteConnector,
   fireflies: firefliesConnector,
   github: githubConnector,
   google_docs: googleDocsConnector,
@@ -31,6 +34,7 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   jira: jiraConnector,
   linear: linearConnector,
   notion: notionConnector,
+  obsidian: obsidianConnector,
   onedrive: onedriveConnector,
   salesforce: salesforceConnector,
   sharepoint: sharepointConnector,

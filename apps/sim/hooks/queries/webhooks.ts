@@ -31,8 +31,14 @@ interface WebhookResponse {
   }>
 }
 
-async function fetchWebhooks(workflowId: string, blockId: string, signal?: AbortSignal): Promise<WebhookData | null> {
-  const response = await fetch(`/api/webhooks?workflowId=${workflowId}&blockId=${blockId}`, { signal })
+async function fetchWebhooks(
+  workflowId: string,
+  blockId: string,
+  signal?: AbortSignal
+): Promise<WebhookData | null> {
+  const response = await fetch(`/api/webhooks?workflowId=${workflowId}&blockId=${blockId}`, {
+    signal,
+  })
 
   if (!response.ok) {
     return null

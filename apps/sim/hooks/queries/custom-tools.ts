@@ -125,7 +125,10 @@ export function getCustomTool(
 /**
  * Fetch custom tools for a workspace
  */
-async function fetchCustomTools(workspaceId: string, signal?: AbortSignal): Promise<CustomToolDefinition[]> {
+async function fetchCustomTools(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<CustomToolDefinition[]> {
   const response = await fetch(`${API_ENDPOINT}?workspaceId=${workspaceId}`, { signal })
 
   if (!response.ok) {

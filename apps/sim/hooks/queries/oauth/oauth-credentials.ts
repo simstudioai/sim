@@ -98,11 +98,14 @@ export function useOAuthCredentials(
   return useQuery<Credential[]>({
     queryKey: oauthCredentialKeys.list(providerId, workspaceId, workflowId),
     queryFn: ({ signal }) =>
-      fetchOAuthCredentials({
-        providerId: providerId ?? '',
-        workspaceId: workspaceId || undefined,
-        workflowId: workflowId || undefined,
-      }, signal),
+      fetchOAuthCredentials(
+        {
+          providerId: providerId ?? '',
+          workspaceId: workspaceId || undefined,
+          workflowId: workflowId || undefined,
+        },
+        signal
+      ),
     enabled: Boolean(providerId) && enabled,
     staleTime: 60 * 1000,
   })

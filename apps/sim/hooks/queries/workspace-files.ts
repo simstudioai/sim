@@ -27,7 +27,10 @@ export interface StorageInfo {
 /**
  * Fetch workspace files from API
  */
-async function fetchWorkspaceFiles(workspaceId: string, signal?: AbortSignal): Promise<WorkspaceFileRecord[]> {
+async function fetchWorkspaceFiles(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<WorkspaceFileRecord[]> {
   const response = await fetch(`/api/workspaces/${workspaceId}/files`, { signal })
 
   if (!response.ok) {
@@ -167,7 +170,9 @@ export function useDeleteWorkspaceFile() {
       const previousFiles = queryClient.getQueryData<WorkspaceFileRecord[]>(
         workspaceFilesKeys.list(workspaceId)
       )
-      const previousStorage = queryClient.getQueryData<StorageInfo>(workspaceFilesKeys.storageInfo())
+      const previousStorage = queryClient.getQueryData<StorageInfo>(
+        workspaceFilesKeys.storageInfo()
+      )
 
       if (previousFiles) {
         queryClient.setQueryData<WorkspaceFileRecord[]>(

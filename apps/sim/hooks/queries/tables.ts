@@ -58,8 +58,14 @@ function createRowsParamsKey({
   })
 }
 
-async function fetchTable(workspaceId: string, tableId: string, signal?: AbortSignal): Promise<TableDefinition> {
-  const res = await fetch(`/api/table/${tableId}?workspaceId=${encodeURIComponent(workspaceId)}`, { signal })
+async function fetchTable(
+  workspaceId: string,
+  tableId: string,
+  signal?: AbortSignal
+): Promise<TableDefinition> {
+  const res = await fetch(`/api/table/${tableId}?workspaceId=${encodeURIComponent(workspaceId)}`, {
+    signal,
+  })
   if (!res.ok) {
     const error = await res.json().catch(() => ({}))
     throw new Error(error.error || 'Failed to fetch table')
@@ -131,7 +137,9 @@ export function useTablesList(workspaceId?: string) {
     queryFn: async ({ signal }) => {
       if (!workspaceId) throw new Error('Workspace ID required')
 
-      const res = await fetch(`/api/table?workspaceId=${encodeURIComponent(workspaceId)}`, { signal })
+      const res = await fetch(`/api/table?workspaceId=${encodeURIComponent(workspaceId)}`, {
+        signal,
+      })
 
       if (!res.ok) {
         const error = await res.json()
