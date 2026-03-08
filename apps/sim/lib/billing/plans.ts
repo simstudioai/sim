@@ -1,5 +1,6 @@
 import type Stripe from 'stripe'
 import { CREDIT_TIERS } from '@/lib/billing/constants'
+import { CREDIT_MULTIPLIER } from '@/lib/billing/credits/conversion'
 import { isTeam } from '@/lib/billing/plan-helpers'
 import { getFreeTierLimit } from '@/lib/billing/subscriptions/utils'
 import { env } from '@/lib/core/config/env'
@@ -60,12 +61,14 @@ export function getPlans(): BillingPlan[] {
     const proPrices = proPriceMap[tier.dollars]
     const teamPrices = teamPriceMap[tier.dollars]
 
+    const creditValueDollars = tier.credits / CREDIT_MULTIPLIER
+
     if (proPrices?.monthly) {
       plans.push({
         name: `pro_${tier.credits}`,
         priceId: proPrices.monthly,
         annualDiscountPriceId: proPrices.annual || undefined,
-        limits: { cost: tier.dollars },
+        limits: { cost: creditValueDollars },
       })
     }
 
@@ -74,7 +77,7 @@ export function getPlans(): BillingPlan[] {
         name: `team_${tier.credits}`,
         priceId: teamPrices.monthly,
         annualDiscountPriceId: teamPrices.annual || undefined,
-        limits: { cost: tier.dollars },
+        limits: { cost: creditValueDollars },
       })
     }
   }
