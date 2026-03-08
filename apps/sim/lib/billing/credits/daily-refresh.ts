@@ -84,12 +84,13 @@ export async function computeDailyRefreshConsumed(params: {
   periodStart: Date
   periodEnd?: Date | null
   planDollars: number
+  seats?: number
 }): Promise<number> {
-  const { userIds, periodStart, periodEnd, planDollars } = params
+  const { userIds, periodStart, periodEnd, planDollars, seats = 1 } = params
 
   if (planDollars <= 0 || userIds.length === 0) return 0
 
-  const dailyRefreshDollars = planDollars * DAILY_REFRESH_RATE
+  const dailyRefreshDollars = planDollars * DAILY_REFRESH_RATE * seats
   const windows = getDayWindows(periodStart, periodEnd)
 
   if (windows.length === 0) return 0

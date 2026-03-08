@@ -629,6 +629,7 @@ export async function getEffectiveCurrentPeriodCost(userId: string): Promise<num
     periodStart: subscription.periodStart,
     periodEnd: subscription.periodEnd ?? null,
     planDollars,
+    seats: subscription.seats ?? 1,
   })
 
   return Math.max(0, rawCost - refreshConsumed)

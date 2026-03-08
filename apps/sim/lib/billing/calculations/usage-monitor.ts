@@ -93,6 +93,7 @@ export async function checkUsageStatus(
           periodStart: preloadedSubscription.periodStart,
           periodEnd: preloadedSubscription.periodEnd ?? null,
           planDollars,
+          seats: preloadedSubscription.seats ?? 1,
         })
       }
     }
