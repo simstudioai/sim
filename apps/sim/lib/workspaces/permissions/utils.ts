@@ -207,6 +207,33 @@ export async function getUsersWithPermissions(workspaceId: string): Promise<
   }))
 }
 
+/** Lightweight profile data for workspace member display (avatars, owner cells). */
+export interface WorkspaceMemberProfile {
+  userId: string
+  name: string
+  image: string | null
+}
+
+/**
+ * Fetches minimal profile data (id, name, image) for all members of a workspace.
+ * Use this instead of getUsersWithPermissions when you only need display info.
+ */
+export async function getWorkspaceMemberProfiles(
+  workspaceId: string
+): Promise<WorkspaceMemberProfile[]> {
+  const rows = await db
+    .select({
+      userId: user.id,
+      name: user.name,
+      image: user.image,
+    })
+    .from(permissions)
+    .innerJoin(user, eq(permissions.userId, user.id))
+    .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
+
+  return rows
+}
+
 /**
  * Check if a user has admin access to a specific workspace
  *

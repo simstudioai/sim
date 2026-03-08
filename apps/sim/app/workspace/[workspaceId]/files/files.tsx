@@ -4,12 +4,12 @@ import { useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Files as FilesIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { MoreHorizontal } from '@/components/emcn/icons'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
-import { Resource } from '@/app/workspace/[workspaceId]/components'
+import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import { useUploadWorkspaceFile, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
 const logger = createLogger('Files')
@@ -50,8 +50,10 @@ const ACCEPT_ATTR =
 const COLUMNS: ResourceColumn[] = [
   { id: 'name', header: 'Name' },
   { id: 'size', header: 'Size' },
-  { id: 'uploaded', header: 'Uploaded' },
-  { id: 'actions', header: 'Actions' },
+  { id: 'type', header: 'Type' },
+  { id: 'created', header: 'Created' },
+  { id: 'owner', header: 'Owner' },
+  { id: 'updated', header: 'Last Updated' },
 ]
 
 function formatFileSize(bytes: number): string {
@@ -60,12 +62,34 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function formatDate(date: Date | string): string {
-  const d = new Date(date)
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  const yy = String(d.getFullYear()).slice(2)
-  return `${mm}/${dd}/${yy}`
+const MIME_TYPE_LABELS: Record<string, string> = {
+  'application/pdf': 'PDF',
+  'application/msword': 'Word',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word',
+  'application/vnd.ms-excel': 'Excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'Excel',
+  'application/vnd.ms-powerpoint': 'PowerPoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PowerPoint',
+  'application/json': 'JSON',
+  'application/x-yaml': 'YAML',
+  'text/csv': 'CSV',
+  'text/plain': 'Text',
+  'text/html': 'HTML',
+  'text/markdown': 'Markdown',
+}
+
+function formatFileType(mimeType: string | null, filename: string): string {
+  if (mimeType && MIME_TYPE_LABELS[mimeType]) {
+    return MIME_TYPE_LABELS[mimeType]
+  }
+
+  if (mimeType?.startsWith('audio/')) return 'Audio'
+  if (mimeType?.startsWith('video/')) return 'Video'
+
+  const ext = filename.split('.').pop()?.toLowerCase()
+  if (ext) return ext.toUpperCase()
+
+  return mimeType ?? 'File'
 }
 
 export function Files() {
@@ -74,6 +98,7 @@ export function Files() {
   const userPermissions = useUserPermissionsContext()
 
   const { data: files = [], isLoading, error } = useWorkspaceFiles(workspaceId)
+  const { data: members } = useWorkspaceMembersQuery(workspaceId)
   const uploadFile = useUploadWorkspaceFile()
 
   if (error) {
@@ -105,17 +130,17 @@ export function Files() {
             size: {
               label: formatFileSize(file.size),
             },
-            uploaded: {
-              label: formatDate(file.uploadedAt),
+            type: {
+              icon: <Icon className='h-[14px] w-[14px]' />,
+              label: formatFileType(file.type, file.name),
             },
-            actions: {
-              icon: <MoreHorizontal className='h-[14px] w-[14px]' />,
-              label: '',
-            },
+            created: timeCell(file.uploadedAt),
+            owner: ownerCell(file.uploadedBy, members),
+            updated: timeCell(file.uploadedAt),
           },
         }
       }),
-    [filteredFiles]
+    [filteredFiles, members]
   )
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -181,6 +206,8 @@ export function Files() {
           onChange: setSearchTerm,
           placeholder: 'Search files...',
         }}
+        onSort={() => {}}
+        onFilter={() => {}}
         columns={COLUMNS}
         rows={rows}
         isLoading={isLoading}

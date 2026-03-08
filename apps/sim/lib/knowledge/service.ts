@@ -22,6 +22,7 @@ export async function getKnowledgeBases(
   const knowledgeBasesWithCounts = await db
     .select({
       id: knowledgeBase.id,
+      userId: knowledgeBase.userId,
       name: knowledgeBase.name,
       description: knowledgeBase.description,
       tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
@@ -202,6 +203,7 @@ export async function updateKnowledgeBase(
   const updatedKb = await db
     .select({
       id: knowledgeBase.id,
+      userId: knowledgeBase.userId,
       name: knowledgeBase.name,
       description: knowledgeBase.description,
       tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
@@ -245,6 +247,7 @@ export async function getKnowledgeBaseById(
   const result = await db
     .select({
       id: knowledgeBase.id,
+      userId: knowledgeBase.userId,
       name: knowledgeBase.name,
       description: knowledgeBase.description,
       tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),

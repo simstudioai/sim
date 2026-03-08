@@ -17,6 +17,7 @@ export interface ChunkingConfig {
 
 export interface KnowledgeBaseWithCounts {
   id: string
+  userId: string
   name: string
   description: string | null
   tokenCount: number
@@ -116,6 +117,7 @@ export interface ExtendedChunkingConfig extends ChunkingConfig {
 /** Knowledge base data for API responses */
 export interface KnowledgeBaseData {
   id: string
+  userId: string
   name: string
   description?: string
   tokenCount: number

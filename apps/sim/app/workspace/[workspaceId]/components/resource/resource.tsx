@@ -2,16 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { ArrowUpDown, ListFilter, Plus, Search } from 'lucide-react'
-import {
-  Button,
-  Skeleton,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/emcn'
+import { Button, Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 
 export interface ResourceColumn {
@@ -21,7 +12,7 @@ export interface ResourceColumn {
 
 export interface ResourceCell {
   icon?: ReactNode
-  label: string
+  label?: string | null
 }
 
 export interface ResourceRow {
@@ -54,6 +45,8 @@ interface ResourceProps {
   onContextMenu?: (e: React.MouseEvent) => void
 }
 
+const EMPTY_CELL_PLACEHOLDER = '-  -  -'
+
 /**
  * Shared page shell for resource list pages (tables, files, knowledge, schedules).
  * Renders the header, toolbar with search, and a data table from column/row definitions.
@@ -76,143 +69,136 @@ export function Resource({
 }: ResourceProps) {
   const hasOptionsBar = search || onSort || onFilter
   return (
-    <div className='flex h-full flex-1 flex-col'>
-      <div className='flex flex-1 overflow-hidden'>
-        <div
-          className='flex flex-1 flex-col overflow-auto bg-white dark:bg-[var(--bg)]'
-          onContextMenu={onContextMenu}
-        >
-          <div className='border-[var(--border)] border-b px-[24px] py-[10px]'>
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-[12px]'>
-                <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
-                <h1 className='font-medium text-[14px] text-[var(--text-body)]'>{title}</h1>
-              </div>
-              {create && (
-                <Button
-                  onClick={create.onClick}
-                  disabled={create.disabled}
-                  variant='subtle'
-                  className='px-[8px] py-[4px] text-[12px]'
-                >
-                  <Plus className='mr-[6px] h-[14px] w-[14px]' />
-                  {create.label}
-                </Button>
-              )}
-            </div>
+    <div
+      className='flex h-full flex-1 flex-col overflow-hidden bg-white dark:bg-[var(--bg)]'
+      onContextMenu={onContextMenu}
+    >
+      <div className='border-[var(--border)] border-b px-[24px] py-[10px]'>
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-[12px]'>
+            <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+            <h1 className='font-medium text-[14px] text-[var(--text-body)]'>{title}</h1>
           </div>
-
-          {hasOptionsBar && (
-            <div className='border-[var(--border)] border-b px-[24px] py-[10px]'>
-              <div className='flex items-center justify-between'>
-                {search && (
-                  <div className='relative flex-1'>
-                    <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-0 h-[14px] w-[14px] text-[var(--text-muted)]' />
-                    <input
-                      type='text'
-                      value={search.value}
-                      onChange={(e) => search.onChange(e.target.value)}
-                      placeholder={search.placeholder ?? 'Search...'}
-                      className='w-full bg-transparent py-[4px] pl-[24px] font-base text-[12px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-subtle)]'
-                    />
-                  </div>
-                )}
-                <div className='flex items-center gap-[6px]'>
-                  {onFilter && (
-                    <Button
-                      variant='subtle'
-                      className='px-[8px] py-[4px] text-[12px]'
-                      onClick={onFilter}
-                    >
-                      <ListFilter className='mr-[6px] h-[14px] w-[14px]' />
-                      Filter
-                    </Button>
-                  )}
-                  {onSort && (
-                    <Button
-                      variant='subtle'
-                      className='px-[8px] py-[4px] text-[12px]'
-                      onClick={onSort}
-                    >
-                      <ArrowUpDown className='mr-[6px] h-[14px] w-[14px]' />
-                      Sort
-                    </Button>
-                  )}
-                  {toolbarActions}
-                </div>
-              </div>
-            </div>
+          {create && (
+            <Button
+              onClick={create.onClick}
+              disabled={create.disabled}
+              variant='subtle'
+              className='px-[8px] py-[4px] text-[12px]'
+            >
+              <Plus className='mr-[6px] h-[14px] w-[14px]' />
+              {create.label}
+            </Button>
           )}
-
-          <div className='flex min-h-0 flex-1 flex-col'>
-            {isLoading ? (
-              <DataTableSkeleton columns={columns} rowCount={loadingRows} />
-            ) : (
-              <Table className='table-fixed text-[13px]'>
-                <TableHeader>
-                  <TableRow className='hover:bg-transparent'>
-                    {columns.map((col, colIdx) => (
-                      <TableHead
-                        key={col.id}
-                        className={cn(
-                          colIdx === 0 ? 'min-w-[400px]' : 'w-[160px]',
-                          'px-[24px] py-[10px] font-base text-[var(--text-muted)]'
-                        )}
-                      >
-                        {col.header}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((row) => (
-                    <TableRow
-                      key={row.id}
-                      data-resource-row
-                      className={cn(
-                        onRowClick && 'cursor-pointer',
-                        'border-b-0 bg-[var(--surface-2)] hover:bg-[var(--surface-3)]'
-                      )}
-                      onClick={() => onRowClick?.(row.id)}
-                      onContextMenu={(e) => onRowContextMenu?.(e, row.id)}
-                    >
-                      {columns.map((col, colIdx) => {
-                        const cell = row.cells[col.id]
-                        if (!cell) {
-                          return <TableCell key={col.id} className='px-[24px] py-[10px]' />
-                        }
-                        return (
-                          <TableCell key={col.id} className='px-[24px] py-[10px]'>
-                            <CellContent cell={cell} primary={colIdx === 0} />
-                          </TableCell>
-                        )
-                      })}
-                    </TableRow>
-                  ))}
-                  {create && (
-                    <TableRow
-                      className={cn(
-                        'border-b-0',
-                        create.disabled
-                          ? 'opacity-40'
-                          : 'cursor-pointer hover:bg-[var(--surface-3)]'
-                      )}
-                      onClick={create.disabled ? undefined : create.onClick}
-                    >
-                      <TableCell colSpan={columns.length} className='px-[24px] py-[10px]'>
-                        <span className='flex items-center gap-[12px] font-medium text-[14px] text-[var(--text-secondary)]'>
-                          <Plus className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
-                          {create.label}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            )}
-          </div>
         </div>
       </div>
+
+      {hasOptionsBar && (
+        <div className='border-[var(--border)] border-b px-[24px] py-[10px]'>
+          <div className='flex items-center justify-between'>
+            {search && (
+              <div className='relative flex-1'>
+                <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-0 h-[14px] w-[14px] text-[var(--text-muted)]' />
+                <input
+                  type='text'
+                  value={search.value}
+                  onChange={(e) => search.onChange(e.target.value)}
+                  placeholder={search.placeholder ?? 'Search...'}
+                  className='w-full bg-transparent py-[4px] pl-[24px] font-base text-[12px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-subtle)]'
+                />
+              </div>
+            )}
+            <div className='flex items-center gap-[6px]'>
+              {onFilter && (
+                <Button
+                  variant='subtle'
+                  className='px-[8px] py-[4px] text-[12px]'
+                  onClick={onFilter}
+                >
+                  <ListFilter className='mr-[6px] h-[14px] w-[14px]' />
+                  Filter
+                </Button>
+              )}
+              {onSort && (
+                <Button variant='subtle' className='px-[8px] py-[4px] text-[12px]' onClick={onSort}>
+                  <ArrowUpDown className='mr-[6px] h-[14px] w-[14px]' />
+                  Sort
+                </Button>
+              )}
+              {toolbarActions}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isLoading ? (
+        <DataTableSkeleton columns={columns} rowCount={loadingRows} />
+      ) : (
+        <>
+          <table className='w-full table-fixed text-[13px]'>
+            <ResourceColGroup columns={columns} />
+            <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
+              <tr>
+                {columns.map((col) => (
+                  <th
+                    key={col.id}
+                    className='h-10 px-[24px] py-[10px] text-left align-middle font-base text-[var(--text-muted)]'
+                  >
+                    {col.header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+          </table>
+          <div className='min-h-0 flex-1 overflow-auto'>
+            <table className='w-full table-fixed text-[13px]'>
+              <ResourceColGroup columns={columns} />
+              <tbody>
+                {rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    data-resource-row
+                    className={cn(
+                      'transition-colors hover:bg-[var(--surface-3)]',
+                      onRowClick && 'cursor-pointer'
+                    )}
+                    onClick={() => onRowClick?.(row.id)}
+                    onContextMenu={(e) => onRowContextMenu?.(e, row.id)}
+                  >
+                    {columns.map((col, colIdx) => {
+                      const cell = row.cells[col.id]
+                      return (
+                        <td key={col.id} className='px-[24px] py-[10px] align-middle'>
+                          <CellContent
+                            cell={{ ...cell, label: cell?.label || EMPTY_CELL_PLACEHOLDER }}
+                            primary={colIdx === 0}
+                          />
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+                {create && (
+                  <tr
+                    className={cn(
+                      'transition-colors',
+                      create.disabled ? 'opacity-40' : 'cursor-pointer hover:bg-[var(--surface-3)]'
+                    )}
+                    onClick={create.disabled ? undefined : create.onClick}
+                  >
+                    <td colSpan={columns.length} className='px-[24px] py-[10px] align-middle'>
+                      <span className='flex items-center gap-[12px] font-medium text-[14px] text-[var(--text-secondary)]'>
+                        <Plus className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
+                        {create.label}
+                      </span>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -231,40 +217,55 @@ function CellContent({ cell, primary }: { cell: ResourceCell; primary?: boolean 
   )
 }
 
+function ResourceColGroup({ columns }: { columns: ResourceColumn[] }) {
+  return (
+    <colgroup>
+      {columns.map((col, colIdx) => (
+        <col key={col.id} className={colIdx === 0 ? undefined : 'w-[160px]'} />
+      ))}
+    </colgroup>
+  )
+}
+
 function DataTableSkeleton({ columns, rowCount }: { columns: ResourceColumn[]; rowCount: number }) {
   return (
-    <Table className='table-fixed text-[13px]'>
-      <TableHeader>
-        <TableRow className='hover:bg-transparent'>
-          {columns.map((col, colIdx) => (
-            <TableHead
-              key={col.id}
-              className={cn(
-                colIdx === 0 ? 'min-w-[400px]' : 'w-[160px]',
-                'px-[24px] py-[10px] font-base text-[var(--text-muted)]'
-              )}
-            >
-              <div className='flex min-h-[20px] items-center'>
-                <Skeleton className='h-[12px] w-[56px]' />
-              </div>
-            </TableHead>
-          ))}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {Array.from({ length: rowCount }, (_, i) => (
-          <TableRow key={i} className='border-b-0 hover:bg-transparent'>
-            {columns.map((col, colIdx) => (
-              <TableCell key={col.id} className='px-[24px] py-[10px]'>
-                <span className='flex min-h-[21px] items-center gap-[12px]'>
-                  {colIdx === 0 && <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />}
-                  <Skeleton className='h-[14px] w-[128px]' />
-                </span>
-              </TableCell>
+    <>
+      <table className='w-full table-fixed text-[13px]'>
+        <ResourceColGroup columns={columns} />
+        <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
+          <tr>
+            {columns.map((col) => (
+              <th
+                key={col.id}
+                className='h-10 px-[24px] py-[10px] text-left align-middle font-base text-[var(--text-muted)]'
+              >
+                <div className='flex min-h-[20px] items-center'>
+                  <Skeleton className='h-[12px] w-[56px]' />
+                </div>
+              </th>
             ))}
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+          </tr>
+        </thead>
+      </table>
+      <div className='min-h-0 flex-1 overflow-auto'>
+        <table className='w-full table-fixed text-[13px]'>
+          <ResourceColGroup columns={columns} />
+          <tbody>
+            {Array.from({ length: rowCount }, (_, i) => (
+              <tr key={i}>
+                {columns.map((col, colIdx) => (
+                  <td key={col.id} className='px-[24px] py-[10px] align-middle'>
+                    <span className='flex min-h-[21px] items-center gap-[12px]'>
+                      {colIdx === 0 && <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />}
+                      <Skeleton className='h-[14px] w-[128px]' />
+                    </span>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   )
 }

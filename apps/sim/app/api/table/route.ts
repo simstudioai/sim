@@ -234,6 +234,7 @@ export async function GET(request: NextRequest) {
             },
             rowCount: t.rowCount,
             maxRows: t.maxRows,
+            createdBy: t.createdBy,
             createdAt:
               t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
             updatedAt:

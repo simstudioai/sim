@@ -4,10 +4,9 @@ import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Database } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { formatRelativeTime } from '@/lib/core/utils/formatting'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
-import { Resource } from '@/app/workspace/[workspaceId]/components'
+import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
 import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import {
   CreateBaseModal,
@@ -21,6 +20,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 import { useDeleteKnowledgeBase, useUpdateKnowledgeBase } from '@/hooks/queries/kb/knowledge'
+import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
 
 const logger = createLogger('Knowledge')
@@ -32,9 +32,10 @@ interface KnowledgeBaseWithDocCount extends KnowledgeBaseData {
 const COLUMNS: ResourceColumn[] = [
   { id: 'name', header: 'Name' },
   { id: 'documents', header: 'Documents' },
-  { id: 'description', header: 'Description' },
-  { id: 'updated', header: 'Updated' },
-  { id: 'id', header: 'ID' },
+  { id: 'tokens', header: 'Tokens' },
+  { id: 'created', header: 'Created' },
+  { id: 'owner', header: 'Owner' },
+  { id: 'updated', header: 'Last Updated' },
 ]
 
 export function Knowledge() {
@@ -43,6 +44,7 @@ export function Knowledge() {
   const workspaceId = params.workspaceId as string
 
   const { knowledgeBases, isLoading, error } = useKnowledgeBasesList(workspaceId)
+  const { data: members } = useWorkspaceMembersQuery(workspaceId)
 
   if (error) {
     logger.error('Failed to load knowledge bases:', error)
@@ -140,19 +142,16 @@ export function Knowledge() {
             documents: {
               label: String(kbWithCount.docCount || 0),
             },
-            description: {
-              label: kb.description || 'No description',
+            tokens: {
+              label: kb.tokenCount ? kb.tokenCount.toLocaleString() : '0',
             },
-            updated: {
-              label: kb.updatedAt ? formatRelativeTime(kb.updatedAt) : '',
-            },
-            id: {
-              label: `kb-${kb.id.slice(0, 8)}`,
-            },
+            created: timeCell(kb.createdAt),
+            owner: ownerCell(kb.userId, members),
+            updated: timeCell(kb.updatedAt),
           },
         }
       }),
-    [filteredKnowledgeBases]
+    [filteredKnowledgeBases, members]
   )
 
   const handleRowClick = useCallback(

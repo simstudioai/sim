@@ -8,14 +8,14 @@ import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from
 import { Table as TableIcon } from '@/components/emcn/icons'
 import type { TableDefinition } from '@/lib/table'
 import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
-import { Resource } from '@/app/workspace/[workspaceId]/components'
+import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { SchemaModal } from '@/app/workspace/[workspaceId]/tables/[tableId]/components'
 import { CreateModal, TablesListContextMenu } from '@/app/workspace/[workspaceId]/tables/components'
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
-import { formatRelativeTime } from '@/app/workspace/[workspaceId]/tables/utils'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useDeleteTable, useTablesList } from '@/hooks/queries/tables'
+import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 
 const logger = createLogger('Tables')
 
@@ -23,8 +23,9 @@ const COLUMNS: ResourceColumn[] = [
   { id: 'name', header: 'Name' },
   { id: 'columns', header: 'Columns' },
   { id: 'rows', header: 'Rows' },
-  { id: 'updated', header: 'Updated' },
-  { id: 'id', header: 'ID' },
+  { id: 'created', header: 'Created' },
+  { id: 'owner', header: 'Owner' },
+  { id: 'updated', header: 'Last Updated' },
 ]
 
 export function Tables() {
@@ -34,6 +35,7 @@ export function Tables() {
   const userPermissions = useUserPermissionsContext()
 
   const { data: tables = [], isLoading, error } = useTablesList(workspaceId)
+  const { data: members } = useWorkspaceMembersQuery(workspaceId)
 
   if (error) {
     logger.error('Failed to load tables:', error)
@@ -85,15 +87,12 @@ export function Tables() {
             icon: <Rows3 className='h-[14px] w-[14px]' />,
             label: String(table.rowCount),
           },
-          updated: {
-            label: formatRelativeTime(table.updatedAt),
-          },
-          id: {
-            label: `tb-${table.id.slice(0, 8)}`,
-          },
+          created: timeCell(table.createdAt),
+          owner: ownerCell(table.createdBy, members),
+          updated: timeCell(table.updatedAt),
         },
       })),
-    [filteredTables]
+    [filteredTables, members]
   )
 
   const handleSort = useCallback(() => {}, [])

@@ -3,11 +3,11 @@
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
-import { Calendar, MoreHorizontal } from '@/components/emcn/icons'
-import { formatAbsoluteDate, formatRelativeTime } from '@/lib/core/utils/formatting'
+import { Calendar } from '@/components/emcn/icons'
+import { formatAbsoluteDate } from '@/lib/core/utils/formatting'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
 import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
-import { Resource } from '@/app/workspace/[workspaceId]/components'
+import { Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
 import type { WorkspaceScheduleData } from '@/hooks/queries/schedules'
 import { useWorkspaceSchedules } from '@/hooks/queries/schedules'
 import { useDebounce } from '@/hooks/use-debounce'
@@ -22,11 +22,11 @@ function getHumanReadable(s: WorkspaceScheduleData) {
 
 const COLUMNS: ResourceColumn[] = [
   { id: 'name', header: 'Name' },
-  { id: 'type', header: 'Type' },
-  { id: 'schedule', header: 'Schedule' },
-  { id: 'status', header: 'Status' },
   { id: 'nextRun', header: 'Next Run' },
-  { id: 'actions', header: 'Actions' },
+  { id: 'lastRun', header: 'Last Run' },
+  { id: 'schedule', header: 'Schedule' },
+  { id: 'from', header: 'From' },
+  { id: 'lifecycle', header: 'Lifecycle' },
 ]
 
 export function Schedules() {
@@ -64,7 +64,7 @@ export function Schedules() {
     () =>
       filteredItems.map((item) => {
         const isJob = item.sourceType === 'job'
-        const name = isJob ? item.jobTitle || item.sourceTaskName || '—' : item.workflowName || '—'
+        const name = isJob ? item.jobTitle || item.sourceTaskName : item.workflowName
 
         return {
           id: item.id,
@@ -73,14 +73,11 @@ export function Schedules() {
               icon: <Calendar className='h-[14px] w-[14px]' />,
               label: name,
             },
-            type: { label: isJob ? 'Scheduled Task' : 'Workflow' },
+            nextRun: timeCell(item.nextRunAt),
+            lastRun: timeCell(item.lastRanAt),
             schedule: { label: getHumanReadable(item) },
-            status: { label: item.status },
-            nextRun: { label: item.nextRunAt ? formatRelativeTime(item.nextRunAt) : '—' },
-            actions: {
-              icon: <MoreHorizontal className='h-[14px] w-[14px]' />,
-              label: '',
-            },
+            from: { label: isJob ? item.prompt : item.workflowName },
+            lifecycle: { label: item.cronExpression ? 'Recurring' : 'One-time' },
           },
         }
       }),

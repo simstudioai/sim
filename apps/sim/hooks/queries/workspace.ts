@@ -12,6 +12,7 @@ export const workspaceKeys = {
   detail: (id: string) => [...workspaceKeys.details(), id] as const,
   settings: (id: string) => [...workspaceKeys.detail(id), 'settings'] as const,
   permissions: (id: string) => [...workspaceKeys.detail(id), 'permissions'] as const,
+  members: (id: string) => [...workspaceKeys.detail(id), 'members'] as const,
   adminLists: () => [...workspaceKeys.all, 'adminList'] as const,
   adminList: (userId: string | undefined) => [...workspaceKeys.adminLists(), userId ?? ''] as const,
 }
@@ -196,6 +197,40 @@ export function useWorkspacePermissionsQuery(workspaceId: string | null | undefi
     enabled: Boolean(workspaceId),
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
+  })
+}
+
+/** Lightweight member profile for UI display (avatars, owner cells). */
+export interface WorkspaceMember {
+  userId: string
+  name: string
+  image: string | null
+}
+
+async function fetchWorkspaceMembers(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<WorkspaceMember[]> {
+  const response = await fetch(`/api/workspaces/${workspaceId}/members`, { signal })
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch workspace members')
+  }
+
+  const data = await response.json()
+  return data.members || []
+}
+
+/**
+ * Fetches lightweight member profiles (id, name, image) for a workspace.
+ * Use this for display purposes (avatars, owner cells) instead of the heavier permissions query.
+ */
+export function useWorkspaceMembersQuery(workspaceId: string | null | undefined) {
+  return useQuery({
+    queryKey: workspaceKeys.members(workspaceId ?? ''),
+    queryFn: ({ signal }) => fetchWorkspaceMembers(workspaceId as string, signal),
+    enabled: Boolean(workspaceId),
+    staleTime: 5 * 60 * 1000,
   })
 }
 
