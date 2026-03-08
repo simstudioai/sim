@@ -11,7 +11,7 @@ type TargetPlan = 'pro' | 'team'
 
 const CONSTANTS = {
   INITIAL_TEAM_SEATS: 1,
-  DEFAULT_CREDIT_TIER: 5000,
+  DEFAULT_CREDIT_TIER: 6000,
 } as const
 
 interface UpgradeOptions {

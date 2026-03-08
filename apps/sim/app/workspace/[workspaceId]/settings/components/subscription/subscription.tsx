@@ -584,10 +584,10 @@ export function Subscription() {
           {/* Pro + Max cards -- hide the lower tier if user is on the higher one */}
           {(() => {
             const currentCredits = getPlanTierCredits(subscription.plan)
-            const isPaid = isPro(subscription.plan) || isTeam(subscription.plan)
-            const isOnProTier = isPaid && currentCredits === PRO_TIER.credits
-            const isOnMaxTier = isPaid && currentCredits === MAX_TIER.credits
-            const wantsIntervalSwitch = isPaid && isAnnual !== (currentInterval === 'year')
+            const hasPaidPlan = isPro(subscription.plan) || isTeam(subscription.plan)
+            const isOnProTier = hasPaidPlan && currentCredits === PRO_TIER.credits
+            const isOnMaxTier = hasPaidPlan && currentCredits === MAX_TIER.credits
+            const wantsIntervalSwitch = hasPaidPlan && isAnnual !== (currentInterval === 'year')
             const isOnPro = isOnProTier && !wantsIntervalSwitch
             const isOnMax = isOnMaxTier && !wantsIntervalSwitch
             const showProCard = !isOnMaxTier

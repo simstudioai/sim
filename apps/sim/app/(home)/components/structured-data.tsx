@@ -96,19 +96,19 @@ export default function StructuredData() {
         offers: [
           {
             '@type': 'Offer',
-            name: 'Community Plan — 4,000 credits included',
+            name: 'Community Plan — 3,000 credits included',
             price: '0',
             priceCurrency: 'USD',
             availability: 'https://schema.org/InStock',
           },
           {
             '@type': 'Offer',
-            name: 'Pro Plan — 4,000 credits/month',
-            price: '20',
+            name: 'Pro Plan — 6,000 credits/month',
+            price: '25',
             priceCurrency: 'USD',
             priceSpecification: {
               '@type': 'UnitPriceSpecification',
-              price: '20',
+              price: '25',
               priceCurrency: 'USD',
               unitText: 'MONTH',
               billingIncrement: 1,
@@ -117,12 +117,12 @@ export default function StructuredData() {
           },
           {
             '@type': 'Offer',
-            name: 'Team Plan — 8,000 credits/month',
-            price: '40',
+            name: 'Max Plan — 25,000 credits/month',
+            price: '100',
             priceCurrency: 'USD',
             priceSpecification: {
               '@type': 'UnitPriceSpecification',
-              price: '40',
+              price: '100',
               priceCurrency: 'USD',
               unitText: 'MONTH',
               billingIncrement: 1,
@@ -191,7 +191,7 @@ export default function StructuredData() {
             name: 'How much does Sim cost?',
             acceptedAnswer: {
               '@type': 'Answer',
-              text: 'Sim offers a free Community plan with 4,000 credits usage limit, a Pro plan at 4,000 credits/month, a Team plan at 8,000 credits/month, and custom Enterprise pricing. All plans include CLI/SDK access.',
+              text: 'Sim offers a free Community plan with 3,000 credits, a Pro plan at $25/month with 6,000 credits, a Max plan at $100/month with 25,000 credits, team plans available for both tiers, and custom Enterprise pricing. All plans include CLI/SDK access.',
             },
           },
           {

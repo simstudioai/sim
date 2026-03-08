@@ -13,11 +13,10 @@ interface FreeTierUpgradeEmailProps {
 }
 
 const proFeatures = [
-  { label: '4,000 credits/month', desc: 'included' },
+  { label: '6,000 credits/month', desc: 'included' },
+  { label: '+50 daily refresh', desc: 'credits per day' },
   { label: '150 runs/min', desc: 'sync executions' },
-  { label: '1,000 runs/min', desc: 'async executions' },
   { label: '50GB storage', desc: 'for files & assets' },
-  { label: 'Unlimited', desc: 'workspaces & invites' },
 ]
 
 export function FreeTierUpgradeEmail({
