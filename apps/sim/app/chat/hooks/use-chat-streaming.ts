@@ -139,6 +139,43 @@ export function useChatStreaming() {
     let accumulatedText = ''
     let lastAudioPosition = 0
 
+    const UI_BATCH_MAX_MS = 50
+    let uiDirty = false
+    let uiRAF: number | null = null
+    let uiTimer: ReturnType<typeof setTimeout> | null = null
+    let lastUIFlush = 0
+
+    const flushUI = () => {
+      if (uiRAF !== null) {
+        cancelAnimationFrame(uiRAF)
+        uiRAF = null
+      }
+      if (uiTimer !== null) {
+        clearTimeout(uiTimer)
+        uiTimer = null
+      }
+      if (!uiDirty) return
+      uiDirty = false
+      lastUIFlush = performance.now()
+      const snapshot = accumulatedText
+      setMessages((prev) =>
+        prev.map((msg) => (msg.id === messageId ? { ...msg, content: snapshot } : msg))
+      )
+    }
+
+    const scheduleUIFlush = () => {
+      if (uiRAF !== null) return
+      const elapsed = performance.now() - lastUIFlush
+      if (elapsed >= UI_BATCH_MAX_MS) {
+        flushUI()
+        return
+      }
+      uiRAF = requestAnimationFrame(flushUI)
+      if (uiTimer === null) {
+        uiTimer = setTimeout(flushUI, Math.max(0, UI_BATCH_MAX_MS - elapsed))
+      }
+    }
+
     // Track which blocks have streamed content (like chat panel)
     const messageIdMap = new Map<string, string>()
     const messageId = crypto.randomUUID()
@@ -165,6 +202,7 @@ export function useChatStreaming() {
         const { done, value } = await reader.read()
 
         if (done) {
+          flushUI()
           // Stream any remaining text for TTS
           if (
             shouldPlayAudio &&
@@ -217,6 +255,7 @@ export function useChatStreaming() {
               }
 
               if (eventType === 'final' && json.data) {
+                flushUI()
                 const finalData = json.data as {
                   success: boolean
                   error?: string | { message?: string }
@@ -374,11 +413,8 @@ export function useChatStreaming() {
                   messageId,
                   chunk: contentChunk.substring(0, 20),
                 })
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === messageId ? { ...msg, content: accumulatedText } : msg
-                  )
-                )
+                uiDirty = true
+                scheduleUIFlush()
 
                 // Real-time TTS for voice mode
                 if (shouldPlayAudio && streamingOptions?.audioStreamHandler) {
@@ -419,10 +455,13 @@ export function useChatStreaming() {
       }
     } catch (error) {
       logger.error('Error processing stream:', error)
+      flushUI()
       setMessages((prev) =>
         prev.map((msg) => (msg.id === messageId ? { ...msg, isStreaming: false } : msg))
       )
     } finally {
+      if (uiRAF !== null) cancelAnimationFrame(uiRAF)
+      if (uiTimer !== null) clearTimeout(uiTimer)
       setIsStreamingResponse(false)
       abortControllerRef.current = null
 

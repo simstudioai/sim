@@ -8,6 +8,7 @@ import {
   ChatFileDownloadAll,
 } from '@/app/chat/components/message/components/file-download'
 import MarkdownRenderer from '@/app/chat/components/message/components/markdown-renderer'
+import { useThrottledValue } from '@/hooks/use-throttled-value'
 
 export interface ChatAttachment {
   id: string
@@ -39,7 +40,8 @@ export interface ChatMessage {
 }
 
 function EnhancedMarkdownRenderer({ content }: { content: string }) {
-  return <MarkdownRenderer content={content} />
+  const throttled = useThrottledValue(content)
+  return <MarkdownRenderer content={throttled} />
 }
 
 export const ClientChatMessage = memo(

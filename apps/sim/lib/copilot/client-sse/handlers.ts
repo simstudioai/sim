@@ -199,6 +199,222 @@ function appendThinkingContent(context: ClientStreamingContext, text: string) {
   context.currentTextBlock = null
 }
 
+function processContentBuffer(
+  context: ClientStreamingContext,
+  get: () => CopilotStore,
+  set: StoreSet
+) {
+  let contentToProcess = context.pendingContent
+  let hasProcessedContent = false
+
+  const thinkingStartRegex = /<thinking>/
+  const thinkingEndRegex = /<\/thinking>/
+  const designWorkflowStartRegex = /<design_workflow>/
+  const designWorkflowEndRegex = /<\/design_workflow>/
+
+  const splitTrailingPartialTag = (
+    text: string,
+    tags: string[]
+  ): { text: string; remaining: string } => {
+    const partialIndex = text.lastIndexOf('<')
+    if (partialIndex < 0) {
+      return { text, remaining: '' }
+    }
+    const possibleTag = text.substring(partialIndex)
+    const matchesTagStart = tags.some((tag) => tag.startsWith(possibleTag))
+    if (!matchesTagStart) {
+      return { text, remaining: '' }
+    }
+    return {
+      text: text.substring(0, partialIndex),
+      remaining: possibleTag,
+    }
+  }
+
+  while (contentToProcess.length > 0) {
+    if (context.isInDesignWorkflowBlock) {
+      const endMatch = designWorkflowEndRegex.exec(contentToProcess)
+      if (endMatch) {
+        const designContent = contentToProcess.substring(0, endMatch.index)
+        context.designWorkflowContent += designContent
+        context.isInDesignWorkflowBlock = false
+
+        logger.info('[design_workflow] Tag complete, setting plan content', {
+          contentLength: context.designWorkflowContent.length,
+        })
+        set({ streamingPlanContent: context.designWorkflowContent })
+
+        contentToProcess = contentToProcess.substring(endMatch.index + endMatch[0].length)
+        hasProcessedContent = true
+      } else {
+        const { text, remaining } = splitTrailingPartialTag(contentToProcess, [
+          '</design_workflow>',
+        ])
+        context.designWorkflowContent += text
+
+        set({ streamingPlanContent: context.designWorkflowContent })
+
+        contentToProcess = remaining
+        hasProcessedContent = true
+        if (remaining) {
+          break
+        }
+      }
+      continue
+    }
+
+    if (!context.isInThinkingBlock && !context.isInDesignWorkflowBlock) {
+      const designStartMatch = designWorkflowStartRegex.exec(contentToProcess)
+      if (designStartMatch) {
+        const textBeforeDesign = contentToProcess.substring(0, designStartMatch.index)
+        if (textBeforeDesign) {
+          appendTextBlock(context, textBeforeDesign)
+          hasProcessedContent = true
+        }
+        context.isInDesignWorkflowBlock = true
+        context.designWorkflowContent = ''
+        contentToProcess = contentToProcess.substring(
+          designStartMatch.index + designStartMatch[0].length
+        )
+        hasProcessedContent = true
+        continue
+      }
+
+      const nextMarkIndex = contentToProcess.indexOf('<marktodo>')
+      const nextCheckIndex = contentToProcess.indexOf('<checkofftodo>')
+      const hasMark = nextMarkIndex >= 0
+      const hasCheck = nextCheckIndex >= 0
+
+      const nextTagIndex =
+        hasMark && hasCheck
+          ? Math.min(nextMarkIndex, nextCheckIndex)
+          : hasMark
+            ? nextMarkIndex
+            : hasCheck
+              ? nextCheckIndex
+              : -1
+
+      if (nextTagIndex >= 0) {
+        const isMarkTodo = hasMark && nextMarkIndex === nextTagIndex
+        const tagStart = isMarkTodo ? '<marktodo>' : '<checkofftodo>'
+        const tagEnd = isMarkTodo ? '</marktodo>' : '</checkofftodo>'
+        const closingIndex = contentToProcess.indexOf(tagEnd, nextTagIndex + tagStart.length)
+
+        if (closingIndex === -1) {
+          break
+        }
+
+        const todoId = contentToProcess
+          .substring(nextTagIndex + tagStart.length, closingIndex)
+          .trim()
+        logger.info(
+          isMarkTodo ? '[TODO] Detected marktodo tag' : '[TODO] Detected checkofftodo tag',
+          { todoId }
+        )
+
+        if (todoId) {
+          try {
+            get().updatePlanTodoStatus(todoId, isMarkTodo ? 'executing' : 'completed')
+            logger.info(
+              isMarkTodo
+                ? '[TODO] Successfully marked todo in progress'
+                : '[TODO] Successfully checked off todo',
+              { todoId }
+            )
+          } catch (e) {
+            logger.error(
+              isMarkTodo
+                ? '[TODO] Failed to mark todo in progress'
+                : '[TODO] Failed to checkoff todo',
+              { todoId, error: e }
+            )
+          }
+        } else {
+          logger.warn('[TODO] Empty todoId extracted from todo tag', { tagType: tagStart })
+        }
+
+        let beforeTag = contentToProcess.substring(0, nextTagIndex)
+        let afterTag = contentToProcess.substring(closingIndex + tagEnd.length)
+
+        const hadNewlineBefore = /(\r?\n)+$/.test(beforeTag)
+        const hadNewlineAfter = /^(\r?\n)+/.test(afterTag)
+
+        beforeTag = beforeTag.replace(/(\r?\n)+$/, '')
+        afterTag = afterTag.replace(/^(\r?\n)+/, '')
+
+        contentToProcess = beforeTag + (hadNewlineBefore && hadNewlineAfter ? '\n' : '') + afterTag
+        context.currentTextBlock = null
+        hasProcessedContent = true
+        continue
+      }
+    }
+
+    if (context.isInThinkingBlock) {
+      const endMatch = thinkingEndRegex.exec(contentToProcess)
+      if (endMatch) {
+        const thinkingContent = contentToProcess.substring(0, endMatch.index)
+        appendThinkingContent(context, thinkingContent)
+        finalizeThinkingBlock(context)
+        contentToProcess = contentToProcess.substring(endMatch.index + endMatch[0].length)
+        hasProcessedContent = true
+      } else {
+        const { text, remaining } = splitTrailingPartialTag(contentToProcess, ['</thinking>'])
+        if (text) {
+          appendThinkingContent(context, text)
+          hasProcessedContent = true
+        }
+        contentToProcess = remaining
+        if (remaining) {
+          break
+        }
+      }
+    } else {
+      const startMatch = thinkingStartRegex.exec(contentToProcess)
+      if (startMatch) {
+        const textBeforeThinking = contentToProcess.substring(0, startMatch.index)
+        if (textBeforeThinking) {
+          appendTextBlock(context, textBeforeThinking)
+          hasProcessedContent = true
+        }
+        context.isInThinkingBlock = true
+        context.currentTextBlock = null
+        contentToProcess = contentToProcess.substring(startMatch.index + startMatch[0].length)
+        hasProcessedContent = true
+      } else {
+        let partialTagIndex = contentToProcess.lastIndexOf('<')
+
+        const partialMarkTodo = contentToProcess.lastIndexOf('<marktodo')
+        const partialCheckoffTodo = contentToProcess.lastIndexOf('<checkofftodo')
+
+        if (partialMarkTodo > partialTagIndex) {
+          partialTagIndex = partialMarkTodo
+        }
+        if (partialCheckoffTodo > partialTagIndex) {
+          partialTagIndex = partialCheckoffTodo
+        }
+
+        let textToAdd = contentToProcess
+        let remaining = ''
+        if (partialTagIndex >= 0 && partialTagIndex > contentToProcess.length - 50) {
+          textToAdd = contentToProcess.substring(0, partialTagIndex)
+          remaining = contentToProcess.substring(partialTagIndex)
+        }
+        if (textToAdd) {
+          appendTextBlock(context, textToAdd)
+          hasProcessedContent = true
+        }
+        contentToProcess = remaining
+        break
+      }
+    }
+  }
+
+  context.pendingContent = contentToProcess
+  if (hasProcessedContent) {
+    updateStreamingMessage(set, context)
+  }
+}
+
 export const sseHandlers: Record<string, SSEHandler> = {
   chat_id: async (data, context, get, set) => {
     context.newChatId = data.chatId
@@ -699,217 +915,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
   content: (data, context, get, set) => {
     if (!data.data) return
     context.pendingContent += data.data
-
-    let contentToProcess = context.pendingContent
-    let hasProcessedContent = false
-
-    const thinkingStartRegex = /<thinking>/
-    const thinkingEndRegex = /<\/thinking>/
-    const designWorkflowStartRegex = /<design_workflow>/
-    const designWorkflowEndRegex = /<\/design_workflow>/
-
-    const splitTrailingPartialTag = (
-      text: string,
-      tags: string[]
-    ): { text: string; remaining: string } => {
-      const partialIndex = text.lastIndexOf('<')
-      if (partialIndex < 0) {
-        return { text, remaining: '' }
-      }
-      const possibleTag = text.substring(partialIndex)
-      const matchesTagStart = tags.some((tag) => tag.startsWith(possibleTag))
-      if (!matchesTagStart) {
-        return { text, remaining: '' }
-      }
-      return {
-        text: text.substring(0, partialIndex),
-        remaining: possibleTag,
-      }
-    }
-
-    while (contentToProcess.length > 0) {
-      if (context.isInDesignWorkflowBlock) {
-        const endMatch = designWorkflowEndRegex.exec(contentToProcess)
-        if (endMatch) {
-          const designContent = contentToProcess.substring(0, endMatch.index)
-          context.designWorkflowContent += designContent
-          context.isInDesignWorkflowBlock = false
-
-          logger.info('[design_workflow] Tag complete, setting plan content', {
-            contentLength: context.designWorkflowContent.length,
-          })
-          set({ streamingPlanContent: context.designWorkflowContent })
-
-          contentToProcess = contentToProcess.substring(endMatch.index + endMatch[0].length)
-          hasProcessedContent = true
-        } else {
-          const { text, remaining } = splitTrailingPartialTag(contentToProcess, [
-            '</design_workflow>',
-          ])
-          context.designWorkflowContent += text
-
-          set({ streamingPlanContent: context.designWorkflowContent })
-
-          contentToProcess = remaining
-          hasProcessedContent = true
-          if (remaining) {
-            break
-          }
-        }
-        continue
-      }
-
-      if (!context.isInThinkingBlock && !context.isInDesignWorkflowBlock) {
-        const designStartMatch = designWorkflowStartRegex.exec(contentToProcess)
-        if (designStartMatch) {
-          const textBeforeDesign = contentToProcess.substring(0, designStartMatch.index)
-          if (textBeforeDesign) {
-            appendTextBlock(context, textBeforeDesign)
-            hasProcessedContent = true
-          }
-          context.isInDesignWorkflowBlock = true
-          context.designWorkflowContent = ''
-          contentToProcess = contentToProcess.substring(
-            designStartMatch.index + designStartMatch[0].length
-          )
-          hasProcessedContent = true
-          continue
-        }
-
-        const nextMarkIndex = contentToProcess.indexOf('<marktodo>')
-        const nextCheckIndex = contentToProcess.indexOf('<checkofftodo>')
-        const hasMark = nextMarkIndex >= 0
-        const hasCheck = nextCheckIndex >= 0
-
-        const nextTagIndex =
-          hasMark && hasCheck
-            ? Math.min(nextMarkIndex, nextCheckIndex)
-            : hasMark
-              ? nextMarkIndex
-              : hasCheck
-                ? nextCheckIndex
-                : -1
-
-        if (nextTagIndex >= 0) {
-          const isMarkTodo = hasMark && nextMarkIndex === nextTagIndex
-          const tagStart = isMarkTodo ? '<marktodo>' : '<checkofftodo>'
-          const tagEnd = isMarkTodo ? '</marktodo>' : '</checkofftodo>'
-          const closingIndex = contentToProcess.indexOf(tagEnd, nextTagIndex + tagStart.length)
-
-          if (closingIndex === -1) {
-            break
-          }
-
-          const todoId = contentToProcess
-            .substring(nextTagIndex + tagStart.length, closingIndex)
-            .trim()
-          logger.info(
-            isMarkTodo ? '[TODO] Detected marktodo tag' : '[TODO] Detected checkofftodo tag',
-            { todoId }
-          )
-
-          if (todoId) {
-            try {
-              get().updatePlanTodoStatus(todoId, isMarkTodo ? 'executing' : 'completed')
-              logger.info(
-                isMarkTodo
-                  ? '[TODO] Successfully marked todo in progress'
-                  : '[TODO] Successfully checked off todo',
-                { todoId }
-              )
-            } catch (e) {
-              logger.error(
-                isMarkTodo
-                  ? '[TODO] Failed to mark todo in progress'
-                  : '[TODO] Failed to checkoff todo',
-                { todoId, error: e }
-              )
-            }
-          } else {
-            logger.warn('[TODO] Empty todoId extracted from todo tag', { tagType: tagStart })
-          }
-
-          let beforeTag = contentToProcess.substring(0, nextTagIndex)
-          let afterTag = contentToProcess.substring(closingIndex + tagEnd.length)
-
-          const hadNewlineBefore = /(\r?\n)+$/.test(beforeTag)
-          const hadNewlineAfter = /^(\r?\n)+/.test(afterTag)
-
-          beforeTag = beforeTag.replace(/(\r?\n)+$/, '')
-          afterTag = afterTag.replace(/^(\r?\n)+/, '')
-
-          contentToProcess =
-            beforeTag + (hadNewlineBefore && hadNewlineAfter ? '\n' : '') + afterTag
-          context.currentTextBlock = null
-          hasProcessedContent = true
-          continue
-        }
-      }
-
-      if (context.isInThinkingBlock) {
-        const endMatch = thinkingEndRegex.exec(contentToProcess)
-        if (endMatch) {
-          const thinkingContent = contentToProcess.substring(0, endMatch.index)
-          appendThinkingContent(context, thinkingContent)
-          finalizeThinkingBlock(context)
-          contentToProcess = contentToProcess.substring(endMatch.index + endMatch[0].length)
-          hasProcessedContent = true
-        } else {
-          const { text, remaining } = splitTrailingPartialTag(contentToProcess, ['</thinking>'])
-          if (text) {
-            appendThinkingContent(context, text)
-            hasProcessedContent = true
-          }
-          contentToProcess = remaining
-          if (remaining) {
-            break
-          }
-        }
-      } else {
-        const startMatch = thinkingStartRegex.exec(contentToProcess)
-        if (startMatch) {
-          const textBeforeThinking = contentToProcess.substring(0, startMatch.index)
-          if (textBeforeThinking) {
-            appendTextBlock(context, textBeforeThinking)
-            hasProcessedContent = true
-          }
-          context.isInThinkingBlock = true
-          context.currentTextBlock = null
-          contentToProcess = contentToProcess.substring(startMatch.index + startMatch[0].length)
-          hasProcessedContent = true
-        } else {
-          let partialTagIndex = contentToProcess.lastIndexOf('<')
-
-          const partialMarkTodo = contentToProcess.lastIndexOf('<marktodo')
-          const partialCheckoffTodo = contentToProcess.lastIndexOf('<checkofftodo')
-
-          if (partialMarkTodo > partialTagIndex) {
-            partialTagIndex = partialMarkTodo
-          }
-          if (partialCheckoffTodo > partialTagIndex) {
-            partialTagIndex = partialCheckoffTodo
-          }
-
-          let textToAdd = contentToProcess
-          let remaining = ''
-          if (partialTagIndex >= 0 && partialTagIndex > contentToProcess.length - 50) {
-            textToAdd = contentToProcess.substring(0, partialTagIndex)
-            remaining = contentToProcess.substring(partialTagIndex)
-          }
-          if (textToAdd) {
-            appendTextBlock(context, textToAdd)
-            hasProcessedContent = true
-          }
-          contentToProcess = remaining
-          break
-        }
-      }
-    }
-
-    context.pendingContent = contentToProcess
-    if (hasProcessedContent) {
-      updateStreamingMessage(set, context)
-    }
+    processContentBuffer(context, get, set)
   },
   done: (_data, context) => {
     logger.info('[SSE] DONE EVENT RECEIVED', {

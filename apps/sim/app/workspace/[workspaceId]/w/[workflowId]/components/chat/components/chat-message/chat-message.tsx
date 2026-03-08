@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { StreamingIndicator } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/smooth-streaming'
+import { useThrottledValue } from '@/hooks/use-throttled-value'
 
 interface ChatAttachment {
   id: string
@@ -93,12 +94,15 @@ const WordWrap = ({ text }: { text: string }) => {
  * Renders a chat message with optional file attachments
  */
 export function ChatMessage({ message }: ChatMessageProps) {
-  const formattedContent = useMemo(() => {
+  const rawContent = useMemo(() => {
     if (typeof message.content === 'object' && message.content !== null) {
       return JSON.stringify(message.content, null, 2)
     }
     return String(message.content || '')
   }, [message.content])
+
+  const throttled = useThrottledValue(rawContent)
+  const formattedContent = message.type === 'user' ? rawContent : throttled
 
   const handleAttachmentClick = (attachment: ChatAttachment) => {
     const validDataUrl = attachment.dataUrl?.trim()

@@ -41,6 +41,7 @@ import {
   useTodoManagement,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/hooks'
 import { useScrollManagement } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import { useProgressiveList } from '@/hooks/use-progressive-list'
 import type { ChatContext } from '@/stores/panel'
 import { useCopilotStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -133,6 +134,9 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
 
   // Handle scroll management
   const { scrollAreaRef, scrollToBottom } = useScrollManagement(messages, isSendingMessage)
+
+  const chatKey = currentChat?.id ?? ''
+  const { staged: stagedMessages } = useProgressiveList(messages, chatKey)
 
   // Handle chat history grouping
   const { groupedChats, handleHistoryDropdownOpen: handleHistoryDropdownOpenHook } = useChatHistory(
@@ -478,19 +482,21 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                         showPlanTodos && planTodos.length > 0 ? 'pb-14' : 'pb-10'
                       }`}
                     >
-                      {messages.map((message, index) => {
+                      {stagedMessages.map((message, index) => {
                         let isDimmed = false
+
+                        const globalIndex = messages.length - stagedMessages.length + index
 
                         if (editingMessageId) {
                           const editingIndex = messages.findIndex((m) => m.id === editingMessageId)
-                          isDimmed = editingIndex !== -1 && index > editingIndex
+                          isDimmed = editingIndex !== -1 && globalIndex > editingIndex
                         }
 
                         if (!isDimmed && revertingMessageId) {
                           const revertingIndex = messages.findIndex(
                             (m) => m.id === revertingMessageId
                           )
-                          isDimmed = revertingIndex !== -1 && index > revertingIndex
+                          isDimmed = revertingIndex !== -1 && globalIndex > revertingIndex
                         }
 
                         const checkpointCount = messageCheckpoints[message.id]?.length || 0
@@ -511,7 +517,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                             onRevertModeChange={(isReverting) =>
                               handleRevertModeChange(message.id, isReverting)
                             }
-                            isLastMessage={index === messages.length - 1}
+                            isLastMessage={globalIndex === messages.length - 1}
                           />
                         )
                       })}
