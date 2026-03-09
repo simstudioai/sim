@@ -373,6 +373,7 @@ export function Table({
         setSelectionFocus(null)
       }
       isDraggingRef.current = true
+      containerRef.current?.focus({ preventScroll: true })
     },
     []
   )
@@ -397,6 +398,7 @@ export function Table({
       setSelectionFocus({ rowIndex, colIndex: lastCol })
     }
     isDraggingRef.current = true
+    containerRef.current?.focus({ preventScroll: true })
   }, [])
 
   const handleRowMouseEnter = useCallback((rowIndex: number) => {
@@ -413,6 +415,7 @@ export function Table({
     setEditingEmptyCell(null)
     setSelectionAnchor({ rowIndex, colIndex: 0 })
     setSelectionFocus({ rowIndex, colIndex: lastCol })
+    containerRef.current?.focus({ preventScroll: true })
   }, [])
 
   const handleClearSelection = useCallback(() => {
@@ -428,6 +431,7 @@ export function Table({
     setEditingEmptyCell(null)
     setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
     setSelectionFocus({ rowIndex: lastRow, colIndex: lastCol })
+    containerRef.current?.focus({ preventScroll: true })
   }, [])
 
   const handleColumnResizeStart = useCallback((columnName: string) => {
@@ -514,12 +518,12 @@ export function Table({
   editingEmptyCellRef.current = editingEmptyCell
 
   useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+
     const handleKeyDown = (e: KeyboardEvent) => {
       const anchor = selectionAnchorRef.current
       if (!anchor || editingCellRef.current || editingEmptyCellRef.current) return
-
-      const target = e.target as Node
-      if (target !== document.body && !containerRef.current?.contains(target)) return
 
       const cols = columnsRef.current
       const mp = maxPositionRef.current
@@ -723,8 +727,8 @@ export function Table({
       }
     }
 
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
+    el.addEventListener('keydown', handleKeyDown)
+    return () => el.removeEventListener('keydown', handleKeyDown)
   }, [])
 
   const navigateAfterSave = useCallback((reason: SaveReason) => {
@@ -955,7 +959,7 @@ export function Table({
   }
 
   return (
-    <div ref={containerRef} className='flex h-full flex-col'>
+    <div ref={containerRef} tabIndex={-1} className='flex h-full flex-col outline-none'>
       {!embedded && (
         <>
           <ResourceHeader

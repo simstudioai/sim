@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import {
   Button,
   Download,
+  Eye,
   Modal,
   ModalBody,
   ModalContent,
@@ -48,6 +49,7 @@ import {
 } from '@/app/workspace/[workspaceId]/components'
 import {
   FileViewer,
+  isPreviewable,
   isTextEditable,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -155,6 +157,8 @@ export function Files() {
     logger.error('Failed to load files:', error)
   }
 
+  const justCreatedFileIdRef = useRef<string | null>(null)
+
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
   const [searchTerm, setSearchTerm] = useState('')
@@ -162,6 +166,7 @@ export function Files() {
   const [creatingFile, setCreatingFile] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const [showPreview, setShowPreview] = useState(false)
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [contextMenuFile, setContextMenuFile] = useState<WorkspaceFileRecord | null>(null)
@@ -324,6 +329,7 @@ export function Files() {
     if (isDirty) {
       setShowUnsavedChangesAlert(true)
     } else {
+      setShowPreview(false)
       setSelectedFileId(null)
     }
   }, [isDirty])
@@ -332,6 +338,7 @@ export function Files() {
     setShowUnsavedChangesAlert(false)
     setIsDirty(false)
     setSaveStatus('idle')
+    setShowPreview(false)
     setSelectedFileId(null)
   }, [])
 
@@ -354,6 +361,7 @@ export function Files() {
       const result = await uploadFile.mutateAsync({ workspaceId, file })
       const fileId = result.file?.id
       if (fileId) {
+        justCreatedFileIdRef.current = fileId
         setSelectedFileId(fileId)
       }
     } catch (err) {
@@ -397,6 +405,12 @@ export function Files() {
     setShowDeleteConfirm(true)
     closeContextMenu()
   }, [contextMenuFile, closeContextMenu])
+
+  useEffect(() => {
+    if (justCreatedFileIdRef.current && selectedFileId !== justCreatedFileIdRef.current) {
+      justCreatedFileIdRef.current = null
+    }
+  }, [selectedFileId])
 
   useEffect(() => {
     if (saveStatus !== 'saved' && saveStatus !== 'error') return
@@ -453,7 +467,18 @@ export function Files() {
             ? 'Save failed'
             : 'Save'
 
+    const canPreview = isPreviewable(selectedFile)
+
     const fileActions: HeaderAction[] = [
+      ...(canPreview
+        ? [
+            {
+              label: showPreview ? 'Hide Preview' : 'Preview',
+              icon: Eye,
+              onClick: () => setShowPreview((prev) => !prev),
+            },
+          ]
+        : []),
       ...(canEditText
         ? [
             {
@@ -528,6 +553,8 @@ export function Files() {
             file={selectedFile}
             workspaceId={workspaceId}
             canEdit={userPermissions.canEdit === true}
+            showPreview={showPreview && canPreview}
+            autoFocus={justCreatedFileIdRef.current === selectedFile.id}
             onDirtyChange={setIsDirty}
             saveRef={saveRef}
           />

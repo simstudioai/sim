@@ -1,1 +1,1 @@
-export { FileViewer, isTextEditable } from './file-viewer'
+export { FileViewer, isPreviewable, isTextEditable } from './file-viewer'
