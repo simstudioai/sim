@@ -291,7 +291,7 @@ export function Files() {
   }, [deleteTargetFile, workspaceId, selectedFileId])
 
   const handleSave = useCallback(async () => {
-    if (!saveRef.current || !isDirty) return
+    if (!saveRef.current || !isDirty || saveStatus === 'saving') return
 
     setSaveStatus('saving')
     try {
@@ -300,7 +300,7 @@ export function Files() {
     } catch {
       setSaveStatus('error')
     }
-  }, [isDirty])
+  }, [isDirty, saveStatus])
 
   const handleBackAttempt = useCallback(() => {
     if (isDirty) {
