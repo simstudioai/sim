@@ -78,18 +78,14 @@ export function useChatStreaming() {
       abortControllerRef.current.abort()
       abortControllerRef.current = null
 
-      // Add a message indicating the response was stopped
       setMessages((prev) => {
         const lastMessage = prev[prev.length - 1]
 
-        // Only modify if the last message is from the assistant (as expected)
         if (lastMessage && lastMessage.type === 'assistant') {
-          // Append a note that the response was stopped
+          const latestContent = accumulatedTextRef.current || lastMessage.content
           const updatedContent =
-            lastMessage.content +
-            (lastMessage.content
-              ? '\n\n_Response stopped by user._'
-              : '_Response stopped by user._')
+            latestContent +
+            (latestContent ? '\n\n_Response stopped by user._' : '_Response stopped by user._')
 
           return [
             ...prev.slice(0, -1),
@@ -149,7 +145,6 @@ export function useChatStreaming() {
     let lastUIFlush = 0
 
     const flushUI = () => {
-      if (abortControllerRef.current === null) return
       if (uiRAF !== null) {
         cancelAnimationFrame(uiRAF)
         uiRAF = null
@@ -163,7 +158,11 @@ export function useChatStreaming() {
       lastUIFlush = performance.now()
       const snapshot = accumulatedText
       setMessages((prev) =>
-        prev.map((msg) => (msg.id === messageId ? { ...msg, content: snapshot } : msg))
+        prev.map((msg) => {
+          if (msg.id !== messageId) return msg
+          if (!msg.isStreaming) return msg
+          return { ...msg, content: snapshot }
+        })
       )
     }
 
@@ -406,6 +405,7 @@ export function useChatStreaming() {
                 }
 
                 accumulatedText += contentChunk
+                accumulatedTextRef.current = accumulatedText
                 logger.debug('[useChatStreaming] Received chunk', {
                   blockId,
                   chunkLength: contentChunk.length,
