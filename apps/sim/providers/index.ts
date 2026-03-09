@@ -8,7 +8,6 @@ import {
   calculateCost,
   generateStructuredOutputInstructions,
   shouldBillModelUsage,
-  sumToolCosts,
   supportsReasoningEffort,
   supportsTemperature,
   supportsThinking,
@@ -161,12 +160,6 @@ export async function executeProviderRequest(
         )
       }
     }
-  }
-
-  const toolCost = sumToolCosts(response.toolResults)
-  if (toolCost > 0 && response.cost) {
-    response.cost.toolCost = toolCost
-    response.cost.total += toolCost
   }
 
   return response

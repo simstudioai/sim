@@ -51,7 +51,7 @@ export class DbTokenBucket implements RateLimitStorageAdapter {
                   ) * ${config.refillRate}
                 )::numeric
               ) - ${requestedTokens}::numeric
-              ELSE -1
+              ELSE ${rateLimitBucket.tokens}::numeric
             END
           `,
           lastRefillAt: sql`
