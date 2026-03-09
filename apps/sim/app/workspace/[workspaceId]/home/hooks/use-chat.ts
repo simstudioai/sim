@@ -26,6 +26,7 @@ import type {
 import { SUBAGENT_LABELS } from '../types'
 import {
   extractFileResource,
+  extractResourcesFromHistory,
   extractTableResource,
   extractWorkflowResource,
   RESOURCE_TOOL_NAMES,
@@ -184,6 +185,12 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     if (!chatHistory || appliedChatIdRef.current === chatHistory.id) return
     appliedChatIdRef.current = chatHistory.id
     setMessages(chatHistory.messages.map(mapStoredMessage))
+
+    const restored = extractResourcesFromHistory(chatHistory.messages)
+    if (restored.length > 0) {
+      setResources(restored)
+      setActiveResourceId(restored[restored.length - 1].id)
+    }
   }, [chatHistory])
 
   const processSSEStream = useCallback(
@@ -194,6 +201,9 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       const toolMap = new Map<string, number>()
       let lastTableId: string | null = null
       let lastWorkflowId: string | null = null
+      let runningText = ''
+
+      toolArgsMapRef.current.clear()
 
       const ensureTextBlock = (): ContentBlock => {
         const last = blocks[blocks.length - 1]
@@ -204,13 +214,9 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       }
 
       const flush = () => {
-        const text = blocks
-          .filter((b) => b.type === 'text')
-          .map((b) => b.content ?? '')
-          .join('')
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === assistantId ? { ...m, content: text, contentBlocks: [...blocks] } : m
+            m.id === assistantId ? { ...m, content: runningText, contentBlocks: [...blocks] } : m
           )
         )
       }
@@ -267,6 +273,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
               if (chunk) {
                 const tb = ensureTextBlock()
                 tb.content = (tb.content ?? '') + chunk
+                runningText += chunk
                 flush()
               }
               break
@@ -411,18 +418,21 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     [workspaceId, queryClient, addResource]
   )
 
-  const finalize = useCallback(() => {
-    sendingRef.current = false
-    setIsSending(false)
-    abortControllerRef.current = null
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-
+  const invalidateChatQueries = useCallback(() => {
     const activeChatId = chatIdRef.current
     if (activeChatId) {
       queryClient.invalidateQueries({ queryKey: taskKeys.detail(activeChatId) })
     }
     queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
   }, [workspaceId, queryClient])
+
+  const finalize = useCallback(() => {
+    sendingRef.current = false
+    setIsSending(false)
+    abortControllerRef.current = null
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    invalidateChatQueries()
+  }, [invalidateChatQueries])
 
   useEffect(() => {
     const activeStreamId = chatHistory?.activeStreamId
@@ -556,13 +566,8 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     abortControllerRef.current = null
     sendingRef.current = false
     setIsSending(false)
-
-    const activeChatId = chatIdRef.current
-    if (activeChatId) {
-      queryClient.invalidateQueries({ queryKey: taskKeys.detail(activeChatId) })
-    }
-    queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
-  }, [workspaceId, queryClient])
+    invalidateChatQueries()
+  }, [invalidateChatQueries])
 
   useEffect(() => {
     return () => {

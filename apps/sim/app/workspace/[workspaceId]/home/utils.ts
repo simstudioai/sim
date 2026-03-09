@@ -1,3 +1,4 @@
+import type { TaskStoredMessage } from '@/hooks/queries/tasks'
 import type { MothershipResource, SSEPayload } from './types'
 
 export const RESOURCE_TOOL_NAMES = new Set([
@@ -77,4 +78,58 @@ export function extractWorkflowResource(
   if (workflowId) return { type: 'workflow', id: workflowId, title: workflowName }
 
   return null
+}
+
+const GENERIC_TITLES = new Set(['Table', 'File', 'Workflow'])
+
+/**
+ * Reconstructs the MothershipResource list from persisted tool calls.
+ * Adapts each stored tool call into an SSEPayload so the existing
+ * extract*Resource functions are reused with zero duplication.
+ * Deduplicates by type+id while preserving insertion order.
+ */
+export function extractResourcesFromHistory(messages: TaskStoredMessage[]): MothershipResource[] {
+  const resourceMap = new Map<string, MothershipResource>()
+  let lastTableId: string | null = null
+  let lastWorkflowId: string | null = null
+
+  for (const msg of messages) {
+    if (!msg.toolCalls) continue
+
+    for (const tc of msg.toolCalls) {
+      if (tc.status !== 'success' || !RESOURCE_TOOL_NAMES.has(tc.name)) continue
+
+      const payload: SSEPayload = {
+        type: 'tool_result',
+        result: tc.result as Record<string, unknown>,
+        success: true,
+        toolName: tc.name,
+      }
+      const args = tc.params as Record<string, unknown> | undefined
+
+      let resource: MothershipResource | null = null
+      if (tc.name === 'user_table') {
+        resource = extractTableResource(payload, args, lastTableId)
+        if (resource) lastTableId = resource.id
+      } else if (tc.name === 'workspace_file') {
+        resource = extractFileResource(payload, args)
+      } else if (tc.name === 'create_workflow' || tc.name === 'edit_workflow') {
+        resource = extractWorkflowResource(payload, lastWorkflowId)
+        if (resource) lastWorkflowId = resource.id
+      }
+
+      if (resource) {
+        const key = `${resource.type}:${resource.id}`
+        const existing = resourceMap.get(key)
+        if (
+          !existing ||
+          (GENERIC_TITLES.has(existing.title) && !GENERIC_TITLES.has(resource.title))
+        ) {
+          resourceMap.set(key, resource)
+        }
+      }
+    }
+  }
+
+  return Array.from(resourceMap.values())
 }
