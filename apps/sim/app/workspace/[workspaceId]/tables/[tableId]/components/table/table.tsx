@@ -1696,6 +1696,12 @@ function placeholderPropsAreEqual(prev: PlaceholderRowsProps, next: PlaceholderR
   ) {
     return false
   }
+  if (
+    (prev.editingEmptyCell !== null || next.editingEmptyCell !== null) &&
+    prev.initialCharacter !== next.initialCharacter
+  ) {
+    return false
+  }
 
   const prevSel = prev.normalizedSelection
   const nextSel = next.normalizedSelection

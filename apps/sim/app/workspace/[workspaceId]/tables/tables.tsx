@@ -128,7 +128,7 @@ export function Tables() {
           updated: -new Date(table.updatedAt).getTime(),
         },
       })),
-    [filteredTables, members, tableRename]
+    [filteredTables, members, tableRename.editingId, tableRename.editValue]
   )
 
   const handleContentContextMenu = useCallback(

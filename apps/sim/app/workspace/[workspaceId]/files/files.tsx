@@ -231,7 +231,7 @@ export function Files() {
           },
         }
       }),
-    [filteredFiles, members, listRename]
+    [filteredFiles, members, listRename.editingId, listRename.editValue]
   )
 
   const handleFileChange = useCallback(
