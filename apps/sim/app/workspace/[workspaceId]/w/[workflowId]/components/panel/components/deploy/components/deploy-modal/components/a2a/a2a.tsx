@@ -554,7 +554,6 @@ export function A2aDeploy({
         return requiresAuth
           ? `import os
 import requests
-import { generateId } from '@/lib/core/utils/id'
 
 response = requests.post(
     "${endpoint}",
