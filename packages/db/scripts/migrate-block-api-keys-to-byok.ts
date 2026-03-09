@@ -221,17 +221,16 @@ const postgresClient = postgres(CONNECTION_STRING, {
 const db = drizzle(postgresClient)
 
 // ---------- Throttle ----------
-const BATCH_SIZE = 1000
+const WORKSPACE_BATCH_SIZE = 1000
 const SLEEP_MS = 30_000
-let requestCount = 0
-let lastWorkspaceId = ''
+let workspaceCount = 0
 
-async function throttle(workspaceId?: string) {
-  if (workspaceId) lastWorkspaceId = workspaceId
-  requestCount++
-  if (requestCount % BATCH_SIZE === 0) {
+async function throttleBetweenWorkspaces(workspaceId: string, total: number) {
+  workspaceCount++
+  console.log(`  [${workspaceCount}/${total}] Done with workspace ${workspaceId}`)
+  if (workspaceCount % WORKSPACE_BATCH_SIZE === 0) {
     console.log(
-      `  [THROTTLE] ${requestCount} DB requests — last workspace: ${lastWorkspaceId} — sleeping ${SLEEP_MS / 1000}s`
+      `  [THROTTLE] ${workspaceCount}/${total} workspaces — sleeping ${SLEEP_MS / 1000}s`
     )
     await new Promise((r) => setTimeout(r, SLEEP_MS))
   }
@@ -396,7 +395,6 @@ async function run() {
             sql`, `
           )})${userFilter}`
         )
-      await throttle(workspaceId)
 
       console.log(`[Workspace ${workspaceId}] ${blocks.length} blocks`)
 
@@ -462,7 +460,6 @@ async function run() {
           .from(workspaceEnvironment)
           .where(sql`${workspaceEnvironment.workspaceId} = ${workspaceId}`)
           .limit(1)
-        await throttle()
         if (wsEnvRows[0]) {
           wsEnvVars = (wsEnvRows[0].variables as Record<string, string>) || {}
         }
@@ -478,7 +475,6 @@ async function run() {
                 sql`, `
               )})`
             )
-          await throttle()
           for (const row of personalRows) {
             personalEnvCache.set(row.userId, (row.variables as Record<string, string>) || {})
           }
@@ -542,7 +538,6 @@ async function run() {
               target: [workspaceBYOKKeys.workspaceId, workspaceBYOKKeys.providerId],
             })
             .returning({ id: workspaceBYOKKeys.id })
-          await throttle()
 
           if (result.length === 0) {
             console.log(`  [SKIP] BYOK already exists for provider "${providerId}"`)
@@ -558,6 +553,7 @@ async function run() {
       }
 
       console.log()
+      await throttleBetweenWorkspaces(workspaceId, workspaceIds.length)
     }
 
     // 3. Summary
