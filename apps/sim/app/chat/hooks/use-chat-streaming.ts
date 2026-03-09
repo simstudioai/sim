@@ -139,6 +139,9 @@ export function useChatStreaming() {
     let accumulatedText = ''
     let lastAudioPosition = 0
 
+    const messageIdMap = new Map<string, string>()
+    const messageId = crypto.randomUUID()
+
     const UI_BATCH_MAX_MS = 50
     let uiDirty = false
     let uiRAF: number | null = null
@@ -146,6 +149,7 @@ export function useChatStreaming() {
     let lastUIFlush = 0
 
     const flushUI = () => {
+      if (abortControllerRef.current === null) return
       if (uiRAF !== null) {
         cancelAnimationFrame(uiRAF)
         uiRAF = null
@@ -175,10 +179,6 @@ export function useChatStreaming() {
         uiTimer = setTimeout(flushUI, Math.max(0, UI_BATCH_MAX_MS - elapsed))
       }
     }
-
-    // Track which blocks have streamed content (like chat panel)
-    const messageIdMap = new Map<string, string>()
-    const messageId = crypto.randomUUID()
     setMessages((prev) => [
       ...prev,
       {

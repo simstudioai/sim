@@ -92,7 +92,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     isSendingMessage,
     isAborting,
     mode,
-    inputValue,
     planTodos,
     showPlanTodos,
     streamingPlanContent,
@@ -100,7 +99,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     abortMessage,
     createNewChat,
     setMode,
-    setInputValue,
     chatsLoadedForWorkflow,
     setWorkflowId: setCopilotWorkflowId,
     loadChats,
@@ -117,6 +115,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     loadAutoAllowedTools,
     resumeActiveStream,
   } = useCopilotStore()
+
+  const [inputValue, setInputValue] = useState('')
 
   // Initialize copilot
   const { isInitialized } = useCopilotInitialization({

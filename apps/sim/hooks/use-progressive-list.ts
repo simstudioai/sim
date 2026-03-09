@@ -39,6 +39,7 @@ export function useProgressiveList<T>(
   const batchSize = options?.batchSize ?? DEFAULTS.batchSize
 
   const completedKeyRef = useRef('')
+  const prevKeyRef = useRef(key)
   const [count, setCount] = useState(() => {
     if (items.length <= initialBatch) return items.length
     return initialBatch
@@ -80,8 +81,15 @@ export function useProgressiveList<T>(
     }
   }, [key, items.length, initialBatch, batchSize])
 
-  const isStaging = completedKeyRef.current !== key && count < items.length
-  const staged = count >= items.length ? items : items.slice(Math.max(0, items.length - count))
+  let effectiveCount = count
+  if (prevKeyRef.current !== key) {
+    effectiveCount = items.length <= initialBatch ? items.length : initialBatch
+  }
+  prevKeyRef.current = key
+
+  const isStaging = completedKeyRef.current !== key && effectiveCount < items.length
+  const staged =
+    effectiveCount >= items.length ? items : items.slice(Math.max(0, items.length - effectiveCount))
 
   return { staged, isStaging }
 }

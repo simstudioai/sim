@@ -127,12 +127,13 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const params = useParams()
     const workspaceId = params.workspaceId as string
 
-    const copilotStore = useCopilotStore()
-    const workflowId =
-      workflowIdOverride !== undefined ? workflowIdOverride : copilotStore.workflowId
+    const storeWorkflowId = useCopilotStore((s) => s.workflowId)
+    const storeSelectedModel = useCopilotStore((s) => s.selectedModel)
+    const storeSetSelectedModel = useCopilotStore((s) => s.setSelectedModel)
+    const workflowId = workflowIdOverride !== undefined ? workflowIdOverride : storeWorkflowId
     const selectedModel =
-      selectedModelOverride !== undefined ? selectedModelOverride : copilotStore.selectedModel
-    const setSelectedModel = onModelChangeOverride || copilotStore.setSelectedModel
+      selectedModelOverride !== undefined ? selectedModelOverride : storeSelectedModel
+    const setSelectedModel = onModelChangeOverride || storeSetSelectedModel
 
     const [internalMessage, setInternalMessage] = useState('')
     const [isNearTop, setIsNearTop] = useState(false)
@@ -871,7 +872,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             isLoading={isLoading}
             isAborting={isAborting}
             showAbortButton={Boolean(showAbortButton)}
-            onSubmit={() => void handleSubmit()}
+            onSubmit={handleSubmit}
             onAbort={handleAbort}
             onFileSelect={fileAttachments.handleFileSelect}
           />

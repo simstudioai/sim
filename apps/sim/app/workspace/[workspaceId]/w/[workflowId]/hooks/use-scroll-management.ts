@@ -160,7 +160,8 @@ export function useScrollManagement(
   }, [isSendingMessage, userHasScrolledAway, scrollToBottom])
 
   // overflow-anchor: none during streaming prevents the browser from
-  // fighting our programmatic scrollToBottom calls.
+  // fighting our programmatic scrollToBottom calls (Chromium/Firefox only;
+  // Safari does not support this property).
   useEffect(() => {
     const container = scrollAreaRef.current
     if (!container) return
