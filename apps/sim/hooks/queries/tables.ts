@@ -132,9 +132,14 @@ function invalidateRowCount(
   queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
 }
 
-function invalidateTableSchema(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
+function invalidateTableSchema(
+  queryClient: ReturnType<typeof useQueryClient>,
+  workspaceId: string,
+  tableId: string
+) {
   queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+  queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
 }
 
 /**
@@ -266,7 +271,7 @@ export function useAddTableColumn({ workspaceId, tableId }: RowMutationContext) 
       return res.json()
     },
     onSettled: () => {
-      invalidateTableSchema(queryClient, tableId)
+      invalidateTableSchema(queryClient, workspaceId, tableId)
     },
   })
 }
@@ -491,7 +496,7 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
       return res.json()
     },
     onSettled: () => {
-      invalidateTableSchema(queryClient, tableId)
+      invalidateTableSchema(queryClient, workspaceId, tableId)
     },
   })
 }
@@ -518,7 +523,7 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
       return res.json()
     },
     onSettled: () => {
-      invalidateTableSchema(queryClient, tableId)
+      invalidateTableSchema(queryClient, workspaceId, tableId)
     },
   })
 }
