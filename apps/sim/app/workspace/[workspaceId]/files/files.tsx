@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Files as FilesIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -22,6 +21,7 @@ import {
   Trash,
   Upload,
 } from '@/components/emcn'
+import { File as FilesIcon } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
