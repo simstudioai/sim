@@ -1,0 +1,4 @@
+{
+  "stripeWebhookRequired": false,
+  "notes": "Sim includes Stripe trigger definitions; webhook verification happens in provider-specific runtime outside this scan signal path."
+}
