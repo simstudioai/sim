@@ -9,6 +9,7 @@ import {
   Plus,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 
 export interface DropdownOption {
   label: string
@@ -17,10 +18,19 @@ export interface DropdownOption {
   disabled?: boolean
 }
 
+export interface BreadcrumbEditing {
+  isEditing: boolean
+  value: string
+  onChange: (value: string) => void
+  onSubmit: () => void
+  onCancel: () => void
+}
+
 export interface BreadcrumbItem {
   label: string
   onClick?: () => void
   dropdownItems?: DropdownOption[]
+  editing?: BreadcrumbEditing
 }
 
 export interface HeaderAction {
@@ -73,6 +83,7 @@ export function ResourceHeader({
                   label={crumb.label}
                   onClick={crumb.onClick}
                   dropdownItems={crumb.dropdownItems}
+                  editing={crumb.editing}
                 />
               </Fragment>
             ))
@@ -125,12 +136,28 @@ function BreadcrumbSegment({
   label,
   onClick,
   dropdownItems,
+  editing,
 }: {
   icon?: React.ElementType
   label: string
   onClick?: () => void
   dropdownItems?: DropdownOption[]
+  editing?: BreadcrumbEditing
 }) {
+  if (editing?.isEditing) {
+    return (
+      <span className='inline-flex items-center px-[8px] py-[4px]'>
+        {Icon && <Icon className='mr-[12px] h-[14px] w-[14px] text-[var(--text-icon)]' />}
+        <InlineRenameInput
+          value={editing.value}
+          onChange={editing.onChange}
+          onSubmit={editing.onSubmit}
+          onCancel={editing.onCancel}
+        />
+      </span>
+    )
+  }
+
   const content = (
     <>
       {Icon && <Icon className='mr-[12px] h-[14px] w-[14px] text-[var(--text-icon)]' />}

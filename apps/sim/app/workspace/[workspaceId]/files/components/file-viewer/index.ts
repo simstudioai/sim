@@ -1,1 +1,1 @@
-export { FileViewer, TEXT_EDITABLE_EXTENSIONS } from './file-viewer'
+export { FileViewer, isPreviewable, isTextEditable } from './file-viewer'

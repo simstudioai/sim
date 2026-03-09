@@ -10,7 +10,7 @@
 import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq, sql } from 'drizzle-orm'
+import { and, count, eq, gte, sql } from 'drizzle-orm'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { buildFilterClause, buildSortClause } from './sql'
 import type {
@@ -303,6 +303,64 @@ export async function addTableColumn(
 }
 
 /**
+ * Renames a table.
+ *
+ * @param tableId - Table ID to rename
+ * @param newName - New table name
+ * @param requestId - Request ID for logging
+ * @returns Updated table definition
+ * @throws Error if name is invalid
+ */
+export async function renameTable(
+  tableId: string,
+  newName: string,
+  requestId: string
+): Promise<{ id: string; name: string }> {
+  const nameValidation = validateTableName(newName)
+  if (!nameValidation.valid) {
+    throw new Error(nameValidation.errors.join(', '))
+  }
+
+  const now = new Date()
+  const result = await db
+    .update(userTableDefinitions)
+    .set({ name: newName, updatedAt: now })
+    .where(eq(userTableDefinitions.id, tableId))
+    .returning({ id: userTableDefinitions.id })
+
+  if (result.length === 0) {
+    throw new Error(`Table ${tableId} not found`)
+  }
+
+  logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
+  return { id: tableId, name: newName }
+}
+
+/**
+ * Updates a table's UI metadata (e.g. column widths).
+ * Does not update `updatedAt` since metadata is UI-only state.
+ *
+ * @param tableId - Table ID to update
+ * @param metadata - New metadata object (merged with existing)
+ * @param existingMetadata - Existing metadata from a prior fetch (avoids redundant DB read)
+ * @returns Updated metadata
+ */
+export async function updateTableMetadata(
+  tableId: string,
+  metadata: TableMetadata,
+  existingMetadata?: TableMetadata | null
+): Promise<TableMetadata> {
+  const merged: TableMetadata = { ...(existingMetadata ?? {}), ...metadata }
+
+  await db
+    .update(userTableDefinitions)
+    .set({ metadata: merged })
+    .where(eq(userTableDefinitions.id, tableId))
+
+  return merged
+}
+
+/**
  * Deletes a table (hard delete).
  *
  * @param tableId - Table ID to delete
@@ -372,12 +430,40 @@ export async function insertRow(
       throw new Error(`Table has reached maximum row limit (${table.maxRows})`)
     }
 
-    const [{ maxPos }] = await trx
-      .select({
-        maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
-      })
-      .from(userTableRows)
-      .where(eq(userTableRows.tableId, data.tableId))
+    let targetPosition: number
+
+    if (data.position !== undefined) {
+      targetPosition = data.position
+
+      const [existing] = await trx
+        .select({ id: userTableRows.id })
+        .from(userTableRows)
+        .where(
+          and(eq(userTableRows.tableId, data.tableId), eq(userTableRows.position, targetPosition))
+        )
+        .limit(1)
+
+      if (existing) {
+        await trx
+          .update(userTableRows)
+          .set({ position: sql`position + 1` })
+          .where(
+            and(
+              eq(userTableRows.tableId, data.tableId),
+              gte(userTableRows.position, targetPosition)
+            )
+          )
+      }
+    } else {
+      const [{ maxPos }] = await trx
+        .select({
+          maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
+        })
+        .from(userTableRows)
+        .where(eq(userTableRows.tableId, data.tableId))
+
+      targetPosition = maxPos + 1
+    }
 
     return trx
       .insert(userTableRows)
@@ -386,7 +472,7 @@ export async function insertRow(
         tableId: data.tableId,
         workspaceId: data.workspaceId,
         data: data.data,
-        position: maxPos + 1,
+        position: targetPosition,
         createdAt: now,
         updatedAt: now,
         ...(data.userId ? { createdBy: data.userId } : {}),

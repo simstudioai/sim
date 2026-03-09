@@ -27,6 +27,7 @@ const logger = createLogger('TableRowsAPI')
 const InsertRowSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   data: z.record(z.unknown(), { required_error: 'Row data is required' }),
+  position: z.number().int().min(0).optional(),
 })
 
 const BatchInsertRowsSchema = z.object({
@@ -235,6 +236,7 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
         data: rowData,
         workspaceId: validated.workspaceId,
         userId: authResult.userId,
+        position: validated.position,
       },
       table,
       requestId

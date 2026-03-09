@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import {
   Button,
   Download,
+  Eye,
   Modal,
   ModalBody,
   ModalContent,
@@ -40,6 +41,7 @@ import type {
   ResourceRow,
 } from '@/app/workspace/[workspaceId]/components'
 import {
+  InlineRenameInput,
   ownerCell,
   Resource,
   ResourceHeader,
@@ -47,16 +49,19 @@ import {
 } from '@/app/workspace/[workspaceId]/components'
 import {
   FileViewer,
-  TEXT_EDITABLE_EXTENSIONS,
+  isPreviewable,
+  isTextEditable,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import {
   useDeleteWorkspaceFile,
+  useRenameWorkspaceFile,
   useUploadWorkspaceFile,
   useWorkspaceFiles,
 } from '@/hooks/queries/workspace-files'
+import { useInlineRename } from '@/hooks/use-inline-rename'
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -138,6 +143,7 @@ export function Files() {
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   const uploadFile = useUploadWorkspaceFile()
   const deleteFile = useDeleteWorkspaceFile()
+  const renameFile = useRenameWorkspaceFile()
 
   const {
     isOpen: isContextMenuOpen,
@@ -151,6 +157,8 @@ export function Files() {
     logger.error('Failed to load files:', error)
   }
 
+  const justCreatedFileIdRef = useRef<string | null>(null)
+
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
   const [searchTerm, setSearchTerm] = useState('')
@@ -158,10 +166,21 @@ export function Files() {
   const [creatingFile, setCreatingFile] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const [showPreview, setShowPreview] = useState(false)
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [contextMenuFile, setContextMenuFile] = useState<WorkspaceFileRecord | null>(null)
   const [deleteTargetFile, setDeleteTargetFile] = useState<WorkspaceFileRecord | null>(null)
+
+  const listRename = useInlineRename({
+    onSave: (fileId, name) => renameFile.mutate({ workspaceId, fileId, name }),
+  })
+
+  const headerRename = useInlineRename({
+    onSave: (fileId, name) => {
+      renameFile.mutate({ workspaceId, fileId, name })
+    },
+  })
 
   const selectedFile = useMemo(
     () => (selectedFileId ? files.find((f) => f.id === selectedFileId) : null),
@@ -184,6 +203,20 @@ export function Files() {
             name: {
               icon: <Icon className='h-[14px] w-[14px]' />,
               label: file.name,
+              content:
+                listRename.editingId === file.id ? (
+                  <span className='flex min-w-0 items-center gap-[12px] font-medium text-[14px] text-[var(--text-body)]'>
+                    <span className='flex-shrink-0 text-[var(--text-icon)]'>
+                      <Icon className='h-[14px] w-[14px]' />
+                    </span>
+                    <InlineRenameInput
+                      value={listRename.editValue}
+                      onChange={listRename.setEditValue}
+                      onSubmit={listRename.submitRename}
+                      onCancel={listRename.cancelRename}
+                    />
+                  </span>
+                ) : undefined,
             },
             size: {
               label: formatFileSize(file.size, { includeBytes: true }),
@@ -203,7 +236,7 @@ export function Files() {
           },
         }
       }),
-    [filteredFiles, members]
+    [filteredFiles, members, listRename.editingId, listRename.editValue]
   )
 
   const handleFileChange = useCallback(
@@ -296,6 +329,7 @@ export function Files() {
     if (isDirty) {
       setShowUnsavedChangesAlert(true)
     } else {
+      setShowPreview(false)
       setSelectedFileId(null)
     }
   }, [isDirty])
@@ -304,6 +338,7 @@ export function Files() {
     setShowUnsavedChangesAlert(false)
     setIsDirty(false)
     setSaveStatus('idle')
+    setShowPreview(false)
     setSelectedFileId(null)
   }, [])
 
@@ -326,6 +361,7 @@ export function Files() {
       const result = await uploadFile.mutateAsync({ workspaceId, file })
       const fileId = result.file?.id
       if (fileId) {
+        justCreatedFileIdRef.current = fileId
         setSelectedFileId(fileId)
       }
     } catch (err) {
@@ -358,12 +394,23 @@ export function Files() {
     closeContextMenu()
   }, [contextMenuFile, handleDownload, closeContextMenu])
 
+  const handleContextMenuRename = useCallback(() => {
+    if (contextMenuFile) listRename.startRename(contextMenuFile.id, contextMenuFile.name)
+    closeContextMenu()
+  }, [contextMenuFile, listRename.startRename, closeContextMenu])
+
   const handleContextMenuDelete = useCallback(() => {
     if (!contextMenuFile) return
     setDeleteTargetFile(contextMenuFile)
     setShowDeleteConfirm(true)
     closeContextMenu()
   }, [contextMenuFile, closeContextMenu])
+
+  useEffect(() => {
+    if (justCreatedFileIdRef.current && selectedFileId !== justCreatedFileIdRef.current) {
+      justCreatedFileIdRef.current = null
+    }
+  }, [selectedFileId])
 
   useEffect(() => {
     if (saveStatus !== 'saved' && saveStatus !== 'error') return
@@ -410,7 +457,7 @@ export function Files() {
   }
 
   if (selectedFile) {
-    const isTextEditable = TEXT_EDITABLE_EXTENSIONS.has(getFileExtension(selectedFile.name))
+    const canEditText = isTextEditable(selectedFile)
     const saveLabel =
       saveStatus === 'saving'
         ? 'Saving...'
@@ -420,8 +467,19 @@ export function Files() {
             ? 'Save failed'
             : 'Save'
 
+    const canPreview = isPreviewable(selectedFile)
+
     const fileActions: HeaderAction[] = [
-      ...(isTextEditable
+      ...(canPreview
+        ? [
+            {
+              label: showPreview ? 'Hide Preview' : 'Preview',
+              icon: Eye,
+              onClick: () => setShowPreview((prev) => !prev),
+            },
+          ]
+        : []),
+      ...(canEditText
         ? [
             {
               label: saveLabel,
@@ -457,8 +515,21 @@ export function Files() {
               { label: 'Files', onClick: handleBackAttempt },
               {
                 label: selectedFile.name,
+                editing: headerRename.editingId
+                  ? {
+                      isEditing: true,
+                      value: headerRename.editValue,
+                      onChange: headerRename.setEditValue,
+                      onSubmit: headerRename.submitRename,
+                      onCancel: headerRename.cancelRename,
+                    }
+                  : undefined,
                 dropdownItems: [
-                  { label: 'Rename', icon: Pencil, onClick: () => {} },
+                  {
+                    label: 'Rename',
+                    icon: Pencil,
+                    onClick: () => headerRename.startRename(selectedFile.id, selectedFile.name),
+                  },
                   {
                     label: 'Download',
                     icon: Download,
@@ -482,6 +553,8 @@ export function Files() {
             file={selectedFile}
             workspaceId={workspaceId}
             canEdit={userPermissions.canEdit === true}
+            showPreview={showPreview && canPreview}
+            autoFocus={justCreatedFileIdRef.current === selectedFile.id}
             onDirtyChange={setIsDirty}
             saveRef={saveRef}
           />
@@ -549,7 +622,9 @@ export function Files() {
         ]}
         columns={COLUMNS}
         rows={rows}
-        onRowClick={(id) => setSelectedFileId(id)}
+        onRowClick={(id) => {
+          if (listRename.editingId !== id && !headerRename.editingId) setSelectedFileId(id)
+        }}
         onRowContextMenu={handleRowContextMenu}
         isLoading={isLoading}
       />
@@ -575,6 +650,7 @@ export function Files() {
           {userPermissions.canEdit === true && (
             <>
               <PopoverDivider />
+              <PopoverItem onClick={handleContextMenuRename}>Rename</PopoverItem>
               <PopoverItem onClick={handleContextMenuDelete}>Delete</PopoverItem>
             </>
           )}

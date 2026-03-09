@@ -3,7 +3,7 @@
  */
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { Filter, Sort, TableDefinition, TableRow } from '@/lib/table'
+import type { Filter, Sort, TableDefinition, TableMetadata, TableRow } from '@/lib/table'
 
 export const tableKeys = {
   all: ['tables'] as const,
@@ -277,6 +277,34 @@ export function useAddTableColumn({ workspaceId, tableId }: RowMutationContext) 
 }
 
 /**
+ * Rename a table.
+ */
+export function useRenameTable(workspaceId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ tableId, name }: { tableId: string; name: string }) => {
+      const res = await fetch(`/api/table/${tableId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId, name }),
+      })
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error.error || 'Failed to rename table')
+      }
+
+      return res.json()
+    },
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.detail(variables.tableId) })
+      queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
+    },
+  })
+}
+
+/**
  * Delete a table from a workspace.
  */
 export function useDeleteTable(workspaceId: string) {
@@ -311,11 +339,11 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
+    mutationFn: async (variables: { data: Record<string, unknown>; position?: number }) => {
       const res = await fetch(`/api/table/${tableId}/rows`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, data }),
+        body: JSON.stringify({ workspaceId, data: variables.data, position: variables.position }),
       })
 
       if (!res.ok) {
@@ -497,6 +525,53 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, workspaceId, tableId)
+    },
+  })
+}
+
+/**
+ * Update a table's UI metadata (e.g. column widths).
+ * Uses optimistic update for instant visual feedback.
+ */
+export function useUpdateTableMetadata({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (metadata: TableMetadata) => {
+      const res = await fetch(`/api/table/${tableId}/metadata`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId, metadata }),
+      })
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        throw new Error((error as { error?: string }).error || 'Failed to update metadata')
+      }
+
+      return res.json()
+    },
+    onMutate: async (metadata) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.detail(tableId) })
+
+      const previous = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+
+      if (previous) {
+        queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {
+          ...previous,
+          metadata: { ...(previous.metadata ?? {}), ...metadata },
+        })
+      }
+
+      return { previous }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(tableKeys.detail(tableId), context.previous)
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
     },
   })
 }

@@ -24,6 +24,13 @@ import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('WorkspaceFileStorage')
 
+export class FileConflictError extends Error {
+  readonly code = 'FILE_EXISTS' as const
+  constructor(name: string) {
+    super(`A file named "${name}" already exists in this workspace`)
+  }
+}
+
 export interface WorkspaceFileRecord {
   id: string
   workspaceId: string
@@ -401,6 +408,59 @@ export async function updateWorkspaceFileContent(
     throw new Error(
       `Failed to update file content: ${error instanceof Error ? error.message : 'Unknown error'}`
     )
+  }
+}
+
+/**
+ * Rename a workspace file (updates the display name in the database)
+ */
+export async function renameWorkspaceFile(
+  workspaceId: string,
+  fileId: string,
+  newName: string
+): Promise<WorkspaceFileRecord> {
+  logger.info(`Renaming workspace file: ${fileId} to "${newName}" in workspace ${workspaceId}`)
+
+  const trimmedName = newName.trim()
+  if (!trimmedName) {
+    throw new Error('File name cannot be empty')
+  }
+
+  const fileRecord = await getWorkspaceFile(workspaceId, fileId)
+  if (!fileRecord) {
+    throw new Error('File not found')
+  }
+
+  if (fileRecord.name === trimmedName) {
+    return fileRecord
+  }
+
+  const exists = await fileExistsInWorkspace(workspaceId, trimmedName)
+  if (exists) {
+    throw new FileConflictError(trimmedName)
+  }
+
+  const updated = await db
+    .update(workspaceFiles)
+    .set({ originalName: trimmedName })
+    .where(
+      and(
+        eq(workspaceFiles.id, fileId),
+        eq(workspaceFiles.workspaceId, workspaceId),
+        eq(workspaceFiles.context, 'workspace')
+      )
+    )
+    .returning({ id: workspaceFiles.id })
+
+  if (updated.length === 0) {
+    throw new Error('File not found or could not be renamed')
+  }
+
+  logger.info(`Successfully renamed workspace file ${fileId} to "${trimmedName}"`)
+
+  return {
+    ...fileRecord,
+    name: trimmedName,
   }
 }
 

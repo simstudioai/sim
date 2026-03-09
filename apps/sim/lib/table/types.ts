@@ -169,6 +169,8 @@ export interface InsertRowData {
   data: RowData
   workspaceId: string
   userId?: string
+  /** Optional explicit position. When omitted, the row is appended after the last position. */
+  position?: number
 }
 
 export interface BatchInsertData {
