@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto'
+import { randomInt, randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { chat, verification } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -17,7 +17,7 @@ import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/
 const logger = createLogger('ChatOtpAPI')
 
 function generateOTP() {
-  return Math.floor(100000 + Math.random() * 900000).toString()
+  return randomInt(100000, 1000000).toString()
 }
 
 const OTP_EXPIRY = 15 * 60 // 15 minutes
