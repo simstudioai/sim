@@ -22,7 +22,7 @@ import {
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { isMacPlatform } from '@/lib/core/utils/platform'
-import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { formatFileSize, getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
 import {
   ownerCell,
@@ -91,12 +91,6 @@ const COLUMNS: ResourceColumn[] = [
   { id: 'owner', header: 'Owner' },
   { id: 'updated', header: 'Last Updated' },
 ]
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
 
 const MIME_TYPE_LABELS: Record<string, string> = {
   'application/pdf': 'PDF',
@@ -205,7 +199,7 @@ export function Files() {
               label: file.name,
             },
             size: {
-              label: formatFileSize(file.size),
+              label: formatFileSize(file.size, { includeBytes: true }),
             },
             type: {
               icon: <Icon className='h-[14px] w-[14px]' />,
@@ -413,124 +407,102 @@ export function Files() {
             : 'Save'
 
     return (
-      <div className='flex h-full flex-1 flex-col overflow-hidden bg-white dark:bg-[var(--bg)]'>
-        <ResourceHeader
-          icon={FilesIcon}
-          breadcrumbs={[
-            { label: 'Files', onClick: handleBackAttempt },
-            { label: selectedFile.name },
-          ]}
-        />
-        <ResourceOptionsBar
-          toolbarActions={
-            <div className='flex items-center gap-[6px]'>
-              {isTextEditable && (
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Button
-                      variant='subtle'
-                      className={cn(
-                        'px-[8px] py-[4px] text-[12px]',
-                        saveStatus === 'error' && 'text-red-500',
-                        !isDirty && saveStatus === 'idle' && 'opacity-50'
-                      )}
-                      onClick={handleSave}
-                      disabled={(!isDirty && saveStatus === 'idle') || saveStatus === 'saving'}
-                    >
-                      {saveLabel}
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content side='bottom'>
-                    {isMacPlatform() ? '\u2318S' : 'Ctrl+S'}
-                  </Tooltip.Content>
-                </Tooltip.Root>
-              )}
-              <Button
-                variant='subtle'
-                className='px-[8px] py-[4px] text-[12px]'
-                onClick={() => handleDownload(selectedFile)}
-              >
-                <Download className='mr-[6px] h-[14px] w-[14px]' />
-                Download
-              </Button>
-              <Button
-                variant='subtle'
-                className={cn(
-                  'px-[8px] py-[4px] text-[12px]',
-                  'text-[var(--text-muted)] hover:text-red-500'
+      <>
+        <div className='flex h-full flex-1 flex-col overflow-hidden bg-white dark:bg-[var(--bg)]'>
+          <ResourceHeader
+            icon={FilesIcon}
+            breadcrumbs={[
+              { label: 'Files', onClick: handleBackAttempt },
+              { label: selectedFile.name },
+            ]}
+          />
+          <ResourceOptionsBar
+            toolbarActions={
+              <div className='flex items-center gap-[6px]'>
+                {isTextEditable && (
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <Button
+                        variant='subtle'
+                        className={cn(
+                          'px-[8px] py-[4px] text-[12px]',
+                          saveStatus === 'error' && 'text-red-500',
+                          !isDirty && saveStatus === 'idle' && 'opacity-50'
+                        )}
+                        onClick={handleSave}
+                        disabled={(!isDirty && saveStatus === 'idle') || saveStatus === 'saving'}
+                      >
+                        {saveLabel}
+                      </Button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='bottom'>
+                      {isMacPlatform() ? '\u2318S' : 'Ctrl+S'}
+                    </Tooltip.Content>
+                  </Tooltip.Root>
                 )}
-                onClick={() => {
-                  setDeleteTargetFile(selectedFile)
-                  setShowDeleteConfirm(true)
-                }}
-                disabled={userPermissions.canEdit !== true || deleteFile.isPending}
-              >
-                <Trash2 className='mr-[6px] h-[14px] w-[14px]' />
-                Delete
-              </Button>
-            </div>
-          }
-        />
-        <FileViewer
-          key={selectedFile.id}
-          file={selectedFile}
-          workspaceId={workspaceId}
-          canEdit={userPermissions.canEdit === true}
-          onDirtyChange={setIsDirty}
-          saveRef={saveRef}
-        />
+                <Button
+                  variant='subtle'
+                  className='px-[8px] py-[4px] text-[12px]'
+                  onClick={() => handleDownload(selectedFile)}
+                >
+                  <Download className='mr-[6px] h-[14px] w-[14px]' />
+                  Download
+                </Button>
+                <Button
+                  variant='subtle'
+                  className={cn(
+                    'px-[8px] py-[4px] text-[12px]',
+                    'text-[var(--text-muted)] hover:text-red-500'
+                  )}
+                  onClick={() => {
+                    setDeleteTargetFile(selectedFile)
+                    setShowDeleteConfirm(true)
+                  }}
+                  disabled={userPermissions.canEdit !== true || deleteFile.isPending}
+                >
+                  <Trash2 className='mr-[6px] h-[14px] w-[14px]' />
+                  Delete
+                </Button>
+              </div>
+            }
+          />
+          <FileViewer
+            key={selectedFile.id}
+            file={selectedFile}
+            workspaceId={workspaceId}
+            canEdit={userPermissions.canEdit === true}
+            onDirtyChange={setIsDirty}
+            saveRef={saveRef}
+          />
 
-        <Modal open={showUnsavedChangesAlert} onOpenChange={setShowUnsavedChangesAlert}>
-          <ModalContent size='sm'>
-            <ModalHeader>Unsaved Changes</ModalHeader>
-            <ModalBody>
-              <p className='text-[13px] text-[var(--text-secondary)]'>
-                You have unsaved changes. Are you sure you want to discard them?
-              </p>
-            </ModalBody>
-            <ModalFooter>
-              <Button variant='default' onClick={() => setShowUnsavedChangesAlert(false)}>
-                Keep Editing
-              </Button>
-              <Button variant='destructive' onClick={handleDiscardChanges}>
-                Discard Changes
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+          <Modal open={showUnsavedChangesAlert} onOpenChange={setShowUnsavedChangesAlert}>
+            <ModalContent size='sm'>
+              <ModalHeader>Unsaved Changes</ModalHeader>
+              <ModalBody>
+                <p className='text-[13px] text-[var(--text-secondary)]'>
+                  You have unsaved changes. Are you sure you want to discard them?
+                </p>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant='default' onClick={() => setShowUnsavedChangesAlert(false)}>
+                  Keep Editing
+                </Button>
+                <Button variant='destructive' onClick={handleDiscardChanges}>
+                  Discard Changes
+                </Button>
+              </ModalFooter>
+            </ModalContent>
+          </Modal>
+        </div>
 
-        <Modal open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-          <ModalContent size='sm'>
-            <ModalHeader>Delete File</ModalHeader>
-            <ModalBody>
-              <p className='text-[13px] text-[var(--text-secondary)]'>
-                Are you sure you want to delete{' '}
-                <span className='font-medium text-[var(--text-primary)]'>
-                  {deleteTargetFile?.name}
-                </span>
-                ?{' '}
-                <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
-              </p>
-            </ModalBody>
-            <ModalFooter>
-              <Button
-                variant='default'
-                onClick={() => setShowDeleteConfirm(false)}
-                disabled={deleteFile.isPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant='destructive'
-                onClick={handleDelete}
-                disabled={deleteFile.isPending}
-              >
-                {deleteFile.isPending ? 'Deleting...' : 'Delete'}
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
-      </div>
+        <DeleteConfirmModal
+          open={showDeleteConfirm}
+          onOpenChange={setShowDeleteConfirm}
+          fileName={deleteTargetFile?.name}
+          onDelete={handleDelete}
+          isPending={deleteFile.isPending}
+        />
+      </>
     )
   }
 
@@ -604,39 +576,13 @@ export function Files() {
         </PopoverContent>
       </Popover>
 
-      {!selectedFile && (
-        <Modal open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-          <ModalContent size='sm'>
-            <ModalHeader>Delete File</ModalHeader>
-            <ModalBody>
-              <p className='text-[13px] text-[var(--text-secondary)]'>
-                Are you sure you want to delete{' '}
-                <span className='font-medium text-[var(--text-primary)]'>
-                  {deleteTargetFile?.name}
-                </span>
-                ?{' '}
-                <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
-              </p>
-            </ModalBody>
-            <ModalFooter>
-              <Button
-                variant='default'
-                onClick={() => setShowDeleteConfirm(false)}
-                disabled={deleteFile.isPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant='destructive'
-                onClick={handleDelete}
-                disabled={deleteFile.isPending}
-              >
-                {deleteFile.isPending ? 'Deleting...' : 'Delete'}
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
-      )}
+      <DeleteConfirmModal
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        fileName={deleteTargetFile?.name}
+        onDelete={handleDelete}
+        isPending={deleteFile.isPending}
+      />
 
       <input
         ref={fileInputRef}
@@ -655,5 +601,44 @@ export function Files() {
         workspaceId={workspaceId}
       />
     </>
+  )
+}
+
+interface DeleteConfirmModalProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  fileName?: string
+  onDelete: () => void
+  isPending: boolean
+}
+
+function DeleteConfirmModal({
+  open,
+  onOpenChange,
+  fileName,
+  onDelete,
+  isPending,
+}: DeleteConfirmModalProps) {
+  return (
+    <Modal open={open} onOpenChange={onOpenChange}>
+      <ModalContent size='sm'>
+        <ModalHeader>Delete File</ModalHeader>
+        <ModalBody>
+          <p className='text-[13px] text-[var(--text-secondary)]'>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{fileName}</span>?{' '}
+            <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+          </p>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant='default' onClick={() => onOpenChange(false)} disabled={isPending}>
+            Cancel
+          </Button>
+          <Button variant='destructive' onClick={onDelete} disabled={isPending}>
+            {isPending ? 'Deleting...' : 'Delete'}
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
   )
 }
