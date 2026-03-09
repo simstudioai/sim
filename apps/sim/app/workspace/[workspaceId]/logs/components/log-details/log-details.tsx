@@ -344,7 +344,7 @@ export const LogDetails = memo(function LogDetails({
       )}
 
       <div
-        className={`absolute top-[0px] right-0 bottom-0 z-50 transform overflow-hidden border-l bg-white shadow-md transition-transform duration-200 ease-out dark:bg-[var(--bg)] ${
+        className={`absolute top-[0px] right-0 bottom-0 z-50 transform overflow-hidden border-l bg-[var(--bg)] shadow-md transition-transform duration-200 ease-out ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
         style={{ width: `${panelWidth}px` }}

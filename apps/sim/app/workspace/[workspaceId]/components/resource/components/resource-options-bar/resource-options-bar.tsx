@@ -119,7 +119,7 @@ export function ResourceOptionsBar({ search, sort, filter, filterTags }: Resourc
             {search.dropdown && (
               <div
                 ref={search.dropdownRef}
-                className='absolute top-full left-0 z-50 mt-[6px] w-full rounded-[8px] border border-[var(--border)] bg-white shadow-sm dark:bg-[var(--bg)]'
+                className='absolute top-full left-0 z-50 mt-[6px] w-full rounded-[8px] border border-[var(--border)] bg-[var(--bg)] shadow-sm'
               >
                 {search.dropdown}
               </div>
@@ -151,7 +151,7 @@ export function ResourceOptionsBar({ search, sort, filter, filterTags }: Resourc
                   align='start'
                   sideOffset={6}
                   className={cn(
-                    'z-50 rounded-[8px] border border-[var(--border)] bg-white shadow-sm dark:bg-[var(--bg)]'
+                    'z-50 rounded-[8px] border border-[var(--border)] bg-[var(--bg)] shadow-sm'
                   )}
                 >
                   {filter}

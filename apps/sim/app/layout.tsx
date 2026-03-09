@@ -11,7 +11,6 @@ import {
 import '@/app/_styles/globals.css'
 import { OneDollarStats } from '@/components/analytics/onedollarstats'
 import { isReactGrabEnabled, isReactScanEnabled } from '@/lib/core/config/feature-flags'
-import { DynamicFavicon } from '@/app/_shell/dynamic-favicon'
 import { HydrationErrorHandler } from '@/app/_shell/hydration-error-handler'
 import { QueryProvider } from '@/app/_shell/providers/query-provider'
 import { SessionProvider } from '@/app/_shell/providers/session-provider'
@@ -233,7 +232,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={`${season.variable} font-season`} suppressHydrationWarning>
         <HydrationErrorHandler />
-        <DynamicFavicon />
         <OneDollarStats />
         <PostHogProvider>
           <ThemeProvider>

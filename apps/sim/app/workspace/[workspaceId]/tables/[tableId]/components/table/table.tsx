@@ -96,9 +96,9 @@ const CELL = 'border-[var(--border)] border-r border-b px-[8px] py-[7px] align-m
 const CELL_CHECKBOX =
   'border-[var(--border)] border-r border-b px-[4px] py-[7px] align-middle select-none'
 const CELL_HEADER =
-  'border-[var(--border)] border-r border-b bg-white px-[8px] py-[7px] text-left align-middle dark:bg-[var(--bg)]'
+  'border-[var(--border)] border-r border-b bg-[var(--bg)] px-[8px] py-[7px] text-left align-middle'
 const CELL_HEADER_CHECKBOX =
-  'border-[var(--border)] border-r border-b bg-white px-[4px] py-[7px] text-center align-middle dark:bg-[var(--bg)]'
+  'border-[var(--border)] border-r border-b bg-[var(--bg)] px-[4px] py-[7px] text-center align-middle'
 const CELL_CONTENT =
   'relative min-h-[20px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[13px]'
 const SELECTION_OVERLAY =
@@ -1107,8 +1107,8 @@ export function Table({
                       onClick={handleAddColumn}
                       disabled={addColumnMutation.isPending}
                     >
-                      <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-muted)]' />
-                      <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                      <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+                      <span className='font-medium text-[13px] text-[var(--text-body)]'>
                         New column
                       </span>
                     </button>
@@ -2239,7 +2239,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   )
 
   return (
-    <th className='relative border-[var(--border)] border-r border-b bg-white p-0 text-left align-middle dark:bg-[var(--bg)]'>
+    <th className='relative border-[var(--border)] border-r border-b bg-[var(--bg)] p-0 text-left align-middle'>
       {isRenaming ? (
         <div className='flex h-full w-full min-w-0 items-center px-[8px] py-[7px]'>
           <ColumnTypeIcon type={column.type} />

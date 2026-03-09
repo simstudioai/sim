@@ -2,11 +2,10 @@
 
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { Command } from 'cmdk'
-import { Database, Files, HelpCircle, Settings } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { Blimp, Library } from '@/components/emcn'
-import { Calendar, Table } from '@/components/emcn/icons'
+import { Calendar, Database, File, HelpCircle, Settings, Table } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
@@ -128,7 +127,7 @@ export function SearchModal({
         {
           id: 'files',
           name: 'Files',
-          icon: Files,
+          icon: File,
           href: `/workspace/${workspaceId}/files`,
           hidden: permissionConfig.hideFilesTab,
         },

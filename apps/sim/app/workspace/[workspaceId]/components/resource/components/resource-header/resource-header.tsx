@@ -108,7 +108,12 @@ export function ResourceHeader({
                 className='px-[8px] py-[4px] text-[12px]'
               >
                 {ActionIcon && (
-                  <ActionIcon className={cn('h-[14px] w-[14px]', action.label && 'mr-[6px]')} />
+                  <ActionIcon
+                    className={cn(
+                      'h-[14px] w-[14px] text-[var(--text-icon)]',
+                      action.label && 'mr-[6px]'
+                    )}
+                  />
                 )}
                 {action.label}
               </Button>
@@ -121,7 +126,7 @@ export function ResourceHeader({
               variant='subtle'
               className='px-[8px] py-[4px] text-[12px]'
             >
-              <Plus className='mr-[6px] h-[14px] w-[14px]' />
+              <Plus className='mr-[6px] h-[14px] w-[14px] text-[var(--text-icon)]' />
               {create.label}
             </Button>
           )}

@@ -441,7 +441,7 @@ export function Files() {
 
   if (selectedFileId && !selectedFile) {
     return (
-      <div className='flex h-full flex-1 flex-col overflow-hidden bg-white dark:bg-[var(--bg)]'>
+      <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
         <ResourceHeader
           icon={FilesIcon}
           breadcrumbs={[
@@ -508,7 +508,7 @@ export function Files() {
 
     return (
       <>
-        <div className='flex h-full flex-1 flex-col overflow-hidden bg-white dark:bg-[var(--bg)]'>
+        <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
           <ResourceHeader
             icon={FilesIcon}
             breadcrumbs={[
