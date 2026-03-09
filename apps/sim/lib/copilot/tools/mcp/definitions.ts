@@ -38,26 +38,6 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
     annotations: { readOnlyHint: true },
   },
   {
-    name: 'list_workflows',
-    toolId: 'list_user_workflows',
-    description:
-      'List all workflows the user has access to. Returns workflow IDs, names, workspace, and folder info. Use workspaceId/folderId to scope results.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workspaceId: {
-          type: 'string',
-          description: 'Optional workspace ID to filter workflows.',
-        },
-        folderId: {
-          type: 'string',
-          description: 'Optional folder ID to filter workflows.',
-        },
-      },
-    },
-    annotations: { readOnlyHint: true },
-  },
-  {
     name: 'list_folders',
     toolId: 'list_folders',
     description:
@@ -71,23 +51,6 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
         },
       },
       required: ['workspaceId'],
-    },
-    annotations: { readOnlyHint: true },
-  },
-  {
-    name: 'get_workflow',
-    toolId: 'get_user_workflow',
-    description:
-      'Get a workflow by ID. Returns the full workflow definition including all blocks, connections, and configuration.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workflowId: {
-          type: 'string',
-          description: 'Workflow ID to retrieve.',
-        },
-      },
-      required: ['workflowId'],
     },
     annotations: { readOnlyHint: true },
   },

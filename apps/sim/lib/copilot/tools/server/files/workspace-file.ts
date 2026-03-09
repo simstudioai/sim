@@ -4,10 +4,25 @@ import type { WorkspaceFileArgs, WorkspaceFileResult } from '@/lib/copilot/tools
 import {
   deleteWorkspaceFile,
   getWorkspaceFile,
+  updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('WorkspaceFileServerTool')
+
+const EXT_TO_MIME: Record<string, string> = {
+  '.txt': 'text/plain',
+  '.md': 'text/markdown',
+  '.html': 'text/html',
+  '.json': 'application/json',
+  '.csv': 'text/csv',
+}
+
+function inferContentType(fileName: string, explicitType?: string): string {
+  if (explicitType) return explicitType
+  const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
+  return EXT_TO_MIME[ext] || 'text/plain'
+}
 
 export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, WorkspaceFileResult> = {
   name: 'workspace_file',
@@ -33,8 +48,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
         case 'write': {
           const fileName = (args as Record<string, unknown>).fileName as string | undefined
           const content = (args as Record<string, unknown>).content as string | undefined
-          const contentType =
-            ((args as Record<string, unknown>).contentType as string) || 'text/plain'
+          const explicitType = (args as Record<string, unknown>).contentType as string | undefined
 
           if (!fileName) {
             return { success: false, message: 'fileName is required for write operation' }
@@ -43,6 +57,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             return { success: false, message: 'content is required for write operation' }
           }
 
+          const contentType = inferContentType(fileName, explicitType)
           const fileBuffer = Buffer.from(content, 'utf-8')
           const result = await uploadWorkspaceFile(
             workspaceId,
@@ -67,6 +82,43 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
               id: result.id,
               name: result.name,
               contentType,
+              size: fileBuffer.length,
+            },
+          }
+        }
+
+        case 'update': {
+          const fileId = (args as Record<string, unknown>).fileId as string | undefined
+          const content = (args as Record<string, unknown>).content as string | undefined
+
+          if (!fileId) {
+            return { success: false, message: 'fileId is required for update operation' }
+          }
+          if (content === undefined || content === null) {
+            return { success: false, message: 'content is required for update operation' }
+          }
+
+          const fileRecord = await getWorkspaceFile(workspaceId, fileId)
+          if (!fileRecord) {
+            return { success: false, message: `File with ID "${fileId}" not found` }
+          }
+
+          const fileBuffer = Buffer.from(content, 'utf-8')
+          await updateWorkspaceFileContent(workspaceId, fileId, context.userId, fileBuffer)
+
+          logger.info('Workspace file updated via copilot', {
+            fileId,
+            name: fileRecord.name,
+            size: fileBuffer.length,
+            userId: context.userId,
+          })
+
+          return {
+            success: true,
+            message: `File "${fileRecord.name}" updated successfully (${fileBuffer.length} bytes)`,
+            data: {
+              id: fileId,
+              name: fileRecord.name,
               size: fileBuffer.length,
             },
           }

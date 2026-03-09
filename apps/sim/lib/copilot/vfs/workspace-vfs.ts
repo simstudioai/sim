@@ -44,6 +44,7 @@ import {
   serializeTaskSession,
   serializeTriggerOverview,
   serializeTriggerSchema,
+  serializeVersions,
   serializeWorkflowMeta,
 } from '@/lib/copilot/vfs/serializers'
 import { buildWorkspaceMd, type WorkspaceMdData } from '@/lib/copilot/workspace-context'
@@ -542,6 +543,9 @@ export class WorkspaceVFS {
           )
           if (deploymentData) {
             this.files.set(`${prefix}deployment.json`, serializeDeployments(deploymentData))
+            if (deploymentData.versions && deploymentData.versions.length > 0) {
+              this.files.set(`${prefix}versions.json`, serializeVersions(deploymentData.versions))
+            }
           }
         } catch (err) {
           logger.warn('Failed to load deployment data', {
@@ -744,7 +748,7 @@ export class WorkspaceVFS {
     deployedAt: Date | null,
     currentNormalized?: Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>>
   ): Promise<DeploymentData | null> {
-    const [chatRows, formRows, mcpRows, a2aRows, versionRows] = await Promise.all([
+    const [chatRows, formRows, mcpRows, a2aRows, versionRows, allVersionRows] = await Promise.all([
       db
         .select({
           id: chatTable.id,
@@ -808,6 +812,18 @@ export class WorkspaceVFS {
             )
             .limit(1)
         : Promise.resolve([]),
+      db
+        .select({
+          id: workflowDeploymentVersion.id,
+          version: workflowDeploymentVersion.version,
+          name: workflowDeploymentVersion.name,
+          description: workflowDeploymentVersion.description,
+          isActive: workflowDeploymentVersion.isActive,
+          createdAt: workflowDeploymentVersion.createdAt,
+        })
+        .from(workflowDeploymentVersion)
+        .where(eq(workflowDeploymentVersion.workflowId, workflowId))
+        .orderBy(desc(workflowDeploymentVersion.version)),
     ])
 
     const hasAnyDeployment =
@@ -816,7 +832,7 @@ export class WorkspaceVFS {
       formRows.length > 0 ||
       mcpRows.length > 0 ||
       a2aRows.length > 0
-    if (!hasAnyDeployment) return null
+    if (!hasAnyDeployment && allVersionRows.length === 0) return null
 
     let needsRedeployment: boolean | undefined
     const deployedVersion = versionRows[0]
@@ -849,6 +865,7 @@ export class WorkspaceVFS {
       form: formRows[0] ?? null,
       mcp: mcpRows,
       a2a: a2aRows[0] ?? null,
+      versions: allVersionRows,
     }
   }
 
@@ -1159,6 +1176,7 @@ export class WorkspaceVFS {
           ...oauthCredentials.map((c) => ({
             id: c.id,
             providerId: c.providerId,
+            displayName: c.displayName,
             scope: null,
             createdAt: c.updatedAt,
           })),
