@@ -63,7 +63,6 @@ interface TextEditorProps {
 }
 
 function TextEditor({ file, workspaceId, canEdit, onDirtyChange, saveRef }: TextEditorProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const initializedRef = useRef(false)
   const contentRef = useRef('')
 
@@ -154,7 +153,6 @@ function TextEditor({ file, workspaceId, canEdit, onDirtyChange, saveRef }: Text
   return (
     <div className='flex flex-1 overflow-hidden'>
       <textarea
-        ref={textareaRef}
         value={content}
         onChange={(e) => handleContentChange(e.target.value)}
         readOnly={!canEdit}
