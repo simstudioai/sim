@@ -3,6 +3,13 @@
  * Files uploaded at workspace level persist indefinitely and are accessible across all workflows
  */
 
+export class FileConflictError extends Error {
+  readonly code = 'FILE_EXISTS' as const
+  constructor(name: string) {
+    super(`A file named "${name}" already exists in this workspace`)
+  }
+}
+
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -430,7 +437,7 @@ export async function renameWorkspaceFile(
 
   const exists = await fileExistsInWorkspace(workspaceId, trimmedName)
   if (exists) {
-    throw new Error(`A file named "${trimmedName}" already exists in this workspace`)
+    throw new FileConflictError(trimmedName)
   }
 
   const updated = await db

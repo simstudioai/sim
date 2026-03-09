@@ -1997,14 +1997,16 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         onResize(column.name, startWidth + (ev.clientX - startX))
       }
 
-      const handlePointerUp = () => {
+      const cleanup = () => {
         target.removeEventListener('pointermove', handlePointerMove)
-        target.removeEventListener('pointerup', handlePointerUp)
+        target.removeEventListener('pointerup', cleanup)
+        target.removeEventListener('pointercancel', cleanup)
         onResizeEnd()
       }
 
       target.addEventListener('pointermove', handlePointerMove)
-      target.addEventListener('pointerup', handlePointerUp)
+      target.addEventListener('pointerup', cleanup)
+      target.addEventListener('pointercancel', cleanup)
     },
     [column.name, onResizeStart, onResize, onResizeEnd]
   )

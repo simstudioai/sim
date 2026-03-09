@@ -3,7 +3,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { deleteWorkspaceFile, renameWorkspaceFile } from '@/lib/uploads/contexts/workspace'
+import {
+  deleteWorkspaceFile,
+  FileConflictError,
+  renameWorkspaceFile,
+} from '@/lib/uploads/contexts/workspace'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 export const dynamic = 'force-dynamic'
@@ -69,7 +73,7 @@ export async function PATCH(
         success: false,
         error: error instanceof Error ? error.message : 'Failed to rename file',
       },
-      { status: error instanceof Error && error.message.includes('already exists') ? 409 : 500 }
+      { status: error instanceof FileConflictError ? 409 : 500 }
     )
   }
 }
