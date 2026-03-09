@@ -248,11 +248,18 @@ export class LoopOrchestrator {
 
     if (iterationResults.length > 0) {
       scope.allIterationOutputs.push(iterationResults)
+      scope.totalIterationCount = (scope.totalIterationCount ?? 0) + 1
 
       // Sliding window: discard oldest iteration outputs to bound memory (fixes #2525)
       if (scope.allIterationOutputs.length > DEFAULTS.MAX_LOOP_ITERATION_HISTORY) {
         const excess = scope.allIterationOutputs.length - DEFAULTS.MAX_LOOP_ITERATION_HISTORY
         scope.allIterationOutputs.splice(0, excess)
+        logger.warn('Loop iteration history truncated to prevent OOM', {
+          loopId,
+          totalIterations: scope.totalIterationCount,
+          retained: DEFAULTS.MAX_LOOP_ITERATION_HISTORY,
+          discarded: scope.totalIterationCount - DEFAULTS.MAX_LOOP_ITERATION_HISTORY,
+        })
       }
     }
 
@@ -281,7 +288,12 @@ export class LoopOrchestrator {
     scope: LoopScope
   ): LoopContinuationResult {
     const results = scope.allIterationOutputs
-    const output = { results }
+    const totalIterations = scope.totalIterationCount ?? results.length
+    const output = {
+      results,
+      totalIterations,
+      ...(totalIterations > results.length && { truncated: true }),
+    }
     this.state.setBlockOutput(loopId, output, DEFAULTS.EXECUTION_TIME)
 
     if (this.contextExtensions?.onBlockComplete) {

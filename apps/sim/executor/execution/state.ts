@@ -16,6 +16,8 @@ export interface LoopScope {
   skipFirstConditionCheck?: boolean
   /** Error message if loop validation failed (e.g., exceeded max iterations) */
   validationError?: string
+  /** Total number of iterations completed (may exceed allIterationOutputs.length when truncated) */
+  totalIterationCount?: number
 }
 
 export interface ParallelScope {
