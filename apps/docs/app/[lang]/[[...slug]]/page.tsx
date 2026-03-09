@@ -235,7 +235,6 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
         />
         <DocsPage
           toc={data.toc}
-          className='openapi-page'
           breadcrumb={{
             enabled: false,
           }}
