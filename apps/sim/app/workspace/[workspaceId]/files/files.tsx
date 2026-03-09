@@ -20,6 +20,7 @@ import {
   Tooltip,
   Trash2,
 } from '@/components/emcn'
+import { getDocumentIcon } from '@/components/icons/document-icons'
 import { cn } from '@/lib/core/utils/cn'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
@@ -42,7 +43,6 @@ import {
   FileViewer,
   TEXT_EDITABLE_EXTENSIONS,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
-import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
@@ -200,46 +200,49 @@ export function Files() {
     [filteredFiles, members]
   )
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const list = e.target.files
-    if (!list || list.length === 0 || !workspaceId) return
+  const handleFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const list = e.target.files
+      if (!list || list.length === 0 || !workspaceId) return
 
-    try {
-      setUploading(true)
+      try {
+        setUploading(true)
 
-      const filesToUpload = Array.from(list)
-      const unsupported: string[] = []
-      const allowedFiles = filesToUpload.filter((f) => {
-        const ext = getFileExtension(f.name)
-        const ok = SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number])
-        if (!ok) unsupported.push(f.name)
-        return ok
-      })
+        const filesToUpload = Array.from(list)
+        const unsupported: string[] = []
+        const allowedFiles = filesToUpload.filter((f) => {
+          const ext = getFileExtension(f.name)
+          const ok = SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number])
+          if (!ok) unsupported.push(f.name)
+          return ok
+        })
 
-      if (unsupported.length > 0) {
-        logger.warn('Unsupported file types skipped:', unsupported)
-      }
+        if (unsupported.length > 0) {
+          logger.warn('Unsupported file types skipped:', unsupported)
+        }
 
-      setUploadProgress({ completed: 0, total: allowedFiles.length })
+        setUploadProgress({ completed: 0, total: allowedFiles.length })
 
-      for (let i = 0; i < allowedFiles.length; i++) {
-        try {
-          await uploadFile.mutateAsync({ workspaceId, file: allowedFiles[i] })
-          setUploadProgress({ completed: i + 1, total: allowedFiles.length })
-        } catch (err) {
-          logger.error('Error uploading file:', err)
+        for (let i = 0; i < allowedFiles.length; i++) {
+          try {
+            await uploadFile.mutateAsync({ workspaceId, file: allowedFiles[i] })
+            setUploadProgress({ completed: i + 1, total: allowedFiles.length })
+          } catch (err) {
+            logger.error('Error uploading file:', err)
+          }
+        }
+      } catch (err) {
+        logger.error('Error uploading file:', err)
+      } finally {
+        setUploading(false)
+        setUploadProgress({ completed: 0, total: 0 })
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
         }
       }
-    } catch (err) {
-      logger.error('Error uploading file:', err)
-    } finally {
-      setUploading(false)
-      setUploadProgress({ completed: 0, total: 0 })
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
-    }
-  }
+    },
+    [workspaceId]
+  )
 
   const handleDownload = useCallback(async (file: WorkspaceFileRecord) => {
     try {
@@ -510,8 +513,6 @@ export function Files() {
           placeholder: 'Search files...',
         }}
         defaultSort='created'
-        onSort={() => {}}
-        onFilter={() => {}}
         toolbarActions={
           <Button
             variant='subtle'
