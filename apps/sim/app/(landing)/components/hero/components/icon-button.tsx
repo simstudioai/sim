@@ -7,7 +7,6 @@ interface IconButtonProps {
   children: React.ReactNode
   onClick?: () => void
   onMouseEnter?: () => void
-  onMouseLeave?: () => void
   style?: React.CSSProperties
   'aria-label': string
   isActive?: boolean
@@ -17,7 +16,6 @@ export function IconButton({
   children,
   onClick,
   onMouseEnter,
-  onMouseLeave,
   style,
   'aria-label': ariaLabel,
   isActive = false,
@@ -28,7 +26,6 @@ export function IconButton({
       aria-label={ariaLabel}
       onClick={onClick}
       onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
       className='relative flex items-center justify-center rounded-xl p-2 outline-none'
       style={style}
     >

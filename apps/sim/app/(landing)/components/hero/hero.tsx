@@ -245,11 +245,12 @@ export default function Hero() {
    * Handle mouse leave on icon container
    */
   const handleIconContainerMouseLeave = () => {
+    const lastIndex = hoveredIndex
     setIsUserHovering(false)
     setHoveredIndex(null)
     // Start from the next icon after the last hovered one
-    if (hoveredIndex !== null) {
-      setAutoHoverIndex((hoveredIndex + 1) % visibleIconCount)
+    if (lastIndex !== null) {
+      setAutoHoverIndex((lastIndex + 1) % visibleIconCount)
     }
   }
 
