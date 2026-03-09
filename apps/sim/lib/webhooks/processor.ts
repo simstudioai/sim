@@ -1218,6 +1218,8 @@ export async function queueWebhookExecution(
     }
 
     if (foundWebhook.provider === 'slack') {
+      // Return empty 200 to avoid Slack showing an error dialog to the user,
+      // even though processing failed. The error is already logged above.
       return new NextResponse(null, { status: 200 })
     }
 
