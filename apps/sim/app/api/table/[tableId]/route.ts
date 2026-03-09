@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { deleteTable, renameTable, type TableSchema } from '@/lib/table'
+import { deleteTable, NAME_PATTERN, renameTable, TABLE_LIMITS, type TableSchema } from '@/lib/table'
 import { accessError, checkAccess, normalizeColumn } from '@/app/api/table/utils'
 
 const logger = createLogger('TableDetailAPI')
@@ -84,7 +84,17 @@ export async function GET(request: NextRequest, { params }: TableRouteParams) {
 
 const PatchTableSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
-  name: z.string().min(1, 'Name is required'),
+  name: z
+    .string()
+    .min(1, 'Name is required')
+    .max(
+      TABLE_LIMITS.MAX_TABLE_NAME_LENGTH,
+      `Name must be at most ${TABLE_LIMITS.MAX_TABLE_NAME_LENGTH} characters`
+    )
+    .regex(
+      NAME_PATTERN,
+      'Name must start with letter or underscore, followed by alphanumeric or underscore'
+    ),
 })
 
 /** PATCH /api/table/[tableId] - Renames a table. */

@@ -433,7 +433,7 @@ export async function renameWorkspaceFile(
     throw new Error(`A file named "${trimmedName}" already exists in this workspace`)
   }
 
-  await db
+  const updated = await db
     .update(workspaceFiles)
     .set({ originalName: trimmedName })
     .where(
@@ -443,6 +443,11 @@ export async function renameWorkspaceFile(
         eq(workspaceFiles.context, 'workspace')
       )
     )
+    .returning({ id: workspaceFiles.id })
+
+  if (updated.length === 0) {
+    throw new Error('File not found or could not be renamed')
+  }
 
   logger.info(`Successfully renamed workspace file ${fileId} to "${trimmedName}"`)
 
