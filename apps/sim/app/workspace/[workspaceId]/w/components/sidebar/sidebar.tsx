@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Database, Files, HelpCircle, MoreHorizontal, Plus, Search, Settings } from 'lucide-react'
+import { MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import {
@@ -20,7 +20,16 @@ import {
   Skeleton,
   Tooltip,
 } from '@/components/emcn'
-import { Calendar, Table } from '@/components/emcn/icons'
+import {
+  Calendar,
+  Database,
+  File,
+  HelpCircle,
+  Plus,
+  Search,
+  Settings,
+  Table,
+} from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -309,7 +318,7 @@ export const Sidebar = memo(function Sidebar() {
         {
           id: 'files',
           label: 'Files',
-          icon: Files,
+          icon: File,
           href: `/workspace/${workspaceId}/files`,
           hidden: permissionConfig.hideFilesTab,
         },

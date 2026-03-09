@@ -6,7 +6,7 @@ import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import { FileViewer } from '@/app/workspace/[workspaceId]/files/[fileId]/view/file-viewer'
 
 export const metadata: Metadata = {
-  title: 'File Viewer',
+  title: 'File',
   robots: { index: false },
 }
 
