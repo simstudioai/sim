@@ -31,14 +31,14 @@ export function ResourceOptionsBar({
     >
       <div className='flex items-center justify-between'>
         {search && (
-          <div className='relative flex-1'>
-            <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-0 h-[14px] w-[14px] text-[var(--text-muted)]' />
+          <div className='flex flex-1 items-center'>
+            <Search className='pointer-events-none h-[14px] w-[14px] shrink-0 text-[var(--text-muted)]' />
             <input
               type='text'
               value={search.value}
               onChange={(e) => search.onChange(e.target.value)}
               placeholder={search.placeholder ?? 'Search...'}
-              className='w-full bg-transparent py-[4px] pl-[24px] font-base text-[12px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-subtle)]'
+              className='w-full bg-transparent py-[4px] pl-[10px] text-[12px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-subtle)]'
             />
           </div>
         )}
