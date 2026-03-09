@@ -5,6 +5,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, Button, Plus, Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { ResourceHeader } from './components/resource-header'
+import type { SortConfig } from './components/resource-options-bar'
 import { ResourceOptionsBar } from './components/resource-options-bar'
 
 export interface ResourceColumn {
@@ -37,8 +38,6 @@ interface ResourceProps {
     placeholder?: string
   }
   defaultSort: string
-  onSort?: () => void
-  onFilter?: () => void
   toolbarActions?: ReactNode
   columns: ResourceColumn[]
   rows: ResourceRow[]
@@ -61,8 +60,6 @@ export function Resource({
   create,
   search,
   defaultSort,
-  onSort,
-  onFilter,
   toolbarActions,
   columns,
   rows,
@@ -84,12 +81,18 @@ export function Resource({
     }
   }, [])
 
-  const handleColumnSort = useCallback((columnId: string) => {
-    setSort((prev) => {
-      if (prev.column !== columnId) return { column: columnId, direction: 'desc' }
-      return { column: columnId, direction: prev.direction === 'desc' ? 'asc' : 'desc' }
-    })
+  const handleSort = useCallback((column: string, direction: 'asc' | 'desc') => {
+    setSort({ column, direction })
   }, [])
+
+  const sortConfig = useMemo<SortConfig>(
+    () => ({
+      options: columns.map((col) => ({ id: col.id, label: col.header })),
+      active: sort,
+      onSort: handleSort,
+    }),
+    [columns, sort, handleSort]
+  )
 
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => {
@@ -110,12 +113,7 @@ export function Resource({
       onContextMenu={onContextMenu}
     >
       <ResourceHeader icon={icon} title={title} create={create} />
-      <ResourceOptionsBar
-        search={search}
-        onSort={onSort}
-        onFilter={onFilter}
-        toolbarActions={toolbarActions}
-      />
+      <ResourceOptionsBar search={search} sort={sortConfig} toolbarActions={toolbarActions} />
 
       {isLoading ? (
         <DataTableSkeleton columns={columns} rowCount={loadingRows} />
@@ -127,16 +125,22 @@ export function Resource({
               <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
                 <tr>
                   {columns.map((col) => {
+                    const isActive = sort.column === col.id
                     const SortIcon = sort.direction === 'asc' ? ArrowUp : ArrowDown
                     return (
                       <th key={col.id} className='h-10 px-[16px] py-[6px] text-left align-middle'>
                         <Button
                           variant='subtle'
                           className='px-[8px] py-[4px] font-base text-[var(--text-muted)] hover:text-[var(--text-muted)]'
-                          onClick={() => handleColumnSort(col.id)}
+                          onClick={() =>
+                            handleSort(
+                              col.id,
+                              isActive ? (sort.direction === 'desc' ? 'asc' : 'desc') : 'desc'
+                            )
+                          }
                         >
                           {col.header}
-                          {sort.column === col.id && (
+                          {isActive && (
                             <SortIcon className='ml-[4px] h-[12px] w-[12px] text-[var(--text-icon)]' />
                           )}
                         </Button>

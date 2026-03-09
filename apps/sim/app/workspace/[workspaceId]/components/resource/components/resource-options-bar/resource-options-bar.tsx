@@ -1,6 +1,60 @@
 import type { ReactNode } from 'react'
-import { ArrowUpDown, Button, ListFilter, Search } from '@/components/emcn'
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Button,
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+  ListFilter,
+  Search,
+} from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+
+type SortDirection = 'asc' | 'desc'
+
+export interface ColumnOption {
+  id: string
+  label: string
+  type?: string
+  icon?: React.ElementType
+}
+
+export interface SortConfig {
+  options: ColumnOption[]
+  active: { column: string; direction: SortDirection } | null
+  onSort: (column: string, direction: SortDirection) => void
+  onClear?: () => void
+}
+
+export interface ActiveFilter {
+  column: string
+  operator: string
+}
+
+export interface FilterConfig {
+  options: ColumnOption[]
+  active: ActiveFilter[]
+  onToggle: (column: string, operator: string) => void
+  onClear?: () => void
+}
+
+const DEFAULT_FILTER_OPERATORS = [
+  { id: 'empty', label: 'Is empty' },
+  { id: 'not_empty', label: 'Is not empty' },
+] as const
+
+const BOOLEAN_FILTER_OPERATORS = [
+  { id: 'eq_true', label: 'Is true' },
+  { id: 'eq_false', label: 'Is false' },
+] as const
 
 interface ResourceOptionsBarProps {
   search?: {
@@ -8,18 +62,18 @@ interface ResourceOptionsBarProps {
     onChange: (value: string) => void
     placeholder?: string
   }
-  onSort?: () => void
-  onFilter?: () => void
+  sort?: SortConfig
+  filter?: FilterConfig
   toolbarActions?: ReactNode
 }
 
 export function ResourceOptionsBar({
   search,
-  onSort,
-  onFilter,
+  sort,
+  filter,
   toolbarActions,
 }: ResourceOptionsBarProps) {
-  const hasContent = search || onSort || onFilter || toolbarActions
+  const hasContent = search || sort || filter || toolbarActions
   if (!hasContent) return null
 
   return (
@@ -43,21 +97,114 @@ export function ResourceOptionsBar({
           </div>
         )}
         <div className='flex items-center gap-[6px]'>
-          {onFilter && (
-            <Button variant='subtle' className='px-[8px] py-[4px] text-[12px]' onClick={onFilter}>
-              <ListFilter className='mr-[6px] h-[14px] w-[14px] text-[var(--text-icon)]' />
-              Filter
-            </Button>
-          )}
-          {onSort && (
-            <Button variant='subtle' className='px-[8px] py-[4px] text-[12px]' onClick={onSort}>
-              <ArrowUpDown className='mr-[6px] h-[14px] w-[14px] text-[var(--text-icon)]' />
-              Sort
-            </Button>
-          )}
+          {filter && <FilterDropdown config={filter} />}
+          {sort && <SortDropdown config={sort} />}
           {toolbarActions}
         </div>
       </div>
     </div>
+  )
+}
+
+function SortDropdown({ config }: { config: SortConfig }) {
+  const { options, active, onSort, onClear } = config
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant='subtle' className='px-[8px] py-[4px] text-[12px]'>
+          <ArrowUpDown className='mr-[6px] h-[14px] w-[14px] text-[var(--text-icon)]' />
+          Sort
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end'>
+        {options.map((option) => {
+          const isActive = active?.column === option.id
+          const Icon = option.icon
+          const DirectionIcon = isActive ? (active.direction === 'asc' ? ArrowUp : ArrowDown) : null
+
+          return (
+            <DropdownMenuItem
+              key={option.id}
+              onSelect={() => {
+                if (isActive) {
+                  onSort(option.id, active.direction === 'asc' ? 'desc' : 'asc')
+                } else {
+                  onSort(option.id, 'desc')
+                }
+              }}
+            >
+              {Icon && <Icon />}
+              {option.label}
+              {DirectionIcon && (
+                <DirectionIcon className='ml-auto h-[12px] w-[12px] text-[var(--text-tertiary)]' />
+              )}
+            </DropdownMenuItem>
+          )
+        })}
+        {active && onClear && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onClear} className='text-[var(--text-tertiary)]'>
+              Clear sort
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function FilterDropdown({ config }: { config: FilterConfig }) {
+  const { options, active, onToggle, onClear } = config
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant='subtle' className='px-[8px] py-[4px] text-[12px]'>
+          <ListFilter className='mr-[6px] h-[14px] w-[14px] text-[var(--text-icon)]' />
+          Filter
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end'>
+        {options.map((option) => {
+          const operators =
+            option.type === 'boolean' ? BOOLEAN_FILTER_OPERATORS : DEFAULT_FILTER_OPERATORS
+          const activeFilter = active.find((f) => f.column === option.id)
+          const Icon = option.icon
+
+          return (
+            <DropdownMenuSub key={option.id}>
+              <DropdownMenuSubTrigger>
+                {Icon && <Icon />}
+                {option.label}
+                {activeFilter && (
+                  <span className='ml-auto h-[6px] w-[6px] rounded-full bg-[var(--text-tertiary)]' />
+                )}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {operators.map((op) => (
+                  <DropdownMenuCheckboxItem
+                    key={op.id}
+                    checked={activeFilter?.operator === op.id}
+                    onCheckedChange={() => onToggle(option.id, op.id)}
+                  >
+                    {op.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )
+        })}
+        {active.length > 0 && onClear && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onClear} className='text-[var(--text-tertiary)]'>
+              Clear all filters
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

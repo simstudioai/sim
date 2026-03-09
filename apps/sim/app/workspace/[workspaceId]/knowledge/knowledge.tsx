@@ -204,8 +204,6 @@ export function Knowledge() {
           placeholder: 'Search knowledge bases...',
         }}
         defaultSort='created'
-        onSort={() => {}}
-        onFilter={() => {}}
         columns={COLUMNS}
         rows={rows}
         onRowClick={handleRowClick}

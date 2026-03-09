@@ -339,8 +339,8 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
 
       return res.json()
     },
-    onMutate: async ({ rowId, data }) => {
-      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+    onMutate: ({ rowId, data }) => {
+      void queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
 
       const previousQueries = queryClient.getQueriesData<TableRowsResponse>({
         queryKey: tableKeys.rowsRoot(tableId),

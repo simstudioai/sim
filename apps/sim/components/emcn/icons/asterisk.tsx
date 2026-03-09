@@ -1,10 +1,10 @@
 import type { SVGProps } from 'react'
 
 /**
- * Key icon component
+ * Asterisk icon component - required field indicator
  * @param props - SVG properties including className, fill, etc.
  */
-export function Key(props: SVGProps<SVGSVGElement>) {
+export function Asterisk(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       width='24'
@@ -18,10 +18,9 @@ export function Key(props: SVGProps<SVGSVGElement>) {
       xmlns='http://www.w3.org/2000/svg'
       {...props}
     >
-      <circle cx='6.75' cy='10.25' r='3.5' />
-      <path d='M10.25 10.25H19' />
-      <path d='M14.5 10.25V13.5' />
-      <path d='M17.5 10.25V12.5' />
+      <path d='M10.25 3V17.5' />
+      <path d='M4 6.625L16.5 13.875' />
+      <path d='M4 13.875L16.5 6.625' />
     </svg>
   )
 }

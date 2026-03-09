@@ -177,8 +177,6 @@ export function Tables() {
           placeholder: 'Search tables...',
         }}
         defaultSort='created'
-        onSort={() => {}}
-        onFilter={() => {}}
         columns={COLUMNS}
         rows={rows}
         onRowClick={handleRowClick}

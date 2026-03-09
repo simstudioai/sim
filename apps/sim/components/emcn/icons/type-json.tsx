@@ -9,7 +9,7 @@ export function TypeJson(props: SVGProps<SVGSVGElement>) {
     <svg
       width='24'
       height='24'
-      viewBox='-1 -2 24 24'
+      viewBox='-1.75 -1.75 24 24'
       fill='none'
       stroke='currentColor'
       strokeWidth='1.75'

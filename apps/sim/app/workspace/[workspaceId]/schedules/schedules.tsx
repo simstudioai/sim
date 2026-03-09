@@ -189,8 +189,6 @@ export function Schedules() {
           placeholder: 'Search schedules...',
         }}
         defaultSort='nextRun'
-        onSort={() => {}}
-        onFilter={() => {}}
         columns={COLUMNS}
         rows={rows}
         onRowClick={handleRowClick}

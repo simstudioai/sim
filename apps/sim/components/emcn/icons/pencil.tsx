@@ -1,10 +1,10 @@
 import type { SVGProps } from 'react'
 
 /**
- * Key icon component
+ * Pencil icon component - edit/rename indicator
  * @param props - SVG properties including className, fill, etc.
  */
-export function Key(props: SVGProps<SVGSVGElement>) {
+export function Pencil(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       width='24'
@@ -18,10 +18,8 @@ export function Key(props: SVGProps<SVGSVGElement>) {
       xmlns='http://www.w3.org/2000/svg'
       {...props}
     >
-      <circle cx='6.75' cy='10.25' r='3.5' />
-      <path d='M10.25 10.25H19' />
-      <path d='M14.5 10.25V13.5' />
-      <path d='M17.5 10.25V12.5' />
+      <path d='M14.75 1.25L19.25 5.75L7.25 17.75H2.75V13.25L14.75 1.25Z' />
+      <path d='M12 4L16.5 8.5' />
     </svg>
   )
 }
