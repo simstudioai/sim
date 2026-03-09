@@ -322,10 +322,15 @@ export async function renameTable(
   }
 
   const now = new Date()
-  await db
+  const result = await db
     .update(userTableDefinitions)
     .set({ name: newName, updatedAt: now })
     .where(eq(userTableDefinitions.id, tableId))
+    .returning({ id: userTableDefinitions.id })
+
+  if (result.length === 0) {
+    throw new Error(`Table ${tableId} not found`)
+  }
 
   logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
   return { id: tableId, name: newName }
