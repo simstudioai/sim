@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { AlertCircle, Loader2 } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { createPortal } from 'react-dom'
 import {
   Modal,
@@ -57,6 +58,7 @@ export function ExecutionSnapshot({
   isOpen = false,
   onClose = () => {},
 }: ExecutionSnapshotProps) {
+  const t = useTranslations('logs.execution_snapshot')
   const { data, isLoading, error } = useExecutionSnapshot(executionId)
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -93,7 +95,7 @@ export function ExecutionSnapshot({
         >
           <div className='flex items-center gap-[8px] text-[var(--text-secondary)]'>
             <Loader2 className='h-[16px] w-[16px] animate-spin' />
-            <span className='text-[13px]'>Loading execution snapshot...</span>
+            <span className='text-[13px]'>{t('loading')}</span>
           </div>
         </div>
       )
@@ -107,7 +109,7 @@ export function ExecutionSnapshot({
         >
           <div className='flex items-center gap-[8px] text-[var(--text-error)]'>
             <AlertCircle className='h-[16px] w-[16px]' />
-            <span className='text-[13px]'>Failed to load execution snapshot: {error.message}</span>
+            <span className='text-[13px]'>{t('error_loading', { error: error.message })}</span>
           </div>
         </div>
       )
@@ -121,7 +123,7 @@ export function ExecutionSnapshot({
         >
           <div className='flex items-center gap-[8px] text-[var(--text-secondary)]'>
             <Loader2 className='h-[16px] w-[16px] animate-spin' />
-            <span className='text-[13px]'>Loading execution snapshot...</span>
+            <span className='text-[13px]'>{t('loading')}</span>
           </div>
         </div>
       )
@@ -135,13 +137,14 @@ export function ExecutionSnapshot({
         >
           <div className='flex items-center gap-[12px] text-[var(--text-warning)]'>
             <AlertCircle className='h-[20px] w-[20px]' />
-            <span className='font-medium text-[15px]'>Logged State Not Found</span>
+            <span className='font-medium text-[15px]'>{t('migrated_state_title')}</span>
           </div>
           <div className='max-w-md text-center text-[13px] text-[var(--text-secondary)]'>
-            This log was migrated from the old logging system. The workflow state at execution time
-            is not available.
+            {t('migrated_state_description')}
           </div>
-          <div className='text-[12px] text-[var(--text-tertiary)]'>Note: {workflowState._note}</div>
+          <div className='text-[12px] text-[var(--text-tertiary)]'>
+            {t('migrated_state_note', { note: workflowState._note || '' })}
+          </div>
         </div>
       )
     }
@@ -182,7 +185,7 @@ export function ExecutionSnapshot({
               }}
             />
             <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
-              <PopoverItem onClick={handleCopyExecutionId}>Copy Execution ID</PopoverItem>
+              <PopoverItem onClick={handleCopyExecutionId}>{t('copy_execution_id')}</PopoverItem>
             </PopoverContent>
           </Popover>,
           document.body

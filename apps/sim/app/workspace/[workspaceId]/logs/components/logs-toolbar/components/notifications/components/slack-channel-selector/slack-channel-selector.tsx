@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Hash, Lock } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Combobox, type ComboboxOption } from '@/components/emcn'
 
 const logger = createLogger('SlackChannelSelector')
@@ -31,6 +32,7 @@ export function SlackChannelSelector({
   disabled = false,
   error,
 }: SlackChannelSelectorProps) {
+  const t = useTranslations('logs.slack_channel_selector')
   const [channels, setChannels] = useState<SlackChannel[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
@@ -82,7 +84,7 @@ export function SlackChannelSelector({
   if (!accountId) {
     return (
       <div className='rounded-[6px] border bg-[var(--surface-3)] p-[10px] text-center'>
-        <p className='text-[12px] text-[var(--text-muted)]'>Select a Slack account first</p>
+        <p className='text-[12px] text-[var(--text-muted)]'>{t('account_required')}</p>
       </div>
     )
   }
@@ -98,18 +100,17 @@ export function SlackChannelSelector({
         options={options}
         value={value}
         onChange={handleChange}
-        placeholder={
-          channels.length === 0 && !isLoading ? 'No channels available' : 'Select channel...'
-        }
+        placeholder={channels.length === 0 && !isLoading ? t('no_channels') : t('label')}
         disabled={disabled || channels.length === 0}
         isLoading={isLoading}
         error={fetchError}
         searchable
-        searchPlaceholder='Search channels...'
+        searchPlaceholder={t('search_placeholder')}
       />
       {selectedChannel && !fetchError && (
         <p className='text-[12px] text-[var(--text-muted)]'>
-          {selectedChannel.isPrivate ? 'Private' : 'Public'} channel: #{selectedChannel.name}
+          {selectedChannel.isPrivate ? t('channel_type_private') : t('channel_type_public')}{' '}
+          channel: #{selectedChannel.name}
         </p>
       )}
       {error && <p className='text-[12px] text-[var(--text-error)]'>{error}</p>}

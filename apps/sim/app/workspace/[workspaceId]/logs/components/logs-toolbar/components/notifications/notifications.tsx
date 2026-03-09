@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Plus, X } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   Badge,
   Button,
@@ -51,29 +52,6 @@ type AlertRule =
   | 'no_activity'
   | 'error_count'
 
-const ALERT_RULES: { value: AlertRule; label: string; description: string }[] = [
-  { value: 'none', label: 'None', description: 'Notify on every matching execution' },
-  {
-    value: 'consecutive_failures',
-    label: 'Consecutive Failures',
-    description: 'After X failures in a row',
-  },
-  { value: 'failure_rate', label: 'Failure Rate', description: 'When failure % exceeds threshold' },
-  {
-    value: 'latency_threshold',
-    label: 'Latency Threshold',
-    description: 'When execution exceeds duration',
-  },
-  { value: 'latency_spike', label: 'Latency Spike', description: 'When slower than average by %' },
-  {
-    value: 'cost_threshold',
-    label: 'Cost Threshold',
-    description: 'When execution cost exceeds $',
-  },
-  { value: 'no_activity', label: 'No Activity', description: 'When no executions in time window' },
-  { value: 'error_count', label: 'Error Count', description: 'When errors exceed count in window' },
-]
-
 interface NotificationSettingsProps {
   workspaceId: string
   open: boolean
@@ -82,17 +60,20 @@ interface NotificationSettingsProps {
 
 const LOG_LEVELS: LogLevel[] = ['info', 'error']
 
-function formatAlertConfigLabel(config: {
-  rule: AlertRule
-  consecutiveFailures?: number
-  failureRatePercent?: number
-  windowHours?: number
-  durationThresholdMs?: number
-  latencySpikePercent?: number
-  costThresholdDollars?: number
-  inactivityHours?: number
-  errorCountThreshold?: number
-}): string {
+function formatAlertConfigLabel(
+  config: {
+    rule: AlertRule
+    consecutiveFailures?: number
+    failureRatePercent?: number
+    windowHours?: number
+    durationThresholdMs?: number
+    latencySpikePercent?: number
+    costThresholdDollars?: number
+    inactivityHours?: number
+    errorCountThreshold?: number
+  },
+  t: (key: string) => string
+): string {
   switch (config.rule) {
     case 'consecutive_failures':
       return `${config.consecutiveFailures} consecutive failures`
@@ -118,6 +99,54 @@ export const NotificationSettings = memo(function NotificationSettings({
   open,
   onOpenChange,
 }: NotificationSettingsProps) {
+  const t = useTranslations('logs.notifications')
+
+  // Build alert rules dynamically with translations
+  const ALERT_RULES: { value: AlertRule; label: string; description: string }[] = useMemo(
+    () => [
+      {
+        value: 'none',
+        label: t('alert_rules.none'),
+        description: t('alert_rules.none_description'),
+      },
+      {
+        value: 'consecutive_failures',
+        label: t('alert_rules.consecutive_failures'),
+        description: t('alert_rules.consecutive_failures_description'),
+      },
+      {
+        value: 'failure_rate',
+        label: t('alert_rules.failure_rate'),
+        description: t('alert_rules.failure_rate_description'),
+      },
+      {
+        value: 'latency_threshold',
+        label: t('alert_rules.latency_threshold'),
+        description: t('alert_rules.latency_threshold_description'),
+      },
+      {
+        value: 'latency_spike',
+        label: t('alert_rules.latency_spike'),
+        description: t('alert_rules.latency_spike_description'),
+      },
+      {
+        value: 'cost_threshold',
+        label: t('alert_rules.cost_threshold'),
+        description: t('alert_rules.cost_threshold_description'),
+      },
+      {
+        value: 'no_activity',
+        label: t('alert_rules.no_activity'),
+        description: t('alert_rules.no_activity_description'),
+      },
+      {
+        value: 'error_count',
+        label: t('alert_rules.error_count'),
+        description: t('alert_rules.error_count_description'),
+      },
+    ],
+    [t]
+  )
   const [activeTab, setActiveTab] = useState<NotificationType>('webhook')
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -279,52 +308,54 @@ export const NotificationSettings = memo(function NotificationSettings({
     const errors: Record<string, string> = {}
 
     if (!formData.allWorkflows && formData.workflowIds.length === 0) {
-      errors.workflows = 'Select at least one workflow or enable "All Workflows"'
+      errors.workflows = t('errors.workflows_required')
     }
 
     if (formData.levelFilter.length === 0) {
-      errors.levelFilter = 'Select at least one log level'
+      errors.levelFilter = t('errors.level_filter_required')
     }
 
     if (formData.triggerFilter.length === 0) {
-      errors.triggerFilter = 'Select at least one trigger type'
+      errors.triggerFilter = t('errors.trigger_filter_required')
     }
 
     if (activeTab === 'webhook') {
       if (!formData.webhookUrl) {
-        errors.webhookUrl = 'Webhook URL is required'
+        errors.webhookUrl = t('errors.webhook_url_required')
       } else {
         try {
           const url = new URL(formData.webhookUrl)
           if (!['http:', 'https:'].includes(url.protocol)) {
-            errors.webhookUrl = 'URL must start with http:// or https://'
+            errors.webhookUrl = t('errors.webhook_url_valid')
           }
         } catch {
-          errors.webhookUrl = 'Invalid URL format'
+          errors.webhookUrl = t('errors.webhook_url_format')
         }
       }
     }
 
     if (activeTab === 'email') {
       if (formData.emailRecipients.length === 0) {
-        errors.emailRecipients = 'At least one email address is required'
+        errors.emailRecipients = t('errors.email_required')
       } else if (formData.emailRecipients.length > 10) {
-        errors.emailRecipients = 'Maximum 10 email recipients allowed'
+        errors.emailRecipients = t('errors.email_max')
       }
       const invalidEmailValues = emailItems
         .filter((item) => !item.isValid)
         .map((item) => item.value)
       if (invalidEmailValues.length > 0) {
-        errors.emailRecipients = `Invalid email addresses: ${invalidEmailValues.join(', ')}`
+        errors.emailRecipients = t('errors.email_invalid', {
+          emails: invalidEmailValues.join(', '),
+        })
       }
     }
 
     if (activeTab === 'slack') {
       if (!formData.slackAccountId) {
-        errors.slackAccountId = 'Select a Slack account'
+        errors.slackAccountId = t('errors.slack_account_required')
       }
       if (!formData.slackChannelId) {
-        errors.slackChannelId = 'Select a Slack channel'
+        errors.slackChannelId = t('errors.slack_channel_required')
       }
     }
 
@@ -332,46 +363,46 @@ export const NotificationSettings = memo(function NotificationSettings({
       switch (formData.alertRule) {
         case 'consecutive_failures':
           if (formData.consecutiveFailures < 1 || formData.consecutiveFailures > 100) {
-            errors.consecutiveFailures = 'Must be between 1 and 100'
+            errors.consecutiveFailures = t('errors.consecutive_failures_range')
           }
           break
         case 'failure_rate':
           if (formData.failureRatePercent < 1 || formData.failureRatePercent > 100) {
-            errors.failureRatePercent = 'Must be between 1 and 100'
+            errors.failureRatePercent = t('errors.failure_rate_range')
           }
           if (formData.windowHours < 1 || formData.windowHours > 168) {
-            errors.windowHours = 'Must be between 1 and 168 hours'
+            errors.windowHours = t('errors.window_hours_range')
           }
           break
         case 'latency_threshold':
           if (formData.durationThresholdMs < 1000 || formData.durationThresholdMs > 3600000) {
-            errors.durationThresholdMs = 'Must be between 1s and 1 hour'
+            errors.durationThresholdMs = t('errors.duration_threshold_range')
           }
           break
         case 'latency_spike':
           if (formData.latencySpikePercent < 10 || formData.latencySpikePercent > 1000) {
-            errors.latencySpikePercent = 'Must be between 10% and 1000%'
+            errors.latencySpikePercent = t('errors.latency_spike_range')
           }
           if (formData.windowHours < 1 || formData.windowHours > 168) {
-            errors.windowHours = 'Must be between 1 and 168 hours'
+            errors.windowHours = t('errors.window_hours_range')
           }
           break
         case 'cost_threshold':
           if (formData.costThresholdDollars < 0.01 || formData.costThresholdDollars > 1000) {
-            errors.costThresholdDollars = 'Must be between $0.01 and $1000'
+            errors.costThresholdDollars = t('errors.cost_threshold_range')
           }
           break
         case 'no_activity':
           if (formData.inactivityHours < 1 || formData.inactivityHours > 168) {
-            errors.inactivityHours = 'Must be between 1 and 168 hours'
+            errors.inactivityHours = t('errors.inactivity_hours_range')
           }
           break
         case 'error_count':
           if (formData.errorCountThreshold < 1 || formData.errorCountThreshold > 1000) {
-            errors.errorCountThreshold = 'Must be between 1 and 1000'
+            errors.errorCountThreshold = t('errors.error_count_range')
           }
           if (formData.windowHours < 1 || formData.windowHours > 168) {
-            errors.windowHours = 'Must be between 1 and 168 hours'
+            errors.windowHours = t('errors.window_hours_range')
           }
           break
       }
@@ -564,7 +595,7 @@ export const NotificationSettings = memo(function NotificationSettings({
               ))}
               {subscription.alertConfig && (
                 <Badge className='rounded-[4px] bg-amber-100 px-[6px] py-[2px] text-[11px] text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'>
-                  {formatAlertConfigLabel(subscription.alertConfig)}
+                  {formatAlertConfigLabel(subscription.alertConfig, t)}
                 </Badge>
               )}
             </div>

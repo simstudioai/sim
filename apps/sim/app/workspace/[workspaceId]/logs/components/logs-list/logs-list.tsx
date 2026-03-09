@@ -3,18 +3,19 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowUpRight, Loader2 } from 'lucide-react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { List, type RowComponentProps, useListRef } from 'react-window'
 import { Badge, buttonVariants } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDuration } from '@/lib/core/utils/formatting'
 import {
   DELETED_WORKFLOW_COLOR,
-  DELETED_WORKFLOW_LABEL,
   formatDate,
   getDisplayStatus,
   LOG_COLUMNS,
   StatusBadge,
   TriggerBadge,
+  useLogTranslations,
 } from '@/app/workspace/[workspaceId]/logs/utils'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 
@@ -42,11 +43,11 @@ const LogRow = memo(
     onContextMenu,
     selectedRowRef,
   }: LogRowProps) {
+    const t = useTranslations('logs.logs_list')
+    const { deletedWorkflow } = useLogTranslations()
     const formattedDate = useMemo(() => formatDate(log.createdAt), [log.createdAt])
     const isDeletedWorkflow = !log.workflow?.id && !log.workflowId
-    const workflowName = isDeletedWorkflow
-      ? DELETED_WORKFLOW_LABEL
-      : log.workflow?.name || 'Unknown'
+    const workflowName = isDeletedWorkflow ? deletedWorkflow : log.workflow?.name || 'Unknown'
     const workflowColor = isDeletedWorkflow ? DELETED_WORKFLOW_COLOR : log.workflow?.color
 
     const handleClick = useCallback(() => onClick(log), [onClick, log])
@@ -139,7 +140,7 @@ const LogRow = memo(
               buttonVariants({ variant: 'active' }),
               'absolute right-[24px] h-[26px] w-[26px] rounded-[6px] p-0'
             )}
-            aria-label='Open resume console'
+            aria-label={t('aria_labels.open_resume_console')}
             onClick={(e) => e.stopPropagation()}
           >
             <ArrowUpRight className='h-[14px] w-[14px]' />
@@ -168,6 +169,8 @@ interface RowProps {
   selectedRowRef: React.RefObject<HTMLTableRowElement | null>
   isFetchingNextPage: boolean
   loaderRef: React.RefObject<HTMLDivElement | null>
+  loadingMoreMessage: string
+  scrollToLoadMessage: string
 }
 
 /**
@@ -185,6 +188,8 @@ function Row({
   selectedRowRef,
   isFetchingNextPage,
   loaderRef,
+  loadingMoreMessage,
+  scrollToLoadMessage,
 }: RowComponentProps<RowProps>) {
   if (index >= logs.length) {
     return (
@@ -193,10 +198,10 @@ function Row({
           {isFetchingNextPage ? (
             <>
               <Loader2 className='h-[16px] w-[16px] animate-spin' />
-              <span className='text-[13px]'>Loading more...</span>
+              <span className='text-[13px]'>{loadingMoreMessage}</span>
             </>
           ) : (
-            <span className='text-[13px]'>Scroll to load more</span>
+            <span className='text-[13px]'>{scrollToLoadMessage}</span>
           )}
         </div>
       </div>
@@ -251,6 +256,7 @@ export function LogsList({
   onLoadMore,
   loaderRef,
 }: LogsListProps) {
+  const t = useTranslations('logs.logs_list')
   const listRef = useListRef(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [listHeight, setListHeight] = useState(400)
@@ -294,6 +300,8 @@ export function LogsList({
       selectedRowRef,
       isFetchingNextPage,
       loaderRef,
+      loadingMoreMessage: t('loading_more'),
+      scrollToLoadMessage: t('scroll_to_load'),
     }),
     [
       logs,

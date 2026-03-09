@@ -1,8 +1,8 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslations } from 'next-intl'
 import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Search, X } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { createPortal } from 'react-dom'
 import {
   Button,
@@ -29,11 +29,11 @@ import {
 import { useLogDetailsResize } from '@/app/workspace/[workspaceId]/logs/hooks'
 import {
   DELETED_WORKFLOW_COLOR,
-  DELETED_WORKFLOW_LABEL,
   formatDate,
   getDisplayStatus,
   StatusBadge,
   TriggerBadge,
+  useLogTranslations,
 } from '@/app/workspace/[workspaceId]/logs/utils'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -168,7 +168,7 @@ const WorkflowOutputSection = memo(
               type='text'
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder='Search...'
+              placeholder={t('search_placeholder')}
               className='mr-[2px] h-[23px] w-[94px] text-[12px]'
             />
             <span
@@ -184,7 +184,7 @@ const WorkflowOutputSection = memo(
               className='!p-1'
               onClick={goToPreviousMatch}
               disabled={matchCount === 0}
-              aria-label='Previous match'
+              aria-label={t('aria_labels.previous_match')}
             >
               <ArrowUp className='h-[12px] w-[12px]' />
             </Button>
@@ -193,7 +193,7 @@ const WorkflowOutputSection = memo(
               className='!p-1'
               onClick={goToNextMatch}
               disabled={matchCount === 0}
-              aria-label='Next match'
+              aria-label={t('aria_labels.next_match')}
             >
               <ArrowDown className='h-[12px] w-[12px]' />
             </Button>
@@ -228,9 +228,9 @@ const WorkflowOutputSection = memo(
                 }}
               />
               <PopoverContent align='start' side='bottom' sideOffset={4}>
-                <PopoverItem onClick={handleCopy}>Copy</PopoverItem>
+                <PopoverItem onClick={handleCopy}>{t('copy_tooltip')}</PopoverItem>
                 <PopoverDivider />
-                <PopoverItem onClick={handleSearch}>Search</PopoverItem>
+                <PopoverItem onClick={handleSearch}>{t('search_tooltip')}</PopoverItem>
               </PopoverContent>
             </Popover>,
             document.body
@@ -273,6 +273,8 @@ export const LogDetails = memo(function LogDetails({
   hasNext = false,
   hasPrev = false,
 }: LogDetailsProps) {
+  const tLogDetails = useTranslations('logs.log_details')
+  const { deletedWorkflow } = useLogTranslations()
   const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const panelWidth = useLogDetailsUIStore((state) => state.panelWidth)
@@ -344,7 +346,7 @@ export const LogDetails = memo(function LogDetails({
           style={{ right: `${panelWidth - 4}px` }}
           onMouseDown={handleMouseDown}
           role='separator'
-          aria-label='Resize log details panel'
+          aria-label={tLogDetails('aria_labels.resize_panel')}
           aria-orientation='vertical'
         />
       )}
@@ -360,14 +362,16 @@ export const LogDetails = memo(function LogDetails({
           <div className='flex h-full flex-col px-[14px] pt-[12px]'>
             {/* Header */}
             <div className='flex items-center justify-between'>
-              <h2 className='font-medium text-[14px] text-[var(--text-primary)]'>Log Details</h2>
+              <h2 className='font-medium text-[14px] text-[var(--text-primary)]'>
+                {tLogDetails('headers.log_details')}
+              </h2>
               <div className='flex items-center gap-[1px]'>
                 <Button
                   variant='ghost'
                   className='!p-[4px]'
                   onClick={() => hasPrev && onNavigatePrev?.()}
                   disabled={!hasPrev}
-                  aria-label='Previous log'
+                  aria-label={tLogDetails('aria_labels.previous_log')}
                 >
                   <ChevronUp className='h-[14px] w-[14px]' />
                 </Button>
@@ -376,11 +380,16 @@ export const LogDetails = memo(function LogDetails({
                   className='!p-[4px]'
                   onClick={() => hasNext && onNavigateNext?.()}
                   disabled={!hasNext}
-                  aria-label='Next log'
+                  aria-label={tLogDetails('aria_labels.next_log')}
                 >
                   <ChevronUp className='h-[14px] w-[14px] rotate-180' />
                 </Button>
-                <Button variant='ghost' className='!p-[4px]' onClick={onClose} aria-label='Close'>
+                <Button
+                  variant='ghost'
+                  className='!p-[4px]'
+                  onClick={onClose}
+                  aria-label={tLogDetails('aria_labels.close')}
+                >
                   <X className='h-[14px] w-[14px]' />
                 </Button>
               </div>
@@ -394,7 +403,7 @@ export const LogDetails = memo(function LogDetails({
                   {/* Timestamp Card */}
                   <div className='flex w-[140px] flex-shrink-0 flex-col gap-[8px]'>
                     <div className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      Timestamp
+                      {tLogDetails('headers.timestamp')}
                     </div>
                     <div className='flex items-center gap-[6px]'>
                       <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
@@ -409,7 +418,7 @@ export const LogDetails = memo(function LogDetails({
                   {/* Workflow Card */}
                   <div className='flex w-0 min-w-0 flex-1 flex-col gap-[8px]'>
                     <div className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      Workflow
+                      {tLogDetails('headers.workflow')}
                     </div>
                     <div className='flex min-w-0 items-center gap-[8px]'>
                       <div
@@ -421,8 +430,7 @@ export const LogDetails = memo(function LogDetails({
                         }}
                       />
                       <span className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-secondary)]'>
-                        {log.workflow?.name ||
-                          (!log.workflowId ? DELETED_WORKFLOW_LABEL : 'Unknown')}
+                        {log.workflow?.name || (!log.workflowId ? deletedWorkflow : 'Unknown')}
                       </span>
                     </div>
                   </div>
@@ -432,7 +440,7 @@ export const LogDetails = memo(function LogDetails({
                 {log.executionId && (
                   <div className='flex flex-col gap-[6px] rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] py-[8px]'>
                     <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      Execution ID
+                      {tLogDetails('headers.execution_id')}
                     </span>
                     <span className='truncate font-medium text-[14px] text-[var(--text-secondary)]'>
                       {log.executionId}
@@ -445,7 +453,7 @@ export const LogDetails = memo(function LogDetails({
                   {/* Level */}
                   <div className='flex h-[48px] items-center justify-between border-[var(--border)] border-b p-[8px]'>
                     <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      Level
+                      {tLogDetails('headers.level')}
                     </span>
                     <StatusBadge status={logStatus} />
                   </div>
@@ -453,7 +461,7 @@ export const LogDetails = memo(function LogDetails({
                   {/* Trigger */}
                   <div className='flex h-[48px] items-center justify-between border-[var(--border)] border-b p-[8px]'>
                     <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      Trigger
+                      {tLogDetails('headers.trigger')}
                     </span>
                     {log.trigger ? (
                       <TriggerBadge trigger={log.trigger} />
@@ -469,7 +477,7 @@ export const LogDetails = memo(function LogDetails({
                     className={`flex h-[48px] items-center justify-between border-b p-[8px] ${log.deploymentVersion ? 'border-[var(--border)]' : 'border-transparent'}`}
                   >
                     <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      Duration
+                      {tLogDetails('headers.duration')}
                     </span>
                     <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
                       {formatDuration(log.duration, { precision: 2 }) || '—'}
@@ -480,7 +488,7 @@ export const LogDetails = memo(function LogDetails({
                   {log.deploymentVersion && (
                     <div className='flex h-[48px] items-center gap-[8px] p-[8px]'>
                       <span className='flex-shrink-0 font-medium text-[12px] text-[var(--text-tertiary)]'>
-                        Version
+                        {tLogDetails('headers.version')}
                       </span>
                       <div className='flex w-0 flex-1 justify-end'>
                         <span className='max-w-full truncate rounded-[6px] bg-[#bbf7d0] px-[9px] py-[2px] font-medium text-[#15803d] text-[12px] dark:bg-[#14291B] dark:text-[#86EFAC]'>
@@ -495,14 +503,16 @@ export const LogDetails = memo(function LogDetails({
                 {isWorkflowExecutionLog && log.executionId && !permissionConfig.hideTraceSpans && (
                   <div className='-mt-[8px] flex flex-col gap-[6px] rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] py-[8px]'>
                     <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      Workflow State
+                      {tLogDetails('sections.workflow_state')}
                     </span>
                     <Button
                       variant='active'
                       onClick={() => setIsExecutionSnapshotOpen(true)}
                       className='flex w-full items-center justify-between px-[10px] py-[6px]'
                     >
-                      <span className='font-medium text-[12px]'>View Snapshot</span>
+                      <span className='font-medium text-[12px]'>
+                        {tLogDetails('buttons.view_snapshot')}
+                      </span>
                       <Eye className='h-[14px] w-[14px]' />
                     </Button>
                   </div>
@@ -519,7 +529,7 @@ export const LogDetails = memo(function LogDetails({
                           : 'text-[var(--text-tertiary)]'
                       )}
                     >
-                      Workflow Output
+                      {tLogDetails('sections.workflow_output')}
                     </span>
                     <WorkflowOutputSection output={workflowOutput} />
                   </div>
@@ -531,7 +541,7 @@ export const LogDetails = memo(function LogDetails({
                   !permissionConfig.hideTraceSpans && (
                     <div className='mt-[4px] flex flex-col gap-[6px] rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] py-[8px] dark:bg-transparent'>
                       <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                        Trace Span
+                        {tLogDetails('headers.trace_span')}
                       </span>
                       <TraceSpans traceSpans={log.executionData.traceSpans} />
                     </div>
@@ -546,14 +556,14 @@ export const LogDetails = memo(function LogDetails({
                 {hasCostInfo && (
                   <div className='flex flex-col gap-[8px]'>
                     <span className='px-[1px] font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      Cost Breakdown
+                      {tLogDetails('sections.cost_breakdown')}
                     </span>
 
                     <div className='flex flex-col gap-[4px] rounded-[6px] border border-[var(--border)]'>
                       <div className='flex flex-col gap-[10px] rounded-[6px] p-[10px]'>
                         <div className='flex items-center justify-between'>
                           <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                            Base Execution:
+                            {tLogDetails('sections.base_execution')}
                           </span>
                           <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
                             {formatCost(BASE_EXECUTION_CHARGE)}
@@ -561,7 +571,7 @@ export const LogDetails = memo(function LogDetails({
                         </div>
                         <div className='flex items-center justify-between'>
                           <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                            Model Input:
+                            {tLogDetails('sections.model_input')}
                           </span>
                           <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
                             {formatCost(log.cost?.input || 0)}
@@ -569,7 +579,7 @@ export const LogDetails = memo(function LogDetails({
                         </div>
                         <div className='flex items-center justify-between'>
                           <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                            Model Output:
+                            {tLogDetails('sections.model_output')}
                           </span>
                           <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
                             {formatCost(log.cost?.output || 0)}
@@ -582,7 +592,7 @@ export const LogDetails = memo(function LogDetails({
                       <div className='flex flex-col gap-[10px] rounded-[6px] p-[10px]'>
                         <div className='flex items-center justify-between'>
                           <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                            Total:
+                            {tLogDetails('sections.total')}
                           </span>
                           <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
                             {formatCost(log.cost?.total || 0)}
@@ -590,7 +600,7 @@ export const LogDetails = memo(function LogDetails({
                         </div>
                         <div className='flex items-center justify-between'>
                           <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                            Tokens:
+                            {tLogDetails('sections.tokens')}
                           </span>
                           <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
                             {log.cost?.tokens?.input || log.cost?.tokens?.prompt || 0} in /{' '}
@@ -602,8 +612,7 @@ export const LogDetails = memo(function LogDetails({
 
                     <div className='flex items-center justify-center rounded-[6px] bg-[var(--surface-2)] p-[8px] text-center'>
                       <p className='font-medium text-[11px] text-[var(--text-subtle)]'>
-                        Total cost includes a base execution charge of{' '}
-                        {formatCost(BASE_EXECUTION_CHARGE)} plus any model usage costs.
+                        {tLogDetails('cost_info', { amount: formatCost(BASE_EXECUTION_CHARGE) })}
                       </p>
                     </div>
                   </div>

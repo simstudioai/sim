@@ -1,1513 +1,1152 @@
 {
-  "localization": {
-    "pt": "PT - portuguese",
-    "en": "EN - english",
-    "es": "ES - Spanish"
-  },
-  "helper_text": {
-    "need_help": "Need help?"
-  },
-  "links": {
-    "contact_support": "Contact support"
-  },
-  "network_error": "Network error. Please check your connection and try again.",
-  "too_many_requests": "Too many requests. Please wait a moment before trying again.",
-  "sign_in_with_sso": "Sign in with SSO",
-  "social_login": {
-    "buttons": {
-      "github": "GitHub",
-      "google": "Google",
-      "connecting": "Connecting..."
+  "a2a": {
+    "aria": {
+      "copy_command": "Copy command",
+      "copy_url": "Copy URL"
     },
-    "errors": {
-      "account_exists": "An account with this email already exists. Please sign in.",
-      "network": "Network error. Please check your connection and try again.",
-      "rate_limit": "Too many attempts. Please try again later.",
-      "github": {
-        "default": "Failed to sign in with GitHub",
-        "cancelled": "GitHub sign in was cancelled. Please try again."
+    "buttons": {
+      "add_inputs": "Add inputs",
+      "api_key": "API Key",
+      "copied": "Copied",
+      "copy": "Copy",
+      "public": "Public"
+    },
+    "helper_text": {
+      "access_api_key": "Requires X-API-Key header or API key query parameter",
+      "access_public": "Anyone can call this agent without authentication",
+      "add_inputs": "Add required A2A input fields to Start block",
+      "agent_name": "Human-readable name shown in the Agent Card",
+      "discovery": "External A2A clients can discover and call your agent. TextPart → <code>start.input</code>, DataPart → <code>start.data</code>, FilePart → <code>start.files</code>.",
+      "url": "The A2A endpoint URL where clients can discover and call your agent"
+    },
+    "labels": {
+      "access": "Access",
+      "agent_name": "Agent name",
+      "capabilities": "Capabilities",
+      "description": "Description",
+      "language": "Language",
+      "push_notifications": "Push notifications (webhooks)",
+      "send_message": "Send message",
+      "stream": "Stream",
+      "tags": "Tags",
+      "url": "URL"
+    },
+    "languages": {
+      "curl": "cURL",
+      "javascript": "JavaScript",
+      "python": "Python",
+      "typescript": "TypeScript"
+    },
+    "placeholders": {
+      "agent_name": "Enter agent name",
+      "description": "Describe what this agent does...",
+      "tags": "Add tags",
+      "tags_additional": "Add another"
+    }
+  },
+  "api_deploy": {
+    "aria": {
+      "copy_command": "Copy command"
+    },
+    "async_examples": {
+      "execute": "Execute Job",
+      "rate_limits": "Rate Limits",
+      "status": "Check Status"
+    },
+    "buttons": {
+      "copied": "Copied",
+      "copy": "Copy"
+    },
+    "labels": {
+      "language": "Language",
+      "run_workflow": "Run workflow",
+      "run_workflow_async": "Run workflow (async)",
+      "run_workflow_stream": "Run workflow (stream response)"
+    },
+    "placeholders": {
+      "select_outputs": "Select outputs"
+    }
+  },
+  "api_info_modal": {
+    "buttons": {
+      "api_key": "API Key",
+      "cancel": "Cancel",
+      "discard_changes": "Discard Changes",
+      "keep_editing": "Keep Editing",
+      "public": "Public",
+      "save": "Save",
+      "saving": "Saving..."
+    },
+    "helper_text": {
+      "api_key_access": "Requires a valid API key to call this endpoint.",
+      "public_access": "Anyone can call this API without authentication. You will be billed for all usage."
+    },
+    "labels": {
+      "access": "Access",
+      "description": "Description",
+      "parameters": "Parameters",
+      "title": "Edit API Info"
+    },
+    "messages": {
+      "unsaved_changes": "Unsaved Changes",
+      "unsaved_changes_confirmation": "You have unsaved changes. Are you sure you want to discard them?"
+    },
+    "placeholders": {
+      "description": "Describe what this workflow API does...",
+      "parameter_description": "Enter description for"
+    }
+  },
+  "blocks": {
+    "action_bar": {
+      "tooltips": {
+        "block_locked": "Block is locked",
+        "connection_lost": "Connection lost - please refresh",
+        "delete_block": "Delete Block",
+        "disable_block": "Disable Block",
+        "duplicate_block": "Duplicate Block",
+        "enable_block": "Enable Block",
+        "execution_in_progress": "Execution in progress",
+        "horizontal_ports": "Horizontal Ports",
+        "lock_block": "Lock Block",
+        "parent_disabled": "Parent container is disabled",
+        "parent_locked": "Parent container is locked",
+        "previous_blocks_first": "Run previous blocks first",
+        "read_only_mode": "Read-only mode",
+        "remove_from_subflow": "Remove from Subflow",
+        "run_from_block": "Run from block",
+        "unlock_block": "Unlock Block",
+        "vertical_ports": "Vertical Ports"
+      }
+    },
+    "agent_block": {
+      "description": "Create AI agents with tool access",
+      "labels": {
+        "api_key": "API Key",
+        "aws_access_key_id": "AWS Access Key ID",
+        "aws_region": "AWS Region",
+        "aws_secret_access_key": "AWS Secret Access Key",
+        "azure_api_version": "Azure API Version",
+        "azure_endpoint": "Azure Endpoint",
+        "conversation_id": "Conversation ID",
+        "google_cloud_account": "Google Cloud Account",
+        "max_output_tokens": "Max Output Tokens",
+        "max_tokens": "Max Tokens",
+        "memory": "Memory",
+        "messages": "Messages",
+        "model": "Model",
+        "previous_interaction_id": "Previous Interaction ID",
+        "reasoning_effort": "Reasoning Effort",
+        "response_format": "Response Format",
+        "skills": "Skills",
+        "sliding_window_size": "Sliding Window Size",
+        "system_prompt": "System Prompt",
+        "temperature": "Temperature",
+        "thinking_level": "Thinking Level",
+        "tools": "Available Tools",
+        "verbosity": "Verbosity",
+        "vertex_ai_location": "Vertex AI Location",
+        "vertex_ai_project": "Vertex AI Project"
       },
-      "google": {
-        "default": "Failed to sign in with Google",
-        "cancelled": "Google sign in was cancelled. Please try again."
+      "name": "Agent"
+    },
+    "api_block": {
+      "description": "Make HTTP requests to any API",
+      "methods": {
+        "delete": "DELETE",
+        "get": "GET",
+        "patch": "PATCH",
+        "post": "POST",
+        "put": "PUT"
+      },
+      "name": "API"
+    },
+    "browser_use_block": {
+      "description": "Run browser automation tasks",
+      "name": "Browser Use"
+    },
+    "categories": {
+      "control": "Control Flow",
+      "data": "Data",
+      "integrations": "Integrations",
+      "tools": "Tools",
+      "triggers": "Triggers"
+    },
+    "common": {
+      "errors": {
+        "failed_to_load": "Failed to load {item}",
+        "invalid_format": "Invalid format for {field}",
+        "required_field": "{field} is required"
+      },
+      "labels": {
+        "api_key": "API Key",
+        "body": "Body",
+        "credentials": "Credentials",
+        "description": "Description",
+        "headers": "Headers",
+        "max_tokens": "Max Tokens",
+        "method": "Method",
+        "model": "Model",
+        "name": "Name",
+        "provider": "Provider",
+        "query_params": "Query Parameters",
+        "temperature": "Temperature",
+        "timeout": "Timeout (ms)",
+        "url": "URL"
+      },
+      "placeholders": {
+        "enter_value": "Enter a value",
+        "optional": "Optional",
+        "select_option": "Select an option"
+      }
+    },
+    "condition_block": {
+      "description": "Create branching logic",
+      "labels": {
+        "condition": "Condition",
+        "error": "Error",
+        "success": "Success"
+      },
+      "name": "Condition"
+    },
+    "cursor_block": {
+      "description": "Web automation using Cursor",
+      "name": "Cursor"
+    },
+    "dspy_block": {
+      "description": "Run predictions using self-hosted DSPy programs",
+      "name": "DSPy"
+    },
+    "elevenlabs_block": {
+      "description": "Convert text to speech using ElevenLabs",
+      "name": "ElevenLabs"
+    },
+    "enrich_block": {
+      "description": "B2B data enrichment and LinkedIn intelligence",
+      "name": "Enrich"
+    },
+    "evaluator_block": {
+      "description": "Evaluate content with customizable metrics",
+      "name": "Evaluator"
+    },
+    "firecrawl_block": {
+      "description": "Web scraping and data extraction",
+      "name": "Firecrawl"
+    },
+    "function_block": {
+      "description": "Write custom code",
+      "labels": {
+        "code": "Code"
+      },
+      "name": "Function"
+    },
+    "greptile_block": {
+      "description": "Code search and understanding",
+      "name": "Greptile"
+    },
+    "guardrails_block": {
+      "description": "Validate content with guardrails",
+      "name": "Guardrails"
+    },
+    "huggingface_block": {
+      "description": "Use Hugging Face Inference API",
+      "name": "Hugging Face"
+    },
+    "human_in_the_loop_block": {
+      "description": "Pause workflow and wait for human input",
+      "name": "Human in the Loop"
+    },
+    "image_generator_block": {
+      "description": "Generate images using AI",
+      "name": "Image Generator"
+    },
+    "knowledge_block": {
+      "description": "Use vector search on knowledge bases",
+      "name": "Knowledge"
+    },
+    "langsmith_block": {
+      "description": "Forward workflow runs to LangSmith for observability",
+      "name": "LangSmith"
+    },
+    "loop_block": {
+      "description": "Repeat blocks over a collection",
+      "name": "Loop"
+    },
+    "mcp_block": {
+      "description": "Execute tools from Model Context Protocol servers",
+      "name": "MCP Tool"
+    },
+    "mem0_block": {
+      "description": "Agent memory management",
+      "name": "Mem0"
+    },
+    "memory_block": {
+      "description": "Add and manage memory storage",
+      "name": "Memory"
+    },
+    "mistral_parse_block": {
+      "description": "Extract text from PDF documents",
+      "name": "Mistral Parser"
+    },
+    "next_step": "Next step",
+    "openai_block": {
+      "description": "Generate OpenAI embeddings",
+      "name": "Embeddings"
+    },
+    "perplexity_block": {
+      "description": "Use Perplexity AI for chat and search",
+      "name": "Perplexity"
+    },
+    "search": {
+      "no_results": "No blocks found",
+      "placeholder": "Search blocks..."
+    },
+    "stagehand_block": {
+      "description": "Web automation using Stagehand",
+      "name": "Stagehand"
+    },
+    "subflow_block": {
+      "description": "Call another workflow",
+      "labels": {
+        "workflow": "Workflow"
+      },
+      "name": "Subflow"
+    },
+    "thinking_block": {
+      "description": "Forces model to outline its thought process",
+      "name": "Thinking"
+    },
+    "title": "Blocks",
+    "translate_block": {
+      "description": "Translate text to any language",
+      "name": "Translate"
+    },
+    "video_generator_block": {
+      "description": "Generate videos from text using AI",
+      "name": "Video Generator"
+    },
+    "vision_block": {
+      "description": "Analyze images with vision models",
+      "name": "Vision"
+    },
+    "workflow_block": {
+      "badges": {
+        "deploying": "Deploying...",
+        "disabled": "disabled",
+        "locked": "locked",
+        "redeploy": "redeploy",
+        "undeployed": "undeployed",
+        "webhook": "Webhook"
+      },
+      "labels": {
+        "context": "Context",
+        "error": "error",
+        "path": "Path",
+        "route": "Route {number}"
+      },
+      "tooltips": {
+        "admin_required": "Admin permission required to deploy",
+        "click_deploy": "Click to deploy",
+        "click_reactivate": "Click to reactivate",
+        "click_redeploy": "Click to redeploy",
+        "webhook_trigger": "This workflow is triggered by a webhook."
       }
     }
   },
-  "sign_up": {
-    "hide_password": "Hide password",
-    "show_password": "Show password",
-    "creating_account": "Creating account",
-    "name_title": "Name can only contain letters, spaces, hyphens, and apostrophes",
-    "page_title": "Create an account",
-    "page_sub_title": "Create an account or log in",
-    "full_name_label": "Full name",
-    "full_name_placeholder": "Enter your name",
-    "email_label": "Email",
-    "email_placeholder": "Enter your email",
-    "password_label": "Password",
-    "password_placeholder": "Enter your password",
-    "create_account": "Create account",
-    "already_have_account": "Already have an account?",
-    "sign_in_redirect_label": "Sign In",
-    "create_account_warning": "By creating an account, you agree to our <terms>Terms of Service</terms> and <policy>Privacy Policy</policy>",
-    "divider_label": "Or continue with",
-    "disabled_registration_warning": "Registration is disabled, please contact your admin.",
-    "validations": {
-      "password_max_128_characters": "Password must be less than 128 characters long.",
-      "password_min_8_character": "Password must be at least 8 characters long.",
-      "password_min_1_uppercase_letter": "Password must include at least one uppercase letter.",
-      "password_min_1_lowercase_letter": "Password must include at least one lowercase letter.",
-      "password_min_1_number": "Password must include at least one number.",
-      "password_min_1_special_character": "Password must include at least one special character.",
-      "name_required": "Name is required.",
-      "name_cannot_be_empty": "Name cannot be empty.",
-      "name_invalid_format": "Name can only contain letters, spaces, hyphens, and apostrophes.",
-      "name_cannot_contain_spaces": "Name cannot contain consecutive spaces.",
-      "email_required": "Email is required.",
-      "email_invalid": "Please enter a valid email address.",
-      "truncated_name_error": "Name will be truncated to 100 characters. Please shorten your name.",
-      "failed_to_create_account": "Failed to create account",
-      "account_with_same_email_already_exists": "An account with this email already exists. Please sign in instead.",
-      "email_sign_up_is_not_enabled": "Email signup is currently disabled."
-    }
-  },
-  "sign_in": {
-    "page_title": "Sign in",
-    "page_sub_title": "Enter your details",
-    "labels": {
-      "email": "Email",
-      "password": "Password"
-    },
-    "placeholders": {
-      "email": "Enter your email",
-      "password": "Enter your password"
-    },
-    "buttons": {
-      "sign_in": "Sign in",
-      "signing_in": "Signing in"
-    },
-    "links": {
-      "forgot_password": "Forgot password?",
-      "no_account": "Don't have an account?",
-      "sign_up": "Sign up"
-    },
+  "chat_deploy": {
     "aria": {
+      "copy_password": "Copy password",
+      "generate_password": "Generate password",
       "hide_password": "Hide password",
       "show_password": "Show password"
     },
-    "divider_label": "Or continue with",
-    "agreement": "By signing in, you agree to our <terms>Terms of Service</terms> and <privacy>Privacy Policy</privacy>",
-    "reset_password": {
-      "title": "Reset Password",
-      "description": "Enter your email address and we'll send you a link to reset your password if your account exists.",
-      "send_reset_link": "Send Reset Link",
-      "sending": "Sending",
-      "errors": {
-        "enter_email": "Please enter your email address",
-        "invalid_email": "Please enter a valid email address",
-        "no_account_found": "No account found with this email address",
-        "failed": "Failed to request password reset"
-      },
-      "messages": {
-        "success": "Password reset link sent to your email"
-      }
+    "buttons": {
+      "cancel": "Cancel",
+      "copied": "Copied",
+      "copy": "Copy",
+      "delete": "Delete",
+      "deleting": "Deleting...",
+      "email": "Email",
+      "generate": "Generate",
+      "hide": "Hide",
+      "password": "Password",
+      "public": "Public",
+      "show": "Show",
+      "sso": "SSO"
     },
     "errors": {
-      "email_required": "Email is required.",
-      "email_invalid": "Please enter a valid email address.",
-      "password_required": "Password is required.",
-      "password_not_empty": "Password cannot be empty.",
-      "invalid_credentials": "Invalid email or password",
-      "email_sign_in_disabled": "Email sign in is currently disabled.",
-      "invalid_credentials_retry": "Invalid email or password. Please try again.",
-      "no_account_found": "No account found with this email. Please sign up first.",
-      "missing_credentials": "Please enter both email and password.",
-      "email_password_disabled": "Email and password login is disabled.",
-      "failed_to_create_session": "Failed to create session. Please try again later.",
-      "too_many_attempts": "Too many login attempts. Please try again later or reset your password.",
-      "account_locked": "Your account has been locked for security. Please reset your password.",
-      "network_error": "Network error. Please check your connection and try again.",
-      "rate_limit": "Too many requests. Please wait a moment before trying again.",
-      "login_failed": "Login failed. Please try again."
+      "emails_required_email": "At least one email or domain is required when using email access control",
+      "emails_required_sso": "At least one email or domain is required when using SSO access control",
+      "identifier_check_error": "Error checking identifier availability",
+      "identifier_invalid": "Identifier can only contain lowercase letters, numbers, and hyphens",
+      "identifier_required": "Identifier is required",
+      "identifier_unavailable": "This identifier is already in use",
+      "output_blocks_required": "Please select at least one output block",
+      "password_required": "Password is required when using password protection",
+      "title_required": "Title is required"
+    },
+    "helper_text": {
+      "emails": "Add specific emails or entire domains (@example.com)",
+      "live_at": "Live at:",
+      "name_available": "Name is available",
+      "password": "This password will be required to access your chat",
+      "password_existing": "Leave empty to keep the current password",
+      "sso_emails": "Add emails or domains that can access via SSO",
+      "url": "The unique URL path where your chat will be accessible",
+      "welcome_message": "This message will be displayed when users first open the chat"
+    },
+    "labels": {
+      "access_control": "Access control",
+      "allowed_emails": "Allowed emails",
+      "allowed_sso_emails": "Allowed SSO emails",
+      "output": "Output",
+      "password": "Password",
+      "title": "Title",
+      "url": "URL",
+      "welcome_message": "Welcome message"
+    },
+    "modal": {
+      "delete_confirmation": "Are you sure you want to delete {{title}}?",
+      "delete_title": "Delete Chat",
+      "delete_warning": "This will remove the chat at \"{{url}}\" and make it unavailable to all users."
+    },
+    "placeholders": {
+      "chat_url": "my-chat",
+      "emails": "Enter emails or domains (@example.com)",
+      "emails_additional": "Add email",
+      "output": "Select which block outputs to use",
+      "password": "Enter password",
+      "password_existing": "Enter new password to change",
+      "title": "Customer Support Assistant",
+      "welcome_message": "Enter a welcome message for your chat"
+    }
+  },
+  "deploy": {
+    "buttons": {
+      "deploy": "Deploy",
+      "live": "Live",
+      "update": "Update"
+    },
+    "tooltips": {
+      "active_deployment": "Active deployment",
+      "admin_required": "Admin permissions required",
+      "deploy_workflow": "Deploy workflow",
+      "deploying": "Deploying...",
+      "empty_workflow": "Cannot deploy an empty workflow",
+      "update_deployment": "Update deployment"
+    }
+  },
+  "deploy_modal": {
+    "buttons": {
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "deploy": "Deploy",
+      "deploying": "Deploying...",
+      "edit_api_info": "Edit API Info",
+      "generate_api_key": "Generate API Key",
+      "launch_chat": "Launch Chat",
+      "launched": "Launched",
+      "launching": "Launching...",
+      "manage": "Manage",
+      "publish_agent": "Publish Agent",
+      "publish_template": "Publish Template",
+      "publishing": "Publishing...",
+      "save_tool": "Save Tool",
+      "saving": "Saving...",
+      "undeploy": "Undeploy",
+      "undeploying": "Undeploying...",
+      "unpublish": "Unpublish",
+      "update": "Update",
+      "update_template": "Update Template",
+      "updated": "Updated",
+      "updating": "Updating..."
+    },
+    "chat": {
+      "launching": "Launching...",
+      "update": "Update",
+      "updating": "Updating..."
+    },
+    "modals": {
+      "delete_agent_message": "Are you sure you want to delete <agent>{agentName}</agent>?",
+      "delete_agent_title": "Delete A2A Agent",
+      "delete_agent_warning": "This will permanently remove the agent configuration.",
+      "undeploy_message": "Are you sure you want to undeploy this workflow?",
+      "undeploy_title": "Undeploy API",
+      "undeploy_warning": "This will remove the API endpoint and make it unavailable to external users."
+    },
+    "status": {
+      "live": "Live",
+      "under_review": "Under review",
+      "unpublished": "Unpublished",
+      "update_deployment": "Update deployment"
+    },
+    "tabs": {
+      "a2a": "A2A",
+      "api": "API",
+      "chat": "Chat",
+      "general": "General",
+      "mcp": "MCP",
+      "template": "Template"
+    },
+    "title": "Workflow Deployment"
+  },
+  "form_deploy": {
+    "aria": {
+      "copy_code": "Copy code"
+    },
+    "buttons": {
+      "email": "Email",
+      "password": "Password",
+      "public": "Public"
+    },
+    "errors": {
+      "emails_required": "At least one email or domain is required",
+      "identifier_check_error": "Error checking identifier availability",
+      "identifier_invalid": "Identifier can only contain lowercase letters, numbers, and hyphens",
+      "identifier_unavailable": "This identifier is already in use",
+      "password_required": "Password is required",
+      "title_required": "Title is required",
+      "validation_pending": "Please wait for identifier validation to complete"
+    },
+    "helper_text": {
+      "emails": "Add specific emails or entire domains (@example.com)",
+      "live_at": "Live at:",
+      "name_available": "Name is available",
+      "no_input_fields": "Add input fields to the Start block to create a form.",
+      "password": "This password will be required to access your form",
+      "password_existing": "Leave empty to keep the current password",
+      "thank_you_message": "This message will be displayed after form submission",
+      "url": "The unique URL path where your form will be accessible"
+    },
+    "labels": {
+      "access_control": "Access control",
+      "allowed_emails": "Allowed emails",
+      "form_builder": "Form builder",
+      "password": "Password",
+      "thank_you_message": "Thank you message",
+      "url": "URL"
+    },
+    "placeholders": {
+      "emails": "Enter emails or @domain.com",
+      "emails_additional": "Add another",
+      "form_url": "my-form",
+      "password": "Enter password",
+      "password_existing": "Enter new password to change",
+      "thank_you_message": "Your response has been submitted successfully."
+    }
+  },
+  "form_deploy_builder": {
+    "labels": {
+      "maps_to": "maps to",
+      "required": "Required"
+    },
+    "placeholders": {
+      "description": "Description",
+      "field_description": "Description...",
+      "field_label": "Label",
+      "title": "Form Title"
+    }
+  },
+  "form_deploy_embed": {
+    "aria": {
+      "copy_code": "Copy code"
+    },
+    "buttons": {
+      "copied": "Copied",
+      "copy": "Copy"
+    },
+    "labels": {
+      "embed_code": "Embed Code"
+    }
+  },
+  "general_deploy": {
+    "buttons": {
+      "cancel": "Cancel",
+      "live": "Live",
+      "load_deployment": "Load deployment",
+      "promote_to_live": "Promote to live"
+    },
+    "labels": {
+      "live_workflow": "Live Workflow",
+      "preview": "Preview",
+      "versions": "Versions"
     },
     "messages": {
-      "reset_success": "Password reset successful. Please sign in with your new password."
+      "no_preview": "Deploy your workflow to see a preview"
+    },
+    "modals": {
+      "load_deployment_title": "Load Deployment",
+      "load_deployment_warning": "This will replace your current workflow with the deployed version.",
+      "promote_to_live_info": "This version will become the active deployment and serve all API requests.",
+      "promote_to_live_title": "Promote to live"
+    },
+    "tooltips": {
+      "see_preview": "See preview"
     }
   },
   "generic": {
     "loading": "Loading"
   },
-  "settings": {
-    "title": "Settings",
-    "description": "User settings and workspace configuration",
-    "sections": {
-      "account": "Account",
-      "tools": "Tools",
-      "subscription": "Subscription",
-      "system": "System",
-      "enterprise": "Enterprise",
-      "superuser": "Superuser"
+  "helper_text": {
+    "need_help": "Need help?"
+  },
+  "knowledge": {
+    "aria": {
+      "actions_menu": "Knowledge base actions menu",
+      "kb_card": "Knowledge base card"
     },
-    "nav": {
-      "general": "General",
-      "template_profile": "Template Profile",
-      "access_control": "Access Control",
-      "subscription": "Subscription",
-      "team": "Team",
-      "secrets": "Secrets",
-      "custom_tools": "Custom Tools",
-      "skills": "Skills",
-      "mcp_tools": "MCP Tools",
-      "sim_keys": "Sim Keys",
-      "mcp_servers": "MCP Servers",
-      "byok": "BYOK",
-      "copilot_keys": "Copilot Keys",
-      "files": "Files",
-      "email_polling": "Email Polling",
-      "single_sign_on": "Single Sign On",
-      "debug": "Debug"
-    },
-    "general": {
-      "errors": {
-        "failed_update_picture": "Failed to update profile picture",
-        "failed_remove_picture": "Failed to remove profile picture"
-      },
-      "aria": {
-        "save_name": "Save name",
-        "edit_name": "Edit name"
-      },
-      "labels": {
-        "theme": "Theme",
-        "auto_connect": "Auto Connect",
-        "error_notifications": "Error Notifications",
-        "snap_to_grid": "Snap to Grid",
-        "show_canvas_controls": "Show Canvas Controls",
-        "allow_telemetry": "Allow Telemetry",
-        "training_controls": "Training Controls",
-        "super_admin_mode": "Super Admin Mode",
-        "language": "Language"
-      },
-      "placeholders": {
-        "select_theme": "Select theme",
-        "select_size": "Select size"
-      },
-      "theme": {
-        "system": "System",
-        "light": "Light",
-        "dark": "Dark"
-      },
-      "snap_grid": {
-        "off": "Off"
-      },
-      "telemetry_description": "Help us improve by sharing anonymous usage data",
-      "buttons": {
-        "sign_out": "Sign Out",
-        "reset_password": "Reset Password",
-        "home_page": "Home Page"
-      },
-      "reset_password": {
-        "title": "Reset Password",
-        "description": "A password reset link will be sent to {email}",
-        "cancel": "Cancel",
-        "sending": "Sending...",
-        "sent": "Sent",
-        "send_reset_email": "Send Reset Email",
-        "errors": {
-          "failed_send": "Failed to send password reset email"
-        }
-      }
-    },
-    "debug": {
-      "description": "Import a workflow by ID along with its associated copilot chats.",
-      "placeholders": {
-        "workflow_id": "Enter workflow ID"
-      },
-      "buttons": {
-        "importing": "Importing...",
-        "import": "Import"
-      }
-    },
-    "usage_header": {
-      "payment_failed": "Payment failed"
-    },
-    "usage_limit": {
-      "aria": {
-        "save_limit": "Save limit"
-      },
-      "buttons": {
-        "edit_limit": "Edit Limit"
-      }
-    },
-    "subscription": {
-      "seats_count": "{count} seats",
-      "badges": {
-        "get_help": "Get Help",
-        "fix_now": "Fix Now",
-        "upgrade": "Upgrade",
-        "increase_limit": "Increase Limit"
-      },
-      "plans": {
-        "pro": "Pro",
-        "team": "Team",
-        "enterprise": "Enterprise"
-      },
-      "per_month": "/month",
-      "buttons": {
-        "upgrade": "Upgrade",
-        "upgrade_to_pro": "Upgrade to Pro",
-        "upgrade_to_team": "Upgrade to Team",
-        "contact": "Contact"
-      },
-      "labels": {
-        "next_billing_date": "Next Billing Date",
-        "usage_notifications": "Usage notifications",
-        "billed_account": "Billed Account"
-      },
-      "usage_notifications_description": "Email me when I reach 80% usage",
-      "tooltips": {
-        "billed_account": "Usage from this workspace will be billed to this account"
-      },
-      "no_admins_available": "No admins available",
-      "placeholders": {
-        "select_admin": "Select admin"
-      }
-    },
-    "cancel_subscription": {
-      "end_of_billing_period": "end of current billing period",
-      "labels": {
-        "restore_subscription": "Restore Subscription",
-        "manage_subscription": "Manage Subscription"
-      },
-      "keep_access_until": "You'll keep access until {date}",
-      "buttons": {
-        "error": "Error",
-        "restore": "Restore",
-        "manage": "Manage",
-        "cancel": "Cancel",
-        "keep_subscription": "Keep Subscription",
-        "restoring": "Restoring...",
-        "restore_subscription": "Restore Subscription",
-        "redirecting": "Redirecting...",
-        "continue": "Continue"
-      },
-      "modal": {
-        "restore_title": "Restore {plan} Subscription",
-        "cancel_title": "Cancel {plan} Subscription",
-        "restore_description": "Your subscription is set to cancel at the end of the billing period. Would you like to keep your subscription active?",
-        "cancel_description": "You'll be redirected to Stripe to manage your subscription. You'll keep access until {date}, then downgrade to free plan. You can restore your subscription at any time.",
-        "keep_features_until": "- Keep all features until {date}",
-        "no_more_charges": "- No more charges",
-        "data_preserved": "- Data preserved",
-        "can_reactivate": "- Can reactivate anytime"
-      }
-    },
-    "credit_balance": {
-      "labels": {
-        "credit_balance": "Credit Balance:",
-        "amount_usd": "Amount (USD)"
-      },
-      "buttons": {
-        "add_credits": "Add Credits",
-        "cancel": "Cancel",
-        "processing": "Processing...",
-        "purchase": "Purchase"
-      },
-      "success_message": "Credits added successfully!",
-      "errors": {
-        "minimum_purchase": "Minimum purchase is $10",
-        "maximum_purchase": "Maximum purchase is $1,000",
-        "failed_to_purchase": "Failed to purchase credits"
-      },
-      "credits_info": "Credits are used before overage charges. Min: $10, Max: $1,000.",
-      "credits_info_team": "Credits are non-refundable and don't expire. They'll be applied automatically to your team usage.",
-      "credits_info_personal": "Credits are non-refundable and don't expire. They'll be applied automatically to your usage."
-    },
-    "plan_card": {
-      "error": "Error",
-      "aria": {
-        "plan_action": "{action} {name} plan"
-      }
-    },
-    "referral_code": {
-      "labels": {
-        "referral_code": "Referral Code"
-      },
-      "credits_applied": "+${amount} credits applied",
-      "placeholders": {
-        "enter_code": "Enter code"
-      },
-      "buttons": {
-        "redeeming": "Redeeming...",
-        "redeem": "Redeem"
-      },
-      "errors": {
-        "could_not_redeem": "Code could not be redeemed",
-        "failed_to_redeem": "Failed to redeem code"
-      }
-    },
-    "create_api_key": {
-      "title": "Create API Key",
-      "description_workspace": "This key will be used for workspace API requests. Your key is encrypted and stored securely.",
-      "description_personal": "This key will be used for personal API requests. Your key is encrypted and stored securely.",
-      "key_type": "Key Type",
-      "personal": "Personal",
-      "workspace": "Workspace",
-      "name_label": "Key Name",
-      "placeholders": {
-        "name": "e.g., Development, Production"
-      },
+    "buttons": {
       "cancel": "Cancel",
       "create": "Create",
       "creating": "Creating...",
-      "success_title": "API Key Created",
-      "success_description": "This is the only time you will see your API key. <strong>Copy it now and store it securely.</strong>",
-      "aria": {
-        "copy_to_clipboard": "Copy to clipboard"
-      }
-    },
-    "member_invitation": {
-      "title": "Invite Members",
-      "description": "Invite team members to collaborate",
-      "placeholders": {
-        "email": "Enter email address",
-        "another_email": "Add another email"
-      },
-      "labels": {
-        "workspaces": "Workspaces",
-        "access": "Access Level"
-      },
-      "permissions": {
-        "read": "View Only",
-        "write": "Edit Content",
-        "admin": "Full Access"
-      },
-      "titles": {
-        "view_only": "View Only - Can view workflows and executions",
-        "edit_content": "Edit Content - Can create and modify workflows",
-        "full_access": "Full Access - Can manage team settings"
-      },
-      "loading": "Loading workspaces...",
-      "no_workspaces": "No workspaces available",
-      "buttons": {
-        "invite": "Invite",
-        "inviting": "Inviting...",
-        "no_seats": "No Available Seats"
-      },
-      "success": "Invitation sent successfully",
-      "success_with_workspaces": "Invitation sent successfully to {count} workspace(s)"
-    },
-    "remove_member": {
-      "remove_team_member": "Remove Team Member",
-      "leave_organization": "Leave Organization",
-      "confirm_remove": "Are you sure you want to remove <bold>{name}</bold>? This action cannot be undone.",
-      "confirm_leave": "Are you sure you want to leave this organization? You will lose access to all workspaces.",
-      "cannot_undo": "This action cannot be undone.",
-      "labels": {
-        "reduce_seats": "Reduce Seats"
-      },
-      "reduce_seats_description": "Reducing seats will lower your monthly bill. You can add more seats later if needed.",
-      "buttons": {
-        "cancel": "Cancel",
-        "remove": "Remove",
-        "leave": "Leave"
-      }
-    },
-    "no_organization": {
-      "title": "Create Your First Team",
-      "description": "Set up a {plan} team to collaborate with your team",
-      "plans": {
-        "team": "Team",
-        "enterprise": "Enterprise"
-      },
-      "labels": {
-        "team_name": "Team Name",
-        "team_url": "Team URL (subdomain)",
-        "organization_name": "Organization Name",
-        "organization_slug": "Organization Slug"
-      },
-      "placeholders": {
-        "team_name": "Your team name",
-        "team_url": "team-url",
-        "organization_name": "Your organization name",
-        "organization_slug": "org-slug"
-      },
-      "buttons": {
-        "create_team_workspace": "Create Team",
-        "create_organization": "Create Organization",
-        "creating": "Creating...",
-        "cancel": "Cancel",
-        "upgrade_to_team": "Upgrade to Team Plan"
-      },
-      "modal": {
-        "title": "Create Team",
-        "description": "Set up your team to start collaborating with your organization"
-      },
-      "no_workspace_title": "Upgrade to Unlock Team Features",
-      "no_workspace_description": "You need a Team or Enterprise plan to create a team workspace. Upgrade now to get started with team collaboration."
-    },
-    "custom_tools": {
-      "placeholders": {
-        "search": "Search tools..."
-      },
-      "buttons": {
-        "add": "Add",
-        "edit": "Edit",
-        "delete": "Delete",
-        "deleting": "Deleting...",
-        "cancel": "Cancel"
-      },
-      "errors": {
-        "failed_to_load": "Failed to load tools"
-      },
-      "empty_state": "Click \"Add\" above to get started",
-      "unnamed_tool": "Unnamed Tool",
-      "no_results": "No tools found matching \"{searchTerm}\"",
-      "delete_dialog": {
-        "title": "Delete Custom Tool",
-        "confirm_message": "Are you sure you want to delete <name>{toolName}</name>? <warning>This action cannot be undone.</warning>"
-      }
-    },
-    "skills": {
-      "placeholders": {
-        "search": "Search skills..."
-      },
-      "buttons": {
-        "add": "Add",
-        "edit": "Edit",
-        "delete": "Delete",
-        "deleting": "Deleting...",
-        "cancel": "Cancel"
-      },
-      "errors": {
-        "failed_to_load": "Failed to load skills"
-      },
-      "empty_state": "Click \"Add\" above to get started",
-      "no_results": "No skills found matching \"{searchTerm}\"",
-      "delete_dialog": {
-        "title": "Delete Skill",
-        "confirm_message": "Are you sure you want to delete <name>{skillName}</name>? <warning>This action cannot be undone.</warning>"
-      }
-    },
-    "files": {
-      "placeholders": {
-        "search": "Search files..."
-      },
-      "buttons": {
-        "upload": "Upload",
-        "uploading": "Uploading...",
-        "upload_progress": "{completed}/{total}"
-      },
-      "empty_state": "No files uploaded yet",
-      "no_results": "No files found matching \"{search}\"",
-      "table": {
-        "name": "Name",
-        "size": "Size",
-        "uploaded": "Uploaded",
-        "actions": "Actions"
-      },
-      "aria": {
-        "dismiss": "Dismiss {fileName}",
-        "download": "Download {fileName}",
-        "delete": "Delete {fileName}"
-      },
-      "tooltips": {
-        "download": "Download file",
-        "delete": "Delete file"
-      }
-    },
-    "byok": {
-      "description": "Use your own API keys for hosted model providers.",
-      "buttons": {
-        "update": "Update",
-        "delete": "Delete",
-        "add_key": "Add Key",
-        "cancel": "Cancel",
-        "save": "Save",
-        "saving": "Saving...",
-        "deleting": "Deleting..."
-      },
-      "errors": {
-        "save_failed": "Failed to save API key"
-      },
-      "modal": {
-        "update_title": "Update {name} API Key",
-        "add_title": "Add {name} API Key",
-        "description": "This key will be used for all {name} requests in this workspace. Your key is encrypted and stored securely.",
-        "enter_api_key": "Enter your API key"
-      },
-      "delete_dialog": {
-        "title": "Delete API Key",
-        "confirm_message": "Are you sure you want to delete the <name>{providerName}</name> API key? This workspace will revert to using platform hosted keys."
-      }
-    },
-    "copilot": {
-      "placeholders": {
-        "search": "Search API keys...",
-        "key_name": "e.g., Development, Production"
-      },
-      "buttons": {
-        "create": "Create",
-        "creating": "Creating...",
-        "delete": "Delete",
-        "deleting": "Deleting...",
-        "cancel": "Cancel"
-      },
-      "errors": {
-        "duplicate_name": "A Copilot API key named \"{name}\" already exists. Please choose a different name.",
-        "create_failed": "Failed to create API key. Please check your connection and try again."
-      },
-      "empty_state": "Click \"Create\" above to get started",
-      "unnamed_key": "Unnamed Key",
-      "last_used": "last used: {date}",
-      "last_used_never": "Never",
-      "no_results": "No API keys found matching \"{searchTerm}\"",
-      "create_dialog": {
-        "title": "Create new API key",
-        "description": "This key will allow access to Copilot features. Make sure to copy it after creation as you won't be able to see it again.",
-        "name_label": "Enter a name for your API key to help you identify it later."
-      },
-      "new_key_dialog": {
-        "title": "Your API key has been created",
-        "description": "This is the only time you will see your API key. <bold>Copy it now and store it securely.</bold>"
-      },
-      "delete_dialog": {
-        "title": "Delete API key",
-        "confirm_message": "Deleting <name>{keyName}</name> will immediately revoke access for any integrations using it. <warning>This action cannot be undone.</warning>"
-      },
-      "aria": {
-        "copy_to_clipboard": "Copy to clipboard"
-      }
-    },
-    "api_keys": {
-      "placeholders": {
-        "search": "Search API keys..."
-      },
-      "buttons": {
-        "create": "Create API Key",
-        "delete": "Delete"
-      },
-      "sections": {
-        "workspace": "Workspace Keys",
-        "personal": "Personal Keys"
-      },
-      "never": "Never",
-      "empty_state": "No API keys yet. Create one to get started.",
-      "no_workspace_keys": "No workspace keys configured",
-      "no_results": "No API keys found matching \"{searchTerm}\"",
-      "conflict_warning": "This key name conflicts with a workspace key. The workspace key will take precedence.",
-      "allow_personal_keys": "Allow Personal API Keys",
-      "allow_personal_keys_tooltip": "When enabled, team members can create their own API keys. Workspace keys always take precedence over personal keys.",
-      "delete_modal": {
-        "title": "Delete API Key",
-        "description": "Are you sure you want to delete <name>{name}</name>? <warning>This action cannot be undone.</warning>",
-        "cancel": "Cancel",
-        "delete": "Delete",
-        "deleting": "Deleting..."
-      }
-    },
-    "skill_modal": {
-      "title_edit": "Edit Skill",
-      "title_create": "Create Skill",
-      "labels": {
-        "name": "Name",
-        "description": "Description",
-        "content": "Content"
-      },
-      "placeholders": {
-        "name": "my-skill-name",
-        "description": "What this skill does and when to use it...",
-        "content": "Skill instructions in markdown..."
-      },
-      "hints": {
-        "name_format": "Lowercase letters, numbers, and hyphens (e.g. my-skill)"
-      },
-      "buttons": {
-        "delete": "Delete",
-        "cancel": "Cancel",
-        "save": "Save",
-        "saving": "Saving...",
-        "update": "Update",
-        "create": "Create"
-      },
-      "errors": {
-        "name_required": "Name is required",
-        "name_too_long": "Name must be 64 characters or less",
-        "name_format": "Name must be kebab-case (e.g. my-skill)",
-        "description_required": "Description is required",
-        "content_required": "Content is required",
-        "save_failed": "Failed to save skill. Please try again."
-      }
-    },
-    "mcp": {
-      "form_field": {
-        "optional": "(optional)"
-      }
-    },
-    "team_management": {
-      "yourself": "yourself",
-      "this_member": "this member",
-      "alerts": {
-        "team_upgrade": "Team upgrade to {seats} seats - integration needed"
-      },
-      "single_organization_notice": "<bold>Note:</bold> Users can only be part of one organization at a time.",
-      "team_information": "Team Information",
-      "billing_information": "Billing Information",
-      "labels": {
-        "team_id": "Team ID:",
-        "created": "Created:",
-        "your_role": "Your Role:"
-      },
-      "billing": {
-        "minimum_charge": "Your team is billed a minimum of ${amount}/month for {seats} licensed seats",
-        "pooled_usage": "All team member usage is pooled together from a shared limit",
-        "usage_exceeded": "When pooled usage exceeds the limit, all members are blocked from using the service",
-        "increase_limit": "You can increase the usage limit to allow for higher usage",
-        "overage": "Any usage beyond the minimum seat cost is billed as overage at the end of the billing period"
-      },
-      "add_seats": {
-        "title": "Add Team Seats",
-        "description": "Each seat costs ${cost}/month and provides ${cost} in monthly inference credits. Adjust the number of licensed seats for your team.",
-        "confirm_button": "Update Seats"
-      }
-    },
-    "team_members": {
-      "title": "Team Members",
-      "empty": "No team members yet.",
-      "badges": {
-        "pending": "Pending"
-      },
-      "labels": {
-        "usage": "Usage"
-      },
-      "buttons": {
-        "remove": "Remove",
-        "sending": "Sending...",
-        "resend": "Resend",
-        "resend_cooldown": "Resend ({seconds}s)",
-        "cancelling": "Cancelling...",
-        "cancel": "Cancel",
-        "leave_organization": "Leave Organization"
-      }
-    },
-    "team_seats": {
-      "seat": "seat",
-      "seats": "seats",
-      "labels": {
-        "number_of_seats": "Number of Seats",
-        "current_seats": "Current Seats",
-        "new_seats": "New Seats",
-        "monthly_cost_change": "Monthly Cost Change"
-      },
-      "placeholders": {
-        "select_seats": "Select seats"
-      },
-      "team_info": "Your team will have {seats} seats at ${total}/month.",
-      "buttons": {
-        "cancel": "Cancel",
-        "updating": "Updating..."
-      },
-      "tooltips": {
-        "reactivate": "Please reactivate your subscription before modifying seats."
-      }
-    },
-    "team_seats_overview": {
-      "title": "Seats",
-      "no_subscription_title": "No Active Subscription",
-      "no_subscription_description": "Set up a team subscription to manage seats and billing.",
-      "buttons": {
-        "setup_subscription": "Set Up Subscription"
-      },
-      "badges": {
-        "add_seats": "+ Add Seats"
-      },
-      "used": "{count} used",
-      "total": "{count} total",
-      "enterprise_message": "Enterprise plans have unlimited seats. Contact support to adjust your plan."
-    }
-  },
-  "workflows": {
-    "title": "Workflows",
-    "search_modal": {
-      "placeholders": {
-        "search": "Search anything..."
-      },
-      "messages": {
-        "no_results": "No results found."
-      },
-      "groups": {
-        "blocks": "Blocks",
-        "tools": "Tools",
-        "triggers": "Triggers",
-        "workflows": "Workflows",
-        "tool_operations": "Tool Operations",
-        "workspaces": "Workspaces",
-        "docs": "Docs",
-        "pages": "Pages"
-      },
-      "labels": {
-        "logs": "Logs",
-        "templates": "Templates",
-        "knowledge_base": "Knowledge Base",
-        "help": "Help",
-        "settings": "Settings",
-        "current": "(current)"
-      }
-    },
-    "canvas": {
-      "modes": {
-        "pointer": "Pointer",
-        "hand": "Hand"
-      },
-      "controls": {
-        "fit_to_view": "Fit to view",
-        "undo": "Undo",
-        "redo": "Redo",
-        "hide": "Hide canvas controls"
-      }
+      "delete": "Delete",
+      "deleting": "Deleting...",
+      "processing": "Processing...",
+      "save": "Save",
+      "updating": "Updating...",
+      "uploading": "Uploading {completed}/{total}..."
     },
     "context_menu": {
-      "buttons": {
-        "open_in_new_tab": "Open in new tab",
-        "copy_link": "Copy link",
-        "rename": "Rename",
-        "create_workflow": "Create workflow",
-        "create_folder": "Create folder",
-        "change_color": "Change color",
-        "duplicate": "Duplicate",
-        "export": "Export",
-        "delete": "Delete",
-        "leave": "Leave"
-      }
+      "add_knowledge_base": "Add knowledge base",
+      "copy_id": "Copy ID",
+      "delete": "Delete",
+      "edit": "Edit",
+      "open_new_tab": "Open in new tab",
+      "view_tags": "View tags"
     },
-    "sidebar": {
-      "labels": {
-        "workflows": "Workflows",
-        "search": "Search",
-        "import_workflows": "Import workflows",
-        "create_folder": "Create folder",
-        "create_workflow": "Create workflow"
-      },
-      "loading_states": {
-        "creating_folder": "Creating folder...",
-        "creating_workflow": "Creating workflow..."
-      },
-      "aria": {
-        "resize_sidebar": "Resize sidebar",
-        "search_shortcut": "⌘K"
-      },
-      "tooltips": {
-        "import_workflows": "Import workflows",
-        "create_folder": "Create folder",
-        "create_workflow": "Create workflow"
-      }
+    "document_count": {
+      "plural": "docs",
+      "singular": "doc"
     },
-    "help_modal": {
-      "title": "Help & Support",
-      "labels": {
-        "request": "Request",
-        "subject": "Subject",
-        "message": "Message",
-        "images": "Attach Images (Optional)",
-        "uploaded_images": "Uploaded Images"
-      },
-      "placeholders": {
-        "request": "Select a request type",
-        "subject": "Brief description of your request",
-        "message": "Please provide details about your request...",
-        "images_drop": "Drop images here or click to browse"
-      },
-      "buttons": {
-        "cancel": "Cancel",
-        "submit": "Submit",
-        "submitting": "Submitting...",
-        "error": "Error",
-        "success": "Success"
-      },
-      "helper_text": {
-        "images": "PNG, JPEG, WebP, GIF (max 20MB each)"
-      },
-      "request_types": {
-        "bug": "Bug Report",
-        "feedback": "Feedback",
-        "feature_request": "Feature Request",
-        "other": "Other"
-      }
+    "empty_states": {
+      "error_title": "Error loading knowledge bases",
+      "no_bases_can_create": "Create a knowledge base to get started",
+      "no_bases_cannot_create": "Knowledge bases will appear here once created",
+      "no_bases_title": "No knowledge bases yet",
+      "no_results_description": "Try a different search term",
+      "no_results_title": "No knowledge bases found",
+      "no_write_permissions": "No write permissions"
     },
-    "delete_modal": {
-      "titles": {
-        "workflow_single": "Delete Workflow",
-        "workflow_multiple": "Delete Workflows",
-        "folder_single": "Delete Folder",
-        "folder_multiple": "Delete Folders",
-        "mixed": "Delete Items",
-        "workspace": "Delete Workspace"
-      },
-      "descriptions": {
-        "workflow_single_named": "Are you sure you want to delete the workflow '{name}'?",
-        "workflow_single_unnamed": "Are you sure you want to delete this workflow?",
-        "workflow_multiple_named": "Are you sure you want to delete {names}?",
-        "workflow_multiple_unnamed": "Are you sure you want to delete these workflows?",
-        "folder_single_named": "Are you sure you want to delete the folder '{name}'?",
-        "folder_single_unnamed": "Are you sure you want to delete this folder?",
-        "folder_multiple_named": "Are you sure you want to delete {names}?",
-        "folder_multiple_unnamed": "Are you sure you want to delete these folders?",
-        "mixed_named": "Are you sure you want to delete {names}?",
-        "mixed_unnamed": "Are you sure you want to delete these items?",
-        "workspace_single_named": "Are you sure you want to delete the workspace '{name}'?",
-        "workspace_single_unnamed": "Are you sure you want to delete this workspace?",
-        "cannot_undo": "This action cannot be undone."
-      },
-      "buttons": {
-        "cancel": "Cancel",
-        "delete": "Delete",
-        "deleting": "Deleting..."
-      }
+    "helper_text": {
+      "chunk_size_note": "1 token ≈ 4 characters. Max chunk size and overlap are in tokens.",
+      "permission_required": "Write permission required to create knowledge bases",
+      "upload_dragging": "Drop files here",
+      "upload_formats": "PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML (max 100MB each)",
+      "upload_hint": "Drop files here or click to browse"
     },
-    "errors": {
-      "triggers_in_loop": "Triggers cannot be placed inside loop or parallel subflows.",
-      "nested_subflows": "Subflows cannot be nested inside other subflows.",
-      "locked_blocks_delete": "Cannot delete locked blocks or blocks inside locked containers.",
-      "single_trigger_block": "A workflow can only have one {triggerName} trigger block. Please remove the existing one before adding a new one.",
-      "single_instance_block": "A workflow can only have one {blockName} block. Please remove the existing one before adding a new one.",
-      "legacy_start_block_exists": "Cannot add new trigger blocks when a legacy Start block exists. Available in newer workflows.",
-      "cycle_detected": "Cannot create connection: would create a cycle in the workflow.",
-      "invalid_connection": "Cannot create connection: invalid source or target."
+    "labels": {
+      "description": "Description",
+      "last_updated": "Last updated",
+      "max_chunk_size": "Max Chunk Size (tokens)",
+      "min_chunk_size": "Min Chunk Size (characters)",
+      "name": "Name",
+      "no_workspace": "No workspace assigned",
+      "overlap": "Overlap (tokens)",
+      "selected_files": "Selected Files",
+      "upload_documents": "Upload Documents"
     },
-    "notifications": {
-      "credential_connected": "\"{displayName}\" credential connected successfully.",
-      "reconnected_successfully": "\"{displayName}\" reconnected successfully.",
-      "account_already_connected": "This account is already connected as \"{existingName}\".",
-      "protected_blocks_skipped": "Skipped {count} protected block(s)",
-      "operations": {
-        "duplicating": "Duplicating...",
-        "exporting": "Exporting...",
-        "deleting": "Deleting..."
-      }
+    "modals": {
+      "create_title": "Create Knowledge Base",
+      "delete_confirmation": "Are you sure you want to delete {name}? This will permanently remove all associated documents, chunks, and embeddings.",
+      "delete_confirmation_unnamed": "Are you sure you want to delete this knowledge base? This will permanently remove all associated documents, chunks, and embeddings.",
+      "delete_title": "Delete Knowledge Base",
+      "delete_warning": "This action cannot be undone.",
+      "edit_title": "Edit Knowledge Base"
     },
-    "block_menu": {
-      "clipboard": {
-        "copy": "Copy",
-        "paste": "Paste"
-      },
-      "edit": {
-        "duplicate": "Duplicate",
-        "rename": "Rename",
-        "open_editor": "Open Editor",
-        "flip_handles": "Flip Handles"
-      },
-      "state": {
-        "enable": "Enable",
-        "disable": "Disable",
-        "toggle_enabled": "Toggle Enabled",
-        "parent_disabled": "Parent is disabled",
-        "lock": "Lock",
-        "unlock": "Unlock",
-        "toggle_lock": "Toggle Lock",
-        "parent_locked": "Parent is locked"
-      },
-      "subflow": {
-        "remove_from_subflow": "Remove from Subflow"
-      },
-      "execution": {
-        "run_from_block": "Run from block",
-        "run_until_block": "Run until block"
-      },
-      "destructive": {
-        "delete": "Delete"
-      }
+    "no_description": "No description provided",
+    "placeholders": {
+      "enter_description": "Describe this knowledge base (optional)",
+      "enter_kb_name": "Enter knowledge base name",
+      "search": "Search"
     },
-    "canvas_menu": {
-      "history": {
-        "undo": "Undo",
-        "redo": "Redo"
-      },
-      "edit": {
-        "paste": "Paste",
-        "add_block": "Add Block",
-        "auto_layout": "Auto-layout",
-        "auto_layout_disabled": "Unlock blocks to use auto-layout",
-        "fit_to_view": "Fit to View"
-      },
-      "navigation": {
-        "open_logs": "Open Logs",
-        "open_variables": "Open Variables",
-        "close_variables": "Close Variables",
-        "open_chat": "Open Chat",
-        "close_chat": "Close Chat"
-      }
+    "sort_options": {
+      "last_updated": "Last Updated",
+      "least_docs": "Least Documents",
+      "most_docs": "Most Documents",
+      "name_asc": "Name (A-Z)",
+      "name_desc": "Name (Z-A)",
+      "newest_first": "Newest First",
+      "oldest_first": "Oldest First"
     },
-    "command_list": {
-      "templates": "Templates",
-      "new_agent": "New Agent",
-      "logs": "Logs",
-      "search_blocks": "Search Blocks"
-    },
-    "panel": {
-      "tabs": {
-        "copilot": "Copilot",
-        "toolbar": "Toolbar",
-        "editor": "Editor"
-      },
-      "menu": {
-        "auto_layout": "Auto layout",
-        "variables": "Variables",
-        "export_workflow": "Export workflow",
-        "duplicate_workflow": "Duplicate workflow",
-        "delete_workflow": "Delete workflow"
-      },
-      "buttons": {
-        "run": "Run",
-        "stop": "Stop"
-      },
-      "messages": {
-        "auto_layout_locked": "Unlock blocks to use auto-layout",
-        "delete_confirmation": "Are you sure you want to delete <workflowName/>? This will permanently remove all associated blocks, executions, and configuration."
-      },
-      "modal": {
-        "delete_title": "Delete Workflow"
-      },
-      "buttons_modal": {
-        "cancel": "Cancel",
-        "delete": "Delete",
-        "deleting": "Deleting..."
-      },
-      "error_messages": {
-        "cannot_undo": "This action cannot be undone."
-      }
-    }
+    "subtitle": "Create and manage knowledge bases with custom files.",
+    "title": "Knowledge Base"
   },
-  "blocks": {
-    "next_step": "Next step",
-    "title": "Blocks",
-    "categories": {
-      "tools": "Tools",
-      "triggers": "Triggers",
-      "control": "Control Flow",
-      "data": "Data",
-      "integrations": "Integrations"
-    },
-    "search": {
-      "placeholder": "Search blocks...",
-      "no_results": "No blocks found"
-    },
-    "common": {
-      "labels": {
-        "name": "Name",
-        "description": "Description",
-        "url": "URL",
-        "method": "Method",
-        "headers": "Headers",
-        "body": "Body",
-        "query_params": "Query Parameters",
-        "timeout": "Timeout (ms)",
-        "credentials": "Credentials",
-        "api_key": "API Key",
-        "provider": "Provider",
-        "model": "Model",
-        "temperature": "Temperature",
-        "max_tokens": "Max Tokens"
+  "links": {
+    "contact_support": "Contact support"
+  },
+  "localization": {
+    "en": "EN - english",
+    "es": "ES - Spanish",
+    "pt": "PT - portuguese"
+  },
+  "logs": {
+    "log_details": {
+      "aria_labels": {
+        "close": "Close",
+        "next_log": "Next log",
+        "next_match": "Next match",
+        "previous_log": "Previous log",
+        "previous_match": "Previous match",
+        "resize_panel": "Resize log details panel"
       },
-      "placeholders": {
-        "select_option": "Select an option",
-        "enter_value": "Enter a value",
-        "optional": "Optional"
+      "buttons": {
+        "download": "Download",
+        "opening": "Opening...",
+        "view_snapshot": "View Snapshot"
       },
-      "errors": {
-        "required_field": "{field} is required",
-        "invalid_format": "Invalid format for {field}",
-        "failed_to_load": "Failed to load {item}"
-      }
-    },
-    "api_block": {
-      "name": "API",
-      "description": "Make HTTP requests to any API",
-      "methods": {
-        "get": "GET",
-        "post": "POST",
-        "put": "PUT",
-        "delete": "DELETE",
-        "patch": "PATCH"
-      }
-    },
-    "agent_block": {
-      "name": "Agent",
-      "description": "Create AI agents with tool access",
-      "labels": {
-        "system_prompt": "System Prompt",
-        "model": "Model",
-        "tools": "Available Tools",
-        "thinking_level": "Thinking Level",
-        "messages": "Messages",
-        "google_cloud_account": "Google Cloud Account",
-        "reasoning_effort": "Reasoning Effort",
-        "verbosity": "Verbosity",
-        "azure_endpoint": "Azure Endpoint",
-        "azure_api_version": "Azure API Version",
-        "vertex_ai_project": "Vertex AI Project",
-        "vertex_ai_location": "Vertex AI Location",
-        "aws_access_key_id": "AWS Access Key ID",
-        "aws_secret_access_key": "AWS Secret Access Key",
-        "aws_region": "AWS Region",
-        "api_key": "API Key",
-        "skills": "Skills",
-        "memory": "Memory",
-        "conversation_id": "Conversation ID",
-        "sliding_window_size": "Sliding Window Size",
-        "max_tokens": "Max Tokens",
-        "max_output_tokens": "Max Output Tokens",
-        "temperature": "Temperature",
-        "response_format": "Response Format",
-        "previous_interaction_id": "Previous Interaction ID"
-      }
-    },
-    "browser_use_block": {
-      "name": "Browser Use",
-      "description": "Run browser automation tasks"
-    },
-    "cursor_block": {
-      "name": "Cursor",
-      "description": "Web automation using Cursor"
-    },
-    "dspy_block": {
-      "name": "DSPy",
-      "description": "Run predictions using self-hosted DSPy programs"
-    },
-    "elevenlabs_block": {
-      "name": "ElevenLabs",
-      "description": "Convert text to speech using ElevenLabs"
-    },
-    "enrich_block": {
-      "name": "Enrich",
-      "description": "B2B data enrichment and LinkedIn intelligence"
-    },
-    "evaluator_block": {
-      "name": "Evaluator",
-      "description": "Evaluate content with customizable metrics"
-    },
-    "firecrawl_block": {
-      "name": "Firecrawl",
-      "description": "Web scraping and data extraction"
-    },
-    "greptile_block": {
-      "name": "Greptile",
-      "description": "Code search and understanding"
-    },
-    "guardrails_block": {
-      "name": "Guardrails",
-      "description": "Validate content with guardrails"
-    },
-    "human_in_the_loop_block": {
-      "name": "Human in the Loop",
-      "description": "Pause workflow and wait for human input"
-    },
-    "huggingface_block": {
-      "name": "Hugging Face",
-      "description": "Use Hugging Face Inference API"
-    },
-    "image_generator_block": {
-      "name": "Image Generator",
-      "description": "Generate images using AI"
-    },
-    "knowledge_block": {
-      "name": "Knowledge",
-      "description": "Use vector search on knowledge bases"
-    },
-    "langsmith_block": {
-      "name": "LangSmith",
-      "description": "Forward workflow runs to LangSmith for observability"
-    },
-    "mcp_block": {
-      "name": "MCP Tool",
-      "description": "Execute tools from Model Context Protocol servers"
-    },
-    "mem0_block": {
-      "name": "Mem0",
-      "description": "Agent memory management"
-    },
-    "memory_block": {
-      "name": "Memory",
-      "description": "Add and manage memory storage"
-    },
-    "mistral_parse_block": {
-      "name": "Mistral Parser",
-      "description": "Extract text from PDF documents"
-    },
-    "openai_block": {
-      "name": "Embeddings",
-      "description": "Generate OpenAI embeddings"
-    },
-    "perplexity_block": {
-      "name": "Perplexity",
-      "description": "Use Perplexity AI for chat and search"
-    },
-    "stagehand_block": {
-      "name": "Stagehand",
-      "description": "Web automation using Stagehand"
-    },
-    "thinking_block": {
-      "name": "Thinking",
-      "description": "Forces model to outline its thought process"
-    },
-    "translate_block": {
-      "name": "Translate",
-      "description": "Translate text to any language"
-    },
-    "video_generator_block": {
-      "name": "Video Generator",
-      "description": "Generate videos from text using AI"
-    },
-    "vision_block": {
-      "name": "Vision",
-      "description": "Analyze images with vision models"
-    },
-    "condition_block": {
-      "name": "Condition",
-      "description": "Create branching logic",
-      "labels": {
-        "condition": "Condition",
-        "success": "Success",
-        "error": "Error"
-      }
-    },
-    "function_block": {
-      "name": "Function",
-      "description": "Write custom code",
-      "labels": {
-        "code": "Code"
-      }
-    },
-    "loop_block": {
-      "name": "Loop",
-      "description": "Repeat blocks over a collection"
-    },
-    "subflow_block": {
-      "name": "Subflow",
-      "description": "Call another workflow",
-      "labels": {
+      "cost_info": "Total cost includes a base execution charge of {amount} plus any model usage costs.",
+      "files_label": "Files",
+      "search_placeholder": "Search...",
+      "headers": {
+        "duration": "Duration",
+        "execution_id": "Execution ID",
+        "level": "Level",
+        "log_details": "Log Details",
+        "timestamp": "Timestamp",
+        "trace_span": "Trace Span",
+        "trigger": "Trigger",
+        "version": "Version",
         "workflow": "Workflow"
-      }
-    },
-    "workflow_block": {
-      "badges": {
-        "disabled": "disabled",
-        "locked": "locked",
-        "deploying": "Deploying...",
-        "undeployed": "undeployed",
-        "redeploy": "redeploy",
-        "webhook": "Webhook"
-      },
-      "labels": {
-        "context": "Context",
-        "route": "Route {number}",
-        "error": "error",
-        "path": "Path"
-      },
-      "tooltips": {
-        "admin_required": "Admin permission required to deploy",
-        "click_deploy": "Click to deploy",
-        "click_redeploy": "Click to redeploy",
-        "click_reactivate": "Click to reactivate",
-        "webhook_trigger": "This workflow is triggered by a webhook."
-      }
-    },
-    "action_bar": {
-      "tooltips": {
-        "run_from_block": "Run from block",
-        "execution_in_progress": "Execution in progress",
-        "previous_blocks_first": "Run previous blocks first",
-        "block_locked": "Block is locked",
-        "disable_block": "Disable Block",
-        "enable_block": "Enable Block",
-        "parent_disabled": "Parent container is disabled",
-        "parent_locked": "Parent container is locked",
-        "unlock_block": "Unlock Block",
-        "lock_block": "Lock Block",
-        "duplicate_block": "Duplicate Block",
-        "vertical_ports": "Vertical Ports",
-        "horizontal_ports": "Horizontal Ports",
-        "remove_from_subflow": "Remove from Subflow",
-        "delete_block": "Delete Block",
-        "connection_lost": "Connection lost - please refresh",
-        "read_only_mode": "Read-only mode"
-      }
-    }
-  },
-  "sub_blocks": {
-    "short_input": {
-      "title": "Text",
-      "placeholder": "Enter text"
-    },
-    "long_input": {
-      "title": "Long Text",
-      "placeholder": "Enter long text"
-    },
-    "dropdown": {
-      "title": "Dropdown",
-      "placeholder": "Select option"
-    },
-    "combobox": {
-      "title": "Searchable Dropdown",
-      "placeholder": "Search and select"
-    },
-    "slider": {
-      "title": "Slider",
-      "placeholder": "Select value"
-    },
-    "table": {
-      "title": "Table",
-      "placeholder": "Enter table data"
-    },
-    "code": {
-      "title": "Code",
-      "placeholder": "Write your code"
-    },
-    "switch": {
-      "title": "Toggle",
-      "placeholder": "Enable/Disable"
-    },
-    "tool_input": {
-      "title": "Tool Configuration",
-      "placeholder": "Configure tool"
-    },
-    "skill_input": {
-      "title": "Skill Selection",
-      "placeholder": "Select skill",
-      "buttons": {
-        "create": "Create Skill"
       },
       "sections": {
-        "available": "Skills"
+        "base_execution": "Base Execution:",
+        "cost_breakdown": "Cost Breakdown",
+        "model_input": "Model Input:",
+        "model_output": "Model Output:",
+        "tokens": "Tokens:",
+        "total": "Total:",
+        "trace_spans": "Trace Spans",
+        "workflow_output": "Workflow Output",
+        "workflow_state": "Workflow State"
       },
-      "placeholders": {
-        "add": "Add skill...",
-        "search": "Search skills..."
+      "title": "Log Details"
+    },
+    "log_row_context_menu": {
+      "clear_filters": "Clear Filters",
+      "copy_execution_id": "Copy Execution ID",
+      "filter_by_workflow": "Filter by Workflow",
+      "open_snapshot": "Open Snapshot",
+      "open_workflow": "Open Workflow"
+    },
+    "dashboard": {
+      "cards": {
+        "errors": "Errors",
+        "latency": "Latency",
+        "runs": "Runs"
       },
-      "empty_state": "No skills found",
-      "aria": {
-        "remove_skill": "Remove skill"
+      "column_headers": {
+        "logs": "Logs",
+        "success_rate": "Success Rate",
+        "workflow": "Workflow"
+      },
+      "empty_state": {
+        "description": "Create a workflow to see its execution history here",
+        "title": "No workflows"
+      },
+      "error_state": {
+        "error": "Error loading data"
+      },
+      "line_chart_title": "Success Rate Over Time",
+      "no_workflows_found": "No workflows found",
+      "no_workflows_found_with_search": "No workflows found matching",
+      "table_headers": {
+        "logs": "Logs",
+        "success_rate": "Success Rate",
+        "workflow": "Workflow"
+      },
+      "title": "Dashboard",
+      "workflows_list_title": "Workflows"
+    },
+    "logs_list": {
+      "loading_more": "Loading more...",
+      "scroll_to_load": "Scroll to load more",
+      "aria_labels": {
+        "open_resume_console": "Open resume console"
+      },
+      "columns": {
+        "cost": "Cost",
+        "date": "Date",
+        "duration": "Duration",
+        "status": "Status",
+        "time": "Time",
+        "trigger": "Trigger",
+        "workflow": "Workflow"
+      },
+      "deleted_workflow": "Deleted Workflow",
+      "status_labels": {
+        "cancelled": "Cancelled",
+        "error": "Error",
+        "info": "Info",
+        "pending": "Pending",
+        "running": "Running"
       }
     },
-    "checkbox_list": {
-      "title": "Multiple Selection",
-      "placeholder": "Select options"
-    },
-    "grouped_checkbox_list": {
-      "title": "Grouped Selection",
-      "placeholder": "Select from groups"
-    },
-    "condition_input": {
-      "title": "Condition",
-      "placeholder": "Define condition"
-    },
-    "eval_input": {
-      "title": "Evaluation",
-      "placeholder": "Enter evaluation"
-    },
-    "time_input": {
-      "title": "Time",
-      "placeholder": "Select time"
-    },
-    "oauth_input": {
-      "title": "Oauth Credential",
-      "placeholder": "Select credential"
-    },
-    "webhook_config": {
-      "title": "Webhook Configuration",
-      "placeholder": "Configure webhook"
-    },
-    "schedule_info": {
-      "title": "Schedule Info",
-      "placeholder": "Schedule information"
-    },
-    "file_selector": {
-      "title": "File Selector",
-      "placeholder": "Select file"
-    },
-    "sheet_selector": {
-      "title": "Sheet Selector",
-      "placeholder": "Select sheet"
-    },
-    "project_selector": {
-      "title": "Project Selector",
-      "placeholder": "Select project"
-    },
-    "channel_selector": {
-      "title": "Channel Selector",
-      "placeholder": "Select channel"
-    },
-    "user_selector": {
-      "title": "User Selector",
-      "placeholder": "Select user"
-    },
-    "folder_selector": {
-      "title": "Folder Selector",
-      "placeholder": "Select folder"
-    },
-    "knowledge_base_selector": {
-      "title": "Knowledge Base",
-      "placeholder": "Select knowledge base"
-    },
-    "knowledge_tag_filters": {
-      "title": "Tag Filters",
-      "placeholder": "Select tags"
-    },
-    "document_selector": {
-      "title": "Document Selector",
-      "placeholder": "Select document"
-    },
-    "document_tag_entry": {
-      "title": "Document Tags",
-      "placeholder": "Enter tags"
-    },
-    "mcp_server_selector": {
-      "title": "MCP Server",
-      "placeholder": "Select server"
-    },
-    "mcp_tool_selector": {
-      "title": "MCP Tool",
-      "placeholder": "Select tool"
-    },
-    "mcp_dynamic_args": {
-      "title": "MCP Arguments",
-      "placeholder": "Enter arguments"
-    },
-    "input_format": {
-      "title": "Input Format",
-      "placeholder": "Define input structure"
-    },
-    "response_format": {
-      "title": "Response Format",
-      "placeholder": "Define response structure"
-    },
-    "field_format": {
-      "labels": {
-        "name": "Name",
-        "type": "Type",
-        "description": "Description",
-        "value": "Value"
+    "notifications": {
+      "alert_config_labels": {
+        "cost_threshold": "Cost Threshold ($)",
+        "duration_threshold": "Duration Threshold (seconds)",
+        "error_count": "Error Count",
+        "failure_count": "Failure Count",
+        "failure_rate": "Failure Rate (%)",
+        "inactivity_hours": "Inactivity (hours)",
+        "latency_spike_percent": "Latency Spike %",
+        "window": "Window (hours)"
       },
-      "placeholders": {
-        "name": "fieldName",
-        "value": "Enter default value",
-        "description": "Describe this field",
-        "boolean_value": "Select value"
+      "alert_rules": {
+        "consecutive_failures": "Consecutive Failures",
+        "consecutive_failures_description": "After X failures in a row",
+        "cost_threshold": "Cost Threshold",
+        "cost_threshold_description": "When execution cost exceeds $",
+        "error_count": "Error Count",
+        "error_count_description": "When errors exceed count in window",
+        "failure_rate": "Failure Rate",
+        "failure_rate_description": "When failure % exceeds threshold",
+        "latency_spike": "Latency Spike",
+        "latency_spike_description": "When slower than average by %",
+        "latency_threshold": "Latency Threshold",
+        "latency_threshold_description": "When execution exceeds duration",
+        "no_activity": "No Activity",
+        "no_activity_description": "When no executions in time window",
+        "none": "None",
+        "none_description": "Notify on every matching execution"
+      },
+      "badges": {
+        "all_workflows": "All workflows",
+        "workflow_count": "{count} workflow(s)"
       },
       "buttons": {
-        "add": "Add {title}",
-        "remove": "Delete Field"
+        "add": "Add",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "edit": "Edit",
+        "failed": "Failed",
+        "save": "Save",
+        "sent": "Sent",
+        "test": "Test"
       },
-      "aria": {
-        "add": "Add {title}",
-        "delete": "Delete Field"
+      "connect_slack": "Connect Slack",
+      "connecting_slack": "Connecting...",
+      "errors": {
+        "consecutive_failures_range": "Must be between 1 and 100",
+        "cost_threshold_range": "Must be between $0.01 and $1000",
+        "duration_threshold_range": "Must be between 1s and 1 hour",
+        "email_invalid": "Invalid email addresses: {emails}",
+        "email_max": "Maximum 10 email recipients allowed",
+        "email_required": "At least one email address is required",
+        "error_count_range": "Must be between 1 and 1000",
+        "failed_to_save": "Failed to save notification",
+        "failed_to_send_test": "Failed to send test",
+        "failure_rate_range": "Must be between 1 and 100",
+        "inactivity_hours_range": "Must be between 1 and 168 hours",
+        "latency_spike_range": "Must be between 10% and 1000%",
+        "level_filter_required": "Select at least one log level",
+        "slack_account_required": "Select a Slack account",
+        "slack_channel_required": "Select a Slack channel",
+        "test_failed": "Test failed",
+        "test_sent_successfully": "Test sent successfully",
+        "trigger_filter_required": "Select at least one trigger type",
+        "webhook_url_format": "Invalid URL format",
+        "webhook_url_required": "Webhook URL is required",
+        "webhook_url_valid": "URL must start with http:// or https://",
+        "window_hours_range": "Must be between 1 and 168 hours",
+        "workflows_required": "Select at least one workflow or enable \"All Workflows\""
       },
-      "field_format": {
-        "title": "Field",
-        "placeholder": "fieldName",
-        "value_placeholder": "Enter default value",
-        "description_placeholder": "Describe this field"
+      "form_labels": {
+        "all_workflows": "All Workflows",
+        "email_recipients": "Email Recipients",
+        "include_in_payload": "Include in Payload",
+        "log_level_filters": "Log Level Filters",
+        "rule": "Rule",
+        "slack_account": "Slack Account",
+        "slack_channel": "Channel",
+        "trigger_type_filters": "Trigger Type Filters",
+        "webhook_secret": "Secret (optional)",
+        "webhook_url": "Webhook URL",
+        "workflows": "Workflows"
       },
-      "input_format": {
-        "title": "Input",
-        "placeholder": "firstName",
-        "description_placeholder": "Describe this field"
+      "form_placeholders": {
+        "add_email": "Add email",
+        "email_recipients": "Enter emails",
+        "select_account": "Select account...",
+        "select_data": "Select data to include...",
+        "select_log_levels": "Select log levels...",
+        "select_rule": "Select rule",
+        "select_trigger_types": "Select trigger types...",
+        "select_workflows": "Select workflows...",
+        "webhook_secret": "Webhook secret for signature verification",
+        "webhook_url": "https://your-app.com/webhook"
       },
-      "response_format": {
-        "title": "Field",
-        "placeholder": "output",
-        "value_placeholder": "Enter return value"
+      "modal_title": "Notification Settings",
+      "payload_options": {
+        "final_output": "Final Output",
+        "rate_limits": "Rate Limits",
+        "trace_spans": "Trace Spans",
+        "usage_data": "Usage Data"
+      },
+      "subscription_items": {
+        "all_workflows": "All workflows",
+        "workflow_count": "{count} workflow(s)"
+      },
+      "tabs": {
+        "email": "Email",
+        "slack": "Slack",
+        "webhook": "Webhook"
       }
     },
-    "filter_builder": {
-      "title": "Filters",
-      "placeholder": "Add filters"
+    "page": {
+      "error": "Error: {message}",
+      "failed_to_load": "Failed to load logs",
+      "loading": "Loading logs...",
+      "no_logs_found": "No logs found",
+      "title": "Logs"
     },
-    "sort_builder": {
-      "title": "Sort",
-      "placeholder": "Add sorting"
+    "toolbar": {
+      "count_folders": "{count} folders",
+      "count_selected": "{count} selected",
+      "count_triggers": "{count} triggers",
+      "count_workflows": "{count} workflows",
+      "clear_filters": "Clear",
+      "configure_notifications": "Configure Notifications",
+      "dashboard_view": "Dashboard",
+      "export_csv": "Export as CSV",
+      "filters": {
+        "all_folders": "All folders",
+        "all_statuses": "All statuses",
+        "all_time": "All time",
+        "all_triggers": "All triggers",
+        "all_workflows": "All workflows",
+        "folder": "Folder",
+        "search_folders": "Search folders...",
+        "search_triggers": "Search triggers...",
+        "search_workflows": "Search workflows...",
+        "status": "Status",
+        "time_range": "Time Range",
+        "trigger": "Trigger",
+        "workflow": "Workflow"
+      },
+      "filters_button": "Filters",
+      "live": "Live",
+      "logs_view": "Logs",
+      "more_options": "More options",
+      "refresh": "Refresh",
+      "search_placeholder": "Search",
+      "status_count": "{count} selected",
+      "time_ranges": {
+        "all_time": "All time",
+        "custom_range": "Custom range",
+        "past_12_hours": "Past 12 hours",
+        "past_14_days": "Past 14 days",
+        "past_24_hours": "Past 24 hours",
+        "past_30_days": "Past 30 days",
+        "past_30_minutes": "Past 30 minutes",
+        "past_3_days": "Past 3 days",
+        "past_6_hours": "Past 6 hours",
+        "past_7_days": "Past 7 days",
+        "past_hour": "Past hour"
+      },
+      "title": "Logs"
     },
-    "trigger_save": {
-      "title": "Save Trigger",
-      "placeholder": "Save configuration"
-    },
-    "file_upload": {
-      "title": "File Upload",
-      "placeholder": "Upload file"
-    },
-    "input_mapping": {
-      "title": "Input Mapping",
-      "placeholder": "Map inputs"
-    },
-    "variables_input": {
-      "title": "Variables",
-      "placeholder": "Set variables"
-    },
-    "messages_input": {
-      "title": "Messages",
-      "placeholder": "Enter messages"
+    "workflow_output": {
+      "aria_labels": {
+        "next_match": "Next match",
+        "previous_match": "Previous match"
+      },
+      "close_search_aria": "Close search",
+      "copied_tooltip": "Copied",
+      "copy_tooltip": "Copy",
+      "error_label": "Error",
+      "input_label": "Input",
+      "menu_copy": "Copy",
+      "menu_search": "Search",
+      "no_trace_data": "No trace data available",
+      "output_label": "Output",
+      "search_placeholder": "Search output...",
+      "search_tooltip": "Search"
     },
     "workflow_selector": {
-      "title": "Workflow",
-      "placeholder": "Select workflow"
+      "all_workflows": "All Workflows",
+      "label": "Workflows",
+      "placeholder": "Select workflows...",
+      "search_placeholder": "Search workflows..."
     },
-    "workflow_input_mapper": {
-      "title": "Workflow Inputs",
-      "placeholder": "Map workflow inputs"
+    "execution_snapshot": {
+      "error_loading": "Failed to load execution snapshot: {error}",
+      "loading": "Loading execution snapshot...",
+      "migrated_state_title": "Logged State Not Found",
+      "migrated_state_description": "This log was migrated from the old logging system. The workflow state at execution time is not available.",
+      "migrated_state_note": "Note: {note}",
+      "copy_execution_id": "Copy Execution ID"
     },
-    "text": {
-      "title": "Text Display",
-      "placeholder": "Display text"
+    "snapshot_context_menu": {
+      "copy": "Copy",
+      "search": "Search",
+      "wrap_text": "Wrap Text"
     },
-    "router_input": {
-      "title": "Router Configuration",
-      "placeholder": "Define routes"
+    "status_bar": {
+      "segment_label": "Segment {index}",
+      "succeeded_count": "{successful}/{total} succeeded"
     },
-    "table_selector": {
-      "title": "Table Selector",
-      "placeholder": "Select table"
+    "slack_channel_selector": {
+      "label": "Slack Channel",
+      "placeholder": "Select channel...",
+      "account_required": "Select a Slack account first",
+      "no_channels": "No channels available",
+      "search_placeholder": "Search channels...",
+      "channel_type_private": "Private",
+      "channel_type_public": "Public"
     }
   },
+  "mcp_deploy": {
+    "buttons": {
+      "create_mcp_server": "Create MCP Server"
+    },
+    "helper_text": {
+      "servers_disabled": "Enter a tool name to select servers",
+      "tool_name": "Use lowercase letters, numbers, and underscores only"
+    },
+    "labels": {
+      "description": "Description",
+      "parameter_description": "Description",
+      "parameters": "Parameters",
+      "servers": "Servers",
+      "tool_name": "Tool name"
+    },
+    "messages": {
+      "no_servers": "Create an MCP Server in Settings → MCP Servers first.",
+      "not_deployed": "Deploy your workflow first to add it as an MCP tool."
+    },
+    "placeholders": {
+      "description": "Describe what this tool does...",
+      "parameter_description": "Enter description for",
+      "servers": "Select servers...",
+      "servers_search": "Search servers...",
+      "tool_name": "e.g., book_flight"
+    }
+  },
+  "network_error": "Network error. Please check your connection and try again.",
   "panel": {
-    "editor": {
-      "messages": {
-        "select_block": "Select a block to edit",
-        "no_subblocks": "This block has no subblocks",
-        "unable_to_load_preview": "Unable to load preview"
+    "copilot_panel": {
+      "bottom_controls": {
+        "attach_file_title": "Attach file",
+        "stop_generation_title": "Stop generation"
       },
-      "labels": {
-        "workflow_preview": "Workflow Preview",
-        "connections": "Connections",
-        "additional_fields": "Additional fields"
+      "checkpoint_confirmation": {
+        "cancel_button": "Cancel",
+        "continue_button": "Continue",
+        "continue_title": "Continue from a previous message?",
+        "restore_title": "Revert to checkpoint? This will restore your workflow to the state saved at this checkpoint.",
+        "restore_warning": "This action cannot be undone.",
+        "revert_button": "Revert",
+        "reverting_button": "Reverting..."
+      },
+      "error_states": {
+        "no_workflow_selected": "No workflow selected"
+      },
+      "mode_selector": {
+        "aria_label_collapsed": "Close mode selector",
+        "aria_label_expanded": "Open mode selector",
+        "ask": "Ask",
+        "build": "Build",
+        "plan": "Plan"
+      },
+      "model_selector": {
+        "no_models_available": "No models available"
+      },
+      "plan_mode_section": {
+        "cancel_editing_label": "Cancel editing",
+        "delete_label": "Delete",
+        "edit_label": "Edit",
+        "save_label": "Save",
+        "title": "Workflow Plan"
+      },
+      "todo_list": {
+        "aria_collapse": "Collapse todo list",
+        "aria_expand": "Expand todo list",
+        "header_label": "Todo:"
+      },
+      "usage_limit_actions": {
+        "upgrade_button": "Upgrade"
+      },
+      "welcome": {
+        "build_question": "Help me build a workflow",
+        "build_title": "Build",
+        "create_workflow_question": "How do I create a workflow?",
+        "create_workflow_title": "Create workflow",
+        "debug_question": "Help debug my workflow",
+        "debug_title": "Debug",
+        "discover_tools_question": "What tools are available?",
+        "discover_tools_title": "Discover tools",
+        "get_started_question": "Help me get started",
+        "get_started_title": "Get started",
+        "mention_symbol": "@",
+        "mention_tip": "Tip: Use @{symbol} to reference chats, workflows, knowledge, blocks, or templates",
+        "optimize_question": "Create a fast workflow",
+        "optimize_title": "Optimize"
+      }
+    },
+    "editor": {
+      "aria_labels": {
+        "collapse_connections": "Collapse connections",
+        "expand_connections": "Expand connections",
+        "focus_on_block": "Focus on block",
+        "open_docs": "Open documentation",
+        "rename_block": "Rename block",
+        "save_name": "Save name",
+        "unlock_block": "Unlock block"
       },
       "buttons": {
         "open_docs": "Open docs",
-        "toggle_advanced_show": "Show additional fields",
+        "open_workflow": "Open workflow",
         "toggle_advanced_hide": "Hide additional fields",
-        "unlock": "Unlock block",
-        "open_workflow": "Open workflow"
+        "toggle_advanced_show": "Show additional fields",
+        "unlock": "Unlock block"
       },
-      "aria_labels": {
-        "save_name": "Save name",
-        "rename_block": "Rename block",
-        "open_docs": "Open documentation",
-        "focus_on_block": "Focus on block",
-        "unlock_block": "Unlock block",
-        "expand_connections": "Expand connections",
-        "collapse_connections": "Collapse connections"
+      "labels": {
+        "additional_fields": "Additional fields",
+        "connections": "Connections",
+        "workflow_preview": "Workflow Preview"
       },
       "lock_messages": {
+        "admin_required": "Admin permission required",
         "block_locked": "Block is locked",
-        "parent_locked": "Parent container is locked",
-        "admin_required": "Admin permission required"
+        "parent_locked": "Parent container is locked"
+      },
+      "messages": {
+        "no_subblocks": "This block has no subblocks",
+        "select_block": "Select a block to edit",
+        "unable_to_load_preview": "Unable to load preview"
       },
       "sub_blocks": {
-        "short_input": {
+        "checkbox_list": {
           "placeholders": {
-            "default": "Enter text"
+            "default": "Select options"
           }
         },
-        "long_input": {
+        "code": {
+          "ai_prompts": {
+            "javascript": "Describe the JavaScript code to generate...",
+            "json_object": "Describe the JSON object to generate...",
+            "json_schema": "Describe the JSON schema to generate...",
+            "python": "Describe the Python function you want to create..."
+          },
+          "aria": {
+            "copy": "Copy code",
+            "generate": "Generate code with AI"
+          },
+          "buttons": {
+            "copy": "Copy code",
+            "generate": "Generate code with AI"
+          },
           "placeholders": {
-            "default": "Enter text"
+            "javascript": "Write JavaScript...",
+            "json": "Write JSON...",
+            "python": "Write Python..."
+          }
+        },
+        "code_input": {
+          "placeholders": {
+            "default": "Enter code",
+            "javascript": "Write JavaScript...",
+            "python": "Write Python..."
           }
         },
         "combobox": {
@@ -1515,212 +1154,43 @@
             "default": "Type or select an option..."
           }
         },
-        "dropdown": {
-          "placeholders": {
-            "default": "Select an option..."
-          }
-        },
-        "file_upload": {
-          "placeholders": {
-            "loading": "Loading files...",
-            "default": "Select or upload file"
-          },
-          "messages": {
-            "file_deleted": "File deleted",
-            "upload_error": "Upload failed"
-          },
-          "aria_labels": {
-            "clear_file": "Clear selected file"
-          }
-        },
-        "file_selector": {
-          "placeholders": {
-            "default": "Select file"
-          }
-        },
-        "folder_selector": {
-          "placeholders": {
-            "default": "Select folder"
-          }
-        },
-        "credential_selector": {
-          "placeholders": {
-            "default": "Select credential",
-            "fill_required_fields": "Fill in required fields above first"
-          },
-          "messages": {
-            "missing_credential": "Missing credential",
-            "connect_account": "Connect account",
-            "additional_permissions_required": "Additional permissions required"
-          },
-          "buttons": {
-            "update_access": "Update access"
-          },
-          "sections": {
-            "polling_groups": "Polling Groups",
-            "personal_credential": "Personal Credential"
-          },
-          "labels": {
-            "connect_another_account": "Connect another {provider} account",
-            "connect_account_label": "Connect {provider} account"
-          },
-          "aria_labels": {
-            "oauth_required": "OAuth required"
-          }
-        },
-        "time_input": {
-          "placeholders": {
-            "default": "Select time"
-          }
-        },
         "condition_input": {
-          "labels": {
-            "if": "If",
-            "else_if": "Else If",
-            "else": "Else"
+          "aria_labels": {
+            "move_condition": "Move condition",
+            "remove_condition": "Remove condition"
           },
           "buttons": {
             "add_condition": "Add condition"
           },
-          "aria_labels": {
-            "remove_condition": "Remove condition",
-            "move_condition": "Move condition"
+          "labels": {
+            "else": "Else",
+            "else_if": "Else If",
+            "if": "If"
           }
         },
-        "filter_builder": {
-          "labels": {
-            "column": "Column",
-            "operator": "Operator",
-            "value": "Value",
-            "condition": "Condition {index}",
-            "logic": "Logic"
+        "credential_selector": {
+          "aria_labels": {
+            "oauth_required": "OAuth required"
           },
           "buttons": {
-            "add_rule": "Add rule",
-            "remove_rule": "Remove rule"
-          },
-          "placeholders": {
-            "value": "Enter value"
-          },
-          "LogicalOperator": {
-            "and": "And",
-            "or": "Or"
-          },
-          "aria_labels": {
-            "add_condition": "Add Condition",
-            "delete_condition": "Delete Condition"
-          }
-        },
-        "eval_input": {
-          "labels": {
-            "name": "Name",
-            "description": "Description",
-            "min": "Min",
-            "max": "Max",
-            "metric": "Metric {index}"
-          },
-          "buttons": {
-            "add_metric": "Add metric"
-          },
-          "aria_labels": {
-            "remove_metric": "Remove metric"
-          }
-        },
-        "knowledge_base_selector": {
-          "placeholders": {
-            "default": "Select knowledge base"
+            "update_access": "Update access"
           },
           "labels": {
-            "search": "Search knowledge bases"
-          }
-        },
-        "messages_input": {
-          "placeholders": {
-            "role": "Select role",
-            "content": "Enter message content"
-          },
-          "buttons": {
-            "add_message": "Add message"
-          },
-          "aria_labels": {
-            "delete_message": "Delete message",
-            "move_message_up": "Move message up",
-            "move_message_down": "Move message down",
-            "add_message_below": "Add message below"
-          }
-        },
-        "selector_combobox": {
-          "placeholders": {
-            "default": "Type or select"
-          },
-          "aria_labels": {
-            "clear_selection": "Clear selection"
-          }
-        },
-        "slack_selector": {
-          "placeholders": {
-            "channel": "Select channel"
-          }
-        },
-        "tag_dropdown": {
-          "placeholders": {
-            "default": "Select tag"
-          }
-        },
-        "tool_input": {
-          "placeholders": {
-            "default": "Select tool",
-            "add_tool": "Add tool...",
-            "search_tools": "Search tools...",
-            "select_operation": "Select operation",
-            "parameter": "Enter {name}{type}"
-          },
-          "labels": {
-            "operation": "Operation"
+            "connect_account_label": "Connect {provider} account",
+            "connect_another_account": "Connect another {provider} account"
           },
           "messages": {
-            "no_workflow_selected": "Select a workflow to configure its inputs",
-            "no_input_fields": "This workflow has no custom input fields",
-            "no_tools_found": "No tools found"
+            "additional_permissions_required": "Additional permissions required",
+            "connect_account": "Connect account",
+            "missing_credential": "Missing credential"
+          },
+          "placeholders": {
+            "default": "Select credential",
+            "fill_required_fields": "Fill in required fields above first"
           },
           "sections": {
-            "create_tool": "Create Tool",
-            "add_mcp_server": "Add MCP Server"
-          },
-          "deployment": {
-            "deploying": "Deploying...",
-            "undeployed": "undeployed",
-            "redeploy": "redeploy",
-            "click_to_deploy": "Click to deploy",
-            "click_to_redeploy": "Click to redeploy",
-            "admin_required": "Admin permission required to deploy"
-          },
-          "usage_control": {
-            "auto": "Auto",
-            "force": "Force",
-            "none": "None",
-            "auto_description": "Let LLM decide",
-            "force_description": "Always provide to LLM",
-            "none_description": "Never provide to LLM"
-          },
-          "aria_labels": {
-            "tool_usage_control": "Tool usage control",
-            "remove_tool": "Remove tool"
-          }
-        },
-        "workflow_selector": {
-          "placeholders": {
-            "default": "Select workflow"
-          }
-        },
-        "sheet_selector": {
-          "placeholders": {
-            "default": "Select sheet"
-          }
-        },
-        "project_selector": {
-          "placeholders": {
-            "default": "Select project"
+            "personal_credential": "Personal Credential",
+            "polling_groups": "Polling Groups"
           }
         },
         "document_selector": {
@@ -1728,13 +1198,188 @@
             "default": "Select document"
           }
         },
-        "variables_input": {
-          "buttons": {
-            "add_variable": "Add variable"
+        "document_tag_entry": {
+          "aria_labels": {
+            "add_tag": "Add Tag",
+            "delete_tag": "Delete Tag"
           },
           "labels": {
-            "name": "Name",
+            "document_tags": "Document Tags",
+            "tag": "Tag",
+            "tag_name": "Tag",
             "value": "Value"
+          },
+          "messages": {
+            "define_tags_first": "Define tags at the knowledge base level first",
+            "no_tags": "No tags",
+            "no_tags_defined": "No tags defined for this knowledge base",
+            "tags_configured": "{count} tag(s) configured"
+          },
+          "placeholders": {
+            "default": "Add tags",
+            "tag": "Select tag"
+          }
+        },
+        "dropdown": {
+          "placeholders": {
+            "default": "Select an option..."
+          }
+        },
+        "env_var_dropdown": {
+          "placeholders": {
+            "search": "Search variables"
+          }
+        },
+        "eval_input": {
+          "aria_labels": {
+            "remove_metric": "Remove metric"
+          },
+          "buttons": {
+            "add_metric": "Add metric"
+          },
+          "labels": {
+            "description": "Description",
+            "max": "Max",
+            "metric": "Metric {index}",
+            "min": "Min",
+            "name": "Name"
+          }
+        },
+        "file_selector": {
+          "placeholders": {
+            "default": "Select file"
+          }
+        },
+        "file_upload": {
+          "aria_labels": {
+            "clear_file": "Clear selected file"
+          },
+          "messages": {
+            "file_deleted": "File deleted",
+            "upload_error": "Upload failed"
+          },
+          "placeholders": {
+            "default": "Select or upload file",
+            "loading": "Loading files..."
+          }
+        },
+        "filter_builder": {
+          "LogicalOperator": {
+            "and": "And",
+            "or": "Or"
+          },
+          "aria_labels": {
+            "add_condition": "Add Condition",
+            "delete_condition": "Delete Condition"
+          },
+          "buttons": {
+            "add_rule": "Add rule",
+            "remove_rule": "Remove rule"
+          },
+          "labels": {
+            "column": "Column",
+            "condition": "Condition {index}",
+            "logic": "Logic",
+            "operator": "Operator",
+            "value": "Value"
+          },
+          "placeholders": {
+            "value": "Enter value"
+          }
+        },
+        "folder_selector": {
+          "placeholders": {
+            "default": "Select folder"
+          }
+        },
+        "grouped_checkbox_list": {
+          "placeholders": {
+            "default": "Select options"
+          }
+        },
+        "input_mapping": {
+          "buttons": {
+            "add_mapping": "Add mapping"
+          },
+          "labels": {
+            "from": "From",
+            "to": "To",
+            "value": "Value"
+          },
+          "messages": {
+            "loading": "loading...",
+            "no_workflow_selected": "No workflow selected",
+            "select_workflow_to_configure": "Select a workflow above to configure inputs"
+          },
+          "placeholders": {
+            "value": "Enter value or reference"
+          }
+        },
+        "knowledge_base_selector": {
+          "labels": {
+            "search": "Search knowledge bases"
+          },
+          "placeholders": {
+            "default": "Select knowledge base"
+          }
+        },
+        "knowledge_tag_filters": {
+          "aria_labels": {
+            "add_filter": "Add Filter",
+            "delete_filter": "Delete Filter"
+          },
+          "labels": {
+            "between_connector": "to",
+            "filter": "Filter {index}",
+            "operator": "Operator",
+            "tag": "Tag",
+            "tag_filters": "Tag Filters",
+            "value": "Value"
+          },
+          "messages": {
+            "filters_applied": "{count} filter(s) applied",
+            "no_filters": "No filters"
+          },
+          "placeholders": {
+            "default": "Filter by tags",
+            "operator": "Select operator",
+            "tag": "Select tag"
+          }
+        },
+        "long_input": {
+          "placeholders": {
+            "default": "Enter text"
+          }
+        },
+        "mcp_dynamic_args": {
+          "labels": {
+            "arguments": "Arguments"
+          }
+        },
+        "mcp_server_modal": {
+          "labels": {
+            "select_server": "Select MCP Server",
+            "select_tool": "Select Tool"
+          }
+        },
+        "messages_input": {
+          "aria_labels": {
+            "add_message_below": "Add message below",
+            "delete_message": "Delete message",
+            "move_message_down": "Move message down",
+            "move_message_up": "Move message up"
+          },
+          "buttons": {
+            "add_message": "Add message"
+          },
+          "placeholders": {
+            "content": "Enter message content",
+            "role": "Select role"
+          }
+        },
+        "project_selector": {
+          "placeholders": {
+            "default": "Select project"
           }
         },
         "response_format": {
@@ -1752,91 +1397,39 @@
             "time": "Time"
           }
         },
-        "checkbox_list": {
-          "placeholders": {
-            "default": "Select options"
-          }
-        },
-        "document_tag_entry": {
-          "placeholders": {
-            "default": "Add tags",
-            "tag": "Select tag"
-          },
-          "labels": {
-            "document_tags": "Document Tags",
-            "tag": "Tag",
-            "tag_name": "Tag",
-            "value": "Value"
-          },
-          "messages": {
-            "tags_configured": "{count} tag(s) configured",
-            "no_tags": "No tags",
-            "no_tags_defined": "No tags defined for this knowledge base",
-            "define_tags_first": "Define tags at the knowledge base level first"
-          },
+        "selector_combobox": {
           "aria_labels": {
-            "add_tag": "Add Tag",
-            "delete_tag": "Delete Tag"
-          }
-        },
-        "env_var_dropdown": {
-          "placeholders": {
-            "search": "Search variables"
-          }
-        },
-        "input_mapping": {
-          "buttons": {
-            "add_mapping": "Add mapping"
+            "clear_selection": "Clear selection"
           },
+          "placeholders": {
+            "default": "Type or select"
+          }
+        },
+        "sheet_selector": {
+          "placeholders": {
+            "default": "Select sheet"
+          }
+        },
+        "short_input": {
+          "placeholders": {
+            "default": "Enter text"
+          }
+        },
+        "slack_selector": {
+          "placeholders": {
+            "channel": "Select channel"
+          }
+        },
+        "slider_input": {
           "labels": {
-            "from": "From",
-            "to": "To",
             "value": "Value"
-          },
-          "placeholders": {
-            "value": "Enter value or reference"
-          },
-          "messages": {
-            "no_workflow_selected": "No workflow selected",
-            "select_workflow_to_configure": "Select a workflow above to configure inputs",
-            "loading": "loading..."
-          }
-        },
-        "knowledge_tag_filters": {
-          "placeholders": {
-            "default": "Filter by tags",
-            "tag": "Select tag",
-            "operator": "Select operator"
-          },
-          "labels": {
-            "tag_filters": "Tag Filters",
-            "filter": "Filter {index}",
-            "tag": "Tag",
-            "operator": "Operator",
-            "value": "Value",
-            "between_connector": "to"
-          },
-          "messages": {
-            "filters_applied": "{count} filter(s) applied",
-            "no_filters": "No filters"
-          },
-          "aria_labels": {
-            "add_filter": "Add Filter",
-            "delete_filter": "Delete Filter"
-          }
-        },
-        "mcp_dynamic_args": {
-          "labels": {
-            "arguments": "Arguments"
-          }
-        },
-        "mcp_server_modal": {
-          "labels": {
-            "select_server": "Select MCP Server",
-            "select_tool": "Select Tool"
           }
         },
         "sort_builder": {
+          "aria_labels": {
+            "add_sort": "Add Sort",
+            "delete_sort": "Delete Sort"
+          },
           "labels": {
             "column": "Column",
             "order": "Order",
@@ -1845,36 +1438,6 @@
           "options": {
             "ascending": "Ascending",
             "descending": "Descending"
-          },
-          "aria_labels": {
-            "add_sort": "Add Sort",
-            "delete_sort": "Delete Sort"
-          }
-        },
-        "slider_input": {
-          "labels": {
-            "value": "Value"
-          }
-        },
-        "code": {
-          "placeholders": {
-            "javascript": "Write JavaScript...",
-            "python": "Write Python...",
-            "json": "Write JSON..."
-          },
-          "ai_prompts": {
-            "javascript": "Describe the JavaScript code to generate...",
-            "json_schema": "Describe the JSON schema to generate...",
-            "json_object": "Describe the JSON object to generate...",
-            "python": "Describe the Python function you want to create..."
-          },
-          "buttons": {
-            "copy": "Copy code",
-            "generate": "Generate code with AI"
-          },
-          "aria": {
-            "copy": "Copy code",
-            "generate": "Generate code with AI"
           }
         },
         "switch": {
@@ -1883,15 +1446,15 @@
           }
         },
         "table": {
+          "aria_labels": {
+            "delete_row": "Delete row"
+          },
           "columns": {
             "key": "Key",
             "value": "Value"
           },
           "labels": {
             "rows": "Rows"
-          },
-          "aria_labels": {
-            "delete_row": "Delete row"
           }
         },
         "table_selector": {
@@ -1899,716 +1462,1169 @@
             "default": "Select table"
           }
         },
+        "tag_dropdown": {
+          "placeholders": {
+            "default": "Select tag"
+          }
+        },
         "text_input": {
           "placeholders": {
             "default": "Enter text"
           }
         },
-        "grouped_checkbox_list": {
+        "time_input": {
           "placeholders": {
-            "default": "Select options"
+            "default": "Select time"
           }
         },
-        "code_input": {
+        "tool_input": {
+          "aria_labels": {
+            "remove_tool": "Remove tool",
+            "tool_usage_control": "Tool usage control"
+          },
+          "deployment": {
+            "admin_required": "Admin permission required to deploy",
+            "click_to_deploy": "Click to deploy",
+            "click_to_redeploy": "Click to redeploy",
+            "deploying": "Deploying...",
+            "redeploy": "redeploy",
+            "undeployed": "undeployed"
+          },
+          "labels": {
+            "operation": "Operation"
+          },
+          "messages": {
+            "no_input_fields": "This workflow has no custom input fields",
+            "no_tools_found": "No tools found",
+            "no_workflow_selected": "Select a workflow to configure its inputs"
+          },
           "placeholders": {
-            "default": "Enter code",
-            "javascript": "Write JavaScript...",
-            "python": "Write Python..."
+            "add_tool": "Add tool...",
+            "default": "Select tool",
+            "parameter": "Enter {name}{type}",
+            "search_tools": "Search tools...",
+            "select_operation": "Select operation"
+          },
+          "sections": {
+            "add_mcp_server": "Add MCP Server",
+            "create_tool": "Create Tool"
+          },
+          "usage_control": {
+            "auto": "Auto",
+            "auto_description": "Let LLM decide",
+            "force": "Force",
+            "force_description": "Always provide to LLM",
+            "none": "None",
+            "none_description": "Never provide to LLM"
+          }
+        },
+        "variables_input": {
+          "buttons": {
+            "add_variable": "Add variable"
+          },
+          "labels": {
+            "name": "Name",
+            "value": "Value"
+          }
+        },
+        "workflow_selector": {
+          "placeholders": {
+            "default": "Select workflow"
           }
         }
       }
     },
-    "copilot_panel": {
-      "welcome": {
-        "build_title": "Build",
-        "build_question": "Help me build a workflow",
-        "debug_title": "Debug",
-        "debug_question": "Help debug my workflow",
-        "optimize_title": "Optimize",
-        "optimize_question": "Create a fast workflow",
-        "get_started_title": "Get started",
-        "get_started_question": "Help me get started",
-        "discover_tools_title": "Discover tools",
-        "discover_tools_question": "What tools are available?",
-        "create_workflow_title": "Create workflow",
-        "create_workflow_question": "How do I create a workflow?",
-        "mention_tip": "Tip: Use @{symbol} to reference chats, workflows, knowledge, blocks, or templates",
-        "mention_symbol": "@"
-      },
-      "mode_selector": {
-        "ask": "Ask",
-        "build": "Build",
-        "plan": "Plan",
-        "aria_label_expanded": "Open mode selector",
-        "aria_label_collapsed": "Close mode selector"
-      },
-      "model_selector": {
-        "no_models_available": "No models available"
-      },
-      "bottom_controls": {
-        "attach_file_title": "Attach file",
-        "stop_generation_title": "Stop generation"
-      },
-      "todo_list": {
-        "header_label": "Todo:",
-        "aria_expand": "Expand todo list",
-        "aria_collapse": "Collapse todo list"
-      },
-      "plan_mode_section": {
-        "title": "Workflow Plan",
-        "cancel_editing_label": "Cancel editing",
-        "save_label": "Save",
-        "edit_label": "Edit",
-        "delete_label": "Delete"
-      },
-      "checkpoint_confirmation": {
-        "restore_title": "Revert to checkpoint? This will restore your workflow to the state saved at this checkpoint.",
-        "restore_warning": "This action cannot be undone.",
-        "continue_title": "Continue from a previous message?",
-        "cancel_button": "Cancel",
-        "revert_button": "Revert",
-        "reverting_button": "Reverting...",
-        "continue_button": "Continue"
-      },
-      "usage_limit_actions": {
-        "upgrade_button": "Upgrade"
-      },
-      "error_states": {
-        "no_workflow_selected": "No workflow selected"
-      }
-    },
     "toolbar_panel": {
-      "title": "Toolbar",
-      "search_aria_label": "Search toolbar",
-      "triggers_header": "Triggers",
       "blocks_header": "Blocks",
       "context_menu": {
         "add_to_canvas": "Add to canvas",
         "view_documentation": "View documentation"
+      },
+      "search_aria_label": "Search toolbar",
+      "title": "Toolbar",
+      "triggers_header": "Triggers"
+    }
+  },
+  "settings": {
+    "api_keys": {
+      "allow_personal_keys": "Allow Personal API Keys",
+      "allow_personal_keys_tooltip": "When enabled, team members can create their own API keys. Workspace keys always take precedence over personal keys.",
+      "buttons": {
+        "create": "Create API Key",
+        "delete": "Delete"
+      },
+      "conflict_warning": "This key name conflicts with a workspace key. The workspace key will take precedence.",
+      "delete_modal": {
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "deleting": "Deleting...",
+        "description": "Are you sure you want to delete <name>{name}</name>? <warning>This action cannot be undone.</warning>",
+        "title": "Delete API Key"
+      },
+      "empty_state": "No API keys yet. Create one to get started.",
+      "never": "Never",
+      "no_results": "No API keys found matching \"{searchTerm}\"",
+      "no_workspace_keys": "No workspace keys configured",
+      "placeholders": {
+        "search": "Search API keys..."
+      },
+      "sections": {
+        "personal": "Personal Keys",
+        "workspace": "Workspace Keys"
+      }
+    },
+    "byok": {
+      "buttons": {
+        "add_key": "Add Key",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "deleting": "Deleting...",
+        "save": "Save",
+        "saving": "Saving...",
+        "update": "Update"
+      },
+      "delete_dialog": {
+        "confirm_message": "Are you sure you want to delete the <name>{providerName}</name> API key? This workspace will revert to using platform hosted keys.",
+        "title": "Delete API Key"
+      },
+      "description": "Use your own API keys for hosted model providers.",
+      "errors": {
+        "save_failed": "Failed to save API key"
+      },
+      "modal": {
+        "add_title": "Add {name} API Key",
+        "description": "This key will be used for all {name} requests in this workspace. Your key is encrypted and stored securely.",
+        "enter_api_key": "Enter your API key",
+        "update_title": "Update {name} API Key"
+      }
+    },
+    "cancel_subscription": {
+      "buttons": {
+        "cancel": "Cancel",
+        "continue": "Continue",
+        "error": "Error",
+        "keep_subscription": "Keep Subscription",
+        "manage": "Manage",
+        "redirecting": "Redirecting...",
+        "restore": "Restore",
+        "restore_subscription": "Restore Subscription",
+        "restoring": "Restoring..."
+      },
+      "end_of_billing_period": "end of current billing period",
+      "keep_access_until": "You'll keep access until {date}",
+      "labels": {
+        "manage_subscription": "Manage Subscription",
+        "restore_subscription": "Restore Subscription"
+      },
+      "modal": {
+        "can_reactivate": "- Can reactivate anytime",
+        "cancel_description": "You'll be redirected to Stripe to manage your subscription. You'll keep access until {date}, then downgrade to free plan. You can restore your subscription at any time.",
+        "cancel_title": "Cancel {plan} Subscription",
+        "data_preserved": "- Data preserved",
+        "keep_features_until": "- Keep all features until {date}",
+        "no_more_charges": "- No more charges",
+        "restore_description": "Your subscription is set to cancel at the end of the billing period. Would you like to keep your subscription active?",
+        "restore_title": "Restore {plan} Subscription"
+      }
+    },
+    "copilot": {
+      "aria": {
+        "copy_to_clipboard": "Copy to clipboard"
+      },
+      "buttons": {
+        "cancel": "Cancel",
+        "create": "Create",
+        "creating": "Creating...",
+        "delete": "Delete",
+        "deleting": "Deleting..."
+      },
+      "create_dialog": {
+        "description": "This key will allow access to Copilot features. Make sure to copy it after creation as you won't be able to see it again.",
+        "name_label": "Enter a name for your API key to help you identify it later.",
+        "title": "Create new API key"
+      },
+      "delete_dialog": {
+        "confirm_message": "Deleting <name>{keyName}</name> will immediately revoke access for any integrations using it. <warning>This action cannot be undone.</warning>",
+        "title": "Delete API key"
+      },
+      "empty_state": "Click \"Create\" above to get started",
+      "errors": {
+        "create_failed": "Failed to create API key. Please check your connection and try again.",
+        "duplicate_name": "A Copilot API key named \"{name}\" already exists. Please choose a different name."
+      },
+      "last_used": "last used: {date}",
+      "last_used_never": "Never",
+      "new_key_dialog": {
+        "description": "This is the only time you will see your API key. <bold>Copy it now and store it securely.</bold>",
+        "title": "Your API key has been created"
+      },
+      "no_results": "No API keys found matching \"{searchTerm}\"",
+      "placeholders": {
+        "key_name": "e.g., Development, Production",
+        "search": "Search API keys..."
+      },
+      "unnamed_key": "Unnamed Key"
+    },
+    "create_api_key": {
+      "aria": {
+        "copy_to_clipboard": "Copy to clipboard"
+      },
+      "cancel": "Cancel",
+      "create": "Create",
+      "creating": "Creating...",
+      "description_personal": "This key will be used for personal API requests. Your key is encrypted and stored securely.",
+      "description_workspace": "This key will be used for workspace API requests. Your key is encrypted and stored securely.",
+      "key_type": "Key Type",
+      "name_label": "Key Name",
+      "personal": "Personal",
+      "placeholders": {
+        "name": "e.g., Development, Production"
+      },
+      "success_description": "This is the only time you will see your API key. <strong>Copy it now and store it securely.</strong>",
+      "success_title": "API Key Created",
+      "title": "Create API Key",
+      "workspace": "Workspace"
+    },
+    "credit_balance": {
+      "buttons": {
+        "add_credits": "Add Credits",
+        "cancel": "Cancel",
+        "processing": "Processing...",
+        "purchase": "Purchase"
+      },
+      "credits_info": "Credits are used before overage charges. Min: $10, Max: $1,000.",
+      "credits_info_personal": "Credits are non-refundable and don't expire. They'll be applied automatically to your usage.",
+      "credits_info_team": "Credits are non-refundable and don't expire. They'll be applied automatically to your team usage.",
+      "errors": {
+        "failed_to_purchase": "Failed to purchase credits",
+        "maximum_purchase": "Maximum purchase is $1,000",
+        "minimum_purchase": "Minimum purchase is $10"
+      },
+      "labels": {
+        "amount_usd": "Amount (USD)",
+        "credit_balance": "Credit Balance:"
+      },
+      "success_message": "Credits added successfully!"
+    },
+    "custom_tools": {
+      "buttons": {
+        "add": "Add",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "deleting": "Deleting...",
+        "edit": "Edit"
+      },
+      "delete_dialog": {
+        "confirm_message": "Are you sure you want to delete <name>{toolName}</name>? <warning>This action cannot be undone.</warning>",
+        "title": "Delete Custom Tool"
+      },
+      "empty_state": "Click \"Add\" above to get started",
+      "errors": {
+        "failed_to_load": "Failed to load tools"
+      },
+      "no_results": "No tools found matching \"{searchTerm}\"",
+      "placeholders": {
+        "search": "Search tools..."
+      },
+      "unnamed_tool": "Unnamed Tool"
+    },
+    "debug": {
+      "buttons": {
+        "import": "Import",
+        "importing": "Importing..."
+      },
+      "description": "Import a workflow by ID along with its associated copilot chats.",
+      "placeholders": {
+        "workflow_id": "Enter workflow ID"
+      }
+    },
+    "description": "User settings and workspace configuration",
+    "files": {
+      "aria": {
+        "delete": "Delete {fileName}",
+        "dismiss": "Dismiss {fileName}",
+        "download": "Download {fileName}"
+      },
+      "buttons": {
+        "upload": "Upload",
+        "upload_progress": "{completed}/{total}",
+        "uploading": "Uploading..."
+      },
+      "empty_state": "No files uploaded yet",
+      "no_results": "No files found matching \"{search}\"",
+      "placeholders": {
+        "search": "Search files..."
+      },
+      "table": {
+        "actions": "Actions",
+        "name": "Name",
+        "size": "Size",
+        "uploaded": "Uploaded"
+      },
+      "tooltips": {
+        "delete": "Delete file",
+        "download": "Download file"
+      }
+    },
+    "general": {
+      "aria": {
+        "edit_name": "Edit name",
+        "save_name": "Save name"
+      },
+      "buttons": {
+        "home_page": "Home Page",
+        "reset_password": "Reset Password",
+        "sign_out": "Sign Out"
+      },
+      "errors": {
+        "failed_remove_picture": "Failed to remove profile picture",
+        "failed_update_picture": "Failed to update profile picture"
+      },
+      "labels": {
+        "allow_telemetry": "Allow Telemetry",
+        "auto_connect": "Auto Connect",
+        "error_notifications": "Error Notifications",
+        "language": "Language",
+        "show_canvas_controls": "Show Canvas Controls",
+        "snap_to_grid": "Snap to Grid",
+        "super_admin_mode": "Super Admin Mode",
+        "theme": "Theme",
+        "training_controls": "Training Controls"
+      },
+      "placeholders": {
+        "select_size": "Select size",
+        "select_theme": "Select theme"
+      },
+      "reset_password": {
+        "cancel": "Cancel",
+        "description": "A password reset link will be sent to {email}",
+        "errors": {
+          "failed_send": "Failed to send password reset email"
+        },
+        "send_reset_email": "Send Reset Email",
+        "sending": "Sending...",
+        "sent": "Sent",
+        "title": "Reset Password"
+      },
+      "snap_grid": {
+        "off": "Off"
+      },
+      "telemetry_description": "Help us improve by sharing anonymous usage data",
+      "theme": {
+        "dark": "Dark",
+        "light": "Light",
+        "system": "System"
+      }
+    },
+    "mcp": {
+      "form_field": {
+        "optional": "(optional)"
+      }
+    },
+    "member_invitation": {
+      "buttons": {
+        "invite": "Invite",
+        "inviting": "Inviting...",
+        "no_seats": "No Available Seats"
+      },
+      "description": "Invite team members to collaborate",
+      "labels": {
+        "access": "Access Level",
+        "workspaces": "Workspaces"
+      },
+      "loading": "Loading workspaces...",
+      "no_workspaces": "No workspaces available",
+      "permissions": {
+        "admin": "Full Access",
+        "read": "View Only",
+        "write": "Edit Content"
+      },
+      "placeholders": {
+        "another_email": "Add another email",
+        "email": "Enter email address"
+      },
+      "success": "Invitation sent successfully",
+      "success_with_workspaces": "Invitation sent successfully to {count} workspace(s)",
+      "title": "Invite Members",
+      "titles": {
+        "edit_content": "Edit Content - Can create and modify workflows",
+        "full_access": "Full Access - Can manage team settings",
+        "view_only": "View Only - Can view workflows and executions"
+      }
+    },
+    "nav": {
+      "access_control": "Access Control",
+      "byok": "BYOK",
+      "copilot_keys": "Copilot Keys",
+      "custom_tools": "Custom Tools",
+      "debug": "Debug",
+      "email_polling": "Email Polling",
+      "files": "Files",
+      "general": "General",
+      "mcp_servers": "MCP Servers",
+      "mcp_tools": "MCP Tools",
+      "secrets": "Secrets",
+      "sim_keys": "Sim Keys",
+      "single_sign_on": "Single Sign On",
+      "skills": "Skills",
+      "subscription": "Subscription",
+      "team": "Team",
+      "template_profile": "Template Profile"
+    },
+    "no_organization": {
+      "buttons": {
+        "cancel": "Cancel",
+        "create_organization": "Create Organization",
+        "create_team_workspace": "Create Team",
+        "creating": "Creating...",
+        "upgrade_to_team": "Upgrade to Team Plan"
+      },
+      "description": "Set up a {plan} team to collaborate with your team",
+      "labels": {
+        "organization_name": "Organization Name",
+        "organization_slug": "Organization Slug",
+        "team_name": "Team Name",
+        "team_url": "Team URL (subdomain)"
+      },
+      "modal": {
+        "description": "Set up your team to start collaborating with your organization",
+        "title": "Create Team"
+      },
+      "no_workspace_description": "You need a Team or Enterprise plan to create a team workspace. Upgrade now to get started with team collaboration.",
+      "no_workspace_title": "Upgrade to Unlock Team Features",
+      "placeholders": {
+        "organization_name": "Your organization name",
+        "organization_slug": "org-slug",
+        "team_name": "Your team name",
+        "team_url": "team-url"
+      },
+      "plans": {
+        "enterprise": "Enterprise",
+        "team": "Team"
+      },
+      "title": "Create Your First Team"
+    },
+    "plan_card": {
+      "aria": {
+        "plan_action": "{action} {name} plan"
+      },
+      "error": "Error"
+    },
+    "referral_code": {
+      "buttons": {
+        "redeem": "Redeem",
+        "redeeming": "Redeeming..."
+      },
+      "credits_applied": "+${amount} credits applied",
+      "errors": {
+        "could_not_redeem": "Code could not be redeemed",
+        "failed_to_redeem": "Failed to redeem code"
+      },
+      "labels": {
+        "referral_code": "Referral Code"
+      },
+      "placeholders": {
+        "enter_code": "Enter code"
+      }
+    },
+    "remove_member": {
+      "buttons": {
+        "cancel": "Cancel",
+        "leave": "Leave",
+        "remove": "Remove"
+      },
+      "cannot_undo": "This action cannot be undone.",
+      "confirm_leave": "Are you sure you want to leave this organization? You will lose access to all workspaces.",
+      "confirm_remove": "Are you sure you want to remove <bold>{name}</bold>? This action cannot be undone.",
+      "labels": {
+        "reduce_seats": "Reduce Seats"
+      },
+      "leave_organization": "Leave Organization",
+      "reduce_seats_description": "Reducing seats will lower your monthly bill. You can add more seats later if needed.",
+      "remove_team_member": "Remove Team Member"
+    },
+    "sections": {
+      "account": "Account",
+      "enterprise": "Enterprise",
+      "subscription": "Subscription",
+      "superuser": "Superuser",
+      "system": "System",
+      "tools": "Tools"
+    },
+    "skill_modal": {
+      "buttons": {
+        "cancel": "Cancel",
+        "create": "Create",
+        "delete": "Delete",
+        "save": "Save",
+        "saving": "Saving...",
+        "update": "Update"
+      },
+      "errors": {
+        "content_required": "Content is required",
+        "description_required": "Description is required",
+        "name_format": "Name must be kebab-case (e.g. my-skill)",
+        "name_required": "Name is required",
+        "name_too_long": "Name must be 64 characters or less",
+        "save_failed": "Failed to save skill. Please try again."
+      },
+      "hints": {
+        "name_format": "Lowercase letters, numbers, and hyphens (e.g. my-skill)"
+      },
+      "labels": {
+        "content": "Content",
+        "description": "Description",
+        "name": "Name"
+      },
+      "placeholders": {
+        "content": "Skill instructions in markdown...",
+        "description": "What this skill does and when to use it...",
+        "name": "my-skill-name"
+      },
+      "title_create": "Create Skill",
+      "title_edit": "Edit Skill"
+    },
+    "skills": {
+      "buttons": {
+        "add": "Add",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "deleting": "Deleting...",
+        "edit": "Edit"
+      },
+      "delete_dialog": {
+        "confirm_message": "Are you sure you want to delete <name>{skillName}</name>? <warning>This action cannot be undone.</warning>",
+        "title": "Delete Skill"
+      },
+      "empty_state": "Click \"Add\" above to get started",
+      "errors": {
+        "failed_to_load": "Failed to load skills"
+      },
+      "no_results": "No skills found matching \"{searchTerm}\"",
+      "placeholders": {
+        "search": "Search skills..."
+      }
+    },
+    "subscription": {
+      "badges": {
+        "fix_now": "Fix Now",
+        "get_help": "Get Help",
+        "increase_limit": "Increase Limit",
+        "upgrade": "Upgrade"
+      },
+      "buttons": {
+        "contact": "Contact",
+        "upgrade": "Upgrade",
+        "upgrade_to_pro": "Upgrade to Pro",
+        "upgrade_to_team": "Upgrade to Team"
+      },
+      "labels": {
+        "billed_account": "Billed Account",
+        "next_billing_date": "Next Billing Date",
+        "usage_notifications": "Usage notifications"
+      },
+      "no_admins_available": "No admins available",
+      "per_month": "/month",
+      "placeholders": {
+        "select_admin": "Select admin"
+      },
+      "plans": {
+        "enterprise": "Enterprise",
+        "pro": "Pro",
+        "team": "Team"
+      },
+      "seats_count": "{count} seats",
+      "tooltips": {
+        "billed_account": "Usage from this workspace will be billed to this account"
+      },
+      "usage_notifications_description": "Email me when I reach 80% usage"
+    },
+    "team_management": {
+      "add_seats": {
+        "confirm_button": "Update Seats",
+        "description": "Each seat costs ${cost}/month and provides ${cost} in monthly inference credits. Adjust the number of licensed seats for your team.",
+        "title": "Add Team Seats"
+      },
+      "alerts": {
+        "team_upgrade": "Team upgrade to {seats} seats - integration needed"
+      },
+      "billing": {
+        "increase_limit": "You can increase the usage limit to allow for higher usage",
+        "minimum_charge": "Your team is billed a minimum of ${amount}/month for {seats} licensed seats",
+        "overage": "Any usage beyond the minimum seat cost is billed as overage at the end of the billing period",
+        "pooled_usage": "All team member usage is pooled together from a shared limit",
+        "usage_exceeded": "When pooled usage exceeds the limit, all members are blocked from using the service"
+      },
+      "billing_information": "Billing Information",
+      "labels": {
+        "created": "Created:",
+        "team_id": "Team ID:",
+        "your_role": "Your Role:"
+      },
+      "single_organization_notice": "<bold>Note:</bold> Users can only be part of one organization at a time.",
+      "team_information": "Team Information",
+      "this_member": "this member",
+      "yourself": "yourself"
+    },
+    "team_members": {
+      "badges": {
+        "pending": "Pending"
+      },
+      "buttons": {
+        "cancel": "Cancel",
+        "cancelling": "Cancelling...",
+        "leave_organization": "Leave Organization",
+        "remove": "Remove",
+        "resend": "Resend",
+        "resend_cooldown": "Resend ({seconds}s)",
+        "sending": "Sending..."
+      },
+      "empty": "No team members yet.",
+      "labels": {
+        "usage": "Usage"
+      },
+      "title": "Team Members"
+    },
+    "team_seats": {
+      "buttons": {
+        "cancel": "Cancel",
+        "updating": "Updating..."
+      },
+      "labels": {
+        "current_seats": "Current Seats",
+        "monthly_cost_change": "Monthly Cost Change",
+        "new_seats": "New Seats",
+        "number_of_seats": "Number of Seats"
+      },
+      "placeholders": {
+        "select_seats": "Select seats"
+      },
+      "seat": "seat",
+      "seats": "seats",
+      "team_info": "Your team will have {seats} seats at ${total}/month.",
+      "tooltips": {
+        "reactivate": "Please reactivate your subscription before modifying seats."
+      }
+    },
+    "team_seats_overview": {
+      "badges": {
+        "add_seats": "+ Add Seats"
+      },
+      "buttons": {
+        "setup_subscription": "Set Up Subscription"
+      },
+      "enterprise_message": "Enterprise plans have unlimited seats. Contact support to adjust your plan.",
+      "no_subscription_description": "Set up a team subscription to manage seats and billing.",
+      "no_subscription_title": "No Active Subscription",
+      "title": "Seats",
+      "total": "{count} total",
+      "used": "{count} used"
+    },
+    "title": "Settings",
+    "usage_header": {
+      "payment_failed": "Payment failed"
+    },
+    "usage_limit": {
+      "aria": {
+        "save_limit": "Save limit"
+      },
+      "buttons": {
+        "edit_limit": "Edit Limit"
       }
     }
   },
-  "logs": {
-    "page": {
-      "title": "Logs",
-      "loading": "Loading logs...",
-      "error": "Error: {message}",
-      "failed_to_load": "Failed to load logs",
-      "no_logs_found": "No logs found"
+  "sign_in": {
+    "agreement": "By signing in, you agree to our <terms>Terms of Service</terms> and <privacy>Privacy Policy</privacy>",
+    "aria": {
+      "hide_password": "Hide password",
+      "show_password": "Show password"
     },
-    "toolbar": {
-      "title": "Logs",
-      "more_options": "More options",
-      "export_csv": "Export as CSV",
-      "configure_notifications": "Configure Notifications",
-      "refresh": "Refresh",
-      "live": "Live",
-      "logs_view": "Logs",
-      "dashboard_view": "Dashboard",
-      "search_placeholder": "Search",
-      "clear_filters": "Clear",
-      "filters_button": "Filters",
-      "filters": {
-        "status": "Status",
-        "workflow": "Workflow",
-        "folder": "Folder",
-        "trigger": "Trigger",
-        "time_range": "Time Range",
-        "all_statuses": "All statuses",
-        "all_workflows": "All workflows",
-        "all_folders": "All folders",
-        "all_triggers": "All triggers",
-        "all_time": "All time",
-        "search_workflows": "Search workflows...",
-        "search_folders": "Search folders...",
-        "search_triggers": "Search triggers..."
+    "buttons": {
+      "sign_in": "Sign in",
+      "signing_in": "Signing in"
+    },
+    "divider_label": "Or continue with",
+    "errors": {
+      "account_locked": "Your account has been locked for security. Please reset your password.",
+      "email_invalid": "Please enter a valid email address.",
+      "email_password_disabled": "Email and password login is disabled.",
+      "email_required": "Email is required.",
+      "email_sign_in_disabled": "Email sign in is currently disabled.",
+      "failed_to_create_session": "Failed to create session. Please try again later.",
+      "invalid_credentials": "Invalid email or password",
+      "invalid_credentials_retry": "Invalid email or password. Please try again.",
+      "login_failed": "Login failed. Please try again.",
+      "missing_credentials": "Please enter both email and password.",
+      "network_error": "Network error. Please check your connection and try again.",
+      "no_account_found": "No account found with this email. Please sign up first.",
+      "password_not_empty": "Password cannot be empty.",
+      "password_required": "Password is required.",
+      "rate_limit": "Too many requests. Please wait a moment before trying again.",
+      "too_many_attempts": "Too many login attempts. Please try again later or reset your password."
+    },
+    "labels": {
+      "email": "Email",
+      "password": "Password"
+    },
+    "links": {
+      "forgot_password": "Forgot password?",
+      "no_account": "Don't have an account?",
+      "sign_up": "Sign up"
+    },
+    "messages": {
+      "reset_success": "Password reset successful. Please sign in with your new password."
+    },
+    "page_sub_title": "Enter your details",
+    "page_title": "Sign in",
+    "placeholders": {
+      "email": "Enter your email",
+      "password": "Enter your password"
+    },
+    "reset_password": {
+      "description": "Enter your email address and we'll send you a link to reset your password if your account exists.",
+      "errors": {
+        "enter_email": "Please enter your email address",
+        "failed": "Failed to request password reset",
+        "invalid_email": "Please enter a valid email address",
+        "no_account_found": "No account found with this email address"
       },
-      "time_ranges": {
-        "all_time": "All time",
-        "past_30_minutes": "Past 30 minutes",
-        "past_hour": "Past hour",
-        "past_6_hours": "Past 6 hours",
-        "past_12_hours": "Past 12 hours",
-        "past_24_hours": "Past 24 hours",
-        "past_3_days": "Past 3 days",
-        "past_7_days": "Past 7 days",
-        "past_14_days": "Past 14 days",
-        "past_30_days": "Past 30 days",
-        "custom_range": "Custom range"
+      "messages": {
+        "success": "Password reset link sent to your email"
+      },
+      "send_reset_link": "Send Reset Link",
+      "sending": "Sending",
+      "title": "Reset Password"
+    }
+  },
+  "sign_in_with_sso": "Sign in with SSO",
+  "sign_up": {
+    "already_have_account": "Already have an account?",
+    "create_account": "Create account",
+    "create_account_warning": "By creating an account, you agree to our <terms>Terms of Service</terms> and <policy>Privacy Policy</policy>",
+    "creating_account": "Creating account",
+    "disabled_registration_warning": "Registration is disabled, please contact your admin.",
+    "divider_label": "Or continue with",
+    "email_label": "Email",
+    "email_placeholder": "Enter your email",
+    "full_name_label": "Full name",
+    "full_name_placeholder": "Enter your name",
+    "hide_password": "Hide password",
+    "name_title": "Name can only contain letters, spaces, hyphens, and apostrophes",
+    "page_sub_title": "Create an account or log in",
+    "page_title": "Create an account",
+    "password_label": "Password",
+    "password_placeholder": "Enter your password",
+    "show_password": "Show password",
+    "sign_in_redirect_label": "Sign In",
+    "validations": {
+      "account_with_same_email_already_exists": "An account with this email already exists. Please sign in instead.",
+      "email_invalid": "Please enter a valid email address.",
+      "email_required": "Email is required.",
+      "email_sign_up_is_not_enabled": "Email signup is currently disabled.",
+      "failed_to_create_account": "Failed to create account",
+      "name_cannot_be_empty": "Name cannot be empty.",
+      "name_cannot_contain_spaces": "Name cannot contain consecutive spaces.",
+      "name_invalid_format": "Name can only contain letters, spaces, hyphens, and apostrophes.",
+      "name_required": "Name is required.",
+      "password_max_128_characters": "Password must be less than 128 characters long.",
+      "password_min_1_lowercase_letter": "Password must include at least one lowercase letter.",
+      "password_min_1_number": "Password must include at least one number.",
+      "password_min_1_special_character": "Password must include at least one special character.",
+      "password_min_1_uppercase_letter": "Password must include at least one uppercase letter.",
+      "password_min_8_character": "Password must be at least 8 characters long.",
+      "truncated_name_error": "Name will be truncated to 100 characters. Please shorten your name."
+    }
+  },
+  "social_login": {
+    "buttons": {
+      "connecting": "Connecting...",
+      "github": "GitHub",
+      "google": "Google"
+    },
+    "errors": {
+      "account_exists": "An account with this email already exists. Please sign in.",
+      "github": {
+        "cancelled": "GitHub sign in was cancelled. Please try again.",
+        "default": "Failed to sign in with GitHub"
+      },
+      "google": {
+        "cancelled": "Google sign in was cancelled. Please try again.",
+        "default": "Failed to sign in with Google"
+      },
+      "network": "Network error. Please check your connection and try again.",
+      "rate_limit": "Too many attempts. Please try again later."
+    }
+  },
+  "sub_blocks": {
+    "channel_selector": {
+      "placeholder": "Select channel",
+      "title": "Channel Selector"
+    },
+    "checkbox_list": {
+      "placeholder": "Select options",
+      "title": "Multiple Selection"
+    },
+    "code": {
+      "placeholder": "Write your code",
+      "title": "Code"
+    },
+    "combobox": {
+      "placeholder": "Search and select",
+      "title": "Searchable Dropdown"
+    },
+    "condition_input": {
+      "placeholder": "Define condition",
+      "title": "Condition"
+    },
+    "document_selector": {
+      "placeholder": "Select document",
+      "title": "Document Selector"
+    },
+    "document_tag_entry": {
+      "placeholder": "Enter tags",
+      "title": "Document Tags"
+    },
+    "dropdown": {
+      "placeholder": "Select option",
+      "title": "Dropdown"
+    },
+    "eval_input": {
+      "placeholder": "Enter evaluation",
+      "title": "Evaluation"
+    },
+    "field_format": {
+      "aria": {
+        "add": "Add {title}",
+        "delete": "Delete Field"
+      },
+      "buttons": {
+        "add": "Add {title}",
+        "remove": "Delete Field"
+      },
+      "field_format": {
+        "description_placeholder": "Describe this field",
+        "placeholder": "fieldName",
+        "title": "Field",
+        "value_placeholder": "Enter default value"
+      },
+      "input_format": {
+        "description_placeholder": "Describe this field",
+        "placeholder": "firstName",
+        "title": "Input"
+      },
+      "labels": {
+        "description": "Description",
+        "name": "Name",
+        "type": "Type",
+        "value": "Value"
+      },
+      "placeholders": {
+        "boolean_value": "Select value",
+        "description": "Describe this field",
+        "name": "fieldName",
+        "value": "Enter default value"
+      },
+      "response_format": {
+        "placeholder": "output",
+        "title": "Field",
+        "value_placeholder": "Enter return value"
       }
     },
-    "logs_list": {
-      "columns": {
-        "date": "Date",
-        "time": "Time",
-        "status": "Status",
-        "workflow": "Workflow",
-        "cost": "Cost",
-        "trigger": "Trigger",
-        "duration": "Duration"
-      },
-      "aria_labels": {
-        "open_resume_console": "Open resume console"
-      }
+    "file_selector": {
+      "placeholder": "Select file",
+      "title": "File Selector"
     },
-    "log_details": {
-      "title": "Log Details",
-      "aria_labels": {
-        "previous_log": "Previous log",
-        "next_log": "Next log",
-        "close": "Close",
-        "resize_panel": "Resize log details panel"
+    "file_upload": {
+      "placeholder": "Upload file",
+      "title": "File Upload"
+    },
+    "filter_builder": {
+      "placeholder": "Add filters",
+      "title": "Filters"
+    },
+    "folder_selector": {
+      "placeholder": "Select folder",
+      "title": "Folder Selector"
+    },
+    "grouped_checkbox_list": {
+      "placeholder": "Select from groups",
+      "title": "Grouped Selection"
+    },
+    "input_format": {
+      "placeholder": "Define input structure",
+      "title": "Input Format"
+    },
+    "input_mapping": {
+      "placeholder": "Map inputs",
+      "title": "Input Mapping"
+    },
+    "knowledge_base_selector": {
+      "placeholder": "Select knowledge base",
+      "title": "Knowledge Base"
+    },
+    "knowledge_tag_filters": {
+      "placeholder": "Select tags",
+      "title": "Tag Filters"
+    },
+    "long_input": {
+      "placeholder": "Enter long text",
+      "title": "Long Text"
+    },
+    "mcp_dynamic_args": {
+      "placeholder": "Enter arguments",
+      "title": "MCP Arguments"
+    },
+    "mcp_server_selector": {
+      "placeholder": "Select server",
+      "title": "MCP Server"
+    },
+    "mcp_tool_selector": {
+      "placeholder": "Select tool",
+      "title": "MCP Tool"
+    },
+    "messages_input": {
+      "placeholder": "Enter messages",
+      "title": "Messages"
+    },
+    "oauth_input": {
+      "placeholder": "Select credential",
+      "title": "Oauth Credential"
+    },
+    "project_selector": {
+      "placeholder": "Select project",
+      "title": "Project Selector"
+    },
+    "response_format": {
+      "placeholder": "Define response structure",
+      "title": "Response Format"
+    },
+    "router_input": {
+      "placeholder": "Define routes",
+      "title": "Router Configuration"
+    },
+    "schedule_info": {
+      "placeholder": "Schedule information",
+      "title": "Schedule Info"
+    },
+    "sheet_selector": {
+      "placeholder": "Select sheet",
+      "title": "Sheet Selector"
+    },
+    "short_input": {
+      "placeholder": "Enter text",
+      "title": "Text"
+    },
+    "skill_input": {
+      "aria": {
+        "remove_skill": "Remove skill"
+      },
+      "buttons": {
+        "create": "Create Skill"
+      },
+      "empty_state": "No skills found",
+      "placeholder": "Select skill",
+      "placeholders": {
+        "add": "Add skill...",
+        "search": "Search skills..."
       },
       "sections": {
-        "timestamp": "Timestamp",
-        "workflow": "Workflow",
-        "execution_id": "Execution ID",
-        "level": "Level",
-        "trigger": "Trigger",
-        "duration": "Duration",
-        "version": "Version",
-        "workflow_state": "Workflow State",
-        "workflow_output": "Workflow Output",
-        "trace_span": "Trace Span",
-        "cost_breakdown": "Cost Breakdown"
+        "available": "Skills"
       },
-      "buttons": {
-        "view_snapshot": "View Snapshot"
-      },
-      "cost_labels": {
-        "base_execution": "Base Execution:",
-        "model_input": "Model Input:",
-        "model_output": "Model Output:",
-        "total": "Total:",
-        "tokens": "Tokens:"
-      },
-      "cost_info": "Total cost includes a base execution charge of {amount} plus any model usage costs."
+      "title": "Skill Selection"
     },
-    "workflow_output": {
-      "copy_tooltip": "Copy",
-      "copied_tooltip": "Copied",
-      "search_tooltip": "Search",
-      "close_search_aria": "Close search"
+    "slider": {
+      "placeholder": "Select value",
+      "title": "Slider"
     },
-    "log_row_context_menu": {
-      "copy_execution_id": "Copy Execution ID",
-      "open_workflow": "Open Workflow",
-      "open_snapshot": "Open Snapshot",
-      "filter_by_workflow": "Filter by Workflow",
-      "clear_filters": "Clear Filters"
+    "sort_builder": {
+      "placeholder": "Add sorting",
+      "title": "Sort"
     },
-    "notifications": {
-      "modal_title": "Notification Settings",
-      "tabs": {
-        "webhook": "Webhook",
-        "email": "Email",
-        "slack": "Slack"
-      },
-      "buttons": {
-        "add": "Add",
-        "save": "Save",
-        "cancel": "Cancel",
-        "test": "Test",
-        "sent": "Sent",
-        "failed": "Failed",
-        "edit": "Edit",
-        "delete": "Delete"
-      },
-      "form_labels": {
-        "workflows": "Workflows",
-        "all_workflows": "All Workflows",
-        "webhook_url": "Webhook URL",
-        "webhook_secret": "Secret (optional)",
-        "email_recipients": "Email Recipients",
-        "slack_account": "Slack Account",
-        "slack_channel": "Channel",
-        "log_level_filters": "Log Level Filters",
-        "trigger_type_filters": "Trigger Type Filters",
-        "include_in_payload": "Include in Payload",
-        "rule": "Rule"
-      },
-      "form_placeholders": {
-        "webhook_url": "https://your-app.com/webhook",
-        "webhook_secret": "Webhook secret for signature verification",
-        "select_workflows": "Select workflows...",
-        "email_recipients": "Enter emails",
-        "add_email": "Add email",
-        "select_account": "Select account...",
-        "select_log_levels": "Select log levels...",
-        "select_trigger_types": "Select trigger types...",
-        "select_data": "Select data to include...",
-        "select_rule": "Select rule"
-      },
-      "alert_rules": {
-        "none": "None",
-        "none_description": "Notify on every matching execution",
-        "consecutive_failures": "Consecutive Failures",
-        "consecutive_failures_description": "After X failures in a row",
-        "failure_rate": "Failure Rate",
-        "failure_rate_description": "When failure % exceeds threshold",
-        "latency_threshold": "Latency Threshold",
-        "latency_threshold_description": "When execution exceeds duration",
-        "latency_spike": "Latency Spike",
-        "latency_spike_description": "When slower than average by %",
-        "cost_threshold": "Cost Threshold",
-        "cost_threshold_description": "When execution cost exceeds $",
-        "no_activity": "No Activity",
-        "no_activity_description": "When no executions in time window",
-        "error_count": "Error Count",
-        "error_count_description": "When errors exceed count in window"
-      },
-      "alert_config_labels": {
-        "failure_count": "Failure Count",
-        "failure_rate": "Failure Rate (%)",
-        "window": "Window (hours)",
-        "duration_threshold": "Duration Threshold (seconds)",
-        "latency_spike_percent": "Latency Spike %",
-        "cost_threshold": "Cost Threshold ($)",
-        "inactivity_hours": "Inactivity (hours)",
-        "error_count": "Error Count"
-      },
-      "connect_slack": "Connect Slack",
-      "connecting_slack": "Connecting...",
-      "payload_options": {
-        "final_output": "Final Output",
-        "trace_spans": "Trace Spans",
-        "rate_limits": "Rate Limits",
-        "usage_data": "Usage Data"
-      },
-      "errors": {
-        "workflows_required": "Select at least one workflow or enable \"All Workflows\"",
-        "level_filter_required": "Select at least one log level",
-        "trigger_filter_required": "Select at least one trigger type",
-        "webhook_url_required": "Webhook URL is required",
-        "webhook_url_valid": "URL must start with http:// or https://",
-        "webhook_url_format": "Invalid URL format",
-        "email_required": "At least one email address is required",
-        "email_max": "Maximum 10 email recipients allowed",
-        "email_invalid": "Invalid email addresses: {emails}",
-        "slack_account_required": "Select a Slack account",
-        "slack_channel_required": "Select a Slack channel",
-        "consecutive_failures_range": "Must be between 1 and 100",
-        "failure_rate_range": "Must be between 1 and 100",
-        "window_hours_range": "Must be between 1 and 168 hours",
-        "duration_threshold_range": "Must be between 1s and 1 hour",
-        "latency_spike_range": "Must be between 10% and 1000%",
-        "cost_threshold_range": "Must be between $0.01 and $1000",
-        "inactivity_hours_range": "Must be between 1 and 168 hours",
-        "error_count_range": "Must be between 1 and 1000",
-        "test_sent_successfully": "Test sent successfully",
-        "test_failed": "Test failed",
-        "failed_to_send_test": "Failed to send test",
-        "failed_to_save": "Failed to save notification"
-      },
-      "badges": {
-        "all_workflows": "All workflows",
-        "workflow_count": "{count} workflow(s)"
-      },
-      "subscription_items": {
-        "all_workflows": "All workflows",
-        "workflow_count": "{count} workflow(s)"
-      }
+    "switch": {
+      "placeholder": "Enable/Disable",
+      "title": "Toggle"
+    },
+    "table": {
+      "placeholder": "Enter table data",
+      "title": "Table"
+    },
+    "table_selector": {
+      "placeholder": "Select table",
+      "title": "Table Selector"
+    },
+    "text": {
+      "placeholder": "Display text",
+      "title": "Text Display"
+    },
+    "time_input": {
+      "placeholder": "Select time",
+      "title": "Time"
+    },
+    "tool_input": {
+      "placeholder": "Configure tool",
+      "title": "Tool Configuration"
+    },
+    "trigger_save": {
+      "placeholder": "Save configuration",
+      "title": "Save Trigger"
+    },
+    "user_selector": {
+      "placeholder": "Select user",
+      "title": "User Selector"
+    },
+    "variables_input": {
+      "placeholder": "Set variables",
+      "title": "Variables"
+    },
+    "webhook_config": {
+      "placeholder": "Configure webhook",
+      "title": "Webhook Configuration"
+    },
+    "workflow_input_mapper": {
+      "placeholder": "Map workflow inputs",
+      "title": "Workflow Inputs"
     },
     "workflow_selector": {
-      "label": "Workflows",
-      "placeholder": "Select workflows...",
-      "search_placeholder": "Search workflows...",
-      "all_workflows": "All Workflows"
+      "placeholder": "Select workflow",
+      "title": "Workflow"
+    }
+  },
+  "template_deploy": {
+    "buttons": {
+      "cancel": "Cancel",
+      "create_profile": "Create Template Profile",
+      "delete": "Delete",
+      "deleting": "Deleting..."
     },
-    "slack_channel_selector": {
-      "label": "Slack Channel",
-      "placeholder": "Select channel..."
+    "helper_text": {
+      "creator_required": "A creator profile is required to publish templates."
     },
-    "dashboard": {
-      "title": "Dashboard",
-      "line_chart_title": "Success Rate Over Time",
-      "workflows_list_title": "Workflows",
-      "column_headers": {
-        "workflow": "Workflow",
-        "logs": "Logs",
-        "success_rate": "Success Rate"
-      },
-      "no_workflows_found": "No workflows found",
-      "no_workflows_found_with_search": "No workflows found matching"
+    "labels": {
+      "creator": "Creator",
+      "description": "Description",
+      "live_template": "Live Template",
+      "name": "Name",
+      "tagline": "Tagline",
+      "tags": "Tags"
+    },
+    "modals": {
+      "delete_confirmation": "Are you sure you want to delete",
+      "delete_error": "This action cannot be undone.",
+      "delete_title": "Delete Template"
+    },
+    "placeholders": {
+      "creator_loading": "Loading...",
+      "creator_select": "Select creator profile",
+      "description": "Optional description that supports Markdown",
+      "name": "Deep Research Agent",
+      "tagline": "A deep research agent that can find information on any topic",
+      "tags": "Dev, Agents, Research, etc.",
+      "tags_additional": "Add another"
     }
   },
   "terminal": {
-    "headers": {
-      "logs": "Logs",
-      "output": "Output",
-      "input": "Input"
+    "aria_labels": {
+      "resize_output_panel": "Resize output panel",
+      "resize_terminal": "Resize terminal",
+      "show_input": "Show input",
+      "show_output": "Show output",
+      "sort_by_timestamp": "Sort by timestamp",
+      "terminal": "Terminal",
+      "terminal_options": "Terminal options",
+      "toggle_terminal": "Toggle terminal"
     },
-    "status": {
-      "running": "Running",
-      "canceled": "canceled"
+    "buttons": {
+      "clear_console": "Clear Console",
+      "close_search": "Close search",
+      "copy_all": "Copy All",
+      "copy_output": "Copy output",
+      "copy_run_id": "Copy Run ID",
+      "copy_selection": "Copy Selection",
+      "download_csv": "Download CSV",
+      "filter_by_block": "Filter by Block",
+      "filter_by_status": "Filter by Status",
+      "fix_in_copilot": "Fix in Copilot",
+      "next_match": "Next match",
+      "open_on_run": "Open on run",
+      "previous_match": "Previous match",
+      "search": "Search",
+      "structured_view": "Structured View",
+      "wrap_text": "Wrap Text"
     },
     "filter_popover": {
       "aria_label": "Filters",
-      "status_section": "Status",
+      "blocks_section": "Blocks",
       "error_status": "Error",
       "info_status": "Info",
-      "blocks_section": "Blocks"
+      "status_section": "Status"
     },
-    "buttons": {
-      "copy_run_id": "Copy Run ID",
-      "fix_in_copilot": "Fix in Copilot",
-      "filter_by_block": "Filter by Block",
-      "filter_by_status": "Filter by Status",
-      "download_csv": "Download CSV",
-      "clear_console": "Clear Console",
-      "copy_selection": "Copy Selection",
-      "copy_all": "Copy All",
-      "search": "Search",
-      "structured_view": "Structured View",
-      "wrap_text": "Wrap Text",
-      "open_on_run": "Open on run",
-      "copy_output": "Copy output",
-      "close_search": "Close search",
-      "previous_match": "Previous match",
-      "next_match": "Next match"
+    "headers": {
+      "input": "Input",
+      "logs": "Logs",
+      "output": "Output"
     },
-    "tooltips": {
-      "sort_by_time": "Sort by time",
-      "component_playground": "Component Playground",
-      "train_copilot": "Train Copilot",
-      "stop_training": "Stop Training",
-      "search_in_output": "Search in output",
-      "copied": "Copied"
-    },
-    "aria_labels": {
-      "resize_terminal": "Resize terminal",
-      "toggle_terminal": "Toggle terminal",
-      "terminal": "Terminal",
-      "show_output": "Show output",
-      "show_input": "Show input",
-      "terminal_options": "Terminal options",
-      "resize_output_panel": "Resize output panel",
-      "sort_by_timestamp": "Sort by timestamp"
+    "messages": {
+      "iteration_header": "Iteration {{current}}/{{total}}",
+      "iteration_header_no_total": "Iteration {{current}}",
+      "no_logs_yet": "No logs yet",
+      "no_results": "No results"
     },
     "placeholders": {
       "search": "Search..."
     },
-    "messages": {
-      "no_logs_yet": "No logs yet",
-      "no_results": "No results",
-      "iteration_header": "Iteration {{current}}/{{total}}",
-      "iteration_header_no_total": "Iteration {{current}}"
-    }
-  },
-  "deploy": {
-    "buttons": {
-      "deploy": "Deploy",
-      "update": "Update",
-      "live": "Live"
-    },
-    "tooltips": {
-      "empty_workflow": "Cannot deploy an empty workflow",
-      "admin_required": "Admin permissions required",
-      "deploying": "Deploying...",
-      "update_deployment": "Update deployment",
-      "active_deployment": "Active deployment",
-      "deploy_workflow": "Deploy workflow"
-    }
-  },
-  "deploy_modal": {
-    "title": "Workflow Deployment",
-    "tabs": {
-      "general": "General",
-      "api": "API",
-      "mcp": "MCP",
-      "a2a": "A2A",
-      "chat": "Chat",
-      "template": "Template"
-    },
-    "buttons": {
-      "edit_api_info": "Edit API Info",
-      "generate_api_key": "Generate API Key",
-      "delete": "Delete",
-      "cancel": "Cancel",
-      "deploy": "Deploy",
-      "undeploy": "Undeploy",
-      "updating": "Updating...",
-      "undeploying": "Undeploying...",
-      "deploying": "Deploying...",
-      "manage": "Manage",
-      "save_tool": "Save Tool",
-      "saving": "Saving...",
-      "publish_template": "Publish Template",
-      "update_template": "Update Template",
-      "publishing": "Publishing...",
-      "publish_agent": "Publish Agent",
-      "unpublish": "Unpublish",
-      "launch_chat": "Launch Chat",
-      "launching": "Launching...",
-      "launched": "Launched",
-      "updated": "Updated",
-      "update": "Update"
-    },
-    "modals": {
-      "undeploy_title": "Undeploy API",
-      "undeploy_message": "Are you sure you want to undeploy this workflow?",
-      "undeploy_warning": "This will remove the API endpoint and make it unavailable to external users.",
-      "delete_agent_title": "Delete A2A Agent",
-      "delete_agent_message": "Are you sure you want to delete <agent>{agentName}</agent>?",
-      "delete_agent_warning": "This will permanently remove the agent configuration."
-    },
     "status": {
-      "under_review": "Under review",
-      "live": "Live",
-      "update_deployment": "Update deployment",
-      "unpublished": "Unpublished"
-    },
-    "chat": {
-      "updating": "Updating...",
-      "launching": "Launching...",
-      "update": "Update"
-    }
-  },
-  "a2a": {
-    "labels": {
-      "url": "URL",
-      "agent_name": "Agent name",
-      "description": "Description",
-      "access": "Access",
-      "capabilities": "Capabilities",
-      "push_notifications": "Push notifications (webhooks)",
-      "tags": "Tags",
-      "language": "Language",
-      "send_message": "Send message",
-      "stream": "Stream"
-    },
-    "placeholders": {
-      "agent_name": "Enter agent name",
-      "description": "Describe what this agent does...",
-      "tags": "Add tags",
-      "tags_additional": "Add another"
-    },
-    "helper_text": {
-      "url": "The A2A endpoint URL where clients can discover and call your agent",
-      "agent_name": "Human-readable name shown in the Agent Card",
-      "access_api_key": "Requires X-API-Key header or API key query parameter",
-      "access_public": "Anyone can call this agent without authentication",
-      "discovery": "External A2A clients can discover and call your agent. TextPart → <code>start.input</code>, DataPart → <code>start.data</code>, FilePart → <code>start.files</code>.",
-      "add_inputs": "Add required A2A input fields to Start block"
-    },
-    "buttons": {
-      "api_key": "API Key",
-      "public": "Public",
-      "add_inputs": "Add inputs",
-      "copy": "Copy",
-      "copied": "Copied"
-    },
-    "aria": {
-      "copy_url": "Copy URL",
-      "copy_command": "Copy command"
-    },
-    "languages": {
-      "curl": "cURL",
-      "python": "Python",
-      "javascript": "JavaScript",
-      "typescript": "TypeScript"
-    }
-  },
-  "api_deploy": {
-    "labels": {
-      "language": "Language",
-      "run_workflow": "Run workflow",
-      "run_workflow_stream": "Run workflow (stream response)",
-      "run_workflow_async": "Run workflow (async)"
-    },
-    "buttons": {
-      "copy": "Copy",
-      "copied": "Copied"
-    },
-    "aria": {
-      "copy_command": "Copy command"
-    },
-    "async_examples": {
-      "execute": "Execute Job",
-      "status": "Check Status",
-      "rate_limits": "Rate Limits"
-    },
-    "placeholders": {
-      "select_outputs": "Select outputs"
-    }
-  },
-  "chat_deploy": {
-    "labels": {
-      "title": "Title",
-      "output": "Output",
-      "access_control": "Access control",
-      "password": "Password",
-      "allowed_emails": "Allowed emails",
-      "allowed_sso_emails": "Allowed SSO emails",
-      "welcome_message": "Welcome message",
-      "url": "URL"
-    },
-    "placeholders": {
-      "title": "Customer Support Assistant",
-      "output": "Select which block outputs to use",
-      "chat_url": "my-chat",
-      "password": "Enter password",
-      "password_existing": "Enter new password to change",
-      "emails": "Enter emails or domains (@example.com)",
-      "emails_additional": "Add email",
-      "welcome_message": "Enter a welcome message for your chat"
-    },
-    "buttons": {
-      "public": "Public",
-      "password": "Password",
-      "email": "Email",
-      "sso": "SSO",
-      "delete": "Delete",
-      "deleting": "Deleting...",
-      "cancel": "Cancel",
-      "generate": "Generate",
-      "copy": "Copy",
-      "copied": "Copied",
-      "show": "Show",
-      "hide": "Hide"
-    },
-    "errors": {
-      "identifier_required": "Identifier is required",
-      "identifier_invalid": "Identifier can only contain lowercase letters, numbers, and hyphens",
-      "title_required": "Title is required",
-      "password_required": "Password is required when using password protection",
-      "emails_required_email": "At least one email or domain is required when using email access control",
-      "emails_required_sso": "At least one email or domain is required when using SSO access control",
-      "output_blocks_required": "Please select at least one output block",
-      "identifier_unavailable": "This identifier is already in use",
-      "identifier_check_error": "Error checking identifier availability"
-    },
-    "helper_text": {
-      "url": "The unique URL path where your chat will be accessible",
-      "live_at": "Live at:",
-      "password": "This password will be required to access your chat",
-      "password_existing": "Leave empty to keep the current password",
-      "welcome_message": "This message will be displayed when users first open the chat",
-      "emails": "Add specific emails or entire domains (@example.com)",
-      "sso_emails": "Add emails or domains that can access via SSO",
-      "name_available": "Name is available"
-    },
-    "modal": {
-      "delete_title": "Delete Chat",
-      "delete_confirmation": "Are you sure you want to delete {{title}}?",
-      "delete_warning": "This will remove the chat at \"{{url}}\" and make it unavailable to all users."
-    },
-    "aria": {
-      "generate_password": "Generate password",
-      "copy_password": "Copy password",
-      "show_password": "Show password",
-      "hide_password": "Hide password"
-    }
-  },
-  "form_deploy": {
-    "labels": {
-      "url": "URL",
-      "form_builder": "Form builder",
-      "access_control": "Access control",
-      "password": "Password",
-      "allowed_emails": "Allowed emails",
-      "thank_you_message": "Thank you message"
-    },
-    "placeholders": {
-      "form_url": "my-form",
-      "password": "Enter password",
-      "password_existing": "Enter new password to change",
-      "emails": "Enter emails or @domain.com",
-      "emails_additional": "Add another",
-      "thank_you_message": "Your response has been submitted successfully."
-    },
-    "buttons": {
-      "public": "Public",
-      "password": "Password",
-      "email": "Email"
-    },
-    "errors": {
-      "validation_pending": "Please wait for identifier validation to complete",
-      "title_required": "Title is required",
-      "password_required": "Password is required",
-      "emails_required": "At least one email or domain is required",
-      "identifier_invalid": "Identifier can only contain lowercase letters, numbers, and hyphens",
-      "identifier_check_error": "Error checking identifier availability",
-      "identifier_unavailable": "This identifier is already in use"
-    },
-    "helper_text": {
-      "url": "The unique URL path where your form will be accessible",
-      "live_at": "Live at:",
-      "password": "This password will be required to access your form",
-      "password_existing": "Leave empty to keep the current password",
-      "thank_you_message": "This message will be displayed after form submission",
-      "emails": "Add specific emails or entire domains (@example.com)",
-      "name_available": "Name is available",
-      "no_input_fields": "Add input fields to the Start block to create a form."
-    },
-    "aria": {
-      "copy_code": "Copy code"
-    }
-  },
-  "form_deploy_builder": {
-    "labels": {
-      "required": "Required",
-      "maps_to": "maps to"
-    },
-    "placeholders": {
-      "title": "Form Title",
-      "description": "Description",
-      "field_label": "Label",
-      "field_description": "Description..."
-    }
-  },
-  "form_deploy_embed": {
-    "labels": {
-      "embed_code": "Embed Code"
-    },
-    "aria": {
-      "copy_code": "Copy code"
-    },
-    "buttons": {
-      "copy": "Copy",
-      "copied": "Copied"
-    }
-  },
-  "general_deploy": {
-    "labels": {
-      "live_workflow": "Live Workflow",
-      "preview": "Preview",
-      "versions": "Versions"
-    },
-    "buttons": {
-      "live": "Live",
-      "cancel": "Cancel",
-      "load_deployment": "Load deployment",
-      "promote_to_live": "Promote to live"
+      "canceled": "canceled",
+      "running": "Running"
     },
     "tooltips": {
-      "see_preview": "See preview"
+      "component_playground": "Component Playground",
+      "copied": "Copied",
+      "search_in_output": "Search in output",
+      "sort_by_time": "Sort by time",
+      "stop_training": "Stop Training",
+      "train_copilot": "Train Copilot"
+    }
+  },
+  "too_many_requests": "Too many requests. Please wait a moment before trying again.",
+  "version_description_modal": {
+    "buttons": {
+      "cancel": "Cancel",
+      "discard_changes": "Discard Changes",
+      "generate": "Generate",
+      "generating": "Generating...",
+      "keep_editing": "Keep Editing",
+      "save": "Save",
+      "saving": "Saving..."
     },
-    "modals": {
-      "load_deployment_title": "Load Deployment",
-      "load_deployment_warning": "This will replace your current workflow with the deployed version.",
-      "promote_to_live_title": "Promote to live",
-      "promote_to_live_info": "This version will become the active deployment and serve all API requests."
+    "labels": {
+      "title": "Version Description"
     },
     "messages": {
-      "no_preview": "Deploy your workflow to see a preview"
+      "add_description": "Add a",
+      "description_for": "description for",
+      "edit_description": "Edit the",
+      "unsaved_changes": "Unsaved Changes",
+      "unsaved_changes_confirmation": "You have unsaved changes. Are you sure you want to discard them?"
+    },
+    "placeholders": {
+      "description": "Describe the changes in this deployment version..."
     }
   },
   "versions_deploy": {
-    "labels": {
-      "version": "Version",
-      "deployed_by": "Deployed by",
-      "timestamp": "Timestamp",
-      "live": "Live",
-      "inactive": "Inactive",
-      "selected": "Selected"
-    },
     "buttons": {
-      "rename": "Rename",
       "add_description": "Add description",
       "edit_description": "Edit description",
+      "load_deployment": "Load deployment",
       "promote_to_live": "Promote to live",
-      "load_deployment": "Load deployment"
+      "rename": "Rename"
+    },
+    "labels": {
+      "deployed_by": "Deployed by",
+      "inactive": "Inactive",
+      "live": "Live",
+      "selected": "Selected",
+      "timestamp": "Timestamp",
+      "version": "Version"
     },
     "messages": {
       "no_deployments": "No deployments yet"
@@ -2617,193 +2633,255 @@
       "add_description": "Add description"
     }
   },
-  "version_description_modal": {
-    "labels": {
-      "title": "Version Description"
+  "workflows": {
+    "block_menu": {
+      "clipboard": {
+        "copy": "Copy",
+        "paste": "Paste"
+      },
+      "destructive": {
+        "delete": "Delete"
+      },
+      "edit": {
+        "duplicate": "Duplicate",
+        "flip_handles": "Flip Handles",
+        "open_editor": "Open Editor",
+        "rename": "Rename"
+      },
+      "execution": {
+        "run_from_block": "Run from block",
+        "run_until_block": "Run until block"
+      },
+      "state": {
+        "disable": "Disable",
+        "enable": "Enable",
+        "lock": "Lock",
+        "parent_disabled": "Parent is disabled",
+        "parent_locked": "Parent is locked",
+        "toggle_enabled": "Toggle Enabled",
+        "toggle_lock": "Toggle Lock",
+        "unlock": "Unlock"
+      },
+      "subflow": {
+        "remove_from_subflow": "Remove from Subflow"
+      }
     },
-    "buttons": {
-      "generate": "Generate",
-      "generating": "Generating...",
-      "cancel": "Cancel",
-      "save": "Save",
-      "saving": "Saving...",
-      "keep_editing": "Keep Editing",
-      "discard_changes": "Discard Changes"
+    "canvas": {
+      "controls": {
+        "fit_to_view": "Fit to view",
+        "hide": "Hide canvas controls",
+        "redo": "Redo",
+        "undo": "Undo"
+      },
+      "modes": {
+        "hand": "Hand",
+        "pointer": "Pointer"
+      }
     },
-    "messages": {
-      "edit_description": "Edit the",
-      "add_description": "Add a",
-      "description_for": "description for",
-      "unsaved_changes": "Unsaved Changes",
-      "unsaved_changes_confirmation": "You have unsaved changes. Are you sure you want to discard them?"
+    "canvas_menu": {
+      "edit": {
+        "add_block": "Add Block",
+        "auto_layout": "Auto-layout",
+        "auto_layout_disabled": "Unlock blocks to use auto-layout",
+        "fit_to_view": "Fit to View",
+        "paste": "Paste"
+      },
+      "history": {
+        "redo": "Redo",
+        "undo": "Undo"
+      },
+      "navigation": {
+        "close_chat": "Close Chat",
+        "close_variables": "Close Variables",
+        "open_chat": "Open Chat",
+        "open_logs": "Open Logs",
+        "open_variables": "Open Variables"
+      }
     },
-    "placeholders": {
-      "description": "Describe the changes in this deployment version..."
-    }
-  },
-  "api_info_modal": {
-    "labels": {
-      "title": "Edit API Info",
-      "description": "Description",
-      "access": "Access",
-      "parameters": "Parameters"
-    },
-    "buttons": {
-      "api_key": "API Key",
-      "public": "Public",
-      "cancel": "Cancel",
-      "save": "Save",
-      "saving": "Saving...",
-      "keep_editing": "Keep Editing",
-      "discard_changes": "Discard Changes"
-    },
-    "placeholders": {
-      "description": "Describe what this workflow API does...",
-      "parameter_description": "Enter description for"
-    },
-    "helper_text": {
-      "public_access": "Anyone can call this API without authentication. You will be billed for all usage.",
-      "api_key_access": "Requires a valid API key to call this endpoint."
-    },
-    "messages": {
-      "unsaved_changes": "Unsaved Changes",
-      "unsaved_changes_confirmation": "You have unsaved changes. Are you sure you want to discard them?"
-    }
-  },
-  "mcp_deploy": {
-    "labels": {
-      "tool_name": "Tool name",
-      "description": "Description",
-      "parameters": "Parameters",
-      "servers": "Servers",
-      "parameter_description": "Description"
-    },
-    "placeholders": {
-      "tool_name": "e.g., book_flight",
-      "description": "Describe what this tool does...",
-      "parameter_description": "Enter description for",
-      "servers": "Select servers...",
-      "servers_search": "Search servers..."
-    },
-    "helper_text": {
-      "tool_name": "Use lowercase letters, numbers, and underscores only",
-      "servers_disabled": "Enter a tool name to select servers"
-    },
-    "buttons": {
-      "create_mcp_server": "Create MCP Server"
-    },
-    "messages": {
-      "not_deployed": "Deploy your workflow first to add it as an MCP tool.",
-      "no_servers": "Create an MCP Server in Settings → MCP Servers first."
-    }
-  },
-  "template_deploy": {
-    "labels": {
-      "live_template": "Live Template",
-      "name": "Name",
-      "tagline": "Tagline",
-      "description": "Description",
-      "creator": "Creator",
-      "tags": "Tags"
-    },
-    "placeholders": {
-      "name": "Deep Research Agent",
-      "tagline": "A deep research agent that can find information on any topic",
-      "description": "Optional description that supports Markdown",
-      "tags": "Dev, Agents, Research, etc.",
-      "tags_additional": "Add another",
-      "creator_loading": "Loading...",
-      "creator_select": "Select creator profile"
-    },
-    "helper_text": {
-      "creator_required": "A creator profile is required to publish templates."
-    },
-    "buttons": {
-      "create_profile": "Create Template Profile",
-      "cancel": "Cancel",
-      "delete": "Delete",
-      "deleting": "Deleting..."
-    },
-    "modals": {
-      "delete_title": "Delete Template",
-      "delete_confirmation": "Are you sure you want to delete",
-      "delete_error": "This action cannot be undone."
-    }
-  },
-  "knowledge": {
-    "title": "Knowledge Base",
-    "subtitle": "Create and manage knowledge bases with custom files.",
-    "labels": {
-      "name": "Name",
-      "description": "Description",
-      "min_chunk_size": "Min Chunk Size (characters)",
-      "max_chunk_size": "Max Chunk Size (tokens)",
-      "overlap": "Overlap (tokens)",
-      "upload_documents": "Upload Documents",
-      "selected_files": "Selected Files"
-    },
-    "placeholders": {
-      "search": "Search",
-      "enter_kb_name": "Enter knowledge base name",
-      "enter_description": "Describe this knowledge base (optional)"
-    },
-    "helper_text": {
-      "chunk_size_note": "1 token ≈ 4 characters. Max chunk size and overlap are in tokens.",
-      "upload_formats": "PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML (max 100MB each)",
-      "upload_hint": "Drop files here or click to browse",
-      "upload_dragging": "Drop files here",
-      "permission_required": "Write permission required to create knowledge bases"
-    },
-    "buttons": {
-      "create": "Create",
-      "cancel": "Cancel",
-      "save": "Save",
-      "delete": "Delete",
-      "deleting": "Deleting...",
-      "uploading": "Uploading {completed}/{total}...",
-      "processing": "Processing...",
-      "creating": "Creating..."
-    },
-    "empty_states": {
-      "no_results_title": "No knowledge bases found",
-      "no_results_description": "Try a different search term",
-      "no_bases_title": "No knowledge bases yet",
-      "no_bases_can_create": "Create a knowledge base to get started",
-      "no_bases_cannot_create": "Knowledge bases will appear here once created",
-      "error_title": "Error loading knowledge bases"
-    },
-    "modals": {
-      "create_title": "Create Knowledge Base",
-      "edit_title": "Edit Knowledge Base",
-      "delete_title": "Delete Knowledge Base",
-      "delete_confirmation": "Are you sure you want to delete {name}? This will permanently remove all associated documents, chunks, and embeddings.",
-      "delete_confirmation_unnamed": "Are you sure you want to delete this knowledge base? This will permanently remove all associated documents, chunks, and embeddings.",
-      "delete_warning": "This action cannot be undone."
+    "command_list": {
+      "logs": "Logs",
+      "new_agent": "New Agent",
+      "search_blocks": "Search Blocks",
+      "templates": "Templates"
     },
     "context_menu": {
-      "open_new_tab": "Open in new tab",
-      "view_tags": "View tags",
-      "copy_id": "Copy ID",
-      "edit": "Edit",
-      "delete": "Delete",
-      "add_knowledge_base": "Add knowledge base"
+      "buttons": {
+        "change_color": "Change color",
+        "copy_link": "Copy link",
+        "create_folder": "Create folder",
+        "create_workflow": "Create workflow",
+        "delete": "Delete",
+        "duplicate": "Duplicate",
+        "export": "Export",
+        "leave": "Leave",
+        "open_in_new_tab": "Open in new tab",
+        "rename": "Rename"
+      }
     },
-    "document_count": {
-      "singular": "doc",
-      "plural": "docs"
+    "delete_modal": {
+      "buttons": {
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "deleting": "Deleting..."
+      },
+      "descriptions": {
+        "cannot_undo": "This action cannot be undone.",
+        "folder_multiple_named": "Are you sure you want to delete {names}?",
+        "folder_multiple_unnamed": "Are you sure you want to delete these folders?",
+        "folder_single_named": "Are you sure you want to delete the folder '{name}'?",
+        "folder_single_unnamed": "Are you sure you want to delete this folder?",
+        "mixed_named": "Are you sure you want to delete {names}?",
+        "mixed_unnamed": "Are you sure you want to delete these items?",
+        "workflow_multiple_named": "Are you sure you want to delete {names}?",
+        "workflow_multiple_unnamed": "Are you sure you want to delete these workflows?",
+        "workflow_single_named": "Are you sure you want to delete the workflow '{name}'?",
+        "workflow_single_unnamed": "Are you sure you want to delete this workflow?",
+        "workspace_single_named": "Are you sure you want to delete the workspace '{name}'?",
+        "workspace_single_unnamed": "Are you sure you want to delete this workspace?"
+      },
+      "titles": {
+        "folder_multiple": "Delete Folders",
+        "folder_single": "Delete Folder",
+        "mixed": "Delete Items",
+        "workflow_multiple": "Delete Workflows",
+        "workflow_single": "Delete Workflow",
+        "workspace": "Delete Workspace"
+      }
     },
-    "sort_options": {
-      "last_updated": "Last Updated",
-      "newest_first": "Newest First",
-      "oldest_first": "Oldest First",
-      "name_asc": "Name (A-Z)",
-      "name_desc": "Name (Z-A)",
-      "most_docs": "Most Documents",
-      "least_docs": "Least Documents"
+    "errors": {
+      "cycle_detected": "Cannot create connection: would create a cycle in the workflow.",
+      "invalid_connection": "Cannot create connection: invalid source or target.",
+      "legacy_start_block_exists": "Cannot add new trigger blocks when a legacy Start block exists. Available in newer workflows.",
+      "locked_blocks_delete": "Cannot delete locked blocks or blocks inside locked containers.",
+      "nested_subflows": "Subflows cannot be nested inside other subflows.",
+      "single_instance_block": "A workflow can only have one {blockName} block. Please remove the existing one before adding a new one.",
+      "single_trigger_block": "A workflow can only have one {triggerName} trigger block. Please remove the existing one before adding a new one.",
+      "triggers_in_loop": "Triggers cannot be placed inside loop or parallel subflows."
     },
-    "labels": {
-      "last_updated": "last updated:"
+    "help_modal": {
+      "buttons": {
+        "cancel": "Cancel",
+        "error": "Error",
+        "submit": "Submit",
+        "submitting": "Submitting...",
+        "success": "Success"
+      },
+      "helper_text": {
+        "images": "PNG, JPEG, WebP, GIF (max 20MB each)"
+      },
+      "labels": {
+        "images": "Attach Images (Optional)",
+        "message": "Message",
+        "request": "Request",
+        "subject": "Subject",
+        "uploaded_images": "Uploaded Images"
+      },
+      "placeholders": {
+        "images_drop": "Drop images here or click to browse",
+        "message": "Please provide details about your request...",
+        "request": "Select a request type",
+        "subject": "Brief description of your request"
+      },
+      "request_types": {
+        "bug": "Bug Report",
+        "feature_request": "Feature Request",
+        "feedback": "Feedback",
+        "other": "Other"
+      },
+      "title": "Help & Support"
     },
-    "no_description": "No description provided"
+    "notifications": {
+      "account_already_connected": "This account is already connected as \"{existingName}\".",
+      "credential_connected": "\"{displayName}\" credential connected successfully.",
+      "operations": {
+        "deleting": "Deleting...",
+        "duplicating": "Duplicating...",
+        "exporting": "Exporting..."
+      },
+      "protected_blocks_skipped": "Skipped {count} protected block(s)",
+      "reconnected_successfully": "\"{displayName}\" reconnected successfully."
+    },
+    "panel": {
+      "buttons": {
+        "run": "Run",
+        "stop": "Stop"
+      },
+      "buttons_modal": {
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "deleting": "Deleting..."
+      },
+      "error_messages": {
+        "cannot_undo": "This action cannot be undone."
+      },
+      "menu": {
+        "auto_layout": "Auto layout",
+        "delete_workflow": "Delete workflow",
+        "duplicate_workflow": "Duplicate workflow",
+        "export_workflow": "Export workflow",
+        "variables": "Variables"
+      },
+      "messages": {
+        "auto_layout_locked": "Unlock blocks to use auto-layout",
+        "delete_confirmation": "Are you sure you want to delete <workflowName/>? This will permanently remove all associated blocks, executions, and configuration."
+      },
+      "modal": {
+        "delete_title": "Delete Workflow"
+      },
+      "tabs": {
+        "copilot": "Copilot",
+        "editor": "Editor",
+        "toolbar": "Toolbar"
+      }
+    },
+    "search_modal": {
+      "groups": {
+        "blocks": "Blocks",
+        "docs": "Docs",
+        "pages": "Pages",
+        "tool_operations": "Tool Operations",
+        "tools": "Tools",
+        "triggers": "Triggers",
+        "workflows": "Workflows",
+        "workspaces": "Workspaces"
+      },
+      "labels": {
+        "current": "(current)",
+        "help": "Help",
+        "knowledge_base": "Knowledge Base",
+        "logs": "Logs",
+        "settings": "Settings",
+        "templates": "Templates"
+      },
+      "messages": {
+        "no_results": "No results found."
+      },
+      "placeholders": {
+        "search": "Search anything..."
+      }
+    },
+    "sidebar": {
+      "aria": {
+        "resize_sidebar": "Resize sidebar",
+        "search_shortcut": "⌘K"
+      },
+      "labels": {
+        "create_folder": "Create folder",
+        "create_workflow": "Create workflow",
+        "import_workflows": "Import workflows",
+        "search": "Search",
+        "workflows": "Workflows"
+      },
+      "loading_states": {
+        "creating_folder": "Creating folder...",
+        "creating_workflow": "Creating workflow..."
+      },
+      "tooltips": {
+        "create_folder": "Create folder",
+        "create_workflow": "Create workflow",
+        "import_workflows": "Import workflows"
+      }
+    },
+    "title": "Workflows"
   }
 }

@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/core/utils/cn'
 import {
   DELETED_WORKFLOW_COLOR,
-  DELETED_WORKFLOW_LABEL,
+  useLogTranslations,
 } from '@/app/workspace/[workspaceId]/logs/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { StatusBar, type StatusBarSegment } from '..'
@@ -40,6 +40,7 @@ function WorkflowsListInner({
   segmentDurationMs: number
 }) {
   const t = useTranslations('logs.dashboard')
+  const { deletedWorkflow } = useLogTranslations()
   const { workflows } = useWorkflowRegistry()
 
   return (
@@ -48,13 +49,13 @@ function WorkflowsListInner({
       <div className='flex-shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-[24px] py-[10px] dark:bg-[var(--surface-3)]'>
         <div className='flex items-center gap-[16px]'>
           <span className='w-[160px] flex-shrink-0 font-medium text-[12px] text-[var(--text-tertiary)]'>
-            {t('column_headers.workflow')}
+            {t('table_headers.workflow')}
           </span>
           <span className='flex-1 font-medium text-[12px] text-[var(--text-tertiary)]'>
-            {t('column_headers.logs')}
+            {t('table_headers.logs')}
           </span>
           <span className='w-[100px] flex-shrink-0 pl-[16px] font-medium text-[12px] text-[var(--text-tertiary)]'>
-            {t('column_headers.success_rate')}
+            {t('table_headers.success_rate')}
           </span>
         </div>
       </div>
@@ -64,16 +65,14 @@ function WorkflowsListInner({
         {filteredExecutions.length === 0 ? (
           <div className='flex items-center justify-center py-[32px]'>
             <span className='text-[13px] text-[var(--text-secondary)]'>
-              {searchQuery
-                ? `${t('no_workflows_found_with_search')} "${searchQuery}"`
-                : t('no_workflows_found')}
+              {searchQuery ? `${t('empty_state.description')}` : t('no_workflows_found')}
             </span>
           </div>
         ) : (
           <div>
             {filteredExecutions.map((workflow, idx) => {
               const isSelected = expandedWorkflowId === workflow.workflowId
-              const isDeletedWorkflow = workflow.workflowName === DELETED_WORKFLOW_LABEL
+              const isDeletedWorkflow = workflow.workflowName === deletedWorkflow
               const workflowColor = isDeletedWorkflow
                 ? DELETED_WORKFLOW_COLOR
                 : workflows[workflow.workflowId]?.color || '#64748b'

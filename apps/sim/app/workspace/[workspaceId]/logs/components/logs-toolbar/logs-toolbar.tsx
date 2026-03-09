@@ -1,9 +1,9 @@
 'use client'
 
 import { memo, useCallback, useMemo, useState } from 'react'
-import { useTranslations } from 'next-intl'
 import { ArrowUp, Bell, Library, MoreHorizontal, RefreshCw } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useFormatter, useTranslations } from 'next-intl'
 import {
   Button,
   Combobox,
@@ -20,35 +20,17 @@ import { DatePicker } from '@/components/emcn/components/date-picker/date-picker
 import { cn } from '@/lib/core/utils/cn'
 import { hasActiveFilters } from '@/lib/logs/filters'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
-import { type LogStatus, STATUS_CONFIG } from '@/app/workspace/[workspaceId]/logs/utils'
+import {
+  type LogStatus,
+  STATUS_CONFIG,
+  useLogTranslations,
+} from '@/app/workspace/[workspaceId]/logs/utils'
 import { getBlock } from '@/blocks/registry'
 import { useFolderStore } from '@/stores/folders/store'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { AutocompleteSearch } from './components/search'
-
-/**
- * Formats a date string (YYYY-MM-DD) for display.
- */
-function formatDateShort(dateStr: string): string {
-  const date = new Date(dateStr)
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ]
-  return `${months[date.getMonth()]} ${date.getDate()}`
-}
 
 type ViewMode = 'logs' | 'dashboard'
 
@@ -153,6 +135,8 @@ export const LogsToolbar = memo(function LogsToolbar({
   onSearchOpenChange,
 }: LogsToolbarProps) {
   const t = useTranslations('logs')
+  const format = useFormatter()
+  const { statusLabels } = useLogTranslations()
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -220,10 +204,10 @@ export const LogsToolbar = memo(function LogsToolbar({
     () =>
       (Object.keys(STATUS_CONFIG) as LogStatus[]).map((status) => ({
         value: status,
-        label: STATUS_CONFIG[status].label,
+        label: statusLabels[status],
         icon: getColorIcon(STATUS_CONFIG[status].color),
       })),
-    []
+    [statusLabels]
   )
 
   const handleStatusChange = useCallback(
@@ -243,7 +227,7 @@ export const LogsToolbar = memo(function LogsToolbar({
       const status = statusOptions.find((s) => s.value === selectedStatuses[0])
       return status?.label || t('toolbar.filters.status')
     }
-    return `${selectedStatuses.length} selected`
+    return t('toolbar.count_selected', { count: selectedStatuses.length })
   }, [selectedStatuses, statusOptions, t])
 
   const selectedStatusColor = useMemo(() => {
@@ -263,7 +247,7 @@ export const LogsToolbar = memo(function LogsToolbar({
       const workflow = workflows.find((w) => w.id === workflowIds[0])
       return workflow?.name || t('toolbar.filters.workflow')
     }
-    return `${workflowIds.length} workflows`
+    return t('toolbar.count_workflows', { count: workflowIds.length })
   }, [workflowIds, workflows, t])
 
   const selectedWorkflow =
@@ -280,7 +264,7 @@ export const LogsToolbar = memo(function LogsToolbar({
       const folder = folderList.find((f) => f.id === folderIds[0])
       return folder?.name || t('toolbar.filters.folder')
     }
-    return `${folderIds.length} folders`
+    return t('toolbar.count_folders', { count: folderIds.length })
   }, [folderIds, folderList, t])
 
   const triggerOptions: ComboboxOption[] = useMemo(
@@ -299,13 +283,13 @@ export const LogsToolbar = memo(function LogsToolbar({
       const trigger = triggerOptions.find((t) => t.value === triggers[0])
       return trigger?.label || t('toolbar.filters.trigger')
     }
-    return `${triggers.length} triggers`
+    return t('toolbar.count_triggers', { count: triggers.length })
   }, [triggers, triggerOptions, t])
 
   const timeDisplayLabel = useMemo(() => {
     if (timeRange === 'All time') return t('toolbar.filters.time_range')
     if (timeRange === 'Custom range' && startDate && endDate) {
-      return `${formatDateShort(startDate)} - ${formatDateShort(endDate)}`
+      return `${format.dateTime(new Date(startDate), { month: 'short', day: 'numeric' })} - ${format.dateTime(new Date(endDate), { month: 'short', day: 'numeric' })}`
     }
     if (timeRange === 'Custom range') return t('toolbar.time_ranges.custom_range')
     return timeRange

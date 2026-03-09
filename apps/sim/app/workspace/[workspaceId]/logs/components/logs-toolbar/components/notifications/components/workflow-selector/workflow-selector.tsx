@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { X } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Badge, Combobox, type ComboboxOption } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -26,6 +27,7 @@ export function WorkflowSelector({
   onChange,
   error,
 }: WorkflowSelectorProps) {
+  const t = useTranslations('logs.workflow_selector')
   const { data: workflows = [], isPending: isLoading } = useWorkflows(workspaceId, {
     syncRegistry: false,
   })
@@ -72,7 +74,7 @@ export function WorkflowSelector({
 
   const overlayContent = useMemo(() => {
     if (allWorkflows) {
-      return <span className='truncate text-[var(--text-primary)]'>All Workflows</span>
+      return <span className='truncate text-[var(--text-primary)]'>{t('all_workflows')}</span>
     }
 
     if (selectedWorkflows.length === 0) {
@@ -104,7 +106,7 @@ export function WorkflowSelector({
   if (isLoading) {
     return (
       <div className='flex flex-col gap-[4px]'>
-        <span className='font-medium text-[13px] text-[var(--text-secondary)]'>Workflows</span>
+        <span className='font-medium text-[13px] text-[var(--text-secondary)]'>{t('label')}</span>
         <Skeleton className='h-[34px] w-full rounded-[6px]' />
       </div>
     )
@@ -112,19 +114,19 @@ export function WorkflowSelector({
 
   return (
     <div className='flex flex-col gap-[4px]'>
-      <span className='font-medium text-[13px] text-[var(--text-secondary)]'>Workflows</span>
+      <span className='font-medium text-[13px] text-[var(--text-secondary)]'>{t('label')}</span>
       <Combobox
         options={options}
         multiSelect
         multiSelectValues={currentValues}
         onMultiSelectChange={handleMultiSelectChange}
-        placeholder='Select workflows...'
+        placeholder={t('placeholder')}
         error={error}
         overlayContent={overlayContent}
         searchable
-        searchPlaceholder='Search workflows...'
+        searchPlaceholder={t('placeholder')}
         showAllOption
-        allOptionLabel='All Workflows'
+        allOptionLabel={t('all_workflows')}
       />
     </div>
   )

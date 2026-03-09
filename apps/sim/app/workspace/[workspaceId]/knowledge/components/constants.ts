@@ -10,11 +10,11 @@ export type SortOption = 'name' | 'createdAt' | 'updatedAt' | 'docCount'
 export type SortOrder = 'asc' | 'desc'
 
 export const SORT_OPTIONS = [
-  { value: 'updatedAt-desc', label: 'knowledge.sort_options.last_updated' },
-  { value: 'createdAt-desc', label: 'knowledge.sort_options.newest_first' },
-  { value: 'createdAt-asc', label: 'knowledge.sort_options.oldest_first' },
-  { value: 'name-asc', label: 'knowledge.sort_options.name_asc' },
-  { value: 'name-desc', label: 'knowledge.sort_options.name_desc' },
-  { value: 'docCount-desc', label: 'knowledge.sort_options.most_docs' },
-  { value: 'docCount-asc', label: 'knowledge.sort_options.least_docs' },
+  { value: 'updatedAt-desc', label: 'sort_options.last_updated' },
+  { value: 'createdAt-desc', label: 'sort_options.newest_first' },
+  { value: 'createdAt-asc', label: 'sort_options.oldest_first' },
+  { value: 'name-asc', label: 'sort_options.name_asc' },
+  { value: 'name-desc', label: 'sort_options.name_desc' },
+  { value: 'docCount-desc', label: 'sort_options.most_docs' },
+  { value: 'docCount-asc', label: 'sort_options.least_docs' },
 ] as const

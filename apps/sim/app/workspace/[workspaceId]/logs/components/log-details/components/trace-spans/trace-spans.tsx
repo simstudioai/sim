@@ -3,6 +3,7 @@
 import type React from 'react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, Check, Clipboard, Search, X } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { createPortal } from 'react-dom'
 import {
   Button,
@@ -241,6 +242,7 @@ function InputOutputSection({
   expandedSections: Set<string>
   onToggle: (section: string) => void
 }) {
+  const t = useTranslations('logs.workflow_output')
   const sectionKey = `${spanId}-${sectionType}`
   const isExpanded = expandedSections.has(sectionKey)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -317,7 +319,11 @@ function InputOutputSection({
               : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
           )}
         >
-          {label}
+          {sectionType === 'input'
+            ? t('input_label')
+            : isError
+              ? t('error_label')
+              : t('output_label')}
         </span>
         <ChevronDown
           className='h-[8px] w-[8px] text-[var(--text-tertiary)] transition-colors transition-transform group-hover:text-[var(--text-primary)]'
@@ -359,7 +365,9 @@ function InputOutputSection({
                       )}
                     </Button>
                   </Tooltip.Trigger>
-                  <Tooltip.Content side='top'>{copied ? 'Copied' : 'Copy'}</Tooltip.Content>
+                  <Tooltip.Content side='top'>
+                    {copied ? t('copied_tooltip') : t('copy_tooltip')}
+                  </Tooltip.Content>
                 </Tooltip.Root>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
@@ -375,7 +383,7 @@ function InputOutputSection({
                       <Search className='h-[10px] w-[10px]' />
                     </Button>
                   </Tooltip.Trigger>
-                  <Tooltip.Content side='top'>Search</Tooltip.Content>
+                  <Tooltip.Content side='top'>{t('search_tooltip')}</Tooltip.Content>
                 </Tooltip.Root>
               </div>
             )}
@@ -392,7 +400,7 @@ function InputOutputSection({
                 type='text'
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder='Search...'
+                placeholder={t('search_placeholder')}
                 className='mr-[2px] h-[23px] w-[94px] text-[12px]'
               />
               <span
@@ -408,7 +416,7 @@ function InputOutputSection({
                 className='!p-1'
                 onClick={goToPreviousMatch}
                 disabled={matchCount === 0}
-                aria-label='Previous match'
+                aria-label={t('aria_labels.previous_match')}
               >
                 <ArrowUp className='h-[12px] w-[12px]' />
               </Button>
@@ -417,7 +425,7 @@ function InputOutputSection({
                 className='!p-1'
                 onClick={goToNextMatch}
                 disabled={matchCount === 0}
-                aria-label='Next match'
+                aria-label={t('aria_labels.next_match')}
               >
                 <ArrowDown className='h-[12px] w-[12px]' />
               </Button>
@@ -425,7 +433,7 @@ function InputOutputSection({
                 variant='ghost'
                 className='!p-1'
                 onClick={closeSearch}
-                aria-label='Close search'
+                aria-label={t('close_search_aria')}
               >
                 <X className='h-[12px] w-[12px]' />
               </Button>
@@ -452,9 +460,9 @@ function InputOutputSection({
                   }}
                 />
                 <PopoverContent align='start' side='bottom' sideOffset={4}>
-                  <PopoverItem onClick={handleCopy}>Copy</PopoverItem>
+                  <PopoverItem onClick={handleCopy}>{t('menu_copy')}</PopoverItem>
                   <PopoverDivider />
-                  <PopoverItem onClick={handleSearch}>Search</PopoverItem>
+                  <PopoverItem onClick={handleSearch}>{t('menu_search')}</PopoverItem>
                 </PopoverContent>
               </Popover>,
               document.body
@@ -692,6 +700,7 @@ const TraceSpanNode = memo(function TraceSpanNode({
  * Memoized to prevent re-renders when parent LogDetails updates.
  */
 export const TraceSpans = memo(function TraceSpans({ traceSpans }: TraceSpansProps) {
+  const t = useTranslations('logs.workflow_output')
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set())
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
   const toggleSet = useSetToggle()
@@ -729,7 +738,7 @@ export const TraceSpans = memo(function TraceSpans({ traceSpans }: TraceSpansPro
   )
 
   if (!traceSpans || traceSpans.length === 0) {
-    return <div className='text-[12px] text-[var(--text-secondary)]'>No trace data available</div>
+    return <div className='text-[12px] text-[var(--text-secondary)]'>{t('no_trace_data')}</div>
   }
 
   return (

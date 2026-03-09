@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import { useTranslations } from 'next-intl'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/core/utils/cn'
 import {
   getEndDateFromTimeRange,
@@ -32,7 +32,7 @@ import {
   LogsToolbar,
   NotificationSettings,
 } from './components'
-import { LOG_COLUMN_ORDER, LOG_COLUMNS } from './utils'
+import { LOG_COLUMN_ORDER, LOG_COLUMNS, useLogTranslations } from './utils'
 
 const LOGS_PER_PAGE = 50 as const
 const REFRESH_SPINNER_DURATION_MS = 1000 as const
@@ -67,6 +67,30 @@ function logSelectionReducer(
     default:
       return state
   }
+}
+
+/**
+ * Table header component that renders translated column labels.
+ */
+function TableHeader() {
+  const { columnLabels } = useLogTranslations()
+
+  return (
+    <>
+      {LOG_COLUMN_ORDER.map((key) => {
+        const col = LOG_COLUMNS[key]
+        const label = columnLabels[key]
+        return (
+          <span
+            key={key}
+            className={`${col.width} ${col.minWidth} font-medium text-[12px] text-[var(--text-tertiary)]`}
+          >
+            {label}
+          </span>
+        )
+      })}
+    </>
+  )
 }
 
 /**
@@ -564,17 +588,7 @@ export default function Logs() {
               {/* Table header */}
               <div className='flex-shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-[24px] py-[10px] dark:bg-[var(--surface-3)]'>
                 <div className='flex items-center'>
-                  {LOG_COLUMN_ORDER.map((key) => {
-                    const col = LOG_COLUMNS[key]
-                    return (
-                      <span
-                        key={key}
-                        className={`${col.width} ${col.minWidth} font-medium text-[12px] text-[var(--text-tertiary)]`}
-                      >
-                        {col.label}
-                      </span>
-                    )
-                  })}
+                  <TableHeader />
                 </div>
               </div>
 

@@ -1,6 +1,7 @@
 'use client'
 
 import type { RefObject } from 'react'
+import { useTranslations } from 'next-intl'
 import { createPortal } from 'react-dom'
 import {
   Popover,
@@ -39,6 +40,7 @@ export function SnapshotContextMenu({
   onToggleWrap,
   copyOnly = false,
 }: SnapshotContextMenuProps) {
+  const t = useTranslations('logs.snapshot_context_menu')
   if (typeof document === 'undefined') return null
 
   return createPortal(
@@ -65,7 +67,7 @@ export function SnapshotContextMenu({
             onClose()
           }}
         >
-          Copy
+          {t('copy')}
         </PopoverItem>
 
         {!copyOnly && onSearch && (
@@ -77,7 +79,7 @@ export function SnapshotContextMenu({
                 onClose()
               }}
             >
-              Search
+              {t('search')}
             </PopoverItem>
           </>
         )}
@@ -86,7 +88,7 @@ export function SnapshotContextMenu({
           <>
             <PopoverDivider />
             <PopoverItem showCheck={wrapText} onClick={onToggleWrap}>
-              Wrap Text
+              {t('wrap_text')}
             </PopoverItem>
           </>
         )}

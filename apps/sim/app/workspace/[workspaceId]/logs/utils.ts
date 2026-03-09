@@ -1,5 +1,8 @@
+'use client'
+
 import React from 'react'
 import { format } from 'date-fns'
+import { useTranslations } from 'next-intl'
 import { Badge } from '@/components/emcn'
 import { formatDuration } from '@/lib/core/utils/formatting'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
@@ -7,13 +10,13 @@ import { getBlock } from '@/blocks/registry'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 
 export const LOG_COLUMNS = {
-  date: { width: 'w-[8%]', minWidth: 'min-w-[70px]', label: 'Date' },
-  time: { width: 'w-[12%]', minWidth: 'min-w-[90px]', label: 'Time' },
-  status: { width: 'w-[12%]', minWidth: 'min-w-[100px]', label: 'Status' },
-  workflow: { width: 'w-[22%]', minWidth: 'min-w-[140px]', label: 'Workflow' },
-  cost: { width: 'w-[12%]', minWidth: 'min-w-[90px]', label: 'Cost' },
-  trigger: { width: 'w-[14%]', minWidth: 'min-w-[110px]', label: 'Trigger' },
-  duration: { width: 'w-[20%]', minWidth: 'min-w-[100px]', label: 'Duration' },
+  date: { width: 'w-[8%]', minWidth: 'min-w-[70px]' },
+  time: { width: 'w-[12%]', minWidth: 'min-w-[90px]' },
+  status: { width: 'w-[12%]', minWidth: 'min-w-[100px]' },
+  workflow: { width: 'w-[22%]', minWidth: 'min-w-[140px]' },
+  cost: { width: 'w-[12%]', minWidth: 'min-w-[90px]' },
+  trigger: { width: 'w-[14%]', minWidth: 'min-w-[110px]' },
+  duration: { width: 'w-[20%]', minWidth: 'min-w-[100px]' },
 } as const
 
 export type LogColumnKey = keyof typeof LOG_COLUMNS
@@ -28,8 +31,38 @@ export const LOG_COLUMN_ORDER: readonly LogColumnKey[] = [
   'duration',
 ] as const
 
-export const DELETED_WORKFLOW_LABEL = 'Deleted Workflow'
 export const DELETED_WORKFLOW_COLOR = 'var(--text-tertiary)'
+
+/**
+ * Hook to get translated log-related strings.
+ * Provides translations for status labels, column headers, and deleted workflow message.
+ */
+export function useLogTranslations() {
+  const t = useTranslations('logs.logs_list')
+
+  return {
+    deletedWorkflow: t('deleted_workflow'),
+    statusLabels: {
+      error: t('status_labels.error'),
+      pending: t('status_labels.pending'),
+      running: t('status_labels.running'),
+      cancelled: t('status_labels.cancelled'),
+      info: t('status_labels.info'),
+    },
+    columnLabels: {
+      date: t('columns.date'),
+      time: t('columns.time'),
+      status: t('columns.status'),
+      workflow: t('columns.workflow'),
+      cost: t('columns.cost'),
+      trigger: t('columns.trigger'),
+      duration: t('columns.duration'),
+    },
+  }
+}
+
+/** @deprecated Use useLogTranslations hook instead */
+export const DELETED_WORKFLOW_LABEL = 'Deleted Workflow'
 
 export type LogStatus = 'error' | 'pending' | 'running' | 'info' | 'cancelled'
 
@@ -53,6 +86,20 @@ export function getDisplayStatus(status: string | null | undefined): LogStatus {
   }
 }
 
+export type StatusConfig = Record<
+  LogStatus,
+  { variant: React.ComponentProps<typeof Badge>['variant']; color: string }
+>
+
+export const STATUS_CONFIG_VARIANTS: StatusConfig = {
+  error: { variant: 'red', color: 'var(--text-error)' },
+  pending: { variant: 'amber', color: '#f59e0b' },
+  running: { variant: 'green', color: '#22c55e' },
+  cancelled: { variant: 'orange', color: '#f97316' },
+  info: { variant: 'gray', color: 'var(--terminal-status-info-color)' },
+}
+
+/** @deprecated Use STATUS_CONFIG_VARIANTS and useLogTranslations hook instead */
 export const STATUS_CONFIG: Record<
   LogStatus,
   { variant: React.ComponentProps<typeof Badge>['variant']; label: string; color: string }
@@ -82,11 +129,13 @@ interface StatusBadgeProps {
 /**
  * Renders a colored badge indicating log execution status.
  * @param props - Component props containing the status
- * @returns A Badge with dot indicator and status label
+ * @returns A Badge with dot indicator and translated status label
  */
 export const StatusBadge = React.memo(({ status }: StatusBadgeProps) => {
-  const config = STATUS_CONFIG[status]
-  return React.createElement(Badge, { variant: config.variant, dot: true }, config.label)
+  const { statusLabels } = useLogTranslations()
+  const config = STATUS_CONFIG_VARIANTS[status]
+  const label = statusLabels[status]
+  return React.createElement(Badge, { variant: config.variant, dot: true }, label)
 })
 
 StatusBadge.displayName = 'StatusBadge'

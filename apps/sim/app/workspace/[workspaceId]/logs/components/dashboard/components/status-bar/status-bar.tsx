@@ -1,4 +1,5 @@
 import { memo, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 
 export interface StatusBarSegment {
   successRate: number
@@ -28,6 +29,7 @@ function StatusBarInner({
   segmentDurationMs: number
   preferBelow?: boolean
 }) {
+  const t = useTranslations('logs.status_bar')
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
 
   const labels = useMemo(() => {
@@ -40,10 +42,13 @@ function StatusBarInner({
       return {
         rangeLabel,
         successLabel: `${segment.successRate.toFixed(1)}%`,
-        countsLabel: `${segment.successfulExecutions ?? 0}/${segment.totalExecutions ?? 0} succeeded`,
+        countsLabel: t('succeeded_count', {
+          successful: segment.successfulExecutions ?? 0,
+          total: segment.totalExecutions ?? 0,
+        }),
       }
     })
-  }, [segments, segmentDurationMs])
+  }, [segments, segmentDurationMs, t])
 
   return (
     <div className='relative'>

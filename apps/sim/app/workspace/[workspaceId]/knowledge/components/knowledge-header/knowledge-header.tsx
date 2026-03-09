@@ -174,8 +174,8 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
                       {isLoadingWorkspaces
                         ? t('buttons.processing')
                         : updateKnowledgeBase.isPending
-                          ? 'Updating...'
-                          : currentWorkspace?.name || 'No workspace'}
+                          ? t('buttons.updating')
+                          : currentWorkspace?.name || t('labels.no_workspace')}
                     </span>
                     <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
                   </Button>
@@ -187,7 +187,7 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
                     showCheck
                     onClick={() => handleWorkspaceChange(null)}
                   >
-                    <span className='text-muted-foreground'>No workspace</span>
+                    <span className='text-muted-foreground'>{t('labels.no_workspace')}</span>
                   </PopoverItem>
 
                   {/* Available workspaces */}
@@ -205,7 +205,7 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
                   {workspaces.length === 0 && !isLoadingWorkspaces && (
                     <PopoverItem disabled>
                       <span className='text-muted-foreground text-xs'>
-                        No write permissions
+                        {t('empty_states.no_write_permissions')}
                       </span>
                     </PopoverItem>
                   )}
@@ -221,7 +221,7 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
                 <Button
                   variant='outline'
                   className={filterButtonClass}
-                  aria-label='Knowledge base actions menu'
+                  aria-label={t('aria.actions_menu')}
                 >
                   <MoreHorizontal className='h-4 w-4' />
                 </Button>

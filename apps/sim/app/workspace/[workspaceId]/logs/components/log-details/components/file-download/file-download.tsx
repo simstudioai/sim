@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ArrowDown, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/emcn'
 import { extractWorkspaceIdFromExecutionKey, getViewerUrl } from '@/lib/uploads/utils/file-utils'
 
@@ -44,6 +45,7 @@ function formatFileSize(bytes: number): string {
 
 function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps) {
   const [isDownloading, setIsDownloading] = useState(false)
+  const t = useTranslations('logs.log_details')
   const router = useRouter()
 
   const handleDownload = () => {
@@ -122,7 +124,7 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
           ) : (
             <ArrowDown className='mr-[4px] h-[10px] w-[10px]' />
           )}
-          {isDownloading ? 'Opening...' : 'Download'}
+          {isDownloading ? t('buttons.opening') : t('buttons.download')}
         </Button>
       </div>
     </div>
@@ -130,6 +132,7 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
 }
 
 export function FileCards({ files, isExecutionFile = false, workspaceId }: FileCardsProps) {
+  const t = useTranslations('logs.log_details')
   if (!files || files.length === 0) {
     return null
   }
@@ -137,7 +140,7 @@ export function FileCards({ files, isExecutionFile = false, workspaceId }: FileC
   return (
     <div className='mt-[4px] flex flex-col gap-[6px] rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] py-[8px] dark:bg-transparent'>
       <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-        Files ({files.length})
+        {t('files_label')} ({files.length})
       </span>
       {files.map((file, index) => (
         <FileCard
