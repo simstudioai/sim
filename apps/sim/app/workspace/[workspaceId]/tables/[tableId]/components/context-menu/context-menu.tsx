@@ -1,4 +1,4 @@
-import { Edit, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Edit, Trash2 } from 'lucide-react'
 import {
   Popover,
   PopoverAnchor,
@@ -13,9 +13,18 @@ interface ContextMenuProps {
   onClose: () => void
   onEdit: () => void
   onDelete: () => void
+  onInsertAbove: () => void
+  onInsertBelow: () => void
 }
 
-export function ContextMenu({ contextMenu, onClose, onEdit, onDelete }: ContextMenuProps) {
+export function ContextMenu({
+  contextMenu,
+  onClose,
+  onEdit,
+  onDelete,
+  onInsertAbove,
+  onInsertBelow,
+}: ContextMenuProps) {
   return (
     <Popover
       open={contextMenu.isOpen}
@@ -37,6 +46,14 @@ export function ContextMenu({ contextMenu, onClose, onEdit, onDelete }: ContextM
         <PopoverItem onClick={onEdit}>
           <Edit className='mr-[8px] h-[12px] w-[12px]' />
           Edit row
+        </PopoverItem>
+        <PopoverItem onClick={onInsertAbove}>
+          <ArrowUp className='mr-[8px] h-[12px] w-[12px]' />
+          Insert row above
+        </PopoverItem>
+        <PopoverItem onClick={onInsertBelow}>
+          <ArrowDown className='mr-[8px] h-[12px] w-[12px]' />
+          Insert row below
         </PopoverItem>
         <PopoverDivider />
         <PopoverItem onClick={onDelete} className='text-[var(--text-error)]'>

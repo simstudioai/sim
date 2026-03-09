@@ -10,7 +10,7 @@
 import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq, sql } from 'drizzle-orm'
+import { and, count, eq, gte, sql } from 'drizzle-orm'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { buildFilterClause, buildSortClause } from './sql'
 import type {
@@ -430,12 +430,40 @@ export async function insertRow(
       throw new Error(`Table has reached maximum row limit (${table.maxRows})`)
     }
 
-    const [{ maxPos }] = await trx
-      .select({
-        maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
-      })
-      .from(userTableRows)
-      .where(eq(userTableRows.tableId, data.tableId))
+    let targetPosition: number
+
+    if (data.position !== undefined) {
+      targetPosition = data.position
+
+      const [existing] = await trx
+        .select({ id: userTableRows.id })
+        .from(userTableRows)
+        .where(
+          and(eq(userTableRows.tableId, data.tableId), eq(userTableRows.position, targetPosition))
+        )
+        .limit(1)
+
+      if (existing) {
+        await trx
+          .update(userTableRows)
+          .set({ position: sql`position + 1` })
+          .where(
+            and(
+              eq(userTableRows.tableId, data.tableId),
+              gte(userTableRows.position, targetPosition)
+            )
+          )
+      }
+    } else {
+      const [{ maxPos }] = await trx
+        .select({
+          maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
+        })
+        .from(userTableRows)
+        .where(eq(userTableRows.tableId, data.tableId))
+
+      targetPosition = maxPos + 1
+    }
 
     return trx
       .insert(userTableRows)
@@ -444,7 +472,7 @@ export async function insertRow(
         tableId: data.tableId,
         workspaceId: data.workspaceId,
         data: data.data,
-        position: maxPos + 1,
+        position: targetPosition,
         createdAt: now,
         updatedAt: now,
         ...(data.userId ? { createdBy: data.userId } : {}),

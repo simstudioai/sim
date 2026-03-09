@@ -191,7 +191,6 @@ export function Table({
   columnWidthsRef.current = columnWidths
   const [resizingColumn, setResizingColumn] = useState<string | null>(null)
   const metadataSeededRef = useRef(false)
-  const metadataSaveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const isDraggingRef = useRef(false)
 
@@ -234,6 +233,23 @@ export function Table({
     [rows, pendingRowIds]
   )
 
+  const maxPosition = useMemo(
+    () => (visibleRows.length > 0 ? visibleRows[visibleRows.length - 1].position : -1),
+    [visibleRows]
+  )
+  const maxPositionRef = useRef(maxPosition)
+  maxPositionRef.current = maxPosition
+
+  const positionMap = useMemo(() => {
+    const map = new Map<number, TableRowType>()
+    for (const row of visibleRows) {
+      map.set(row.position, row)
+    }
+    return map
+  }, [visibleRows])
+  const positionMapRef = useRef(positionMap)
+  positionMapRef.current = positionMap
+
   const normalizedSelection = useMemo(
     () => computeNormalizedSelection(selectionAnchor, selectionFocus),
     [selectionAnchor, selectionFocus]
@@ -259,9 +275,9 @@ export function Table({
 
   const isAllRowsSelected =
     normalizedSelection !== null &&
-    visibleRows.length > 0 &&
+    maxPosition >= 0 &&
     normalizedSelection.startRow === 0 &&
-    normalizedSelection.endRow === visibleRows.length - 1 &&
+    normalizedSelection.endRow === maxPosition &&
     normalizedSelection.startCol === 0 &&
     normalizedSelection.endCol === columns.length - 1
 
@@ -325,6 +341,18 @@ export function Table({
     if (contextMenu.row) {
       setDeletingRows([contextMenu.row.id])
     }
+    closeContextMenu()
+  }, [contextMenu.row, closeContextMenu])
+
+  const handleInsertRowAbove = useCallback(() => {
+    if (!contextMenu.row) return
+    createRef.current({ data: {}, position: contextMenu.row.position })
+    closeContextMenu()
+  }, [contextMenu.row, closeContextMenu])
+
+  const handleInsertRowBelow = useCallback(() => {
+    if (!contextMenu.row) return
+    createRef.current({ data: {}, position: contextMenu.row.position + 1 })
     closeContextMenu()
   }, [contextMenu.row, closeContextMenu])
 
@@ -393,7 +421,7 @@ export function Table({
   }, [])
 
   const handleSelectAllRows = useCallback(() => {
-    const lastRow = visibleRowsRef.current.length - 1
+    const lastRow = maxPositionRef.current
     const lastCol = columnsRef.current.length - 1
     if (lastRow < 0 || lastCol < 0) return
     setEditingCell(null)
@@ -412,10 +440,7 @@ export function Table({
 
   const handleColumnResizeEnd = useCallback(() => {
     setResizingColumn(null)
-    clearTimeout(metadataSaveTimerRef.current)
-    metadataSaveTimerRef.current = setTimeout(() => {
-      updateMetadataRef.current({ columnWidths: columnWidthsRef.current })
-    }, 500)
+    updateMetadataRef.current({ columnWidths: columnWidthsRef.current })
   }, [])
 
   useEffect(() => {
@@ -423,10 +448,6 @@ export function Table({
     metadataSeededRef.current = true
     setColumnWidths(tableData.metadata.columnWidths)
   }, [tableData?.metadata?.columnWidths])
-
-  useEffect(() => {
-    return () => clearTimeout(metadataSaveTimerRef.current)
-  }, [])
 
   useEffect(() => {
     const handleMouseUp = () => {
@@ -503,8 +524,8 @@ export function Table({
       }
 
       const cols = columnsRef.current
-      const dataRows = visibleRowsRef.current
-      const totalRows = dataRows.length + PLACEHOLDER_ROW_COUNT
+      const mp = maxPositionRef.current
+      const totalRows = mp + 1 + PLACEHOLDER_ROW_COUNT
 
       if (e.key === 'Escape') {
         e.preventDefault()
@@ -515,30 +536,27 @@ export function Table({
 
       if (e.key === 'Enter' || e.key === 'F2') {
         e.preventDefault()
-        const row = anchor.rowIndex < dataRows.length ? dataRows[anchor.rowIndex] : null
         const col = cols[anchor.colIndex]
         if (!col) return
 
-        if (anchor.rowIndex >= dataRows.length) {
-          const placeholderIndex = anchor.rowIndex - dataRows.length
+        const row = positionMapRef.current.get(anchor.rowIndex)
+        if (!row) {
           if (col.type !== 'json' && col.type !== 'boolean') {
-            setEditingEmptyCell({ rowIndex: placeholderIndex, columnName: col.name })
+            setEditingEmptyCell({ rowIndex: anchor.rowIndex, columnName: col.name })
           }
           return
         }
 
         if (col.type === 'json') {
-          if (row) setEditingRow(row)
+          setEditingRow(row)
           return
         }
         if (col.type === 'boolean') {
-          if (row) mutateRef.current({ rowId: row.id, data: { [col.name]: !row.data[col.name] } })
+          mutateRef.current({ rowId: row.id, data: { [col.name]: !row.data[col.name] } })
           return
         }
-        if (row) {
-          setEditingCell({ rowId: row.id, columnName: col.name })
-          setInitialCharacter(null)
-        }
+        setEditingCell({ rowId: row.id, columnName: col.name })
+        setInitialCharacter(null)
         return
       }
 
@@ -551,9 +569,9 @@ export function Table({
 
       if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
         e.preventDefault()
-        if (dataRows.length > 0 && cols.length > 0) {
+        if (mp >= 0 && cols.length > 0) {
           setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
-          setSelectionFocus({ rowIndex: dataRows.length - 1, colIndex: cols.length - 1 })
+          setSelectionFocus({ rowIndex: mp, colIndex: cols.length - 1 })
         }
         return
       }
@@ -594,9 +612,10 @@ export function Table({
         const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
         if (!sel) return
 
+        const pMap = positionMapRef.current
         for (let r = sel.startRow; r <= sel.endRow; r++) {
-          if (r >= dataRows.length) continue
-          const row = dataRows[r]
+          const row = pMap.get(r)
+          if (!row) continue
           const updates: Record<string, unknown> = {}
           for (let c = sel.startCol; c <= sel.endCol; c++) {
             if (c < cols.length) updates[cols[c].name] = null
@@ -611,16 +630,17 @@ export function Table({
         const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
         if (!sel) return
 
+        const pMap = positionMapRef.current
         const lines: string[] = []
         for (let r = sel.startRow; r <= sel.endRow; r++) {
           const cells: string[] = []
           for (let c = sel.startCol; c <= sel.endCol; c++) {
             let value: unknown = null
-            if (r < dataRows.length) {
-              value = dataRows[r].data[cols[c].name]
+            const row = pMap.get(r)
+            if (row) {
+              value = row.data[cols[c].name]
             } else {
-              const pi = r - dataRows.length
-              value = pendingPlaceholdersRef.current[pi]?.data[cols[c].name] ?? null
+              value = pendingPlaceholdersRef.current[r]?.data[cols[c].name] ?? null
             }
             if (value === null || value === undefined) {
               cells.push('')
@@ -646,11 +666,13 @@ export function Table({
             .map((line) => line.split('\t'))
 
           const currentCols = columnsRef.current
-          const currentDataRows = visibleRowsRef.current
+          const pMap = positionMapRef.current
+          const currentMax = maxPositionRef.current
+          const totalR = currentMax + 1 + PLACEHOLDER_ROW_COUNT
 
           for (let r = 0; r < pasteRows.length; r++) {
             const targetRow = currentAnchor.rowIndex + r
-            if (targetRow >= currentDataRows.length + PLACEHOLDER_ROW_COUNT) break
+            if (targetRow >= totalR) break
 
             const rowData: Record<string, unknown> = {}
             for (let c = 0; c < pasteRows[r].length; c++) {
@@ -668,19 +690,17 @@ export function Table({
 
             if (Object.keys(rowData).length === 0) continue
 
-            if (targetRow < currentDataRows.length) {
-              mutateRef.current({ rowId: currentDataRows[targetRow].id, data: rowData })
+            const existingRow = pMap.get(targetRow)
+            if (existingRow) {
+              mutateRef.current({ rowId: existingRow.id, data: rowData })
             } else {
-              createRef.current(rowData)
+              createRef.current({ data: rowData, position: targetRow })
             }
           }
 
           const maxPasteCols = Math.max(...pasteRows.map((pr) => pr.length))
           setSelectionFocus({
-            rowIndex: Math.min(
-              currentAnchor.rowIndex + pasteRows.length - 1,
-              currentDataRows.length + PLACEHOLDER_ROW_COUNT - 1
-            ),
+            rowIndex: Math.min(currentAnchor.rowIndex + pasteRows.length - 1, totalR - 1),
             colIndex: Math.min(currentAnchor.colIndex + maxPasteCols - 1, currentCols.length - 1),
           })
         })
@@ -694,15 +714,13 @@ export function Table({
         if (col.type === 'date' && !/[\d\-/]/.test(e.key)) return
         e.preventDefault()
 
-        if (anchor.rowIndex < dataRows.length) {
-          const row = dataRows[anchor.rowIndex]
+        const row = positionMapRef.current.get(anchor.rowIndex)
+        if (row) {
           setEditingCell({ rowId: row.id, columnName: col.name })
-          setInitialCharacter(e.key)
         } else {
-          const placeholderIndex = anchor.rowIndex - dataRows.length
-          setEditingEmptyCell({ rowIndex: placeholderIndex, columnName: col.name })
-          setInitialCharacter(e.key)
+          setEditingEmptyCell({ rowIndex: anchor.rowIndex, columnName: col.name })
         }
+        setInitialCharacter(e.key)
         return
       }
     }
@@ -715,7 +733,7 @@ export function Table({
     const anchor = selectionAnchorRef.current
     if (!anchor) return
     const cols = columnsRef.current
-    const totalRows = visibleRowsRef.current.length + PLACEHOLDER_ROW_COUNT
+    const totalRows = maxPositionRef.current + 1 + PLACEHOLDER_ROW_COUNT
 
     if (reason === 'enter') {
       setSelectionAnchor({
@@ -792,29 +810,32 @@ export function Table({
             ...prev,
             [rowIndex]: { rowId: null, data: updatedData },
           }))
-          createRef.current(updatedData, {
-            onSuccess: (response: Record<string, unknown>) => {
-              const data = response?.data as Record<string, unknown> | undefined
-              const row = data?.row as Record<string, unknown> | undefined
-              const newRowId = row?.id as string | undefined
-              if (newRowId) {
+          createRef.current(
+            { data: updatedData, position: rowIndex },
+            {
+              onSuccess: (response: Record<string, unknown>) => {
+                const data = response?.data as Record<string, unknown> | undefined
+                const row = data?.row as Record<string, unknown> | undefined
+                const newRowId = row?.id as string | undefined
+                if (newRowId) {
+                  setPendingPlaceholders((prev) => {
+                    if (!prev[rowIndex]) return prev
+                    return {
+                      ...prev,
+                      [rowIndex]: { ...prev[rowIndex], rowId: newRowId },
+                    }
+                  })
+                }
+              },
+              onError: () => {
                 setPendingPlaceholders((prev) => {
-                  if (!prev[rowIndex]) return prev
-                  return {
-                    ...prev,
-                    [rowIndex]: { ...prev[rowIndex], rowId: newRowId },
-                  }
+                  const next = { ...prev }
+                  delete next[rowIndex]
+                  return next
                 })
-              }
-            },
-            onError: () => {
-              setPendingPlaceholders((prev) => {
-                const next = { ...prev }
-                delete next[rowIndex]
-                return next
-              })
-            },
-          })
+              },
+            }
+          )
         }
       }
 
@@ -1095,39 +1116,65 @@ export function Table({
                 <TableBodySkeleton colCount={displayColCount} />
               ) : (
                 <>
-                  {visibleRows.map((row, index) => (
-                    <DataRow
-                      key={row.id}
-                      row={row}
-                      columns={columns}
-                      rowIndex={index}
-                      isFirstRow={index === 0}
-                      editingColumnName={
-                        editingCell?.rowId === row.id ? editingCell.columnName : null
-                      }
-                      initialCharacter={editingCell?.rowId === row.id ? initialCharacter : null}
-                      normalizedSelection={normalizedSelection}
-                      onClick={handleCellClick}
-                      onDoubleClick={handleCellDoubleClick}
-                      onSave={handleInlineSave}
-                      onCancel={handleInlineCancel}
-                      onContextMenu={handleRowContextMenu}
-                      onCellMouseDown={handleCellMouseDown}
-                      onCellMouseEnter={handleCellMouseEnter}
-                      onRowMouseDown={handleRowMouseDown}
-                      onRowMouseEnter={handleRowMouseEnter}
-                      onRowSelect={handleRowSelect}
-                      onClearSelection={handleClearSelection}
-                    />
-                  ))}
+                  {visibleRows.map((row, index) => {
+                    const prevPosition = index > 0 ? visibleRows[index - 1].position : -1
+                    const gapCount = row.position - prevPosition - 1
+                    return (
+                      <React.Fragment key={row.id}>
+                        {gapCount > 0 && (
+                          <PositionGapRows
+                            count={gapCount}
+                            startPosition={prevPosition + 1}
+                            columns={columns}
+                            editingEmptyCell={editingEmptyCell}
+                            initialCharacter={editingEmptyCell ? initialCharacter : null}
+                            pendingPlaceholders={pendingPlaceholders}
+                            normalizedSelection={normalizedSelection}
+                            firstRowUnderHeader={prevPosition === -1}
+                            onClick={handleEmptyRowClick}
+                            onDoubleClick={handleEmptyRowDoubleClick}
+                            onSave={handleEmptyRowSave}
+                            onCancel={handleEmptyRowCancel}
+                            onCellMouseDown={handleCellMouseDown}
+                            onCellMouseEnter={handleCellMouseEnter}
+                            onRowMouseDown={handleRowMouseDown}
+                            onRowMouseEnter={handleRowMouseEnter}
+                          />
+                        )}
+                        <DataRow
+                          row={row}
+                          columns={columns}
+                          rowIndex={row.position}
+                          isFirstRow={row.position === 0}
+                          editingColumnName={
+                            editingCell?.rowId === row.id ? editingCell.columnName : null
+                          }
+                          initialCharacter={editingCell?.rowId === row.id ? initialCharacter : null}
+                          normalizedSelection={normalizedSelection}
+                          onClick={handleCellClick}
+                          onDoubleClick={handleCellDoubleClick}
+                          onSave={handleInlineSave}
+                          onCancel={handleInlineCancel}
+                          onContextMenu={handleRowContextMenu}
+                          onCellMouseDown={handleCellMouseDown}
+                          onCellMouseEnter={handleCellMouseEnter}
+                          onRowMouseDown={handleRowMouseDown}
+                          onRowMouseEnter={handleRowMouseEnter}
+                          onRowSelect={handleRowSelect}
+                          onClearSelection={handleClearSelection}
+                        />
+                      </React.Fragment>
+                    )
+                  })}
                   <PlaceholderRows
                     columns={columns}
-                    dataRowCount={visibleRows.length}
+                    dataRowCount={maxPosition + 1}
                     editingEmptyCell={editingEmptyCell}
                     initialCharacter={editingEmptyCell ? initialCharacter : null}
                     pendingPlaceholders={pendingPlaceholders}
                     normalizedSelection={normalizedSelection}
-                    firstRowUnderHeader={visibleRows.length === 0}
+                    maxPosition={maxPosition}
+                    firstRowUnderHeader={maxPosition < 0}
                     onClick={handleEmptyRowClick}
                     onDoubleClick={handleEmptyRowDoubleClick}
                     onSave={handleEmptyRowSave}
@@ -1199,6 +1246,8 @@ export function Table({
         onClose={closeContextMenu}
         onEdit={handleContextMenuEdit}
         onDelete={handleContextMenuDelete}
+        onInsertAbove={handleInsertRowAbove}
+        onInsertBelow={handleInsertRowBelow}
       />
 
       {!embedded && (
@@ -1261,6 +1310,158 @@ export function Table({
     </div>
   )
 }
+
+const GAP_ROW_LIMIT = 200
+const GAP_CHECKBOX_CLASS = cn(CELL_CHECKBOX, 'cursor-pointer text-center')
+
+interface PositionGapRowsProps {
+  count: number
+  startPosition: number
+  columns: ColumnDefinition[]
+  editingEmptyCell: { rowIndex: number; columnName: string } | null
+  initialCharacter: string | null
+  pendingPlaceholders: Record<number, PendingPlaceholder>
+  normalizedSelection: NormalizedSelection | null
+  firstRowUnderHeader?: boolean
+  onClick: (rowIndex: number, columnName: string) => void
+  onDoubleClick: (rowIndex: number, columnName: string) => void
+  onSave: (rowIndex: number, columnName: string, value: unknown, reason: SaveReason) => void
+  onCancel: () => void
+  onCellMouseDown: (rowIndex: number, colIndex: number, shiftKey: boolean) => void
+  onCellMouseEnter: (rowIndex: number, colIndex: number) => void
+  onRowMouseDown: (rowIndex: number, shiftKey: boolean) => void
+  onRowMouseEnter: (rowIndex: number) => void
+}
+
+const PositionGapRows = React.memo(function PositionGapRows({
+  count,
+  startPosition,
+  columns,
+  editingEmptyCell,
+  initialCharacter,
+  pendingPlaceholders,
+  normalizedSelection,
+  firstRowUnderHeader = false,
+  onClick,
+  onDoubleClick,
+  onSave,
+  onCancel,
+  onCellMouseDown,
+  onCellMouseEnter,
+  onRowMouseDown,
+  onRowMouseEnter,
+}: PositionGapRowsProps) {
+  const capped = Math.min(count, GAP_ROW_LIMIT)
+  const sel = normalizedSelection
+  const isMultiCell = sel !== null && (sel.startRow !== sel.endRow || sel.startCol !== sel.endCol)
+
+  return (
+    <>
+      {Array.from({ length: capped }).map((_, i) => {
+        const position = startPosition + i
+        return (
+          <tr key={`gap-${position}`}>
+            <td
+              className={GAP_CHECKBOX_CLASS}
+              onMouseDown={(e) => {
+                if (e.button !== 0) return
+                onRowMouseDown(position, e.shiftKey)
+              }}
+              onMouseEnter={() => onRowMouseEnter(position)}
+            >
+              <span className='text-[11px] text-[var(--text-tertiary)] tabular-nums'>
+                {position + 1}
+              </span>
+            </td>
+            {columns.map((col, colIndex) => {
+              const isEditing =
+                editingEmptyCell?.rowIndex === position && editingEmptyCell.columnName === col.name
+              const pending = pendingPlaceholders[position]
+              const pendingValue = pending?.data[col.name]
+              const hasPendingValue = pendingValue !== undefined && pendingValue !== null
+              const inRange =
+                sel !== null &&
+                position >= sel.startRow &&
+                position <= sel.endRow &&
+                colIndex >= sel.startCol &&
+                colIndex <= sel.endCol
+              const isAnchor =
+                sel !== null && position === sel.anchorRow && colIndex === sel.anchorCol
+
+              const isTopEdge = inRange && position === sel!.startRow
+              const isBottomEdge = inRange && position === sel!.endRow
+              const isLeftEdge = inRange && colIndex === sel!.startCol
+              const isRightEdge = inRange && colIndex === sel!.endCol
+              const belowHeader = firstRowUnderHeader && i === 0
+
+              return (
+                <td
+                  key={col.name}
+                  data-row={position}
+                  data-col={colIndex}
+                  className={cn(CELL, (inRange || isAnchor) && 'relative')}
+                  onMouseDown={(e) => {
+                    if (e.button !== 0 || isEditing) return
+                    onCellMouseDown(position, colIndex, e.shiftKey)
+                  }}
+                  onMouseEnter={() => onCellMouseEnter(position, colIndex)}
+                  onClick={() => onClick(position, col.name)}
+                  onDoubleClick={() => onDoubleClick(position, col.name)}
+                >
+                  {inRange && isMultiCell && (
+                    <div
+                      className={cn(
+                        '-top-px -right-px -bottom-px -left-px pointer-events-none absolute z-[4] bg-[rgba(37,99,235,0.06)]',
+                        belowHeader && isTopEdge && 'top-0',
+                        isTopEdge && 'border-t border-t-[var(--selection)]',
+                        isBottomEdge && 'border-b border-b-[var(--selection)]',
+                        isLeftEdge && 'border-l border-l-[var(--selection)]',
+                        isRightEdge && 'border-r border-r-[var(--selection)]'
+                      )}
+                    />
+                  )}
+                  {isAnchor && <div className={cn(SELECTION_OVERLAY, belowHeader && 'top-0')} />}
+                  {isEditing ? (
+                    <div className={CELL_CONTENT}>
+                      <InlineEditor
+                        value={hasPendingValue ? pendingValue : null}
+                        column={col}
+                        initialCharacter={initialCharacter ?? undefined}
+                        onSave={(value, reason) => onSave(position, col.name, value, reason)}
+                        onCancel={onCancel}
+                      />
+                    </div>
+                  ) : hasPendingValue ? (
+                    <div className={CELL_CONTENT}>
+                      <CellContent
+                        value={pendingValue}
+                        column={col}
+                        isEditing={false}
+                        onSave={() => {}}
+                        onCancel={() => {}}
+                      />
+                    </div>
+                  ) : (
+                    <div className='min-h-[20px]' />
+                  )}
+                </td>
+              )
+            })}
+          </tr>
+        )
+      })}
+      {count > GAP_ROW_LIMIT && (
+        <tr>
+          <td
+            colSpan={columns.length + 2}
+            className='border-[var(--border)] border-r border-b p-0'
+            style={{ height: `${(count - GAP_ROW_LIMIT) * ROW_HEIGHT_ESTIMATE}px` }}
+          />
+        </tr>
+      )}
+    </>
+  )
+})
 
 const TableColGroup = React.memo(function TableColGroup({
   columns,
@@ -1413,7 +1614,7 @@ const DataRow = React.memo(function DataRow({
             isRowSelected ? 'hidden' : 'block group-hover/checkbox:hidden'
           )}
         >
-          {rowIndex + 1}
+          {row.position + 1}
         </span>
         <div
           className={cn(
@@ -1691,6 +1892,7 @@ const TableBodySkeleton = React.memo(function TableBodySkeleton({
 interface PlaceholderRowsProps {
   columns: ColumnDefinition[]
   dataRowCount: number
+  maxPosition: number
   editingEmptyCell: { rowIndex: number; columnName: string } | null
   initialCharacter: string | null
   pendingPlaceholders: Record<number, PendingPlaceholder>
@@ -1710,6 +1912,7 @@ function placeholderPropsAreEqual(prev: PlaceholderRowsProps, next: PlaceholderR
   if (
     prev.columns !== next.columns ||
     prev.dataRowCount !== next.dataRowCount ||
+    prev.maxPosition !== next.maxPosition ||
     prev.editingEmptyCell !== next.editingEmptyCell ||
     prev.pendingPlaceholders !== next.pendingPlaceholders ||
     prev.firstRowUnderHeader !== next.firstRowUnderHeader ||
@@ -1754,6 +1957,7 @@ function placeholderPropsAreEqual(prev: PlaceholderRowsProps, next: PlaceholderR
 const PlaceholderRows = React.memo(function PlaceholderRows({
   columns,
   dataRowCount,
+  maxPosition,
   editingEmptyCell,
   initialCharacter,
   pendingPlaceholders,
@@ -1823,14 +2027,20 @@ const PlaceholderRows = React.memo(function PlaceholderRows({
   }
 
   if (editingEmptyCell) {
-    renderStart = Math.min(renderStart, editingEmptyCell.rowIndex)
-    renderEnd = Math.max(renderEnd, editingEmptyCell.rowIndex + 1)
+    const editIdx = editingEmptyCell.rowIndex - dataRowCount
+    if (editIdx >= 0 && editIdx < PLACEHOLDER_ROW_COUNT) {
+      renderStart = Math.min(renderStart, editIdx)
+      renderEnd = Math.max(renderEnd, editIdx + 1)
+    }
   }
 
   for (const key of Object.keys(pendingPlaceholders)) {
-    const idx = Number(key)
-    renderStart = Math.min(renderStart, idx)
-    renderEnd = Math.max(renderEnd, idx + 1)
+    const globalIdx = Number(key)
+    const localIdx = globalIdx - dataRowCount
+    if (localIdx >= 0 && localIdx < PLACEHOLDER_ROW_COUNT) {
+      renderStart = Math.min(renderStart, localIdx)
+      renderEnd = Math.max(renderEnd, localIdx + 1)
+    }
   }
 
   renderStart = Math.max(0, renderStart)
@@ -1853,7 +2063,7 @@ const PlaceholderRows = React.memo(function PlaceholderRows({
       {Array.from({ length: renderEnd - renderStart }).map((_, offset) => {
         const i = renderStart + offset
         const globalRowIndex = dataRowCount + i
-        const pending = pendingPlaceholders[i]
+        const pending = pendingPlaceholders[globalRowIndex]
         return (
           <tr key={`placeholder-${i}`}>
             <td
@@ -1865,12 +2075,13 @@ const PlaceholderRows = React.memo(function PlaceholderRows({
               onMouseEnter={() => onRowMouseEnter(globalRowIndex)}
             >
               <span className='text-[11px] text-[var(--text-tertiary)] tabular-nums'>
-                {dataRowCount + i + 1}
+                {maxPosition + i + 2}
               </span>
             </td>
             {columns.map((col, colIndex) => {
               const isEditing =
-                editingEmptyCell?.rowIndex === i && editingEmptyCell.columnName === col.name
+                editingEmptyCell?.rowIndex === globalRowIndex &&
+                editingEmptyCell.columnName === col.name
               const pendingValue = pending?.data[col.name]
               const hasPendingValue = pendingValue !== undefined && pendingValue !== null
               const inRange =
@@ -1899,8 +2110,8 @@ const PlaceholderRows = React.memo(function PlaceholderRows({
                     onCellMouseDown(globalRowIndex, colIndex, e.shiftKey)
                   }}
                   onMouseEnter={() => onCellMouseEnter(globalRowIndex, colIndex)}
-                  onClick={() => onClick(i, col.name)}
-                  onDoubleClick={() => onDoubleClick(i, col.name)}
+                  onClick={() => onClick(globalRowIndex, col.name)}
+                  onDoubleClick={() => onDoubleClick(globalRowIndex, col.name)}
                 >
                   {inRange && isMultiCell && (
                     <div
@@ -1921,7 +2132,7 @@ const PlaceholderRows = React.memo(function PlaceholderRows({
                         value={hasPendingValue ? pendingValue : null}
                         column={col}
                         initialCharacter={initialCharacter ?? undefined}
-                        onSave={(value, reason) => onSave(i, col.name, value, reason)}
+                        onSave={(value, reason) => onSave(globalRowIndex, col.name, value, reason)}
                         onCancel={onCancel}
                       />
                     </div>

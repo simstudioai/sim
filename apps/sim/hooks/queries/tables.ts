@@ -339,11 +339,11 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
+    mutationFn: async (variables: { data: Record<string, unknown>; position?: number }) => {
       const res = await fetch(`/api/table/${tableId}/rows`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, data }),
+        body: JSON.stringify({ workspaceId, data: variables.data, position: variables.position }),
       })
 
       if (!res.ok) {
