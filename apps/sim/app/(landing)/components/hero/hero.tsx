@@ -149,7 +149,7 @@ export default function Hero() {
    */
   const [autoHoverIndex, setAutoHoverIndex] = React.useState(1)
   const [isUserHovering, setIsUserHovering] = React.useState(false)
-  const [lastHoveredIndex, setLastHoveredIndex] = React.useState<number | null>(null)
+  const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null)
   const intervalRef = React.useRef<NodeJS.Timeout | null>(null)
 
   /**
@@ -226,6 +226,12 @@ export default function Hero() {
   }, [isUserHovering, visibleIconCount])
 
   /**
+   * The active icon index used to position the shared highlight pill.
+   * When the user is hovering, use their hovered icon; otherwise use auto-hover.
+   */
+  const activeIconIndex = isUserHovering && hoveredIndex !== null ? hoveredIndex : autoHoverIndex
+
+  /**
    * Handle mouse enter on icon container
    */
   const handleIconContainerMouseEnter = () => {
@@ -240,9 +246,10 @@ export default function Hero() {
    */
   const handleIconContainerMouseLeave = () => {
     setIsUserHovering(false)
+    setHoveredIndex(null)
     // Start from the next icon after the last hovered one
-    if (lastHoveredIndex !== null) {
-      setAutoHoverIndex((lastHoveredIndex + 1) % visibleIconCount)
+    if (hoveredIndex !== null) {
+      setAutoHoverIndex((hoveredIndex + 1) % visibleIconCount)
     }
   }
 
@@ -389,9 +396,9 @@ export default function Hero() {
               key={service.key}
               aria-label={service.label}
               onClick={() => handleServiceClick(service.key as keyof typeof SERVICE_TEMPLATES)}
-              onMouseEnter={() => setLastHoveredIndex(index)}
+              onMouseEnter={() => setHoveredIndex(index)}
               style={service.style}
-              isAutoHovered={!isUserHovering && index === autoHoverIndex}
+              isActive={index === activeIconIndex}
             >
               <Icon className='h-5 w-5 sm:h-6 sm:w-6' />
             </IconButton>

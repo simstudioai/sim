@@ -1,23 +1,26 @@
 'use client'
 
 import type React from 'react'
+import { motion } from 'framer-motion'
 
 interface IconButtonProps {
   children: React.ReactNode
   onClick?: () => void
   onMouseEnter?: () => void
+  onMouseLeave?: () => void
   style?: React.CSSProperties
   'aria-label': string
-  isAutoHovered?: boolean
+  isActive?: boolean
 }
 
 export function IconButton({
   children,
   onClick,
   onMouseEnter,
+  onMouseLeave,
   style,
   'aria-label': ariaLabel,
-  isAutoHovered = false,
+  isActive = false,
 }: IconButtonProps) {
   return (
     <button
@@ -25,14 +28,18 @@ export function IconButton({
       aria-label={ariaLabel}
       onClick={onClick}
       onMouseEnter={onMouseEnter}
-      className={`flex items-center justify-center rounded-xl border p-2 outline-none transition-all duration-300 ${
-        isAutoHovered
-          ? 'border-[#E5E5E5] shadow-[0_2px_4px_0_rgba(0,0,0,0.08)]'
-          : 'border-transparent hover:border-[#E5E5E5] hover:shadow-[0_2px_4px_0_rgba(0,0,0,0.08)]'
-      }`}
+      onMouseLeave={onMouseLeave}
+      className='relative flex items-center justify-center rounded-xl p-2 outline-none'
       style={style}
     >
-      {children}
+      {isActive && (
+        <motion.div
+          layoutId='icon-highlight-pill'
+          className='absolute inset-0 rounded-xl border border-[#E5E5E5] shadow-[0_2px_4px_0_rgba(0,0,0,0.08)]'
+          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+        />
+      )}
+      <span className='relative z-[1]'>{children}</span>
     </button>
   )
 }
