@@ -19,7 +19,7 @@ export function ResourceOptionsBar({
   onFilter,
   toolbarActions,
 }: ResourceOptionsBarProps) {
-  const hasContent = search || onSort || onFilter
+  const hasContent = search || onSort || onFilter || toolbarActions
   if (!hasContent) return null
 
   return (

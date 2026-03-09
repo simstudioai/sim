@@ -193,6 +193,8 @@ export function getMimeTypeFromExtension(extension: string): string {
     xls: 'application/vnd.ms-excel',
     ppt: 'application/vnd.ms-powerpoint',
     md: 'text/markdown',
+    yaml: 'application/x-yaml',
+    yml: 'application/x-yaml',
     rtf: 'application/rtf',
 
     // Audio

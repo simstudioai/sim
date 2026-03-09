@@ -50,6 +50,7 @@ export const AuditAction = {
 
   // Files
   FILE_UPLOADED: 'file.uploaded',
+  FILE_UPDATED: 'file.updated',
   FILE_DELETED: 'file.deleted',
 
   // Folders

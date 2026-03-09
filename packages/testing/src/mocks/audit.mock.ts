@@ -37,6 +37,7 @@ export const auditMock = {
     DOCUMENT_DELETED: 'document.deleted',
     ENVIRONMENT_UPDATED: 'environment.updated',
     FILE_UPLOADED: 'file.uploaded',
+    FILE_UPDATED: 'file.updated',
     FILE_DELETED: 'file.deleted',
     FOLDER_CREATED: 'folder.created',
     FOLDER_DELETED: 'folder.deleted',
