@@ -40,6 +40,7 @@ export function useProgressiveList<T>(
 
   const completedKeysRef = useRef(new Set<string>())
   const prevKeyRef = useRef(key)
+  const stagingCountRef = useRef(initialBatch)
   const [count, setCount] = useState(() => {
     if (items.length <= initialBatch) return items.length
     return initialBatch
@@ -57,7 +58,7 @@ export function useProgressiveList<T>(
       return
     }
 
-    let current = initialBatch
+    let current = Math.max(stagingCountRef.current, initialBatch)
     setCount(current)
 
     let frame: number | undefined
@@ -65,6 +66,7 @@ export function useProgressiveList<T>(
     const step = () => {
       const total = items.length
       current = Math.min(total, current + batchSize)
+      stagingCountRef.current = current
       setCount(current)
       if (current >= total) {
         completedKeysRef.current.add(key)
@@ -84,6 +86,7 @@ export function useProgressiveList<T>(
   let effectiveCount = count
   if (prevKeyRef.current !== key) {
     effectiveCount = items.length <= initialBatch ? items.length : initialBatch
+    stagingCountRef.current = initialBatch
   }
   prevKeyRef.current = key
 
