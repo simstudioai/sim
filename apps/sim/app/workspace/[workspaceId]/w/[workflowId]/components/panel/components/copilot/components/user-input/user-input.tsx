@@ -883,7 +883,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             type='file'
             onChange={fileAttachments.handleFileChange}
             className='hidden'
-            accept='image/*'
+            accept='image/*,.pdf,.txt,.csv,.md,.html,.json,.xml,application/pdf,text/plain,text/csv,text/markdown'
             multiple
             disabled={disabled}
           />

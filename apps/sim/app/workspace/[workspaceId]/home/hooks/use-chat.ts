@@ -35,7 +35,16 @@ export interface UseChatReturn {
   messages: ChatMessage[]
   isSending: boolean
   error: string | null
-  sendMessage: (message: string) => Promise<void>
+  sendMessage: (
+    message: string,
+    fileAttachments?: Array<{
+      id: string
+      key: string
+      filename: string
+      media_type: string
+      size: number
+    }>
+  ) => Promise<void>
   stopGeneration: () => void
   chatBottomRef: React.RefObject<HTMLDivElement | null>
   resources: MothershipResource[]
@@ -445,7 +454,16 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   }, [chatHistory?.activeStreamId, processSSEStream, finalize])
 
   const sendMessage = useCallback(
-    async (message: string) => {
+    async (
+      message: string,
+      fileAttachments?: Array<{
+        id: string
+        key: string
+        filename: string
+        media_type: string
+        size: number
+      }>
+    ) => {
       if (!message.trim() || !workspaceId) return
 
       abortControllerRef.current?.abort()
@@ -494,6 +512,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
             userMessageId,
             createNewChat: !chatIdRef.current,
             ...(chatIdRef.current ? { chatId: chatIdRef.current } : {}),
+            ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
             userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
           signal: abortController.signal,

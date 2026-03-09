@@ -1,9 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowUp, Mic, Paperclip } from 'lucide-react'
+import { ArrowUp, FileText, Loader2, Mic, Paperclip, X } from 'lucide-react'
 import { Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { useAnimatedPlaceholder } from '../../hooks'
 
 const TEXTAREA_CLASSES = cn(
@@ -27,13 +28,25 @@ function autoResizeTextarea(e: React.FormEvent<HTMLTextAreaElement>) {
   target.style.height = `${Math.min(target.scrollHeight, window.innerHeight * 0.3)}px`
 }
 
+export interface FileAttachmentForApi {
+  id: string
+  key: string
+  filename: string
+  media_type: string
+  size: number
+}
+
+const ACCEPTED_FILE_TYPES =
+  'image/*,.pdf,.txt,.csv,.md,.html,.json,.xml,text/plain,text/csv,text/markdown,text/html,application/json,application/xml,application/pdf'
+
 interface UserInputProps {
   value: string
   onChange: (value: string) => void
-  onSubmit: () => void
+  onSubmit: (fileAttachments?: FileAttachmentForApi[]) => void
   isSending: boolean
   onStopGeneration: () => void
   isInitialView?: boolean
+  userId?: string
 }
 
 export function UserInput({
@@ -43,10 +56,14 @@ export function UserInput({
   isSending,
   onStopGeneration,
   isInitialView = true,
+  userId,
 }: UserInputProps) {
   const animatedPlaceholder = useAnimatedPlaceholder()
   const placeholder = isInitialView ? animatedPlaceholder : 'Send message to Sim'
-  const canSubmit = value.trim().length > 0 && !isSending
+
+  const files = useFileAttachments({ userId, disabled: false, isLoading: isSending })
+  const hasFiles = files.attachedFiles.some((f) => !f.uploading && f.key)
+  const canSubmit = (value.trim().length > 0 || hasFiles) && !isSending
 
   const [isListening, setIsListening] = useState(false)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
@@ -65,14 +82,29 @@ export function UserInput({
     textareaRef.current?.focus()
   }, [])
 
+  const handleSubmit = useCallback(() => {
+    const fileAttachmentsForApi = files.attachedFiles
+      .filter((f) => !f.uploading && f.key)
+      .map((f) => ({
+        id: f.id,
+        key: f.key!,
+        filename: f.name,
+        media_type: f.type,
+        size: f.size,
+      }))
+
+    onSubmit(fileAttachmentsForApi.length > 0 ? fileAttachmentsForApi : undefined)
+    files.clearAttachedFiles()
+  }, [onSubmit, files])
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
-        onSubmit()
+        handleSubmit()
       }
     },
-    [onSubmit]
+    [handleSubmit]
   )
 
   const toggleListening = useCallback(() => {
@@ -133,26 +165,89 @@ export function UserInput({
       onClick={handleContainerClick}
       className={cn(
         'mx-auto w-full max-w-[640px] cursor-text rounded-[20px] border border-[var(--border-1)] bg-[var(--white)] px-[10px] py-[8px] dark:bg-[var(--surface-4)]',
-        isInitialView && 'shadow-sm'
+        isInitialView && 'shadow-sm',
+        files.isDragging && 'ring-[1.75px] ring-[var(--brand-secondary)]'
       )}
+      onDragEnter={files.handleDragEnter}
+      onDragLeave={files.handleDragLeave}
+      onDragOver={files.handleDragOver}
+      onDrop={files.handleDrop}
     >
+      {/* Attached files */}
+      {files.attachedFiles.length > 0 && (
+        <div className='mb-[6px] flex gap-[6px] overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+          {files.attachedFiles.map((file) => {
+            const isImage = file.type.startsWith('image/')
+            return (
+              <div
+                key={file.id}
+                className='group relative h-[56px] w-[56px] flex-shrink-0 cursor-pointer overflow-hidden rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-5)] transition-all hover:bg-[var(--surface-4)]'
+                title={`${file.name} (${files.formatFileSize(file.size)})`}
+                onClick={() => files.handleFileClick(file)}
+              >
+                {isImage && file.previewUrl ? (
+                  <img
+                    src={file.previewUrl}
+                    alt={file.name}
+                    className='h-full w-full object-cover'
+                  />
+                ) : (
+                  <div className='flex h-full w-full flex-col items-center justify-center gap-[2px]'>
+                    {file.type.includes('pdf') ? (
+                      <FileText className='h-[18px] w-[18px] text-red-500' />
+                    ) : (
+                      <FileText className='h-[18px] w-[18px] text-blue-500' />
+                    )}
+                    <span className='max-w-[48px] truncate px-[2px] text-[9px] text-[var(--text-muted)]'>
+                      {file.name.split('.').pop()}
+                    </span>
+                  </div>
+                )}
+                {file.uploading && (
+                  <div className='absolute inset-0 flex items-center justify-center bg-black/50'>
+                    <Loader2 className='h-[14px] w-[14px] animate-spin text-white' />
+                  </div>
+                )}
+                {!file.uploading && (
+                  <button
+                    type='button'
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      files.removeFile(file.id)
+                    }}
+                    className='absolute top-[2px] right-[2px] flex h-[16px] w-[16px] items-center justify-center rounded-full bg-black/60 opacity-0 transition-opacity group-hover:opacity-100'
+                  >
+                    <X className='h-[10px] w-[10px] text-white' />
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       <textarea
         ref={textareaRef}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
         onInput={autoResizeTextarea}
-        placeholder={placeholder}
+        placeholder={files.isDragging ? 'Drop files here...' : placeholder}
         rows={1}
         className={TEXTAREA_CLASSES}
       />
       <div className='flex items-center justify-between'>
-        <div className='flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-full border border-[#F0F0F0] transition-colors hover:bg-[#F7F7F7] dark:border-[#3d3d3d] dark:hover:bg-[#303030]'>
+        <button
+          type='button'
+          onClick={files.handleFileSelect}
+          className='flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-full border border-[#F0F0F0] transition-colors hover:bg-[#F7F7F7] dark:border-[#3d3d3d] dark:hover:bg-[#303030]'
+          title='Attach file'
+        >
           <Paperclip
             className='h-[14px] w-[14px] text-[var(--text-muted)] dark:text-[var(--text-secondary)]'
             strokeWidth={2}
           />
-        </div>
+        </button>
         <div className='flex items-center gap-[6px]'>
           <button
             type='button'
@@ -183,7 +278,7 @@ export function UserInput({
             </Button>
           ) : (
             <Button
-              onClick={onSubmit}
+              onClick={handleSubmit}
               disabled={!canSubmit}
               className={cn(
                 SEND_BUTTON_BASE,
@@ -198,6 +293,16 @@ export function UserInput({
           )}
         </div>
       </div>
+
+      {/* Hidden file input */}
+      <input
+        ref={files.fileInputRef}
+        type='file'
+        onChange={files.handleFileChange}
+        className='hidden'
+        accept={ACCEPTED_FILE_TYPES}
+        multiple
+      />
     </div>
   )
 }
