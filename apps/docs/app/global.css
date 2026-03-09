@@ -646,6 +646,17 @@ html.dark span.font-mono.font-medium[data-method="delete"] {
   flex-shrink: 0;
 }
 
+/* Footer navigation method badges — pill styling to match sidebar */
+#nd-page span.font-mono.font-medium[data-method] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.625rem !important;
+  line-height: 1 !important;
+  padding: 0.15625rem 0.375rem;
+  border-radius: 0.1875rem;
+}
+
 /* Code block containers — match regular docs styling */
 #nd-page:has(.api-page-header) figure.shiki {
   border-radius: 0.75rem !important;
