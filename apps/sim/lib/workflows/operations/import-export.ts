@@ -616,6 +616,114 @@ export function parseWorkflowJson(
   }
 }
 
+interface CreateImportedWorkflowInput {
+  name: string
+  description: string
+  color: string
+  workspaceId: string
+  folderId?: string
+  sortOrder?: number
+}
+
+interface CreatedImportedWorkflow {
+  id: string
+}
+
+interface PersistImportedWorkflowOptions {
+  content: string
+  filename: string
+  workspaceId: string
+  folderId?: string
+  sortOrder?: number
+  nameOverride?: string
+  descriptionOverride?: string
+  colorOverride?: string
+  createWorkflow: (input: CreateImportedWorkflowInput) => Promise<CreatedImportedWorkflow>
+}
+
+export async function persistImportedWorkflow({
+  content,
+  filename,
+  workspaceId,
+  folderId,
+  sortOrder,
+  nameOverride,
+  descriptionOverride,
+  colorOverride,
+  createWorkflow,
+}: PersistImportedWorkflowOptions): Promise<{ workflowId: string; workflowName: string } | null> {
+  const { data: workflowData, errors: parseErrors } = parseWorkflowJson(content)
+
+  if (!workflowData || parseErrors.length > 0) {
+    logger.warn(`Failed to parse imported workflow ${filename}:`, parseErrors)
+    return null
+  }
+
+  const workflowName = nameOverride || extractWorkflowName(content, filename)
+  const workflowColor =
+    colorOverride || (workflowData.metadata as { color?: string } | undefined)?.color || '#3972F6'
+
+  const createdWorkflow = await createWorkflow({
+    name: workflowName,
+    description: descriptionOverride || workflowData.metadata?.description || 'Imported from JSON',
+    workspaceId,
+    folderId,
+    sortOrder,
+    color: workflowColor,
+  })
+
+  const newWorkflowId = createdWorkflow.id
+
+  const stateResponse = await fetch(`/api/workflows/${newWorkflowId}/state`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(workflowData),
+  })
+
+  if (!stateResponse.ok) {
+    throw new Error(`Failed to save workflow state for ${newWorkflowId}`)
+  }
+
+  if (workflowData.variables) {
+    const variablesArray = Array.isArray(workflowData.variables)
+      ? workflowData.variables
+      : Object.values(workflowData.variables)
+
+    if (variablesArray.length > 0) {
+      const variablesRecord: Record<
+        string,
+        { id: string; workflowId: string; name: string; type: string; value: unknown }
+      > = {}
+
+      for (const variable of variablesArray) {
+        const id =
+          typeof variable.id === 'string' && variable.id.trim() ? variable.id : crypto.randomUUID()
+
+        variablesRecord[id] = {
+          id,
+          workflowId: newWorkflowId,
+          name: variable.name,
+          type: variable.type,
+          value: variable.value,
+        }
+      }
+
+      const variablesResponse = await fetch(`/api/workflows/${newWorkflowId}/variables`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variables: variablesRecord }),
+      })
+
+      if (!variablesResponse.ok) {
+        throw new Error(`Failed to save variables for ${newWorkflowId}`)
+      }
+    }
+  }
+
+  logger.info(`Imported workflow: ${workflowName}`)
+  return { workflowId: newWorkflowId, workflowName }
+}
+
 export interface GenerateWorkflowJsonOptions {
   workflowId: string
   name?: string

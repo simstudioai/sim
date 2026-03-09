@@ -1,0 +1,467 @@
+{
+  "version": "1.0",
+  "exportedAt": "2026-03-09T21:40:19.012Z",
+  "state": {
+    "blocks": {
+      "c08eabea-4a15-43dd-ab0e-324f8473cdda": {
+        "id": "c08eabea-4a15-43dd-ab0e-324f8473cdda",
+        "type": "schedule",
+        "name": "Schedule",
+        "position": {
+          "x": 150,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": true,
+        "height": 114,
+        "subBlocks": {
+          "timezone": {
+            "id": "timezone",
+            "type": "short-input",
+            "value": "UTC"
+          },
+          "inputFormat": {
+            "id": "inputFormat",
+            "type": "input-format",
+            "value": [
+              {
+                "id": "6bad8048-89f7-418a-8419-bd04b1783fc5",
+                "name": "",
+                "type": "string",
+                "value": "",
+                "collapsed": false
+              }
+            ]
+          },
+          "hourlyMinute": {
+            "id": "hourlyMinute",
+            "type": "short-input",
+            "value": "0"
+          },
+          "scheduleType": {
+            "id": "scheduleType",
+            "type": "short-input",
+            "value": "hourly"
+          }
+        },
+        "outputs": {
+          "files": {
+            "type": "file[]",
+            "description": "User uploaded files"
+          },
+          "input": {
+            "type": "string",
+            "description": "Primary user input or message"
+          },
+          "conversationId": {
+            "type": "string",
+            "description": "Conversation thread identifier"
+          }
+        },
+        "data": {},
+        "locked": false
+      },
+      "a6d33ecb-4115-4979-9a3b-d3f1caf67288": {
+        "id": "a6d33ecb-4115-4979-9a3b-d3f1caf67288",
+        "type": "notion_v2",
+        "name": "Notion",
+        "position": {
+          "x": 1150,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 230,
+        "subBlocks": {
+          "query": {
+            "id": "query",
+            "type": "short-input",
+            "value": null
+          },
+          "sorts": {
+            "id": "sorts",
+            "type": "code",
+            "value": null
+          },
+          "title": {
+            "id": "title",
+            "type": "short-input",
+            "value": "Brand Mentions Report"
+          },
+          "filter": {
+            "id": "filter",
+            "type": "code",
+            "value": null
+          },
+          "pageId": {
+            "id": "pageId",
+            "type": "short-input",
+            "value": null
+          },
+          "content": {
+            "id": "content",
+            "type": "short-input",
+            "value": "<brandmentiontracker.summary>\n\nTotal Mentions: <brandmentiontracker.totalMentions>\n\nSentiment Breakdown:\n- Positive: <brandmentiontracker.sentimentBreakdown.positive>\n- Negative: <brandmentiontracker.sentimentBreakdown.negative>\n- Neutral: <brandmentiontracker.sentimentBreakdown.neutral>\n\nDetailed Mentions:\n<brandmentiontracker.mentions>"
+          },
+          "pageSize": {
+            "id": "pageSize",
+            "type": "short-input",
+            "value": null
+          },
+          "parentId": {
+            "id": "parentId",
+            "type": "short-input",
+            "value": "placeholder_database_id"
+          },
+          "operation": {
+            "id": "operation",
+            "type": "short-input",
+            "value": "notion_create_page"
+          },
+          "credential": {
+            "id": "credential",
+            "type": "oauth-input",
+            "value": null
+          },
+          "databaseId": {
+            "id": "databaseId",
+            "type": "short-input",
+            "value": null
+          },
+          "filterType": {
+            "id": "filterType",
+            "type": "dropdown",
+            "value": null
+          },
+          "properties": {
+            "id": "properties",
+            "type": "code",
+            "value": null
+          },
+          "pageSelector": {
+            "id": "pageSelector",
+            "type": "file-selector",
+            "value": null
+          },
+          "parentSelector": {
+            "id": "parentSelector",
+            "type": "file-selector",
+            "value": null
+          },
+          "databaseSelector": {
+            "id": "databaseSelector",
+            "type": "project-selector",
+            "value": null
+          },
+          "manualCredential": {
+            "id": "manualCredential",
+            "type": "short-input",
+            "value": ""
+          }
+        },
+        "outputs": {
+          "id": {
+            "type": "string",
+            "description": "Page UUID"
+          },
+          "url": {
+            "type": "string",
+            "description": "Notion page URL"
+          },
+          "title": {
+            "type": "string",
+            "description": "Page title"
+          },
+          "created_time": {
+            "type": "string",
+            "description": "ISO 8601 creation timestamp"
+          },
+          "last_edited_time": {
+            "type": "string",
+            "description": "ISO 8601 last edit timestamp"
+          }
+        },
+        "data": {
+          "canonicalModes": {
+            "pageId": "basic",
+            "parentId": "basic",
+            "databaseId": "basic",
+            "oauthCredential": "basic"
+          }
+        },
+        "locked": false
+      },
+      "e17ebe08-1e34-4a5a-920e-ebbc12e616c7": {
+        "id": "e17ebe08-1e34-4a5a-920e-ebbc12e616c7",
+        "type": "agent",
+        "name": "brandMentionTracker",
+        "position": {
+          "x": 650,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 259,
+        "subBlocks": {
+          "model": {
+            "id": "model",
+            "type": "short-input",
+            "value": "gemini-2.5-flash"
+          },
+          "tools": {
+            "id": "tools",
+            "type": "short-input",
+            "value": [
+              {
+                "type": "reddit",
+                "title": "Reddit Search",
+                "params": {
+                  "credential": "cred_278965807788f2194a89d8926339c9bc"
+                },
+                "toolId": "reddit_search",
+                "operation": "search",
+                "isExpanded": true,
+                "usageControl": "auto"
+              },
+              {
+                "type": "x",
+                "title": "X Search",
+                "params": {
+                  "sortOrder": "recency",
+                  "credential": "cred_bca17ade6b5e43c6929f0716e239aa1d"
+                },
+                "toolId": "x_search",
+                "operation": "x_search_tweets",
+                "isExpanded": true,
+                "usageControl": "auto"
+              }
+            ]
+          },
+          "apiKey": {
+            "id": "apiKey",
+            "type": "short-input",
+            "value": null
+          },
+          "skills": {
+            "id": "skills",
+            "type": "skill-input",
+            "value": null
+          },
+          "messages": {
+            "id": "messages",
+            "type": "short-input",
+            "value": "[{\"role\":\"user\",\"content\":\"Search for brand mentions on Reddit and X (Twitter). Find all recent mentions, discussions, and conversations about our brand. Compile a detailed report of what people are saying.\"}]"
+          },
+          "maxTokens": {
+            "id": "maxTokens",
+            "type": "short-input",
+            "value": null
+          },
+          "verbosity": {
+            "id": "verbosity",
+            "type": "dropdown",
+            "value": null
+          },
+          "memoryType": {
+            "id": "memoryType",
+            "type": "dropdown",
+            "value": "none"
+          },
+          "temperature": {
+            "id": "temperature",
+            "type": "short-input",
+            "value": 0.3
+          },
+          "azureEndpoint": {
+            "id": "azureEndpoint",
+            "type": "short-input",
+            "value": null
+          },
+          "bedrockRegion": {
+            "id": "bedrockRegion",
+            "type": "short-input",
+            "value": null
+          },
+          "thinkingLevel": {
+            "id": "thinkingLevel",
+            "type": "dropdown",
+            "value": null
+          },
+          "vertexProject": {
+            "id": "vertexProject",
+            "type": "short-input",
+            "value": null
+          },
+          "conversationId": {
+            "id": "conversationId",
+            "type": "short-input",
+            "value": null
+          },
+          "responseFormat": {
+            "id": "responseFormat",
+            "type": "short-input",
+            "value": "{\n  \"name\": \"brand_mentions_report\",\n  \"schema\": {\n    \"additionalProperties\": false,\n    \"properties\": {\n      \"mentions\": {\n        \"description\": \"Array of individual brand mentions\",\n        \"items\": {\n          \"additionalProperties\": false,\n          \"properties\": {\n            \"author\": {\n              \"description\": \"Username of the person who posted\",\n              \"type\": \"string\"\n            },\n            \"content\": {\n              \"description\": \"Text content of the mention\",\n              \"type\": \"string\"\n            },\n            \"engagement\": {\n              \"description\": \"Engagement metrics like likes, retweets, upvotes\",\n              \"type\": \"string\"\n            },\n            \"platform\": {\n              \"description\": \"Platform where mention was found (Reddit or X)\",\n              \"type\": \"string\"\n            },\n            \"sentiment\": {\n              \"description\": \"Sentiment analysis (positive, negative, neutral)\",\n              \"type\": \"string\"\n            },\n            \"timestamp\": {\n              \"description\": \"When the mention was posted\",\n              \"type\": \"string\"\n            },\n            \"url\": {\n              \"description\": \"URL link to the post\",\n              \"type\": \"string\"\n            }\n          },\n          \"required\": [\n            \"platform\",\n            \"author\",\n            \"content\",\n            \"url\",\n            \"sentiment\",\n            \"engagement\",\n            \"timestamp\"\n          ],\n          \"type\": \"object\"\n        },\n        \"type\": \"array\"\n      },\n      \"sentimentBreakdown\": {\n        \"additionalProperties\": false,\n        \"properties\": {\n          \"negative\": {\n            \"description\": \"Count of negative mentions\",\n            \"type\": \"number\"\n          },\n          \"neutral\": {\n            \"description\": \"Count of neutral mentions\",\n            \"type\": \"number\"\n          },\n          \"positive\": {\n            \"description\": \"Count of positive mentions\",\n            \"type\": \"number\"\n          }\n        },\n        \"required\": [\n          \"positive\",\n          \"negative\",\n          \"neutral\"\n        ],\n        \"type\": \"object\"\n      },\n      \"summary\": {\n        \"description\": \"Executive summary of brand mentions found\",\n        \"type\": \"string\"\n      },\n      \"totalMentions\": {\n        \"description\": \"Total number of brand mentions found\",\n        \"type\": \"number\"\n      }\n    },\n    \"required\": [\n      \"summary\",\n      \"totalMentions\",\n      \"mentions\",\n      \"sentimentBreakdown\"\n    ],\n    \"type\": \"object\"\n  },\n  \"strict\": true\n}"
+          },
+          "vertexLocation": {
+            "id": "vertexLocation",
+            "type": "short-input",
+            "value": null
+          },
+          "azureApiVersion": {
+            "id": "azureApiVersion",
+            "type": "short-input",
+            "value": null
+          },
+          "reasoningEffort": {
+            "id": "reasoningEffort",
+            "type": "dropdown",
+            "value": null
+          },
+          "bedrockSecretKey": {
+            "id": "bedrockSecretKey",
+            "type": "short-input",
+            "value": null
+          },
+          "manualCredential": {
+            "id": "manualCredential",
+            "type": "short-input",
+            "value": null
+          },
+          "vertexCredential": {
+            "id": "vertexCredential",
+            "type": "oauth-input",
+            "value": null
+          },
+          "slidingWindowSize": {
+            "id": "slidingWindowSize",
+            "type": "short-input",
+            "value": null
+          },
+          "bedrockAccessKeyId": {
+            "id": "bedrockAccessKeyId",
+            "type": "short-input",
+            "value": null
+          },
+          "slidingWindowTokens": {
+            "id": "slidingWindowTokens",
+            "type": "short-input",
+            "value": null
+          },
+          "previousInteractionId": {
+            "id": "previousInteractionId",
+            "type": "short-input",
+            "value": null
+          }
+        },
+        "outputs": {
+          "summary": {
+            "type": "string",
+            "description": "Executive summary of brand mentions found"
+          },
+          "mentions": {
+            "type": "array",
+            "description": "Array of individual brand mentions"
+          },
+          "totalMentions": {
+            "type": "number",
+            "description": "Total number of brand mentions found"
+          },
+          "sentimentBreakdown": {
+            "type": "object",
+            "description": "Field from Agent: sentimentBreakdown"
+          }
+        },
+        "data": {
+          "canonicalModes": {
+            "oauthCredential": "basic",
+            "reddit:oauthCredential": "basic"
+          }
+        },
+        "locked": false
+      },
+      "afb267b1-a20e-4755-8364-e4bb2ea99090": {
+        "id": "afb267b1-a20e-4755-8364-e4bb2ea99090",
+        "type": "note",
+        "name": "Agent Instructions",
+        "position": {
+          "x": 648.353914639655,
+          "y": -11.896402103479907
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 0,
+        "subBlocks": {
+          "content": {
+            "id": "content",
+            "type": "short-input",
+            "value": "**Connect Reddit OAuth and X (Twitter) OAuth** for the tools"
+          }
+        },
+        "outputs": {},
+        "data": {},
+        "locked": false
+      },
+      "197d74b5-3de0-4b52-af6c-a37d6b9eae5b": {
+        "id": "197d74b5-3de0-4b52-af6c-a37d6b9eae5b",
+        "type": "note",
+        "name": "Notion Instructions",
+        "position": {
+          "x": 1142.0546019340711,
+          "y": -5.948201051739943
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 0,
+        "subBlocks": {
+          "content": {
+            "id": "content",
+            "type": "short-input",
+            "value": "**Connect Notion OAuth** and set your Brand Mentions database ID"
+          }
+        },
+        "outputs": {},
+        "data": {},
+        "locked": false
+      }
+    },
+    "edges": [
+      {
+        "id": "2861a55b-5cbe-4a8c-a313-ffe55d6a7bbf",
+        "source": "c08eabea-4a15-43dd-ab0e-324f8473cdda",
+        "target": "e17ebe08-1e34-4a5a-920e-ebbc12e616c7",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      },
+      {
+        "id": "525229fd-2095-4bea-84bc-bdc3c38f57bc",
+        "source": "e17ebe08-1e34-4a5a-920e-ebbc12e616c7",
+        "target": "a6d33ecb-4115-4979-9a3b-d3f1caf67288",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      }
+    ],
+    "loops": {},
+    "parallels": {},
+    "metadata": {
+      "name": "brand-mention",
+      "description": "New workflow",
+      "color": "#9333ea",
+      "exportedAt": "2026-03-09T21:40:19.012Z"
+    },
+    "variables": {}
+  }
+}

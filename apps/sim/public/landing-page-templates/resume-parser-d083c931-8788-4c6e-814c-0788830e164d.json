@@ -1,0 +1,485 @@
+{
+  "version": "1.0",
+  "exportedAt": "2026-03-09T21:40:19.013Z",
+  "state": {
+    "blocks": {
+      "1abd6f01-04a4-4c69-9344-4b5cc2afe816": {
+        "id": "1abd6f01-04a4-4c69-9344-4b5cc2afe816",
+        "type": "start_trigger",
+        "name": "Start",
+        "position": {
+          "x": 150,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 100,
+        "subBlocks": {
+          "inputFormat": {
+            "id": "inputFormat",
+            "type": "input-format",
+            "value": [
+              {
+                "id": "b2cc9328-2024-4ff0-862f-c0ecaafa0dff",
+                "name": "resumeFile",
+                "type": "file[]",
+                "description": "PDF Resume"
+              }
+            ]
+          }
+        },
+        "outputs": {
+          "files": {
+            "type": "file[]",
+            "description": "User uploaded files"
+          },
+          "input": {
+            "type": "string",
+            "description": "Primary user input or message"
+          },
+          "conversationId": {
+            "type": "string",
+            "description": "Conversation thread identifier"
+          }
+        },
+        "data": {},
+        "locked": false
+      },
+      "015feca5-9044-4bc8-be1e-536454264ece": {
+        "id": "015feca5-9044-4bc8-be1e-536454264ece",
+        "type": "agent",
+        "name": "resumeParser",
+        "position": {
+          "x": 581.640625,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 288,
+        "subBlocks": {
+          "model": {
+            "id": "model",
+            "type": "short-input",
+            "value": ""
+          },
+          "tools": {
+            "id": "tools",
+            "type": "short-input",
+            "value": [
+              {
+                "type": "mistral_parse_v3",
+                "title": "Mistral Parser",
+                "params": {
+                  "resultType": "markdown",
+                  "fileReference": "<start.resumeFile>"
+                },
+                "toolId": "mistral_parser_v3",
+                "isExpanded": true,
+                "usageControl": "force"
+              }
+            ]
+          },
+          "apiKey": {
+            "id": "apiKey",
+            "type": "short-input",
+            "value": null
+          },
+          "skills": {
+            "id": "skills",
+            "type": "skill-input",
+            "value": null
+          },
+          "messages": {
+            "id": "messages",
+            "type": "messages-input",
+            "value": [
+              {
+                "role": "system",
+                "content": "Parse resume fields"
+              }
+            ]
+          },
+          "maxTokens": {
+            "id": "maxTokens",
+            "type": "short-input",
+            "value": null
+          },
+          "verbosity": {
+            "id": "verbosity",
+            "type": "dropdown",
+            "value": null
+          },
+          "memoryType": {
+            "id": "memoryType",
+            "type": "dropdown",
+            "value": "none"
+          },
+          "temperature": {
+            "id": "temperature",
+            "type": "slider",
+            "value": null
+          },
+          "azureEndpoint": {
+            "id": "azureEndpoint",
+            "type": "short-input",
+            "value": null
+          },
+          "bedrockRegion": {
+            "id": "bedrockRegion",
+            "type": "short-input",
+            "value": null
+          },
+          "thinkingLevel": {
+            "id": "thinkingLevel",
+            "type": "dropdown",
+            "value": null
+          },
+          "vertexProject": {
+            "id": "vertexProject",
+            "type": "short-input",
+            "value": null
+          },
+          "conversationId": {
+            "id": "conversationId",
+            "type": "short-input",
+            "value": null
+          },
+          "responseFormat": {
+            "id": "responseFormat",
+            "type": "short-input",
+            "value": "{\n  \"name\": \"candidate_info\",\n  \"schema\": {\n    \"additionalProperties\": false,\n    \"properties\": {\n      \"education\": {\n        \"description\": \"Education background\",\n        \"type\": \"string\"\n      },\n      \"email\": {\n        \"description\": \"Candidate's email address\",\n        \"type\": \"string\"\n      },\n      \"experience\": {\n        \"description\": \"Work experience summary\",\n        \"type\": \"string\"\n      },\n      \"name\": {\n        \"description\": \"Candidate's full name\",\n        \"type\": \"string\"\n      },\n      \"phone\": {\n        \"description\": \"Candidate's phone number\",\n        \"type\": \"string\"\n      },\n      \"skills\": {\n        \"description\": \"Key skills\",\n        \"type\": \"string\"\n      },\n      \"summary\": {\n        \"description\": \"Professional summary or objective\",\n        \"type\": \"string\"\n      }\n    },\n    \"required\": [\n      \"name\",\n      \"email\",\n      \"phone\",\n      \"summary\",\n      \"experience\",\n      \"education\",\n      \"skills\"\n    ],\n    \"type\": \"object\"\n  },\n  \"strict\": true\n}"
+          },
+          "vertexLocation": {
+            "id": "vertexLocation",
+            "type": "short-input",
+            "value": null
+          },
+          "azureApiVersion": {
+            "id": "azureApiVersion",
+            "type": "short-input",
+            "value": null
+          },
+          "reasoningEffort": {
+            "id": "reasoningEffort",
+            "type": "dropdown",
+            "value": null
+          },
+          "bedrockSecretKey": {
+            "id": "bedrockSecretKey",
+            "type": "short-input",
+            "value": null
+          },
+          "manualCredential": {
+            "id": "manualCredential",
+            "type": "short-input",
+            "value": null
+          },
+          "vertexCredential": {
+            "id": "vertexCredential",
+            "type": "oauth-input",
+            "value": null
+          },
+          "slidingWindowSize": {
+            "id": "slidingWindowSize",
+            "type": "short-input",
+            "value": null
+          },
+          "bedrockAccessKeyId": {
+            "id": "bedrockAccessKeyId",
+            "type": "short-input",
+            "value": null
+          },
+          "slidingWindowTokens": {
+            "id": "slidingWindowTokens",
+            "type": "short-input",
+            "value": null
+          },
+          "previousInteractionId": {
+            "id": "previousInteractionId",
+            "type": "short-input",
+            "value": null
+          }
+        },
+        "outputs": {
+          "name": {
+            "type": "string",
+            "description": "Candidate's full name"
+          },
+          "email": {
+            "type": "string",
+            "description": "Candidate's email address"
+          },
+          "phone": {
+            "type": "string",
+            "description": "Candidate's phone number"
+          },
+          "skills": {
+            "type": "string",
+            "description": "Key skills"
+          },
+          "summary": {
+            "type": "string",
+            "description": "Professional summary or objective"
+          },
+          "education": {
+            "type": "string",
+            "description": "Education background"
+          },
+          "experience": {
+            "type": "string",
+            "description": "Work experience summary"
+          }
+        },
+        "data": {
+          "canonicalModes": {
+            "oauthCredential": "basic",
+            "reducto_v2:document": "advanced",
+            "mistral_parse_v3:document": "advanced"
+          }
+        },
+        "locked": false
+      },
+      "808dd734-31a6-4440-bfda-d1be028ac2f7": {
+        "id": "808dd734-31a6-4440-bfda-d1be028ac2f7",
+        "type": "note",
+        "name": "Google Sheets Setup",
+        "position": {
+          "x": 1001.6440011186405,
+          "y": -7.809815030718283
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 114,
+        "subBlocks": {
+          "content": {
+            "id": "content",
+            "type": "short-input",
+            "value": "- Connect Google Sheets Account \n- Select relevant spreadsheet \n"
+          }
+        },
+        "outputs": {},
+        "data": {},
+        "locked": false
+      },
+      "dfa14e2d-6071-4188-b5d8-c1f2ecb09d88": {
+        "id": "dfa14e2d-6071-4188-b5d8-c1f2ecb09d88",
+        "type": "google_sheets_v2",
+        "name": "candidatesSheet",
+        "position": {
+          "x": 1010,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 0,
+        "subBlocks": {
+          "title": {
+            "id": "title",
+            "type": "short-input",
+            "value": null
+          },
+          "ranges": {
+            "id": "ranges",
+            "type": "long-input",
+            "value": null
+          },
+          "values": {
+            "id": "values",
+            "type": "short-input",
+            "value": "[[\"<resumeParser.content.name>\", \"<resumeParser.content.email>\", \"<resumeParser.content.phone>\", \"<resumeParser.content.summary>\", \"<resumeParser.content.experience>\", \"<resumeParser.content.education>\", \"<resumeParser.content.skills>\"]]"
+          },
+          "sheetId": {
+            "id": "sheetId",
+            "type": "short-input",
+            "value": null
+          },
+          "batchData": {
+            "id": "batchData",
+            "type": "long-input",
+            "value": null
+          },
+          "cellRange": {
+            "id": "cellRange",
+            "type": "short-input",
+            "value": null
+          },
+          "operation": {
+            "id": "operation",
+            "type": "short-input",
+            "value": "append"
+          },
+          "sheetName": {
+            "id": "sheetName",
+            "type": "sheet-selector",
+            "value": null
+          },
+          "credential": {
+            "id": "credential",
+            "type": "oauth-input",
+            "value": null
+          },
+          "filterValue": {
+            "id": "filterValue",
+            "type": "short-input",
+            "value": null
+          },
+          "sheetTitles": {
+            "id": "sheetTitles",
+            "type": "short-input",
+            "value": null
+          },
+          "filterColumn": {
+            "id": "filterColumn",
+            "type": "short-input",
+            "value": null
+          },
+          "spreadsheetId": {
+            "id": "spreadsheetId",
+            "type": "file-selector",
+            "value": null
+          },
+          "filterMatchType": {
+            "id": "filterMatchType",
+            "type": "dropdown",
+            "value": null
+          },
+          "manualSheetName": {
+            "id": "manualSheetName",
+            "type": "short-input",
+            "value": "Sheet1"
+          },
+          "insertDataOption": {
+            "id": "insertDataOption",
+            "type": "short-input",
+            "value": "INSERT_ROWS"
+          },
+          "manualCredential": {
+            "id": "manualCredential",
+            "type": "short-input",
+            "value": "9XZ3B8KDqUKwhQGwNJK7rJdIFX18VkeN"
+          },
+          "valueInputOption": {
+            "id": "valueInputOption",
+            "type": "dropdown",
+            "value": null
+          },
+          "manualSpreadsheetId": {
+            "id": "manualSpreadsheetId",
+            "type": "short-input",
+            "value": "Candidates"
+          },
+          "destinationSpreadsheetId": {
+            "id": "destinationSpreadsheetId",
+            "type": "short-input",
+            "value": null
+          }
+        },
+        "outputs": {
+          "metadata": {
+            "type": "json",
+            "properties": {
+              "spreadsheetId": {
+                "type": "string",
+                "description": "Google Sheets spreadsheet ID"
+              },
+              "spreadsheetUrl": {
+                "type": "string",
+                "description": "Spreadsheet URL"
+              }
+            },
+            "description": "Spreadsheet metadata including ID and URL"
+          },
+          "tableRange": {
+            "type": "string",
+            "description": "Range of the table where data was appended"
+          },
+          "updatedRows": {
+            "type": "number",
+            "description": "Number of rows updated"
+          },
+          "updatedCells": {
+            "type": "number",
+            "description": "Number of cells updated"
+          },
+          "updatedRange": {
+            "type": "string",
+            "description": "Range of cells that were updated"
+          },
+          "updatedColumns": {
+            "type": "number",
+            "description": "Number of columns updated"
+          }
+        },
+        "data": {
+          "canonicalModes": {
+            "sheetName": "advanced",
+            "spreadsheetId": "basic",
+            "oauthCredential": "basic"
+          }
+        },
+        "locked": false
+      },
+      "ca748c0f-eeb7-4ee7-b279-ceb4c1848ea8": {
+        "id": "ca748c0f-eeb7-4ee7-b279-ceb4c1848ea8",
+        "type": "note",
+        "name": "API Setup",
+        "position": {
+          "x": 153.14457477885225,
+          "y": -242.20344578716245
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 114,
+        "subBlocks": {
+          "content": {
+            "id": "content",
+            "type": "short-input",
+            "value": "\nThis Workflow is to be triggered via API. \n\n- Deploy using the button in the top right and call the workflow as an API using the endpoint in the instructions! \n\n- You can pass in files using the format: \n[{\n  \"data\": \"<base64>\",\n  \"type\": \"file\",\n  \"name\": \"document.pdf\",\n  \"mime\": \"application/pdf\"\n}]"
+          }
+        },
+        "outputs": {},
+        "data": {},
+        "locked": false
+      }
+    },
+    "edges": [
+      {
+        "id": "a79bb6c6-4afe-4082-9285-777ebe4101ed",
+        "source": "1abd6f01-04a4-4c69-9344-4b5cc2afe816",
+        "target": "015feca5-9044-4bc8-be1e-536454264ece",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      },
+      {
+        "id": "4b0791e8-fef4-4a27-b4e1-6a780511cb59",
+        "source": "015feca5-9044-4bc8-be1e-536454264ece",
+        "target": "dfa14e2d-6071-4188-b5d8-c1f2ecb09d88",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      }
+    ],
+    "loops": {},
+    "parallels": {},
+    "metadata": {
+      "name": "resume-parser",
+      "description": "New workflow",
+      "color": "#1e9de8",
+      "exportedAt": "2026-03-09T21:40:19.013Z"
+    },
+    "variables": {}
+  }
+}

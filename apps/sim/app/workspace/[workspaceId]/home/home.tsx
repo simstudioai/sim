@@ -2,8 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
-import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
+import { useParams, useRouter } from 'next/navigation'
+import {
+  LandingPromptStorage,
+  LandingTemplateStorage,
+  type LandingWorkflowSeed,
+  LandingWorkflowSeedStorage,
+} from '@/lib/core/utils/browser-storage'
+import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 import { MessageContent, MothershipView, UserInput } from './components'
 import { useChat } from './hooks'
 
@@ -15,19 +21,80 @@ interface HomeProps {
 
 export function Home({ chatId }: HomeProps = {}) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
+  const router = useRouter()
   const [inputValue, setInputValue] = useState('')
-  const hasCheckedLandingPromptRef = useRef(false)
+  const hasCheckedLandingStorageRef = useRef(false)
+
+  const createWorkflowFromLandingSeed = useCallback(
+    async (seed: LandingWorkflowSeed) => {
+      try {
+        const result = await persistImportedWorkflow({
+          content: seed.workflowJson,
+          filename: `${seed.workflowName}.json`,
+          workspaceId,
+          nameOverride: seed.workflowName,
+          descriptionOverride: seed.workflowDescription || 'Imported from landing template',
+          colorOverride: seed.color,
+          createWorkflow: async ({ name, description, color, workspaceId }) => {
+            const response = await fetch('/api/workflows', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name,
+                description,
+                color,
+                workspaceId,
+              }),
+            })
+
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}))
+              throw new Error(errorData.error || 'Failed to create workflow')
+            }
+
+            return response.json()
+          },
+        })
+
+        if (result?.workflowId) {
+          window.location.href = `/workspace/${workspaceId}/w/${result.workflowId}`
+          return
+        }
+
+        logger.warn('Landing workflow seed did not produce a workflow', {
+          templateId: seed.templateId,
+        })
+      } catch (error) {
+        logger.error('Error creating workflow from landing workflow seed:', error)
+      }
+    },
+    [workspaceId]
+  )
 
   useEffect(() => {
-    if (hasCheckedLandingPromptRef.current) return
-    hasCheckedLandingPromptRef.current = true
+    if (hasCheckedLandingStorageRef.current) return
+    hasCheckedLandingStorageRef.current = true
+
+    const workflowSeed = LandingWorkflowSeedStorage.consume()
+    if (workflowSeed) {
+      logger.info('Retrieved landing page workflow seed, creating workflow in workspace')
+      void createWorkflowFromLandingSeed(workflowSeed)
+      return
+    }
+
+    const templateId = LandingTemplateStorage.consume()
+    if (templateId) {
+      logger.info('Retrieved landing page template, redirecting to template detail')
+      router.replace(`/workspace/${workspaceId}/templates/${templateId}?use=true`)
+      return
+    }
 
     const prompt = LandingPromptStorage.consume()
     if (prompt) {
       logger.info('Retrieved landing page prompt, populating home input')
       setInputValue(prompt)
     }
-  }, [])
+  }, [createWorkflowFromLandingSeed, workspaceId, router])
 
   const {
     messages,

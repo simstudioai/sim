@@ -35,6 +35,8 @@ export interface PreviewWorkflow {
   color: string
   blocks: PreviewBlock[]
   edges: Array<{ id: string; source: string; target: string }>
+  /** Public JSON export used to seed the landing-page import flow */
+  seedPath?: string
 }
 
 /**
