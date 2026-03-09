@@ -1418,8 +1418,11 @@ function isValueCompatibleWithType(
     case 'string':
       return true
     case 'number': {
-      if (typeof value === 'number') return true
-      if (typeof value === 'string') return !Number.isNaN(Number(value)) && value.trim() !== ''
+      if (typeof value === 'number') return Number.isFinite(value)
+      if (typeof value === 'string') {
+        const num = Number(value)
+        return Number.isFinite(num) && value.trim() !== ''
+      }
       return false
     }
     case 'boolean': {
