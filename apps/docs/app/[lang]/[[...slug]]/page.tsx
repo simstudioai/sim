@@ -233,9 +233,9 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
           lang={lang}
           breadcrumb={breadcrumbs}
         />
+        <style>{`#nd-page { grid-column: 3 / span 2 !important; max-width: 1400px !important; }`}</style>
         <DocsPage
           toc={data.toc}
-          {...({ className: 'openapi-page' } as Record<string, string>)}
           breadcrumb={{
             enabled: false,
           }}

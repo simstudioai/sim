@@ -555,13 +555,13 @@ video {
    The grid has columns: spacer | sidebar | main | toc | spacer.
    By spanning columns 3-4, the article fills both main and toc areas,
    while the grid structure stays identical to non-OpenAPI pages (no jitter). */
-#nd-page.openapi-page {
+#nd-page:has(.api-page-header) {
   grid-column: 3 / span 2 !important;
   max-width: 1400px !important;
 }
 
 /* Hide the empty TOC aside on OpenAPI pages so it doesn't overlay content */
-#nd-docs-layout:has(#nd-page.openapi-page) #nd-toc {
+#nd-docs-layout:has(#nd-page:has(.api-page-header)) #nd-toc {
   display: none;
 }
 
@@ -577,15 +577,15 @@ video {
 }
 
 /* Ensure API reference pages use the same font as the rest of the docs */
-#nd-page.openapi-page,
-#nd-page.openapi-page h2,
-#nd-page.openapi-page h3,
-#nd-page.openapi-page h4,
-#nd-page.openapi-page p,
-#nd-page.openapi-page span,
-#nd-page.openapi-page div,
-#nd-page.openapi-page label,
-#nd-page.openapi-page button {
+#nd-page:has(.api-page-header),
+#nd-page:has(.api-page-header) h2,
+#nd-page:has(.api-page-header) h3,
+#nd-page:has(.api-page-header) h4,
+#nd-page:has(.api-page-header) p,
+#nd-page:has(.api-page-header) span,
+#nd-page:has(.api-page-header) div,
+#nd-page:has(.api-page-header) label,
+#nd-page:has(.api-page-header) button {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
@@ -647,7 +647,7 @@ html.dark span.font-mono.font-medium[data-method="delete"] {
 }
 
 /* Code block containers — match regular docs styling */
-#nd-page.openapi-page figure.shiki {
+#nd-page:has(.api-page-header) figure.shiki {
   border-radius: 0.75rem !important;
   background-color: var(--color-fd-card) !important;
 }
@@ -665,10 +665,10 @@ div:has(> input[placeholder="Filter Properties"]) + .text-sm.border-t {
 }
 
 /* Hide "TypeScript Definitions" copy panel on API pages */
-#nd-page.openapi-page div.not-prose.rounded-xl.border.p-3.mb-4 {
+#nd-page:has(.api-page-header) div.not-prose.rounded-xl.border.p-3.mb-4 {
   display: none !important;
 }
-#nd-page.openapi-page div.not-prose.rounded-xl.border.p-3:has(> div > p.font-medium) {
+#nd-page:has(.api-page-header) div.not-prose.rounded-xl.border.p-3:has(> div > p.font-medium) {
   display: none !important;
 }
 
@@ -682,18 +682,18 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
 
 /* Method+path bar — cleaner, lighter styling like Gumloop.
    Override bg-fd-card CSS variable directly for reliability. */
-#nd-page.openapi-page div.flex.flex-row.items-center.rounded-xl.border.not-prose {
+#nd-page:has(.api-page-header) div.flex.flex-row.items-center.rounded-xl.border.not-prose {
   --color-fd-card: rgb(249 250 251) !important;
   background-color: rgb(249 250 251) !important;
   border-color: rgb(229 231 235) !important;
 }
-html.dark #nd-page.openapi-page div.flex.flex-row.items-center.rounded-xl.border.not-prose {
+html.dark #nd-page:has(.api-page-header) div.flex.flex-row.items-center.rounded-xl.border.not-prose {
   --color-fd-card: rgb(24 24 27) !important;
   background-color: rgb(24 24 27) !important;
   border-color: rgb(63 63 70) !important;
 }
 /* Method badge inside path bar — cleaner sans-serif, softer colors */
-#nd-page.openapi-page
+#nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif !important;
@@ -706,70 +706,70 @@ html.dark #nd-page.openapi-page div.flex.flex-row.items-center.rounded-xl.border
 }
 /* Path bar per-method colors (fumadocs renders these, so we match by class) */
 /* GET */
-#nd-page.openapi-page
+#nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-green"] {
   color: rgb(22 163 74) !important;
   background-color: rgb(220 252 231 / 0.7) !important;
 }
 html.dark
-  #nd-page.openapi-page
+  #nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-green"] {
   color: rgb(74 222 128) !important;
   background-color: rgb(34 197 94 / 0.15) !important;
 }
 /* POST */
-#nd-page.openapi-page
+#nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-blue"] {
   color: rgb(37 99 235) !important;
   background-color: rgb(219 234 254 / 0.7) !important;
 }
 html.dark
-  #nd-page.openapi-page
+  #nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-blue"] {
   color: rgb(96 165 250) !important;
   background-color: rgb(59 130 246 / 0.15) !important;
 }
 /* PUT */
-#nd-page.openapi-page
+#nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-yellow"] {
   color: rgb(161 98 7) !important;
   background-color: rgb(254 249 195 / 0.7) !important;
 }
 html.dark
-  #nd-page.openapi-page
+  #nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-yellow"] {
   color: rgb(250 204 21) !important;
   background-color: rgb(234 179 8 / 0.15) !important;
 }
 /* PATCH */
-#nd-page.openapi-page
+#nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-orange"] {
   color: rgb(194 65 12) !important;
   background-color: rgb(255 237 213 / 0.7) !important;
 }
 html.dark
-  #nd-page.openapi-page
+  #nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-orange"] {
   color: rgb(251 146 60) !important;
   background-color: rgb(249 115 22 / 0.15) !important;
 }
 /* DELETE */
-#nd-page.openapi-page
+#nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-red"] {
   color: rgb(185 28 28) !important;
   background-color: rgb(254 226 226 / 0.7) !important;
 }
 html.dark
-  #nd-page.openapi-page
+  #nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-red"] {
   color: rgb(248 113 113) !important;
@@ -777,23 +777,23 @@ html.dark
 }
 
 /* Path text inside method+path bar — monospace, bright like Gumloop */
-#nd-page.openapi-page div.flex.flex-row.items-center.rounded-xl.border.not-prose code {
+#nd-page:has(.api-page-header) div.flex.flex-row.items-center.rounded-xl.border.not-prose code {
   color: rgb(55 65 81) !important;
   background: none !important;
   border: none !important;
   padding: 0 !important;
   font-size: 0.8125rem !important;
 }
-html.dark #nd-page.openapi-page div.flex.flex-row.items-center.rounded-xl.border.not-prose code {
+html.dark #nd-page:has(.api-page-header) div.flex.flex-row.items-center.rounded-xl.border.not-prose code {
   color: rgb(229 231 235) !important;
 }
 
 /* Inline code in API pages — neutral color instead of red.
    Exclude code inside the method+path bar (handled above). */
-#nd-page.openapi-page .prose :not(pre) > code {
+#nd-page:has(.api-page-header) .prose :not(pre) > code {
   color: rgb(79 70 229) !important;
 }
-html.dark #nd-page.openapi-page .prose :not(pre) > code {
+html.dark #nd-page:has(.api-page-header) .prose :not(pre) > code {
   color: rgb(165 180 252) !important;
 }
 
@@ -956,21 +956,21 @@ html.dark .response-section-dropdown-item:hover {
 }
 
 /* Property row — reorder: name (1) → type badge (2) → required badge (3) */
-#nd-page.openapi-page .flex.flex-wrap.items-center.gap-3.not-prose {
+#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
 }
 
 /* Name span — order 1 */
-#nd-page.openapi-page
+#nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose
   > span.font-medium.font-mono.text-fd-primary {
   order: 1;
 }
 
 /* Type badge — order 2, grey pill */
-#nd-page.openapi-page
+#nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground {
   order: 2;
@@ -984,7 +984,7 @@ html.dark .response-section-dropdown-item:hover {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 html.dark
-  #nd-page.openapi-page
+  #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground {
   background-color: rgb(51 51 56);
@@ -992,12 +992,12 @@ html.dark
 }
 
 /* Hide the "*" inside the name span — we'll add "required" as a ::after on the flex row */
-#nd-page.openapi-page span.font-medium.font-mono.text-fd-primary > span.text-red-400 {
+#nd-page:has(.api-page-header) span.font-medium.font-mono.text-fd-primary > span.text-red-400 {
   display: none;
 }
 
 /* Required badge — order 3, red pill */
-#nd-page.openapi-page .flex.flex-wrap.items-center.gap-3.not-prose:has(span.text-red-400)::after {
+#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose:has(span.text-red-400)::after {
   content: "required";
   order: 3;
   display: inline-flex;
@@ -1012,19 +1012,19 @@ html.dark
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 html.dark
-  #nd-page.openapi-page
+  #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose:has(span.text-red-400)::after {
   background-color: rgb(153 27 27 / 0.3);
   color: rgb(252 165 165);
 }
 
 /* Optional "?" indicator — hide it */
-#nd-page.openapi-page span.font-medium.font-mono.text-fd-primary > span.text-fd-muted-foreground {
+#nd-page:has(.api-page-header) span.font-medium.font-mono.text-fd-primary > span.text-fd-muted-foreground {
   display: none;
 }
 
 /* Hide the auth scheme type label (e.g. "apiKey") next to Authorization heading */
-#nd-page.openapi-page .flex.items-start.justify-between.gap-2 > div.not-prose {
+#nd-page:has(.api-page-header) .flex.items-start.justify-between.gap-2 > div.not-prose {
   display: none !important;
 }
 
@@ -1032,13 +1032,13 @@ html.dark
    Auth properties use my-4 (vs py-4 for regular properties). */
 
 /* Auth property flex row — name: order 1, type: order 2, ::before "header": order 3, ::after "required": order 4 */
-#nd-page.openapi-page
+#nd-page:has(.api-page-header)
   div.my-4
   > .flex.flex-wrap.items-center.gap-3.not-prose
   > span.font-medium.font-mono.text-fd-primary {
   order: 1;
 }
-#nd-page.openapi-page
+#nd-page:has(.api-page-header)
   div.my-4
   > .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground {
@@ -1048,7 +1048,7 @@ html.dark
   background: none !important;
   line-height: 0;
 }
-#nd-page.openapi-page
+#nd-page:has(.api-page-header)
   div.my-4
   > .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground::after {
@@ -1065,7 +1065,7 @@ html.dark
   align-items: center;
 }
 html.dark
-  #nd-page.openapi-page
+  #nd-page:has(.api-page-header)
   div.my-4
   > .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground::after {
@@ -1074,7 +1074,7 @@ html.dark
 }
 
 /* "header" badge via ::before on the auth flex row */
-#nd-page.openapi-page div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::before {
+#nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::before {
   content: "header";
   order: 3;
   display: inline-flex;
@@ -1088,13 +1088,13 @@ html.dark
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
-html.dark #nd-page.openapi-page div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::before {
+html.dark #nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::before {
   background-color: rgb(51 51 56);
   color: rgb(212 212 220);
 }
 
 /* "required" badge via ::after on the auth flex row — red pill */
-#nd-page.openapi-page div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::after {
+#nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::after {
   content: "required";
   order: 4;
   display: inline-flex;
@@ -1108,13 +1108,13 @@ html.dark #nd-page.openapi-page div.my-4 > .flex.flex-wrap.items-center.gap-3.no
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
-html.dark #nd-page.openapi-page div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::after {
+html.dark #nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::after {
   background-color: rgb(153 27 27 / 0.3);
   color: rgb(252 165 165);
 }
 
 /* Hide "In: header" text below auth property — redundant with the header badge */
-#nd-page.openapi-page div.my-4 .prose-no-margin p:has(> code) {
+#nd-page:has(.api-page-header) div.my-4 .prose-no-margin p:has(> code) {
   display: none !important;
 }
 
@@ -1129,27 +1129,27 @@ html.dark .api-section-divider {
 
 /* Property rows — breathing room like Mintlify.
    Regular properties use border-t py-4; auth properties use border-t my-4. */
-#nd-page.openapi-page .text-sm.border-t.py-4 {
+#nd-page:has(.api-page-header) .text-sm.border-t.py-4 {
   padding-top: 1.25rem !important;
   padding-bottom: 1.25rem !important;
 }
-#nd-page.openapi-page .text-sm.border-t.my-4 {
+#nd-page:has(.api-page-header) .text-sm.border-t.my-4 {
   margin-top: 1.25rem !important;
   margin-bottom: 1.25rem !important;
   padding-top: 1.25rem;
 }
 
 /* Divider lines between fields — very subtle like Mintlify */
-#nd-page.openapi-page .text-sm.border-t {
+#nd-page:has(.api-page-header) .text-sm.border-t {
   border-color: rgb(229 231 235 / 0.6);
 }
-html.dark #nd-page.openapi-page .text-sm.border-t {
+html.dark #nd-page:has(.api-page-header) .text-sm.border-t {
   border-color: rgb(255 255 255 / 0.07);
 }
 
 /* Body/Callback section "application/json" label — remove inline code styling */
-#nd-page.openapi-page .flex.gap-2.items-center.justify-between p.not-prose code.text-xs,
-#nd-page.openapi-page .flex.justify-between.gap-2.items-end p.not-prose code.text-xs {
+#nd-page:has(.api-page-header) .flex.gap-2.items-center.justify-between p.not-prose code.text-xs,
+#nd-page:has(.api-page-header) .flex.justify-between.gap-2.items-end p.not-prose code.text-xs {
   background: none !important;
   border: none !important;
   padding: 0 !important;
@@ -1159,8 +1159,8 @@ html.dark #nd-page.openapi-page .text-sm.border-t {
 }
 
 /* Object/array type triggers in property rows — order 2 + badge chip styling */
-#nd-page.openapi-page .flex.flex-wrap.items-center.gap-3.not-prose > button,
-#nd-page.openapi-page .flex.flex-wrap.items-center.gap-3.not-prose > span:has(> button) {
+#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
+#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > span:has(> button) {
   order: 2;
   background-color: rgb(241 245 249);
   color: rgb(71 85 105);
@@ -1171,24 +1171,24 @@ html.dark #nd-page.openapi-page .text-sm.border-t {
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
-html.dark #nd-page.openapi-page .flex.flex-wrap.items-center.gap-3.not-prose > button,
-html.dark #nd-page.openapi-page .flex.flex-wrap.items-center.gap-3.not-prose > span:has(> button) {
+html.dark #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
+html.dark #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > span:has(> button) {
   background-color: rgb(51 51 56);
   color: rgb(212 212 220);
 }
 
 /* Section headings (Authorization, Path Parameters, etc.) — consistent top spacing */
-#nd-page.openapi-page .min-w-0.flex-1 h2 {
+#nd-page:has(.api-page-header) .min-w-0.flex-1 h2 {
   margin-top: 1.75rem !important;
   margin-bottom: 0.25rem !important;
 }
 
 /* Code examples in right column — wrap long lines instead of horizontal scroll */
-#nd-page.openapi-page pre {
+#nd-page:has(.api-page-header) pre {
   white-space: pre-wrap !important;
   word-break: break-all !important;
 }
-#nd-page.openapi-page pre code {
+#nd-page:has(.api-page-header) pre code {
   width: 100% !important;
   word-break: break-all !important;
   overflow-wrap: break-word !important;
@@ -1204,11 +1204,11 @@ html.dark #nd-page.openapi-page .flex.flex-wrap.items-center.gap-3.not-prose > s
 
 /* Footer navigation — constrain to left content column on OpenAPI pages only.
    Target pages that contain the two-column layout via :has() selector. */
-#nd-page.openapi-page > div:last-child {
+#nd-page:has(.api-page-header) > div:last-child {
   max-width: calc(100% - 400px - 1.5rem);
 }
 @media (max-width: 1024px) {
-  #nd-page.openapi-page > div:last-child {
+  #nd-page:has(.api-page-header) > div:last-child {
     max-width: 100%;
   }
 }
