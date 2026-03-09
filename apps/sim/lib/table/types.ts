@@ -32,11 +32,17 @@ export interface TableSchema {
   columns: ColumnDefinition[]
 }
 
+/** UI-only metadata stored alongside the table definition. */
+export interface TableMetadata {
+  columnWidths?: Record<string, number>
+}
+
 export interface TableDefinition {
   id: string
   name: string
   description?: string | null
   schema: TableSchema
+  metadata?: TableMetadata | null
   rowCount: number
   maxRows: number
   workspaceId: string
@@ -57,6 +63,7 @@ export interface TableSummary {
 export interface TableRow {
   id: string
   data: RowData
+  position: number
   createdAt: Date | string
   updatedAt: Date | string
 }
@@ -218,4 +225,28 @@ export interface BulkDeleteByIdsResult {
   deletedRowIds: string[]
   requestedCount: number
   missingRowIds: string[]
+}
+
+export interface RenameColumnData {
+  tableId: string
+  oldName: string
+  newName: string
+}
+
+export interface UpdateColumnTypeData {
+  tableId: string
+  columnName: string
+  newType: (typeof COLUMN_TYPES)[number]
+}
+
+export interface UpdateColumnConstraintsData {
+  tableId: string
+  columnName: string
+  required?: boolean
+  unique?: boolean
+}
+
+export interface DeleteColumnData {
+  tableId: string
+  columnName: string
 }

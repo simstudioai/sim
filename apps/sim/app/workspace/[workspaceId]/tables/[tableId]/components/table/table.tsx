@@ -13,6 +13,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+  Input,
   Modal,
   ModalBody,
   ModalContent,
@@ -46,7 +47,9 @@ import type {
 import {
   useAddTableColumn,
   useCreateTableRow,
+  useDeleteColumn,
   useDeleteTable,
+  useUpdateColumn,
   useUpdateTableRow,
 } from '@/hooks/queries/tables'
 import { useContextMenu, useRowSelection, useTableData } from '../../hooks'
@@ -149,6 +152,9 @@ export function Table() {
     columnName: string
   } | null>(null)
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
+  const [renamingColumn, setRenamingColumn] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [deletingColumn, setDeletingColumn] = useState<string | null>(null)
 
   const isDraggingRef = useRef(false)
 
@@ -170,6 +176,8 @@ export function Table() {
   const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
   const createRowMutation = useCreateTableRow({ workspaceId, tableId })
   const addColumnMutation = useAddTableColumn({ workspaceId, tableId })
+  const updateColumnMutation = useUpdateColumn({ workspaceId, tableId })
+  const deleteColumnMutation = useDeleteColumn({ workspaceId, tableId })
 
   const columns = useMemo(
     () => tableData?.schema?.columns || EMPTY_COLUMNS,
@@ -565,7 +573,7 @@ export function Table() {
     setEditingEmptyCell(null)
   }, [])
 
-  const handleAddColumn = useCallback(() => {
+  const generateColumnName = useCallback(() => {
     const existing = columnsRef.current.map((c) => c.name.toLowerCase())
     let name = 'untitled'
     let i = 2
@@ -573,19 +581,74 @@ export function Table() {
       name = `untitled_${i}`
       i++
     }
-    addColumnMutation.mutate({ name, type: 'string' })
-  }, [addColumnMutation])
+    return name
+  }, [])
 
-  const handleRenameColumn = useCallback((_columnName: string) => {}, [])
-  const handleChangeType = useCallback((_columnName: string, _newType: string) => {}, [])
-  const handleInsertColumnLeft = useCallback((_columnName: string) => {}, [])
-  const handleInsertColumnRight = useCallback((_columnName: string) => {}, [])
-  const handleToggleUnique = useCallback((_columnName: string) => {}, [])
-  const handleToggleRequired = useCallback((_columnName: string) => {}, [])
-  const handleDeleteColumn = useCallback((_columnName: string) => {}, [])
+  const handleAddColumn = useCallback(() => {
+    addColumnMutation.mutate({ name: generateColumnName(), type: 'string' })
+  }, [generateColumnName])
 
-  const handleSortChange = useCallback((_column: string, _direction: SortDirection) => {}, [])
-  const handleSortClear = useCallback(() => {}, [])
+  const handleRenameColumn = useCallback((columnName: string) => {
+    setRenamingColumn(columnName)
+    setRenameValue(columnName)
+  }, [])
+
+  const handleRenameSubmit = useCallback(() => {
+    if (!renamingColumn || !renameValue.trim() || renameValue === renamingColumn) {
+      setRenamingColumn(null)
+      return
+    }
+    updateColumnMutation.mutate({ columnName: renamingColumn, updates: { name: renameValue.trim() } })
+    setRenamingColumn(null)
+  }, [renamingColumn, renameValue])
+
+  const handleChangeType = useCallback((columnName: string, newType: string) => {
+    updateColumnMutation.mutate({ columnName, updates: { type: newType } })
+  }, [])
+
+  const handleInsertColumnLeft = useCallback((columnName: string) => {
+    const index = columnsRef.current.findIndex((c) => c.name === columnName)
+    if (index === -1) return
+    addColumnMutation.mutate({ name: generateColumnName(), type: 'string', position: index })
+  }, [generateColumnName])
+
+  const handleInsertColumnRight = useCallback((columnName: string) => {
+    const index = columnsRef.current.findIndex((c) => c.name === columnName)
+    if (index === -1) return
+    addColumnMutation.mutate({ name: generateColumnName(), type: 'string', position: index + 1 })
+  }, [generateColumnName])
+
+  const handleToggleUnique = useCallback((columnName: string) => {
+    const column = columnsRef.current.find((c) => c.name === columnName)
+    if (!column) return
+    updateColumnMutation.mutate({ columnName, updates: { unique: !column.unique } })
+  }, [])
+
+  const handleToggleRequired = useCallback((columnName: string) => {
+    const column = columnsRef.current.find((c) => c.name === columnName)
+    if (!column) return
+    updateColumnMutation.mutate({ columnName, updates: { required: !column.required } })
+  }, [])
+
+  const handleDeleteColumn = useCallback((columnName: string) => {
+    setDeletingColumn(columnName)
+  }, [])
+
+  const handleDeleteColumnConfirm = useCallback(() => {
+    if (!deletingColumn) return
+    deleteColumnMutation.mutate(deletingColumn)
+    setDeletingColumn(null)
+  }, [deletingColumn])
+
+  const handleSortChange = useCallback((column: string, direction: SortDirection) => {
+    setQueryOptions((prev) => ({ ...prev, sort: { [column]: direction } }))
+    setCurrentPage(0)
+  }, [])
+
+  const handleSortClear = useCallback(() => {
+    setQueryOptions((prev) => ({ ...prev, sort: null }))
+    setCurrentPage(0)
+  }, [])
 
   const handleFilterApply = useCallback((filter: Filter | null) => {
     setQueryOptions((prev) => ({ ...prev, filter }))
@@ -602,15 +665,24 @@ export function Table() {
     [columns]
   )
 
+  const activeSortState = useMemo(() => {
+    if (!queryOptions.sort) return null
+    const entries = Object.entries(queryOptions.sort)
+    if (entries.length === 0) return null
+    const [column, direction] = entries[0]
+    return { column, direction }
+  }, [queryOptions.sort])
+
   const sortConfig = useMemo<SortConfig>(
     () => ({
       options: columnOptions,
-      active: null,
+      active: activeSortState,
       onSort: handleSortChange,
       onClear: handleSortClear,
     }),
-    [columnOptions, handleSortChange, handleSortClear]
+    [columnOptions, activeSortState, handleSortChange, handleSortClear]
   )
+
 
   if (!isLoadingTable && !tableData) {
     return (
@@ -848,6 +920,67 @@ export function Table() {
               disabled={deleteTableMutation.isPending}
             >
               {deleteTableMutation.isPending ? 'Deleting...' : 'Delete'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal
+        open={renamingColumn !== null}
+        onOpenChange={(open) => {
+          if (!open) setRenamingColumn(null)
+        }}
+      >
+        <ModalContent size='sm'>
+          <ModalHeader>Rename Column</ModalHeader>
+          <ModalBody>
+            <Input
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleRenameSubmit()
+              }}
+              placeholder='Column name'
+              autoFocus
+            />
+          </ModalBody>
+          <ModalFooter>
+            <Button variant='default' onClick={() => setRenamingColumn(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant='default'
+              onClick={handleRenameSubmit}
+              disabled={!renameValue.trim() || renameValue === renamingColumn}
+            >
+              Rename
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal
+        open={deletingColumn !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingColumn(null)
+        }}
+      >
+        <ModalContent size='sm'>
+          <ModalHeader>Delete Column</ModalHeader>
+          <ModalBody>
+            <p className='text-[13px] text-[var(--text-secondary)]'>
+              Are you sure you want to delete{' '}
+              <span className='font-medium text-[var(--text-primary)]'>{deletingColumn}</span>?
+              This will remove all data in this column.{' '}
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant='default' onClick={() => setDeletingColumn(null)}>
+              Cancel
+            </Button>
+            <Button variant='destructive' onClick={handleDeleteColumnConfirm}>
+              Delete
             </Button>
           </ModalFooter>
         </ModalContent>

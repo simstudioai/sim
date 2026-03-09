@@ -11,7 +11,7 @@ import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, sql } from 'drizzle-orm'
-import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
+import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { buildFilterClause, buildSortClause } from './sql'
 import type {
   BatchInsertData,
@@ -21,13 +21,18 @@ import type {
   BulkOperationResult,
   BulkUpdateData,
   CreateTableData,
+  DeleteColumnData,
   InsertRowData,
   QueryOptions,
   QueryResult,
+  RenameColumnData,
   RowData,
   TableDefinition,
+  TableMetadata,
   TableRow,
   TableSchema,
+  UpdateColumnConstraintsData,
+  UpdateColumnTypeData,
   UpdateRowData,
   UpsertResult,
   UpsertRowData,
@@ -65,6 +70,7 @@ export async function getTableById(tableId: string): Promise<TableDefinition | n
     name: table.name,
     description: table.description,
     schema: table.schema as TableSchema,
+    metadata: (table.metadata as TableMetadata) ?? null,
     rowCount: table.rowCount,
     maxRows: table.maxRows,
     workspaceId: table.workspaceId,
@@ -95,6 +101,7 @@ export async function listTables(workspaceId: string): Promise<TableDefinition[]
       name: userTableDefinitions.name,
       description: userTableDefinitions.description,
       schema: userTableDefinitions.schema,
+      metadata: userTableDefinitions.metadata,
       maxRows: userTableDefinitions.maxRows,
       workspaceId: userTableDefinitions.workspaceId,
       createdBy: userTableDefinitions.createdBy,
@@ -113,6 +120,7 @@ export async function listTables(workspaceId: string): Promise<TableDefinition[]
     name: t.name,
     description: t.description,
     schema: t.schema as TableSchema,
+    metadata: (t.metadata as TableMetadata) ?? null,
     rowCount: t.rowCount,
     maxRows: t.maxRows,
     workspaceId: t.workspaceId,
@@ -204,6 +212,7 @@ export async function createTable(
     name: newTable.name,
     description: newTable.description,
     schema: newTable.schema as TableSchema,
+    metadata: null,
     rowCount: 0,
     maxRows: newTable.maxRows,
     workspaceId: newTable.workspaceId,
@@ -224,12 +233,30 @@ export async function createTable(
  */
 export async function addTableColumn(
   tableId: string,
-  column: { name: string; type: string; required?: boolean; unique?: boolean },
+  column: { name: string; type: string; required?: boolean; unique?: boolean; position?: number },
   requestId: string
 ): Promise<TableDefinition> {
   const table = await getTableById(tableId)
   if (!table) {
     throw new Error('Table not found')
+  }
+
+  if (!NAME_PATTERN.test(column.name)) {
+    throw new Error(
+      `Invalid column name "${column.name}". Must start with a letter or underscore and contain only alphanumeric characters and underscores.`
+    )
+  }
+
+  if (column.name.length > TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH) {
+    throw new Error(
+      `Column name exceeds maximum length (${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters)`
+    )
+  }
+
+  if (!COLUMN_TYPES.includes(column.type as (typeof COLUMN_TYPES)[number])) {
+    throw new Error(
+      `Invalid column type "${column.type}". Must be one of: ${COLUMN_TYPES.join(', ')}`
+    )
   }
 
   const schema = table.schema
@@ -250,9 +277,14 @@ export async function addTableColumn(
     unique: column.unique ?? false,
   }
 
-  const updatedSchema: TableSchema = {
-    columns: [...schema.columns, newColumn],
+  const columns = [...schema.columns]
+  if (column.position !== undefined && column.position >= 0 && column.position < columns.length) {
+    columns.splice(column.position, 0, newColumn)
+  } else {
+    columns.push(newColumn)
   }
+
+  const updatedSchema: TableSchema = { columns }
 
   const now = new Date()
 
@@ -340,6 +372,13 @@ export async function insertRow(
       throw new Error(`Table has reached maximum row limit (${table.maxRows})`)
     }
 
+    const [{ maxPos }] = await trx
+      .select({
+        maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
+      })
+      .from(userTableRows)
+      .where(eq(userTableRows.tableId, data.tableId))
+
     return trx
       .insert(userTableRows)
       .values({
@@ -347,6 +386,7 @@ export async function insertRow(
         tableId: data.tableId,
         workspaceId: data.workspaceId,
         data: data.data,
+        position: maxPos + 1,
         createdAt: now,
         updatedAt: now,
         ...(data.userId ? { createdBy: data.userId } : {}),
@@ -359,6 +399,7 @@ export async function insertRow(
   return {
     id: row.id,
     data: row.data as RowData,
+    position: row.position,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -406,15 +447,6 @@ export async function batchInsertRows(
   }
 
   const now = new Date()
-  const rowsToInsert = data.rows.map((rowData) => ({
-    id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
-    tableId: data.tableId,
-    workspaceId: data.workspaceId,
-    data: rowData,
-    createdAt: now,
-    updatedAt: now,
-    ...(data.userId ? { createdBy: data.userId } : {}),
-  }))
 
   // Atomic capacity check + insert inside a transaction.
   // FOR UPDATE on the table definition row serializes concurrent inserts.
@@ -435,6 +467,24 @@ export async function batchInsertRows(
       )
     }
 
+    const [{ maxPos }] = await trx
+      .select({
+        maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
+      })
+      .from(userTableRows)
+      .where(eq(userTableRows.tableId, data.tableId))
+
+    const rowsToInsert = data.rows.map((rowData, i) => ({
+      id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
+      tableId: data.tableId,
+      workspaceId: data.workspaceId,
+      data: rowData,
+      position: maxPos + 1 + i,
+      createdAt: now,
+      updatedAt: now,
+      ...(data.userId ? { createdBy: data.userId } : {}),
+    }))
+
     return trx.insert(userTableRows).values(rowsToInsert).returning()
   })
 
@@ -443,6 +493,7 @@ export async function batchInsertRows(
   return insertedRows.map((r) => ({
     id: r.id,
     data: r.data as RowData,
+    position: r.position,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   }))
@@ -568,6 +619,7 @@ export async function upsertRow(
         row: {
           id: updatedRow.id,
           data: updatedRow.data as RowData,
+          position: updatedRow.position,
           createdAt: updatedRow.createdAt,
           updatedAt: updatedRow.updatedAt,
         },
@@ -585,6 +637,13 @@ export async function upsertRow(
       throw new Error(`Table row limit reached (${table.maxRows} rows max)`)
     }
 
+    const [{ maxPos }] = await trx
+      .select({
+        maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
+      })
+      .from(userTableRows)
+      .where(eq(userTableRows.tableId, data.tableId))
+
     const [insertedRow] = await trx
       .insert(userTableRows)
       .values({
@@ -592,6 +651,7 @@ export async function upsertRow(
         tableId: data.tableId,
         workspaceId: data.workspaceId,
         data: data.data,
+        position: maxPos + 1,
         createdAt: now,
         updatedAt: now,
         ...(data.userId ? { createdBy: data.userId } : {}),
@@ -602,6 +662,7 @@ export async function upsertRow(
       row: {
         id: insertedRow.id,
         data: insertedRow.data as RowData,
+        position: insertedRow.position,
         createdAt: insertedRow.createdAt,
         updatedAt: insertedRow.updatedAt,
       },
@@ -657,7 +718,7 @@ export async function queryRows(
 
   const totalCount = Number(countResult[0].count)
 
-  // Build ORDER BY clause
+  // Build ORDER BY clause (default to position ASC for stable ordering)
   let orderByClause
   if (sort && Object.keys(sort).length > 0) {
     orderByClause = buildSortClause(sort, tableName)
@@ -671,6 +732,8 @@ export async function queryRows(
 
   if (orderByClause) {
     query = query.orderBy(orderByClause) as typeof query
+  } else {
+    query = query.orderBy(userTableRows.position) as typeof query
   }
 
   const rows = await query.limit(limit).offset(offset)
@@ -683,6 +746,7 @@ export async function queryRows(
     rows: rows.map((r) => ({
       id: r.id,
       data: r.data as RowData,
+      position: r.position,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
     })),
@@ -724,6 +788,7 @@ export async function getRowById(
   return {
     id: row.id,
     data: row.data as RowData,
+    position: row.position,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -787,6 +852,7 @@ export async function updateRow(
   return {
     id: data.rowId,
     data: data.data,
+    position: existingRow.position,
     createdAt: existingRow.createdAt,
     updatedAt: now,
   }
@@ -1040,5 +1106,346 @@ export async function deleteRowsByIds(
     deletedRowIds: deletedIds,
     requestedCount: uniqueRequestedRowIds.length,
     missingRowIds,
+  }
+}
+
+/**
+ * Renames a column in a table's schema and updates all row data keys.
+ *
+ * @param data - Rename column data
+ * @param requestId - Request ID for logging
+ * @returns Updated table definition
+ * @throws Error if table not found, column not found, or new name conflicts
+ */
+export async function renameColumn(
+  data: RenameColumnData,
+  requestId: string
+): Promise<TableDefinition> {
+  const table = await getTableById(data.tableId)
+  if (!table) {
+    throw new Error('Table not found')
+  }
+
+  if (!NAME_PATTERN.test(data.newName)) {
+    throw new Error(
+      `Invalid column name "${data.newName}". Column names must start with a letter or underscore, followed by alphanumeric characters or underscores.`
+    )
+  }
+
+  if (data.newName.length > TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH) {
+    throw new Error(
+      `Column name exceeds maximum length (${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters)`
+    )
+  }
+
+  const schema = table.schema
+  const columnIndex = schema.columns.findIndex(
+    (c) => c.name.toLowerCase() === data.oldName.toLowerCase()
+  )
+  if (columnIndex === -1) {
+    throw new Error(`Column "${data.oldName}" not found`)
+  }
+
+  if (
+    schema.columns.some(
+      (c, i) => i !== columnIndex && c.name.toLowerCase() === data.newName.toLowerCase()
+    )
+  ) {
+    throw new Error(`Column "${data.newName}" already exists`)
+  }
+
+  const actualOldName = schema.columns[columnIndex].name
+  const updatedColumns = schema.columns.map((c, i) =>
+    i === columnIndex ? { ...c, name: data.newName } : c
+  )
+  const updatedSchema: TableSchema = { columns: updatedColumns }
+
+  const metadata = table.metadata as TableMetadata | null
+  let updatedMetadata = metadata
+  if (metadata?.columnWidths && actualOldName in metadata.columnWidths) {
+    const { [actualOldName]: width, ...rest } = metadata.columnWidths
+    updatedMetadata = { ...metadata, columnWidths: { ...rest, [data.newName]: width } }
+  }
+
+  const now = new Date()
+
+  await db.transaction(async (trx) => {
+    await trx
+      .update(userTableDefinitions)
+      .set({ schema: updatedSchema, metadata: updatedMetadata, updatedAt: now })
+      .where(eq(userTableDefinitions.id, data.tableId))
+
+    await trx.execute(
+      sql`UPDATE user_table_rows SET data = data - ${actualOldName} || jsonb_build_object(${data.newName}, data->${sql.raw(`'${actualOldName.replace(/'/g, "''")}'`)}) WHERE table_id = ${data.tableId} AND data ? ${actualOldName}`
+    )
+  })
+
+  logger.info(
+    `[${requestId}] Renamed column "${actualOldName}" to "${data.newName}" in table ${data.tableId}`
+  )
+
+  return { ...table, schema: updatedSchema, metadata: updatedMetadata, updatedAt: now }
+}
+
+/**
+ * Deletes a column from a table's schema and removes the key from all row data.
+ *
+ * @param data - Delete column data
+ * @param requestId - Request ID for logging
+ * @returns Updated table definition
+ * @throws Error if table not found, column not found, or it's the last column
+ */
+export async function deleteColumn(
+  data: DeleteColumnData,
+  requestId: string
+): Promise<TableDefinition> {
+  const table = await getTableById(data.tableId)
+  if (!table) {
+    throw new Error('Table not found')
+  }
+
+  const schema = table.schema
+  const columnIndex = schema.columns.findIndex(
+    (c) => c.name.toLowerCase() === data.columnName.toLowerCase()
+  )
+  if (columnIndex === -1) {
+    throw new Error(`Column "${data.columnName}" not found`)
+  }
+
+  if (schema.columns.length <= 1) {
+    throw new Error('Cannot delete the last column in a table')
+  }
+
+  const actualName = schema.columns[columnIndex].name
+  const updatedSchema: TableSchema = {
+    columns: schema.columns.filter((_, i) => i !== columnIndex),
+  }
+
+  const metadata = table.metadata as TableMetadata | null
+  let updatedMetadata = metadata
+  if (metadata?.columnWidths && actualName in metadata.columnWidths) {
+    const { [actualName]: _, ...rest } = metadata.columnWidths
+    updatedMetadata = { ...metadata, columnWidths: rest }
+  }
+
+  const now = new Date()
+
+  await db.transaction(async (trx) => {
+    await trx
+      .update(userTableDefinitions)
+      .set({ schema: updatedSchema, metadata: updatedMetadata, updatedAt: now })
+      .where(eq(userTableDefinitions.id, data.tableId))
+
+    await trx.execute(
+      sql`UPDATE user_table_rows SET data = data - ${actualName} WHERE table_id = ${data.tableId} AND data ? ${actualName}`
+    )
+  })
+
+  logger.info(`[${requestId}] Deleted column "${actualName}" from table ${data.tableId}`)
+
+  return { ...table, schema: updatedSchema, metadata: updatedMetadata, updatedAt: now }
+}
+
+/**
+ * Changes the type of a column. Validates that existing data is compatible.
+ *
+ * @param data - Update column type data
+ * @param requestId - Request ID for logging
+ * @returns Updated table definition
+ * @throws Error if table not found, column not found, or existing data is incompatible
+ */
+export async function updateColumnType(
+  data: UpdateColumnTypeData,
+  requestId: string
+): Promise<TableDefinition> {
+  const table = await getTableById(data.tableId)
+  if (!table) {
+    throw new Error('Table not found')
+  }
+
+  if (!(COLUMN_TYPES as readonly string[]).includes(data.newType)) {
+    throw new Error(
+      `Invalid column type "${data.newType}". Valid types: ${COLUMN_TYPES.join(', ')}`
+    )
+  }
+
+  const schema = table.schema
+  const columnIndex = schema.columns.findIndex(
+    (c) => c.name.toLowerCase() === data.columnName.toLowerCase()
+  )
+  if (columnIndex === -1) {
+    throw new Error(`Column "${data.columnName}" not found`)
+  }
+
+  const column = schema.columns[columnIndex]
+  if (column.type === data.newType) {
+    return table
+  }
+
+  const escapedName = column.name.replace(/'/g, "''")
+
+  // Validate existing data is compatible with the new type
+  const rows = await db
+    .select({ id: userTableRows.id, data: userTableRows.data })
+    .from(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.tableId, data.tableId),
+        sql`${userTableRows.data} ? ${column.name}`,
+        sql`${userTableRows.data}->>${sql.raw(`'${escapedName}'`)} IS NOT NULL`
+      )
+    )
+
+  let incompatibleCount = 0
+  for (const row of rows) {
+    const rowData = row.data as RowData
+    const value = rowData[column.name]
+    if (value === null || value === undefined) continue
+
+    if (!isValueCompatibleWithType(value, data.newType)) {
+      incompatibleCount++
+    }
+  }
+
+  if (incompatibleCount > 0) {
+    throw new Error(
+      `Cannot change column "${column.name}" to type "${data.newType}": ${incompatibleCount} row(s) have incompatible values. Fix or remove the incompatible values first.`
+    )
+  }
+
+  const updatedColumns = schema.columns.map((c, i) =>
+    i === columnIndex ? { ...c, type: data.newType } : c
+  )
+  const updatedSchema: TableSchema = { columns: updatedColumns }
+  const now = new Date()
+
+  await db
+    .update(userTableDefinitions)
+    .set({ schema: updatedSchema, updatedAt: now })
+    .where(eq(userTableDefinitions.id, data.tableId))
+
+  logger.info(
+    `[${requestId}] Changed column "${column.name}" type from "${column.type}" to "${data.newType}" in table ${data.tableId}`
+  )
+
+  return { ...table, schema: updatedSchema, updatedAt: now }
+}
+
+/**
+ * Updates constraints (required, unique) on a column.
+ *
+ * @param data - Update column constraints data
+ * @param requestId - Request ID for logging
+ * @returns Updated table definition
+ * @throws Error if table not found, column not found, or existing data violates the constraint
+ */
+export async function updateColumnConstraints(
+  data: UpdateColumnConstraintsData,
+  requestId: string
+): Promise<TableDefinition> {
+  const table = await getTableById(data.tableId)
+  if (!table) {
+    throw new Error('Table not found')
+  }
+
+  const schema = table.schema
+  const columnIndex = schema.columns.findIndex(
+    (c) => c.name.toLowerCase() === data.columnName.toLowerCase()
+  )
+  if (columnIndex === -1) {
+    throw new Error(`Column "${data.columnName}" not found`)
+  }
+
+  const column = schema.columns[columnIndex]
+  const escapedName = column.name.replace(/'/g, "''")
+
+  if (data.required === true && !column.required) {
+    const [result] = await db
+      .select({ count: count() })
+      .from(userTableRows)
+      .where(
+        and(
+          eq(userTableRows.tableId, data.tableId),
+          sql`(NOT (${userTableRows.data} ? ${column.name}) OR ${userTableRows.data}->>${sql.raw(`'${escapedName}'`)} IS NULL)`
+        )
+      )
+
+    if (result.count > 0) {
+      throw new Error(
+        `Cannot set column "${column.name}" as required: ${result.count} row(s) have null or missing values`
+      )
+    }
+  }
+
+  if (data.unique === true && !column.unique) {
+    const duplicates = await db.execute(
+      sql`SELECT ${userTableRows.data}->>${sql.raw(`'${escapedName}'`)} AS val, count(*) AS cnt FROM ${userTableRows} WHERE table_id = ${data.tableId} AND ${userTableRows.data} ? ${column.name} AND ${userTableRows.data}->>${sql.raw(`'${escapedName}'`)} IS NOT NULL GROUP BY val HAVING count(*) > 1 LIMIT 1`
+    )
+
+    if (duplicates.rows.length > 0) {
+      throw new Error(`Cannot set column "${column.name}" as unique: duplicate values exist`)
+    }
+  }
+
+  const updatedColumns = schema.columns.map((c, i) =>
+    i === columnIndex
+      ? {
+          ...c,
+          ...(data.required !== undefined ? { required: data.required } : {}),
+          ...(data.unique !== undefined ? { unique: data.unique } : {}),
+        }
+      : c
+  )
+  const updatedSchema: TableSchema = { columns: updatedColumns }
+  const now = new Date()
+
+  await db
+    .update(userTableDefinitions)
+    .set({ schema: updatedSchema, updatedAt: now })
+    .where(eq(userTableDefinitions.id, data.tableId))
+
+  logger.info(
+    `[${requestId}] Updated constraints for column "${column.name}" in table ${data.tableId}`
+  )
+
+  return { ...table, schema: updatedSchema, updatedAt: now }
+}
+
+/**
+ * Checks if a value is compatible with a target column type.
+ */
+function isValueCompatibleWithType(
+  value: unknown,
+  targetType: (typeof COLUMN_TYPES)[number]
+): boolean {
+  if (value === null || value === undefined) return true
+
+  switch (targetType) {
+    case 'string':
+      return true
+    case 'number': {
+      if (typeof value === 'number') return Number.isFinite(value)
+      if (typeof value === 'string') {
+        const num = Number(value)
+        return Number.isFinite(num) && value.trim() !== ''
+      }
+      return false
+    }
+    case 'boolean': {
+      if (typeof value === 'boolean') return true
+      if (typeof value === 'string')
+        return ['true', 'false', '1', '0'].includes(value.toLowerCase())
+      if (typeof value === 'number') return value === 0 || value === 1
+      return false
+    }
+    case 'date': {
+      if (value instanceof Date) return !Number.isNaN(value.getTime())
+      if (typeof value === 'string') return !Number.isNaN(Date.parse(value))
+      return false
+    }
+    case 'json':
+      return true
+    default:
+      return false
   }
 }

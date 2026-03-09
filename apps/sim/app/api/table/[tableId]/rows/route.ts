@@ -145,6 +145,7 @@ async function handleBatchInsert(
         rows: insertedRows.map((r) => ({
           id: r.id,
           data: r.data,
+          position: r.position,
           createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
           updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : r.updatedAt,
         })),
@@ -245,6 +246,7 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
         row: {
           id: row.id,
           data: row.data,
+          position: row.position,
           createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
           updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
         },
@@ -344,6 +346,7 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
       .select({
         id: userTableRows.id,
         data: userTableRows.data,
+        position: userTableRows.position,
         createdAt: userTableRows.createdAt,
         updatedAt: userTableRows.updatedAt,
       })
@@ -355,9 +358,11 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
       const sortClause = buildSortClause(validated.sort, USER_TABLE_ROWS_SQL_NAME, schema.columns)
       if (sortClause) {
         query = query.orderBy(sortClause) as typeof query
+      } else {
+        query = query.orderBy(userTableRows.position) as typeof query
       }
     } else {
-      query = query.orderBy(userTableRows.createdAt) as typeof query
+      query = query.orderBy(userTableRows.position) as typeof query
     }
 
     const countQuery = db
@@ -379,6 +384,7 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
         rows: rows.map((r) => ({
           id: r.id,
           data: r.data,
+          position: r.position,
           createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
           updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
         })),

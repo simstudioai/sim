@@ -117,6 +117,7 @@ export const AuditAction = {
 
   // Tables
   TABLE_CREATED: 'table.created',
+  TABLE_UPDATED: 'table.updated',
   TABLE_DELETED: 'table.deleted',
 
   // Templates

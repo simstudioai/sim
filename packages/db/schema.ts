@@ -2519,6 +2519,12 @@ export const userTableDefinitions = pgTable(
      * Stores the table schema definition. Example: { columns: [{ name: string, type: string, required: boolean }] }
      */
     schema: jsonb('schema').notNull(),
+    /**
+     * @remarks
+     * Stores UI-specific metadata separate from the data schema.
+     * Example: { columnWidths: { name: 200, age: 100 } }
+     */
+    metadata: jsonb('metadata'),
     maxRows: integer('max_rows').notNull().default(10000),
     rowCount: integer('row_count').notNull().default(0),
     createdBy: text('created_by')
@@ -2551,6 +2557,7 @@ export const userTableRows = pgTable(
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
     data: jsonb('data').notNull(),
+    position: integer('position').notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
@@ -2562,6 +2569,7 @@ export const userTableRows = pgTable(
       table.workspaceId,
       table.tableId
     ),
+    tablePositionIdx: index('user_table_rows_table_position_idx').on(table.tableId, table.position),
   })
 )
 
