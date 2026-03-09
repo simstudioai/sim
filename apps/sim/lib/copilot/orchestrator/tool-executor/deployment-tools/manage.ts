@@ -1,7 +1,13 @@
 import crypto from 'crypto'
 import { db } from '@sim/db'
-import { chat, workflow, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
-import { eq, inArray } from 'drizzle-orm'
+import {
+  chat,
+  workflow,
+  workflowDeploymentVersion,
+  workflowMcpServer,
+  workflowMcpTool,
+} from '@sim/db/schema'
+import { and, eq, inArray } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
@@ -309,6 +315,90 @@ export async function executeDeleteWorkspaceMcpServer(
     mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId: existing.workspaceId })
 
     return { success: true, output: { serverId, name: existing.name, deleted: true } }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeGetDeploymentVersion(
+  params: { workflowId?: string; version?: number },
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workflowId = params.workflowId || context.workflowId
+    if (!workflowId) {
+      return { success: false, error: 'workflowId is required' }
+    }
+    const version = params.version
+    if (version === undefined || version === null) {
+      return { success: false, error: 'version is required' }
+    }
+
+    await ensureWorkflowAccess(workflowId, context.userId)
+
+    const [row] = await db
+      .select({ state: workflowDeploymentVersion.state })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, workflowId),
+          eq(workflowDeploymentVersion.version, version)
+        )
+      )
+      .limit(1)
+
+    if (!row?.state) {
+      return { success: false, error: `Deployment version ${version} not found` }
+    }
+
+    return { success: true, output: { version, deployedState: row.state } }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeRevertToVersion(
+  params: { workflowId?: string; version?: number },
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workflowId = params.workflowId || context.workflowId
+    if (!workflowId) {
+      return { success: false, error: 'workflowId is required' }
+    }
+    const version = params.version
+    if (version === undefined || version === null) {
+      return { success: false, error: 'version is required' }
+    }
+
+    await ensureWorkflowAccess(workflowId, context.userId)
+
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000'
+    const response = await fetch(
+      `${baseUrl}/api/workflows/${workflowId}/deployments/${version}/revert`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.INTERNAL_API_SECRET || '',
+        },
+      }
+    )
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}))
+      return { success: false, error: body.error || `Failed to revert (HTTP ${response.status})` }
+    }
+
+    const result = await response.json()
+    return {
+      success: true,
+      output: {
+        message: `Reverted workflow to deployment version ${version}`,
+        lastSaved: result.lastSaved,
+      },
+    }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }

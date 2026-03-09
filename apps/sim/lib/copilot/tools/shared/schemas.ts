@@ -28,6 +28,8 @@ export const KnowledgeBaseArgsSchema = z.object({
     'update',
     'delete',
     'add_file',
+    'delete_document',
+    'update_document',
     'list_tags',
     'create_tag',
     'update_tag',
@@ -84,6 +86,12 @@ export const KnowledgeBaseArgsSchema = z.object({
       connectorStatus: z.enum(['active', 'paused']).optional(),
       /** Tag definition IDs to disable (optional for add_connector) */
       disabledTagIds: z.array(z.string()).optional(),
+      /** Document ID (required for delete_document, update_document) */
+      documentId: z.string().optional(),
+      /** Enable/disable a document (optional for update_document) */
+      enabled: z.boolean().optional(),
+      /** New filename for a document (optional for update_document) */
+      filename: z.string().optional(),
     })
     .optional(),
 })
@@ -160,7 +168,7 @@ export type UserTableResult = z.infer<typeof UserTableResultSchema>
 
 // workspace_file - shared schema used by server tool and Go catalog
 export const WorkspaceFileArgsSchema = z.object({
-  operation: z.enum(['write', 'delete']),
+  operation: z.enum(['write', 'update', 'delete']),
   args: z
     .object({
       fileId: z.string().optional(),

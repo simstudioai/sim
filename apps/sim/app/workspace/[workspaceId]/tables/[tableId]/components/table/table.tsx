@@ -125,12 +125,22 @@ function computeNormalizedSelection(
   }
 }
 
-export function Table() {
+interface TableProps {
+  workspaceId?: string
+  tableId?: string
+  embedded?: boolean
+}
+
+export function Table({
+  workspaceId: propWorkspaceId,
+  tableId: propTableId,
+  embedded,
+}: TableProps = {}) {
   const params = useParams()
   const router = useRouter()
 
-  const workspaceId = params.workspaceId as string
-  const tableId = params.tableId as string
+  const workspaceId = propWorkspaceId || (params.workspaceId as string)
+  const tableId = propTableId || (params.tableId as string)
 
   const [queryOptions, setQueryOptions] = useState<QueryOptions>({
     filter: null,
@@ -729,37 +739,41 @@ export function Table() {
 
   return (
     <div className='flex h-full flex-col'>
-      <ResourceHeader
-        icon={TableIcon}
-        breadcrumbs={[
-          { label: 'Tables', onClick: handleNavigateBack },
-          ...(tableData
-            ? [
-                {
-                  label: tableData.name,
-                  dropdownItems: [
-                    { label: 'Rename', icon: Pencil, onClick: () => {} },
+      {!embedded && (
+        <>
+          <ResourceHeader
+            icon={TableIcon}
+            breadcrumbs={[
+              { label: 'Tables', onClick: handleNavigateBack },
+              ...(tableData
+                ? [
                     {
-                      label: 'Delete',
-                      icon: Trash,
-                      onClick: () => setShowDeleteTableConfirm(true),
+                      label: tableData.name,
+                      dropdownItems: [
+                        { label: 'Rename', icon: Pencil, onClick: () => {} },
+                        {
+                          label: 'Delete',
+                          icon: Trash,
+                          onClick: () => setShowDeleteTableConfirm(true),
+                        },
+                      ],
                     },
-                  ],
-                },
-              ]
-            : []),
-        ]}
-        create={{
-          label: 'New column',
-          onClick: handleAddColumn,
-          disabled: addColumnMutation.isPending,
-        }}
-      />
+                  ]
+                : []),
+            ]}
+            create={{
+              label: 'New column',
+              onClick: handleAddColumn,
+              disabled: addColumnMutation.isPending,
+            }}
+          />
 
-      <ResourceOptionsBar
-        sort={sortConfig}
-        filter={<TableFilter columns={columns} onApply={handleFilterApply} />}
-      />
+          <ResourceOptionsBar
+            sort={sortConfig}
+            filter={<TableFilter columns={columns} onApply={handleFilterApply} />}
+          />
+        </>
+      )}
 
       <div className='min-h-0 flex-1 overflow-auto overscroll-none' data-table-scroll>
         <table
@@ -946,34 +960,36 @@ export function Table() {
         onDelete={handleContextMenuDelete}
       />
 
-      <Modal open={showDeleteTableConfirm} onOpenChange={setShowDeleteTableConfirm}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Table</ModalHeader>
-          <ModalBody>
-            <p className='text-[13px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{tableData?.name}</span>?{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
-            </p>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => setShowDeleteTableConfirm(false)}
-              disabled={deleteTableMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={handleDeleteTable}
-              disabled={deleteTableMutation.isPending}
-            >
-              {deleteTableMutation.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      {!embedded && (
+        <Modal open={showDeleteTableConfirm} onOpenChange={setShowDeleteTableConfirm}>
+          <ModalContent size='sm'>
+            <ModalHeader>Delete Table</ModalHeader>
+            <ModalBody>
+              <p className='text-[13px] text-[var(--text-secondary)]'>
+                Are you sure you want to delete{' '}
+                <span className='font-medium text-[var(--text-primary)]'>{tableData?.name}</span>?{' '}
+                <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              </p>
+            </ModalBody>
+            <ModalFooter>
+              <Button
+                variant='default'
+                onClick={() => setShowDeleteTableConfirm(false)}
+                disabled={deleteTableMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant='destructive'
+                onClick={handleDeleteTable}
+                disabled={deleteTableMutation.isPending}
+              >
+                {deleteTableMutation.isPending ? 'Deleting...' : 'Delete'}
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      )}
 
       <Modal
         open={renamingColumn !== null}

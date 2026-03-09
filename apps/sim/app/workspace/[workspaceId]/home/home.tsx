@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
-import { MessageContent, UserInput } from './components'
+import { MessageContent, MothershipView, UserInput } from './components'
 import { useChat } from './hooks'
 
 const logger = createLogger('Home')
@@ -28,10 +28,17 @@ export function Home({ chatId }: HomeProps = {}) {
       setInputValue(prompt)
     }
   }, [])
-  const { messages, isSending, sendMessage, stopGeneration, chatBottomRef } = useChat(
-    workspaceId,
-    chatId
-  )
+
+  const {
+    messages,
+    isSending,
+    sendMessage,
+    stopGeneration,
+    chatBottomRef,
+    resources,
+    activeResourceId,
+    setActiveResourceId,
+  } = useChat(workspaceId, chatId)
 
   const handleSubmit = useCallback(() => {
     const trimmed = inputValue.trim()
@@ -118,6 +125,15 @@ export function Home({ chatId }: HomeProps = {}) {
           />
         </div>
       </div>
+
+      {resources.length > 0 && (
+        <MothershipView
+          workspaceId={workspaceId}
+          resources={resources}
+          activeResourceId={activeResourceId}
+          onSelectResource={setActiveResourceId}
+        />
+      )}
     </div>
   )
 }

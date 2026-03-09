@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { mcpServers, pendingCredentialDraft, user } from '@sim/db/schema'
+import { credential, mcpServers, pendingCredentialDraft, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, lt } from 'drizzle-orm'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
@@ -34,8 +34,10 @@ import {
   executeDeployApi,
   executeDeployChat,
   executeDeployMcp,
+  executeGetDeploymentVersion,
   executeListWorkspaceMcpServers,
   executeRedeploy,
+  executeRevertToVersion,
   executeUpdateWorkspaceMcpServer,
 } from './deployment-tools'
 import { executeIntegrationToolDirect } from './integration-tools'
@@ -876,6 +878,57 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
     executeUpdateWorkspaceMcpServer(p as unknown as UpdateWorkspaceMcpServerParams, c),
   delete_workspace_mcp_server: (p, c) =>
     executeDeleteWorkspaceMcpServer(p as unknown as DeleteWorkspaceMcpServerParams, c),
+  get_deployment_version: (p, c) =>
+    executeGetDeploymentVersion(p as { workflowId?: string; version?: number }, c),
+  revert_to_version: (p, c) =>
+    executeRevertToVersion(p as { workflowId?: string; version?: number }, c),
+  manage_credential: async (p, c) => {
+    const params = p as { operation: string; credentialId: string; displayName?: string }
+    const { operation, credentialId, displayName } = params
+    if (!credentialId) {
+      return { success: false, error: 'credentialId is required' }
+    }
+    try {
+      const [row] = await db
+        .select({ id: credential.id, type: credential.type, displayName: credential.displayName })
+        .from(credential)
+        .where(eq(credential.id, credentialId))
+        .limit(1)
+      if (!row) {
+        return { success: false, error: 'Credential not found' }
+      }
+      if (row.type !== 'oauth') {
+        return {
+          success: false,
+          error:
+            'Only OAuth credentials can be managed with this tool. Use set_environment_variables for env vars.',
+        }
+      }
+      switch (operation) {
+        case 'rename': {
+          if (!displayName) {
+            return { success: false, error: 'displayName is required for rename' }
+          }
+          await db
+            .update(credential)
+            .set({ displayName, updatedAt: new Date() })
+            .where(eq(credential.id, credentialId))
+          return { success: true, output: { credentialId, displayName } }
+        }
+        case 'delete': {
+          await db.delete(credential).where(eq(credential.id, credentialId))
+          return { success: true, output: { credentialId, deleted: true } }
+        }
+        default:
+          return {
+            success: false,
+            error: `Unknown operation: ${operation}. Use "rename" or "delete".`,
+          }
+      }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  },
   create_job: (p, c) => executeCreateJob(p, c),
   manage_job: (p, c) => executeManageJob(p, c),
   complete_job: (p, c) => executeCompleteJob(p, c),

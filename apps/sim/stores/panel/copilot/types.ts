@@ -29,6 +29,8 @@ export interface CopilotToolCall {
   display?: ClientToolDisplay
   /** UI metadata from the copilot SSE event (used as fallback for unregistered tools) */
   serverUI?: ServerToolUI
+  /** Persisted tool call result for rendering resources on chat reload */
+  result?: { success: boolean; output?: unknown; error?: string }
   /** Tool should be executed client-side (set by Go backend via SSE) */
   clientExecutable?: boolean
   /** Content streamed from a subagent (e.g., debug agent) */

@@ -352,7 +352,7 @@ export async function executeManageJob(
           if (!['active', 'paused'].includes(args.status)) {
             return { success: false, error: 'status must be "active" or "paused"' }
           }
-          updates.status = args.status
+          updates.status = args.status === 'paused' ? 'disabled' : args.status
         }
 
         if (args.cron !== undefined) {
