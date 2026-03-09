@@ -1,9 +1,13 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
+import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
 import { MessageContent, UserInput } from './components'
 import { useChat } from './hooks'
+
+const logger = createLogger('Home')
 
 interface HomeProps {
   chatId?: string
@@ -12,6 +16,18 @@ interface HomeProps {
 export function Home({ chatId }: HomeProps = {}) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const [inputValue, setInputValue] = useState('')
+  const hasCheckedLandingPromptRef = useRef(false)
+
+  useEffect(() => {
+    if (hasCheckedLandingPromptRef.current) return
+    hasCheckedLandingPromptRef.current = true
+
+    const prompt = LandingPromptStorage.consume()
+    if (prompt) {
+      logger.info('Retrieved landing page prompt, populating home input')
+      setInputValue(prompt)
+    }
+  }, [])
   const { messages, isSending, sendMessage, stopGeneration, chatBottomRef } = useChat(
     workspaceId,
     chatId

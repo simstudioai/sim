@@ -37,7 +37,6 @@ import type { UserInputRef } from '@/app/workspace/[workspaceId]/w/[workflowId]/
 import {
   useChatHistory,
   useCopilotInitialization,
-  useLandingPrompt,
   useTodoManagement,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/hooks'
 import { useScrollManagement } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
@@ -168,15 +167,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   const focusInput = useCallback(() => {
     userInputRef.current?.focus()
   }, [])
-
-  // Handle landing page prompt retrieval and population
-  useLandingPrompt({
-    isInitialized,
-    setInputValue,
-    focusInput,
-    isSendingMessage,
-    currentInputValue: inputValue,
-  })
 
   /** Auto-scrolls to bottom when chat loads */
   useEffect(() => {
