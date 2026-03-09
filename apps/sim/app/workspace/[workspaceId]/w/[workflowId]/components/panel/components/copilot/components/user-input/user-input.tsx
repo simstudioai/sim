@@ -872,7 +872,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             isLoading={isLoading}
             isAborting={isAborting}
             showAbortButton={Boolean(showAbortButton)}
-            onSubmit={handleSubmit}
+            onSubmit={() => void handleSubmit()}
             onAbort={handleAbort}
             onFileSelect={fileAttachments.handleFileSelect}
           />
