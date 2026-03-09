@@ -550,7 +550,7 @@ export function Table() {
     setEditingEmptyCell(null)
   }, [])
 
-  const handleAddColumn = useCallback(() => {
+  const generateColumnName = useCallback(() => {
     const existing = columnsRef.current.map((c) => c.name.toLowerCase())
     let name = 'untitled'
     let i = 2
@@ -558,8 +558,12 @@ export function Table() {
       name = `untitled_${i}`
       i++
     }
-    addColumnMutation.mutate({ name, type: 'string' })
+    return name
   }, [])
+
+  const handleAddColumn = useCallback(() => {
+    addColumnMutation.mutate({ name: generateColumnName(), type: 'string' })
+  }, [generateColumnName])
 
   const handleRenameColumn = useCallback((columnName: string) => {
     const newName = window.prompt('Enter new column name:', columnName)
@@ -572,32 +576,16 @@ export function Table() {
   }, [])
 
   const handleInsertColumnLeft = useCallback((columnName: string) => {
-    const cols = columnsRef.current
-    const index = cols.findIndex((c) => c.name === columnName)
+    const index = columnsRef.current.findIndex((c) => c.name === columnName)
     if (index === -1) return
-    const existing = cols.map((c) => c.name.toLowerCase())
-    let name = 'untitled'
-    let i = 2
-    while (existing.includes(name.toLowerCase())) {
-      name = `untitled_${i}`
-      i++
-    }
-    addColumnMutation.mutate({ name, type: 'string', position: index })
-  }, [])
+    addColumnMutation.mutate({ name: generateColumnName(), type: 'string', position: index })
+  }, [generateColumnName])
 
   const handleInsertColumnRight = useCallback((columnName: string) => {
-    const cols = columnsRef.current
-    const index = cols.findIndex((c) => c.name === columnName)
+    const index = columnsRef.current.findIndex((c) => c.name === columnName)
     if (index === -1) return
-    const existing = cols.map((c) => c.name.toLowerCase())
-    let name = 'untitled'
-    let i = 2
-    while (existing.includes(name.toLowerCase())) {
-      name = `untitled_${i}`
-      i++
-    }
-    addColumnMutation.mutate({ name, type: 'string', position: index + 1 })
-  }, [])
+    addColumnMutation.mutate({ name: generateColumnName(), type: 'string', position: index + 1 })
+  }, [generateColumnName])
 
   const handleToggleUnique = useCallback((columnName: string) => {
     const column = columnsRef.current.find((c) => c.name === columnName)
@@ -624,6 +612,7 @@ export function Table() {
 
   const handleSortClear = useCallback(() => {
     setQueryOptions((prev) => ({ ...prev, sort: null }))
+    setCurrentPage(0)
   }, [])
 
   const handleFilterToggle = useCallback((column: string, operator: string) => {
@@ -647,6 +636,7 @@ export function Table() {
 
   const handleFilterClear = useCallback(() => {
     setQueryOptions((prev) => ({ ...prev, filter: null }))
+    setCurrentPage(0)
   }, [])
 
   const columnOptions = useMemo<ColumnOption[]>(

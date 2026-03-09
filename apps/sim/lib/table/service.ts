@@ -247,6 +247,12 @@ export async function addTableColumn(
     )
   }
 
+  if (column.name.length > TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH) {
+    throw new Error(
+      `Column name exceeds maximum length (${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters)`
+    )
+  }
+
   if (!COLUMN_TYPES.includes(column.type as (typeof COLUMN_TYPES)[number])) {
     throw new Error(
       `Invalid column type "${column.type}". Must be one of: ${COLUMN_TYPES.join(', ')}`
