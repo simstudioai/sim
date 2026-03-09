@@ -47,12 +47,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         workflowUpdatedAt: workflow.updatedAt,
       })
       .from(workflowExecutionLogs)
-      .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+      .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
       .innerJoin(
         permissions,
         and(
           eq(permissions.entityType, 'workspace'),
-          eq(permissions.entityId, workflow.workspaceId),
+          eq(permissions.entityId, workflowExecutionLogs.workspaceId),
           eq(permissions.userId, userId)
         )
       )
@@ -64,17 +64,29 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Log not found' }, { status: 404 })
     }
 
-    const workflowSummary = {
-      id: log.workflowId,
-      name: log.workflowName,
-      description: log.workflowDescription,
-      color: log.workflowColor,
-      folderId: log.workflowFolderId,
-      userId: log.workflowUserId,
-      workspaceId: log.workflowWorkspaceId,
-      createdAt: log.workflowCreatedAt,
-      updatedAt: log.workflowUpdatedAt,
-    }
+    const workflowSummary = log.workflowName
+      ? {
+          id: log.workflowId,
+          name: log.workflowName,
+          description: log.workflowDescription,
+          color: log.workflowColor,
+          folderId: log.workflowFolderId,
+          userId: log.workflowUserId,
+          workspaceId: log.workflowWorkspaceId,
+          createdAt: log.workflowCreatedAt,
+          updatedAt: log.workflowUpdatedAt,
+        }
+      : {
+          id: log.workflowId,
+          name: 'Deleted Workflow',
+          description: null,
+          color: null,
+          folderId: null,
+          userId: null,
+          workspaceId: null,
+          createdAt: null,
+          updatedAt: null,
+        }
 
     const response = {
       id: log.id,

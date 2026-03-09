@@ -34,12 +34,12 @@ export async function GET(
         workflow: workflow,
       })
       .from(workflowExecutionLogs)
-      .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+      .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
       .innerJoin(
         permissions,
         and(
           eq(permissions.entityType, 'workspace'),
-          eq(permissions.entityId, workflow.workspaceId),
+          eq(permissions.entityId, workflowExecutionLogs.workspaceId),
           eq(permissions.userId, userId)
         )
       )
