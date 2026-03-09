@@ -1166,6 +1166,12 @@ export async function queueWebhookExecution(
       })
     }
 
+    // Slack requires an empty 200 for interactive payloads (view_submission, block_actions, etc.)
+    // A JSON body like {"message":"..."} is not a recognized response format and causes modal errors
+    if (foundWebhook.provider === 'slack') {
+      return new NextResponse(null, { status: 200 })
+    }
+
     // Twilio Voice requires TwiML XML response
     if (foundWebhook.provider === 'twilio_voice') {
       const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
@@ -1209,6 +1215,12 @@ export async function queueWebhookExecution(
         },
         { status: 500 }
       )
+    }
+
+    if (foundWebhook.provider === 'slack') {
+      // Return empty 200 to avoid Slack showing an error dialog to the user,
+      // even though processing failed. The error is already logged above.
+      return new NextResponse(null, { status: 200 })
     }
 
     if (foundWebhook.provider === 'twilio_voice') {
