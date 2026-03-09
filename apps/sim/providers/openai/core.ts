@@ -8,7 +8,6 @@ import {
   calculateCost,
   prepareToolExecution,
   prepareToolsWithUsageControl,
-  sumToolCosts,
   trackForcedToolUsage,
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
@@ -406,7 +405,7 @@ export async function executeResponsesProviderRequest(
     }
 
     const toolCalls = []
-    const toolResults: Record<string, unknown>[] = []
+    const toolResults = []
     let iterationCount = 0
     let modelTime = firstResponseTime
     let toolsTime = 0
@@ -513,7 +512,7 @@ export async function executeResponsesProviderRequest(
         })
 
         let resultContent: Record<string, unknown>
-        if (result.success && result.output) {
+        if (result.success) {
           toolResults.push(result.output)
           resultContent = result.output as Record<string, unknown>
         } else {
@@ -729,12 +728,10 @@ export async function executeResponsesProviderRequest(
             usage?.promptTokens || 0,
             usage?.completionTokens || 0
           )
-          const tc = sumToolCosts(toolResults)
           streamingResult.execution.output.cost = {
             input: accumulatedCost.input + streamCost.input,
             output: accumulatedCost.output + streamCost.output,
-            toolCost: tc || undefined,
-            total: accumulatedCost.total + streamCost.total + tc,
+            total: accumulatedCost.total + streamCost.total,
           }
         }),
         execution: {

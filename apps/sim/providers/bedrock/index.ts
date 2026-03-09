@@ -33,7 +33,6 @@ import {
   calculateCost,
   prepareToolExecution,
   prepareToolsWithUsageControl,
-  sumToolCosts,
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
 
@@ -816,12 +815,10 @@ export const bedrockProvider: ProviderConfig = {
               }
 
               const streamCost = calculateCost(request.model, usage.inputTokens, usage.outputTokens)
-              const tc = sumToolCosts(toolResults)
               streamingResult.execution.output.cost = {
                 input: cost.input + streamCost.input,
                 output: cost.output + streamCost.output,
-                toolCost: tc || undefined,
-                total: cost.total + streamCost.total + tc,
+                total: cost.total + streamCost.total,
               }
 
               const streamEndTime = Date.now()
@@ -864,7 +861,6 @@ export const bedrockProvider: ProviderConfig = {
               cost: {
                 input: cost.input,
                 output: cost.output,
-                toolCost: undefined as number | undefined,
                 total: cost.total,
               },
             },

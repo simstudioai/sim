@@ -16,7 +16,6 @@ import {
   calculateCost,
   prepareToolExecution,
   prepareToolsWithUsageControl,
-  sumToolCosts,
   trackForcedToolUsage,
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
@@ -196,7 +195,7 @@ export const cerebrasProvider: ProviderConfig = {
         total: currentResponse.usage?.total_tokens || 0,
       }
       const toolCalls = []
-      const toolResults: Record<string, unknown>[] = []
+      const toolResults = []
       const currentMessages = [...allMessages]
       let iterationCount = 0
 
@@ -314,7 +313,7 @@ export const cerebrasProvider: ProviderConfig = {
               duration: duration,
             })
             let resultContent: any
-            if (result.success && result.output) {
+            if (result.success) {
               toolResults.push(result.output)
               resultContent = result.output
             } else {
@@ -473,12 +472,10 @@ export const cerebrasProvider: ProviderConfig = {
               usage.prompt_tokens,
               usage.completion_tokens
             )
-            const tc = sumToolCosts(toolResults)
             streamingResult.execution.output.cost = {
               input: accumulatedCost.input + streamCost.input,
               output: accumulatedCost.output + streamCost.output,
-              toolCost: tc || undefined,
-              total: accumulatedCost.total + streamCost.total + tc,
+              total: accumulatedCost.total + streamCost.total,
             }
           }),
           execution: {
@@ -511,7 +508,6 @@ export const cerebrasProvider: ProviderConfig = {
               cost: {
                 input: accumulatedCost.input,
                 output: accumulatedCost.output,
-                toolCost: undefined as number | undefined,
                 total: accumulatedCost.total,
               },
             },
