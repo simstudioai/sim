@@ -105,19 +105,21 @@ export async function runStreamLoop(
 
       const normalizedEvent = normalizeSseEvent(event)
 
-      // Skip duplicate tool events.
+      // Skip duplicate tool events — both forwarding AND handler dispatch.
       const shouldSkipToolCall = shouldSkipToolCallEvent(normalizedEvent)
       const shouldSkipToolResult = shouldSkipToolResultEvent(normalizedEvent)
 
-      if (!shouldSkipToolCall && !shouldSkipToolResult) {
-        try {
-          await options.onEvent?.(normalizedEvent)
-        } catch (error) {
-          logger.warn('Failed to forward SSE event', {
-            type: normalizedEvent.type,
-            error: error instanceof Error ? error.message : String(error),
-          })
-        }
+      if (shouldSkipToolCall || shouldSkipToolResult) {
+        continue
+      }
+
+      try {
+        await options.onEvent?.(normalizedEvent)
+      } catch (error) {
+        logger.warn('Failed to forward SSE event', {
+          type: normalizedEvent.type,
+          error: error instanceof Error ? error.message : String(error),
+        })
       }
 
       // Let the caller intercept before standard dispatch.
