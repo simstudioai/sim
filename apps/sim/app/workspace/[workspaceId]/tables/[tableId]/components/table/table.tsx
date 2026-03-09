@@ -518,7 +518,8 @@ export function Table({
       const anchor = selectionAnchorRef.current
       if (!anchor || editingCellRef.current || editingEmptyCellRef.current) return
 
-      if (!containerRef.current?.contains(e.target as Node)) return
+      const target = e.target as Node
+      if (target !== document.body && !containerRef.current?.contains(target)) return
 
       const cols = columnsRef.current
       const mp = maxPositionRef.current
