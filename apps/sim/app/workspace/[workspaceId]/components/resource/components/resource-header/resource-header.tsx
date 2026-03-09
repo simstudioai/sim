@@ -161,6 +161,7 @@ function BreadcrumbSegment({
           type='text'
           value={editing.value}
           onChange={(e) => editing.onChange(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => {
             if (e.key === 'Enter') editing.onSubmit()
             if (e.key === 'Escape') editing.onCancel()

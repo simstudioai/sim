@@ -125,12 +125,11 @@ export async function PATCH(request: NextRequest, { params }: TableRouteParams) 
       )
     }
 
-    if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
-    }
-
     logger.error(`[${requestId}] Error renaming table:`, error)
-    return NextResponse.json({ error: 'Failed to rename table' }, { status: 500 })
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to rename table' },
+      { status: 500 }
+    )
   }
 }
 
