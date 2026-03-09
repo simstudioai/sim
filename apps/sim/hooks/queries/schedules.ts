@@ -276,6 +276,49 @@ export function useDeleteSchedule() {
 }
 
 /**
+ * Mutation to update fields on a standalone job schedule
+ */
+export function useUpdateSchedule() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      scheduleId,
+      workspaceId,
+      ...updates
+    }: {
+      scheduleId: string
+      workspaceId: string
+      title?: string
+      prompt?: string
+      cronExpression?: string
+      timezone?: string
+      lifecycle?: 'persistent' | 'until_complete'
+      maxRuns?: number | null
+    }) => {
+      const response = await fetch(`/api/schedules/${scheduleId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update', ...updates }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to update schedule')
+      }
+
+      return { workspaceId }
+    },
+    onSuccess: ({ workspaceId }) => {
+      queryClient.invalidateQueries({ queryKey: scheduleKeys.list(workspaceId) })
+    },
+    onError: (error) => {
+      logger.error('Failed to update schedule', { error })
+    },
+  })
+}
+
+/**
  * Mutation to create a standalone scheduled job
  */
 export function useCreateSchedule() {

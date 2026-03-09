@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Button,
@@ -17,16 +17,21 @@ import {
   Textarea,
   TimePicker,
 } from '@/components/emcn'
-import { parseCronToHumanReadable, validateCronExpression } from '@/lib/workflows/schedules/utils'
-import { useCreateSchedule } from '@/hooks/queries/schedules'
+import {
+  DAY_MAP,
+  parseCronToHumanReadable,
+  parseCronToScheduleType,
+  validateCronExpression,
+} from '@/lib/workflows/schedules/utils'
+import type { ScheduleType } from '@/lib/workflows/schedules/utils'
+import type { WorkspaceScheduleData } from '@/hooks/queries/schedules'
+import { useCreateSchedule, useUpdateSchedule } from '@/hooks/queries/schedules'
 
-const logger = createLogger('CreateScheduleModal')
+const logger = createLogger('ScheduleModal')
 
 const DEFAULT_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone
 
 type SelectOption = { label: string; value: string }
-
-type ScheduleType = 'minutes' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom'
 
 const SCHEDULE_TYPE_OPTIONS: SelectOption[] = [
   { label: 'Every X Minutes', value: 'minutes' },
@@ -46,16 +51,6 @@ const WEEKDAY_OPTIONS: SelectOption[] = [
   { label: 'Saturday', value: 'SAT' },
   { label: 'Sunday', value: 'SUN' },
 ]
-
-const DAY_MAP: Record<string, number> = {
-  MON: 1,
-  TUE: 2,
-  WED: 3,
-  THU: 4,
-  FRI: 5,
-  SAT: 6,
-  SUN: 0,
-}
 
 const TIMEZONE_OPTIONS: SelectOption[] = [
   { label: 'UTC', value: 'UTC' },
@@ -95,10 +90,11 @@ const TIMEZONE_OPTIONS: SelectOption[] = [
   { label: 'Auckland (UTC+12)', value: 'Pacific/Auckland' },
 ]
 
-interface CreateScheduleModalProps {
+interface ScheduleModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   workspaceId: string
+  schedule?: WorkspaceScheduleData
 }
 
 /**
@@ -155,12 +151,16 @@ function buildCronExpression(
   }
 }
 
-export function CreateScheduleModal({
+export function ScheduleModal({
   open,
   onOpenChange,
   workspaceId,
-}: CreateScheduleModalProps) {
+  schedule,
+}: ScheduleModalProps) {
   const createScheduleMutation = useCreateSchedule()
+  const updateScheduleMutation = useUpdateSchedule()
+
+  const isEditing = Boolean(schedule)
 
   const [title, setTitle] = useState('')
   const [prompt, setPrompt] = useState('')
@@ -177,7 +177,27 @@ export function CreateScheduleModal({
   const [startDate, setStartDate] = useState('')
   const [lifecycle, setLifecycle] = useState<'persistent' | 'until_complete'>('persistent')
   const [maxRuns, setMaxRuns] = useState('')
-  const [createError, setCreateError] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open || !schedule) return
+    const cronState = parseCronToScheduleType(schedule.cronExpression)
+    setTitle(schedule.jobTitle || '')
+    setPrompt(schedule.prompt || '')
+    setScheduleType(cronState.scheduleType)
+    setMinutesInterval(cronState.minutesInterval)
+    setHourlyMinute(cronState.hourlyMinute)
+    setDailyTime(cronState.dailyTime)
+    setWeeklyDay(cronState.weeklyDay)
+    setWeeklyDayTime(cronState.weeklyDayTime)
+    setMonthlyDay(cronState.monthlyDay)
+    setMonthlyTime(cronState.monthlyTime)
+    setCronExpression(cronState.cronExpression)
+    setTimezone(schedule.timezone || DEFAULT_TIMEZONE)
+    setLifecycle(schedule.lifecycle === 'until_complete' ? 'until_complete' : 'persistent')
+    setMaxRuns(schedule.maxRuns ? String(schedule.maxRuns) : '')
+    setStartDate('')
+  }, [open, schedule])
 
   const computedCron = useMemo(
     () =>
@@ -245,7 +265,7 @@ export function CreateScheduleModal({
     setStartDate('')
     setLifecycle('persistent')
     setMaxRuns('')
-    setCreateError(null)
+    setSubmitError(null)
   }
 
   const handleClose = () => {
@@ -253,26 +273,39 @@ export function CreateScheduleModal({
     resetForm()
   }
 
-  const handleCreate = async () => {
+  const handleSubmit = async () => {
     if (!computedCron || !isFormValid) return
 
-    setCreateError(null)
+    setSubmitError(null)
     try {
-      await createScheduleMutation.mutateAsync({
-        workspaceId,
-        title: title.trim(),
-        prompt: prompt.trim(),
-        cronExpression: computedCron,
-        timezone: resolvedTimezone,
-        lifecycle,
-        maxRuns: lifecycle === 'until_complete' && maxRuns ? parseInt(maxRuns, 10) : undefined,
-        startDate: startDate || undefined,
-      })
+      if (isEditing && schedule) {
+        await updateScheduleMutation.mutateAsync({
+          scheduleId: schedule.id,
+          workspaceId,
+          title: title.trim(),
+          prompt: prompt.trim(),
+          cronExpression: computedCron,
+          timezone: resolvedTimezone,
+          lifecycle,
+          maxRuns: lifecycle === 'until_complete' && maxRuns ? parseInt(maxRuns, 10) : null,
+        })
+      } else {
+        await createScheduleMutation.mutateAsync({
+          workspaceId,
+          title: title.trim(),
+          prompt: prompt.trim(),
+          cronExpression: computedCron,
+          timezone: resolvedTimezone,
+          lifecycle,
+          maxRuns: lifecycle === 'until_complete' && maxRuns ? parseInt(maxRuns, 10) : undefined,
+          startDate: startDate || undefined,
+        })
+      }
       handleClose()
     } catch (error: unknown) {
-      logger.error('Schedule creation failed:', { error })
-      setCreateError(
-        error instanceof Error ? error.message : 'Failed to create schedule. Please try again.'
+      logger.error('Schedule submission failed:', { error })
+      setSubmitError(
+        error instanceof Error ? error.message : 'Failed to save schedule. Please try again.'
       )
     }
   }
@@ -280,7 +313,7 @@ export function CreateScheduleModal({
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size='lg'>
-        <ModalHeader>Create new schedule</ModalHeader>
+        <ModalHeader>{isEditing ? 'Edit schedule' : 'Create new schedule'}</ModalHeader>
         <ModalBody>
           <div className='flex flex-col gap-[18px]'>
             {/* Title */}
@@ -290,7 +323,7 @@ export function CreateScheduleModal({
                 value={title}
                 onChange={(e) => {
                   setTitle(e.target.value)
-                  if (createError) setCreateError(null)
+                  if (submitError) setSubmitError(null)
                 }}
                 placeholder='e.g., Daily report generation'
                 className='h-9'
@@ -308,7 +341,7 @@ export function CreateScheduleModal({
                 value={prompt}
                 onChange={(e) => {
                   setPrompt(e.target.value)
-                  if (createError) setCreateError(null)
+                  if (submitError) setSubmitError(null)
                 }}
                 placeholder='Describe what this scheduled task should do...'
                 className='min-h-[80px] resize-none'
@@ -442,18 +475,19 @@ export function CreateScheduleModal({
               </div>
             )}
 
-            {/* Start Date */}
-            <div className='flex flex-col gap-[8px]'>
-              <p className='font-medium text-[14px] text-[var(--text-secondary)]'>
-                Start date
-                <span className='ml-[4px] font-normal text-[var(--text-muted)]'>(optional)</span>
-              </p>
-              <DatePicker
-                value={startDate}
-                onChange={setStartDate}
-                placeholder='Starts immediately'
-              />
-            </div>
+            {!isEditing && (
+              <div className='flex flex-col gap-[8px]'>
+                <p className='font-medium text-[14px] text-[var(--text-secondary)]'>
+                  Start date
+                  <span className='ml-[4px] font-normal text-[var(--text-muted)]'>(optional)</span>
+                </p>
+                <DatePicker
+                  value={startDate}
+                  onChange={setStartDate}
+                  placeholder='Starts immediately'
+                />
+              </div>
+            )}
 
             {/* Lifecycle */}
             <div className='flex flex-col gap-[8px]'>
@@ -510,8 +544,8 @@ export function CreateScheduleModal({
             )}
 
             {/* Error */}
-            {createError && (
-              <p className='text-[13px] text-[var(--text-error)] leading-tight'>{createError}</p>
+            {submitError && (
+              <p className='text-[13px] text-[var(--text-error)] leading-tight'>{submitError}</p>
             )}
           </div>
         </ModalBody>
@@ -522,10 +556,12 @@ export function CreateScheduleModal({
           </Button>
           <Button
             variant='tertiary'
-            onClick={handleCreate}
-            disabled={!isFormValid || createScheduleMutation.isPending}
+            onClick={handleSubmit}
+            disabled={!isFormValid || createScheduleMutation.isPending || updateScheduleMutation.isPending}
           >
-            {createScheduleMutation.isPending ? 'Creating...' : 'Create'}
+            {isEditing
+              ? updateScheduleMutation.isPending ? 'Saving...' : 'Save changes'
+              : createScheduleMutation.isPending ? 'Creating...' : 'Create'}
           </Button>
         </ModalFooter>
       </ModalContent>

@@ -1,1 +1,1 @@
-export { CreateScheduleModal } from './create-schedule-modal'
+export { ScheduleModal } from './schedule-modal'

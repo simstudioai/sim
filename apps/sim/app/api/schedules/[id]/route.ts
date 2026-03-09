@@ -15,9 +15,19 @@ const logger = createLogger('ScheduleAPI')
 
 export const dynamic = 'force-dynamic'
 
-const scheduleUpdateSchema = z.object({
-  action: z.enum(['reactivate', 'disable']),
-})
+const scheduleUpdateSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('reactivate') }),
+  z.object({ action: z.literal('disable') }),
+  z.object({
+    action: z.literal('update'),
+    title: z.string().min(1).optional(),
+    prompt: z.string().min(1).optional(),
+    cronExpression: z.string().optional(),
+    timezone: z.string().optional(),
+    lifecycle: z.enum(['persistent', 'until_complete']).optional(),
+    maxRuns: z.number().nullable().optional(),
+  }),
+])
 
 type ScheduleRow = {
   id: string
@@ -138,6 +148,66 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       })
 
       return NextResponse.json({ message: 'Schedule disabled successfully' })
+    }
+
+    if (action === 'update') {
+      if (schedule.sourceType !== 'job') {
+        return NextResponse.json(
+          { error: 'Only standalone job schedules can be edited' },
+          { status: 400 }
+        )
+      }
+
+      const updates = validation.data
+      const setFields: Record<string, unknown> = { updatedAt: new Date() }
+
+      if (updates.title !== undefined) setFields.jobTitle = updates.title.trim()
+      if (updates.prompt !== undefined) setFields.prompt = updates.prompt.trim()
+      if (updates.timezone !== undefined) setFields.timezone = updates.timezone
+      if (updates.lifecycle !== undefined) {
+        setFields.lifecycle = updates.lifecycle
+        if (updates.lifecycle === 'persistent') {
+          setFields.maxRuns = null
+        }
+      }
+      if (updates.maxRuns !== undefined) setFields.maxRuns = updates.maxRuns
+
+      if (updates.cronExpression !== undefined) {
+        const tz = updates.timezone ?? schedule.timezone ?? 'UTC'
+        const cronResult = validateCronExpression(updates.cronExpression, tz)
+        if (!cronResult.isValid) {
+          return NextResponse.json(
+            { error: cronResult.error || 'Invalid cron expression' },
+            { status: 400 }
+          )
+        }
+        setFields.cronExpression = updates.cronExpression
+        if (schedule.status === 'active' && cronResult.nextRun) {
+          setFields.nextRunAt = cronResult.nextRun
+        }
+      }
+
+      await db
+        .update(workflowSchedule)
+        .set(setFields)
+        .where(eq(workflowSchedule.id, scheduleId))
+
+      logger.info(`[${requestId}] Updated job schedule: ${scheduleId}`)
+
+      recordAudit({
+        workspaceId,
+        actorId: session.user.id,
+        action: AuditAction.SCHEDULE_UPDATED,
+        resourceType: AuditResourceType.SCHEDULE,
+        resourceId: scheduleId,
+        actorName: session.user.name ?? undefined,
+        actorEmail: session.user.email ?? undefined,
+        description: `Updated job schedule ${scheduleId}`,
+        metadata: {},
+        request,
+      })
+
+      return NextResponse.json({ message: 'Schedule updated successfully' })
     }
 
     // reactivate
