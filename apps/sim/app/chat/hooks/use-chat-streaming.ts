@@ -78,14 +78,15 @@ export function useChatStreaming() {
       abortControllerRef.current.abort()
       abortControllerRef.current = null
 
+      const latestContent = accumulatedTextRef.current
+
       setMessages((prev) => {
         const lastMessage = prev[prev.length - 1]
 
         if (lastMessage && lastMessage.type === 'assistant') {
-          const latestContent = accumulatedTextRef.current || lastMessage.content
+          const content = latestContent || lastMessage.content
           const updatedContent =
-            latestContent +
-            (latestContent ? '\n\n_Response stopped by user._' : '_Response stopped by user._')
+            content + (content ? '\n\n_Response stopped by user._' : '_Response stopped by user._')
 
           return [
             ...prev.slice(0, -1),
@@ -96,7 +97,6 @@ export function useChatStreaming() {
         return prev
       })
 
-      // Reset streaming state immediately
       setIsStreamingResponse(false)
       accumulatedTextRef.current = ''
       lastStreamedPositionRef.current = 0
