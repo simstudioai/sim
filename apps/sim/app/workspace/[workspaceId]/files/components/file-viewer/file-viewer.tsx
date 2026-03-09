@@ -12,7 +12,7 @@ import {
 
 const logger = createLogger('FileViewer')
 
-const TEXT_EDITABLE_EXTENSIONS = new Set(['md', 'txt', 'json', 'yaml', 'yml', 'csv', 'html', 'htm'])
+export const TEXT_EDITABLE_EXTENSIONS = new Set(['md', 'txt', 'json', 'yaml', 'yml', 'csv', 'html', 'htm'])
 
 const IFRAME_PREVIEWABLE_EXTENSIONS = new Set(['pdf'])
 

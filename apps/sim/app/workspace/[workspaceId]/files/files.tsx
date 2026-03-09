@@ -17,6 +17,7 @@ import {
   PopoverDivider,
   PopoverItem,
   Skeleton,
+  Tooltip,
   Trash2,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -30,7 +31,10 @@ import {
   timeCell,
 } from '@/app/workspace/[workspaceId]/components'
 import { CreateFileModal } from '@/app/workspace/[workspaceId]/files/components/create-file-modal'
-import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import {
+  FileViewer,
+  TEXT_EDITABLE_EXTENSIONS,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -397,9 +401,7 @@ export function Files() {
   }
 
   if (selectedFile) {
-    const isTextEditable = ['md', 'txt', 'json', 'yaml', 'yml', 'csv', 'html', 'htm'].includes(
-      getFileExtension(selectedFile.name)
-    )
+    const isTextEditable = TEXT_EDITABLE_EXTENSIONS.has(getFileExtension(selectedFile.name))
     const saveLabel =
       saveStatus === 'saving'
         ? 'Saving...'
@@ -422,18 +424,27 @@ export function Files() {
           toolbarActions={
             <div className='flex items-center gap-[6px]'>
               {isTextEditable && (
-                <Button
-                  variant='subtle'
-                  className={cn(
-                    'px-[8px] py-[4px] text-[12px]',
-                    saveStatus === 'error' && 'text-red-500',
-                    !isDirty && saveStatus === 'idle' && 'opacity-50'
-                  )}
-                  onClick={handleSave}
-                  disabled={(!isDirty && saveStatus === 'idle') || saveStatus === 'saving'}
-                >
-                  {saveLabel}
-                </Button>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      variant='subtle'
+                      className={cn(
+                        'px-[8px] py-[4px] text-[12px]',
+                        saveStatus === 'error' && 'text-red-500',
+                        !isDirty && saveStatus === 'idle' && 'opacity-50'
+                      )}
+                      onClick={handleSave}
+                      disabled={(!isDirty && saveStatus === 'idle') || saveStatus === 'saving'}
+                    >
+                      {saveLabel}
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='bottom'>
+                    {typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.platform)
+                      ? '\u2318S'
+                      : 'Ctrl+S'}
+                  </Tooltip.Content>
+                </Tooltip.Root>
               )}
               <Button
                 variant='subtle'
