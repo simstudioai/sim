@@ -538,9 +538,9 @@ export function Table({
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault()
         const focus = selectionFocusRef.current ?? anchor
-        const target = e.shiftKey ? focus : anchor
-        let newRow = target.rowIndex
-        let newCol = target.colIndex
+        const origin = e.shiftKey ? focus : anchor
+        let newRow = origin.rowIndex
+        let newCol = origin.colIndex
 
         switch (e.key) {
           case 'ArrowUp':

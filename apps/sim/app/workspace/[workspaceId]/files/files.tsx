@@ -389,7 +389,7 @@ export function Files() {
   const handleContextMenuRename = useCallback(() => {
     if (contextMenuFile) listRename.startRename(contextMenuFile.id, contextMenuFile.name)
     closeContextMenu()
-  }, [contextMenuFile, listRename, closeContextMenu])
+  }, [contextMenuFile, listRename.startRename, closeContextMenu])
 
   const handleContextMenuDelete = useCallback(() => {
     if (!contextMenuFile) return
