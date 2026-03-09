@@ -552,11 +552,10 @@ video {
 /* API Reference Pages — Mintlify-style overrides */
 
 /* OpenAPI pages: span main + TOC grid columns for wide two-column layout.
-   The grid has columns: spacer | sidebar | main | toc | spacer.
-   By spanning columns 3-4, the article fills both main and toc areas,
-   while the grid structure stays identical to non-OpenAPI pages (no jitter). */
+   Use named grid lines from grid-template-areas so this works regardless
+   of whether the grid has 3 columns (production) or 5 columns (local dev). */
 #nd-page:has(.api-page-header) {
-  grid-column: 3 / span 2 !important;
+  grid-column: main-start / toc-end !important;
   max-width: 1400px !important;
 }
 
@@ -698,7 +697,9 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   background-color: rgb(249 250 251) !important;
   border-color: rgb(229 231 235) !important;
 }
-html.dark #nd-page:has(.api-page-header) div.flex.flex-row.items-center.rounded-xl.border.not-prose {
+html.dark
+  #nd-page:has(.api-page-header)
+  div.flex.flex-row.items-center.rounded-xl.border.not-prose {
   --color-fd-card: rgb(24 24 27) !important;
   background-color: rgb(24 24 27) !important;
   border-color: rgb(63 63 70) !important;
@@ -795,7 +796,10 @@ html.dark
   padding: 0 !important;
   font-size: 0.8125rem !important;
 }
-html.dark #nd-page:has(.api-page-header) div.flex.flex-row.items-center.rounded-xl.border.not-prose code {
+html.dark
+  #nd-page:has(.api-page-header)
+  div.flex.flex-row.items-center.rounded-xl.border.not-prose
+  code {
   color: rgb(229 231 235) !important;
 }
 
@@ -1008,7 +1012,8 @@ html.dark
 }
 
 /* Required badge — order 3, red pill */
-#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose:has(span.text-red-400)::after {
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose:has(span.text-red-400)::after {
   content: "required";
   order: 3;
   display: inline-flex;
@@ -1030,7 +1035,9 @@ html.dark
 }
 
 /* Optional "?" indicator — hide it */
-#nd-page:has(.api-page-header) span.font-medium.font-mono.text-fd-primary > span.text-fd-muted-foreground {
+#nd-page:has(.api-page-header)
+  span.font-medium.font-mono.text-fd-primary
+  > span.text-fd-muted-foreground {
   display: none;
 }
 
@@ -1099,7 +1106,10 @@ html.dark
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
-html.dark #nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::before {
+html.dark
+  #nd-page:has(.api-page-header)
+  div.my-4
+  > .flex.flex-wrap.items-center.gap-3.not-prose::before {
   background-color: rgb(51 51 56);
   color: rgb(212 212 220);
 }
@@ -1119,7 +1129,10 @@ html.dark #nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
-html.dark #nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::after {
+html.dark
+  #nd-page:has(.api-page-header)
+  div.my-4
+  > .flex.flex-wrap.items-center.gap-3.not-prose::after {
   background-color: rgb(153 27 27 / 0.3);
   color: rgb(252 165 165);
 }
@@ -1183,7 +1196,10 @@ html.dark #nd-page:has(.api-page-header) .text-sm.border-t {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 html.dark #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
-html.dark #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > span:has(> button) {
+html.dark
+  #nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose
+  > span:has(> button) {
   background-color: rgb(51 51 56);
   color: rgb(212 212 220);
 }
