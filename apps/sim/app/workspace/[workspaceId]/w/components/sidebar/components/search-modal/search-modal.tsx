@@ -28,9 +28,9 @@ function scoreMatch(value: string, search: string): number {
   if (valueLower.startsWith(searchLower)) return 0.9
   if (valueLower.includes(searchLower)) return 0.7
 
-  if (searchLower.includes(' ')) {
-    const words = searchLower.split(' ')
-    if (words.every((w) => w && valueLower.includes(w))) return 0.5
+  const words = searchLower.split(/\s+/).filter(Boolean)
+  if (words.length > 1) {
+    if (words.every((w) => valueLower.includes(w))) return 0.5
   }
 
   return 0
@@ -338,17 +338,6 @@ export function SearchModal({
     [pages, deferredSearch]
   )
 
-  const totalFilteredCount =
-    filteredBlocks.length +
-    filteredTools.length +
-    filteredTriggers.length +
-    filteredToolOps.length +
-    filteredDocs.length +
-    filteredWorkflows.length +
-    filteredTasks.length +
-    filteredWorkspaces.length +
-    filteredPages.length
-
   if (!mounted) return null
 
   return createPortal(
@@ -383,11 +372,9 @@ export function SearchModal({
             className='w-full border-0 border-[var(--border)] border-b bg-transparent px-[12px] py-[10px] font-base text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none'
           />
           <Command.List className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto p-[8px]'>
-            {deferredSearch && totalFilteredCount === 0 && (
-              <div className='flex items-center justify-center px-[16px] py-[24px] text-[15px] text-[var(--text-subtle)]'>
-                No results found.
-              </div>
-            )}
+            <Command.Empty className='flex items-center justify-center px-[16px] py-[24px] text-[15px] text-[var(--text-subtle)]'>
+              No results found.
+            </Command.Empty>
 
             {filteredBlocks.length > 0 && (
               <Command.Group heading='Blocks' className={groupHeadingClassName}>
