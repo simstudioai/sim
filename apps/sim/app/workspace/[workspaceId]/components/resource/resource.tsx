@@ -137,7 +137,7 @@ export function Resource({
                         >
                           {col.header}
                           {sort.column === col.id && (
-                            <SortIcon className='ml-[4px] h-[12px] w-[12px]' />
+                            <SortIcon className='ml-[4px] h-[12px] w-[12px] text-[var(--text-icon)]' />
                           )}
                         </Button>
                       </th>
@@ -210,7 +210,7 @@ function CellContent({ cell, primary }: { cell: ResourceCell; primary?: boolean 
         primary ? 'text-[var(--text-body)]' : 'text-[var(--text-secondary)]'
       )}
     >
-      {cell.icon && <span className='flex-shrink-0 text-[var(--text-subtle)]'>{cell.icon}</span>}
+      {cell.icon && <span className='flex-shrink-0 text-[var(--text-icon)]'>{cell.icon}</span>}
       <span className='truncate'>{cell.label}</span>
     </span>
   )

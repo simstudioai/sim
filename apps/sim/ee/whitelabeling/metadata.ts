@@ -86,6 +86,7 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
     manifest: '/manifest.webmanifest',
     icons: {
       icon: [
+        ...(brand.faviconUrl ? [] : [{ url: '/icon.svg', type: 'image/svg+xml', sizes: 'any' }]),
         { url: '/favicon/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
         { url: '/favicon/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
         {
@@ -98,10 +99,10 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
           sizes: '512x512',
           type: 'image/png',
         },
-        { url: brand.faviconUrl || '/sim.png', sizes: 'any', type: 'image/png' },
+        ...(brand.faviconUrl ? [{ url: brand.faviconUrl, sizes: 'any', type: 'image/png' }] : []),
       ],
       apple: '/favicon/apple-touch-icon.png',
-      shortcut: brand.faviconUrl || '/favicon/favicon.ico',
+      shortcut: brand.faviconUrl || '/icon.svg',
     },
     appleWebApp: {
       capable: true,

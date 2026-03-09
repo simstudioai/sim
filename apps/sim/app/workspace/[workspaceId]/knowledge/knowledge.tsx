@@ -100,10 +100,6 @@ export function Knowledge() {
     setIsCreateModalOpen(true)
   }, [])
 
-  const handleSort = useCallback(() => {}, [])
-
-  const handleFilter = useCallback(() => {}, [])
-
   const handleUpdateKnowledgeBase = useCallback(
     async (id: string, name: string, description: string) => {
       await updateKnowledgeBaseMutation({
@@ -208,8 +204,8 @@ export function Knowledge() {
           placeholder: 'Search knowledge bases...',
         }}
         defaultSort='created'
-        onSort={handleSort}
-        onFilter={handleFilter}
+        onSort={() => {}}
+        onFilter={() => {}}
         columns={COLUMNS}
         rows={rows}
         onRowClick={handleRowClick}

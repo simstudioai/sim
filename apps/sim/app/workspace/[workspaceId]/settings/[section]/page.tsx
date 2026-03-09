@@ -1,12 +1,40 @@
-'use client'
-
-import { useParams } from 'next/navigation'
+import type { Metadata } from 'next'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { SettingsPage } from './settings'
 
-export default function SettingsSectionPage() {
-  const params = useParams()
-  const section = params.section as SettingsSection
+const SECTION_TITLES: Record<string, string> = {
+  general: 'General',
+  credentials: 'Secrets',
+  'template-profile': 'Template Profile',
+  'access-control': 'Access Control',
+  apikeys: 'Sim Keys',
+  byok: 'BYOK',
+  subscription: 'Subscription',
+  team: 'Team',
+  sso: 'Single Sign-On',
+  copilot: 'Copilot Keys',
+  mcp: 'MCP Tools',
+  'custom-tools': 'Custom Tools',
+  skills: 'Skills',
+  'workflow-mcp-servers': 'MCP Servers',
+  'credential-sets': 'Email Polling',
+  debug: 'Debug',
+} as const
 
-  return <SettingsPage section={section} />
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ section: string }>
+}): Promise<Metadata> {
+  const { section } = await params
+  return { title: SECTION_TITLES[section] ?? 'Settings' }
+}
+
+export default async function SettingsSectionPage({
+  params,
+}: {
+  params: Promise<{ workspaceId: string; section: string }>
+}) {
+  const { section } = await params
+  return <SettingsPage section={section as SettingsSection} />
 }

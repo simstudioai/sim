@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { Button, Checkbox, Skeleton } from '@/components/emcn'
 import {
   Calendar as CalendarIcon,
+  Plus,
   Table as TableIcon,
   TypeBoolean,
   TypeJson,
@@ -14,17 +15,46 @@ import {
 import { cn } from '@/lib/core/utils/cn'
 import type { ColumnDefinition, TableRow as TableRowType } from '@/lib/table'
 import { ResourceHeader, ResourceOptionsBar } from '@/app/workspace/[workspaceId]/components'
-import { useCreateTableRow, useUpdateTableRow } from '@/hooks/queries/tables'
-import { STRING_TRUNCATE_LENGTH } from '../../constants'
+import { useAddTableColumn, useCreateTableRow, useUpdateTableRow } from '@/hooks/queries/tables'
 import { useContextMenu, useRowSelection, useTableData } from '../../hooks'
-import type { CellViewerData, EditingCell, QueryOptions } from '../../types'
+import type { EditingCell, QueryOptions } from '../../types'
 import { cleanCellValue, formatValueForInput } from '../../utils'
-import { CellViewerModal } from '../cell-viewer-modal'
 import { ContextMenu } from '../context-menu'
 import { RowModal } from '../row-modal'
 import { SchemaModal } from '../schema-modal'
 
+type SelectedCell =
+  | { kind: 'data'; rowId: string; columnName: string }
+  | { kind: 'placeholder'; index: number; columnName: string }
+
+interface PendingPlaceholder {
+  rowId: string | null
+  data: Record<string, unknown>
+}
+
 const EMPTY_COLUMNS: never[] = []
+const PLACEHOLDER_ROW_COUNT = 50
+const COL_WIDTH = 160
+const CHECKBOX_COL_WIDTH = 40
+const ADD_COL_WIDTH = 120
+
+const CELL = 'border-[var(--border)] border-r border-b px-[8px] py-[7px] align-middle'
+const CELL_CHECKBOX = 'border-[var(--border)] border-r border-b px-[12px] py-[7px] align-middle'
+const CELL_HEADER =
+  'border-[var(--border)] border-r border-b bg-white px-[8px] py-[7px] text-left align-middle dark:bg-[var(--bg)]'
+const CELL_HEADER_CHECKBOX =
+  'border-[var(--border)] border-r border-b bg-white px-[12px] py-[7px] text-left align-middle dark:bg-[var(--bg)]'
+const CELL_CONTENT = 'relative min-h-[20px] min-w-0 overflow-hidden truncate text-[13px]'
+const SELECTION_OVERLAY =
+  'pointer-events-none absolute -top-px -right-px -bottom-px -left-px border-2 border-[var(--brand-tertiary-2)]'
+
+const COLUMN_TYPE_ICONS: Record<string, React.ElementType> = {
+  string: TypeText,
+  number: TypeNumber,
+  boolean: TypeBoolean,
+  date: CalendarIcon,
+  json: TypeJson,
+}
 
 export function Table() {
   const params = useParams()
@@ -44,14 +74,15 @@ export function Table() {
   const [deletingRows, setDeletingRows] = useState<string[]>([])
   const [showSchemaModal, setShowSchemaModal] = useState(false)
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null)
+  const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null)
+  const [pendingPlaceholders, setPendingPlaceholders] = useState<
+    Record<number, PendingPlaceholder>
+  >({})
 
   const [editingEmptyCell, setEditingEmptyCell] = useState<{
     rowIndex: number
     columnName: string
   } | null>(null)
-
-  const [cellViewer, setCellViewer] = useState<CellViewerData | null>(null)
-  const [copied, setCopied] = useState(false)
 
   const { tableData, isLoadingTable, rows, totalCount, totalPages, isLoadingRows } = useTableData({
     workspaceId,
@@ -70,17 +101,34 @@ export function Table() {
 
   const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
   const createRowMutation = useCreateTableRow({ workspaceId, tableId })
+  const addColumnMutation = useAddTableColumn({ workspaceId, tableId })
 
   const columns = useMemo(
     () => tableData?.schema?.columns || EMPTY_COLUMNS,
     [tableData?.schema?.columns]
   )
+
+  const pendingRowIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const pending of Object.values(pendingPlaceholders)) {
+      if (pending.rowId) ids.add(pending.rowId)
+    }
+    return ids
+  }, [pendingPlaceholders])
+
+  const visibleRows = useMemo(
+    () => rows.filter((r) => !pendingRowIds.has(r.id)),
+    [rows, pendingRowIds]
+  )
+
+  const tableWidth = CHECKBOX_COL_WIDTH + columns.length * COL_WIDTH + ADD_COL_WIDTH
   const selectedCount = selectedRows.size
   const hasSelection = selectedCount > 0
-  const isAllSelected = rows.length > 0 && selectedCount === rows.length
+  const isAllSelected = visibleRows.length > 0 && selectedCount === visibleRows.length
 
   const columnsRef = useRef(columns)
   const rowsRef = useRef(rows)
+  const pendingPlaceholdersRef = useRef(pendingPlaceholders)
 
   useEffect(() => {
     columnsRef.current = columns
@@ -88,6 +136,9 @@ export function Table() {
   useEffect(() => {
     rowsRef.current = rows
   }, [rows])
+  useEffect(() => {
+    pendingPlaceholdersRef.current = pendingPlaceholders
+  }, [pendingPlaceholders])
 
   const handleNavigateBack = useCallback(() => {
     router.push(`/workspace/${workspaceId}/tables`)
@@ -96,10 +147,6 @@ export function Table() {
   const handleAddRow = useCallback(() => {
     setShowAddModal(true)
   }, [])
-
-  const handleSort = useCallback(() => {}, [])
-
-  const handleFilter = useCallback(() => {}, [])
 
   const handleDeleteSelected = useCallback(() => {
     setDeletingRows(Array.from(selectedRows))
@@ -127,30 +174,17 @@ export function Table() {
     [baseHandleRowContextMenu]
   )
 
-  const handleCopyCellValue = useCallback(async () => {
-    if (cellViewer) {
-      let text: string
-      if (cellViewer.type === 'json') {
-        text = JSON.stringify(cellViewer.value, null, 2)
-      } else if (cellViewer.type === 'date') {
-        text = String(cellViewer.value)
-      } else {
-        text = String(cellViewer.value)
-      }
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }, [cellViewer])
+  const handleSelectCell = useCallback((rowId: string, columnName: string) => {
+    setSelectedCell({ kind: 'data', rowId, columnName })
+  }, [])
 
-  const handleCellClick = useCallback(
-    (columnName: string, value: unknown, type: CellViewerData['type']) => {
-      setCellViewer({ columnName, value, type })
-    },
-    []
-  )
+  const handleSelectPlaceholderCell = useCallback((index: number, columnName: string) => {
+    setSelectedCell({ kind: 'placeholder', index, columnName })
+  }, [])
 
   const handleCellDoubleClick = useCallback((rowId: string, columnName: string) => {
+    setSelectedCell({ kind: 'data', rowId, columnName })
+
     const column = columnsRef.current.find((c) => c.name === columnName)
     if (!column) return
 
@@ -160,7 +194,13 @@ export function Table() {
       return
     }
 
-    if (column.type === 'boolean') return
+    if (column.type === 'boolean') {
+      const row = rowsRef.current.find((r) => r.id === rowId)
+      if (row) {
+        mutateRef.current({ rowId, data: { [columnName]: !row.data[columnName] } })
+      }
+      return
+    }
 
     setEditingCell({ rowId, columnName })
   }, [])
@@ -169,6 +209,60 @@ export function Table() {
   useEffect(() => {
     mutateRef.current = updateRowMutation.mutate
   }, [updateRowMutation.mutate])
+
+  const selectedCellRef = useRef(selectedCell)
+  useEffect(() => {
+    selectedCellRef.current = selectedCell
+  }, [selectedCell])
+
+  const editingCellRef = useRef(editingCell)
+  useEffect(() => {
+    editingCellRef.current = editingCell
+  }, [editingCell])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const sel = selectedCellRef.current
+      if (!sel || sel.kind !== 'data' || editingCellRef.current) return
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        mutateRef.current({ rowId: sel.rowId, data: { [sel.columnName]: null } })
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+        e.preventDefault()
+        const row = rowsRef.current.find((r) => r.id === sel.rowId)
+        if (row) {
+          const value = row.data[sel.columnName]
+          let text = ''
+          if (value !== null && value !== undefined) {
+            text = typeof value === 'object' ? JSON.stringify(value) : String(value)
+          }
+          navigator.clipboard.writeText(text)
+        }
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
+        e.preventDefault()
+        navigator.clipboard.readText().then((text) => {
+          const current = selectedCellRef.current
+          if (!current || current.kind !== 'data') return
+          const column = columnsRef.current.find((c) => c.name === current.columnName)
+          if (!column) return
+          try {
+            const cleaned = cleanCellValue(text, column)
+            mutateRef.current({ rowId: current.rowId, data: { [current.columnName]: cleaned } })
+          } catch {
+            // ignore invalid paste values
+          }
+        })
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   const handleInlineSave = useCallback((rowId: string, columnName: string, value: unknown) => {
     setEditingCell(null)
@@ -187,13 +281,6 @@ export function Table() {
     setEditingCell(null)
   }, [])
 
-  const handleBooleanToggle = useCallback(
-    (rowId: string, columnName: string, currentValue: boolean) => {
-      mutateRef.current({ rowId, data: { [columnName]: !currentValue } })
-    },
-    []
-  )
-
   const handleEmptyRowDoubleClick = useCallback((rowIndex: number, columnName: string) => {
     const column = columnsRef.current.find((c) => c.name === columnName)
     if (!column || column.type === 'json' || column.type === 'boolean') return
@@ -205,15 +292,64 @@ export function Table() {
     createRef.current = createRowMutation.mutate
   }, [createRowMutation.mutate])
 
-  const handleEmptyRowSave = useCallback((columnName: string, value: unknown) => {
+  const handleEmptyRowSave = useCallback((rowIndex: number, columnName: string, value: unknown) => {
     setEditingEmptyCell(null)
     if (value === null || value === undefined || value === '') return
-    createRef.current({ [columnName]: value })
+
+    const existing = pendingPlaceholdersRef.current[rowIndex]
+    const updatedData = { ...(existing?.data || {}), [columnName]: value }
+
+    if (existing?.rowId) {
+      setPendingPlaceholders((prev) => ({
+        ...prev,
+        [rowIndex]: { ...prev[rowIndex], data: updatedData },
+      }))
+      mutateRef.current({ rowId: existing.rowId, data: { [columnName]: value } })
+    } else {
+      setPendingPlaceholders((prev) => ({
+        ...prev,
+        [rowIndex]: { rowId: null, data: updatedData },
+      }))
+      createRef.current(updatedData, {
+        onSuccess: (response: Record<string, unknown>) => {
+          const data = response?.data as Record<string, unknown> | undefined
+          const row = data?.row as Record<string, unknown> | undefined
+          const newRowId = row?.id as string | undefined
+          if (newRowId) {
+            setPendingPlaceholders((prev) => {
+              if (!prev[rowIndex]) return prev
+              return {
+                ...prev,
+                [rowIndex]: { ...prev[rowIndex], rowId: newRowId },
+              }
+            })
+          }
+        },
+        onError: () => {
+          setPendingPlaceholders((prev) => {
+            const next = { ...prev }
+            delete next[rowIndex]
+            return next
+          })
+        },
+      })
+    }
   }, [])
 
   const handleEmptyRowCancel = useCallback(() => {
     setEditingEmptyCell(null)
   }, [])
+
+  const handleAddColumn = useCallback(() => {
+    const existing = columnsRef.current.map((c) => c.name.toLowerCase())
+    let name = 'untitled'
+    let i = 2
+    while (existing.includes(name.toLowerCase())) {
+      name = `untitled_${i}`
+      i++
+    }
+    addColumnMutation.mutate({ name, type: 'string' })
+  }, [addColumnMutation])
 
   if (isLoadingTable) {
     return (
@@ -238,34 +374,42 @@ export function Table() {
         breadcrumbs={[{ label: 'Tables', onClick: handleNavigateBack }, { label: tableData.name }]}
       />
 
-      <ResourceOptionsBar onSort={handleSort} onFilter={handleFilter} />
+      <ResourceOptionsBar onSort={() => {}} onFilter={() => {}} />
 
       <div className='min-h-0 flex-1 overflow-auto overscroll-none'>
-        <table className='border-collapse text-[13px]'>
-          <colgroup>
-            <col className='w-[40px]' />
-            {columns.map((col) => (
-              <col key={col.name} className='w-[160px]' />
-            ))}
-          </colgroup>
-          <thead className='sticky top-0 z-10 bg-white shadow-[inset_0_-1px_0_var(--border)] dark:bg-[var(--bg)]'>
+        <table
+          className='table-fixed border-separate border-spacing-0 text-[13px]'
+          style={{ width: `${tableWidth}px` }}
+        >
+          <TableColGroup columns={columns} />
+          <thead className='sticky top-0 z-10'>
             <tr>
-              <th className='border-[var(--border)] border-r py-[10px] pr-[12px] pl-[24px] text-left align-middle'>
+              <th className={CELL_HEADER_CHECKBOX}>
                 <Checkbox size='sm' checked={isAllSelected} onCheckedChange={handleSelectAll} />
               </th>
               {columns.map((column) => (
-                <th
-                  key={column.name}
-                  className='border-[var(--border)] border-r px-[24px] py-[10px] text-left align-middle'
-                >
-                  <div className='flex items-center gap-[8px]'>
+                <th key={column.name} className={CELL_HEADER}>
+                  <div className='flex min-w-0 items-center gap-[8px]'>
                     <ColumnTypeIcon type={column.type} />
-                    <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                    <span className='min-w-0 truncate font-medium text-[13px] text-[var(--text-primary)]'>
                       {column.name}
                     </span>
                   </div>
                 </th>
               ))}
+              <th className={CELL_HEADER}>
+                <button
+                  type='button'
+                  className='flex cursor-pointer items-center gap-[8px]'
+                  onClick={handleAddColumn}
+                  disabled={addColumnMutation.isPending}
+                >
+                  <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-muted)]' />
+                  <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                    Add column
+                  </span>
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -273,7 +417,7 @@ export function Table() {
               <TableSkeleton columns={columns} />
             ) : (
               <>
-                {rows.map((row) => (
+                {visibleRows.map((row) => (
                   <DataRow
                     key={row.id}
                     row={row}
@@ -282,21 +426,28 @@ export function Table() {
                     editingColumnName={
                       editingCell?.rowId === row.id ? editingCell.columnName : null
                     }
-                    onCellClick={handleCellClick}
+                    selectedColumnName={
+                      selectedCell?.kind === 'data' && selectedCell.rowId === row.id
+                        ? selectedCell.columnName
+                        : null
+                    }
                     onDoubleClick={handleCellDoubleClick}
                     onSave={handleInlineSave}
                     onCancel={handleInlineCancel}
-                    onBooleanToggle={handleBooleanToggle}
                     onContextMenu={handleRowContextMenu}
                     onSelectRow={handleSelectRow}
+                    onSelectCell={handleSelectCell}
                   />
                 ))}
                 <PlaceholderRows
                   columns={columns}
                   editingEmptyCell={editingEmptyCell}
+                  pendingPlaceholders={pendingPlaceholders}
+                  selectedCell={selectedCell}
                   onDoubleClick={handleEmptyRowDoubleClick}
                   onSave={handleEmptyRowSave}
                   onCancel={handleEmptyRowCancel}
+                  onSelectCell={handleSelectPlaceholderCell}
                 />
               </>
             )}
@@ -318,9 +469,7 @@ export function Table() {
           isOpen={true}
           onClose={() => setShowAddModal(false)}
           table={tableData}
-          onSuccess={() => {
-            setShowAddModal(false)
-          }}
+          onSuccess={() => setShowAddModal(false)}
         />
       )}
 
@@ -331,9 +480,7 @@ export function Table() {
           onClose={() => setEditingRow(null)}
           table={tableData}
           row={editingRow}
-          onSuccess={() => {
-            setEditingRow(null)
-          }}
+          onSuccess={() => setEditingRow(null)}
         />
       )}
 
@@ -358,13 +505,6 @@ export function Table() {
         tableName={tableData.name}
       />
 
-      <CellViewerModal
-        cellViewer={cellViewer}
-        onClose={() => setCellViewer(null)}
-        onCopy={handleCopyCellValue}
-        copied={copied}
-      />
-
       <ContextMenu
         contextMenu={contextMenu}
         onClose={closeContextMenu}
@@ -375,60 +515,77 @@ export function Table() {
   )
 }
 
+function TableColGroup({ columns }: { columns: ColumnDefinition[] }) {
+  return (
+    <colgroup>
+      <col style={{ width: CHECKBOX_COL_WIDTH }} />
+      {columns.map((col) => (
+        <col key={col.name} style={{ width: COL_WIDTH }} />
+      ))}
+      <col style={{ width: ADD_COL_WIDTH }} />
+    </colgroup>
+  )
+}
+
+function SelectionOverlay() {
+  return <div className={SELECTION_OVERLAY} />
+}
+
 const DataRow = React.memo(function DataRow({
   row,
   columns,
   isSelected,
   editingColumnName,
-  onCellClick,
+  selectedColumnName,
   onDoubleClick,
   onSave,
   onCancel,
-  onBooleanToggle,
   onContextMenu,
   onSelectRow,
+  onSelectCell,
 }: {
   row: TableRowType
   columns: ColumnDefinition[]
   isSelected: boolean
   editingColumnName: string | null
-  onCellClick: (columnName: string, value: unknown, type: CellViewerData['type']) => void
+  selectedColumnName: string | null
   onDoubleClick: (rowId: string, columnName: string) => void
   onSave: (rowId: string, columnName: string, value: unknown) => void
   onCancel: () => void
-  onBooleanToggle: (rowId: string, columnName: string, currentValue: boolean) => void
   onContextMenu: (e: React.MouseEvent, row: TableRowType) => void
   onSelectRow: (rowId: string) => void
+  onSelectCell: (rowId: string, columnName: string) => void
 }) {
   return (
     <tr
       className={cn('group', isSelected && 'bg-[var(--surface-5)]')}
       onContextMenu={(e) => onContextMenu(e, row)}
     >
-      <td className='border-[var(--border)] border-r border-b py-[10px] pr-[12px] pl-[24px] align-middle'>
+      <td className={CELL_CHECKBOX}>
         <Checkbox size='sm' checked={isSelected} onCheckedChange={() => onSelectRow(row.id)} />
       </td>
-      {columns.map((column) => (
-        <td
-          key={column.name}
-          className='border-[var(--border)] border-r border-b px-[24px] py-[10px] align-middle'
-        >
-          <div className='max-w-[300px] truncate text-[13px]'>
-            <CellContent
-              value={row.data[column.name]}
-              column={column}
-              isEditing={editingColumnName === column.name}
-              onCellClick={onCellClick}
-              onDoubleClick={() => onDoubleClick(row.id, column.name)}
-              onSave={(value) => onSave(row.id, column.name, value)}
-              onCancel={onCancel}
-              onBooleanToggle={() =>
-                onBooleanToggle(row.id, column.name, Boolean(row.data[column.name]))
-              }
-            />
-          </div>
-        </td>
-      ))}
+      {columns.map((column) => {
+        const isColumnSelected = selectedColumnName === column.name
+        return (
+          <td
+            key={column.name}
+            className={cn(CELL, isColumnSelected && 'relative z-[11]')}
+            onClick={() => onSelectCell(row.id, column.name)}
+            onDoubleClick={() => onDoubleClick(row.id, column.name)}
+          >
+            {isColumnSelected && <SelectionOverlay />}
+            <div className={CELL_CONTENT}>
+              <CellContent
+                value={row.data[column.name]}
+                column={column}
+                isEditing={editingColumnName === column.name}
+                onSave={(value) => onSave(row.id, column.name, value)}
+                onCancel={onCancel}
+              />
+            </div>
+          </td>
+        )
+      })}
     </tr>
   )
 })
@@ -437,20 +594,14 @@ function CellContent({
   value,
   column,
   isEditing,
-  onCellClick,
-  onDoubleClick,
   onSave,
   onCancel,
-  onBooleanToggle,
 }: {
   value: unknown
   column: ColumnDefinition
   isEditing: boolean
-  onCellClick: (columnName: string, value: unknown, type: CellViewerData['type']) => void
-  onDoubleClick: () => void
   onSave: (value: unknown) => void
   onCancel: () => void
-  onBooleanToggle: () => void
 }) {
   if (isEditing) {
     return <InlineEditor value={value} column={column} onSave={onSave} onCancel={onCancel} />
@@ -461,75 +612,25 @@ function CellContent({
   if (column.type === 'boolean') {
     const boolValue = Boolean(value)
     return (
-      <button
-        type='button'
-        className='cursor-pointer select-none'
-        onClick={(e) => {
-          e.stopPropagation()
-          onBooleanToggle()
-        }}
-      >
-        <span className={boolValue ? 'text-green-500' : 'text-[var(--text-tertiary)]'}>
-          {isNull ? (
-            <span className='text-[var(--text-muted)] italic'>—</span>
-          ) : boolValue ? (
-            'true'
-          ) : (
-            'false'
-          )}
-        </span>
-      </button>
-    )
-  }
-
-  if (isNull) {
-    return (
-      <span
-        className='cursor-text text-[var(--text-muted)] italic'
-        onDoubleClick={(e) => {
-          e.stopPropagation()
-          onDoubleClick()
-        }}
-      >
-        —
+      <span className={boolValue ? 'text-green-500' : 'text-[var(--text-tertiary)]'}>
+        {isNull ? '' : boolValue ? 'true' : 'false'}
       </span>
     )
   }
 
+  if (isNull) return null
+
   if (column.type === 'json') {
-    const jsonStr = JSON.stringify(value)
     return (
-      <button
-        type='button'
-        className='block max-w-[300px] cursor-pointer select-none truncate rounded-[4px] border border-[var(--border-1)] px-[6px] py-[2px] text-left font-mono text-[11px] text-[var(--text-secondary)] transition-colors hover:border-[var(--text-muted)] hover:text-[var(--text-primary)]'
-        onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          onCellClick(column.name, value, 'json')
-        }}
-        onDoubleClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          onDoubleClick()
-        }}
-        title='Click to view, double-click to edit'
-      >
-        {jsonStr}
-      </button>
+      <span className='block truncate font-mono text-[11px] text-[var(--text-secondary)]'>
+        {JSON.stringify(value)}
+      </span>
     )
   }
 
   if (column.type === 'number') {
     return (
-      <span
-        className='cursor-text font-mono text-[12px] text-[var(--text-secondary)]'
-        onDoubleClick={(e) => {
-          e.stopPropagation()
-          onDoubleClick()
-        }}
-      >
-        {String(value)}
-      </span>
+      <span className='font-mono text-[12px] text-[var(--text-secondary)]'>{String(value)}</span>
     )
   }
 
@@ -543,66 +644,13 @@ function CellContent({
         hour: '2-digit',
         minute: '2-digit',
       })
-      return (
-        <span
-          className='cursor-text text-[12px] text-[var(--text-secondary)]'
-          onDoubleClick={(e) => {
-            e.stopPropagation()
-            onDoubleClick()
-          }}
-        >
-          {formatted}
-        </span>
-      )
+      return <span className='text-[12px] text-[var(--text-secondary)]'>{formatted}</span>
     } catch {
-      return (
-        <span
-          className='cursor-text text-[var(--text-primary)]'
-          onDoubleClick={(e) => {
-            e.stopPropagation()
-            onDoubleClick()
-          }}
-        >
-          {String(value)}
-        </span>
-      )
+      return <span className='text-[var(--text-primary)]'>{String(value)}</span>
     }
   }
 
-  const strValue = String(value)
-  if (strValue.length > STRING_TRUNCATE_LENGTH) {
-    return (
-      <button
-        type='button'
-        className='block max-w-[300px] cursor-pointer select-none truncate text-left text-[var(--text-primary)] underline decoration-[var(--border-1)] decoration-dotted underline-offset-2 transition-colors hover:decoration-[var(--text-muted)]'
-        onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          onCellClick(column.name, value, 'text')
-        }}
-        onDoubleClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          onDoubleClick()
-        }}
-        title='Click to view, double-click to edit'
-      >
-        {strValue}
-      </button>
-    )
-  }
-
-  return (
-    <span
-      className='cursor-text text-[var(--text-primary)]'
-      onDoubleClick={(e) => {
-        e.stopPropagation()
-        onDoubleClick()
-      }}
-    >
-      {strValue}
-    </span>
-  )
+  return <span className='text-[var(--text-primary)]'>{String(value)}</span>
 }
 
 function InlineEditor({
@@ -631,10 +679,8 @@ function InlineEditor({
   const handleSave = () => {
     if (doneRef.current) return
     doneRef.current = true
-
     try {
-      const cleaned = cleanCellValue(draft, column)
-      onSave(cleaned)
+      onSave(cleanCellValue(draft, column))
     } catch {
       onCancel()
     }
@@ -661,7 +707,14 @@ function InlineEditor({
       onChange={(e) => setDraft(e.target.value)}
       onKeyDown={handleKeyDown}
       onBlur={handleSave}
-      className='h-full w-full rounded-[2px] border-none bg-transparent px-[4px] py-[2px] text-[13px] text-[var(--text-primary)] outline-none ring-1 ring-[var(--accent)] ring-inset'
+      className={cn(
+        'h-full w-full min-w-0 border-none bg-transparent p-0 outline-none',
+        column.type === 'number'
+          ? 'font-mono text-[12px] text-[var(--text-secondary)]'
+          : column.type === 'date'
+            ? 'text-[12px] text-[var(--text-secondary)]'
+            : 'text-[13px] text-[var(--text-primary)]'
+      )}
     />
   )
 }
@@ -708,7 +761,7 @@ function TableSkeleton({ columns }: { columns: ColumnDefinition[] }) {
     <>
       {Array.from({ length: 25 }).map((_, rowIndex) => (
         <tr key={rowIndex}>
-          <td className='border-[var(--border)] border-r border-b py-[10px] pr-[12px] pl-[24px] align-middle'>
+          <td className={CELL_CHECKBOX}>
             <Skeleton className='h-[14px] w-[14px]' />
           </td>
           {columns.map((col, colIndex) => {
@@ -724,14 +777,10 @@ function TableSkeleton({ columns }: { columns: ColumnDefinition[] }) {
                       : col.type === 'date'
                         ? 100
                         : 120
-            const variation = ((rowIndex + colIndex) % 3) * 20
-            const width = baseWidth + variation
+            const width = baseWidth + ((rowIndex + colIndex) % 3) * 20
 
             return (
-              <td
-                key={col.name}
-                className='border-[var(--border)] border-r border-b px-[24px] py-[10px] align-middle'
-              >
+              <td key={col.name} className={CELL}>
                 <Skeleton className='h-[16px]' style={{ width: `${width}px` }} />
               </td>
             )
@@ -742,64 +791,81 @@ function TableSkeleton({ columns }: { columns: ColumnDefinition[] }) {
   )
 }
 
-const PLACEHOLDER_ROW_COUNT = 50
-
 function PlaceholderRows({
   columns,
   editingEmptyCell,
+  pendingPlaceholders,
+  selectedCell,
   onDoubleClick,
   onSave,
   onCancel,
+  onSelectCell,
 }: {
   columns: ColumnDefinition[]
   editingEmptyCell: { rowIndex: number; columnName: string } | null
+  pendingPlaceholders: Record<number, PendingPlaceholder>
+  selectedCell: SelectedCell | null
   onDoubleClick: (rowIndex: number, columnName: string) => void
-  onSave: (columnName: string, value: unknown) => void
+  onSave: (rowIndex: number, columnName: string, value: unknown) => void
   onCancel: () => void
+  onSelectCell: (index: number, columnName: string) => void
 }) {
   return (
     <>
-      {Array.from({ length: PLACEHOLDER_ROW_COUNT }).map((_, i) => (
-        <tr key={`placeholder-${i}`}>
-          <td className='border-[var(--border)] border-r border-b py-[10px] pr-[12px] pl-[24px] align-middle' />
-          {columns.map((col) => {
-            const isEditing =
-              editingEmptyCell?.rowIndex === i && editingEmptyCell.columnName === col.name
+      {Array.from({ length: PLACEHOLDER_ROW_COUNT }).map((_, i) => {
+        const pending = pendingPlaceholders[i]
+        return (
+          <tr key={`placeholder-${i}`}>
+            <td className={CELL_CHECKBOX} />
+            {columns.map((col) => {
+              const isEditing =
+                editingEmptyCell?.rowIndex === i && editingEmptyCell.columnName === col.name
+              const pendingValue = pending?.data[col.name]
+              const hasPendingValue = pendingValue !== undefined && pendingValue !== null
+              const isColumnSelected =
+                selectedCell?.kind === 'placeholder' &&
+                selectedCell.index === i &&
+                selectedCell.columnName === col.name
 
-            return (
-              <td
-                key={col.name}
-                className='border-[var(--border)] border-r border-b px-[24px] py-[10px] align-middle'
-                onDoubleClick={() => onDoubleClick(i, col.name)}
-              >
-                {isEditing ? (
-                  <InlineEditor
-                    value={null}
-                    column={col}
-                    onSave={(value) => onSave(col.name, value)}
-                    onCancel={onCancel}
-                  />
-                ) : (
-                  <div className='min-h-[20px]' />
-                )}
-              </td>
-            )
-          })}
-        </tr>
-      ))}
+              return (
+                <td
+                  key={col.name}
+                  className={cn(CELL, isColumnSelected && 'relative z-[11]')}
+                  onClick={() => onSelectCell(i, col.name)}
+                  onDoubleClick={() => onDoubleClick(i, col.name)}
+                >
+                  {isColumnSelected && <SelectionOverlay />}
+                  {isEditing ? (
+                    <InlineEditor
+                      value={hasPendingValue ? pendingValue : null}
+                      column={col}
+                      onSave={(value) => onSave(i, col.name, value)}
+                      onCancel={onCancel}
+                    />
+                  ) : hasPendingValue ? (
+                    <div className={CELL_CONTENT}>
+                      <CellContent
+                        value={pendingValue}
+                        column={col}
+                        isEditing={false}
+                        onSave={() => {}}
+                        onCancel={() => {}}
+                      />
+                    </div>
+                  ) : (
+                    <div className='min-h-[20px]' />
+                  )}
+                </td>
+              )
+            })}
+          </tr>
+        )
+      })}
     </>
   )
 }
 
-const COLUMN_TYPE_ICONS: Record<string, React.ElementType> = {
-  string: TypeText,
-  number: TypeNumber,
-  boolean: TypeBoolean,
-  date: CalendarIcon,
-  json: TypeJson,
-}
-
 function ColumnTypeIcon({ type }: { type: string }) {
   const Icon = COLUMN_TYPE_ICONS[type] ?? TypeText
-  return <Icon className='h-[14px] w-[14px] shrink-0 text-[var(--text-muted)]' />
+  return <Icon className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
 }

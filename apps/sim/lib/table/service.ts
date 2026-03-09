@@ -214,6 +214,63 @@ export async function createTable(
 }
 
 /**
+ * Adds a column to an existing table's schema.
+ *
+ * @param tableId - Table ID to update
+ * @param column - Column definition to add
+ * @param requestId - Request ID for logging
+ * @returns Updated table definition
+ * @throws Error if table not found or column name already exists
+ */
+export async function addTableColumn(
+  tableId: string,
+  column: { name: string; type: string; required?: boolean; unique?: boolean },
+  requestId: string
+): Promise<TableDefinition> {
+  const table = await getTableById(tableId)
+  if (!table) {
+    throw new Error('Table not found')
+  }
+
+  const schema = table.schema
+  if (schema.columns.some((c) => c.name.toLowerCase() === column.name.toLowerCase())) {
+    throw new Error(`Column "${column.name}" already exists`)
+  }
+
+  if (schema.columns.length >= TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
+    throw new Error(
+      `Table has reached maximum column limit (${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE})`
+    )
+  }
+
+  const newColumn = {
+    name: column.name,
+    type: column.type as TableSchema['columns'][number]['type'],
+    required: column.required ?? false,
+    unique: column.unique ?? false,
+  }
+
+  const updatedSchema: TableSchema = {
+    columns: [...schema.columns, newColumn],
+  }
+
+  const now = new Date()
+
+  await db
+    .update(userTableDefinitions)
+    .set({ schema: updatedSchema, updatedAt: now })
+    .where(eq(userTableDefinitions.id, tableId))
+
+  logger.info(`[${requestId}] Added column "${column.name}" to table ${tableId}`)
+
+  return {
+    ...table,
+    schema: updatedSchema,
+    updatedAt: now,
+  }
+}
+
+/**
  * Deletes a table (hard delete).
  *
  * @param tableId - Table ID to delete

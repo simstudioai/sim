@@ -1,7 +1,12 @@
+import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import { Schedules } from './schedules'
+
+export const metadata: Metadata = {
+  title: 'Schedules',
+}
 
 interface SchedulesPageProps {
   params: Promise<{

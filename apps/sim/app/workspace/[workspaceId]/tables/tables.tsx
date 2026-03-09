@@ -6,14 +6,15 @@ import { useParams, useRouter } from 'next/navigation'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import { Columns3, Rows3, Table as TableIcon } from '@/components/emcn/icons'
 import type { TableDefinition } from '@/lib/table'
+import { generateUniqueTableName } from '@/lib/table/constants'
 import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
 import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { SchemaModal } from '@/app/workspace/[workspaceId]/tables/[tableId]/components'
-import { CreateModal, TablesListContextMenu } from '@/app/workspace/[workspaceId]/tables/components'
+import { TablesListContextMenu } from '@/app/workspace/[workspaceId]/tables/components'
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { useDeleteTable, useTablesList } from '@/hooks/queries/tables'
+import { useCreateTable, useDeleteTable, useTablesList } from '@/hooks/queries/tables'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 
 const logger = createLogger('Tables')
@@ -40,8 +41,8 @@ export function Tables() {
     logger.error('Failed to load tables:', error)
   }
   const deleteTable = useDeleteTable(workspaceId)
+  const createTable = useCreateTable(workspaceId)
 
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isSchemaModalOpen, setIsSchemaModalOpen] = useState(false)
   const [activeTable, setActiveTable] = useState<TableDefinition | null>(null)
@@ -100,10 +101,6 @@ export function Tables() {
     [filteredTables, members]
   )
 
-  const handleSort = useCallback(() => {}, [])
-
-  const handleFilter = useCallback(() => {}, [])
-
   const handleContentContextMenu = useCallback(
     (e: React.MouseEvent) => {
       const target = e.target as HTMLElement
@@ -147,6 +144,23 @@ export function Tables() {
     }
   }
 
+  const handleCreateTable = useCallback(async () => {
+    const existingNames = tables.map((t) => t.name)
+    const name = generateUniqueTableName(existingNames)
+    try {
+      const result = await createTable.mutateAsync({
+        name,
+        schema: { columns: [{ name: 'name', type: 'string' }] },
+      })
+      const tableId = result?.data?.table?.id
+      if (tableId) {
+        router.push(`/workspace/${workspaceId}/tables/${tableId}`)
+      }
+    } catch (err) {
+      logger.error('Failed to create table:', err)
+    }
+  }, [tables, createTable, router, workspaceId])
+
   return (
     <>
       <Resource
@@ -154,8 +168,8 @@ export function Tables() {
         title='Tables'
         create={{
           label: 'New table',
-          onClick: () => setIsCreateModalOpen(true),
-          disabled: userPermissions.canEdit !== true,
+          onClick: handleCreateTable,
+          disabled: userPermissions.canEdit !== true || createTable.isPending,
         }}
         search={{
           value: searchTerm,
@@ -163,8 +177,8 @@ export function Tables() {
           placeholder: 'Search tables...',
         }}
         defaultSort='created'
-        onSort={handleSort}
-        onFilter={handleFilter}
+        onSort={() => {}}
+        onFilter={() => {}}
         columns={COLUMNS}
         rows={rows}
         onRowClick={handleRowClick}
@@ -178,8 +192,8 @@ export function Tables() {
         position={listContextMenuPosition}
         menuRef={listMenuRef}
         onClose={closeListContextMenu}
-        onCreateTable={() => setIsCreateModalOpen(true)}
-        disableCreate={userPermissions.canEdit !== true}
+        onCreateTable={handleCreateTable}
+        disableCreate={userPermissions.canEdit !== true || createTable.isPending}
       />
 
       <TableContextMenu
@@ -235,8 +249,6 @@ export function Tables() {
           tableName={activeTable.name}
         />
       )}
-
-      <CreateModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} />
     </>
   )
 }

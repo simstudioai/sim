@@ -1,9 +1,21 @@
+import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import { getAllPostMeta } from '@/lib/blog/registry'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 
 export const revalidate = 3600
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}): Promise<Metadata> {
+  const { id } = await params
+  const posts = (await getAllPostMeta()).filter((p) => p.author.id === id)
+  const author = posts[0]?.author
+  return { title: author?.name ?? 'Author' }
+}
 
 export default async function AuthorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

@@ -230,6 +230,39 @@ export function useCreateTable(workspaceId: string) {
 }
 
 /**
+ * Add a column to an existing table.
+ */
+export function useAddTableColumn({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (column: {
+      name: string
+      type: string
+      required?: boolean
+      unique?: boolean
+    }) => {
+      const res = await fetch(`/api/table/${tableId}/columns`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId, column }),
+      })
+
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.error || 'Failed to add column')
+      }
+
+      return res.json()
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
+    },
+  })
+}
+
+/**
  * Delete a table from a workspace.
  */
 export function useDeleteTable(workspaceId: string) {

@@ -32,7 +32,7 @@ export function ResourceOptionsBar({
       <div className='flex items-center justify-between'>
         {search && (
           <div className='flex flex-1 items-center'>
-            <Search className='pointer-events-none h-[14px] w-[14px] shrink-0 text-[var(--text-muted)]' />
+            <Search className='pointer-events-none h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
             <input
               type='text'
               value={search.value}
@@ -45,13 +45,13 @@ export function ResourceOptionsBar({
         <div className='flex items-center gap-[6px]'>
           {onFilter && (
             <Button variant='subtle' className='px-[8px] py-[4px] text-[12px]' onClick={onFilter}>
-              <ListFilter className='mr-[6px] h-[14px] w-[14px]' />
+              <ListFilter className='mr-[6px] h-[14px] w-[14px] text-[var(--text-icon)]' />
               Filter
             </Button>
           )}
           {onSort && (
             <Button variant='subtle' className='px-[8px] py-[4px] text-[12px]' onClick={onSort}>
-              <ArrowUpDown className='mr-[6px] h-[14px] w-[14px]' />
+              <ArrowUpDown className='mr-[6px] h-[14px] w-[14px] text-[var(--text-icon)]' />
               Sort
             </Button>
           )}

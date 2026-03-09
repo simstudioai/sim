@@ -12,7 +12,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
       <SettingsLoader />
       <ProviderModelsLoader />
       <GlobalCommandsProvider>
-        <div className='flex h-screen w-full bg-[#F4F4F4] dark:bg-[var(--surface-1)]'>
+        <div className='flex h-screen w-full bg-[var(--surface-1)]'>
           <WorkspacePermissionsProvider>
             <div className='shrink-0' suppressHydrationWarning>
               <Sidebar />

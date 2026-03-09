@@ -370,6 +370,10 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
+        source: '/favicon.ico',
+        destination: '/icon.svg',
+      },
+      {
         source: '/r/:shortCode',
         destination: 'https://go.trybeluga.ai/:shortCode',
       },

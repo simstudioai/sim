@@ -1,7 +1,13 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getAllPostMeta } from '@/lib/blog/registry'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import { PostGrid } from '@/app/(landing)/studio/post-grid'
+
+export const metadata: Metadata = {
+  title: 'Studio',
+  description: 'Announcements, insights, and guides from the Sim team.',
+}
 
 export const revalidate = 3600
 
