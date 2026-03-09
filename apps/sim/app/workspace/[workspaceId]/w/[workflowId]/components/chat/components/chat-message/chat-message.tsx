@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { StreamingIndicator } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/smooth-streaming'
+import { StreamingIndicator } from '@/components/ui/streaming-indicator'
 
 interface ChatAttachment {
   id: string

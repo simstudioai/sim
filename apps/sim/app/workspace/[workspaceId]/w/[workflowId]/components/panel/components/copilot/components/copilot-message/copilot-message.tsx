@@ -3,6 +3,7 @@
 import { type FC, memo, useCallback, useMemo, useRef, useState } from 'react'
 import { RotateCcw } from 'lucide-react'
 import { Button } from '@/components/emcn'
+import { StreamingIndicator } from '@/components/ui/streaming-indicator'
 import {
   OptionsSelector,
   parseSpecialTags,
@@ -12,7 +13,6 @@ import {
   CheckpointConfirmation,
   FileAttachmentDisplay,
   SmoothStreamingText,
-  StreamingIndicator,
   ThinkingBlock,
   UsageLimitActions,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components'
