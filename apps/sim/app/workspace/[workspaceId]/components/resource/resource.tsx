@@ -1,12 +1,12 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { useCallback, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, Button, Plus, Skeleton } from '@/components/emcn'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowDown, ArrowUp, Button, Loader, Plus, Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { CreateAction, HeaderAction } from './components/resource-header'
 import { ResourceHeader } from './components/resource-header'
-import type { SortConfig } from './components/resource-options-bar'
+import type { FilterTag, SearchConfig, SortConfig } from './components/resource-options-bar'
 import { ResourceOptionsBar } from './components/resource-options-bar'
 
 export interface ResourceColumn {
@@ -17,6 +17,7 @@ export interface ResourceColumn {
 export interface ResourceCell {
   icon?: ReactNode
   label?: string | null
+  content?: ReactNode
 }
 
 export interface ResourceRow {
@@ -29,26 +30,33 @@ interface ResourceProps {
   icon: React.ElementType
   title: string
   create?: CreateAction
-  search?: {
-    value: string
-    onChange: (value: string) => void
-    placeholder?: string
-  }
-  defaultSort: string
+  search?: SearchConfig
+  defaultSort?: string
+  disableHeaderSort?: boolean
   headerActions?: HeaderAction[]
   columns: ResourceColumn[]
   rows: ResourceRow[]
+  selectedRowId?: string | null
   onRowClick?: (rowId: string) => void
+  onRowHover?: (rowId: string) => void
   onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
   isLoading?: boolean
   loadingRows?: number
   onContextMenu?: (e: React.MouseEvent) => void
+  filter?: ReactNode
+  filterTags?: FilterTag[]
+  onLoadMore?: () => void
+  hasMore?: boolean
+  isLoadingMore?: boolean
+  emptyMessage?: string
+  contentOverride?: ReactNode
+  overlay?: ReactNode
 }
 
 const EMPTY_CELL_PLACEHOLDER = '-  -  -'
 
 /**
- * Shared page shell for resource list pages (tables, files, knowledge, schedules).
+ * Shared page shell for resource list pages (tables, files, knowledge, schedules, logs).
  * Renders the header, toolbar with search, and a data table from column/row definitions.
  */
 export function Resource({
@@ -57,18 +65,31 @@ export function Resource({
   create,
   search,
   defaultSort,
+  disableHeaderSort,
   headerActions,
   columns,
   rows,
+  selectedRowId,
   onRowClick,
+  onRowHover,
   onRowContextMenu,
   isLoading,
   loadingRows = 5,
   onContextMenu,
+  filter,
+  filterTags,
+  onLoadMore,
+  hasMore,
+  isLoadingMore,
+  emptyMessage,
+  contentOverride,
+  overlay,
 }: ResourceProps) {
   const headerRef = useRef<HTMLDivElement>(null)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
+  const sortEnabled = defaultSort != null && !disableHeaderSort
   const [sort, setSort] = useState<{ column: string; direction: 'asc' | 'desc' }>({
-    column: defaultSort,
+    column: defaultSort ?? '',
     direction: 'desc',
   })
 
@@ -82,16 +103,17 @@ export function Resource({
     setSort({ column, direction })
   }, [])
 
-  const sortConfig = useMemo<SortConfig>(
-    () => ({
+  const sortConfig = useMemo<SortConfig | undefined>(() => {
+    if (!sortEnabled) return undefined
+    return {
       options: columns.map((col) => ({ id: col.id, label: col.header })),
       active: sort,
       onSort: handleSort,
-    }),
-    [columns, sort, handleSort]
-  )
+    }
+  }, [sortEnabled, columns, sort, handleSort])
 
-  const sortedRows = useMemo(() => {
+  const displayRows = useMemo(() => {
+    if (!sortEnabled) return rows
     return [...rows].sort((a, b) => {
       const col = sort.column
       const aVal = a.sortValues?.[col] ?? a.cells[col]?.label ?? ''
@@ -102,7 +124,21 @@ export function Resource({
           : String(aVal).localeCompare(String(bVal))
       return sort.direction === 'asc' ? -cmp : cmp
     })
-  }, [rows, sort])
+  }, [rows, sort, sortEnabled])
+
+  useEffect(() => {
+    if (!onLoadMore || !hasMore) return
+    const el = loadMoreRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) onLoadMore()
+      },
+      { rootMargin: '200px' }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [onLoadMore, hasMore])
 
   return (
     <div
@@ -110,18 +146,39 @@ export function Resource({
       onContextMenu={onContextMenu}
     >
       <ResourceHeader icon={icon} title={title} create={create} actions={headerActions} />
-      <ResourceOptionsBar search={search} sort={sortConfig} />
+      <ResourceOptionsBar
+        search={search}
+        sort={sortConfig}
+        filter={filter}
+        filterTags={filterTags}
+      />
 
-      {isLoading ? (
+      {contentOverride ? (
+        <div className='min-h-0 flex-1 overflow-auto'>{contentOverride}</div>
+      ) : isLoading ? (
         <DataTableSkeleton columns={columns} rowCount={loadingRows} />
+      ) : rows.length === 0 && emptyMessage ? (
+        <div className='flex min-h-0 flex-1 items-center justify-center'>
+          <span className='text-[13px] text-[var(--text-secondary)]'>{emptyMessage}</span>
+        </div>
       ) : (
-        <>
+        <div className='relative min-h-0 flex-1 overflow-hidden'>
           <div ref={headerRef} className='overflow-hidden'>
             <table className='w-full table-fixed text-[13px]'>
               <ResourceColGroup columns={columns} />
               <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
                 <tr>
                   {columns.map((col) => {
+                    if (disableHeaderSort || !sortEnabled) {
+                      return (
+                        <th
+                          key={col.id}
+                          className='h-10 px-[24px] py-[6px] text-left align-middle font-base text-[var(--text-muted)]'
+                        >
+                          {col.header}
+                        </th>
+                      )
+                    }
                     const isActive = sort.column === col.id
                     const SortIcon = sort.direction === 'asc' ? ArrowUp : ArrowDown
                     return (
@@ -152,15 +209,18 @@ export function Resource({
             <table className='w-full table-fixed text-[13px]'>
               <ResourceColGroup columns={columns} />
               <tbody>
-                {sortedRows.map((row) => (
+                {displayRows.map((row) => (
                   <tr
                     key={row.id}
                     data-resource-row
+                    data-row-id={row.id}
                     className={cn(
                       'transition-colors hover:bg-[var(--surface-3)]',
-                      onRowClick && 'cursor-pointer'
+                      onRowClick && 'cursor-pointer',
+                      selectedRowId === row.id && 'bg-[var(--surface-3)]'
                     )}
                     onClick={() => onRowClick?.(row.id)}
+                    onMouseEnter={onRowHover ? () => onRowHover(row.id) : undefined}
                     onContextMenu={(e) => onRowContextMenu?.(e, row.id)}
                   >
                     {columns.map((col, colIdx) => {
@@ -196,14 +256,23 @@ export function Resource({
                 )}
               </tbody>
             </table>
+            {hasMore && (
+              <div ref={loadMoreRef} className='flex items-center justify-center py-[12px]'>
+                {isLoadingMore && (
+                  <Loader className='h-[16px] w-[16px] text-[var(--text-secondary)]' animate />
+                )}
+              </div>
+            )}
           </div>
-        </>
+          {overlay}
+        </div>
       )}
     </div>
   )
 }
 
 function CellContent({ cell, primary }: { cell: ResourceCell; primary?: boolean }) {
+  if (cell.content) return <>{cell.content}</>
   return (
     <span
       className={cn(

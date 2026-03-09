@@ -7,6 +7,7 @@ export type {
   HeaderAction,
 } from './resource/components/resource-header'
 export { ResourceHeader } from './resource/components/resource-header'
+export type { FilterTag, SearchConfig } from './resource/components/resource-options-bar'
 export { ResourceOptionsBar } from './resource/components/resource-options-bar'
 export { timeCell } from './resource/components/time-cell/time-cell'
 export type { ResourceCell, ResourceColumn, ResourceRow } from './resource/resource'

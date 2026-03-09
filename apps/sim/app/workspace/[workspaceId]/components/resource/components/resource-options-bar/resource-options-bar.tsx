@@ -31,18 +31,41 @@ export interface SortConfig {
   onClear?: () => void
 }
 
-interface ResourceOptionsBarProps {
-  search?: {
-    value: string
-    onChange: (value: string) => void
-    placeholder?: string
-  }
-  sort?: SortConfig
-  filter?: ReactNode
+export interface FilterTag {
+  label: string
+  onRemove: () => void
 }
 
-export function ResourceOptionsBar({ search, sort, filter }: ResourceOptionsBarProps) {
-  const hasContent = search || sort || filter
+export interface SearchTag {
+  label: string
+  value: string
+  onRemove: () => void
+}
+
+export interface SearchConfig {
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+  inputRef?: React.RefObject<HTMLInputElement | null>
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
+  onFocus?: () => void
+  onBlur?: () => void
+  tags?: SearchTag[]
+  highlightedTagIndex?: number | null
+  onClearAll?: () => void
+  dropdown?: ReactNode
+  dropdownRef?: React.RefObject<HTMLDivElement | null>
+}
+
+interface ResourceOptionsBarProps {
+  search?: SearchConfig
+  sort?: SortConfig
+  filter?: ReactNode
+  filterTags?: FilterTag[]
+}
+
+export function ResourceOptionsBar({ search, sort, filter, filterTags }: ResourceOptionsBarProps) {
+  const hasContent = search || sort || filter || (filterTags && filterTags.length > 0)
   if (!hasContent) return null
 
   return (
@@ -54,18 +77,67 @@ export function ResourceOptionsBar({ search, sort, filter }: ResourceOptionsBarP
     >
       <div className='flex items-center justify-between'>
         {search && (
-          <div className='flex flex-1 items-center'>
+          <div className='relative flex flex-1 items-center'>
             <Search className='pointer-events-none h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-            <input
-              type='text'
-              value={search.value}
-              onChange={(e) => search.onChange(e.target.value)}
-              placeholder={search.placeholder ?? 'Search...'}
-              className='w-full bg-transparent py-[4px] pl-[10px] text-[12px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-subtle)]'
-            />
+            <div className='flex flex-1 items-center gap-[6px] overflow-x-auto pl-[10px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+              {search.tags?.map((tag, i) => (
+                <Button
+                  key={`${tag.label}-${tag.value}-${i}`}
+                  variant='subtle'
+                  className={cn(
+                    'shrink-0 px-[8px] py-[4px] text-[12px]',
+                    search.highlightedTagIndex === i &&
+                      'ring-1 ring-[var(--border-focus)] ring-offset-1'
+                  )}
+                  onClick={tag.onRemove}
+                >
+                  {tag.label}: {tag.value}
+                  <span className='ml-[4px] text-[10px] text-[var(--text-icon)]'>✕</span>
+                </Button>
+              ))}
+              <input
+                ref={search.inputRef}
+                type='text'
+                value={search.value}
+                onChange={(e) => search.onChange(e.target.value)}
+                onKeyDown={search.onKeyDown}
+                onFocus={search.onFocus}
+                onBlur={search.onBlur}
+                placeholder={search.tags?.length ? '' : (search.placeholder ?? 'Search...')}
+                className='min-w-[80px] flex-1 bg-transparent py-[4px] text-[12px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-subtle)]'
+              />
+            </div>
+            {search.tags?.length || search.value ? (
+              <button
+                type='button'
+                className='mr-[2px] flex h-[14px] w-[14px] shrink-0 items-center justify-center text-[var(--text-subtle)] transition-colors hover:text-[var(--text-secondary)]'
+                onClick={search.onClearAll}
+              >
+                <span className='text-[12px]'>✕</span>
+              </button>
+            ) : null}
+            {search.dropdown && (
+              <div
+                ref={search.dropdownRef}
+                className='absolute top-full left-0 z-50 mt-[6px] w-full rounded-[8px] border border-[var(--border)] bg-white shadow-sm dark:bg-[var(--bg)]'
+              >
+                {search.dropdown}
+              </div>
+            )}
           </div>
         )}
         <div className='flex items-center gap-[6px]'>
+          {filterTags?.map((tag) => (
+            <Button
+              key={tag.label}
+              variant='subtle'
+              className='px-[8px] py-[4px] text-[12px]'
+              onClick={tag.onRemove}
+            >
+              {tag.label}
+              <span className='ml-[4px] text-[10px] text-[var(--text-icon)]'>✕</span>
+            </Button>
+          ))}
           {filter && (
             <PopoverPrimitive.Root>
               <PopoverPrimitive.Trigger asChild>

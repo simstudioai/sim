@@ -80,7 +80,7 @@ interface PendingPlaceholder {
 }
 
 const EMPTY_COLUMNS: never[] = []
-const PLACEHOLDER_ROW_COUNT = 50
+const PLACEHOLDER_ROW_COUNT = 1000
 const COL_WIDTH = 160
 const CHECKBOX_COL_WIDTH = 40
 const ADD_COL_WIDTH = 120
@@ -134,8 +134,6 @@ export function Table() {
     filter: null,
     sort: null,
   })
-  const [currentPage, setCurrentPage] = useState(0)
-
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingRow, setEditingRow] = useState<TableRowType | null>(null)
   const [deletingRows, setDeletingRows] = useState<string[]>([])
@@ -158,11 +156,10 @@ export function Table() {
 
   const isDraggingRef = useRef(false)
 
-  const { tableData, isLoadingTable, rows, totalCount, totalPages, isLoadingRows } = useTableData({
+  const { tableData, isLoadingTable, rows, isLoadingRows } = useTableData({
     workspaceId,
     tableId,
     queryOptions,
-    currentPage,
   })
 
   const { selectedRows, handleSelectAll, handleSelectRow, clearSelection } = useRowSelection(rows)
@@ -651,17 +648,14 @@ export function Table() {
 
   const handleSortChange = useCallback((column: string, direction: SortDirection) => {
     setQueryOptions((prev) => ({ ...prev, sort: { [column]: direction } }))
-    setCurrentPage(0)
   }, [])
 
   const handleSortClear = useCallback(() => {
     setQueryOptions((prev) => ({ ...prev, sort: null }))
-    setCurrentPage(0)
   }, [])
 
   const handleFilterApply = useCallback((filter: Filter | null) => {
     setQueryOptions((prev) => ({ ...prev, filter }))
-    setCurrentPage(0)
   }, [])
   const columnOptions = useMemo<ColumnOption[]>(
     () =>
@@ -722,6 +716,11 @@ export function Table() {
               ]
             : []),
         ]}
+        create={{
+          label: 'New column',
+          onClick: handleAddColumn,
+          disabled: addColumnMutation.isPending,
+        }}
       />
 
       <ResourceOptionsBar
@@ -793,7 +792,7 @@ export function Table() {
                   >
                     <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-muted)]' />
                     <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                      Add column
+                      New column
                     </span>
                   </button>
                 </th>
@@ -844,14 +843,6 @@ export function Table() {
           </tbody>
         </table>
       </div>
-
-      <TablePagination
-        currentPage={currentPage}
-        totalPages={totalPages}
-        totalCount={totalCount}
-        onPreviousPage={() => setCurrentPage((p) => Math.max(0, p - 1))}
-        onNextPage={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
-      />
 
       {showAddModal && tableData && (
         <RowModal
@@ -1235,7 +1226,7 @@ function InlineEditor({
       onKeyDown={handleKeyDown}
       onBlur={handleSave}
       className={cn(
-        'h-full w-full min-w-0 select-text border-none bg-transparent p-0 outline-none',
+        'w-full min-w-0 select-text border-none bg-transparent p-0 outline-none',
         column.type === 'number'
           ? 'font-mono text-[12px] text-[var(--text-secondary)]'
           : column.type === 'date'
@@ -1243,43 +1234,6 @@ function InlineEditor({
             : 'text-[13px] text-[var(--text-primary)]'
       )}
     />
-  )
-}
-
-function TablePagination({
-  currentPage,
-  totalPages,
-  totalCount,
-  onPreviousPage,
-  onNextPage,
-}: {
-  currentPage: number
-  totalPages: number
-  totalCount: number
-  onPreviousPage: () => void
-  onNextPage: () => void
-}) {
-  if (totalPages <= 1) return null
-
-  return (
-    <div className='flex h-[40px] shrink-0 items-center justify-between border-[var(--border)] border-t px-[16px]'>
-      <span className='text-[11px] text-[var(--text-tertiary)]'>
-        Page {currentPage + 1} of {totalPages} ({totalCount} rows)
-      </span>
-      <div className='flex items-center gap-[4px]'>
-        <Button variant='ghost' size='sm' onClick={onPreviousPage} disabled={currentPage === 0}>
-          Previous
-        </Button>
-        <Button
-          variant='ghost'
-          size='sm'
-          onClick={onNextPage}
-          disabled={currentPage === totalPages - 1}
-        >
-          Next
-        </Button>
-      </div>
-    </div>
   )
 }
 
@@ -1388,12 +1342,14 @@ function PlaceholderRows({
                   )}
                   {isAnchor && <div className={cn(SELECTION_OVERLAY, belowHeader && 'top-0')} />}
                   {isEditing ? (
-                    <InlineEditor
-                      value={hasPendingValue ? pendingValue : null}
-                      column={col}
-                      onSave={(value) => onSave(i, col.name, value)}
-                      onCancel={onCancel}
-                    />
+                    <div className={CELL_CONTENT}>
+                      <InlineEditor
+                        value={hasPendingValue ? pendingValue : null}
+                        column={col}
+                        onSave={(value) => onSave(i, col.name, value)}
+                        onCancel={onCancel}
+                      />
+                    </div>
                   ) : hasPendingValue ? (
                     <div className={CELL_CONTENT}>
                       <CellContent

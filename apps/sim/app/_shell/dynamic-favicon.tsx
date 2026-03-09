@@ -87,6 +87,13 @@ const SECTION_TO_ICON: Record<string, string> = {
   templates: 'templates',
 }
 
+function setFaviconHrefs(url: string) {
+  document.querySelectorAll<HTMLLinkElement>("link[rel*='icon']").forEach((link) => {
+    if (link.rel === 'apple-touch-icon') return
+    link.href = url
+  })
+}
+
 export function DynamicFavicon() {
   const pathname = usePathname()
 
@@ -95,17 +102,15 @@ export function DynamicFavicon() {
     const iconKey = section ? SECTION_TO_ICON[section] : null
     const url = iconKey ? FAVICONS[iconKey] : DEFAULT_FAVICON
 
-    const links = document.querySelectorAll<HTMLLinkElement>("link[rel*='icon']")
-    links.forEach((link) => {
-      if (link.rel === 'apple-touch-icon') return
-      link.href = url
-    })
+    setFaviconHrefs(url)
+
+    // Re-apply whenever Next.js head reconciliation replaces link elements
+    const observer = new MutationObserver(() => setFaviconHrefs(url))
+    observer.observe(document.head, { childList: true })
 
     return () => {
-      links.forEach((link) => {
-        if (link.rel === 'apple-touch-icon') return
-        link.href = DEFAULT_FAVICON
-      })
+      observer.disconnect()
+      setFaviconHrefs(DEFAULT_FAVICON)
     }
   }, [pathname])
 

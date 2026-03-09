@@ -96,7 +96,9 @@ export function ResourceHeader({
                 variant='subtle'
                 className='px-[8px] py-[4px] text-[12px]'
               >
-                {ActionIcon && <ActionIcon className='mr-[6px] h-[14px] w-[14px]' />}
+                {ActionIcon && (
+                  <ActionIcon className={cn('h-[14px] w-[14px]', action.label && 'mr-[6px]')} />
+                )}
                 {action.label}
               </Button>
             )
