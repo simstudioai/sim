@@ -11,16 +11,9 @@ import {
 } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { isMacPlatform } from '@/lib/core/utils/platform'
 
 const logger = createLogger('GlobalCommands')
-
-function isMacPlatform(): boolean {
-  if (typeof window === 'undefined') return false
-  return (
-    /Mac|iPhone|iPod|iPad/i.test(navigator.platform) ||
-    /Mac|iPhone|iPod|iPad/i.test(navigator.userAgent)
-  )
-}
 
 export interface ParsedShortcut {
   key: string

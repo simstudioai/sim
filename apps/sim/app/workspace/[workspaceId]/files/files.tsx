@@ -21,6 +21,7 @@ import {
   Trash2,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { isMacPlatform } from '@/lib/core/utils/platform'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
 import {
@@ -440,9 +441,7 @@ export function Files() {
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='bottom'>
-                    {typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.platform)
-                      ? '\u2318S'
-                      : 'Ctrl+S'}
+                    {isMacPlatform() ? '\u2318S' : 'Ctrl+S'}
                   </Tooltip.Content>
                 </Tooltip.Root>
               )}
