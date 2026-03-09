@@ -13,6 +13,11 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
   Skeleton,
 } from '@/components/emcn'
 import {
@@ -38,7 +43,12 @@ import type {
   ColumnOption,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options-bar'
-import { useAddTableColumn, useCreateTableRow, useUpdateTableRow } from '@/hooks/queries/tables'
+import {
+  useAddTableColumn,
+  useCreateTableRow,
+  useDeleteTable,
+  useUpdateTableRow,
+} from '@/hooks/queries/tables'
 import { useContextMenu, useRowSelection, useTableData } from '../../hooks'
 import type { EditingCell, QueryOptions } from '../../types'
 import { cleanCellValue, formatValueForInput } from '../../utils'
@@ -138,6 +148,7 @@ export function Table() {
     rowIndex: number
     columnName: string
   } | null>(null)
+  const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
 
   const isDraggingRef = useRef(false)
 
@@ -217,9 +228,21 @@ export function Table() {
     selectionFocusRef.current = selectionFocus
   }, [selectionFocus])
 
+  const deleteTableMutation = useDeleteTable(workspaceId)
+
   const handleNavigateBack = useCallback(() => {
     router.push(`/workspace/${workspaceId}/tables`)
   }, [router, workspaceId])
+
+  const handleDeleteTable = useCallback(async () => {
+    try {
+      await deleteTableMutation.mutateAsync(tableId)
+      setShowDeleteTableConfirm(false)
+      router.push(`/workspace/${workspaceId}/tables`)
+    } catch {
+      setShowDeleteTableConfirm(false)
+    }
+  }, [deleteTableMutation, tableId, router, workspaceId])
 
   const handleAddRow = useCallback(() => {
     setShowAddModal(true)
@@ -603,7 +626,21 @@ export function Table() {
         icon={TableIcon}
         breadcrumbs={[
           { label: 'Tables', onClick: handleNavigateBack },
-          ...(tableData ? [{ label: tableData.name }] : []),
+          ...(tableData
+            ? [
+                {
+                  label: tableData.name,
+                  dropdownItems: [
+                    { label: 'Rename', icon: Pencil, onClick: () => {} },
+                    {
+                      label: 'Delete',
+                      icon: Trash,
+                      onClick: () => setShowDeleteTableConfirm(true),
+                    },
+                  ],
+                },
+              ]
+            : []),
         ]}
       />
 
@@ -786,6 +823,35 @@ export function Table() {
         onEdit={handleContextMenuEdit}
         onDelete={handleContextMenuDelete}
       />
+
+      <Modal open={showDeleteTableConfirm} onOpenChange={setShowDeleteTableConfirm}>
+        <ModalContent size='sm'>
+          <ModalHeader>Delete Table</ModalHeader>
+          <ModalBody>
+            <p className='text-[13px] text-[var(--text-secondary)]'>
+              Are you sure you want to delete{' '}
+              <span className='font-medium text-[var(--text-primary)]'>{tableData?.name}</span>?{' '}
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant='default'
+              onClick={() => setShowDeleteTableConfirm(false)}
+              disabled={deleteTableMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant='destructive'
+              onClick={handleDeleteTable}
+              disabled={deleteTableMutation.isPending}
+            >
+              {deleteTableMutation.isPending ? 'Deleting...' : 'Delete'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </div>
   )
 }

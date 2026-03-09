@@ -1,16 +1,33 @@
 import { Fragment } from 'react'
-import { Button, Plus } from '@/components/emcn'
+import {
+  Button,
+  ChevronDown,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Plus,
+} from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+
+export interface DropdownOption {
+  label: string
+  icon?: React.ElementType
+  onClick: () => void
+  disabled?: boolean
+}
 
 export interface BreadcrumbItem {
   label: string
   onClick?: () => void
+  dropdownItems?: DropdownOption[]
 }
 
 export interface HeaderAction {
   label: string
   icon?: React.ElementType
   onClick: () => void
+  disabled?: boolean
 }
 
 export interface CreateAction {
@@ -55,6 +72,7 @@ export function ResourceHeader({
                   icon={i === 0 ? Icon : undefined}
                   label={crumb.label}
                   onClick={crumb.onClick}
+                  dropdownItems={crumb.dropdownItems}
                 />
               </Fragment>
             ))
@@ -74,6 +92,7 @@ export function ResourceHeader({
               <Button
                 key={action.label}
                 onClick={action.onClick}
+                disabled={action.disabled}
                 variant='subtle'
                 className='px-[8px] py-[4px] text-[12px]'
               >
@@ -103,10 +122,12 @@ function BreadcrumbSegment({
   icon: Icon,
   label,
   onClick,
+  dropdownItems,
 }: {
   icon?: React.ElementType
   label: string
   onClick?: () => void
+  dropdownItems?: DropdownOption[]
 }) {
   const content = (
     <>
@@ -114,6 +135,30 @@ function BreadcrumbSegment({
       {label}
     </>
   )
+
+  if (dropdownItems && dropdownItems.length > 0) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant='subtle' className='px-[8px] py-[4px] font-medium text-[14px]'>
+            {content}
+            <ChevronDown className='ml-[8px] h-[7px] w-[9px] shrink-0 text-[var(--text-muted)]' />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align='start'>
+          {dropdownItems.map((item) => {
+            const ItemIcon = item.icon
+            return (
+              <DropdownMenuItem key={item.label} onClick={item.onClick} disabled={item.disabled}>
+                {ItemIcon && <ItemIcon className='h-[14px] w-[14px]' />}
+                {item.label}
+              </DropdownMenuItem>
+            )
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
 
   if (onClick) {
     return (
