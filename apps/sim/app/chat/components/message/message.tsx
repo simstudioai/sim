@@ -53,12 +53,12 @@ export const ClientChatMessage = memo(
 
     // Safely convert content to a renderable string to prevent React error #31
     // when workflow nodes return structured objects (e.g. { text, type })
-    const cleanTextContent = useMemo(() => {
-      if (isJsonObject) {
-        return JSON.stringify(message.content, null, 2)
-      }
-      return safeRenderValue(message.content)
-    }, [message.content, isJsonObject])
+    // Use safeRenderValue for all content types — it extracts .text from
+    // structured objects like { text, type } and falls back to JSON.stringify
+    const cleanTextContent = useMemo(
+      () => safeRenderValue(message.content),
+      [message.content]
+    )
 
     const content =
       message.type === 'user' ? (
