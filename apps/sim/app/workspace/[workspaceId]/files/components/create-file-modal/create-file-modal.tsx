@@ -35,6 +35,8 @@ export function CreateFileModal({
   const [error, setError] = useState('')
 
   const handleCreate = useCallback(async () => {
+    if (uploadFile.isPending) return
+
     const trimmed = filename.trim()
     if (!trimmed) {
       setError('Filename is required')
