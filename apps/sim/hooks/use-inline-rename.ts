@@ -31,6 +31,7 @@ export function useInlineRename({ onSave }: UseInlineRenameProps) {
   }, [editingId, editValue])
 
   const cancelRename = useCallback(() => {
+    doneRef.current = true
     setEditingId(null)
   }, [])
 
