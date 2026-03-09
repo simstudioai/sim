@@ -1775,33 +1775,49 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": ["workspaceId"],
-                "properties": {
-                  "workspaceId": {
-                    "type": "string",
-                    "description": "The workspace that owns the table."
-                  },
-                  "filter": {
+                "oneOf": [
+                  {
                     "type": "object",
-                    "additionalProperties": true,
-                    "description": "Filter criteria to match rows for deletion. Mutually exclusive with `rowIds`."
+                    "required": ["workspaceId", "filter"],
+                    "description": "Delete by filter.",
+                    "properties": {
+                      "workspaceId": {
+                        "type": "string",
+                        "description": "The workspace that owns the table."
+                      },
+                      "filter": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "Filter criteria to match rows for deletion."
+                      },
+                      "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000,
+                        "description": "Maximum number of rows to delete. Defaults to all matching rows, capped at 1000."
+                      }
+                    }
                   },
-                  "rowIds": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "maxItems": 1000,
-                    "description": "Explicit list of row IDs to delete (max 1000). Mutually exclusive with `filter`."
-                  },
-                  "limit": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 1000,
-                    "description": "Maximum number of rows to delete when using `filter`. Defaults to all matching rows, capped at 1000."
+                  {
+                    "type": "object",
+                    "required": ["workspaceId", "rowIds"],
+                    "description": "Delete by IDs.",
+                    "properties": {
+                      "workspaceId": {
+                        "type": "string",
+                        "description": "The workspace that owns the table."
+                      },
+                      "rowIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "maxItems": 1000,
+                        "description": "Explicit list of row IDs to delete (max 1000)."
+                      }
+                    }
                   }
-                }
+                ]
               }
             }
           }

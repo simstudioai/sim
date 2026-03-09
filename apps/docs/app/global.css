@@ -637,7 +637,7 @@ html.dark span.font-mono.font-medium[data-method="delete"] {
 #nd-sidebar a:has(span.font-mono.font-medium) {
   display: flex !important;
   align-items: center !important;
-  gap: 6px;
+  gap: 0.375rem;
 }
 
 /* Sidebar method badges — fixed-width for right-aligned labels */
@@ -645,11 +645,11 @@ html.dark span.font-mono.font-medium[data-method="delete"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  font-size: 10px !important;
+  width: 2.625rem;
+  font-size: 0.625rem !important;
   line-height: 1 !important;
-  padding: 2.5px 4px;
-  border-radius: 3px;
+  padding: 0.15625rem 0.25rem;
+  border-radius: 0.1875rem;
   flex-shrink: 0;
 }
 
