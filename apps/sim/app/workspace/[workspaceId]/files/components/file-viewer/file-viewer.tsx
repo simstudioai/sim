@@ -12,7 +12,16 @@ import {
 
 const logger = createLogger('FileViewer')
 
-export const TEXT_EDITABLE_EXTENSIONS = new Set(['md', 'txt', 'json', 'yaml', 'yml', 'csv', 'html', 'htm'])
+export const TEXT_EDITABLE_EXTENSIONS = new Set([
+  'md',
+  'txt',
+  'json',
+  'yaml',
+  'yml',
+  'csv',
+  'html',
+  'htm',
+])
 
 const IFRAME_PREVIEWABLE_EXTENSIONS = new Set(['pdf'])
 
@@ -107,7 +116,7 @@ function TextEditor({ file, workspaceId, canEdit, onDirtyChange, saveRef }: Text
       content: currentContent,
     })
     setSavedContent(currentContent)
-  }, [savedContent, workspaceId, file.id, updateContent])
+  }, [savedContent, workspaceId, file.id])
 
   useEffect(() => {
     if (saveRef) {

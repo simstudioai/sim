@@ -81,8 +81,14 @@ export function CreateFileModal({
         <ModalHeader>New file</ModalHeader>
         <ModalBody>
           <div className='flex flex-col gap-[8px]'>
-            <label className='font-medium text-[13px] text-[var(--text-body)]'>Filename</label>
+            <label
+              htmlFor='create-file-name'
+              className='font-medium text-[13px] text-[var(--text-body)]'
+            >
+              Filename
+            </label>
             <Input
+              id='create-file-name'
               value={filename}
               onChange={(e) => {
                 setFilename(e.target.value)
