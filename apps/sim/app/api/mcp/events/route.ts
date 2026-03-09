@@ -14,7 +14,6 @@ import { getSession } from '@/lib/auth'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { mcpConnectionManager } from '@/lib/mcp/connection-manager'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
-import { decrementSSEConnections, incrementSSEConnections } from '@/lib/monitoring/sse-connections'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('McpEventsSSE')
@@ -50,14 +49,11 @@ export async function GET(request: NextRequest) {
     for (const unsub of unsubscribers) {
       unsub()
     }
-    decrementSSEConnections('mcp-events')
     logger.info(`SSE connection closed for workspace ${workspaceId}`)
   }
 
   const stream = new ReadableStream({
     start(controller) {
-      incrementSSEConnections('mcp-events')
-
       const send = (eventName: string, data: Record<string, unknown>) => {
         if (cleaned) return
         try {
