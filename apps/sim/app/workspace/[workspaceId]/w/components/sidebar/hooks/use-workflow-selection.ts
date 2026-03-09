@@ -10,22 +10,46 @@ interface UseWorkflowSelectionProps {
    * Active workflow ID (from URL) - used as anchor for range selection
    */
   activeWorkflowId: string | undefined
+  /**
+   * Map from workflow ID to its parent folder ID (only for workflows inside folders)
+   */
+  workflowFolderMap: Record<string, string>
 }
 
 /**
  * Hook for managing workflow selection with support for single, range, and toggle selection.
  * Handles shift-click for range selection and regular click for single selection.
  * Uses the active workflow ID as the anchor point for range selections.
+ * Enforces parent-child constraint: selecting a workflow deselects its parent folder.
  *
  * @param props - Hook props
  * @returns Selection handlers
  */
-export function useWorkflowSelection({ workflowIds, activeWorkflowId }: UseWorkflowSelectionProps) {
+export function useWorkflowSelection({
+  workflowIds,
+  activeWorkflowId,
+  workflowFolderMap,
+}: UseWorkflowSelectionProps) {
   const { selectedWorkflows, selectOnly, selectRange, toggleWorkflowSelection } = useFolderStore()
 
   /**
+   * After a workflow selection change, deselect any folders that contain selected workflows
+   * to prevent parent-child co-selection.
+   */
+  const deselectConflictingFolders = useCallback(() => {
+    const { selectedWorkflows: workflows, selectedFolders: folders } = useFolderStore.getState()
+    if (folders.size === 0) return
+
+    for (const wfId of workflows) {
+      const folderId = workflowFolderMap[wfId]
+      if (folderId && folders.has(folderId)) {
+        useFolderStore.getState().deselectFolder(folderId)
+      }
+    }
+  }, [workflowFolderMap])
+
+  /**
    * Handle workflow click with support for shift-click range selection and cmd/ctrl-click toggle.
-   * Does not clear folder selection to allow unified selection of workflows and folders.
    *
    * @param workflowId - ID of clicked workflow
    * @param shiftKey - Whether shift key was pressed
@@ -33,24 +57,27 @@ export function useWorkflowSelection({ workflowIds, activeWorkflowId }: UseWorkf
    */
   const handleWorkflowClick = useCallback(
     (workflowId: string, shiftKey: boolean, metaKey: boolean) => {
-      // Cmd/Ctrl+Click: Toggle individual selection
       if (metaKey) {
         toggleWorkflowSelection(workflowId)
-      }
-      // Shift+Click: Range selection from active workflow to clicked workflow
-      else if (shiftKey && activeWorkflowId && activeWorkflowId !== workflowId) {
+        deselectConflictingFolders()
+      } else if (shiftKey && activeWorkflowId && activeWorkflowId !== workflowId) {
         selectRange(workflowIds, activeWorkflowId, workflowId)
-      }
-      // Shift+Click without active workflow: Toggle selection
-      else if (shiftKey) {
+        deselectConflictingFolders()
+      } else if (shiftKey) {
         toggleWorkflowSelection(workflowId)
-      }
-      // Regular click: Select only this workflow (preserves folder selection for unified multi-select)
-      else {
+        deselectConflictingFolders()
+      } else {
         selectOnly(workflowId)
       }
     },
-    [workflowIds, activeWorkflowId, selectOnly, selectRange, toggleWorkflowSelection]
+    [
+      workflowIds,
+      activeWorkflowId,
+      selectOnly,
+      selectRange,
+      toggleWorkflowSelection,
+      deselectConflictingFolders,
+    ]
   )
 
   return {

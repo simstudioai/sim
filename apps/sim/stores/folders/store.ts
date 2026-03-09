@@ -117,7 +117,12 @@ export const useFolderStore = create<FolderState>()(
 
       clearSelection: () => set({ selectedWorkflows: new Set() }),
 
-      selectOnly: (workflowId) => set({ selectedWorkflows: new Set([workflowId]) }),
+      selectOnly: (workflowId) =>
+        set({
+          selectedWorkflows: new Set([workflowId]),
+          selectedFolders: new Set(),
+          lastSelectedFolderId: null,
+        }),
 
       selectRange: (workflowIds, fromId, toId) => {
         const fromIndex = workflowIds.indexOf(fromId)
