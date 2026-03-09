@@ -356,7 +356,11 @@ export const Panel = memo(function Panel() {
   // Compute run button state
   const canRun = userPermissions.canRead // Running only requires read permissions
   const isLoadingPermissions = userPermissions.isLoading
-  const hasValidationErrors = false // TODO: Add validation logic if needed
+
+  // Validate workflow has connected blocks (at least one edge means blocks are wired together)
+  const hasEdges = useWorkflowStore((state) => state.edges.length > 0)
+  const hasValidationErrors = hasBlocks && !hasEdges
+
   const isWorkflowBlocked = isExecuting || hasValidationErrors
   const isButtonDisabled = !isExecuting && (isWorkflowBlocked || (!canRun && !isLoadingPermissions))
 

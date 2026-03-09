@@ -28,16 +28,13 @@ export function useDeployment({
 
   /**
    * Handle deploy button click
-   * First deploy: calls API to deploy, then opens modal on success
-   * Already deployed: opens modal directly (validation happens on Update in modal)
+   * First deploy: runs pre-deploy checks, calls API to deploy, then opens modal on success
+   * Already deployed: runs pre-deploy checks, then opens modal (redeployment happens in modal)
    */
   const handleDeployClick = useCallback(async () => {
     if (!workflowId) return { success: false, shouldOpenModal: false }
 
-    if (isDeployed) {
-      return { success: true, shouldOpenModal: true }
-    }
-
+    // Always run pre-deploy checks, even for redeployments
     const { blocks, edges, loops, parallels } = useWorkflowStore.getState()
     const liveBlocks = mergeSubblockState(blocks, workflowId)
     const checkResult = runPreDeployChecks({
@@ -54,6 +51,10 @@ export function useDeployment({
         workflowId,
       })
       return { success: false, shouldOpenModal: false }
+    }
+
+    if (isDeployed) {
+      return { success: true, shouldOpenModal: true }
     }
 
     setIsDeploying(true)
