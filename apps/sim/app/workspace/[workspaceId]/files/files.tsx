@@ -172,8 +172,8 @@ export function Files() {
   })
 
   const headerRename = useInlineRename({
-    onSave: (_id, name) => {
-      if (selectedFile) renameFile.mutate({ workspaceId, fileId: selectedFile.id, name })
+    onSave: (fileId, name) => {
+      renameFile.mutate({ workspaceId, fileId, name })
     },
   })
 
@@ -596,7 +596,7 @@ export function Files() {
         columns={COLUMNS}
         rows={rows}
         onRowClick={(id) => {
-          if (listRename.editingId !== id) setSelectedFileId(id)
+          if (listRename.editingId !== id && !headerRename.editingId) setSelectedFileId(id)
         }}
         onRowContextMenu={handleRowContextMenu}
         isLoading={isLoading}

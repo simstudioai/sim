@@ -414,7 +414,7 @@ export function Table({
     setResizingColumn(null)
     clearTimeout(metadataSaveTimerRef.current)
     metadataSaveTimerRef.current = setTimeout(() => {
-      updateMetadataMutation.mutate({ columnWidths: columnWidthsRef.current })
+      updateMetadataRef.current({ columnWidths: columnWidthsRef.current })
     }, 500)
   }, [])
 
@@ -482,6 +482,9 @@ export function Table({
 
   const mutateRef = useRef(updateRowMutation.mutate)
   mutateRef.current = updateRowMutation.mutate
+
+  const updateMetadataRef = useRef(updateMetadataMutation.mutate)
+  updateMetadataRef.current = updateMetadataMutation.mutate
 
   const editingCellRef = useRef(editingCell)
   editingCellRef.current = editingCell
@@ -687,6 +690,8 @@ export function Table({
       if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
         const col = cols[anchor.colIndex]
         if (!col || col.type === 'json' || col.type === 'boolean') return
+        if (col.type === 'number' && !/[\d.-]/.test(e.key)) return
+        if (col.type === 'date' && !/[\d\-/]/.test(e.key)) return
         e.preventDefault()
 
         if (anchor.rowIndex < dataRows.length) {
@@ -1051,7 +1056,9 @@ export function Table({
                       key={column.name}
                       column={column}
                       isRenaming={columnRename.editingId === column.name}
-                      renameValue={columnRename.editValue}
+                      renameValue={
+                        columnRename.editingId === column.name ? columnRename.editValue : ''
+                      }
                       onRenameValueChange={columnRename.setEditValue}
                       onRenameSubmit={columnRename.submitRename}
                       onRenameCancel={columnRename.cancelRename}
