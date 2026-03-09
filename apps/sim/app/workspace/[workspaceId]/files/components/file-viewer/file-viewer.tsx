@@ -120,17 +120,6 @@ function TextEditor({ file, workspaceId, canEdit, onDirtyChange, saveRef }: Text
     }
   }, [saveRef, handleSave])
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-        e.preventDefault()
-        handleSave()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleSave])
-
   if (isLoading) {
     return (
       <div className='flex flex-1 flex-col gap-[8px] p-[24px]'>

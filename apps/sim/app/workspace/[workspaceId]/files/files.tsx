@@ -42,7 +42,7 @@ import {
 } from '@/hooks/queries/workspace-files'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 
-type SaveStatus = 'idle' | 'saving' | 'saved'
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 const logger = createLogger('Files')
 
@@ -300,7 +300,7 @@ export function Files() {
       await saveRef.current()
       setSaveStatus('saved')
     } catch {
-      setSaveStatus('idle')
+      setSaveStatus('error')
     }
   }, [])
 
@@ -353,10 +353,22 @@ export function Files() {
   }, [contextMenuFile, closeContextMenu])
 
   useEffect(() => {
-    if (saveStatus !== 'saved') return
+    if (saveStatus !== 'saved' && saveStatus !== 'error') return
     const timer = setTimeout(() => setSaveStatus('idle'), 2000)
     return () => clearTimeout(timer)
   }, [saveStatus])
+
+  useEffect(() => {
+    if (!selectedFile) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault()
+        handleSave()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedFile, handleSave])
 
   useEffect(() => {
     if (!isDirty) return
@@ -385,7 +397,17 @@ export function Files() {
   }
 
   if (selectedFile) {
-    const saveLabel = saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Save'
+    const isTextEditable = ['md', 'txt', 'json', 'yaml', 'yml', 'csv', 'html', 'htm'].includes(
+      getFileExtension(selectedFile.name)
+    )
+    const saveLabel =
+      saveStatus === 'saving'
+        ? 'Saving...'
+        : saveStatus === 'saved'
+          ? 'Saved'
+          : saveStatus === 'error'
+            ? 'Save failed'
+            : 'Save'
 
     return (
       <div className='flex h-full flex-1 flex-col overflow-hidden bg-white dark:bg-[var(--bg)]'>
@@ -399,17 +421,20 @@ export function Files() {
         <ResourceOptionsBar
           toolbarActions={
             <div className='flex items-center gap-[6px]'>
-              <Button
-                variant='subtle'
-                className={cn(
-                  'px-[8px] py-[4px] text-[12px]',
-                  !isDirty && saveStatus === 'idle' && 'opacity-50'
-                )}
-                onClick={handleSave}
-                disabled={(!isDirty && saveStatus === 'idle') || saveStatus === 'saving'}
-              >
-                {saveLabel}
-              </Button>
+              {isTextEditable && (
+                <Button
+                  variant='subtle'
+                  className={cn(
+                    'px-[8px] py-[4px] text-[12px]',
+                    saveStatus === 'error' && 'text-red-500',
+                    !isDirty && saveStatus === 'idle' && 'opacity-50'
+                  )}
+                  onClick={handleSave}
+                  disabled={(!isDirty && saveStatus === 'idle') || saveStatus === 'saving'}
+                >
+                  {saveLabel}
+                </Button>
+              )}
               <Button
                 variant='subtle'
                 className='px-[8px] py-[4px] text-[12px]'
