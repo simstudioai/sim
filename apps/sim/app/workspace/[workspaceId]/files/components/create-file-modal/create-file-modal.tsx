@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Button,
@@ -29,14 +29,14 @@ export function CreateFileModal({
   onCreated,
   workspaceId,
 }: CreateFileModalProps) {
+  const pendingRef = useRef(false)
+
   const uploadFile = useUploadWorkspaceFile()
 
   const [filename, setFilename] = useState('untitled.md')
   const [error, setError] = useState('')
 
   const handleCreate = useCallback(async () => {
-    if (uploadFile.isPending) return
-
     const trimmed = filename.trim()
     if (!trimmed) {
       setError('Filename is required')
@@ -47,6 +47,9 @@ export function CreateFileModal({
       setError('Filename must have an extension')
       return
     }
+
+    if (pendingRef.current) return
+    pendingRef.current = true
 
     setError('')
 
@@ -67,6 +70,8 @@ export function CreateFileModal({
       const message = err instanceof Error ? err.message : 'Failed to create file'
       setError(message)
       logger.error('Failed to create file:', err)
+    } finally {
+      pendingRef.current = false
     }
   }, [filename, workspaceId, onOpenChange, onCreated])
 
