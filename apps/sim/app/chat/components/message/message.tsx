@@ -3,6 +3,7 @@
 import { memo, useMemo, useState } from 'react'
 import { Check, Copy, File as FileIcon, FileText, Image as ImageIcon } from 'lucide-react'
 import { Tooltip } from '@/components/emcn'
+import { safeRenderValue } from '@/lib/core/utils/safe-render'
 import {
   ChatFileDownload,
   ChatFileDownloadAll,
@@ -50,9 +51,14 @@ export const ClientChatMessage = memo(
       return typeof message.content === 'object' && message.content !== null
     }, [message.content])
 
-    // Since tool calls are now handled via SSE events and stored in message.toolCalls,
-    // we can use the content directly without parsing
-    const cleanTextContent = message.content
+    // Safely convert content to a renderable string to prevent React error #31
+    // when workflow nodes return structured objects (e.g. { text, type })
+    const cleanTextContent = useMemo(() => {
+      if (isJsonObject) {
+        return JSON.stringify(message.content, null, 2)
+      }
+      return safeRenderValue(message.content)
+    }, [message.content, isJsonObject])
 
     const content =
       message.type === 'user' ? (
@@ -161,14 +167,14 @@ export const ClientChatMessage = memo(
             )}
 
             {/* Only render message bubble if there's actual text content (not just file count message) */}
-            {message.content && !String(message.content).startsWith('Sent') && (
+            {cleanTextContent && !cleanTextContent.startsWith('Sent') && (
               <div className='flex justify-end'>
                 <div className='max-w-[80%] rounded-3xl bg-[#F4F4F4] px-4 py-3 dark:bg-gray-600'>
                   <div className='whitespace-pre-wrap break-words text-base text-gray-800 leading-relaxed dark:text-gray-100'>
                     {isJsonObject ? (
-                      <pre>{JSON.stringify(message.content, null, 2)}</pre>
+                      <pre>{cleanTextContent}</pre>
                     ) : (
-                      <span>{message.content as string}</span>
+                      <span>{cleanTextContent}</span>
                     )}
                   </div>
                 </div>
@@ -184,11 +190,9 @@ export const ClientChatMessage = memo(
               <div>
                 <div className='break-words text-base'>
                   {isJsonObject ? (
-                    <pre className='text-gray-800 dark:text-gray-100'>
-                      {JSON.stringify(cleanTextContent, null, 2)}
-                    </pre>
+                    <pre className='text-gray-800 dark:text-gray-100'>{cleanTextContent}</pre>
                   ) : (
-                    <EnhancedMarkdownRenderer content={cleanTextContent as string} />
+                    <EnhancedMarkdownRenderer content={cleanTextContent} />
                   )}
                 </div>
               </div>
@@ -208,11 +212,7 @@ export const ClientChatMessage = memo(
                         <button
                           className='text-muted-foreground transition-colors hover:bg-muted'
                           onClick={() => {
-                            const contentToCopy =
-                              typeof cleanTextContent === 'string'
-                                ? cleanTextContent
-                                : JSON.stringify(cleanTextContent, null, 2)
-                            navigator.clipboard.writeText(contentToCopy)
+                            navigator.clipboard.writeText(cleanTextContent)
                             setIsCopied(true)
                             setTimeout(() => setIsCopied(false), 2000)
                           }}

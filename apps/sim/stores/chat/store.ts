@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { v4 as uuidv4 } from 'uuid'
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
+import { safeRenderValue } from '@/lib/core/utils/safe-render'
 import type { ChatMessage, ChatState } from './types'
 import { MAX_CHAT_HEIGHT, MAX_CHAT_WIDTH, MIN_CHAT_HEIGHT, MIN_CHAT_WIDTH } from './utils'
 
@@ -213,12 +214,10 @@ export const useChatStore = create<ChatState>()(
 
             const newMessages = state.messages.map((message) => {
               if (message.id === messageId) {
-                const newContent =
-                  typeof message.content === 'string'
-                    ? message.content + content
-                    : message.content
-                      ? String(message.content) + content
-                      : content
+                // Safely convert existing content to string before concatenation
+                // to prevent React error #31 when content is a structured object
+                const existingContent = safeRenderValue(message.content)
+                const newContent = existingContent + content
                 logger.debug('[ChatStore] Updated message content', {
                   messageId,
                   oldLength: typeof message.content === 'string' ? message.content.length : 0,
