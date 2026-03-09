@@ -357,9 +357,12 @@ export const Panel = memo(function Panel() {
   const canRun = userPermissions.canRead // Running only requires read permissions
   const isLoadingPermissions = userPermissions.isLoading
 
-  // Validate workflow has connected blocks (at least one edge means blocks are wired together)
+  // Validate workflow has connected blocks when multiple blocks exist.
+  // A single-block workflow (e.g. one starter or agent block) is valid without edges,
+  // but multiple blocks with no edges indicates a disconnected graph.
+  const blockCount = useWorkflowStore((state) => Object.keys(state.blocks).length)
   const hasEdges = useWorkflowStore((state) => state.edges.length > 0)
-  const hasValidationErrors = hasBlocks && !hasEdges
+  const hasValidationErrors = blockCount > 1 && !hasEdges
 
   const isWorkflowBlocked = isExecuting || hasValidationErrors
   const isButtonDisabled = !isExecuting && (isWorkflowBlocked || (!canRun && !isLoadingPermissions))
@@ -377,7 +380,7 @@ export const Panel = memo(function Panel() {
         handler: () => {
           if (isExecuting) {
             void cancelWorkflow()
-          } else {
+          } else if (!isButtonDisabled) {
             void runWorkflow()
           }
         },

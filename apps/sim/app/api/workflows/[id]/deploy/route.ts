@@ -141,6 +141,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       edges: normalizedData.edges,
       loops: normalizedData.loops,
       parallels: normalizedData.parallels,
+      variables: {},
     } as WorkflowState)
     if (!workflowValidation.valid) {
       const errorSummary = workflowValidation.errors.join('; ')
