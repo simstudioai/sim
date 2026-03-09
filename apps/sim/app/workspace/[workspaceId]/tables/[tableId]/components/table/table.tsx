@@ -748,6 +748,7 @@ export function Table({
       setSelectionAnchor(moveCell(anchor, cols.length, totalRows, -1))
     }
     setSelectionFocus(null)
+    containerRef.current?.focus({ preventScroll: true })
   }, [])
 
   const handleInlineSave = useCallback(
@@ -771,6 +772,7 @@ export function Table({
   const handleInlineCancel = useCallback(() => {
     setEditingCell(null)
     setInitialCharacter(null)
+    containerRef.current?.focus({ preventScroll: true })
   }, [])
 
   const handleEmptyRowClick = useCallback((rowIndex: number, columnName: string) => {
@@ -849,6 +851,7 @@ export function Table({
   const handleEmptyRowCancel = useCallback(() => {
     setEditingEmptyCell(null)
     setInitialCharacter(null)
+    containerRef.current?.focus({ preventScroll: true })
   }, [])
 
   const generateColumnName = useCallback(() => {
