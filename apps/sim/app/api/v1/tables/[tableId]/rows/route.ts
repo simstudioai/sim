@@ -153,6 +153,7 @@ async function handleBatchInsert(
         rows: insertedRows.map((r) => ({
           id: r.id,
           data: r.data,
+          position: r.position,
           createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
           updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : r.updatedAt,
         })),
@@ -376,6 +377,7 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
         row: {
           id: row.id,
           data: row.data,
+          position: row.position,
           createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
           updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
         },

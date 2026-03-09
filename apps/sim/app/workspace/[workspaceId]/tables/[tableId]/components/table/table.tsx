@@ -615,30 +615,6 @@ export function Table() {
     setCurrentPage(0)
   }, [])
 
-  const handleFilterToggle = useCallback((column: string, operator: string) => {
-    setQueryOptions((prev) => {
-      if (operator === 'empty') {
-        return { ...prev, filter: { [column]: { $eq: null } } }
-      }
-      if (operator === 'not_empty') {
-        return { ...prev, filter: { [column]: { $ne: null } } }
-      }
-      if (operator === 'eq_true') {
-        return { ...prev, filter: { [column]: true } }
-      }
-      if (operator === 'eq_false') {
-        return { ...prev, filter: { [column]: false } }
-      }
-      return prev
-    })
-    setCurrentPage(0)
-  }, [])
-
-  const handleFilterClear = useCallback(() => {
-    setQueryOptions((prev) => ({ ...prev, filter: null }))
-    setCurrentPage(0)
-  }, [])
-
   const handleFilterApply = useCallback((filter: Filter | null) => {
     setQueryOptions((prev) => ({ ...prev, filter }))
     setCurrentPage(0)
@@ -662,22 +638,6 @@ export function Table() {
     return { column, direction }
   }, [queryOptions.sort])
 
-  const activeFilters = useMemo(() => {
-    if (!queryOptions.filter) return []
-    return Object.entries(queryOptions.filter)
-      .filter(([key]) => key !== '$or' && key !== '$and')
-      .map(([column, condition]) => {
-        if (condition === true) return { column, operator: 'eq_true' }
-        if (condition === false) return { column, operator: 'eq_false' }
-        if (typeof condition === 'object' && condition !== null && !Array.isArray(condition)) {
-          const ops = condition as Record<string, unknown>
-          if ('$eq' in ops && ops.$eq === null) return { column, operator: 'empty' }
-          if ('$ne' in ops && ops.$ne === null) return { column, operator: 'not_empty' }
-        }
-        return { column, operator: 'unknown' }
-      })
-  }, [queryOptions.filter])
-
   const sortConfig = useMemo<SortConfig>(
     () => ({
       options: columnOptions,
@@ -688,15 +648,6 @@ export function Table() {
     [columnOptions, activeSortState, handleSortChange, handleSortClear]
   )
 
-  const filterConfig = useMemo<FilterConfig>(
-    () => ({
-      options: columnOptions,
-      active: activeFilters,
-      onToggle: handleFilterToggle,
-      onClear: handleFilterClear,
-    }),
-    [columnOptions, activeFilters, handleFilterToggle, handleFilterClear]
-  )
 
   if (!isLoadingTable && !tableData) {
     return (

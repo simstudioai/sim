@@ -172,6 +172,7 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
         row: {
           id: updatedRow.id,
           data: updatedRow.data,
+          position: updatedRow.position,
           createdAt:
             updatedRow.createdAt instanceof Date
               ? updatedRow.createdAt.toISOString()
