@@ -12,6 +12,7 @@ import {
   useChatHistory,
 } from '@/hooks/queries/tasks'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type {
   ChatMessage,
   ContentBlock,
@@ -22,6 +23,12 @@ import type {
   ToolCallStatus,
 } from '../types'
 import { SUBAGENT_LABELS } from '../types'
+import {
+  extractFileResource,
+  extractTableResource,
+  extractWorkflowResource,
+  RESOURCE_TOOL_NAMES,
+} from '../utils'
 
 export interface UseChatReturn {
   messages: ChatMessage[]
@@ -76,60 +83,6 @@ const logger = createLogger('useChat')
 
 function getPayloadData(payload: SSEPayload): SSEPayloadData | undefined {
   return typeof payload.data === 'object' ? payload.data : undefined
-}
-
-const RESOURCE_TOOL_NAMES = new Set(['user_table', 'workspace_file'])
-
-function getResultData(parsed: SSEPayload): Record<string, unknown> | undefined {
-  const topResult = parsed.result as Record<string, unknown> | undefined
-  const nestedResult =
-    typeof parsed.data === 'object' ? (parsed.data?.result as Record<string, unknown>) : undefined
-  const result = topResult ?? nestedResult
-  return result?.data as Record<string, unknown> | undefined
-}
-
-function extractTableResource(
-  parsed: SSEPayload,
-  storedArgs: Record<string, unknown> | undefined,
-  fallbackTableId: string | null
-): MothershipResource | null {
-  const data = getResultData(parsed)
-  const storedInnerArgs = storedArgs?.args as Record<string, unknown> | undefined
-
-  const table = data?.table as Record<string, unknown> | undefined
-  if (table?.id) {
-    return { type: 'table', id: table.id as string, title: (table.name as string) || 'Table' }
-  }
-
-  const tableId =
-    (data?.tableId as string) ?? storedInnerArgs?.tableId ?? storedArgs?.tableId ?? fallbackTableId
-  const tableName = (data?.tableName as string) || (table?.name as string) || 'Table'
-  if (tableId) return { type: 'table', id: tableId as string, title: tableName }
-
-  return null
-}
-
-function extractFileResource(
-  parsed: SSEPayload,
-  storedArgs: Record<string, unknown> | undefined
-): MothershipResource | null {
-  const data = getResultData(parsed)
-  const storedInnerArgs = storedArgs?.args as Record<string, unknown> | undefined
-
-  const file = data?.file as Record<string, unknown> | undefined
-  if (file?.id) {
-    return { type: 'file', id: file.id as string, title: (file.name as string) || 'File' }
-  }
-
-  const fileId = (data?.fileId as string) ?? (data?.id as string)
-  const fileName =
-    (data?.fileName as string) ||
-    (data?.name as string) ||
-    (storedInnerArgs?.fileName as string) ||
-    'File'
-  if (fileId && typeof fileId === 'string') return { type: 'file', id: fileId, title: fileName }
-
-  return null
 }
 
 export function useChat(workspaceId: string, initialChatId?: string): UseChatReturn {
@@ -211,6 +164,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       const blocks: ContentBlock[] = []
       const toolMap = new Map<string, number>()
       let lastTableId: string | null = null
+      let lastWorkflowId: string | null = null
 
       const ensureTextBlock = (): ContentBlock => {
         const last = blocks[blocks.length - 1]
@@ -348,6 +302,32 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                     queryClient.invalidateQueries({
                       queryKey: workspaceFilesKeys.content(workspaceId, resource.id),
                     })
+                  }
+                } else if (toolName === 'create_workflow' || toolName === 'edit_workflow') {
+                  resource = extractWorkflowResource(parsed, lastWorkflowId)
+                  if (resource) {
+                    lastWorkflowId = resource.id
+                    const registry = useWorkflowRegistry.getState()
+                    if (!registry.workflows[resource.id]) {
+                      useWorkflowRegistry.setState((state) => ({
+                        workflows: {
+                          ...state.workflows,
+                          [resource!.id]: {
+                            id: resource!.id,
+                            name: resource!.title,
+                            lastModified: new Date(),
+                            createdAt: new Date(),
+                            color: '#7F2FFF',
+                            workspaceId,
+                            folderId: null,
+                            sortOrder: 0,
+                          },
+                        },
+                      }))
+                      registry.setActiveWorkflow(resource.id)
+                    } else {
+                      registry.loadWorkflowState(resource.id)
+                    }
                   }
                 }
 

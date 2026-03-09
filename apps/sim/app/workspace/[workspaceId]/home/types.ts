@@ -66,7 +66,7 @@ export interface SSEPayload {
   result?: Record<string, unknown>
 }
 
-export type MothershipResourceType = 'table' | 'file'
+export type MothershipResourceType = 'table' | 'file' | 'workflow'
 
 export interface MothershipResource {
   type: MothershipResourceType
