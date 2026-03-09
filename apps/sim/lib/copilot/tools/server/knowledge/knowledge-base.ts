@@ -16,6 +16,7 @@ import {
   updateTagDefinition,
 } from '@/lib/knowledge/tags/service'
 import { getQueryStrategy, handleVectorOnlySearch } from '@/app/api/knowledge/search/utils'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('KnowledgeBaseServerTool')
 
@@ -52,7 +53,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const requestId = crypto.randomUUID().slice(0, 8)
+          const requestId = generateId().slice(0, 8)
           const newKnowledgeBase = await createKnowledgeBase(
             {
               name: args.name,
@@ -273,7 +274,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const requestId = crypto.randomUUID().slice(0, 8)
+          const requestId = generateId().slice(0, 8)
           const newTag = await createTagDefinition(
             {
               knowledgeBaseId: args.knowledgeBaseId,
@@ -322,7 +323,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const requestId = crypto.randomUUID().slice(0, 8)
+          const requestId = generateId().slice(0, 8)
           const updatedTag = await updateTagDefinition(args.tagDefinitionId, updateData, requestId)
 
           logger.info('Tag definition updated via copilot', {
@@ -350,7 +351,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const requestId = crypto.randomUUID().slice(0, 8)
+          const requestId = generateId().slice(0, 8)
           const deleted = await deleteTagDefinition(args.tagDefinitionId, requestId)
 
           logger.info('Tag definition deleted via copilot', {
@@ -378,7 +379,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const requestId = crypto.randomUUID().slice(0, 8)
+          const requestId = generateId().slice(0, 8)
           const stats = await getTagUsageStats(args.knowledgeBaseId, requestId)
 
           return {

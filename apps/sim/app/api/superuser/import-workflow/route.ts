@@ -11,6 +11,7 @@ import {
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { sanitizeForExport } from '@/lib/workflows/sanitization/json-sanitizer'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('SuperUserImportWorkflow')
 
@@ -117,7 +118,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create new workflow record
-    const newWorkflowId = crypto.randomUUID()
+    const newWorkflowId = generateId()
     const now = new Date()
 
     await db.insert(workflow).values({

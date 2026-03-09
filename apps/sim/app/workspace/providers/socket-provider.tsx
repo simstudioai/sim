@@ -15,6 +15,7 @@ import { useParams } from 'next/navigation'
 import { io, type Socket } from 'socket.io-client'
 import { getEnv } from '@/lib/core/config/env'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('SocketContext')
 
@@ -25,7 +26,7 @@ function getTabSessionId(): string {
 
   let tabSessionId = sessionStorage.getItem(TAB_SESSION_ID_KEY)
   if (!tabSessionId) {
-    tabSessionId = crypto.randomUUID()
+    tabSessionId = generateId()
     sessionStorage.setItem(TAB_SESSION_ID_KEY, tabSessionId)
   }
   return tabSessionId

@@ -7,6 +7,7 @@ import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import type { Variable, VariablesStore } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('VariablesStore')
 
@@ -108,7 +109,7 @@ export const useVariablesStore = create<VariablesStore>()(
     },
 
     addVariable: (variable, providedId?: string) => {
-      const id = providedId || crypto.randomUUID()
+      const id = providedId || generateId()
 
       const workflowVariables = get().getVariablesByWorkflowId(variable.workflowId)
 
@@ -236,7 +237,7 @@ export const useVariablesStore = create<VariablesStore>()(
 
               for (const { blockId, subBlockId, value } of changedSubBlocks) {
                 operationQueue.addToQueue({
-                  id: crypto.randomUUID(),
+                  id: generateId(),
                   operation: {
                     operation: 'subblock-update',
                     target: 'subblock',

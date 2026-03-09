@@ -3,6 +3,7 @@ import { usageLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('UsageLog')
 
@@ -77,7 +78,7 @@ export async function logModelUsage(params: LogModelUsageParams): Promise<void> 
     }
 
     await db.insert(usageLog).values({
-      id: crypto.randomUUID(),
+      id: generateId(),
       userId: params.userId,
       category: 'model',
       source: params.source,
@@ -114,7 +115,7 @@ export async function logFixedUsage(params: LogFixedUsageParams): Promise<void> 
 
   try {
     await db.insert(usageLog).values({
-      id: crypto.randomUUID(),
+      id: generateId(),
       userId: params.userId,
       category: 'fixed',
       source: params.source,
@@ -182,7 +183,7 @@ export async function logWorkflowUsageBatch(params: LogWorkflowUsageBatchParams)
 
   if (params.baseExecutionCharge && params.baseExecutionCharge > 0) {
     entries.push({
-      id: crypto.randomUUID(),
+      id: generateId(),
       userId: params.userId,
       category: 'fixed',
       source: 'workflow',
@@ -199,7 +200,7 @@ export async function logWorkflowUsageBatch(params: LogWorkflowUsageBatchParams)
     for (const [modelName, modelData] of Object.entries(params.models)) {
       if (modelData.total > 0) {
         entries.push({
-          id: crypto.randomUUID(),
+          id: generateId(),
           userId: params.userId,
           category: 'model',
           source: 'workflow',

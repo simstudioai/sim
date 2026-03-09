@@ -12,6 +12,7 @@ import {
 import { folderKeys, useCreateFolder } from '@/hooks/queries/folders'
 import { useCreateWorkflow, workflowKeys } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('useImportWorkflow')
 
@@ -87,7 +88,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
           > = {}
 
           for (const v of variablesArray) {
-            const id = typeof v.id === 'string' && v.id.trim() ? v.id : crypto.randomUUID()
+            const id = typeof v.id === 'string' && v.id.trim() ? v.id : generateId()
             variablesRecord[id] = {
               id,
               workflowId: newWorkflowId,

@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('CredentialDraftAPI')
 
@@ -75,7 +76,7 @@ export async function POST(request: Request) {
     await db
       .insert(pendingCredentialDraft)
       .values({
-        id: crypto.randomUUID(),
+        id: generateId(),
         userId,
         workspaceId,
         providerId,

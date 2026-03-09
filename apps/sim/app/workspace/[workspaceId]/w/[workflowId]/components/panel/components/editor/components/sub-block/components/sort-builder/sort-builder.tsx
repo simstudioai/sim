@@ -6,6 +6,7 @@ import { useTableColumns } from '@/lib/table/hooks'
 import { SORT_DIRECTIONS, type SortRule } from '@/lib/table/query-builder/constants'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { SortRuleRow } from './components/sort-rule-row'
+import { generateId } from '@/lib/core/utils/id'
 
 interface SortBuilderProps {
   blockId: string
@@ -18,7 +19,7 @@ interface SortBuilderProps {
 }
 
 const createDefaultRule = (columns: ComboboxOption[]): SortRule => ({
-  id: crypto.randomUUID(),
+  id: generateId(),
   column: columns[0]?.value || '',
   direction: 'asc',
   collapsed: false,

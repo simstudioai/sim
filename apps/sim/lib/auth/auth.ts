@@ -78,6 +78,7 @@ const logger = createLogger('Auth')
 
 import { getMicrosoftRefreshTokenExpiry, isMicrosoftProvider } from '@/lib/oauth/microsoft'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import { generateId } from '@/lib/core/utils/id'
 
 const validStripeKey = env.STRIPE_SECRET_KEY
 
@@ -370,7 +371,7 @@ export const auth = betterAuth({
           }
 
           // Sync webhooks for credential sets after connecting a new credential
-          const requestId = crypto.randomUUID().slice(0, 8)
+          const requestId = generateId().slice(0, 8)
           const userMemberships = await db
             .select({
               credentialSetId: schema.credentialSetMember.credentialSetId,
@@ -816,7 +817,7 @@ export const auth = betterAuth({
               const now = new Date()
 
               return {
-                id: `${profile.id.toString()}-${crypto.randomUUID()}`,
+                id: `${profile.id.toString()}-${generateId()}`,
                 name: profile.name || profile.login,
                 email: profile.email,
                 image: profile.avatar_url,
@@ -854,7 +855,7 @@ export const auth = betterAuth({
               const profile = await response.json()
               const now = new Date()
               return {
-                id: `${profile.sub}-${crypto.randomUUID()}`,
+                id: `${profile.sub}-${generateId()}`,
                 name: profile.name || 'Google User',
                 email: profile.email,
                 image: profile.picture || undefined,
@@ -890,7 +891,7 @@ export const auth = betterAuth({
               const profile = await response.json()
               const now = new Date()
               return {
-                id: `${profile.sub}-${crypto.randomUUID()}`,
+                id: `${profile.sub}-${generateId()}`,
                 name: profile.name || 'Google User',
                 email: profile.email,
                 image: profile.picture || undefined,
@@ -926,7 +927,7 @@ export const auth = betterAuth({
               const profile = await response.json()
               const now = new Date()
               return {
-                id: `${profile.sub}-${crypto.randomUUID()}`,
+                id: `${profile.sub}-${generateId()}`,
                 name: profile.name || 'Google User',
                 email: profile.email,
                 image: profile.picture || undefined,
@@ -962,7 +963,7 @@ export const auth = betterAuth({
               const profile = await response.json()
               const now = new Date()
               return {
-                id: `${profile.sub}-${crypto.randomUUID()}`,
+                id: `${profile.sub}-${generateId()}`,
                 name: profile.name || 'Google User',
                 email: profile.email,
                 image: profile.picture || undefined,
@@ -998,7 +999,7 @@ export const auth = betterAuth({
               const profile = await response.json()
               const now = new Date()
               return {
-                id: `${profile.sub}-${crypto.randomUUID()}`,
+                id: `${profile.sub}-${generateId()}`,
                 name: profile.name || 'Google User',
                 email: profile.email,
                 image: profile.picture || undefined,
@@ -1035,7 +1036,7 @@ export const auth = betterAuth({
               const profile = await response.json()
               const now = new Date()
               return {
-                id: `${profile.sub}-${crypto.randomUUID()}`,
+                id: `${profile.sub}-${generateId()}`,
                 name: profile.name || 'Google User',
                 email: profile.email,
                 image: profile.picture || undefined,
@@ -1071,7 +1072,7 @@ export const auth = betterAuth({
               const profile = await response.json()
               const now = new Date()
               return {
-                id: `${profile.sub}-${crypto.randomUUID()}`,
+                id: `${profile.sub}-${generateId()}`,
                 name: profile.name || 'Google User',
                 email: profile.email,
                 image: profile.picture || undefined,
@@ -1107,7 +1108,7 @@ export const auth = betterAuth({
               const profile = await response.json()
               const now = new Date()
               return {
-                id: `${profile.sub}-${crypto.randomUUID()}`,
+                id: `${profile.sub}-${generateId()}`,
                 name: profile.name || 'Google User',
                 email: profile.email,
                 image: profile.picture || undefined,
@@ -1144,7 +1145,7 @@ export const auth = betterAuth({
               const profile = await response.json()
               const now = new Date()
               return {
-                id: `${profile.sub}-${crypto.randomUUID()}`,
+                id: `${profile.sub}-${generateId()}`,
                 name: profile.name || 'Google User',
                 email: profile.email,
                 image: profile.picture || undefined,
@@ -1181,7 +1182,7 @@ export const auth = betterAuth({
               const profile = await response.json()
               const now = new Date()
               return {
-                id: `${profile.sub}-${crypto.randomUUID()}`,
+                id: `${profile.sub}-${generateId()}`,
                 name: profile.name || 'Google User',
                 email: profile.email,
                 image: profile.picture || undefined,
@@ -1218,7 +1219,7 @@ export const auth = betterAuth({
               const profile = await response.json()
               const now = new Date()
               return {
-                id: `${profile.sub}-${crypto.randomUUID()}`,
+                id: `${profile.sub}-${generateId()}`,
                 name: profile.name || 'Google User',
                 email: profile.email,
                 image: profile.picture || undefined,
@@ -1254,7 +1255,7 @@ export const auth = betterAuth({
               const profile = await response.json()
               const now = new Date()
               return {
-                id: `${profile.sub}-${crypto.randomUUID()}`,
+                id: `${profile.sub}-${generateId()}`,
                 name: profile.name || 'Google User',
                 email: profile.email,
                 image: profile.picture || undefined,
@@ -1291,7 +1292,7 @@ export const auth = betterAuth({
               const profile = await response.json()
               const now = new Date()
               return {
-                id: `${profile.sub}-${crypto.randomUUID()}`,
+                id: `${profile.sub}-${generateId()}`,
                 name: profile.name || 'Google User',
                 email: profile.email,
                 image: profile.picture || undefined,
@@ -1332,7 +1333,7 @@ export const auth = betterAuth({
               const profile = await response.json()
               const now = new Date()
               return {
-                id: `${profile.id}-${crypto.randomUUID()}`,
+                id: `${profile.id}-${generateId()}`,
                 name: profile.displayName || 'Microsoft User',
                 email: profile.mail || profile.userPrincipalName,
                 emailVerified: true,
@@ -1372,7 +1373,7 @@ export const auth = betterAuth({
               const profile = await response.json()
               const now = new Date()
               return {
-                id: `${profile.id}-${crypto.randomUUID()}`,
+                id: `${profile.id}-${generateId()}`,
                 name: profile.displayName || 'Microsoft User',
                 email: profile.mail || profile.userPrincipalName,
                 emailVerified: true,
@@ -1418,7 +1419,7 @@ export const auth = betterAuth({
             const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'))
             const now = new Date()
             return {
-              id: `${payload.oid || payload.sub}-${crypto.randomUUID()}`,
+              id: `${payload.oid || payload.sub}-${generateId()}`,
               name: payload.name || 'Microsoft User',
               email: payload.preferred_username || payload.email || payload.upn,
               emailVerified: true,
@@ -1453,7 +1454,7 @@ export const auth = betterAuth({
               const profile = await response.json()
               const now = new Date()
               return {
-                id: `${profile.id}-${crypto.randomUUID()}`,
+                id: `${profile.id}-${generateId()}`,
                 name: profile.displayName || 'Microsoft User',
                 email: profile.mail || profile.userPrincipalName,
                 emailVerified: true,
@@ -1493,7 +1494,7 @@ export const auth = betterAuth({
               const profile = await response.json()
               const now = new Date()
               return {
-                id: `${profile.id}-${crypto.randomUUID()}`,
+                id: `${profile.id}-${generateId()}`,
                 name: profile.displayName || 'Microsoft User',
                 email: profile.mail || profile.userPrincipalName,
                 emailVerified: true,
@@ -1533,7 +1534,7 @@ export const auth = betterAuth({
               const profile = await response.json()
               const now = new Date()
               return {
-                id: `${profile.id}-${crypto.randomUUID()}`,
+                id: `${profile.id}-${generateId()}`,
                 name: profile.displayName || 'Microsoft User',
                 email: profile.mail || profile.userPrincipalName,
                 emailVerified: true,
@@ -1573,7 +1574,7 @@ export const auth = betterAuth({
               const profile = await response.json()
               const now = new Date()
               return {
-                id: `${profile.id}-${crypto.randomUUID()}`,
+                id: `${profile.id}-${generateId()}`,
                 name: profile.displayName || 'Microsoft User',
                 email: profile.mail || profile.userPrincipalName,
                 emailVerified: true,
@@ -1605,7 +1606,7 @@ export const auth = betterAuth({
               const now = new Date()
 
               return {
-                id: `${uniqueId}-${crypto.randomUUID()}`,
+                id: `${uniqueId}-${generateId()}`,
                 name: 'Wealthbox User',
                 email: `${uniqueId}@wealthbox.user`,
                 emailVerified: false,
@@ -1652,7 +1653,7 @@ export const auth = betterAuth({
               const user = data.data
 
               return {
-                id: `${user.id.toString()}-${crypto.randomUUID()}`,
+                id: `${user.id.toString()}-${generateId()}`,
                 name: user.name,
                 email: user.email,
                 emailVerified: user.activated,
@@ -1720,7 +1721,7 @@ export const auth = betterAuth({
               })
 
               return {
-                id: `${(data.user_id || data.hub_id).toString()}-${crypto.randomUUID()}`,
+                id: `${(data.user_id || data.hub_id).toString()}-${generateId()}`,
                 name: data.user || 'HubSpot User',
                 email: data.user || `hubspot-${data.hub_id}@hubspot.com`,
                 emailVerified: true,
@@ -1775,7 +1776,7 @@ export const auth = betterAuth({
               const data = await response.json()
 
               return {
-                id: `${(data.user_id || data.sub).toString()}-${crypto.randomUUID()}`,
+                id: `${(data.user_id || data.sub).toString()}-${generateId()}`,
                 name: data.name || 'Salesforce User',
                 email: data.email || `salesforce-${data.user_id}@salesforce.com`,
                 emailVerified: data.email_verified || true,
@@ -1835,7 +1836,7 @@ export const auth = betterAuth({
               const now = new Date()
 
               return {
-                id: `${profile.data.id.toString()}-${crypto.randomUUID()}`,
+                id: `${profile.data.id.toString()}-${generateId()}`,
                 name: profile.data.name || 'X User',
                 email: `${profile.data.username}@x.com`,
                 image: profile.data.profile_image_url,
@@ -1887,7 +1888,7 @@ export const auth = betterAuth({
               const now = new Date()
 
               return {
-                id: `${profile.account_id.toString()}-${crypto.randomUUID()}`,
+                id: `${profile.account_id.toString()}-${generateId()}`,
                 name: profile.name || profile.display_name || 'Confluence User',
                 email: profile.email || `${profile.account_id}@atlassian.com`,
                 image: profile.picture || undefined,
@@ -1939,7 +1940,7 @@ export const auth = betterAuth({
               const now = new Date()
 
               return {
-                id: `${profile.account_id.toString()}-${crypto.randomUUID()}`,
+                id: `${profile.account_id.toString()}-${generateId()}`,
                 name: profile.name || profile.display_name || 'Jira User',
                 email: profile.email || `${profile.account_id}@atlassian.com`,
                 image: profile.picture || undefined,
@@ -1990,7 +1991,7 @@ export const auth = betterAuth({
               const now = new Date()
 
               return {
-                id: `${data.id.toString()}-${crypto.randomUUID()}`,
+                id: `${data.id.toString()}-${generateId()}`,
                 name: data.email ? data.email.split('@')[0] : 'Airtable User',
                 email: data.email || `${data.id}@airtable.user`,
                 emailVerified: !!data.email,
@@ -2040,7 +2041,7 @@ export const auth = betterAuth({
               const now = new Date()
 
               return {
-                id: `${(profile.bot?.owner?.user?.id || profile.id).toString()}-${crypto.randomUUID()}`,
+                id: `${(profile.bot?.owner?.user?.id || profile.id).toString()}-${generateId()}`,
                 name: profile.name || profile.bot?.owner?.user?.name || 'Notion User',
                 email: profile.person?.email || `${profile.id}@notion.user`,
                 emailVerified: !!profile.person?.email,
@@ -2091,7 +2092,7 @@ export const auth = betterAuth({
               const now = new Date()
 
               return {
-                id: `${data.id.toString()}-${crypto.randomUUID()}`,
+                id: `${data.id.toString()}-${generateId()}`,
                 name: data.name || 'Reddit User',
                 email: `${data.name}@reddit.user`,
                 image: data.icon_img || undefined,
@@ -2163,7 +2164,7 @@ export const auth = betterAuth({
               const viewer = data.viewer
 
               return {
-                id: `${viewer.id.toString()}-${crypto.randomUUID()}`,
+                id: `${viewer.id.toString()}-${generateId()}`,
                 email: viewer.email,
                 name: viewer.name,
                 emailVerified: true,
@@ -2214,7 +2215,7 @@ export const auth = betterAuth({
               const member = data[0]
 
               return {
-                id: `${member.id.workspace_member_id}-${crypto.randomUUID()}`,
+                id: `${member.id.workspace_member_id}-${generateId()}`,
                 email: member.email_address,
                 name:
                   `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim() ||
@@ -2271,7 +2272,7 @@ export const auth = betterAuth({
               const data = await response.json()
 
               return {
-                id: `${data.account_id.toString()}-${crypto.randomUUID()}`,
+                id: `${data.account_id.toString()}-${generateId()}`,
                 email: data.email,
                 name: data.name?.display_name || data.email,
                 emailVerified: data.email_verified || false,
@@ -2323,7 +2324,7 @@ export const auth = betterAuth({
               const now = new Date()
 
               return {
-                id: `${profile.gid.toString()}-${crypto.randomUUID()}`,
+                id: `${profile.gid.toString()}-${generateId()}`,
                 name: profile.name || 'Asana User',
                 email: profile.email || `${profile.gid}@asana.user`,
                 image: profile.photo?.image_128x128 || undefined,
@@ -2384,7 +2385,7 @@ export const auth = betterAuth({
               logger.info('Slack credential identifier', { teamId, userId, uniqueId, teamName })
 
               return {
-                id: `${uniqueId}-${crypto.randomUUID()}`,
+                id: `${uniqueId}-${generateId()}`,
                 name: teamName,
                 email: `${teamId}-${userId}@slack.bot`,
                 emailVerified: false,
@@ -2435,7 +2436,7 @@ export const auth = betterAuth({
               const uniqueId = `webflow-${userId}`
 
               return {
-                id: `${uniqueId}-${crypto.randomUUID()}`,
+                id: `${uniqueId}-${generateId()}`,
                 name: data.user_name || 'Webflow User',
                 email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@webflow.user`,
                 emailVerified: false,
@@ -2483,7 +2484,7 @@ export const auth = betterAuth({
               const profile = await response.json()
 
               return {
-                id: `${profile.sub}-${crypto.randomUUID()}`,
+                id: `${profile.sub}-${generateId()}`,
                 name: profile.name || 'LinkedIn User',
                 email: profile.email || `${profile.sub}@linkedin.user`,
                 emailVerified: profile.email_verified || true,
@@ -2534,7 +2535,7 @@ export const auth = betterAuth({
               const profile = await response.json()
 
               return {
-                id: `${profile.id.toString()}-${crypto.randomUUID()}`,
+                id: `${profile.id.toString()}-${generateId()}`,
                 name:
                   `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Zoom User',
                 email: profile.email || `${profile.id}@zoom.user`,
@@ -2584,7 +2585,7 @@ export const auth = betterAuth({
               const profile = await response.json()
 
               return {
-                id: `${profile.id.toString()}-${crypto.randomUUID()}`,
+                id: `${profile.id.toString()}-${generateId()}`,
                 name: profile.display_name || 'Spotify User',
                 email: profile.email || `${profile.id}@spotify.user`,
                 emailVerified: true,
@@ -2633,7 +2634,7 @@ export const auth = betterAuth({
               const profile = await response.json()
 
               return {
-                id: `${profile.ID?.toString() || profile.id?.toString()}-${crypto.randomUUID()}`,
+                id: `${profile.ID?.toString() || profile.id?.toString()}-${generateId()}`,
                 name: profile.display_name || profile.username || 'WordPress User',
                 email: profile.email || `${profile.username}@wordpress.com`,
                 emailVerified: profile.email_verified || false,
@@ -2684,7 +2685,7 @@ export const auth = betterAuth({
               const profile = data.data || data
 
               return {
-                id: `${profile.id?.toString()}-${crypto.randomUUID()}`,
+                id: `${profile.id?.toString()}-${generateId()}`,
                 name: profile.name || 'Cal.com User',
                 email: profile.email || `${profile.id}@cal.com`,
                 emailVerified: true,

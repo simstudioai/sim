@@ -11,6 +11,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('CredentialSetInviteToken')
 
@@ -125,11 +126,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     }
 
     const now = new Date()
-    const requestId = crypto.randomUUID().slice(0, 8)
+    const requestId = generateId().slice(0, 8)
 
     await db.transaction(async (tx) => {
       await tx.insert(credentialSetMember).values({
-        id: crypto.randomUUID(),
+        id: generateId(),
         credentialSetId: invitation.credentialSetId,
         userId: session.user.id,
         status: 'active',

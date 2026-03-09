@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type Redis from 'ioredis'
 import {
+import { generateId } from '@/lib/core/utils/id'
   type EnqueueOptions,
   JOB_MAX_LIFETIME_SECONDS,
   JOB_RETENTION_SECONDS,
@@ -72,7 +73,7 @@ export class RedisJobQueue implements JobQueueBackend {
     payload: TPayload,
     options?: EnqueueOptions
   ): Promise<string> {
-    const jobId = `run_${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`
+    const jobId = `run_${generateId().replace(/-/g, '').slice(0, 20)}`
     const now = new Date()
 
     const job: Job<TPayload> = {

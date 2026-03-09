@@ -9,6 +9,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getUserEntityPermissions, workspaceExists } from '@/lib/workspaces/permissions/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('WorkflowAPI')
 
@@ -140,7 +141,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const workflowId = crypto.randomUUID()
+    const workflowId = generateId()
     const now = new Date()
 
     logger.info(`[${requestId}] Creating workflow ${workflowId} for user ${userId}`)

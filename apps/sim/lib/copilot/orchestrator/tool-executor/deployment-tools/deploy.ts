@@ -11,6 +11,7 @@ import { deployWorkflow, undeployWorkflow } from '@/lib/workflows/persistence/ut
 import { checkChatAccess, checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
 import { ensureWorkflowAccess } from '../access'
 import type { DeployApiParams, DeployChatParams, DeployMcpParams } from '../param-types'
+import { generateId } from '@/lib/core/utils/id'
 
 export async function executeDeployApi(
   params: DeployApiParams,
@@ -165,7 +166,7 @@ export async function executeDeployChat(
         .where(eq(chat.id, existingDeployment.id))
     } else {
       await db.insert(chat).values({
-        id: crypto.randomUUID(),
+        id: generateId(),
         workflowId,
         userId: context.userId,
         identifier: payload.identifier,
@@ -275,7 +276,7 @@ export async function executeDeployMcp(
       }
     }
 
-    const toolId = crypto.randomUUID()
+    const toolId = generateId()
     await db.insert(workflowMcpTool).values({
       id: toolId,
       serverId,

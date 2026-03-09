@@ -9,6 +9,7 @@ import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.server'
 import { ensureWorkflowAccess } from '../access'
 import type {
+import { generateId } from '@/lib/core/utils/id'
   CheckDeploymentStatusParams,
   CreateWorkspaceMcpServerParams,
   ListWorkspaceMcpServersParams,
@@ -177,7 +178,7 @@ export async function executeCreateWorkspaceMcpServer(
       return { success: false, error: 'name is required' }
     }
 
-    const serverId = crypto.randomUUID()
+    const serverId = generateId()
     const [server] = await db
       .insert(workflowMcpServer)
       .values({
@@ -209,7 +210,7 @@ export async function executeCreateWorkspaceMcpServer(
         const toolName = sanitizeToolName(wf.name || `workflow_${wf.id}`)
         const parameterSchema = await generateParameterSchemaForWorkflow(wf.id)
         await db.insert(workflowMcpTool).values({
-          id: crypto.randomUUID(),
+          id: generateId(),
           serverId,
           workflowId: wf.id,
           toolName,

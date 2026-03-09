@@ -4,6 +4,7 @@ import { prepareExecutionContext } from '@/lib/copilot/orchestrator/tool-executo
 import type { OrchestratorOptions, OrchestratorResult } from '@/lib/copilot/orchestrator/types'
 import { env } from '@/lib/core/config/env'
 import { buildToolCallSummaries, createStreamingContext, runStreamLoop } from './stream-core'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('CopilotOrchestrator')
 
@@ -23,7 +24,7 @@ export async function orchestrateCopilotStream(
   const payloadMsgId = requestPayload?.messageId
   const context = createStreamingContext({
     chatId,
-    messageId: typeof payloadMsgId === 'string' ? payloadMsgId : crypto.randomUUID(),
+    messageId: typeof payloadMsgId === 'string' ? payloadMsgId : generateId(),
   })
 
   try {

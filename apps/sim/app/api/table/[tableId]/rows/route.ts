@@ -19,6 +19,7 @@ import {
 } from '@/lib/table'
 import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
 import { accessError, checkAccess } from '../../utils'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('TableRowsAPI')
 
@@ -132,7 +133,7 @@ async function handleBatchInsert(
 
   const now = new Date()
   const rowsToInsert = validated.rows.map((data) => ({
-    id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
+    id: `row_${generateId().replace(/-/g, '')}`,
     tableId,
     workspaceId,
     data,
@@ -218,7 +219,7 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
       )
     }
 
-    const rowId = `row_${crypto.randomUUID().replace(/-/g, '')}`
+    const rowId = `row_${generateId().replace(/-/g, '')}`
     const now = new Date()
 
     const [row] = await db

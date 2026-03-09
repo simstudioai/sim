@@ -9,6 +9,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import {
+import { generateId } from '@/lib/core/utils/id'
   getUsersWithPermissions,
   hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
@@ -160,7 +161,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           )
 
         await tx.insert(permissions).values({
-          id: crypto.randomUUID(),
+          id: generateId(),
           userId: update.userId,
           entityType: 'workspace' as const,
           entityId: workspaceId,

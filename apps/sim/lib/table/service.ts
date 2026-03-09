@@ -29,6 +29,7 @@ import type {
   UpdateRowData,
 } from './types'
 import {
+import { generateId } from '@/lib/core/utils/id'
   checkBatchUniqueConstraintsDb,
   checkUniqueConstraintsDb,
   getUniqueColumns,
@@ -149,7 +150,7 @@ export async function createTable(
     throw new Error(`Table with name "${data.name}" already exists in this workspace`)
   }
 
-  const tableId = `tbl_${crypto.randomUUID().replace(/-/g, '')}`
+  const tableId = `tbl_${generateId().replace(/-/g, '')}`
   const now = new Date()
 
   // Use provided maxRows (from billing plan) or fall back to default
@@ -240,7 +241,7 @@ export async function insertRow(
     }
   }
 
-  const rowId = `row_${crypto.randomUUID().replace(/-/g, '')}`
+  const rowId = `row_${generateId().replace(/-/g, '')}`
   const now = new Date()
 
   const newRow = {
@@ -316,7 +317,7 @@ export async function batchInsertRows(
 
   const now = new Date()
   const rowsToInsert = data.rows.map((rowData) => ({
-    id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
+    id: `row_${generateId().replace(/-/g, '')}`,
     tableId: data.tableId,
     workspaceId: data.workspaceId,
     data: rowData,

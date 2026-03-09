@@ -4,6 +4,7 @@ import type {
   MessageFileAttachment,
 } from '@/stores/panel/copilot/types'
 import type { ClientContentBlock, ClientStreamingContext } from './types'
+import { generateId } from '@/lib/core/utils/id'
 
 const TEXT_BLOCK_TYPE = 'text'
 const THINKING_BLOCK_TYPE = 'thinking'
@@ -16,7 +17,7 @@ export function createUserMessage(
   messageId?: string
 ): CopilotMessage {
   return {
-    id: messageId || crypto.randomUUID(),
+    id: messageId || generateId(),
     role: 'user',
     content,
     timestamp: new Date().toISOString(),
@@ -31,7 +32,7 @@ export function createUserMessage(
 
 export function createStreamingMessage(): CopilotMessage {
   return {
-    id: crypto.randomUUID(),
+    id: generateId(),
     role: 'assistant',
     content: '',
     timestamp: new Date().toISOString(),

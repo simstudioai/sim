@@ -67,6 +67,7 @@ import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('CopilotStore')
 
@@ -2527,7 +2528,7 @@ export const useCopilotStore = create<CopilotStore>()(
     // Message queue actions
     addToQueue: (message, options) => {
       const queuedMessage: import('./types').QueuedMessage = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         content: message,
         fileAttachments: options?.fileAttachments,
         contexts: options?.contexts,

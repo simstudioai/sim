@@ -8,6 +8,7 @@ import { McpDomainNotAllowedError, validateMcpDomain } from '@/lib/mcp/domain-ch
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import {
+import { generateId } from '@/lib/core/utils/id'
   createMcpErrorResponse,
   createMcpSuccessResponse,
   generateMcpServerId,
@@ -83,7 +84,7 @@ export const POST = withMcpAuth('write')(
         throw e
       }
 
-      const serverId = body.url ? generateMcpServerId(workspaceId, body.url) : crypto.randomUUID()
+      const serverId = body.url ? generateMcpServerId(workspaceId, body.url) : generateId()
 
       const [existingServer] = await db
         .select({ id: mcpServers.id, deletedAt: mcpServers.deletedAt })

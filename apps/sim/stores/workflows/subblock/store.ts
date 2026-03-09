@@ -7,6 +7,7 @@ import { populateTriggerFieldsFromConfig } from '@/hooks/use-trigger-config-aggr
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { SubBlockStore } from '@/stores/workflows/subblock/types'
 import { isTriggerValid } from '@/triggers'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('SubBlockStore')
 
@@ -44,13 +45,13 @@ export const useSubBlockStore = create<SubBlockStore>()(
             if (!row || typeof row !== 'object') {
               logger.warn('Fixing malformed table row', { blockId, subBlockId, row })
               return {
-                id: crypto.randomUUID(),
+                id: generateId(),
                 cells: { Key: '', Value: '' },
               }
             }
 
             if (!row.id) {
-              row.id = crypto.randomUUID()
+              row.id = generateId()
             }
 
             if (!row.cells || typeof row.cells !== 'object') {

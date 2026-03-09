@@ -3,6 +3,7 @@ import { credential, credentialMember, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, ne } from 'drizzle-orm'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('CredentialAccess')
 
@@ -133,7 +134,7 @@ export async function revokeWorkspaceCredentialMemberships(
           .where(eq(credentialMember.id, existingOwnerMembership.id))
       } else {
         await db.insert(credentialMember).values({
-          id: crypto.randomUUID(),
+          id: generateId(),
           credentialId: credId,
           userId: ownerId,
           role: 'admin',

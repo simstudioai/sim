@@ -11,6 +11,7 @@ import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { isValidEnvVarName } from '@/executor/constants'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('CredentialsAPI')
 
@@ -423,7 +424,7 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date()
-    const credentialId = crypto.randomUUID()
+    const credentialId = generateId()
     const [workspaceRow] = await db
       .select({ ownerId: workspace.ownerId })
       .from(workspace)
@@ -451,7 +452,7 @@ export async function POST(request: NextRequest) {
         if (workspaceUserIds.length > 0) {
           for (const memberUserId of workspaceUserIds) {
             await tx.insert(credentialMember).values({
-              id: crypto.randomUUID(),
+              id: generateId(),
               credentialId,
               userId: memberUserId,
               role:
@@ -468,7 +469,7 @@ export async function POST(request: NextRequest) {
         }
       } else {
         await tx.insert(credentialMember).values({
-          id: crypto.randomUUID(),
+          id: generateId(),
           credentialId,
           userId: session.user.id,
           role: 'admin',

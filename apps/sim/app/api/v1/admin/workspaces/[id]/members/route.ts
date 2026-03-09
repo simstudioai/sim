@@ -45,6 +45,7 @@ import {
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import {
+import { generateId } from '@/lib/core/utils/id'
   type AdminWorkspaceMember,
   createPaginationMeta,
   parsePaginationParams,
@@ -216,7 +217,7 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
     }
 
     const now = new Date()
-    const permissionId = crypto.randomUUID()
+    const permissionId = generateId()
 
     await db.insert(permissions).values({
       id: permissionId,

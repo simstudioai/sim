@@ -10,6 +10,7 @@ import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/util
 import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.server'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('WorkflowMcpServersAPI')
 
@@ -104,7 +105,7 @@ export const POST = withMcpAuth('write')(
         )
       }
 
-      const serverId = crypto.randomUUID()
+      const serverId = generateId()
 
       const [server] = await db
         .insert(workflowMcpServer)
@@ -160,7 +161,7 @@ export const POST = withMcpAuth('write')(
 
           const parameterSchema = await generateParameterSchemaForWorkflow(workflowRecord.id)
 
-          const toolId = crypto.randomUUID()
+          const toolId = generateId()
           await db.insert(workflowMcpTool).values({
             id: toolId,
             serverId,

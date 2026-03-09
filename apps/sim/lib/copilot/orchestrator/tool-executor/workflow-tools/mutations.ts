@@ -16,6 +16,7 @@ import {
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { ensureWorkflowAccess, ensureWorkspaceAccess, getDefaultWorkspaceId } from '../access'
 import type {
+import { generateId } from '@/lib/core/utils/id'
   CreateFolderParams,
   CreateWorkflowParams,
   GenerateApiKeyParams,
@@ -54,7 +55,7 @@ export async function executeCreateWorkflow(
 
     await ensureWorkspaceAccess(workspaceId, context.userId, true)
 
-    const workflowId = crypto.randomUUID()
+    const workflowId = generateId()
     const now = new Date()
 
     const folderCondition = folderId ? eq(workflow.folderId, folderId) : isNull(workflow.folderId)
@@ -130,7 +131,7 @@ export async function executeCreateFolder(
       )
     const sortOrder = (maxResult?.maxOrder ?? 0) + 1
 
-    const folderId = crypto.randomUUID()
+    const folderId = generateId()
     await db.insert(workflowFolder).values({
       id: folderId,
       userId: context.userId,
@@ -259,7 +260,7 @@ export async function executeSetGlobalWorkflowVariables(
       const typedValue = coerceValue(op.value, nextType)
       if (op.operation === 'add') {
         byName[key] = {
-          id: crypto.randomUUID(),
+          id: generateId(),
           workflowId,
           name: key,
           type: nextType,
@@ -270,7 +271,7 @@ export async function executeSetGlobalWorkflowVariables(
       if (op.operation === 'edit') {
         if (!byName[key]) {
           byName[key] = {
-            id: crypto.randomUUID(),
+            id: generateId(),
             workflowId,
             name: key,
             type: nextType,

@@ -11,6 +11,7 @@ import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/compon
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('Table')
 
@@ -74,7 +75,7 @@ export function Table({
   useEffect(() => {
     if (!isPreview && !disabled && (!Array.isArray(storeValue) || storeValue.length === 0)) {
       const initialRow: WorkflowTableRow = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         cells: { ...emptyCellsTemplate },
       }
       setStoreValue([initialRow])
@@ -86,7 +87,7 @@ export function Table({
     if (!Array.isArray(value) || value.length === 0) {
       return [
         {
-          id: crypto.randomUUID(),
+          id: generateId(),
           cells: { ...emptyCellsTemplate },
         },
       ]
@@ -105,7 +106,7 @@ export function Table({
       }
 
       return {
-        id: row?.id ?? crypto.randomUUID(),
+        id: row?.id ?? generateId(),
         cells: normalizedCells,
       }
     })
@@ -133,7 +134,7 @@ export function Table({
 
     if (rowIndex === rows.length - 1 && newValue !== '') {
       updatedRows.push({
-        id: crypto.randomUUID(),
+        id: generateId(),
         cells: { ...emptyCellsTemplate },
       })
     }

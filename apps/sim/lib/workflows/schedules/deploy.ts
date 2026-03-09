@@ -5,6 +5,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import { cleanupWebhooksForWorkflow } from '@/lib/webhooks/deploy'
 import type { BlockState } from '@/lib/workflows/schedules/utils'
 import { findScheduleBlocks, validateScheduleBlock } from '@/lib/workflows/schedules/validation'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('ScheduleDeployUtils')
 
@@ -99,7 +100,7 @@ export async function createSchedulesForDeploy(
 
       for (const validated of validatedBlocks) {
         const { blockId, cronExpression, nextRunAt, timezone } = validated
-        const scheduleId = crypto.randomUUID()
+        const scheduleId = generateId()
         const now = new Date()
 
         const values = {

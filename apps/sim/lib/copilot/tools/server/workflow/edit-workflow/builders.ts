@@ -14,6 +14,7 @@ import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import type { EditWorkflowOperation, SkippedItem, ValidationError } from './types'
 import { logSkippedItem, UUID_REGEX } from './types'
 import {
+import { generateId } from '@/lib/core/utils/id'
   validateInputsForBlock,
   validateSourceHandleForBlock,
   validateTargetHandle,
@@ -258,7 +259,7 @@ export function normalizeArrayWithIds(value: unknown): any[] {
     // Check if id is missing or not a valid UUID
     const hasValidUUID = typeof item.id === 'string' && UUID_REGEX.test(item.id)
     if (!hasValidUUID) {
-      return { ...item, id: crypto.randomUUID() }
+      return { ...item, id: generateId() }
     }
 
     return item
@@ -422,7 +423,7 @@ export function createValidatedEdge(
   const finalSourceHandle = sourceValidation.normalizedHandle || sourceHandle
 
   modifiedState.edges.push({
-    id: crypto.randomUUID(),
+    id: generateId(),
     source: sourceBlockId,
     sourceHandle: finalSourceHandle,
     target: targetBlockId,
@@ -571,7 +572,7 @@ export function normalizeBlockIdsInOperations(operations: EditWorkflowOperation[
   for (const op of operations) {
     if (op.operation_type === 'add' || op.operation_type === 'insert_into_subflow') {
       if (op.block_id && !UUID_REGEX.test(op.block_id)) {
-        const newId = crypto.randomUUID()
+        const newId = generateId()
         idMapping.set(op.block_id, newId)
         logger.debug('Normalizing block ID', { oldId: op.block_id, newId })
       }

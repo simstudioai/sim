@@ -19,6 +19,7 @@ import {
 import { CHAT_ERROR_MESSAGES, CHAT_REQUEST_TIMEOUT_MS } from '@/app/chat/constants'
 import { useAudioStreaming, useChatStreaming } from '@/app/chat/hooks'
 import SSOAuth from '@/ee/sso/components/sso-auth'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('ChatClient')
 
@@ -303,7 +304,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
     setUserHasScrolled(false)
 
     const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       content: messageToSend || (files && files.length > 0 ? `Sent ${files.length} file(s)` : ''),
       type: 'user',
       timestamp: new Date(),
@@ -416,7 +417,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
       logger.error('Error sending message:', error)
       setIsLoading(false)
       const errorMessage: ChatMessage = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         content: CHAT_ERROR_MESSAGES.GENERIC_ERROR,
         type: 'assistant',
         timestamp: new Date(),

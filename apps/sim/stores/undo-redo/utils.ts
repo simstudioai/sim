@@ -12,10 +12,11 @@ import type {
 } from '@/stores/undo-redo/types'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import type { BlockState } from '@/stores/workflows/workflow/types'
+import { generateId } from '@/lib/core/utils/id'
 
 export function createOperationEntry(operation: Operation, inverse: Operation): OperationEntry {
   return {
-    id: crypto.randomUUID(),
+    id: generateId(),
     operation,
     inverse,
     createdAt: Date.now(),

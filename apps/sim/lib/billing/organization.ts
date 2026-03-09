@@ -11,6 +11,7 @@ import { and, eq } from 'drizzle-orm'
 import { hasActiveSubscription } from '@/lib/billing'
 import { getPlanPricing } from '@/lib/billing/core/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('BillingOrganization')
 
@@ -56,7 +57,7 @@ async function createOrganizationWithOwner(
   organizationSlug: string,
   metadata: Record<string, any> = {}
 ): Promise<string> {
-  const orgId = `org_${crypto.randomUUID()}`
+  const orgId = `org_${generateId()}`
   let sessionsUpdated = 0
 
   await db.transaction(async (tx) => {
@@ -68,7 +69,7 @@ async function createOrganizationWithOwner(
     })
 
     await tx.insert(member).values({
-      id: crypto.randomUUID(),
+      id: generateId(),
       userId: userId,
       organizationId: orgId,
       role: 'owner',

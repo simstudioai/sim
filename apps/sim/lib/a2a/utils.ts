@@ -9,6 +9,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { A2A_TERMINAL_STATES } from './constants'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('A2AUtils')
 
@@ -186,7 +187,7 @@ export function createTextPart(text: string): Part {
 export function createUserMessage(text: string): Message {
   return {
     kind: 'message',
-    messageId: crypto.randomUUID(),
+    messageId: generateId(),
     role: 'user',
     parts: [{ kind: 'text', text }],
   }
@@ -195,7 +196,7 @@ export function createUserMessage(text: string): Message {
 export function createAgentMessage(text: string): Message {
   return {
     kind: 'message',
-    messageId: crypto.randomUUID(),
+    messageId: generateId(),
     role: 'agent',
     parts: [{ kind: 'text', text }],
   }

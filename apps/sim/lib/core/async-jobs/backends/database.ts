@@ -2,6 +2,7 @@ import { asyncJobs, db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import {
+import { generateId } from '@/lib/core/utils/id'
   type EnqueueOptions,
   JOB_STATUS,
   type Job,
@@ -38,7 +39,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
     payload: TPayload,
     options?: EnqueueOptions
   ): Promise<string> {
-    const jobId = `run_${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`
+    const jobId = `run_${generateId().replace(/-/g, '').slice(0, 20)}`
     const now = new Date()
 
     await db.insert(asyncJobs).values({

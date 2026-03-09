@@ -23,6 +23,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/kb/use-knowledge-base-tag-definitions'
 import { useTagSelection } from '@/hooks/kb/use-tag-selection'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
+import { generateId } from '@/lib/core/utils/id'
 
 interface TagFilter {
   id: string
@@ -48,7 +49,7 @@ interface KnowledgeTagFiltersProps {
  * Creates a new filter with default values
  */
 const createDefaultFilter = (): TagFilter => ({
-  id: crypto.randomUUID(),
+  id: generateId(),
   tagName: '',
   fieldType: 'text',
   operator: 'eq',

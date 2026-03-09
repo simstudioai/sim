@@ -23,6 +23,7 @@ import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getEmailPreferences } from '@/lib/messaging/email/unsubscribe'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('UsageManagement')
 
@@ -83,7 +84,7 @@ export async function getOrgUsageLimit(
 export async function handleNewUser(userId: string): Promise<void> {
   try {
     await db.insert(userStats).values({
-      id: crypto.randomUUID(),
+      id: generateId(),
       userId: userId,
       currentUsageLimit: getFreeTierLimit().toString(),
       usageLimitUpdatedAt: new Date(),
@@ -110,7 +111,7 @@ export async function ensureUserStatsExists(userId: string): Promise<void> {
   await db
     .insert(userStats)
     .values({
-      id: crypto.randomUUID(),
+      id: generateId(),
       userId: userId,
       currentUsageLimit: getFreeTierLimit().toString(),
       usageLimitUpdatedAt: new Date(),
@@ -272,7 +273,7 @@ export async function initializeUserUsageLimit(userId: string): Promise<void> {
 
   // Create initial usage stats
   await db.insert(userStats).values({
-    id: crypto.randomUUID(),
+    id: generateId(),
     userId,
     // Team/enterprise: null (use org limit), Free/Pro: individual limit
     currentUsageLimit: isTeamOrEnterprise ? null : getFreeTierLimit().toString(),

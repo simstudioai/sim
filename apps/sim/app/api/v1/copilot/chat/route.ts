@@ -6,6 +6,7 @@ import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('CopilotHeadlessAPI')
 const DEFAULT_COPILOT_MODEL = 'claude-opus-4-5'
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
     const transportMode = effectiveMode === 'build' ? 'agent' : effectiveMode
 
     // Always generate a chatId - required for artifacts system to work with subagents
-    const chatId = parsed.chatId || crypto.randomUUID()
+    const chatId = parsed.chatId || generateId()
 
     const requestPayload = {
       message: parsed.message,
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
       userId: auth.userId,
       model: selectedModel,
       mode: transportMode,
-      messageId: crypto.randomUUID(),
+      messageId: generateId(),
       version: SIM_AGENT_VERSION,
       headless: true,
       chatId,

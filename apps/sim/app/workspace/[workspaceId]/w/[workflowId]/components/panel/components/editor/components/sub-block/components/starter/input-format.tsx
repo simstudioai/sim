@@ -22,6 +22,7 @@ import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/compon
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import { generateId } from '@/lib/core/utils/id'
 
 interface Field {
   id: string
@@ -72,7 +73,7 @@ const BOOLEAN_OPTIONS: ComboboxOption[] = [
  * Creates a new field with default values
  */
 const createDefaultField = (): Field => ({
-  id: crypto.randomUUID(),
+  id: generateId(),
   name: '',
   type: 'string',
   value: '',

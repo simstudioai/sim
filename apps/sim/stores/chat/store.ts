@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import type { ChatMessage, ChatState } from './types'
 import { MAX_CHAT_HEIGHT, MAX_CHAT_WIDTH, MIN_CHAT_HEIGHT, MIN_CHAT_WIDTH } from './utils'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('ChatStore')
 
@@ -58,7 +59,7 @@ export const useChatStore = create<ChatState>()(
           set((state) => {
             const newMessage: ChatMessage = {
               ...message,
-              id: (message as any).id ?? crypto.randomUUID(),
+              id: (message as any).id ?? generateId(),
               timestamp: (message as any).timestamp ?? new Date().toISOString(),
             }
 

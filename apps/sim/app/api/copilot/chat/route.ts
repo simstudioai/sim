@@ -25,6 +25,7 @@ import {
 } from '@/lib/copilot/request-helpers'
 import { env } from '@/lib/core/config/env'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('CopilotChatAPI')
 
@@ -188,7 +189,7 @@ export async function POST(req: NextRequest) {
     const workflowId = resolved.workflowId
 
     // Ensure we have a consistent user message ID for this request
-    const userMessageIdToUse = userMessageId || crypto.randomUUID()
+    const userMessageIdToUse = userMessageId || generateId()
     try {
       logger.info(`[${tracker.requestId}] Received chat POST`, {
         hasContexts: Array.isArray(normalizedContexts),
@@ -474,7 +475,7 @@ export async function POST(req: NextRequest) {
       }
 
       const assistantMessage = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         role: 'assistant',
         content: responseData.content,
         timestamp: new Date().toISOString(),

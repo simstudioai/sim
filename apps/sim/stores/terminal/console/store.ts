@@ -9,6 +9,7 @@ import { useExecutionStore } from '@/stores/execution'
 import { useNotificationStore } from '@/stores/notifications'
 import { indexedDBStorage } from '@/stores/terminal/console/storage'
 import type { ConsoleEntry, ConsoleStore, ConsoleUpdate } from '@/stores/terminal/console/types'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('TerminalConsoleStore')
 
@@ -170,7 +171,7 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
 
             const newEntry: ConsoleEntry = {
               ...redactedEntry,
-              id: crypto.randomUUID(),
+              id: generateId(),
               timestamp: new Date().toISOString(),
             }
 

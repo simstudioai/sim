@@ -18,6 +18,7 @@ import type {
   WorkflowState,
 } from '@/stores/workflows/workflow/types'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
+import { generateId } from '@/lib/core/utils/id'
 
 /** Threshold to detect viewport-based offsets vs small duplicate offsets */
 const LARGE_OFFSET_THRESHOLD = 300
@@ -171,7 +172,7 @@ export function prepareBlockState(options: PrepareBlockStateOptions): BlockState
       } else if (subBlock.type === 'input-format' || subBlock.type === 'response-format') {
         initialValue = [
           {
-            id: crypto.randomUUID(),
+            id: generateId(),
             name: '',
             type: 'string',
             value: '',

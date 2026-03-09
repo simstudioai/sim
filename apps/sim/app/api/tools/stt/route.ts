@@ -14,6 +14,7 @@ import {
 } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
 import type { TranscriptSegment } from '@/tools/stt/types'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('SttProxyAPI')
 
@@ -45,7 +46,7 @@ interface SttRequestBody {
 }
 
 export async function POST(request: NextRequest) {
-  const requestId = crypto.randomUUID()
+  const requestId = generateId()
   logger.info(`[${requestId}] STT transcription request started`)
 
   try {

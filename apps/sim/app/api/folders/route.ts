@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('FoldersAPI')
 
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate a new ID
-    const id = crypto.randomUUID()
+    const id = generateId()
 
     const newFolder = await db.transaction(async (tx) => {
       let sortOrder: number

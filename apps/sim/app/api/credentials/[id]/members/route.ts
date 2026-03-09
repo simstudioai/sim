@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('CredentialMembersAPI')
 
@@ -133,7 +134,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     await db.insert(credentialMember).values({
-      id: crypto.randomUUID(),
+      id: generateId(),
       credentialId,
       userId,
       role,

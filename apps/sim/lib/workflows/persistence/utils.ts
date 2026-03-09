@@ -22,6 +22,7 @@ import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validat
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 import { SUBFLOW_TYPES } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('WorkflowDBHelpers')
 
@@ -804,23 +805,23 @@ export function regenerateWorkflowStateIds(state: RegenerateStateInput): Regener
   // First pass: Create all ID mappings
   // Map block IDs
   Object.keys(state.blocks || {}).forEach((oldId) => {
-    blockIdMapping.set(oldId, crypto.randomUUID())
+    blockIdMapping.set(oldId, generateId())
   })
 
   // Map edge IDs
 
   ;(state.edges || []).forEach((edge: Edge) => {
-    edgeIdMapping.set(edge.id, crypto.randomUUID())
+    edgeIdMapping.set(edge.id, generateId())
   })
 
   // Map loop IDs
   Object.keys(state.loops || {}).forEach((oldId) => {
-    loopIdMapping.set(oldId, crypto.randomUUID())
+    loopIdMapping.set(oldId, generateId())
   })
 
   // Map parallel IDs
   Object.keys(state.parallels || {}).forEach((oldId) => {
-    parallelIdMapping.set(oldId, crypto.randomUUID())
+    parallelIdMapping.set(oldId, generateId())
   })
 
   // Second pass: Create new state with regenerated IDs and updated references

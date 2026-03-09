@@ -57,6 +57,7 @@ import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('FloatingChat')
 
@@ -601,7 +602,7 @@ export function Chat() {
       if (typeof result !== 'object') return
 
       if ('stream' in result && result.stream instanceof ReadableStream) {
-        const responseMessageId = crypto.randomUUID()
+        const responseMessageId = generateId()
         addMessage({
           id: responseMessageId,
           content: '',
@@ -799,7 +800,7 @@ export function Chat() {
           const defaultType = fieldName === 'files' ? 'file[]' : 'string'
 
           return {
-            id: crypto.randomUUID(),
+            id: generateId(),
             name: fieldName,
             type: defaultType,
             value: '',
@@ -814,7 +815,7 @@ export function Chat() {
 
       const userId = session?.user?.id || 'unknown'
       addToQueue({
-        id: crypto.randomUUID(),
+        id: generateId(),
         operation: {
           operation: 'subblock-update',
           target: 'subblock',

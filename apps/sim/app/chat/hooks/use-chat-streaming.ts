@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import type { ChatFile, ChatMessage } from '@/app/chat/components/message/message'
 import { CHAT_ERROR_MESSAGES } from '@/app/chat/constants'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('UseChatStreaming')
 
@@ -141,7 +142,7 @@ export function useChatStreaming() {
 
     // Track which blocks have streamed content (like chat panel)
     const messageIdMap = new Map<string, string>()
-    const messageId = crypto.randomUUID()
+    const messageId = generateId()
     setMessages((prev) => [
       ...prev,
       {

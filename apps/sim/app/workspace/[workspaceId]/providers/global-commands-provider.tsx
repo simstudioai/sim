@@ -11,6 +11,7 @@ import {
 } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('GlobalCommands')
 
@@ -87,7 +88,7 @@ export function GlobalCommandsProvider({ children }: { children: ReactNode }) {
   const register = useCallback((commands: GlobalCommand[]) => {
     const createdIds: string[] = []
     for (const cmd of commands) {
-      const id = cmd.id ?? crypto.randomUUID()
+      const id = cmd.id ?? generateId()
       const parsed = parseShortcut(cmd.shortcut)
       registryRef.current.set(id, {
         ...cmd,

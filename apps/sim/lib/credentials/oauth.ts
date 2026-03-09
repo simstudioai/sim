@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { account, credential, credentialMember } from '@sim/db/schema'
 import { and, eq, inArray, notInArray } from 'drizzle-orm'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
+import { generateId } from '@/lib/core/utils/id'
 
 /** Provider IDs that are not real OAuth integrations (e.g. Better Auth's password provider) */
 const NON_OAUTH_PROVIDER_IDS = ['credential'] as const
@@ -103,7 +104,7 @@ export async function syncWorkspaceOAuthCredentialsForUser(
 
     try {
       await db.insert(credential).values({
-        id: crypto.randomUUID(),
+        id: generateId(),
         workspaceId,
         type: 'oauth',
         displayName: getServiceConfigByProviderId(acc.providerId)?.name || acc.providerId,
@@ -178,7 +179,7 @@ export async function syncWorkspaceOAuthCredentialsForUser(
 
     try {
       await db.insert(credentialMember).values({
-        id: crypto.randomUUID(),
+        id: generateId(),
         credentialId,
         userId,
         role: 'admin',

@@ -12,6 +12,7 @@ import { ResponseBlockHandler } from '@/executor/handlers/response/response-hand
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { generateId } from '@/lib/core/utils/id'
 
 /**
  * Dropdown option type - can be a simple string or an object with label, id, and optional icon
@@ -276,7 +277,7 @@ export const Dropdown = memo(function Dropdown({
             fieldType === 'object' || fieldType === 'array' ? JSON.stringify(value, null, 2) : value
 
           return {
-            id: crypto.randomUUID(),
+            id: generateId(),
             name: key,
             type: fieldType,
             value: fieldValue,

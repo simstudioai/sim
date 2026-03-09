@@ -2,6 +2,7 @@ import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { getBlock } from '@/blocks'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import type { BlockState, SubBlockState, WorkflowState } from '@/stores/workflows/workflow/types'
+import { generateId } from '@/lib/core/utils/id'
 
 export interface DefaultWorkflowArtifacts {
   workflowState: WorkflowState
@@ -40,7 +41,7 @@ function resolveInitialValue(subBlock: SubBlockConfig): unknown {
   if (subBlock.type === 'input-format') {
     return [
       {
-        id: crypto.randomUUID(),
+        id: generateId(),
         name: '',
         type: 'string',
         value: '',
@@ -111,7 +112,7 @@ function buildStartBlockState(
 
 export function buildDefaultWorkflowArtifacts(): DefaultWorkflowArtifacts {
   const blockConfig = buildStartBlockConfig()
-  const startBlockId = crypto.randomUUID()
+  const startBlockId = generateId()
 
   const { blockState, subBlockValues } = buildStartBlockState(blockConfig, startBlockId)
 

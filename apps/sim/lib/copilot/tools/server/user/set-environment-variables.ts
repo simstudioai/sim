@@ -6,6 +6,7 @@ import { z } from 'zod'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import {
+import { generateId } from '@/lib/core/utils/id'
   syncPersonalEnvCredentialsForUser,
   syncWorkspaceEnvCredentials,
 } from '@/lib/credentials/environment'
@@ -146,7 +147,7 @@ export const setEnvironmentVariablesServerTool: BaseServerTool<SetEnvironmentVar
         await db
           .insert(environment)
           .values({
-            id: crypto.randomUUID(),
+            id: generateId(),
             userId: authenticatedUserId,
             variables: finalEncrypted,
             updatedAt: new Date(),
@@ -191,7 +192,7 @@ export const setEnvironmentVariablesServerTool: BaseServerTool<SetEnvironmentVar
         await db
           .insert(workspaceEnvironment)
           .values({
-            id: crypto.randomUUID(),
+            id: generateId(),
             workspaceId: resolvedWorkspaceId,
             variables: mergedWs,
             createdAt: new Date(),

@@ -7,6 +7,7 @@ import { getEmailSubject, renderEnterpriseSubscriptionEmail } from '@/components
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import type { EnterpriseSubscriptionMetadata } from '../types'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('BillingEnterprise')
 
@@ -99,7 +100,7 @@ export async function handleManualEnterpriseSubscription(event: Stripe.Event) {
   const referenceItem = stripeSubscription.items?.data?.[0]
 
   const subscriptionRow = {
-    id: crypto.randomUUID(),
+    id: generateId(),
     plan: 'enterprise',
     referenceId,
     stripeCustomerId,

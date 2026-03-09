@@ -22,6 +22,7 @@ import { lazyCleanupInputMapping } from '@/executor/utils/lazy-cleanup'
 import { Serializer } from '@/serializer'
 import type { SerializedBlock } from '@/serializer/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('WorkflowBlockHandler')
 
@@ -81,7 +82,7 @@ export class WorkflowBlockHandler implements BlockHandler {
 
     // Unique ID per invocation — used to correlate child block events with this specific
     // workflow block execution, preventing cross-iteration child mixing in loop contexts.
-    const instanceId = crypto.randomUUID()
+    const instanceId = generateId()
 
     const childCallChain = buildNextCallChain(ctx.callChain || [], workflowId)
     const depthError = validateCallChain(childCallChain)

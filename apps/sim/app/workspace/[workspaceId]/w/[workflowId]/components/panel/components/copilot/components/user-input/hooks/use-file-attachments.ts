@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('useFileAttachments')
 
@@ -123,7 +124,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
         }
 
         const tempFile: AttachedFile = {
-          id: crypto.randomUUID(),
+          id: generateId(),
           name: file.name,
           size: file.size,
           type: file.type,

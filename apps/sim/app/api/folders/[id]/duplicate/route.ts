@@ -9,6 +9,7 @@ import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('FolderDuplicateAPI')
 
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const targetWorkspaceId = workspaceId || sourceFolder.workspaceId
 
     const { newFolderId, folderMapping } = await db.transaction(async (tx) => {
-      const newFolderId = crypto.randomUUID()
+      const newFolderId = generateId()
       const now = new Date()
       const targetParentId = parentId ?? sourceFolder.parentId
 
@@ -220,7 +221,7 @@ async function duplicateFolderStructure(
     )
 
   for (const childFolder of childFolders) {
-    const newChildFolderId = crypto.randomUUID()
+    const newChildFolderId = generateId()
     folderMapping.set(childFolder.id, newChildFolderId)
 
     await tx.insert(workflowFolder).values({

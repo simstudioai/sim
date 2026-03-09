@@ -12,6 +12,7 @@ import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import type { Variable } from '@/stores/panel/variables/types'
 import type { LoopConfig, ParallelConfig } from '@/stores/workflows/workflow/types'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('WorkflowDuplicateHelper')
 
@@ -96,7 +97,7 @@ export async function duplicateWorkflow(
   } = options
 
   // Generate new workflow ID
-  const newWorkflowId = crypto.randomUUID()
+  const newWorkflowId = generateId()
   const now = new Date()
 
   // Duplicate workflow and all related data in a transaction
@@ -187,7 +188,7 @@ export async function duplicateWorkflow(
         const sourceVars = (source.variables as Record<string, Variable>) || {}
         const remapped: Record<string, Variable> = {}
         for (const [oldVarId, variable] of Object.entries(sourceVars) as [string, Variable][]) {
-          const newVarId = crypto.randomUUID()
+          const newVarId = generateId()
           varIdMapping.set(oldVarId, newVarId)
           remapped[newVarId] = {
             ...variable,
@@ -211,7 +212,7 @@ export async function duplicateWorkflow(
     if (sourceBlocks.length > 0) {
       // First pass: Create all block ID mappings
       sourceBlocks.forEach((block) => {
-        const newBlockId = crypto.randomUUID()
+        const newBlockId = generateId()
         blockIdMapping.set(block.id, newBlockId)
       })
 
@@ -288,7 +289,7 @@ export async function duplicateWorkflow(
     if (sourceEdges.length > 0) {
       const newEdges = sourceEdges.map((edge) => ({
         ...edge,
-        id: crypto.randomUUID(), // Generate new edge ID
+        id: generateId(), // Generate new edge ID
         workflowId: newWorkflowId,
         sourceBlockId: blockIdMapping.get(edge.sourceBlockId) || edge.sourceBlockId,
         targetBlockId: blockIdMapping.get(edge.targetBlockId) || edge.targetBlockId,

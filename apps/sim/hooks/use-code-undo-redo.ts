@@ -5,6 +5,7 @@ import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useCodeUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('CodeUndoRedo')
 
@@ -83,7 +84,7 @@ export function useCodeUndoRedo({
     }
 
     useCodeUndoRedoStore.getState().push({
-      id: crypto.randomUUID(),
+      id: generateId(),
       createdAt: Date.now(),
       workflowId: activeWorkflowId,
       blockId,
@@ -128,7 +129,7 @@ export function useCodeUndoRedo({
       }
 
       useCodeUndoRedoStore.getState().push({
-        id: crypto.randomUUID(),
+        id: generateId(),
         createdAt: Date.now(),
         workflowId: activeWorkflowId,
         blockId,

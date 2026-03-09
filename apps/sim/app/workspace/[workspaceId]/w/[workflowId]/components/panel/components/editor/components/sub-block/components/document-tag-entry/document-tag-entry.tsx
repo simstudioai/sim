@@ -22,6 +22,7 @@ import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/kb/use-knowledge-base-tag-definitions'
 import { useTagSelection } from '@/hooks/kb/use-tag-selection'
+import { generateId } from '@/lib/core/utils/id'
 
 interface DocumentTag {
   id: string
@@ -45,7 +46,7 @@ interface DocumentTagEntryProps {
  * Creates a new document tag with default values
  */
 const createDefaultTag = (): DocumentTag => ({
-  id: crypto.randomUUID(),
+  id: generateId(),
   tagName: '',
   fieldType: 'text',
   value: '',

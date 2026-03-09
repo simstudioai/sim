@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { credential, credentialMember, permissions, workspace } from '@sim/db/schema'
 import { and, eq, inArray, notInArray } from 'drizzle-orm'
+import { generateId } from '@/lib/core/utils/id'
 
 interface AccessibleEnvCredential {
   type: 'env_workspace' | 'env_personal'
@@ -82,7 +83,7 @@ async function upsertCredentialAdminMember(credentialId: string, adminUserId: st
   }
 
   await db.insert(credentialMember).values({
-    id: crypto.randomUUID(),
+    id: generateId(),
     credentialId,
     userId: adminUserId,
     role: 'admin',
@@ -141,7 +142,7 @@ async function ensureWorkspaceCredentialMemberships(
     }
 
     await db.insert(credentialMember).values({
-      id: crypto.randomUUID(),
+      id: generateId(),
       credentialId,
       userId: memberUserId,
       role: targetRole,
@@ -193,7 +194,7 @@ export async function syncWorkspaceEnvCredentials(params: {
       continue
     }
 
-    const createdId = crypto.randomUUID()
+    const createdId = generateId()
     try {
       await db.insert(credential).values({
         id: createdId,
@@ -273,7 +274,7 @@ export async function syncPersonalEnvCredentialsForUser(params: {
         continue
       }
 
-      const createdId = crypto.randomUUID()
+      const createdId = generateId()
       try {
         await db.insert(credential).values({
           id: createdId,

@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import {
+import { generateId } from '@/lib/core/utils/id'
   syncPersonalEnvCredentialsForUser,
   syncWorkspaceEnvCredentials,
 } from '@/lib/credentials/environment'
@@ -222,7 +223,7 @@ export async function DELETE(
       await db
         .insert(workspaceEnvironment)
         .values({
-          id: workspaceRow?.id || crypto.randomUUID(),
+          id: workspaceRow?.id || generateId(),
           workspaceId: access.credential.workspaceId,
           variables: current,
           createdAt: workspaceRow?.createdAt || new Date(),

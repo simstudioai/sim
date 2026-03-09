@@ -7,6 +7,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('CredentialSetMembers')
 
@@ -167,7 +168,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       return NextResponse.json({ error: 'Member not found' }, { status: 404 })
     }
 
-    const requestId = crypto.randomUUID().slice(0, 8)
+    const requestId = generateId().slice(0, 8)
 
     // Use transaction to ensure member deletion + webhook sync are atomic
     await db.transaction(async (tx) => {

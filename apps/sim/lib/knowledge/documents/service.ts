@@ -19,6 +19,7 @@ import {
 } from '@/lib/knowledge/tags/utils'
 import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
 import type { DocumentProcessingPayload } from '@/background/knowledge-processing'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('DocumentService')
 
@@ -514,7 +515,7 @@ export async function processDocumentAsync(
         logger.info(`[${documentId}] Creating embedding records with tags`)
 
         const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
-          id: crypto.randomUUID(),
+          id: generateId(),
           knowledgeBaseId,
           documentId,
           chunkIndex,

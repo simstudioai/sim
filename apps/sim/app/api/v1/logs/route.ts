@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { buildLogFilters, getOrderBy } from '@/app/api/v1/logs/filters'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('V1LogsAPI')
 
@@ -53,7 +54,7 @@ function decodeCursor(cursor: string): CursorData | null {
 }
 
 export async function GET(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
 
   try {
     const rateLimit = await checkRateLimit(request, 'logs')

@@ -17,6 +17,7 @@ import type {
   TtsResponse,
 } from '@/tools/tts/types'
 import { getFileExtension, getMimeType } from '@/tools/tts/types'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('TtsUnifiedProxyAPI')
 
@@ -83,7 +84,7 @@ interface TtsUnifiedRequestBody {
 }
 
 export async function POST(request: NextRequest) {
-  const requestId = crypto.randomUUID()
+  const requestId = generateId()
   logger.info(`[${requestId}] TTS unified request started`)
 
   try {

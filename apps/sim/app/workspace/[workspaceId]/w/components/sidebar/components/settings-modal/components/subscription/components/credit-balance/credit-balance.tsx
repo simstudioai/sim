@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
+import { generateId } from '@/lib/core/utils/id'
   Button,
   Input,
   Label,
@@ -95,7 +96,7 @@ export function CreditBalance({
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open)
     if (open) {
-      setRequestId(crypto.randomUUID())
+      setRequestId(generateId())
     } else {
       setAmount('')
       setError(null)

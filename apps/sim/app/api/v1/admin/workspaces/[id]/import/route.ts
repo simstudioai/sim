@@ -41,6 +41,7 @@ import {
   notFoundResponse,
 } from '@/app/api/v1/admin/responses'
 import {
+import { generateId } from '@/lib/core/utils/id'
   extractWorkflowMetadata,
   type ImportResult,
   type WorkflowVariable,
@@ -128,7 +129,7 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
 
     let rootFolderId: string | undefined
     if (rootFolderName && createFolders) {
-      rootFolderId = crypto.randomUUID()
+      rootFolderId = generateId()
       await db.insert(workflowFolder).values({
         id: rootFolderId,
         name: rootFolderName,
@@ -205,7 +206,7 @@ async function importSingleWorkflow(
         const fullPath = rootFolderId ? `root/${pathSegment}` : pathSegment
 
         if (!folderMap.has(fullPath)) {
-          const folderId = crypto.randomUUID()
+          const folderId = generateId()
           await db.insert(workflowFolder).values({
             id: folderId,
             name: wf.folderPath[i],
@@ -236,7 +237,7 @@ async function importSingleWorkflow(
       }
     })()
     const { color: workflowColor } = extractWorkflowMetadata(parsedContent)
-    const workflowId = crypto.randomUUID()
+    const workflowId = generateId()
     const now = new Date()
 
     await db.insert(workflow).values({
@@ -270,7 +271,7 @@ async function importSingleWorkflow(
     if (workflowData.variables && Array.isArray(workflowData.variables)) {
       const variablesRecord: Record<string, WorkflowVariable> = {}
       workflowData.variables.forEach((v) => {
-        const varId = v.id || crypto.randomUUID()
+        const varId = v.id || generateId()
         variablesRecord[varId] = {
           id: varId,
           name: v.name,

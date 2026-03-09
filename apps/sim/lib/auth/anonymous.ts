@@ -3,6 +3,7 @@ import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { ANONYMOUS_USER, ANONYMOUS_USER_ID } from './constants'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('AnonymousAuth')
 
@@ -36,7 +37,7 @@ export async function ensureAnonymousUserExists(): Promise<void> {
 
     if (!existingStats) {
       await db.insert(schema.userStats).values({
-        id: crypto.randomUUID(),
+        id: generateId(),
         userId: ANONYMOUS_USER_ID,
         currentUsageLimit: '10000000000',
       })

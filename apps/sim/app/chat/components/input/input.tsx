@@ -10,6 +10,7 @@ import { VoiceInput } from '@/app/chat/components/input/voice-input'
 const logger = createLogger('ChatInput')
 
 import { createLogger } from '@sim/logger'
+import { generateId } from '@/lib/core/utils/id'
 
 const PLACEHOLDER_MOBILE = 'Enter a message'
 const PLACEHOLDER_DESKTOP = 'Enter a message or click the mic to speak'
@@ -147,7 +148,7 @@ export const ChatInput: React.FC<{
       }
 
       newFiles.push({
-        id: crypto.randomUUID(),
+        id: generateId(),
         name: file.name,
         size: file.size,
         type: file.type,

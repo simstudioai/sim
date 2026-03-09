@@ -6,13 +6,14 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('V1WorkflowDetailsAPI')
 
 export const revalidate = 0
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
 
   try {
     const rateLimit = await checkRateLimit(request, 'workflow-detail')

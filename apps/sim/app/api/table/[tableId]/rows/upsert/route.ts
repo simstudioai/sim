@@ -9,6 +9,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import type { RowData, TableSchema } from '@/lib/table'
 import { getUniqueColumns, validateRowData } from '@/lib/table'
 import { accessError, checkAccess, verifyTableWorkspace } from '../../../utils'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('TableUpsertAPI')
 
@@ -131,7 +132,7 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
       const [insertedRow] = await trx
         .insert(userTableRows)
         .values({
-          id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
+          id: `row_${generateId().replace(/-/g, '')}`,
           tableId,
           workspaceId: validated.workspaceId,
           data: validated.data,

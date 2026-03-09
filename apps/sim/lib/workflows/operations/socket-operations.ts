@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { client } from '@/lib/auth/auth-client'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('WorkflowSocketOperations')
 
@@ -39,7 +40,7 @@ export async function enqueueWorkflowOperation({
   operationId,
 }: EnqueueWorkflowOperationArgs): Promise<string> {
   const userId = await resolveUserId()
-  const opId = operationId ?? crypto.randomUUID()
+  const opId = operationId ?? generateId()
 
   useOperationQueueStore.getState().addToQueue({
     id: opId,

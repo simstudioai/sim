@@ -12,6 +12,7 @@ import {
   shouldSkipToolResultEvent,
 } from '@/lib/copilot/orchestrator/sse-utils'
 import type {
+import { generateId } from '@/lib/core/utils/id'
   ExecutionContext,
   OrchestratorOptions,
   SSEEvent,
@@ -39,7 +40,7 @@ export function createStreamingContext(overrides?: Partial<StreamingContext>): S
   return {
     chatId: undefined,
     conversationId: undefined,
-    messageId: crypto.randomUUID(),
+    messageId: generateId(),
     accumulatedContent: '',
     contentBlocks: [],
     toolCalls: new Map(),

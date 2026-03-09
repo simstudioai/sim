@@ -8,6 +8,7 @@ import { useFilterBuilder } from '@/lib/table/query-builder/use-query-builder'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { FilterRuleRow } from './components/filter-rule-row'
+import { generateId } from '@/lib/core/utils/id'
 
 interface FilterBuilderProps {
   blockId: string
@@ -20,7 +21,7 @@ interface FilterBuilderProps {
 }
 
 const createDefaultRule = (columns: ComboboxOption[]): FilterRule => ({
-  id: crypto.randomUUID(),
+  id: generateId(),
   logicalOperator: 'and',
   column: columns[0]?.value || '',
   operator: 'eq',

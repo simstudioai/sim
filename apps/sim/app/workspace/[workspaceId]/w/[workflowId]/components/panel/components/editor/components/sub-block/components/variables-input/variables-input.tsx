@@ -21,6 +21,7 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { Variable } from '@/stores/panel'
 import { useVariablesStore } from '@/stores/panel'
+import { generateId } from '@/lib/core/utils/id'
 
 interface VariableAssignment {
   id: string
@@ -124,7 +125,7 @@ export function VariablesInput({
     if (!isReadOnly && assignments.length === 0 && currentWorkflowVariables.length > 0) {
       const initialAssignment: VariableAssignment = {
         ...DEFAULT_ASSIGNMENT,
-        id: crypto.randomUUID(),
+        id: generateId(),
       }
       setStoreValue([initialAssignment])
     }
@@ -151,7 +152,7 @@ export function VariablesInput({
 
     const newAssignment: VariableAssignment = {
       ...DEFAULT_ASSIGNMENT,
-      id: crypto.randomUUID(),
+      id: generateId(),
     }
     setStoreValue([...assignments, newAssignment])
   }
@@ -160,7 +161,7 @@ export function VariablesInput({
     if (isReadOnly) return
 
     if (assignments.length === 1) {
-      setStoreValue([{ ...DEFAULT_ASSIGNMENT, id: crypto.randomUUID() }])
+      setStoreValue([{ ...DEFAULT_ASSIGNMENT, id: generateId() }])
       return
     }
 

@@ -9,6 +9,7 @@ import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { generateId } from '@/lib/core/utils/id'
 
 const logger = createLogger('Workspaces')
 
@@ -97,8 +98,8 @@ async function createDefaultWorkspace(userId: string, userName?: string | null) 
 }
 
 async function createWorkspace(userId: string, name: string, skipDefaultWorkflow = false) {
-  const workspaceId = crypto.randomUUID()
-  const workflowId = crypto.randomUUID()
+  const workspaceId = generateId()
+  const workflowId = generateId()
   const now = new Date()
 
   try {
@@ -114,7 +115,7 @@ async function createWorkspace(userId: string, name: string, skipDefaultWorkflow
       })
 
       await tx.insert(permissions).values({
-        id: crypto.randomUUID(),
+        id: generateId(),
         entityType: 'workspace' as const,
         entityId: workspaceId,
         userId: userId,
