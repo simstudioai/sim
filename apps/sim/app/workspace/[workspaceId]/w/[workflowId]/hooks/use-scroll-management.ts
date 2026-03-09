@@ -44,6 +44,11 @@ export function useScrollManagement(
   const scrollBehavior = options?.behavior ?? 'smooth'
   const stickinessThreshold = options?.stickinessThreshold ?? 30
 
+  const isSendingRef = useRef(isSendingMessage)
+  isSendingRef.current = isSendingMessage
+  const userScrolledRef = useRef(userHasScrolledAway)
+  userScrolledRef.current = userHasScrolledAway
+
   const markProgrammatic = useCallback(() => {
     programmaticUntilRef.current = Date.now() + AUTO_SCROLL_GRACE_MS
   }, [])
@@ -70,7 +75,7 @@ export function useScrollManagement(
 
       if (isProgrammatic()) {
         lastScrollTopRef.current = scrollTop
-        if (dist < stickinessThreshold && userHasScrolledAway) {
+        if (dist < stickinessThreshold && userScrolledRef.current) {
           setUserHasScrolledAway(false)
         }
         return
@@ -79,11 +84,11 @@ export function useScrollManagement(
       const nearBottom = dist <= stickinessThreshold
       const delta = scrollTop - lastScrollTopRef.current
 
-      if (isSendingMessage) {
-        if (delta < -2 && !userHasScrolledAway) {
+      if (isSendingRef.current) {
+        if (delta < -2 && !userScrolledRef.current) {
           setUserHasScrolledAway(true)
         }
-        if (userHasScrolledAway && delta > 2 && nearBottom) {
+        if (userScrolledRef.current && delta > 2 && nearBottom) {
           setUserHasScrolledAway(false)
         }
       }
@@ -95,7 +100,7 @@ export function useScrollManagement(
     lastScrollTopRef.current = container.scrollTop
 
     return () => container.removeEventListener('scroll', handleScroll)
-  }, [isSendingMessage, userHasScrolledAway, stickinessThreshold, isProgrammatic])
+  }, [stickinessThreshold, isProgrammatic])
 
   // Ignore upward wheel events inside nested [data-scrollable] regions
   // (tool output, code blocks) so they don't break follow-mode.
@@ -110,14 +115,14 @@ export function useScrollManagement(
       const nested = target?.closest('[data-scrollable]')
       if (nested && nested !== container) return
 
-      if (!userHasScrolledAway && isSendingMessage) {
+      if (!userScrolledRef.current && isSendingRef.current) {
         setUserHasScrolledAway(true)
       }
     }
 
     container.addEventListener('wheel', handleWheel, { passive: true })
     return () => container.removeEventListener('wheel', handleWheel)
-  }, [isSendingMessage, userHasScrolledAway])
+  }, [])
 
   useEffect(() => {
     if (messages.length === 0) return
