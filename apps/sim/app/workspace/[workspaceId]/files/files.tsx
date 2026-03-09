@@ -487,12 +487,12 @@ export function Files() {
     )
   }
 
-  const uploadLabel =
+  const uploadButtonLabel =
     uploading && uploadProgress.total > 0
       ? `${uploadProgress.completed}/${uploadProgress.total}`
       : uploading
         ? 'Uploading...'
-        : 'New file'
+        : 'Upload'
 
   return (
     <>
@@ -500,7 +500,7 @@ export function Files() {
         icon={FilesIcon}
         title='Files'
         create={{
-          label: uploadLabel,
+          label: 'New file',
           onClick: () => setCreateModalOpen(true),
           disabled: uploading || userPermissions.canEdit !== true,
         }}
@@ -520,7 +520,7 @@ export function Files() {
             disabled={uploading || userPermissions.canEdit !== true}
           >
             <Upload className='mr-[6px] h-[14px] w-[14px]' />
-            Upload
+            {uploadButtonLabel}
           </Button>
         }
         columns={COLUMNS}
