@@ -77,6 +77,13 @@ export class BlockExecutor {
     if (!isSentinel) {
       blockLog = this.createBlockLog(ctx, node.id, block, node)
       ctx.blockLogs.push(blockLog)
+
+      // Prune oldest block logs to bound memory in long-running loops (fixes #2525)
+      if (ctx.blockLogs.length > DEFAULTS.MAX_BLOCK_LOGS) {
+        const excess = ctx.blockLogs.length - DEFAULTS.MAX_BLOCK_LOGS
+        ctx.blockLogs.splice(0, excess)
+      }
+
       this.callOnBlockStart(ctx, node, block, blockLog.executionOrder)
     }
 
@@ -679,6 +686,7 @@ export class BlockExecutor {
     }
 
     const fullContent = chunks.join('')
+    chunks.length = 0 // Release chunk references to allow GC (fixes #2525)
     if (!fullContent) {
       return
     }

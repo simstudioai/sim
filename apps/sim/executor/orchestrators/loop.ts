@@ -248,6 +248,12 @@ export class LoopOrchestrator {
 
     if (iterationResults.length > 0) {
       scope.allIterationOutputs.push(iterationResults)
+
+      // Sliding window: discard oldest iteration outputs to bound memory (fixes #2525)
+      if (scope.allIterationOutputs.length > DEFAULTS.MAX_LOOP_ITERATION_HISTORY) {
+        const excess = scope.allIterationOutputs.length - DEFAULTS.MAX_LOOP_ITERATION_HISTORY
+        scope.allIterationOutputs.splice(0, excess)
+      }
     }
 
     scope.currentIterationOutputs.clear()

@@ -159,6 +159,16 @@ export const DEFAULTS = {
   MAX_FOREACH_ITEMS: 1000,
   MAX_PARALLEL_BRANCHES: 20,
   MAX_NESTING_DEPTH: 10,
+  /**
+   * Maximum number of past iteration outputs retained in allIterationOutputs.
+   * Older entries are discarded (sliding window) to bound memory during long loops.
+   */
+  MAX_LOOP_ITERATION_HISTORY: 100,
+  /**
+   * Maximum number of block logs retained during execution.
+   * When exceeded, the oldest logs are dropped to prevent OOM in long-running loops.
+   */
+  MAX_BLOCK_LOGS: 10_000,
   /** Maximum child workflow depth for propagating SSE callbacks (block:started, block:completed). */
   MAX_SSE_CHILD_DEPTH: 3,
   EXECUTION_TIME: 0,
