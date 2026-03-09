@@ -122,6 +122,15 @@ function invalidateRowData(queryClient: ReturnType<typeof useQueryClient>, table
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
 }
 
+function invalidateRowCount(
+  queryClient: ReturnType<typeof useQueryClient>,
+  workspaceId: string,
+  tableId: string
+) {
+  queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+  queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
+}
+
 function invalidateTableSchema(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
   queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
@@ -311,7 +320,7 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       return res.json()
     },
     onSettled: () => {
-      invalidateRowData(queryClient, tableId)
+      invalidateRowCount(queryClient, workspaceId, tableId)
     },
   })
 }
@@ -397,7 +406,7 @@ export function useDeleteTableRow({ workspaceId, tableId }: RowMutationContext) 
       return res.json()
     },
     onSettled: () => {
-      invalidateRowData(queryClient, tableId)
+      invalidateRowCount(queryClient, workspaceId, tableId)
     },
   })
 }
@@ -444,7 +453,7 @@ export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext)
       return { deletedRowIds }
     },
     onSettled: () => {
-      invalidateRowData(queryClient, tableId)
+      invalidateRowCount(queryClient, workspaceId, tableId)
     },
   })
 }
