@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
+import { tableKeys } from '@/hooks/queries/tables'
 import {
   type TaskChatHistory,
   type TaskStoredContentBlock,
@@ -9,10 +11,12 @@ import {
   taskKeys,
   useChatHistory,
 } from '@/hooks/queries/tasks'
+import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 import type {
   ChatMessage,
   ContentBlock,
   ContentBlockType,
+  MothershipResource,
   SSEPayload,
   SSEPayloadData,
   ToolCallStatus,
@@ -26,6 +30,9 @@ export interface UseChatReturn {
   sendMessage: (message: string) => Promise<void>
   stopGeneration: () => void
   chatBottomRef: React.RefObject<HTMLDivElement | null>
+  resources: MothershipResource[]
+  activeResourceId: string | null
+  setActiveResourceId: (id: string | null) => void
 }
 
 const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
@@ -65,8 +72,64 @@ function mapStoredMessage(msg: TaskStoredMessage): ChatMessage {
   return mapped
 }
 
+const logger = createLogger('useChat')
+
 function getPayloadData(payload: SSEPayload): SSEPayloadData | undefined {
   return typeof payload.data === 'object' ? payload.data : undefined
+}
+
+const RESOURCE_TOOL_NAMES = new Set(['user_table', 'workspace_file'])
+
+function getResultData(parsed: SSEPayload): Record<string, unknown> | undefined {
+  const topResult = parsed.result as Record<string, unknown> | undefined
+  const nestedResult =
+    typeof parsed.data === 'object' ? (parsed.data?.result as Record<string, unknown>) : undefined
+  const result = topResult ?? nestedResult
+  return result?.data as Record<string, unknown> | undefined
+}
+
+function extractTableResource(
+  parsed: SSEPayload,
+  storedArgs: Record<string, unknown> | undefined,
+  fallbackTableId: string | null
+): MothershipResource | null {
+  const data = getResultData(parsed)
+  const storedInnerArgs = storedArgs?.args as Record<string, unknown> | undefined
+
+  const table = data?.table as Record<string, unknown> | undefined
+  if (table?.id) {
+    return { type: 'table', id: table.id as string, title: (table.name as string) || 'Table' }
+  }
+
+  const tableId =
+    (data?.tableId as string) ?? storedInnerArgs?.tableId ?? storedArgs?.tableId ?? fallbackTableId
+  const tableName = (data?.tableName as string) || (table?.name as string) || 'Table'
+  if (tableId) return { type: 'table', id: tableId as string, title: tableName }
+
+  return null
+}
+
+function extractFileResource(
+  parsed: SSEPayload,
+  storedArgs: Record<string, unknown> | undefined
+): MothershipResource | null {
+  const data = getResultData(parsed)
+  const storedInnerArgs = storedArgs?.args as Record<string, unknown> | undefined
+
+  const file = data?.file as Record<string, unknown> | undefined
+  if (file?.id) {
+    return { type: 'file', id: file.id as string, title: (file.name as string) || 'File' }
+  }
+
+  const fileId = (data?.fileId as string) ?? (data?.id as string)
+  const fileName =
+    (data?.fileName as string) ||
+    (data?.name as string) ||
+    (storedInnerArgs?.fileName as string) ||
+    'File'
+  if (fileId && typeof fileId === 'string') return { type: 'file', id: fileId, title: fileName }
+
+  return null
 }
 
 export function useChat(workspaceId: string, initialChatId?: string): UseChatReturn {
@@ -77,6 +140,8 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [resources, setResources] = useState<MothershipResource[]>([])
+  const [activeResourceId, setActiveResourceId] = useState<string | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
   const chatBottomRef = useRef<HTMLDivElement>(null)
@@ -84,6 +149,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   const pendingUserMsgRef = useRef<{ id: string; content: string } | null>(null)
   const streamIdRef = useRef<string | undefined>(undefined)
   const sendingRef = useRef(false)
+  const toolArgsMapRef = useRef<Map<string, Record<string, unknown>>>(new Map())
 
   useEffect(() => {
     routerRef.current = router
@@ -93,12 +159,30 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
 
   const { data: chatHistory } = useChatHistory(initialChatId)
 
+  const addResource = useCallback((resource: MothershipResource) => {
+    setResources((prev) => {
+      const existing = prev.find((r) => r.type === resource.type && r.id === resource.id)
+      if (existing) {
+        const keepOldTitle = existing.title !== 'Table' && existing.title !== 'File'
+        const title = keepOldTitle ? existing.title : resource.title
+        if (title === existing.title) return prev
+        return prev.map((r) =>
+          r.id === existing.id && r.type === existing.type ? { ...r, title } : r
+        )
+      }
+      return [...prev, resource]
+    })
+    setActiveResourceId(resource.id)
+  }, [])
+
   useEffect(() => {
     chatIdRef.current = initialChatId
     appliedChatIdRef.current = undefined
     setMessages([])
     setError(null)
     setIsSending(false)
+    setResources([])
+    setActiveResourceId(null)
   }, [initialChatId])
 
   useEffect(() => {
@@ -110,6 +194,8 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     setMessages([])
     setError(null)
     setIsSending(false)
+    setResources([])
+    setActiveResourceId(null)
   }, [isHomePage])
 
   useEffect(() => {
@@ -124,6 +210,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       let buffer = ''
       const blocks: ContentBlock[] = []
       const toolMap = new Map<string, number>()
+      let lastTableId: string | null = null
 
       const ensureTextBlock = (): ContentBlock => {
         const last = blocks[blocks.length - 1]
@@ -164,6 +251,8 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
             continue
           }
 
+          logger.debug('SSE event received', parsed)
+
           switch (parsed.type) {
             case 'chat_id': {
               if (parsed.chatId) {
@@ -201,6 +290,14 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
               const data = getPayloadData(parsed)
               const name = parsed.toolName || data?.name || 'unknown'
               if (!id) break
+
+              if (RESOURCE_TOOL_NAMES.has(name)) {
+                const args = data?.arguments ?? data?.input
+                if (args) {
+                  toolArgsMapRef.current.set(id, args)
+                }
+              }
+
               const ui = parsed.ui || data?.ui
               if (ui?.hidden) break
               const displayTitle = ui?.title || ui?.phaseLabel
@@ -228,6 +325,33 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
               if (idx !== undefined && blocks[idx].toolCall) {
                 blocks[idx].toolCall!.status = parsed.success ? 'success' : 'error'
                 flush()
+              }
+
+              const toolName = parsed.toolName || getPayloadData(parsed)?.name
+              if (toolName && parsed.success && RESOURCE_TOOL_NAMES.has(toolName)) {
+                const storedArgs = toolArgsMapRef.current.get(id)
+                let resource: MothershipResource | null = null
+
+                if (toolName === 'user_table') {
+                  resource = extractTableResource(parsed, storedArgs, lastTableId)
+                  if (resource) {
+                    lastTableId = resource.id
+                    queryClient.invalidateQueries({ queryKey: tableKeys.detail(resource.id) })
+                    queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(resource.id) })
+                  }
+                } else if (toolName === 'workspace_file') {
+                  resource = extractFileResource(parsed, storedArgs)
+                  if (resource) {
+                    queryClient.invalidateQueries({
+                      queryKey: workspaceFilesKeys.list(workspaceId),
+                    })
+                    queryClient.invalidateQueries({
+                      queryKey: workspaceFilesKeys.content(workspaceId, resource.id),
+                    })
+                  }
+                }
+
+                if (resource) addResource(resource)
               }
               break
             }
@@ -265,7 +389,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
         }
       }
     },
-    [workspaceId, queryClient]
+    [workspaceId, queryClient, addResource]
   )
 
   const finalize = useCallback(() => {
@@ -401,5 +525,8 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     sendMessage,
     stopGeneration,
     chatBottomRef,
+    resources,
+    activeResourceId,
+    setActiveResourceId,
   }
 }

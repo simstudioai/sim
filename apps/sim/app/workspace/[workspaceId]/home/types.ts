@@ -47,6 +47,9 @@ export interface SSEPayloadData {
   ui?: SSEPayloadUI
   id?: string
   agent?: string
+  arguments?: Record<string, unknown>
+  input?: Record<string, unknown>
+  result?: Record<string, unknown>
 }
 
 export interface SSEPayload {
@@ -60,4 +63,13 @@ export interface SSEPayload {
   success?: boolean
   error?: string
   subagent?: string
+  result?: Record<string, unknown>
+}
+
+export type MothershipResourceType = 'table' | 'file'
+
+export interface MothershipResource {
+  type: MothershipResourceType
+  id: string
+  title: string
 }

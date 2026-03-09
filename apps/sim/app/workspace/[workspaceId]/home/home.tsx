@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { MessageContent, UserInput } from './components'
+import { MessageContent, MothershipView, UserInput } from './components'
 import { useChat } from './hooks'
 
 interface HomeProps {
@@ -12,10 +12,16 @@ interface HomeProps {
 export function Home({ chatId }: HomeProps = {}) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const [inputValue, setInputValue] = useState('')
-  const { messages, isSending, sendMessage, stopGeneration, chatBottomRef } = useChat(
-    workspaceId,
-    chatId
-  )
+  const {
+    messages,
+    isSending,
+    sendMessage,
+    stopGeneration,
+    chatBottomRef,
+    resources,
+    activeResourceId,
+    setActiveResourceId,
+  } = useChat(workspaceId, chatId)
 
   const handleSubmit = useCallback(() => {
     const trimmed = inputValue.trim()
@@ -102,6 +108,15 @@ export function Home({ chatId }: HomeProps = {}) {
           />
         </div>
       </div>
+
+      {resources.length > 0 && (
+        <MothershipView
+          workspaceId={workspaceId}
+          resources={resources}
+          activeResourceId={activeResourceId}
+          onSelectResource={setActiveResourceId}
+        />
+      )}
     </div>
   )
 }
