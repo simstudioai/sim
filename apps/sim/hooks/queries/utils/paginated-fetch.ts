@@ -8,12 +8,15 @@
  * @param pageSize - Number of items per page (default 200)
  * @returns All items concatenated across pages
  */
+const MAX_PAGES = 100
+
 export async function fetchAllPages<T>(baseUrl: string, pageSize = 200): Promise<T[]> {
   const allItems: T[] = []
   let offset = 0
+  let pages = 0
   const separator = baseUrl.includes('?') ? '&' : '?'
 
-  while (true) {
+  while (pages < MAX_PAGES) {
     const response = await fetch(`${baseUrl}${separator}limit=${pageSize}&offset=${offset}`)
 
     if (!response.ok) {
@@ -21,14 +24,15 @@ export async function fetchAllPages<T>(baseUrl: string, pageSize = 200): Promise
     }
 
     const json = await response.json()
-    const data: T[] = json.data
+    const data: T[] = Array.isArray(json.data) ? json.data : []
     allItems.push(...data)
 
-    if (!json.pagination?.hasMore) {
+    if (!json.pagination?.hasMore || data.length === 0) {
       break
     }
 
     offset += pageSize
+    pages++
   }
 
   return allItems
