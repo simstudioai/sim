@@ -251,9 +251,18 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Handle image-only contexts (copilot, chat, profile-pictures)
+      // Handle copilot, chat, profile-pictures contexts
       if (context === 'copilot' || context === 'chat' || context === 'profile-pictures') {
-        if (!isImageFileType(file.type)) {
+        if (context === 'copilot') {
+          const { isSupportedFileType: isCopilotSupported } = await import(
+            '@/lib/uploads/contexts/copilot/copilot-file-manager'
+          )
+          if (!isImageFileType(file.type) && !isCopilotSupported(file.type)) {
+            throw new InvalidRequestError(
+              'Unsupported file type. Allowed: images, PDF, and text files (TXT, CSV, MD, HTML, JSON, XML).'
+            )
+          }
+        } else if (!isImageFileType(file.type)) {
           throw new InvalidRequestError(
             `Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed for ${context} uploads`
           )

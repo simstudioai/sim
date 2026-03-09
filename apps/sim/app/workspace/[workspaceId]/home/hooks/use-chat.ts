@@ -8,10 +8,12 @@ import {
   type TaskChatHistory,
   type TaskStoredContentBlock,
   type TaskStoredMessage,
+  type TaskStoredToolCall,
   taskKeys,
   useChatHistory,
 } from '@/hooks/queries/tasks'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type {
   ChatMessage,
   ContentBlock,
@@ -22,12 +24,27 @@ import type {
   ToolCallStatus,
 } from '../types'
 import { SUBAGENT_LABELS } from '../types'
+import {
+  extractFileResource,
+  extractTableResource,
+  extractWorkflowResource,
+  RESOURCE_TOOL_NAMES,
+} from '../utils'
 
 export interface UseChatReturn {
   messages: ChatMessage[]
   isSending: boolean
   error: string | null
-  sendMessage: (message: string) => Promise<void>
+  sendMessage: (
+    message: string,
+    fileAttachments?: Array<{
+      id: string
+      key: string
+      filename: string
+      media_type: string
+      size: number
+    }>
+  ) => Promise<void>
   stopGeneration: () => void
   chatBottomRef: React.RefObject<HTMLDivElement | null>
   resources: MothershipResource[]
@@ -52,10 +69,26 @@ function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
       name: block.toolCall.name ?? 'unknown',
       status: STATE_TO_STATUS[block.toolCall.state ?? ''] ?? 'success',
       displayTitle: block.toolCall.display?.text,
+      result: block.toolCall.result,
     }
   }
 
   return mapped
+}
+
+function mapStoredToolCall(tc: TaskStoredToolCall): ContentBlock {
+  return {
+    type: 'tool_call',
+    toolCall: {
+      id: tc.id,
+      name: tc.name,
+      status: (STATE_TO_STATUS[tc.status] ?? 'success') as ToolCallStatus,
+      result:
+        tc.result != null
+          ? { success: tc.status === 'success', output: tc.result, error: tc.error }
+          : undefined,
+    },
+  }
 }
 
 function mapStoredMessage(msg: TaskStoredMessage): ChatMessage {
@@ -65,7 +98,9 @@ function mapStoredMessage(msg: TaskStoredMessage): ChatMessage {
     content: msg.content,
   }
 
-  if (Array.isArray(msg.contentBlocks) && msg.contentBlocks.length > 0) {
+  if (Array.isArray(msg.toolCalls) && msg.toolCalls.length > 0) {
+    mapped.contentBlocks = msg.toolCalls.map(mapStoredToolCall)
+  } else if (Array.isArray(msg.contentBlocks) && msg.contentBlocks.length > 0) {
     mapped.contentBlocks = msg.contentBlocks.map(mapStoredBlock)
   }
 
@@ -76,60 +111,6 @@ const logger = createLogger('useChat')
 
 function getPayloadData(payload: SSEPayload): SSEPayloadData | undefined {
   return typeof payload.data === 'object' ? payload.data : undefined
-}
-
-const RESOURCE_TOOL_NAMES = new Set(['user_table', 'workspace_file'])
-
-function getResultData(parsed: SSEPayload): Record<string, unknown> | undefined {
-  const topResult = parsed.result as Record<string, unknown> | undefined
-  const nestedResult =
-    typeof parsed.data === 'object' ? (parsed.data?.result as Record<string, unknown>) : undefined
-  const result = topResult ?? nestedResult
-  return result?.data as Record<string, unknown> | undefined
-}
-
-function extractTableResource(
-  parsed: SSEPayload,
-  storedArgs: Record<string, unknown> | undefined,
-  fallbackTableId: string | null
-): MothershipResource | null {
-  const data = getResultData(parsed)
-  const storedInnerArgs = storedArgs?.args as Record<string, unknown> | undefined
-
-  const table = data?.table as Record<string, unknown> | undefined
-  if (table?.id) {
-    return { type: 'table', id: table.id as string, title: (table.name as string) || 'Table' }
-  }
-
-  const tableId =
-    (data?.tableId as string) ?? storedInnerArgs?.tableId ?? storedArgs?.tableId ?? fallbackTableId
-  const tableName = (data?.tableName as string) || (table?.name as string) || 'Table'
-  if (tableId) return { type: 'table', id: tableId as string, title: tableName }
-
-  return null
-}
-
-function extractFileResource(
-  parsed: SSEPayload,
-  storedArgs: Record<string, unknown> | undefined
-): MothershipResource | null {
-  const data = getResultData(parsed)
-  const storedInnerArgs = storedArgs?.args as Record<string, unknown> | undefined
-
-  const file = data?.file as Record<string, unknown> | undefined
-  if (file?.id) {
-    return { type: 'file', id: file.id as string, title: (file.name as string) || 'File' }
-  }
-
-  const fileId = (data?.fileId as string) ?? (data?.id as string)
-  const fileName =
-    (data?.fileName as string) ||
-    (data?.name as string) ||
-    (storedInnerArgs?.fileName as string) ||
-    'File'
-  if (fileId && typeof fileId === 'string') return { type: 'file', id: fileId, title: fileName }
-
-  return null
 }
 
 export function useChat(workspaceId: string, initialChatId?: string): UseChatReturn {
@@ -211,6 +192,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       const blocks: ContentBlock[] = []
       const toolMap = new Map<string, number>()
       let lastTableId: string | null = null
+      let lastWorkflowId: string | null = null
 
       const ensureTextBlock = (): ContentBlock => {
         const last = blocks[blocks.length - 1]
@@ -323,7 +305,13 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
               if (!id) break
               const idx = toolMap.get(id)
               if (idx !== undefined && blocks[idx].toolCall) {
-                blocks[idx].toolCall!.status = parsed.success ? 'success' : 'error'
+                const tc = blocks[idx].toolCall!
+                tc.status = parsed.success ? 'success' : 'error'
+                tc.result = {
+                  success: !!parsed.success,
+                  output: parsed.result ?? getPayloadData(parsed)?.result,
+                  error: (parsed.error ?? getPayloadData(parsed)?.error) as string | undefined,
+                }
                 flush()
               }
 
@@ -348,6 +336,32 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                     queryClient.invalidateQueries({
                       queryKey: workspaceFilesKeys.content(workspaceId, resource.id),
                     })
+                  }
+                } else if (toolName === 'create_workflow' || toolName === 'edit_workflow') {
+                  resource = extractWorkflowResource(parsed, lastWorkflowId)
+                  if (resource) {
+                    lastWorkflowId = resource.id
+                    const registry = useWorkflowRegistry.getState()
+                    if (!registry.workflows[resource.id]) {
+                      useWorkflowRegistry.setState((state) => ({
+                        workflows: {
+                          ...state.workflows,
+                          [resource!.id]: {
+                            id: resource!.id,
+                            name: resource!.title,
+                            lastModified: new Date(),
+                            createdAt: new Date(),
+                            color: '#7F2FFF',
+                            workspaceId,
+                            folderId: null,
+                            sortOrder: 0,
+                          },
+                        },
+                      }))
+                      registry.setActiveWorkflow(resource.id)
+                    } else {
+                      registry.loadWorkflowState(resource.id)
+                    }
                   }
                 }
 
@@ -440,7 +454,16 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   }, [chatHistory?.activeStreamId, processSSEStream, finalize])
 
   const sendMessage = useCallback(
-    async (message: string) => {
+    async (
+      message: string,
+      fileAttachments?: Array<{
+        id: string
+        key: string
+        filename: string
+        media_type: string
+        size: number
+      }>
+    ) => {
       if (!message.trim() || !workspaceId) return
 
       abortControllerRef.current?.abort()
@@ -489,6 +512,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
             userMessageId,
             createNewChat: !chatIdRef.current,
             ...(chatIdRef.current ? { chatId: chatIdRef.current } : {}),
+            ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
             userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
           signal: abortController.signal,

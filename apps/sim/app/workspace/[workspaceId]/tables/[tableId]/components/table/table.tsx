@@ -1607,7 +1607,7 @@ const PlaceholderRows = React.memo(function PlaceholderRows({
               }}
               onMouseEnter={() => onRowMouseEnter(globalRowIndex)}
             >
-              <span className='text-[11px] text-[var(--text-tertiary)] tabular-nums'>
+              <span className='block text-[11px] text-[var(--text-tertiary)] tabular-nums'>
                 {dataRowCount + i + 1}
               </span>
             </td>

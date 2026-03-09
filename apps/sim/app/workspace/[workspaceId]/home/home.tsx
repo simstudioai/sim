@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
+import { useSession } from '@/lib/auth/auth-client'
 import {
   LandingPromptStorage,
   LandingTemplateStorage,
@@ -11,6 +12,7 @@ import {
 } from '@/lib/core/utils/browser-storage'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 import { MessageContent, MothershipView, UserInput } from './components'
+import type { FileAttachmentForApi } from './components/user-input/user-input'
 import { useChat } from './hooks'
 
 const logger = createLogger('Home')
@@ -22,6 +24,7 @@ interface HomeProps {
 export function Home({ chatId }: HomeProps = {}) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
+  const { data: session } = useSession()
   const [inputValue, setInputValue] = useState('')
   const hasCheckedLandingStorageRef = useRef(false)
 
@@ -107,12 +110,15 @@ export function Home({ chatId }: HomeProps = {}) {
     setActiveResourceId,
   } = useChat(workspaceId, chatId)
 
-  const handleSubmit = useCallback(() => {
-    const trimmed = inputValue.trim()
-    if (!trimmed) return
-    setInputValue('')
-    sendMessage(trimmed)
-  }, [inputValue, sendMessage])
+  const handleSubmit = useCallback(
+    (fileAttachments?: FileAttachmentForApi[]) => {
+      const trimmed = inputValue.trim()
+      if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
+      setInputValue('')
+      sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments)
+    },
+    [inputValue, sendMessage]
+  )
 
   const hasMessages = messages.length > 0
 
@@ -128,6 +134,7 @@ export function Home({ chatId }: HomeProps = {}) {
           onSubmit={handleSubmit}
           isSending={isSending}
           onStopGeneration={stopGeneration}
+          userId={session?.user?.id}
         />
       </div>
     )
@@ -189,6 +196,7 @@ export function Home({ chatId }: HomeProps = {}) {
             isSending={isSending}
             onStopGeneration={stopGeneration}
             isInitialView={false}
+            userId={session?.user?.id}
           />
         </div>
       </div>

@@ -13,10 +13,21 @@ export interface TaskChatHistory {
   activeStreamId: string | null
 }
 
+export interface TaskStoredToolCall {
+  id: string
+  name: string
+  status: string
+  params?: Record<string, unknown>
+  result?: unknown
+  error?: string
+  durationMs?: number
+}
+
 export interface TaskStoredMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
+  toolCalls?: TaskStoredToolCall[]
   contentBlocks?: TaskStoredContentBlock[]
 }
 
@@ -27,6 +38,8 @@ export interface TaskStoredContentBlock {
     id?: string
     name?: string
     state?: string
+    params?: Record<string, unknown>
+    result?: { success: boolean; output?: unknown; error?: string }
     display?: { text?: string }
   } | null
 }

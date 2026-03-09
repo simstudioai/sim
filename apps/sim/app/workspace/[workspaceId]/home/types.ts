@@ -5,6 +5,7 @@ export interface ToolCallInfo {
   name: string
   status: ToolCallStatus
   displayTitle?: string
+  result?: { success: boolean; output?: unknown; error?: string }
 }
 
 export type ContentBlockType = 'text' | 'tool_call' | 'subagent'
@@ -49,7 +50,8 @@ export interface SSEPayloadData {
   agent?: string
   arguments?: Record<string, unknown>
   input?: Record<string, unknown>
-  result?: Record<string, unknown>
+  result?: unknown
+  error?: string
 }
 
 export interface SSEPayload {
@@ -61,12 +63,12 @@ export interface SSEPayload {
   toolName?: string
   ui?: SSEPayloadUI
   success?: boolean
+  result?: unknown
   error?: string
   subagent?: string
-  result?: Record<string, unknown>
 }
 
-export type MothershipResourceType = 'table' | 'file'
+export type MothershipResourceType = 'table' | 'file' | 'workflow'
 
 export interface MothershipResource {
   type: MothershipResourceType

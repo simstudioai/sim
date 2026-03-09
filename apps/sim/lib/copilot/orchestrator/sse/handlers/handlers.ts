@@ -113,7 +113,7 @@ function inferToolSuccess(data: Record<string, unknown> | undefined): {
   const explicitSuccess = data?.success ?? resultObj.success
   const hasResultData = data?.result !== undefined || data?.data !== undefined
   const hasError = !!data?.error || !!resultObj.error
-  const success = hasExplicitSuccess ? !!explicitSuccess : hasResultData && !hasError
+  const success = hasExplicitSuccess ? !!explicitSuccess : !hasError
   return { success, hasResultData, hasError }
 }
 

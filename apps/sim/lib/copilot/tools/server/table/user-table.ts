@@ -650,7 +650,6 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             | {
                 name: string
                 type: string
-                required?: boolean
                 unique?: boolean
                 position?: number
               }
@@ -720,12 +719,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'columnName is required' }
           }
           const newType = (args as Record<string, unknown>).newType as string | undefined
-          const reqFlag = (args as Record<string, unknown>).required as boolean | undefined
           const uniqFlag = (args as Record<string, unknown>).unique as boolean | undefined
-          if (newType === undefined && reqFlag === undefined && uniqFlag === undefined) {
+          if (newType === undefined && uniqFlag === undefined) {
             return {
               success: false,
-              message: 'At least one of newType, required, or unique must be provided',
+              message: 'At least one of newType or unique must be provided',
             }
           }
           const requestId = crypto.randomUUID().slice(0, 8)
@@ -736,9 +734,9 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               requestId
             )
           }
-          if (reqFlag !== undefined || uniqFlag !== undefined) {
+          if (uniqFlag !== undefined) {
             result = await updateColumnConstraints(
-              { tableId: args.tableId, columnName: colName, required: reqFlag, unique: uniqFlag },
+              { tableId: args.tableId, columnName: colName, unique: uniqFlag },
               requestId
             )
           }
