@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef } from 'react'
+import { Fragment } from 'react'
 import {
   Button,
   ChevronDown,
@@ -9,6 +9,7 @@ import {
   Plus,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 
 export interface DropdownOption {
   label: string
@@ -143,31 +144,15 @@ function BreadcrumbSegment({
   dropdownItems?: DropdownOption[]
   editing?: BreadcrumbEditing
 }) {
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (editing?.isEditing && inputRef.current) {
-      inputRef.current.focus()
-      inputRef.current.select()
-    }
-  }, [editing?.isEditing])
-
   if (editing?.isEditing) {
     return (
       <span className='inline-flex items-center px-[8px] py-[4px]'>
         {Icon && <Icon className='mr-[12px] h-[14px] w-[14px] text-[var(--text-icon)]' />}
-        <input
-          ref={inputRef}
-          type='text'
+        <InlineRenameInput
           value={editing.value}
-          onChange={(e) => editing.onChange(e.target.value)}
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') editing.onSubmit()
-            if (e.key === 'Escape') editing.onCancel()
-          }}
-          onBlur={editing.onSubmit}
-          className='min-w-0 border-0 bg-transparent p-0 font-medium text-[14px] text-[var(--text-body)] outline-none focus:outline-none focus:ring-0'
+          onChange={editing.onChange}
+          onSubmit={editing.onSubmit}
+          onCancel={editing.onCancel}
         />
       </span>
     )
