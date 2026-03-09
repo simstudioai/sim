@@ -166,6 +166,7 @@ export function Table({
   const [renameValue, setRenameValue] = useState('')
   const [deletingColumn, setDeletingColumn] = useState<string | null>(null)
 
+  const containerRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
 
   const { tableData, isLoadingTable, rows, isLoadingRows } = useTableData({
@@ -362,12 +363,6 @@ export function Table({
     const column = columnsRef.current.find((c) => c.name === columnName)
     if (!column) return
 
-    if (column.type === 'json') {
-      const row = rowsRef.current.find((r) => r.id === rowId)
-      if (row) setEditingRow(row)
-      return
-    }
-
     if (column.type === 'boolean') {
       const row = rowsRef.current.find((r) => r.id === rowId)
       if (row) {
@@ -392,6 +387,8 @@ export function Table({
     const handleKeyDown = (e: KeyboardEvent) => {
       const anchor = selectionAnchorRef.current
       if (!anchor || editingCellRef.current || editingEmptyCellRef.current) return
+
+      if (!containerRef.current?.contains(e.target as Node)) return
 
       const cols = columnsRef.current
       const dataRows = visibleRowsRef.current
@@ -558,7 +555,7 @@ export function Table({
     if (selectionFocusRef.current !== null) return
 
     const column = columnsRef.current.find((c) => c.name === columnName)
-    if (!column || column.type === 'json' || column.type === 'boolean') return
+    if (!column || column.type === 'boolean') return
     setEditingEmptyCell({ rowIndex, columnName })
   }, [])
 
@@ -738,7 +735,7 @@ export function Table({
   }
 
   return (
-    <div className='flex h-full flex-col'>
+    <div ref={containerRef} className='flex h-full flex-col'>
       {!embedded && (
         <>
           <ResourceHeader
@@ -1290,27 +1287,15 @@ function CellContent({
   const isNull = value === null || value === undefined
 
   if (column.type === 'boolean') {
-    const boolValue = Boolean(value)
-    return (
-      <span className={boolValue ? 'text-green-500' : 'text-[var(--text-tertiary)]'}>
-        {isNull ? '' : boolValue ? 'true' : 'false'}
-      </span>
-    )
+    if (isNull) return null
+    return <span className='text-[var(--text-primary)]'>{value ? 'true' : 'false'}</span>
   }
 
   if (isNull) return null
 
   if (column.type === 'json') {
     return (
-      <span className='block truncate font-mono text-[11px] text-[var(--text-secondary)]'>
-        {JSON.stringify(value)}
-      </span>
-    )
-  }
-
-  if (column.type === 'number') {
-    return (
-      <span className='font-mono text-[12px] text-[var(--text-secondary)]'>{String(value)}</span>
+      <span className='block truncate text-[var(--text-primary)]'>{JSON.stringify(value)}</span>
     )
   }
 
@@ -1324,7 +1309,7 @@ function CellContent({
         hour: '2-digit',
         minute: '2-digit',
       })
-      return <span className='text-[12px] text-[var(--text-secondary)]'>{formatted}</span>
+      return <span className='text-[var(--text-primary)]'>{formatted}</span>
     } catch {
       return <span className='text-[var(--text-primary)]'>{String(value)}</span>
     }
@@ -1399,12 +1384,7 @@ function InlineEditor({
       onKeyDown={handleKeyDown}
       onBlur={handleSave}
       className={cn(
-        'w-full min-w-0 select-text border-none bg-transparent p-0 outline-none',
-        column.type === 'number'
-          ? 'font-mono text-[12px] text-[var(--text-secondary)]'
-          : column.type === 'date'
-            ? 'text-[12px] text-[var(--text-secondary)]'
-            : 'text-[13px] text-[var(--text-primary)]'
+        'w-full min-w-0 select-text border-none bg-transparent p-0 text-[13px] text-[var(--text-primary)] outline-none'
       )}
     />
   )

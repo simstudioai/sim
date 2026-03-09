@@ -49,7 +49,7 @@ export function cleanCellValue(value: unknown, column: ColumnDefinition): unknow
 export function formatValueForInput(value: unknown, type: string): string {
   if (value === null || value === undefined) return ''
   if (type === 'json') {
-    return typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+    return typeof value === 'string' ? value : JSON.stringify(value)
   }
   if (type === 'date' && value) {
     try {

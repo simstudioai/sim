@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
 import { tableKeys } from '@/hooks/queries/tables'
 import {
@@ -116,8 +116,6 @@ function getPayloadData(payload: SSEPayload): SSEPayloadData | undefined {
 export function useChat(workspaceId: string, initialChatId?: string): UseChatReturn {
   const pathname = usePathname()
   const queryClient = useQueryClient()
-  const router = useRouter()
-  const routerRef = useRef(router)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -131,10 +129,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   const streamIdRef = useRef<string | undefined>(undefined)
   const sendingRef = useRef(false)
   const toolArgsMapRef = useRef<Map<string, Record<string, unknown>>>(new Map())
-
-  useEffect(() => {
-    routerRef.current = router
-  }, [router])
+  const streamGenRef = useRef(0)
 
   const isHomePage = pathname.endsWith('/home')
 
@@ -157,6 +152,10 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   }, [])
 
   useEffect(() => {
+    if (sendingRef.current) {
+      chatIdRef.current = initialChatId
+      return
+    }
     chatIdRef.current = initialChatId
     appliedChatIdRef.current = undefined
     setMessages([])
@@ -168,10 +167,12 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
 
   useEffect(() => {
     if (!isHomePage || !chatIdRef.current) return
+    streamGenRef.current++
     chatIdRef.current = undefined
     appliedChatIdRef.current = undefined
     abortControllerRef.current?.abort()
     abortControllerRef.current = null
+    sendingRef.current = false
     setMessages([])
     setError(null)
     setIsSending(false)
@@ -252,7 +253,11 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                       activeStreamId,
                     })
                   }
-                  routerRef.current.replace(`/workspace/${workspaceId}/task/${parsed.chatId}`)
+                  window.history.replaceState(
+                    null,
+                    '',
+                    `/workspace/${workspaceId}/task/${parsed.chatId}`
+                  )
                 }
               }
               break
@@ -407,6 +412,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   )
 
   const finalize = useCallback(() => {
+    sendingRef.current = false
     setIsSending(false)
     abortControllerRef.current = null
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -422,8 +428,10 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     const activeStreamId = chatHistory?.activeStreamId
     if (!activeStreamId || !appliedChatIdRef.current || sendingRef.current) return
 
+    const gen = ++streamGenRef.current
     const abortController = new AbortController()
     abortControllerRef.current = abortController
+    sendingRef.current = true
     setIsSending(true)
 
     const assistantId = crypto.randomUUID()
@@ -442,7 +450,9 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return
       } finally {
-        finalize()
+        if (streamGenRef.current === gen) {
+          finalize()
+        }
       }
     }
     reconnect()
@@ -467,6 +477,8 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       if (!message.trim() || !workspaceId) return
 
       abortControllerRef.current?.abort()
+
+      const gen = ++streamGenRef.current
 
       setError(null)
       setIsSending(true)
@@ -530,16 +542,35 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
         if (err instanceof Error && err.name === 'AbortError') return
         setError(err instanceof Error ? err.message : 'Failed to send message')
       } finally {
-        sendingRef.current = false
-        finalize()
+        if (streamGenRef.current === gen) {
+          finalize()
+        }
       }
     },
     [workspaceId, queryClient, processSSEStream, finalize]
   )
 
   const stopGeneration = useCallback(() => {
+    streamGenRef.current++
     abortControllerRef.current?.abort()
+    abortControllerRef.current = null
+    sendingRef.current = false
     setIsSending(false)
+
+    const activeChatId = chatIdRef.current
+    if (activeChatId) {
+      queryClient.invalidateQueries({ queryKey: taskKeys.detail(activeChatId) })
+    }
+    queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+  }, [workspaceId, queryClient])
+
+  useEffect(() => {
+    return () => {
+      streamGenRef.current++
+      abortControllerRef.current?.abort()
+      abortControllerRef.current = null
+      sendingRef.current = false
+    }
   }, [])
 
   return {

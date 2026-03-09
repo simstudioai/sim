@@ -145,7 +145,7 @@ export function Home({ chatId }: HomeProps = {}) {
       <div className='flex h-full min-w-0 flex-1 flex-col'>
         <div className='min-h-0 flex-1 overflow-y-auto px-[24px] py-[16px]'>
           <div className='mx-auto max-w-[640px] space-y-[16px]'>
-            {messages.map((msg) => {
+            {messages.map((msg, index) => {
               if (msg.role === 'user') {
                 return (
                   <div key={msg.id} className='flex justify-end'>
@@ -159,7 +159,8 @@ export function Home({ chatId }: HomeProps = {}) {
               }
 
               const hasBlocks = msg.contentBlocks && msg.contentBlocks.length > 0
-              const isThisStreaming = isSending && msg === messages[messages.length - 1]
+              const isLastAssistant = msg.role === 'assistant' && index === messages.length - 1
+              const isThisStreaming = isSending && isLastAssistant
 
               if (!hasBlocks && !msg.content && isThisStreaming) {
                 return (

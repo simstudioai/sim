@@ -101,10 +101,10 @@ export function UserInput({
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
-        handleSubmit()
+        if (!isSending) handleSubmit()
       }
     },
-    [handleSubmit]
+    [handleSubmit, isSending]
   )
 
   const toggleListening = useCallback(() => {
