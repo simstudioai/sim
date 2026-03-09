@@ -378,7 +378,6 @@ export async function updateWorkspaceFileContent(
         )
       )
 
-    const sizeDiff = content.length - fileRecord.size
     if (sizeDiff !== 0) {
       try {
         if (sizeDiff > 0) {

@@ -102,16 +102,12 @@ function TextEditor({ file, workspaceId, canEdit, onDirtyChange, saveRef }: Text
     const currentContent = contentRef.current
     if (currentContent === savedContent) return
 
-    try {
-      await updateContent.mutateAsync({
-        workspaceId,
-        fileId: file.id,
-        content: currentContent,
-      })
-      setSavedContent(currentContent)
-    } catch (err) {
-      logger.error('Failed to save file content:', err)
-    }
+    await updateContent.mutateAsync({
+      workspaceId,
+      fileId: file.id,
+      content: currentContent,
+    })
+    setSavedContent(currentContent)
   }, [savedContent, workspaceId, file.id, updateContent])
 
   useEffect(() => {
