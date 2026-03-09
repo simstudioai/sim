@@ -337,6 +337,30 @@ export async function renameTable(
 }
 
 /**
+ * Updates a table's UI metadata (e.g. column widths).
+ * Does not update `updatedAt` since metadata is UI-only state.
+ *
+ * @param tableId - Table ID to update
+ * @param metadata - New metadata object (merged with existing)
+ * @param existingMetadata - Existing metadata from a prior fetch (avoids redundant DB read)
+ * @returns Updated metadata
+ */
+export async function updateTableMetadata(
+  tableId: string,
+  metadata: TableMetadata,
+  existingMetadata?: TableMetadata | null
+): Promise<TableMetadata> {
+  const merged: TableMetadata = { ...(existingMetadata ?? {}), ...metadata }
+
+  await db
+    .update(userTableDefinitions)
+    .set({ metadata: merged })
+    .where(eq(userTableDefinitions.id, tableId))
+
+  return merged
+}
+
+/**
  * Deletes a table (hard delete).
  *
  * @param tableId - Table ID to delete

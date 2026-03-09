@@ -3,7 +3,7 @@
  */
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { Filter, Sort, TableDefinition, TableRow } from '@/lib/table'
+import type { Filter, Sort, TableDefinition, TableMetadata, TableRow } from '@/lib/table'
 
 export const tableKeys = {
   all: ['tables'] as const,
@@ -525,6 +525,53 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, workspaceId, tableId)
+    },
+  })
+}
+
+/**
+ * Update a table's UI metadata (e.g. column widths).
+ * Uses optimistic update for instant visual feedback.
+ */
+export function useUpdateTableMetadata({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (metadata: TableMetadata) => {
+      const res = await fetch(`/api/table/${tableId}/metadata`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId, metadata }),
+      })
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        throw new Error((error as { error?: string }).error || 'Failed to update metadata')
+      }
+
+      return res.json()
+    },
+    onMutate: async (metadata) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.detail(tableId) })
+
+      const previous = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+
+      if (previous) {
+        queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {
+          ...previous,
+          metadata: { ...(previous.metadata ?? {}), ...metadata },
+        })
+      }
+
+      return { previous }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(tableKeys.detail(tableId), context.previous)
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
     },
   })
 }

@@ -50,6 +50,7 @@ import {
   useDeleteTable,
   useRenameTable,
   useUpdateColumn,
+  useUpdateTableMetadata,
   useUpdateTableRow,
 } from '@/hooks/queries/tables'
 import { useInlineRename } from '@/hooks/use-inline-rename'
@@ -186,7 +187,11 @@ export function Table({
   const [deletingColumn, setDeletingColumn] = useState<string | null>(null)
 
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
+  const columnWidthsRef = useRef(columnWidths)
+  columnWidthsRef.current = columnWidths
   const [resizingColumn, setResizingColumn] = useState<string | null>(null)
+  const metadataSeededRef = useRef(false)
+  const metadataSaveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const isDraggingRef = useRef(false)
 
@@ -209,6 +214,7 @@ export function Table({
   const addColumnMutation = useAddTableColumn({ workspaceId, tableId })
   const updateColumnMutation = useUpdateColumn({ workspaceId, tableId })
   const deleteColumnMutation = useDeleteColumn({ workspaceId, tableId })
+  const updateMetadataMutation = useUpdateTableMetadata({ workspaceId, tableId })
 
   const columns = useMemo(
     () => tableData?.schema?.columns || EMPTY_COLUMNS,
@@ -406,6 +412,20 @@ export function Table({
 
   const handleColumnResizeEnd = useCallback(() => {
     setResizingColumn(null)
+    clearTimeout(metadataSaveTimerRef.current)
+    metadataSaveTimerRef.current = setTimeout(() => {
+      updateMetadataMutation.mutate({ columnWidths: columnWidthsRef.current })
+    }, 500)
+  }, [])
+
+  useEffect(() => {
+    if (!tableData?.metadata?.columnWidths || metadataSeededRef.current) return
+    metadataSeededRef.current = true
+    setColumnWidths(tableData.metadata.columnWidths)
+  }, [tableData?.metadata?.columnWidths])
+
+  useEffect(() => {
+    return () => clearTimeout(metadataSaveTimerRef.current)
   }, [])
 
   useEffect(() => {

@@ -56,6 +56,7 @@ export async function GET(request: NextRequest, { params }: TableRouteParams) {
           schema: {
             columns: schemaData.columns.map(normalizeColumn),
           },
+          metadata: table.metadata ?? null,
           rowCount: table.rowCount,
           maxRows: table.maxRows,
           createdAt:
