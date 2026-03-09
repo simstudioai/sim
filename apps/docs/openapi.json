@@ -284,7 +284,8 @@
                       "description": "Cursor for fetching the next page of results. null when there are no more results."
                     },
                     "limits": {
-                      "$ref": "#/components/schemas/Limits"
+                      "$ref": "#/components/schemas/Limits",
+                      "description": "Rate limit and usage information for the current API key."
                     }
                   }
                 }
@@ -342,7 +343,8 @@
                       "$ref": "#/components/schemas/WorkflowDetail"
                     },
                     "limits": {
-                      "$ref": "#/components/schemas/Limits"
+                      "$ref": "#/components/schemas/Limits",
+                      "description": "Rate limit and usage information for the current API key."
                     }
                   }
                 }
@@ -1063,7 +1065,8 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
                     },
                     "data": {
                       "type": "object",
@@ -1072,13 +1075,15 @@
                           "type": "array",
                           "items": {
                             "$ref": "#/components/schemas/Table"
-                          }
+                          },
+                          "description": "Array of tables in the workspace."
                         },
                         "totalCount": {
                           "type": "integer",
                           "description": "Total number of tables."
                         }
-                      }
+                      },
+                      "description": "Response payload."
                     }
                   }
                 }
@@ -1145,7 +1150,8 @@
                         "minItems": 1,
                         "description": "Column definitions for the table."
                       }
-                    }
+                    },
+                    "description": "Table schema definition containing column definitions."
                   }
                 }
               }
@@ -1161,18 +1167,22 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
                     },
                     "data": {
                       "type": "object",
                       "properties": {
                         "table": {
-                          "$ref": "#/components/schemas/Table"
+                          "$ref": "#/components/schemas/Table",
+                          "description": "The newly created table."
                         },
                         "message": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Confirmation message."
                         }
-                      }
+                      },
+                      "description": "Response payload."
                     }
                   }
                 }
@@ -1238,15 +1248,18 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
                     },
                     "data": {
                       "type": "object",
                       "properties": {
                         "table": {
-                          "$ref": "#/components/schemas/Table"
+                          "$ref": "#/components/schemas/Table",
+                          "description": "The requested table with its metadata and schema."
                         }
-                      }
+                      },
+                      "description": "Response payload."
                     }
                   }
                 }
@@ -1313,15 +1326,18 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
                     },
                     "data": {
                       "type": "object",
                       "properties": {
                         "message": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Confirmation message."
                         }
-                      }
+                      },
+                      "description": "Response payload."
                     }
                   }
                 }
@@ -1431,7 +1447,8 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
                     },
                     "data": {
                       "type": "object",
@@ -1440,7 +1457,8 @@
                           "type": "array",
                           "items": {
                             "$ref": "#/components/schemas/TableRow"
-                          }
+                          },
+                          "description": "Array of rows matching the query."
                         },
                         "rowCount": {
                           "type": "integer",
@@ -1451,12 +1469,15 @@
                           "description": "Total rows matching the filter."
                         },
                         "limit": {
-                          "type": "integer"
+                          "type": "integer",
+                          "description": "The limit that was applied to the query."
                         },
                         "offset": {
-                          "type": "integer"
+                          "type": "integer",
+                          "description": "The offset that was applied to the query."
                         }
-                      }
+                      },
+                      "description": "Response payload."
                     }
                   }
                 }
@@ -1517,7 +1538,8 @@
                     "description": "Single row insert.",
                     "properties": {
                       "workspaceId": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "The workspace that owns the table."
                       },
                       "data": {
                         "type": "object",
@@ -1532,7 +1554,8 @@
                     "description": "Batch insert (up to 1000 rows).",
                     "properties": {
                       "workspaceId": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "The workspace that owns the table."
                       },
                       "rows": {
                         "type": "array",
@@ -1540,7 +1563,8 @@
                           "type": "object",
                           "additionalProperties": true
                         },
-                        "maxItems": 1000
+                        "maxItems": 1000,
+                        "description": "Array of row objects to insert. Each object contains key-value pairs matching the table schema."
                       }
                     }
                   }
@@ -1558,27 +1582,33 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
                     },
                     "data": {
                       "type": "object",
                       "properties": {
                         "row": {
-                          "$ref": "#/components/schemas/TableRow"
+                          "$ref": "#/components/schemas/TableRow",
+                          "description": "The inserted row (present for single-row inserts)."
                         },
                         "rows": {
                           "type": "array",
                           "items": {
                             "$ref": "#/components/schemas/TableRow"
-                          }
+                          },
+                          "description": "Array of inserted rows (present for batch inserts)."
                         },
                         "insertedCount": {
-                          "type": "integer"
+                          "type": "integer",
+                          "description": "Number of rows successfully inserted."
                         },
                         "message": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Confirmation message."
                         }
-                      }
+                      },
+                      "description": "Response payload."
                     }
                   }
                 }
@@ -1623,7 +1653,8 @@
             "schema": {
               "type": "string",
               "example": "tbl_abc123"
-            }
+            },
+            "description": "The table to update rows in."
           }
         ],
         "requestBody": {
@@ -1635,7 +1666,8 @@
                 "required": ["workspaceId", "filter", "data"],
                 "properties": {
                   "workspaceId": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "The workspace that owns the table."
                   },
                   "filter": {
                     "type": "object",
@@ -1667,24 +1699,29 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
                     },
                     "data": {
                       "type": "object",
                       "properties": {
                         "message": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Confirmation message describing how many rows were updated."
                         },
                         "updatedCount": {
-                          "type": "integer"
+                          "type": "integer",
+                          "description": "Number of rows that were updated."
                         },
                         "updatedRowIds": {
                           "type": "array",
                           "items": {
                             "type": "string"
-                          }
+                          },
+                          "description": "Array of IDs for each row that was updated."
                         }
-                      }
+                      },
+                      "description": "Response payload."
                     }
                   }
                 }
@@ -1729,7 +1766,8 @@
             "schema": {
               "type": "string",
               "example": "tbl_abc123"
-            }
+            },
+            "description": "The table to delete rows from."
           }
         ],
         "requestBody": {
@@ -1744,16 +1782,19 @@
                     "description": "Delete by filter.",
                     "properties": {
                       "workspaceId": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "The workspace that owns the table."
                       },
                       "filter": {
                         "type": "object",
-                        "additionalProperties": true
+                        "additionalProperties": true,
+                        "description": "Filter criteria to match rows for deletion."
                       },
                       "limit": {
                         "type": "integer",
                         "minimum": 1,
-                        "maximum": 1000
+                        "maximum": 1000,
+                        "description": "Maximum number of rows to delete. Defaults to all matching rows, capped at 1000."
                       }
                     }
                   },
@@ -1763,14 +1804,16 @@
                     "description": "Delete by IDs.",
                     "properties": {
                       "workspaceId": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "The workspace that owns the table."
                       },
                       "rowIds": {
                         "type": "array",
                         "items": {
                           "type": "string"
                         },
-                        "maxItems": 1000
+                        "maxItems": 1000,
+                        "description": "Explicit list of row IDs to delete (max 1000)."
                       }
                     }
                   }
@@ -1788,22 +1831,26 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
                     },
                     "data": {
                       "type": "object",
                       "properties": {
                         "message": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Confirmation message describing how many rows were deleted."
                         },
                         "deletedCount": {
-                          "type": "integer"
+                          "type": "integer",
+                          "description": "Number of rows that were deleted."
                         },
                         "deletedRowIds": {
                           "type": "array",
                           "items": {
                             "type": "string"
-                          }
+                          },
+                          "description": "Array of IDs for each row that was deleted."
                         },
                         "requestedCount": {
                           "type": "integer",
@@ -1816,7 +1863,8 @@
                           },
                           "description": "Row IDs that were requested but not found (only present when deleting by IDs)."
                         }
-                      }
+                      },
+                      "description": "Response payload."
                     }
                   }
                 }
@@ -1863,7 +1911,8 @@
             "schema": {
               "type": "string",
               "example": "tbl_abc123"
-            }
+            },
+            "description": "The table the row belongs to."
           },
           {
             "name": "rowId",
@@ -1881,7 +1930,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "The workspace that owns the table."
           }
         ],
         "responses": {
@@ -1893,15 +1943,18 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
                     },
                     "data": {
                       "type": "object",
                       "properties": {
                         "row": {
-                          "$ref": "#/components/schemas/TableRow"
+                          "$ref": "#/components/schemas/TableRow",
+                          "description": "The requested row."
                         }
-                      }
+                      },
+                      "description": "Response payload."
                     }
                   }
                 }
@@ -1946,7 +1999,8 @@
             "schema": {
               "type": "string",
               "example": "tbl_abc123"
-            }
+            },
+            "description": "The table the row belongs to."
           },
           {
             "name": "rowId",
@@ -1968,7 +2022,8 @@
                 "required": ["workspaceId", "data"],
                 "properties": {
                   "workspaceId": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "The workspace that owns the table."
                   },
                   "data": {
                     "type": "object",
@@ -1989,18 +2044,22 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
                     },
                     "data": {
                       "type": "object",
                       "properties": {
                         "row": {
-                          "$ref": "#/components/schemas/TableRow"
+                          "$ref": "#/components/schemas/TableRow",
+                          "description": "The updated row with all current field values."
                         },
                         "message": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Confirmation message."
                         }
-                      }
+                      },
+                      "description": "Response payload."
                     }
                   }
                 }
@@ -2045,7 +2104,8 @@
             "schema": {
               "type": "string",
               "example": "tbl_abc123"
-            }
+            },
+            "description": "The table the row belongs to."
           },
           {
             "name": "rowId",
@@ -2063,7 +2123,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "The workspace that owns the table."
           }
         ],
         "responses": {
@@ -2075,18 +2136,22 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
                     },
                     "data": {
                       "type": "object",
                       "properties": {
                         "message": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Confirmation message."
                         },
                         "deletedCount": {
-                          "type": "integer"
+                          "type": "integer",
+                          "description": "Number of rows deleted (always 1 for single-row deletion)."
                         }
-                      }
+                      },
+                      "description": "Response payload."
                     }
                   }
                 }
@@ -2133,7 +2198,8 @@
             "schema": {
               "type": "string",
               "example": "tbl_abc123"
-            }
+            },
+            "description": "The table to upsert the row into."
           }
         ],
         "requestBody": {
@@ -2171,13 +2237,15 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
                     },
                     "data": {
                       "type": "object",
                       "properties": {
                         "row": {
-                          "$ref": "#/components/schemas/TableRow"
+                          "$ref": "#/components/schemas/TableRow",
+                          "description": "The inserted or updated row."
                         },
                         "operation": {
                           "type": "string",
@@ -2185,9 +2253,11 @@
                           "description": "Whether the row was inserted or updated."
                         },
                         "message": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Confirmation message."
                         }
-                      }
+                      },
+                      "description": "Response payload."
                     }
                   }
                 }
@@ -2246,7 +2316,8 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Whether the request completed successfully."
                     },
                     "data": {
                       "type": "object",
@@ -2255,13 +2326,15 @@
                           "type": "array",
                           "items": {
                             "$ref": "#/components/schemas/FileMetadata"
-                          }
+                          },
+                          "description": "Array of file metadata objects in the workspace."
                         },
                         "totalCount": {
                           "type": "integer",
                           "description": "Total number of files."
                         }
-                      }
+                      },
+                      "description": "Response payload containing the files list and count."
                     }
                   }
                 }
@@ -2326,18 +2399,22 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Whether the upload completed successfully."
                     },
                     "data": {
                       "type": "object",
                       "properties": {
                         "file": {
-                          "$ref": "#/components/schemas/FileMetadata"
+                          "$ref": "#/components/schemas/FileMetadata",
+                          "description": "Metadata of the newly uploaded file."
                         },
                         "message": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Human-readable confirmation message."
                         }
-                      }
+                      },
+                      "description": "Response payload containing the uploaded file metadata."
                     }
                   }
                 }
@@ -2361,7 +2438,8 @@
                   "type": "object",
                   "properties": {
                     "error": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "Error message indicating a file with the same name already exists in this workspace."
                     }
                   }
                 }
@@ -2523,15 +2601,18 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Whether the deletion completed successfully."
                     },
                     "data": {
                       "type": "object",
                       "properties": {
                         "message": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Human-readable confirmation message."
                         }
-                      }
+                      },
+                      "description": "Response payload containing the deletion confirmation."
                     }
                   }
                 }
@@ -2590,7 +2671,8 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Whether the request was successful."
                     },
                     "data": {
                       "type": "object",
@@ -2599,13 +2681,15 @@
                           "type": "array",
                           "items": {
                             "$ref": "#/components/schemas/KnowledgeBase"
-                          }
+                          },
+                          "description": "Array of knowledge base objects in the workspace."
                         },
                         "totalCount": {
                           "type": "integer",
                           "description": "Total number of knowledge bases."
                         }
-                      }
+                      },
+                      "description": "Response payload containing the list of knowledge bases."
                     }
                   }
                 }
@@ -2662,7 +2746,8 @@
                     "maxLength": 1000
                   },
                   "chunkingConfig": {
-                    "$ref": "#/components/schemas/ChunkingConfig"
+                    "$ref": "#/components/schemas/ChunkingConfig",
+                    "description": "Optional chunking configuration for document processing. Defaults to maxSize=1024, minSize=100, overlap=200 if omitted."
                   }
                 }
               }
@@ -2678,18 +2763,22 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Whether the request was successful."
                     },
                     "data": {
                       "type": "object",
                       "properties": {
                         "knowledgeBase": {
-                          "$ref": "#/components/schemas/KnowledgeBase"
+                          "$ref": "#/components/schemas/KnowledgeBase",
+                          "description": "The newly created knowledge base object."
                         },
                         "message": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Human-readable confirmation message."
                         }
-                      }
+                      },
+                      "description": "Response payload containing the created knowledge base."
                     }
                   }
                 }
@@ -2754,15 +2843,18 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Whether the request was successful."
                     },
                     "data": {
                       "type": "object",
                       "properties": {
                         "knowledgeBase": {
-                          "$ref": "#/components/schemas/KnowledgeBase"
+                          "$ref": "#/components/schemas/KnowledgeBase",
+                          "description": "The knowledge base object."
                         }
-                      }
+                      },
+                      "description": "Response payload containing the knowledge base details."
                     }
                   }
                 }
@@ -2833,7 +2925,8 @@
                     "maxLength": 1000
                   },
                   "chunkingConfig": {
-                    "$ref": "#/components/schemas/ChunkingConfig"
+                    "$ref": "#/components/schemas/ChunkingConfig",
+                    "description": "Updated chunking configuration. All three fields (maxSize, minSize, overlap) must be provided if included."
                   }
                 }
               }
@@ -2849,18 +2942,22 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Whether the request was successful."
                     },
                     "data": {
                       "type": "object",
                       "properties": {
                         "knowledgeBase": {
-                          "$ref": "#/components/schemas/KnowledgeBase"
+                          "$ref": "#/components/schemas/KnowledgeBase",
+                          "description": "The updated knowledge base object."
                         },
                         "message": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Human-readable confirmation message."
                         }
-                      }
+                      },
+                      "description": "Response payload containing the updated knowledge base."
                     }
                   }
                 }
@@ -2926,15 +3023,18 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Whether the request was successful."
                     },
                     "data": {
                       "type": "object",
                       "properties": {
                         "message": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Human-readable confirmation message."
                         }
-                      }
+                      },
+                      "description": "Response payload."
                     }
                   }
                 }
@@ -3066,7 +3166,8 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Whether the request was successful."
                     },
                     "data": {
                       "type": "object",
@@ -3075,26 +3176,33 @@
                           "type": "array",
                           "items": {
                             "$ref": "#/components/schemas/KnowledgeDocument"
-                          }
+                          },
+                          "description": "Array of document objects in the knowledge base."
                         },
                         "pagination": {
                           "type": "object",
                           "properties": {
                             "total": {
-                              "type": "integer"
+                              "type": "integer",
+                              "description": "Total number of documents matching the query."
                             },
                             "limit": {
-                              "type": "integer"
+                              "type": "integer",
+                              "description": "Maximum number of documents returned per page."
                             },
                             "offset": {
-                              "type": "integer"
+                              "type": "integer",
+                              "description": "Number of documents skipped from the beginning."
                             },
                             "hasMore": {
-                              "type": "boolean"
+                              "type": "boolean",
+                              "description": "Whether there are more documents beyond the current page."
                             }
-                          }
+                          },
+                          "description": "Pagination metadata for the document list."
                         }
-                      }
+                      },
+                      "description": "Response payload containing the documents and pagination info."
                     }
                   }
                 }
@@ -3173,18 +3281,22 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Whether the request was successful."
                     },
                     "data": {
                       "type": "object",
                       "properties": {
                         "document": {
-                          "$ref": "#/components/schemas/KnowledgeDocument"
+                          "$ref": "#/components/schemas/KnowledgeDocument",
+                          "description": "The newly created document object with initial processing status of 'pending'."
                         },
                         "message": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Human-readable confirmation message."
                         }
-                      }
+                      },
+                      "description": "Response payload containing the uploaded document."
                     }
                   }
                 }
@@ -3211,7 +3323,8 @@
                   "type": "object",
                   "properties": {
                     "error": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "Error message indicating a file with the same name already exists."
                     }
                   }
                 }
@@ -3226,7 +3339,8 @@
                   "type": "object",
                   "properties": {
                     "error": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "Error message indicating the workspace storage limit has been exceeded."
                     }
                   }
                 }
@@ -3241,7 +3355,8 @@
                   "type": "object",
                   "properties": {
                     "error": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "Error message indicating the file type is not supported."
                     }
                   }
                 }
@@ -3306,15 +3421,18 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Whether the request was successful."
                     },
                     "data": {
                       "type": "object",
                       "properties": {
                         "document": {
-                          "$ref": "#/components/schemas/KnowledgeDocumentDetail"
+                          "$ref": "#/components/schemas/KnowledgeDocumentDetail",
+                          "description": "Detailed document object including processing and connector information."
                         }
-                      }
+                      },
+                      "description": "Response payload containing the document details."
                     }
                   }
                 }
@@ -3386,15 +3504,18 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Whether the request was successful."
                     },
                     "data": {
                       "type": "object",
                       "properties": {
                         "message": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Human-readable confirmation message."
                         }
-                      }
+                      },
+                      "description": "Response payload."
                     }
                   }
                 }
@@ -3455,7 +3576,8 @@
                         },
                         "description": "An array of knowledge base IDs to search across."
                       }
-                    ]
+                    ],
+                    "description": "Array of knowledge base IDs to search across."
                   },
                   "query": {
                     "type": "string",
@@ -3489,7 +3611,8 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Whether the request was successful."
                     },
                     "data": {
                       "type": "object",
@@ -3498,7 +3621,8 @@
                           "type": "array",
                           "items": {
                             "$ref": "#/components/schemas/SearchResult"
-                          }
+                          },
+                          "description": "Array of search result objects ranked by similarity."
                         },
                         "query": {
                           "type": "string",
@@ -3519,7 +3643,8 @@
                           "type": "integer",
                           "description": "Number of results returned."
                         }
-                      }
+                      },
+                      "description": "Response payload containing the search results and metadata."
                     }
                   }
                 }
@@ -3610,7 +3735,8 @@
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/ColumnDefinition"
-                }
+                },
+                "description": "Array of column definitions for the table."
               }
             }
           },
@@ -4749,11 +4875,28 @@
             "description": "Comparison operator (e.g. eq, neq, gt, lt, gte, lte, contains, between)."
           },
           "value": {
-            "oneOf": [{ "type": "string" }, { "type": "number" }, { "type": "boolean" }],
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              }
+            ],
             "description": "Value to filter by."
           },
           "valueTo": {
-            "oneOf": [{ "type": "string" }, { "type": "number" }],
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ],
             "description": "Upper bound value for 'between' operator."
           }
         }
