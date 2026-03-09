@@ -413,6 +413,7 @@ export function serializeCredentials(
   accounts: Array<{
     id?: string
     providerId: string
+    displayName?: string | null
     scope: string | null
     createdAt: Date
   }>
@@ -421,6 +422,7 @@ export function serializeCredentials(
     accounts.map((a) => ({
       id: a.id || undefined,
       provider: a.providerId,
+      displayName: a.displayName || undefined,
       scope: a.scope || undefined,
       connectedAt: a.createdAt.toISOString(),
     })),
@@ -519,6 +521,14 @@ export interface DeploymentData {
     isPublished: boolean
     capabilities: unknown
   } | null
+  versions?: Array<{
+    id: string
+    version: number
+    name: string | null
+    description: string | null
+    isActive: boolean
+    createdAt: Date
+  }>
 }
 
 /**
@@ -591,6 +601,34 @@ export function serializeDeployments(data: DeploymentData): string {
   }
 
   return JSON.stringify(result, null, 2)
+}
+
+/**
+ * Serialize deployment version history for VFS workflows/{name}/versions.json.
+ * Lists all versions without full state — use get_deployment_version tool to fetch a version's state.
+ */
+export function serializeVersions(
+  versions: Array<{
+    id: string
+    version: number
+    name: string | null
+    description: string | null
+    isActive: boolean
+    createdAt: Date
+  }>
+): string {
+  return JSON.stringify(
+    versions.map((v) => ({
+      id: v.id,
+      version: v.version,
+      name: v.name || undefined,
+      description: v.description || undefined,
+      isActive: v.isActive,
+      createdAt: v.createdAt.toISOString(),
+    })),
+    null,
+    2
+  )
 }
 
 /**

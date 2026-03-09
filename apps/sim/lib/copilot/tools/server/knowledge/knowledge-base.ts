@@ -6,7 +6,12 @@ import { generateInternalToken } from '@/lib/auth/internal'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import type { KnowledgeBaseArgs, KnowledgeBaseResult } from '@/lib/copilot/tools/shared/schemas'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { createSingleDocument, processDocumentAsync } from '@/lib/knowledge/documents/service'
+import {
+  createSingleDocument,
+  deleteDocument,
+  processDocumentAsync,
+  updateDocument,
+} from '@/lib/knowledge/documents/service'
 import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 import {
   createKnowledgeBase,
@@ -377,6 +382,55 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             data: {
               id: args.knowledgeBaseId,
               name: kbToDelete.name,
+            },
+          }
+        }
+
+        case 'delete_document': {
+          if (!args.knowledgeBaseId) {
+            return { success: false, message: 'knowledgeBaseId is required for delete_document' }
+          }
+          if (!args.documentId) {
+            return { success: false, message: 'documentId is required for delete_document' }
+          }
+          const requestId = crypto.randomUUID().slice(0, 8)
+          const result = await deleteDocument(args.documentId, requestId)
+          return {
+            success: result.success,
+            message: result.message,
+            data: { documentId: args.documentId, knowledgeBaseId: args.knowledgeBaseId },
+          }
+        }
+
+        case 'update_document': {
+          if (!args.knowledgeBaseId) {
+            return { success: false, message: 'knowledgeBaseId is required for update_document' }
+          }
+          if (!args.documentId) {
+            return { success: false, message: 'documentId is required for update_document' }
+          }
+          const updateData: { filename?: string; enabled?: boolean } = {}
+          if (args.filename !== undefined) {
+            updateData.filename = args.filename
+          }
+          if (args.enabled !== undefined) {
+            updateData.enabled = args.enabled
+          }
+          if (Object.keys(updateData).length === 0) {
+            return {
+              success: false,
+              message: 'At least one of filename or enabled is required for update_document',
+            }
+          }
+          const requestId = crypto.randomUUID().slice(0, 8)
+          await updateDocument(args.documentId, updateData, requestId)
+          return {
+            success: true,
+            message: `Document updated successfully`,
+            data: {
+              documentId: args.documentId,
+              knowledgeBaseId: args.knowledgeBaseId,
+              ...updateData,
             },
           }
         }

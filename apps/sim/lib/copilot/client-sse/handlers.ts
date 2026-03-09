@@ -246,6 +246,11 @@ export const sseHandlers: Record<string, SSEHandler> = {
         updatedMap[toolCallId] = {
           ...current,
           state: targetState,
+          result: {
+            success: !!data?.success,
+            output: data?.result ?? undefined,
+            error: (data?.error as string) ?? undefined,
+          },
           display: resolveToolDisplay(
             current.name,
             targetState,
