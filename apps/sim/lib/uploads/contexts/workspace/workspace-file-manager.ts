@@ -325,6 +325,79 @@ export async function downloadWorkspaceFile(fileRecord: WorkspaceFileRecord): Pr
 }
 
 /**
+ * Update a workspace file's content (re-uploads to same storage key)
+ */
+export async function updateWorkspaceFileContent(
+  workspaceId: string,
+  fileId: string,
+  userId: string,
+  content: Buffer
+): Promise<WorkspaceFileRecord> {
+  logger.info(`Updating workspace file content: ${fileId} for workspace ${workspaceId}`)
+
+  const fileRecord = await getWorkspaceFile(workspaceId, fileId)
+  if (!fileRecord) {
+    throw new Error('File not found')
+  }
+
+  try {
+    const metadata: Record<string, string> = {
+      originalName: fileRecord.name,
+      uploadedAt: new Date().toISOString(),
+      purpose: 'workspace',
+      userId,
+      workspaceId,
+    }
+
+    await uploadFile({
+      file: content,
+      fileName: fileRecord.key,
+      contentType: fileRecord.type,
+      context: 'workspace',
+      preserveKey: true,
+      customKey: fileRecord.key,
+      metadata,
+    })
+
+    await db
+      .update(workspaceFiles)
+      .set({ size: content.length })
+      .where(
+        and(
+          eq(workspaceFiles.id, fileId),
+          eq(workspaceFiles.workspaceId, workspaceId),
+          eq(workspaceFiles.context, 'workspace')
+        )
+      )
+
+    const sizeDiff = content.length - fileRecord.size
+    if (sizeDiff !== 0) {
+      try {
+        if (sizeDiff > 0) {
+          await incrementStorageUsage(userId, sizeDiff)
+        } else {
+          await decrementStorageUsage(userId, Math.abs(sizeDiff))
+        }
+      } catch (storageError) {
+        logger.error(`Failed to update storage tracking:`, storageError)
+      }
+    }
+
+    logger.info(`Successfully updated workspace file content: ${fileRecord.name}`)
+
+    return {
+      ...fileRecord,
+      size: content.length,
+    }
+  } catch (error) {
+    logger.error(`Failed to update workspace file content ${fileId}:`, error)
+    throw new Error(
+      `Failed to update file content: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
+  }
+}
+
+/**
  * Delete a workspace file (both from storage and database)
  */
 export async function deleteWorkspaceFile(workspaceId: string, fileId: string): Promise<void> {

@@ -11,6 +11,9 @@ export const workspaceFilesKeys = {
   all: ['workspaceFiles'] as const,
   lists: () => [...workspaceFilesKeys.all, 'list'] as const,
   list: (workspaceId: string) => [...workspaceFilesKeys.lists(), workspaceId] as const,
+  contents: () => [...workspaceFilesKeys.all, 'content'] as const,
+  content: (workspaceId: string, fileId: string) =>
+    [...workspaceFilesKeys.contents(), workspaceId, fileId] as const,
   storageInfo: () => [...workspaceFilesKeys.all, 'storageInfo'] as const,
 }
 
@@ -52,6 +55,32 @@ export function useWorkspaceFiles(workspaceId: string) {
     enabled: !!workspaceId,
     staleTime: 30 * 1000, // 30 seconds - files can change frequently
     placeholderData: keepPreviousData, // Show cached data immediately
+  })
+}
+
+/**
+ * Fetch file content as text via the serve URL
+ */
+async function fetchWorkspaceFileContent(key: string, signal?: AbortSignal): Promise<string> {
+  const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace`
+  const response = await fetch(serveUrl, { signal })
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch file content')
+  }
+
+  return response.text()
+}
+
+/**
+ * Hook to fetch workspace file content as text
+ */
+export function useWorkspaceFileContent(workspaceId: string, fileId: string, key: string) {
+  return useQuery({
+    queryKey: workspaceFilesKeys.content(workspaceId, fileId),
+    queryFn: ({ signal }) => fetchWorkspaceFileContent(key, signal),
+    enabled: !!workspaceId && !!fileId && !!key,
+    staleTime: 30 * 1000,
   })
 }
 
@@ -133,6 +162,47 @@ export function useUploadWorkspaceFile() {
     },
     onError: (error) => {
       logger.error('Failed to upload file:', error)
+    },
+  })
+}
+
+/**
+ * Update workspace file content mutation
+ */
+interface UpdateFileContentParams {
+  workspaceId: string
+  fileId: string
+  content: string
+}
+
+export function useUpdateWorkspaceFileContent() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ workspaceId, fileId, content }: UpdateFileContentParams) => {
+      const response = await fetch(`/api/workspaces/${workspaceId}/files/${fileId}/content`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      })
+
+      const data = await response.json()
+
+      if (!data.success) {
+        throw new Error(data.error || 'Update failed')
+      }
+
+      return data
+    },
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: workspaceFilesKeys.content(variables.workspaceId, variables.fileId),
+      })
+      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.list(variables.workspaceId) })
+      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
+    },
+    onError: (error) => {
+      logger.error('Failed to update file content:', error)
     },
   })
 }

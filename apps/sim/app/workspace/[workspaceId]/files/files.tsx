@@ -1,16 +1,30 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Files as FilesIcon } from 'lucide-react'
+import { Download, Files as FilesIcon, Upload } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { Button, Trash2 } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
-import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
+import {
+  ownerCell,
+  Resource,
+  ResourceHeader,
+  ResourceOptionsBar,
+  timeCell,
+} from '@/app/workspace/[workspaceId]/components'
+import { CreateFileModal } from '@/app/workspace/[workspaceId]/files/components/create-file-modal'
+import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
-import { useUploadWorkspaceFile, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import {
+  useDeleteWorkspaceFile,
+  useUploadWorkspaceFile,
+  useWorkspaceFiles,
+} from '@/hooks/queries/workspace-files'
 
 const logger = createLogger('Files')
 
@@ -44,8 +58,7 @@ const SUPPORTED_EXTENSIONS = [
   'mkv',
 ] as const
 
-const ACCEPT_ATTR =
-  '.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt,.json,.yaml,.yml,.mp3,.m4a,.wav,.webm,.ogg,.flac,.aac,.opus,.mp4,.mov,.avi,.mkv'
+const ACCEPT_ATTR = SUPPORTED_EXTENSIONS.map((ext) => `.${ext}`).join(',')
 
 const COLUMNS: ResourceColumn[] = [
   { id: 'name', header: 'Name' },
@@ -86,13 +99,16 @@ function formatFileType(mimeType: string | null, filename: string): string {
   if (mimeType?.startsWith('audio/')) return 'Audio'
   if (mimeType?.startsWith('video/')) return 'Video'
 
-  const ext = filename.split('.').pop()?.toLowerCase()
+  const ext = getFileExtension(filename)
   if (ext) return ext.toUpperCase()
 
   return mimeType ?? 'File'
 }
 
 export function Files() {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const saveRef = useRef<(() => Promise<void>) | null>(null)
+
   const params = useParams()
   const workspaceId = params?.workspaceId as string
   const userPermissions = useUserPermissionsContext()
@@ -100,15 +116,23 @@ export function Files() {
   const { data: files = [], isLoading, error } = useWorkspaceFiles(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   const uploadFile = useUploadWorkspaceFile()
+  const deleteFile = useDeleteWorkspaceFile()
 
   if (error) {
     logger.error('Failed to load files:', error)
   }
 
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
+  const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [isDirty, setIsDirty] = useState(false)
+
+  const selectedFile = useMemo(
+    () => (selectedFileId ? files.find((f) => f.id === selectedFileId) : null),
+    [selectedFileId, files]
+  )
 
   const filteredFiles = useMemo(() => {
     if (!searchTerm) return files
@@ -189,6 +213,108 @@ export function Files() {
     }
   }
 
+  const handleDownload = useCallback(async () => {
+    if (!selectedFile) return
+
+    try {
+      const serveUrl = `/api/files/serve/${encodeURIComponent(selectedFile.key)}?context=workspace`
+      const response = await fetch(serveUrl)
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = selectedFile.name
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      logger.error('Failed to download file:', err)
+    }
+  }, [selectedFile])
+
+  const handleDelete = useCallback(async () => {
+    if (!selectedFile) return
+
+    try {
+      await deleteFile.mutateAsync({
+        workspaceId,
+        fileId: selectedFile.id,
+        fileSize: selectedFile.size,
+      })
+      setSelectedFileId(null)
+    } catch (err) {
+      logger.error('Failed to delete file:', err)
+    }
+  }, [selectedFile, workspaceId])
+
+  const handleSave = useCallback(async () => {
+    if (saveRef.current) {
+      await saveRef.current()
+    }
+  }, [])
+
+  const handleFileCreated = useCallback((fileId: string) => {
+    setSelectedFileId(fileId)
+  }, [])
+
+  if (selectedFile) {
+    return (
+      <div className='flex h-full flex-1 flex-col overflow-hidden bg-white dark:bg-[var(--bg)]'>
+        <ResourceHeader
+          icon={FilesIcon}
+          breadcrumbs={[
+            { label: 'Files', onClick: () => setSelectedFileId(null) },
+            { label: selectedFile.name },
+          ]}
+        />
+        <ResourceOptionsBar
+          toolbarActions={
+            <div className='flex items-center gap-[6px]'>
+              {isDirty && (
+                <Button
+                  variant='subtle'
+                  className='px-[8px] py-[4px] text-[12px]'
+                  onClick={handleSave}
+                >
+                  Save
+                </Button>
+              )}
+              <Button
+                variant='subtle'
+                className='px-[8px] py-[4px] text-[12px]'
+                onClick={handleDownload}
+              >
+                <Download className='mr-[6px] h-[14px] w-[14px]' />
+                Download
+              </Button>
+              <Button
+                variant='subtle'
+                className={cn(
+                  'px-[8px] py-[4px] text-[12px]',
+                  'text-[var(--text-muted)] hover:text-red-500'
+                )}
+                onClick={handleDelete}
+                disabled={userPermissions.canEdit !== true || deleteFile.isPending}
+              >
+                <Trash2 className='mr-[6px] h-[14px] w-[14px]' />
+                Delete
+              </Button>
+            </div>
+          }
+        />
+        <FileViewer
+          key={selectedFile.id}
+          file={selectedFile}
+          workspaceId={workspaceId}
+          canEdit={userPermissions.canEdit === true}
+          onDirtyChange={setIsDirty}
+          saveRef={saveRef}
+        />
+      </div>
+    )
+  }
+
   const uploadLabel =
     uploading && uploadProgress.total > 0
       ? `${uploadProgress.completed}/${uploadProgress.total}`
@@ -203,7 +329,7 @@ export function Files() {
         title='Files'
         create={{
           label: uploadLabel,
-          onClick: () => fileInputRef.current?.click(),
+          onClick: () => setCreateModalOpen(true),
           disabled: uploading || userPermissions.canEdit !== true,
         }}
         search={{
@@ -214,8 +340,20 @@ export function Files() {
         defaultSort='created'
         onSort={() => {}}
         onFilter={() => {}}
+        toolbarActions={
+          <Button
+            variant='subtle'
+            className='px-[8px] py-[4px] text-[12px]'
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading || userPermissions.canEdit !== true}
+          >
+            <Upload className='mr-[6px] h-[14px] w-[14px]' />
+            Upload
+          </Button>
+        }
         columns={COLUMNS}
         rows={rows}
+        onRowClick={(id) => setSelectedFileId(id)}
         isLoading={isLoading}
       />
 
@@ -227,6 +365,13 @@ export function Files() {
         disabled={uploading}
         accept={ACCEPT_ATTR}
         multiple
+      />
+
+      <CreateFileModal
+        open={createModalOpen}
+        onOpenChange={setCreateModalOpen}
+        onCreated={handleFileCreated}
+        workspaceId={workspaceId}
       />
     </>
   )
