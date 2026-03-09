@@ -303,6 +303,35 @@ export async function addTableColumn(
 }
 
 /**
+ * Renames a table.
+ *
+ * @param tableId - Table ID to rename
+ * @param newName - New table name
+ * @param requestId - Request ID for logging
+ * @returns Updated table definition
+ * @throws Error if name is invalid
+ */
+export async function renameTable(
+  tableId: string,
+  newName: string,
+  requestId: string
+): Promise<{ id: string; name: string }> {
+  const nameValidation = validateTableName(newName)
+  if (!nameValidation.valid) {
+    throw new Error(nameValidation.errors.join(', '))
+  }
+
+  const now = new Date()
+  await db
+    .update(userTableDefinitions)
+    .set({ name: newName, updatedAt: now })
+    .where(eq(userTableDefinitions.id, tableId))
+
+  logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
+  return { id: tableId, name: newName }
+}
+
+/**
  * Deletes a table (hard delete).
  *
  * @param tableId - Table ID to delete

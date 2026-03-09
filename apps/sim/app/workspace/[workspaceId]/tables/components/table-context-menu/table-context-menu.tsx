@@ -13,6 +13,7 @@ interface TableContextMenuProps {
   position: { x: number; y: number }
   menuRef: React.RefObject<HTMLDivElement | null>
   onClose: () => void
+  onRename?: () => void
   onViewSchema?: () => void
   onCopyId?: () => void
   onDelete?: () => void
@@ -24,6 +25,7 @@ export function TableContextMenu({
   position,
   menuRef,
   onClose,
+  onRename,
   onViewSchema,
   onCopyId,
   onDelete,
@@ -56,7 +58,17 @@ export function TableContextMenu({
             View Schema
           </PopoverItem>
         )}
-        {onViewSchema && (onCopyId || onDelete) && <PopoverDivider />}
+        {onRename && (
+          <PopoverItem
+            onClick={() => {
+              onRename()
+              onClose()
+            }}
+          >
+            Rename
+          </PopoverItem>
+        )}
+        {(onViewSchema || onRename) && (onCopyId || onDelete) && <PopoverDivider />}
         {onCopyId && (
           <PopoverItem
             onClick={() => {

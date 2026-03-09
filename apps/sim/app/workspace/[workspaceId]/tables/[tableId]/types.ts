@@ -1,6 +1,11 @@
 import type { Filter, Sort, TableRow } from '@/lib/table'
 
 /**
+ * Reason the inline editor completed, used to determine navigation after save
+ */
+export type SaveReason = 'enter' | 'tab' | 'shift-tab' | 'blur'
+
+/**
  * Query options for filtering and sorting table data
  */
 export interface QueryOptions {

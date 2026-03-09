@@ -40,6 +40,7 @@ import type {
   ResourceRow,
 } from '@/app/workspace/[workspaceId]/components'
 import {
+  InlineRenameInput,
   ownerCell,
   Resource,
   ResourceHeader,
@@ -54,9 +55,11 @@ import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sideb
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import {
   useDeleteWorkspaceFile,
+  useRenameWorkspaceFile,
   useUploadWorkspaceFile,
   useWorkspaceFiles,
 } from '@/hooks/queries/workspace-files'
+import { useInlineRename } from '@/hooks/use-inline-rename'
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -138,6 +141,7 @@ export function Files() {
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   const uploadFile = useUploadWorkspaceFile()
   const deleteFile = useDeleteWorkspaceFile()
+  const renameFile = useRenameWorkspaceFile()
 
   const {
     isOpen: isContextMenuOpen,
@@ -163,6 +167,16 @@ export function Files() {
   const [contextMenuFile, setContextMenuFile] = useState<WorkspaceFileRecord | null>(null)
   const [deleteTargetFile, setDeleteTargetFile] = useState<WorkspaceFileRecord | null>(null)
 
+  const listRename = useInlineRename({
+    onSave: (fileId, name) => renameFile.mutate({ workspaceId, fileId, name }),
+  })
+
+  const headerRename = useInlineRename({
+    onSave: (_id, name) => {
+      if (selectedFile) renameFile.mutate({ workspaceId, fileId: selectedFile.id, name })
+    },
+  })
+
   const selectedFile = useMemo(
     () => (selectedFileId ? files.find((f) => f.id === selectedFileId) : null),
     [selectedFileId, files]
@@ -184,6 +198,20 @@ export function Files() {
             name: {
               icon: <Icon className='h-[14px] w-[14px]' />,
               label: file.name,
+              content:
+                listRename.editingId === file.id ? (
+                  <span className='flex min-w-0 items-center gap-[12px] font-medium text-[14px] text-[var(--text-body)]'>
+                    <span className='flex-shrink-0 text-[var(--text-icon)]'>
+                      <Icon className='h-[14px] w-[14px]' />
+                    </span>
+                    <InlineRenameInput
+                      value={listRename.editValue}
+                      onChange={listRename.setEditValue}
+                      onSubmit={listRename.submitRename}
+                      onCancel={listRename.cancelRename}
+                    />
+                  </span>
+                ) : undefined,
             },
             size: {
               label: formatFileSize(file.size, { includeBytes: true }),
@@ -203,7 +231,7 @@ export function Files() {
           },
         }
       }),
-    [filteredFiles, members]
+    [filteredFiles, members, listRename]
   )
 
   const handleFileChange = useCallback(
@@ -358,6 +386,11 @@ export function Files() {
     closeContextMenu()
   }, [contextMenuFile, handleDownload, closeContextMenu])
 
+  const handleContextMenuRename = useCallback(() => {
+    if (contextMenuFile) listRename.startRename(contextMenuFile.id, contextMenuFile.name)
+    closeContextMenu()
+  }, [contextMenuFile, listRename, closeContextMenu])
+
   const handleContextMenuDelete = useCallback(() => {
     if (!contextMenuFile) return
     setDeleteTargetFile(contextMenuFile)
@@ -457,8 +490,21 @@ export function Files() {
               { label: 'Files', onClick: handleBackAttempt },
               {
                 label: selectedFile.name,
+                editing: headerRename.editingId
+                  ? {
+                      isEditing: true,
+                      value: headerRename.editValue,
+                      onChange: headerRename.setEditValue,
+                      onSubmit: headerRename.submitRename,
+                      onCancel: headerRename.cancelRename,
+                    }
+                  : undefined,
                 dropdownItems: [
-                  { label: 'Rename', icon: Pencil, onClick: () => {} },
+                  {
+                    label: 'Rename',
+                    icon: Pencil,
+                    onClick: () => headerRename.startRename(selectedFile.id, selectedFile.name),
+                  },
                   {
                     label: 'Download',
                     icon: Download,
@@ -549,7 +595,9 @@ export function Files() {
         ]}
         columns={COLUMNS}
         rows={rows}
-        onRowClick={(id) => setSelectedFileId(id)}
+        onRowClick={(id) => {
+          if (listRename.editingId !== id) setSelectedFileId(id)
+        }}
         onRowContextMenu={handleRowContextMenu}
         isLoading={isLoading}
       />
@@ -575,6 +623,7 @@ export function Files() {
           {userPermissions.canEdit === true && (
             <>
               <PopoverDivider />
+              <PopoverItem onClick={handleContextMenuRename}>Rename</PopoverItem>
               <PopoverItem onClick={handleContextMenuDelete}>Delete</PopoverItem>
             </>
           )}

@@ -405,6 +405,54 @@ export async function updateWorkspaceFileContent(
 }
 
 /**
+ * Rename a workspace file (updates the display name in the database)
+ */
+export async function renameWorkspaceFile(
+  workspaceId: string,
+  fileId: string,
+  newName: string
+): Promise<WorkspaceFileRecord> {
+  logger.info(`Renaming workspace file: ${fileId} to "${newName}" in workspace ${workspaceId}`)
+
+  const trimmedName = newName.trim()
+  if (!trimmedName) {
+    throw new Error('File name cannot be empty')
+  }
+
+  const fileRecord = await getWorkspaceFile(workspaceId, fileId)
+  if (!fileRecord) {
+    throw new Error('File not found')
+  }
+
+  if (fileRecord.name === trimmedName) {
+    return fileRecord
+  }
+
+  const exists = await fileExistsInWorkspace(workspaceId, trimmedName)
+  if (exists) {
+    throw new Error(`A file named "${trimmedName}" already exists in this workspace`)
+  }
+
+  await db
+    .update(workspaceFiles)
+    .set({ originalName: trimmedName })
+    .where(
+      and(
+        eq(workspaceFiles.id, fileId),
+        eq(workspaceFiles.workspaceId, workspaceId),
+        eq(workspaceFiles.context, 'workspace')
+      )
+    )
+
+  logger.info(`Successfully renamed workspace file ${fileId} to "${trimmedName}"`)
+
+  return {
+    ...fileRecord,
+    name: trimmedName,
+  }
+}
+
+/**
  * Delete a workspace file (both from storage and database)
  */
 export async function deleteWorkspaceFile(workspaceId: string, fileId: string): Promise<void> {

@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, useEffect, useRef } from 'react'
 import {
   Button,
   ChevronDown,
@@ -17,10 +17,19 @@ export interface DropdownOption {
   disabled?: boolean
 }
 
+export interface BreadcrumbEditing {
+  isEditing: boolean
+  value: string
+  onChange: (value: string) => void
+  onSubmit: () => void
+  onCancel: () => void
+}
+
 export interface BreadcrumbItem {
   label: string
   onClick?: () => void
   dropdownItems?: DropdownOption[]
+  editing?: BreadcrumbEditing
 }
 
 export interface HeaderAction {
@@ -73,6 +82,7 @@ export function ResourceHeader({
                   label={crumb.label}
                   onClick={crumb.onClick}
                   dropdownItems={crumb.dropdownItems}
+                  editing={crumb.editing}
                 />
               </Fragment>
             ))
@@ -125,12 +135,43 @@ function BreadcrumbSegment({
   label,
   onClick,
   dropdownItems,
+  editing,
 }: {
   icon?: React.ElementType
   label: string
   onClick?: () => void
   dropdownItems?: DropdownOption[]
+  editing?: BreadcrumbEditing
 }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editing?.isEditing && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [editing?.isEditing])
+
+  if (editing?.isEditing) {
+    return (
+      <span className='inline-flex items-center px-[8px] py-[4px]'>
+        {Icon && <Icon className='mr-[12px] h-[14px] w-[14px] text-[var(--text-icon)]' />}
+        <input
+          ref={inputRef}
+          type='text'
+          value={editing.value}
+          onChange={(e) => editing.onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') editing.onSubmit()
+            if (e.key === 'Escape') editing.onCancel()
+          }}
+          onBlur={editing.onSubmit}
+          className='min-w-0 border-0 bg-transparent p-0 font-medium text-[14px] text-[var(--text-body)] outline-none focus:outline-none focus:ring-0'
+        />
+      </span>
+    )
+  }
+
   const content = (
     <>
       {Icon && <Icon className='mr-[12px] h-[14px] w-[14px] text-[var(--text-icon)]' />}

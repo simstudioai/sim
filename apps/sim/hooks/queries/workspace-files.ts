@@ -208,6 +208,40 @@ export function useUpdateWorkspaceFileContent() {
 }
 
 /**
+ * Rename a workspace file
+ */
+interface RenameFileParams {
+  workspaceId: string
+  fileId: string
+  name: string
+}
+
+export function useRenameWorkspaceFile() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ workspaceId, fileId, name }: RenameFileParams) => {
+      const response = await fetch(`/api/workspaces/${workspaceId}/files/${fileId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+
+      const data = await response.json()
+
+      if (!data.success) {
+        throw new Error(data.error || 'Rename failed')
+      }
+
+      return data
+    },
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.list(variables.workspaceId) })
+    },
+  })
+}
+
+/**
  * Delete workspace file mutation
  */
 interface DeleteFileParams {

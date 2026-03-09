@@ -277,6 +277,34 @@ export function useAddTableColumn({ workspaceId, tableId }: RowMutationContext) 
 }
 
 /**
+ * Rename a table.
+ */
+export function useRenameTable(workspaceId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ tableId, name }: { tableId: string; name: string }) => {
+      const res = await fetch(`/api/table/${tableId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId, name }),
+      })
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error.error || 'Failed to rename table')
+      }
+
+      return res.json()
+    },
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.detail(variables.tableId) })
+      queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
+    },
+  })
+}
+
+/**
  * Delete a table from a workspace.
  */
 export function useDeleteTable(workspaceId: string) {

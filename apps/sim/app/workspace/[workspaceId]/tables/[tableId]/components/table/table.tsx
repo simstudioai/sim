@@ -13,7 +13,6 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-  Input,
   Modal,
   ModalBody,
   ModalContent,
@@ -49,11 +48,13 @@ import {
   useCreateTableRow,
   useDeleteColumn,
   useDeleteTable,
+  useRenameTable,
   useUpdateColumn,
   useUpdateTableRow,
 } from '@/hooks/queries/tables'
+import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useContextMenu, useRowSelection, useTableData } from '../../hooks'
-import type { EditingCell, QueryOptions } from '../../types'
+import type { EditingCell, QueryOptions, SaveReason } from '../../types'
 import { cleanCellValue, formatValueForInput } from '../../utils'
 import { ContextMenu } from '../context-menu'
 import { RowModal } from '../row-modal'
@@ -82,6 +83,7 @@ interface PendingPlaceholder {
 const EMPTY_COLUMNS: never[] = []
 const PLACEHOLDER_ROW_COUNT = 1000
 const COL_WIDTH = 160
+const COL_WIDTH_MIN = 80
 const CHECKBOX_COL_WIDTH = 40
 const ADD_COL_WIDTH = 120
 const SKELETON_COL_COUNT = 4
@@ -100,6 +102,24 @@ const CELL_CONTENT =
   'relative min-h-[20px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[13px]'
 const SELECTION_OVERLAY =
   'pointer-events-none absolute -top-px -right-px -bottom-px -left-px z-[5] border-[2px] border-[var(--selection)]'
+
+function moveCell(
+  anchor: CellCoord,
+  colCount: number,
+  totalRows: number,
+  direction: 1 | -1
+): CellCoord {
+  let newCol = anchor.colIndex + direction
+  let newRow = anchor.rowIndex
+  if (newCol >= colCount) {
+    newCol = 0
+    newRow = Math.min(totalRows - 1, newRow + 1)
+  } else if (newCol < 0) {
+    newCol = colCount - 1
+    newRow = Math.max(0, newRow - 1)
+  }
+  return { rowIndex: newRow, colIndex: newCol }
+}
 
 const COLUMN_TYPE_ICONS: Record<string, React.ElementType> = {
   string: TypeText,
@@ -141,6 +161,7 @@ export function Table() {
   const [deletingRows, setDeletingRows] = useState<string[]>([])
   const [showSchemaModal, setShowSchemaModal] = useState(false)
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null)
+  const [initialCharacter, setInitialCharacter] = useState<string | null>(null)
   const [selectionAnchor, setSelectionAnchor] = useState<CellCoord | null>(null)
   const [selectionFocus, setSelectionFocus] = useState<CellCoord | null>(null)
   const [pendingPlaceholders, setPendingPlaceholders] = useState<
@@ -152,9 +173,10 @@ export function Table() {
     columnName: string
   } | null>(null)
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
-  const [renamingColumn, setRenamingColumn] = useState<string | null>(null)
-  const [renameValue, setRenameValue] = useState('')
   const [deletingColumn, setDeletingColumn] = useState<string | null>(null)
+
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
+  const [resizingColumn, setResizingColumn] = useState<string | null>(null)
 
   const isDraggingRef = useRef(false)
 
@@ -202,7 +224,22 @@ export function Table() {
   )
 
   const displayColCount = isLoadingTable ? SKELETON_COL_COUNT : columns.length
-  const tableWidth = CHECKBOX_COL_WIDTH + displayColCount * COL_WIDTH + ADD_COL_WIDTH
+  const tableWidth = useMemo(() => {
+    const colsWidth = isLoadingTable
+      ? displayColCount * COL_WIDTH
+      : columns.reduce((sum, col) => sum + (columnWidths[col.name] ?? COL_WIDTH), 0)
+    return CHECKBOX_COL_WIDTH + colsWidth + ADD_COL_WIDTH
+  }, [isLoadingTable, displayColCount, columns, columnWidths])
+
+  const resizeIndicatorLeft = useMemo(() => {
+    if (!resizingColumn) return 0
+    let left = CHECKBOX_COL_WIDTH
+    for (const col of columns) {
+      left += columnWidths[col.name] ?? COL_WIDTH
+      if (col.name === resizingColumn) return left
+    }
+    return 0
+  }, [resizingColumn, columns, columnWidths])
 
   const isAllRowsSelected =
     normalizedSelection !== null &&
@@ -227,6 +264,17 @@ export function Table() {
   selectionFocusRef.current = selectionFocus
 
   const deleteTableMutation = useDeleteTable(workspaceId)
+  const renameTableMutation = useRenameTable(workspaceId)
+
+  const tableHeaderRename = useInlineRename({
+    onSave: (_id, name) => renameTableMutation.mutate({ tableId, name }),
+  })
+
+  const columnRename = useInlineRename({
+    onSave: (columnName, newName) => {
+      updateColumnMutation.mutate({ columnName, updates: { name: newName } })
+    },
+  })
 
   const handleNavigateBack = useCallback(() => {
     router.push(`/workspace/${workspaceId}/tables`)
@@ -338,6 +386,18 @@ export function Table() {
     setSelectionFocus({ rowIndex: lastRow, colIndex: lastCol })
   }, [])
 
+  const handleColumnResizeStart = useCallback((columnName: string) => {
+    setResizingColumn(columnName)
+  }, [])
+
+  const handleColumnResize = useCallback((columnName: string, width: number) => {
+    setColumnWidths((prev) => ({ ...prev, [columnName]: Math.max(COL_WIDTH_MIN, width) }))
+  }, [])
+
+  const handleColumnResizeEnd = useCallback(() => {
+    setResizingColumn(null)
+  }, [])
+
   useEffect(() => {
     const handleMouseUp = () => {
       isDraggingRef.current = false
@@ -346,11 +406,31 @@ export function Table() {
     return () => document.removeEventListener('mouseup', handleMouseUp)
   }, [])
 
-  const handleCellClick = useCallback((rowId: string, columnName: string) => {
-    if (selectionFocusRef.current !== null) return
+  useEffect(() => {
+    if (!selectionAnchor) return
+    const { rowIndex, colIndex } = selectionAnchor
+    const rafId = requestAnimationFrame(() => {
+      const cell = document.querySelector(
+        `[data-table-scroll] [data-row="${rowIndex}"][data-col="${colIndex}"]`
+      ) as HTMLElement | null
+      cell?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    })
+    return () => cancelAnimationFrame(rafId)
+  }, [selectionAnchor])
 
+  const handleCellClick = useCallback((rowId: string, columnName: string) => {
+    const current = editingCellRef.current
+    if (current && current.rowId === rowId && current.columnName === columnName) return
+    setEditingCell(null)
+    setEditingEmptyCell(null)
+    setInitialCharacter(null)
+  }, [])
+
+  const handleCellDoubleClick = useCallback((rowId: string, columnName: string) => {
     const column = columnsRef.current.find((c) => c.name === columnName)
     if (!column) return
+
+    setSelectionFocus(null)
 
     if (column.type === 'json') {
       const row = rowsRef.current.find((r) => r.id === rowId)
@@ -367,6 +447,7 @@ export function Table() {
     }
 
     setEditingCell({ rowId, columnName })
+    setInitialCharacter(null)
   }, [])
 
   const mutateRef = useRef(updateRowMutation.mutate)
@@ -383,13 +464,64 @@ export function Table() {
       const anchor = selectionAnchorRef.current
       if (!anchor || editingCellRef.current || editingEmptyCellRef.current) return
 
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return
+      }
+
       const cols = columnsRef.current
       const dataRows = visibleRowsRef.current
       const totalRows = dataRows.length + PLACEHOLDER_ROW_COUNT
 
       if (e.key === 'Escape') {
+        e.preventDefault()
         setSelectionAnchor(null)
         setSelectionFocus(null)
+        return
+      }
+
+      if (e.key === 'Enter' || e.key === 'F2') {
+        e.preventDefault()
+        const row = anchor.rowIndex < dataRows.length ? dataRows[anchor.rowIndex] : null
+        const col = cols[anchor.colIndex]
+        if (!col) return
+
+        if (anchor.rowIndex >= dataRows.length) {
+          const placeholderIndex = anchor.rowIndex - dataRows.length
+          if (col.type !== 'json' && col.type !== 'boolean') {
+            setEditingEmptyCell({ rowIndex: placeholderIndex, columnName: col.name })
+          }
+          return
+        }
+
+        if (col.type === 'json') {
+          if (row) setEditingRow(row)
+          return
+        }
+        if (col.type === 'boolean') {
+          if (row) mutateRef.current({ rowId: row.id, data: { [col.name]: !row.data[col.name] } })
+          return
+        }
+        if (row) {
+          setEditingCell({ rowId: row.id, columnName: col.name })
+          setInitialCharacter(null)
+        }
+        return
+      }
+
+      if (e.key === 'Tab') {
+        e.preventDefault()
+        setSelectionAnchor(moveCell(anchor, cols.length, totalRows, e.shiftKey ? -1 : 1))
+        setSelectionFocus(null)
+        return
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+        e.preventDefault()
+        if (dataRows.length > 0 && cols.length > 0) {
+          setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
+          setSelectionFocus({ rowIndex: dataRows.length - 1, colIndex: cols.length - 1 })
+        }
         return
       }
 
@@ -521,86 +653,143 @@ export function Table() {
         })
         return
       }
+
+      if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const col = cols[anchor.colIndex]
+        if (!col || col.type === 'json' || col.type === 'boolean') return
+        e.preventDefault()
+
+        if (anchor.rowIndex < dataRows.length) {
+          const row = dataRows[anchor.rowIndex]
+          setEditingCell({ rowId: row.id, columnName: col.name })
+          setInitialCharacter(e.key)
+        } else {
+          const placeholderIndex = anchor.rowIndex - dataRows.length
+          setEditingEmptyCell({ rowIndex: placeholderIndex, columnName: col.name })
+          setInitialCharacter(e.key)
+        }
+        return
+      }
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  const handleInlineSave = useCallback((rowId: string, columnName: string, value: unknown) => {
-    setEditingCell(null)
+  const navigateAfterSave = useCallback((reason: SaveReason) => {
+    const anchor = selectionAnchorRef.current
+    if (!anchor) return
+    const cols = columnsRef.current
+    const totalRows = visibleRowsRef.current.length + PLACEHOLDER_ROW_COUNT
 
-    const row = rowsRef.current.find((r) => r.id === rowId)
-    if (!row) return
-
-    const oldValue = row.data[columnName]
-    if (oldValue === value) return
-    if (oldValue === null && value === null) return
-
-    mutateRef.current({ rowId, data: { [columnName]: value } })
+    if (reason === 'enter') {
+      setSelectionAnchor({
+        rowIndex: Math.min(totalRows - 1, anchor.rowIndex + 1),
+        colIndex: anchor.colIndex,
+      })
+    } else if (reason === 'tab') {
+      setSelectionAnchor(moveCell(anchor, cols.length, totalRows, 1))
+    } else if (reason === 'shift-tab') {
+      setSelectionAnchor(moveCell(anchor, cols.length, totalRows, -1))
+    }
+    setSelectionFocus(null)
   }, [])
+
+  const handleInlineSave = useCallback(
+    (rowId: string, columnName: string, value: unknown, reason: SaveReason) => {
+      setEditingCell(null)
+      setInitialCharacter(null)
+
+      const row = rowsRef.current.find((r) => r.id === rowId)
+      if (!row) return
+
+      const oldValue = row.data[columnName]
+      if (!(oldValue === value) && !(oldValue === null && value === null)) {
+        mutateRef.current({ rowId, data: { [columnName]: value } })
+      }
+
+      navigateAfterSave(reason)
+    },
+    [navigateAfterSave]
+  )
 
   const handleInlineCancel = useCallback(() => {
     setEditingCell(null)
+    setInitialCharacter(null)
   }, [])
 
   const handleEmptyRowClick = useCallback((rowIndex: number, columnName: string) => {
-    if (selectionFocusRef.current !== null) return
+    const current = editingEmptyCellRef.current
+    if (current && current.rowIndex === rowIndex && current.columnName === columnName) return
+    setEditingEmptyCell(null)
+    setInitialCharacter(null)
+  }, [])
 
+  const handleEmptyRowDoubleClick = useCallback((rowIndex: number, columnName: string) => {
     const column = columnsRef.current.find((c) => c.name === columnName)
     if (!column || column.type === 'json' || column.type === 'boolean') return
+    setSelectionFocus(null)
     setEditingEmptyCell({ rowIndex, columnName })
+    setInitialCharacter(null)
   }, [])
 
   const createRef = useRef(createRowMutation.mutate)
   createRef.current = createRowMutation.mutate
 
-  const handleEmptyRowSave = useCallback((rowIndex: number, columnName: string, value: unknown) => {
-    setEditingEmptyCell(null)
-    if (value === null || value === undefined || value === '') return
+  const handleEmptyRowSave = useCallback(
+    (rowIndex: number, columnName: string, value: unknown, reason: SaveReason) => {
+      setEditingEmptyCell(null)
+      setInitialCharacter(null)
 
-    const existing = pendingPlaceholdersRef.current[rowIndex]
-    const updatedData = { ...(existing?.data || {}), [columnName]: value }
+      if (value !== null && value !== undefined && value !== '') {
+        const existing = pendingPlaceholdersRef.current[rowIndex]
+        const updatedData = { ...(existing?.data || {}), [columnName]: value }
 
-    if (existing?.rowId) {
-      setPendingPlaceholders((prev) => ({
-        ...prev,
-        [rowIndex]: { ...prev[rowIndex], data: updatedData },
-      }))
-      mutateRef.current({ rowId: existing.rowId, data: { [columnName]: value } })
-    } else {
-      setPendingPlaceholders((prev) => ({
-        ...prev,
-        [rowIndex]: { rowId: null, data: updatedData },
-      }))
-      createRef.current(updatedData, {
-        onSuccess: (response: Record<string, unknown>) => {
-          const data = response?.data as Record<string, unknown> | undefined
-          const row = data?.row as Record<string, unknown> | undefined
-          const newRowId = row?.id as string | undefined
-          if (newRowId) {
-            setPendingPlaceholders((prev) => {
-              if (!prev[rowIndex]) return prev
-              return {
-                ...prev,
-                [rowIndex]: { ...prev[rowIndex], rowId: newRowId },
+        if (existing?.rowId) {
+          setPendingPlaceholders((prev) => ({
+            ...prev,
+            [rowIndex]: { ...prev[rowIndex], data: updatedData },
+          }))
+          mutateRef.current({ rowId: existing.rowId, data: { [columnName]: value } })
+        } else {
+          setPendingPlaceholders((prev) => ({
+            ...prev,
+            [rowIndex]: { rowId: null, data: updatedData },
+          }))
+          createRef.current(updatedData, {
+            onSuccess: (response: Record<string, unknown>) => {
+              const data = response?.data as Record<string, unknown> | undefined
+              const row = data?.row as Record<string, unknown> | undefined
+              const newRowId = row?.id as string | undefined
+              if (newRowId) {
+                setPendingPlaceholders((prev) => {
+                  if (!prev[rowIndex]) return prev
+                  return {
+                    ...prev,
+                    [rowIndex]: { ...prev[rowIndex], rowId: newRowId },
+                  }
+                })
               }
-            })
-          }
-        },
-        onError: () => {
-          setPendingPlaceholders((prev) => {
-            const next = { ...prev }
-            delete next[rowIndex]
-            return next
+            },
+            onError: () => {
+              setPendingPlaceholders((prev) => {
+                const next = { ...prev }
+                delete next[rowIndex]
+                return next
+              })
+            },
           })
-        },
-      })
-    }
-  }, [])
+        }
+      }
+
+      navigateAfterSave(reason)
+    },
+    [navigateAfterSave]
+  )
 
   const handleEmptyRowCancel = useCallback(() => {
     setEditingEmptyCell(null)
+    setInitialCharacter(null)
   }, [])
 
   const generateColumnName = useCallback(() => {
@@ -617,23 +806,6 @@ export function Table() {
   const handleAddColumn = useCallback(() => {
     addColumnMutation.mutate({ name: generateColumnName(), type: 'string' })
   }, [generateColumnName])
-
-  const handleRenameColumn = useCallback((columnName: string) => {
-    setRenamingColumn(columnName)
-    setRenameValue(columnName)
-  }, [])
-
-  const handleRenameSubmit = useCallback(() => {
-    if (!renamingColumn || !renameValue.trim() || renameValue === renamingColumn) {
-      setRenamingColumn(null)
-      return
-    }
-    updateColumnMutation.mutate({
-      columnName: renamingColumn,
-      updates: { name: renameValue.trim() },
-    })
-    setRenamingColumn(null)
-  }, [renamingColumn, renameValue])
 
   const handleChangeType = useCallback((columnName: string, newType: string) => {
     updateColumnMutation.mutate({ columnName, updates: { type: newType } })
@@ -737,8 +909,23 @@ export function Table() {
             ? [
                 {
                   label: tableData.name,
+                  editing: tableHeaderRename.editingId
+                    ? {
+                        isEditing: true,
+                        value: tableHeaderRename.editValue,
+                        onChange: tableHeaderRename.setEditValue,
+                        onSubmit: tableHeaderRename.submitRename,
+                        onCancel: tableHeaderRename.cancelRename,
+                      }
+                    : undefined,
                   dropdownItems: [
-                    { label: 'Rename', icon: Pencil, onClick: () => {} },
+                    {
+                      label: 'Rename',
+                      icon: Pencil,
+                      onClick: () => {
+                        if (tableData) tableHeaderRename.startRename(tableId, tableData.name)
+                      },
+                    },
                     {
                       label: 'Delete',
                       icon: Trash,
@@ -761,138 +948,164 @@ export function Table() {
         filter={<TableFilter columns={columns} onApply={handleFilterApply} />}
       />
 
-      <div className='min-h-0 flex-1 overflow-auto overscroll-none' data-table-scroll>
-        <table
-          className='table-fixed border-separate border-spacing-0 text-[13px]'
-          style={{ width: `${tableWidth}px` }}
-        >
-          {isLoadingTable ? (
-            <colgroup>
-              <col style={{ width: CHECKBOX_COL_WIDTH }} />
-              {Array.from({ length: SKELETON_COL_COUNT }).map((_, i) => (
-                <col key={i} style={{ width: COL_WIDTH }} />
-              ))}
-              <col style={{ width: ADD_COL_WIDTH }} />
-            </colgroup>
-          ) : (
-            <TableColGroup columns={columns} />
-          )}
-          <thead className='sticky top-0 z-10'>
+      <div
+        className={cn(
+          'min-h-0 flex-1 overflow-auto overscroll-none',
+          resizingColumn && 'select-none'
+        )}
+        data-table-scroll
+      >
+        <div className='relative' style={{ width: `${tableWidth}px` }}>
+          <table
+            className='table-fixed border-separate border-spacing-0 text-[13px]'
+            style={{ width: `${tableWidth}px` }}
+          >
             {isLoadingTable ? (
-              <tr>
-                <th className={CELL_HEADER_CHECKBOX}>
-                  <div className='flex items-center justify-center'>
-                    <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
-                  </div>
-                </th>
+              <colgroup>
+                <col style={{ width: CHECKBOX_COL_WIDTH }} />
                 {Array.from({ length: SKELETON_COL_COUNT }).map((_, i) => (
-                  <th key={i} className={CELL_HEADER}>
-                    <div className='flex h-[20px] min-w-0 items-center gap-[6px]'>
-                      <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-[2px]' />
-                      <Skeleton className='h-[14px]' style={{ width: `${56 + i * 16}px` }} />
+                  <col key={i} style={{ width: COL_WIDTH }} />
+                ))}
+                <col style={{ width: ADD_COL_WIDTH }} />
+              </colgroup>
+            ) : (
+              <TableColGroup columns={columns} columnWidths={columnWidths} />
+            )}
+            <thead className='sticky top-0 z-10'>
+              {isLoadingTable ? (
+                <tr>
+                  <th className={CELL_HEADER_CHECKBOX}>
+                    <div className='flex items-center justify-center'>
+                      <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
                     </div>
                   </th>
-                ))}
-                <th className={CELL_HEADER}>
-                  <div className='flex h-[20px] items-center gap-[8px]'>
-                    <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-[2px]' />
-                    <Skeleton className='h-[14px] w-[72px]' />
-                  </div>
-                </th>
-              </tr>
-            ) : (
-              <tr>
-                <th className={CELL_HEADER_CHECKBOX}>
-                  <div className='flex items-center justify-center'>
-                    <Checkbox
-                      size='sm'
-                      checked={isAllRowsSelected}
-                      onCheckedChange={() => {
-                        if (isAllRowsSelected) {
-                          handleClearSelection()
-                        } else {
-                          handleSelectAllRows()
-                        }
-                      }}
+                  {Array.from({ length: SKELETON_COL_COUNT }).map((_, i) => (
+                    <th key={i} className={CELL_HEADER}>
+                      <div className='flex h-[20px] min-w-0 items-center gap-[6px]'>
+                        <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-[2px]' />
+                        <Skeleton className='h-[14px]' style={{ width: `${56 + i * 16}px` }} />
+                      </div>
+                    </th>
+                  ))}
+                  <th className={CELL_HEADER}>
+                    <div className='flex h-[20px] items-center gap-[8px]'>
+                      <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-[2px]' />
+                      <Skeleton className='h-[14px] w-[72px]' />
+                    </div>
+                  </th>
+                </tr>
+              ) : (
+                <tr>
+                  <th className={CELL_HEADER_CHECKBOX}>
+                    <div className='flex items-center justify-center'>
+                      <Checkbox
+                        size='sm'
+                        checked={isAllRowsSelected}
+                        onCheckedChange={() => {
+                          if (isAllRowsSelected) {
+                            handleClearSelection()
+                          } else {
+                            handleSelectAllRows()
+                          }
+                        }}
+                      />
+                    </div>
+                  </th>
+                  {columns.map((column) => (
+                    <ColumnHeaderMenu
+                      key={column.name}
+                      column={column}
+                      isRenaming={columnRename.editingId === column.name}
+                      renameValue={columnRename.editValue}
+                      onRenameValueChange={columnRename.setEditValue}
+                      onRenameSubmit={columnRename.submitRename}
+                      onRenameCancel={columnRename.cancelRename}
+                      onRenameColumn={(name: string) => columnRename.startRename(name, name)}
+                      onChangeType={handleChangeType}
+                      onInsertLeft={handleInsertColumnLeft}
+                      onInsertRight={handleInsertColumnRight}
+                      onToggleUnique={handleToggleUnique}
+                      onToggleRequired={handleToggleRequired}
+                      onDeleteColumn={handleDeleteColumn}
+                      onResizeStart={handleColumnResizeStart}
+                      onResize={handleColumnResize}
+                      onResizeEnd={handleColumnResizeEnd}
                     />
-                  </div>
-                </th>
-                {columns.map((column) => (
-                  <ColumnHeaderMenu
-                    key={column.name}
-                    column={column}
-                    onRenameColumn={handleRenameColumn}
-                    onChangeType={handleChangeType}
-                    onInsertLeft={handleInsertColumnLeft}
-                    onInsertRight={handleInsertColumnRight}
-                    onToggleUnique={handleToggleUnique}
-                    onToggleRequired={handleToggleRequired}
-                    onDeleteColumn={handleDeleteColumn}
-                  />
-                ))}
-                <th className={CELL_HEADER}>
-                  <button
-                    type='button'
-                    className='flex h-[20px] cursor-pointer items-center gap-[8px]'
-                    onClick={handleAddColumn}
-                    disabled={addColumnMutation.isPending}
-                  >
-                    <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-muted)]' />
-                    <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                      New column
-                    </span>
-                  </button>
-                </th>
-              </tr>
-            )}
-          </thead>
-          <tbody>
-            {isLoadingTable || isLoadingRows ? (
-              <TableBodySkeleton colCount={displayColCount} />
-            ) : (
-              <>
-                {visibleRows.map((row, index) => (
-                  <DataRow
-                    key={row.id}
-                    row={row}
+                  ))}
+                  <th className={CELL_HEADER}>
+                    <button
+                      type='button'
+                      className='flex h-[20px] cursor-pointer items-center gap-[8px]'
+                      onClick={handleAddColumn}
+                      disabled={addColumnMutation.isPending}
+                    >
+                      <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-muted)]' />
+                      <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                        New column
+                      </span>
+                    </button>
+                  </th>
+                </tr>
+              )}
+            </thead>
+            <tbody>
+              {isLoadingTable || isLoadingRows ? (
+                <TableBodySkeleton colCount={displayColCount} />
+              ) : (
+                <>
+                  {visibleRows.map((row, index) => (
+                    <DataRow
+                      key={row.id}
+                      row={row}
+                      columns={columns}
+                      rowIndex={index}
+                      isFirstRow={index === 0}
+                      editingColumnName={
+                        editingCell?.rowId === row.id ? editingCell.columnName : null
+                      }
+                      initialCharacter={editingCell?.rowId === row.id ? initialCharacter : null}
+                      normalizedSelection={normalizedSelection}
+                      onClick={handleCellClick}
+                      onDoubleClick={handleCellDoubleClick}
+                      onSave={handleInlineSave}
+                      onCancel={handleInlineCancel}
+                      onContextMenu={handleRowContextMenu}
+                      onCellMouseDown={handleCellMouseDown}
+                      onCellMouseEnter={handleCellMouseEnter}
+                      onRowMouseDown={handleRowMouseDown}
+                      onRowMouseEnter={handleRowMouseEnter}
+                      onRowSelect={handleRowSelect}
+                      onClearSelection={handleClearSelection}
+                    />
+                  ))}
+                  <PlaceholderRows
                     columns={columns}
-                    rowIndex={index}
-                    isFirstRow={index === 0}
-                    editingColumnName={
-                      editingCell?.rowId === row.id ? editingCell.columnName : null
-                    }
+                    dataRowCount={visibleRows.length}
+                    editingEmptyCell={editingEmptyCell}
+                    initialCharacter={editingEmptyCell ? initialCharacter : null}
+                    pendingPlaceholders={pendingPlaceholders}
                     normalizedSelection={normalizedSelection}
-                    onClick={handleCellClick}
-                    onSave={handleInlineSave}
-                    onCancel={handleInlineCancel}
-                    onContextMenu={handleRowContextMenu}
+                    firstRowUnderHeader={visibleRows.length === 0}
+                    onClick={handleEmptyRowClick}
+                    onDoubleClick={handleEmptyRowDoubleClick}
+                    onSave={handleEmptyRowSave}
+                    onCancel={handleEmptyRowCancel}
                     onCellMouseDown={handleCellMouseDown}
                     onCellMouseEnter={handleCellMouseEnter}
                     onRowMouseDown={handleRowMouseDown}
                     onRowMouseEnter={handleRowMouseEnter}
-                    onRowSelect={handleRowSelect}
-                    onClearSelection={handleClearSelection}
                   />
-                ))}
-                <PlaceholderRows
-                  columns={columns}
-                  dataRowCount={visibleRows.length}
-                  editingEmptyCell={editingEmptyCell}
-                  pendingPlaceholders={pendingPlaceholders}
-                  normalizedSelection={normalizedSelection}
-                  firstRowUnderHeader={visibleRows.length === 0}
-                  onClick={handleEmptyRowClick}
-                  onSave={handleEmptyRowSave}
-                  onCancel={handleEmptyRowCancel}
-                  onCellMouseDown={handleCellMouseDown}
-                  onCellMouseEnter={handleCellMouseEnter}
-                  onRowMouseDown={handleRowMouseDown}
-                  onRowMouseEnter={handleRowMouseEnter}
-                />
-              </>
-            )}
-          </tbody>
-        </table>
+                </>
+              )}
+            </tbody>
+          </table>
+          {resizingColumn && (
+            <div
+              className='-translate-x-[1.5px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]'
+              style={{ left: resizeIndicatorLeft }}
+            />
+          )}
+        </div>
       </div>
 
       {showAddModal && tableData && (
@@ -976,40 +1189,6 @@ export function Table() {
       </Modal>
 
       <Modal
-        open={renamingColumn !== null}
-        onOpenChange={(open) => {
-          if (!open) setRenamingColumn(null)
-        }}
-      >
-        <ModalContent size='sm'>
-          <ModalHeader>Rename Column</ModalHeader>
-          <ModalBody>
-            <Input
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleRenameSubmit()
-              }}
-              placeholder='Column name'
-              autoFocus
-            />
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setRenamingColumn(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant='default'
-              onClick={handleRenameSubmit}
-              disabled={!renameValue.trim() || renameValue === renamingColumn}
-            >
-              Rename
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-
-      <Modal
         open={deletingColumn !== null}
         onOpenChange={(open) => {
           if (!open) setDeletingColumn(null)
@@ -1041,14 +1220,16 @@ export function Table() {
 
 const TableColGroup = React.memo(function TableColGroup({
   columns,
+  columnWidths,
 }: {
   columns: ColumnDefinition[]
+  columnWidths: Record<string, number>
 }) {
   return (
     <colgroup>
       <col style={{ width: CHECKBOX_COL_WIDTH }} />
       {columns.map((col) => (
-        <col key={col.name} style={{ width: COL_WIDTH }} />
+        <col key={col.name} style={{ width: columnWidths[col.name] ?? COL_WIDTH }} />
       ))}
       <col style={{ width: ADD_COL_WIDTH }} />
     </colgroup>
@@ -1061,9 +1242,11 @@ interface DataRowProps {
   rowIndex: number
   isFirstRow: boolean
   editingColumnName: string | null
+  initialCharacter: string | null
   normalizedSelection: NormalizedSelection | null
   onClick: (rowId: string, columnName: string) => void
-  onSave: (rowId: string, columnName: string, value: unknown) => void
+  onDoubleClick: (rowId: string, columnName: string) => void
+  onSave: (rowId: string, columnName: string, value: unknown, reason: SaveReason) => void
   onCancel: () => void
   onContextMenu: (e: React.MouseEvent, row: TableRowType) => void
   onCellMouseDown: (rowIndex: number, colIndex: number, shiftKey: boolean) => void
@@ -1113,6 +1296,7 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.isFirstRow !== next.isFirstRow ||
     prev.editingColumnName !== next.editingColumnName ||
     prev.onClick !== next.onClick ||
+    prev.onDoubleClick !== next.onDoubleClick ||
     prev.onSave !== next.onSave ||
     prev.onCancel !== next.onCancel ||
     prev.onContextMenu !== next.onContextMenu ||
@@ -1122,6 +1306,12 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.onRowMouseEnter !== next.onRowMouseEnter ||
     prev.onRowSelect !== next.onRowSelect ||
     prev.onClearSelection !== next.onClearSelection
+  ) {
+    return false
+  }
+  if (
+    (prev.editingColumnName !== null || next.editingColumnName !== null) &&
+    prev.initialCharacter !== next.initialCharacter
   ) {
     return false
   }
@@ -1140,8 +1330,10 @@ const DataRow = React.memo(function DataRow({
   rowIndex,
   isFirstRow,
   editingColumnName,
+  initialCharacter,
   normalizedSelection,
   onClick,
+  onDoubleClick,
   onSave,
   onCancel,
   onContextMenu,
@@ -1217,6 +1409,8 @@ const DataRow = React.memo(function DataRow({
         return (
           <td
             key={column.name}
+            data-row={rowIndex}
+            data-col={colIndex}
             className={cn(CELL, (inRange || isAnchor) && 'relative')}
             onMouseDown={(e) => {
               if (e.button !== 0 || isEditing) return
@@ -1224,6 +1418,7 @@ const DataRow = React.memo(function DataRow({
             }}
             onMouseEnter={() => onCellMouseEnter(rowIndex, colIndex)}
             onClick={() => onClick(row.id, column.name)}
+            onDoubleClick={() => onDoubleClick(row.id, column.name)}
           >
             {inRange && isMultiCell && (
               <div
@@ -1243,7 +1438,8 @@ const DataRow = React.memo(function DataRow({
                 value={row.data[column.name]}
                 column={column}
                 isEditing={isEditing}
-                onSave={(value) => onSave(row.id, column.name, value)}
+                initialCharacter={isEditing ? initialCharacter : undefined}
+                onSave={(value, reason) => onSave(row.id, column.name, value, reason)}
                 onCancel={onCancel}
               />
             </div>
@@ -1258,17 +1454,27 @@ function CellContent({
   value,
   column,
   isEditing,
+  initialCharacter,
   onSave,
   onCancel,
 }: {
   value: unknown
   column: ColumnDefinition
   isEditing: boolean
-  onSave: (value: unknown) => void
+  initialCharacter?: string | null
+  onSave: (value: unknown, reason: SaveReason) => void
   onCancel: () => void
 }) {
   if (isEditing) {
-    return <InlineEditor value={value} column={column} onSave={onSave} onCancel={onCancel} />
+    return (
+      <InlineEditor
+        value={value}
+        column={column}
+        initialCharacter={initialCharacter ?? undefined}
+        onSave={onSave}
+        onCancel={onCancel}
+      />
+    )
   }
 
   const isNull = value === null || value === undefined
@@ -1320,16 +1526,20 @@ function CellContent({
 function InlineEditor({
   value,
   column,
+  initialCharacter,
   onSave,
   onCancel,
 }: {
   value: unknown
   column: ColumnDefinition
-  onSave: (value: unknown) => void
+  initialCharacter?: string
+  onSave: (value: unknown, reason: SaveReason) => void
   onCancel: () => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [draft, setDraft] = useState(() => formatValueForInput(value, column.type))
+  const [draft, setDraft] = useState(() =>
+    initialCharacter !== undefined ? initialCharacter : formatValueForInput(value, column.type)
+  )
   const doneRef = useRef(false)
 
   useEffect(() => {
@@ -1337,7 +1547,12 @@ function InlineEditor({
     if (!input) return
 
     input.focus()
-    input.select()
+    if (initialCharacter !== undefined) {
+      const len = input.value.length
+      input.setSelectionRange(len, len)
+    } else {
+      input.select()
+    }
 
     const forwardWheel = (e: WheelEvent) => {
       e.preventDefault()
@@ -1351,11 +1566,11 @@ function InlineEditor({
     return () => input.removeEventListener('wheel', forwardWheel)
   }, [])
 
-  const handleSave = () => {
+  const doSave = (reason: SaveReason) => {
     if (doneRef.current) return
     doneRef.current = true
     try {
-      onSave(cleanCellValue(draft, column))
+      onSave(cleanCellValue(draft, column), reason)
     } catch {
       onCancel()
     }
@@ -1364,7 +1579,10 @@ function InlineEditor({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault()
-      handleSave()
+      doSave('enter')
+    } else if (e.key === 'Tab') {
+      e.preventDefault()
+      doSave(e.shiftKey ? 'shift-tab' : 'tab')
     } else if (e.key === 'Escape') {
       e.preventDefault()
       doneRef.current = true
@@ -1381,7 +1599,7 @@ function InlineEditor({
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
       onKeyDown={handleKeyDown}
-      onBlur={handleSave}
+      onBlur={() => doSave('blur')}
       className={cn(
         'w-full min-w-0 select-text border-none bg-transparent p-0 outline-none',
         column.type === 'number'
@@ -1430,11 +1648,13 @@ interface PlaceholderRowsProps {
   columns: ColumnDefinition[]
   dataRowCount: number
   editingEmptyCell: { rowIndex: number; columnName: string } | null
+  initialCharacter: string | null
   pendingPlaceholders: Record<number, PendingPlaceholder>
   normalizedSelection: NormalizedSelection | null
   firstRowUnderHeader: boolean
   onClick: (rowIndex: number, columnName: string) => void
-  onSave: (rowIndex: number, columnName: string, value: unknown) => void
+  onDoubleClick: (rowIndex: number, columnName: string) => void
+  onSave: (rowIndex: number, columnName: string, value: unknown, reason: SaveReason) => void
   onCancel: () => void
   onCellMouseDown: (rowIndex: number, colIndex: number, shiftKey: boolean) => void
   onCellMouseEnter: (rowIndex: number, colIndex: number) => void
@@ -1450,6 +1670,7 @@ function placeholderPropsAreEqual(prev: PlaceholderRowsProps, next: PlaceholderR
     prev.pendingPlaceholders !== next.pendingPlaceholders ||
     prev.firstRowUnderHeader !== next.firstRowUnderHeader ||
     prev.onClick !== next.onClick ||
+    prev.onDoubleClick !== next.onDoubleClick ||
     prev.onSave !== next.onSave ||
     prev.onCancel !== next.onCancel ||
     prev.onCellMouseDown !== next.onCellMouseDown ||
@@ -1484,10 +1705,12 @@ const PlaceholderRows = React.memo(function PlaceholderRows({
   columns,
   dataRowCount,
   editingEmptyCell,
+  initialCharacter,
   pendingPlaceholders,
   normalizedSelection,
   firstRowUnderHeader,
   onClick,
+  onDoubleClick,
   onSave,
   onCancel,
   onCellMouseDown,
@@ -1618,6 +1841,8 @@ const PlaceholderRows = React.memo(function PlaceholderRows({
               return (
                 <td
                   key={col.name}
+                  data-row={globalRowIndex}
+                  data-col={colIndex}
                   className={cn(CELL, (inRange || isAnchor) && 'relative')}
                   onMouseDown={(e) => {
                     if (e.button !== 0 || isEditing) return
@@ -1625,6 +1850,7 @@ const PlaceholderRows = React.memo(function PlaceholderRows({
                   }}
                   onMouseEnter={() => onCellMouseEnter(globalRowIndex, colIndex)}
                   onClick={() => onClick(i, col.name)}
+                  onDoubleClick={() => onDoubleClick(i, col.name)}
                 >
                   {inRange && isMultiCell && (
                     <div
@@ -1644,7 +1870,8 @@ const PlaceholderRows = React.memo(function PlaceholderRows({
                       <InlineEditor
                         value={hasPendingValue ? pendingValue : null}
                         column={col}
-                        onSave={(value) => onSave(i, col.name, value)}
+                        initialCharacter={initialCharacter ?? undefined}
+                        onSave={(value, reason) => onSave(i, col.name, value, reason)}
                         onCancel={onCancel}
                       />
                     </div>
@@ -1689,6 +1916,11 @@ const COLUMN_TYPE_OPTIONS: { type: string; label: string; icon: React.ElementTyp
 
 const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   column,
+  isRenaming,
+  renameValue,
+  onRenameValueChange,
+  onRenameSubmit,
+  onRenameCancel,
   onRenameColumn,
   onChangeType,
   onInsertLeft,
@@ -1696,8 +1928,16 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onToggleUnique,
   onToggleRequired,
   onDeleteColumn,
+  onResizeStart,
+  onResize,
+  onResizeEnd,
 }: {
   column: ColumnDefinition
+  isRenaming: boolean
+  renameValue: string
+  onRenameValueChange: (value: string) => void
+  onRenameSubmit: () => void
+  onRenameCancel: () => void
   onRenameColumn: (columnName: string) => void
   onChangeType: (columnName: string, newType: string) => void
   onInsertLeft: (columnName: string) => void
@@ -1705,73 +1945,136 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onToggleUnique: (columnName: string) => void
   onToggleRequired: (columnName: string) => void
   onDeleteColumn: (columnName: string) => void
+  onResizeStart: (columnName: string) => void
+  onResize: (columnName: string, width: number) => void
+  onResizeEnd: () => void
 }) {
+  const renameInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isRenaming && renameInputRef.current) {
+      renameInputRef.current.focus()
+      renameInputRef.current.select()
+    }
+  }, [isRenaming])
+
+  const handleResizePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const startX = e.clientX
+      const th = (e.currentTarget as HTMLElement).closest('th')
+      const startWidth = th ? th.getBoundingClientRect().width : COL_WIDTH
+
+      const target = e.currentTarget as HTMLElement
+      target.setPointerCapture(e.pointerId)
+
+      onResizeStart(column.name)
+
+      const handlePointerMove = (ev: PointerEvent) => {
+        onResize(column.name, startWidth + (ev.clientX - startX))
+      }
+
+      const handlePointerUp = () => {
+        target.removeEventListener('pointermove', handlePointerMove)
+        target.removeEventListener('pointerup', handlePointerUp)
+        onResizeEnd()
+      }
+
+      target.addEventListener('pointermove', handlePointerMove)
+      target.addEventListener('pointerup', handlePointerUp)
+    },
+    [column.name, onResizeStart, onResize, onResizeEnd]
+  )
+
   return (
-    <th className='border-[var(--border)] border-r border-b bg-white p-0 text-left align-middle dark:bg-[var(--bg)]'>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type='button'
-            className='flex h-full w-full min-w-0 cursor-pointer items-center px-[8px] py-[7px] outline-none'
-          >
-            <ColumnTypeIcon type={column.type} />
-            <span className='ml-[6px] min-w-0 truncate font-medium text-[13px] text-[var(--text-primary)]'>
-              {column.name}
-            </span>
-            <ChevronDown className='ml-[8px] h-[7px] w-[9px] shrink-0 text-[var(--text-muted)]' />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align='start'>
-          <DropdownMenuItem onSelect={() => onRenameColumn(column.name)}>
-            <Pencil />
-            Rename column
-          </DropdownMenuItem>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              {React.createElement(COLUMN_TYPE_ICONS[column.type] ?? TypeText)}
-              Change type
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              {COLUMN_TYPE_OPTIONS.map((option) => (
-                <DropdownMenuItem
-                  key={option.type}
-                  disabled={column.type === option.type}
-                  onSelect={() => onChangeType(column.name, option.type)}
-                >
-                  <option.icon />
-                  {option.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => onInsertLeft(column.name)}>
-            <ArrowLeft />
-            Insert column left
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => onInsertRight(column.name)}>
-            <ArrowRight />
-            Insert column right
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => onToggleUnique(column.name)}>
-            <Key />
-            {column.unique ? 'Remove unique' : 'Set unique'}
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => onToggleRequired(column.name)}>
-            <Asterisk />
-            {column.required ? 'Remove required' : 'Set required'}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={() => onDeleteColumn(column.name)}
-            className='text-[var(--text-error)] focus:text-[var(--text-error)]'
-          >
-            <Trash />
-            Delete column
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+    <th className='relative border-[var(--border)] border-r border-b bg-white p-0 text-left align-middle dark:bg-[var(--bg)]'>
+      {isRenaming ? (
+        <div className='flex h-full w-full min-w-0 items-center px-[8px] py-[7px]'>
+          <ColumnTypeIcon type={column.type} />
+          <input
+            ref={renameInputRef}
+            type='text'
+            value={renameValue}
+            onChange={(e) => onRenameValueChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onRenameSubmit()
+              if (e.key === 'Escape') onRenameCancel()
+            }}
+            onBlur={onRenameSubmit}
+            className='ml-[6px] min-w-0 flex-1 border-0 bg-transparent p-0 font-medium text-[13px] text-[var(--text-primary)] outline-none focus:outline-none focus:ring-0'
+          />
+        </div>
+      ) : (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type='button'
+              className='flex h-full w-full min-w-0 cursor-pointer items-center px-[8px] py-[7px] outline-none'
+            >
+              <ColumnTypeIcon type={column.type} />
+              <span className='ml-[6px] min-w-0 truncate font-medium text-[13px] text-[var(--text-primary)]'>
+                {column.name}
+              </span>
+              <ChevronDown className='ml-[8px] h-[7px] w-[9px] shrink-0 text-[var(--text-muted)]' />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='start'>
+            <DropdownMenuItem onSelect={() => onRenameColumn(column.name)}>
+              <Pencil />
+              Rename column
+            </DropdownMenuItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                {React.createElement(COLUMN_TYPE_ICONS[column.type] ?? TypeText)}
+                Change type
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {COLUMN_TYPE_OPTIONS.map((option) => (
+                  <DropdownMenuItem
+                    key={option.type}
+                    disabled={column.type === option.type}
+                    onSelect={() => onChangeType(column.name, option.type)}
+                  >
+                    <option.icon />
+                    {option.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => onInsertLeft(column.name)}>
+              <ArrowLeft />
+              Insert column left
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onInsertRight(column.name)}>
+              <ArrowRight />
+              Insert column right
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => onToggleUnique(column.name)}>
+              <Key />
+              {column.unique ? 'Remove unique' : 'Set unique'}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onToggleRequired(column.name)}>
+              <Asterisk />
+              {column.required ? 'Remove required' : 'Set required'}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => onDeleteColumn(column.name)}
+              className='text-[var(--text-error)] focus:text-[var(--text-error)]'
+            >
+              <Trash />
+              Delete column
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+      <div
+        className='-right-[3px] absolute top-0 z-[1] h-full w-[6px] cursor-col-resize'
+        onPointerDown={handleResizePointerDown}
+      />
     </th>
   )
 })
