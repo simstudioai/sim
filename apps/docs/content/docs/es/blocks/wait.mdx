@@ -1,0 +1,67 @@
+---
+title: Espera
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+El bloque Espera pausa tu flujo de trabajo durante un tiempo específico antes de continuar con el siguiente bloque. Úsalo para añadir retrasos entre acciones, respetar límites de frecuencia de API o espaciar operaciones.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/wait.png"
+    alt="Bloque de espera"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Configuración
+
+### Cantidad de espera
+
+Introduce la duración para pausar la ejecución:
+- **Entrada**: Número positivo
+- **Máximo**: 600 segundos (10 minutos) o 10 minutos
+
+### Unidad
+
+Elige la unidad de tiempo:
+- **Segundos**: Para retrasos cortos y precisos
+- **Minutos**: Para pausas más largas
+
+<Callout type="info">
+  Los bloques de espera pueden cancelarse deteniendo el flujo de trabajo. El tiempo máximo de espera es de 10 minutos.
+</Callout>
+
+## Salidas
+
+- **`<wait.waitDuration>`**: La duración de espera en milisegundos
+- **`<wait.status>`**: Estado de la espera ('esperando', 'completado' o 'cancelado')
+
+## Ejemplos de casos de uso
+
+**Limitación de tasa de API** - Mantente dentro de los límites de tasa de API entre solicitudes
+
+```
+API (Request 1) → Wait (2s) → API (Request 2)
+```
+
+**Notificaciones programadas** - Envía mensajes de seguimiento después de un retraso
+
+```
+Function (Send Email) → Wait (5min) → Function (Follow-up)
+```
+
+**Retrasos de procesamiento** - Espera a que el sistema externo complete el procesamiento
+
+```
+API (Trigger Job) → Wait (30s) → API (Check Status)
+```
+
+## Mejores prácticas
+
+- **Mantén esperas razonables**: Usa Wait para retrasos de hasta 10 minutos. Para retrasos más largos, considera flujos de trabajo programados
+- **Monitorea el tiempo de ejecución**: Recuerda que las esperas extienden la duración total del flujo de trabajo

@@ -1,0 +1,68 @@
+---
+title: Translate
+description: Translate text to any language
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="translate"
+  color="#FF4B4B"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Translate is a tool that allows you to translate text between languages.
+
+With Translate, you can:
+
+- **Translate text**: Translate text between languages
+- **Translate documents**: Translate documents between languages
+- **Translate websites**: Translate websites between languages
+- **Translate images**: Translate images between languages
+- **Translate audio**: Translate audio between languages
+- **Translate videos**: Translate videos between languages
+- **Translate speech**: Translate speech between languages
+- **Translate text**: Translate text between languages
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Translate into the workflow. Can translate text to any language.
+
+
+
+## Tools
+
+### `llm_chat`
+
+Send a chat completion request to any supported LLM provider
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `model` | string | Yes | The model to use \(e.g., gpt-4o, claude-sonnet-4-5, gemini-2.0-flash\) |
+| `systemPrompt` | string | No | System prompt to set the behavior of the assistant |
+| `context` | string | Yes | The user message or context to send to the model |
+| `apiKey` | string | No | API key for the provider \(uses platform key if not provided for hosted models\) |
+| `temperature` | number | No | Temperature for response generation \(0-2\) |
+| `maxTokens` | number | No | Maximum tokens in the response |
+| `azureEndpoint` | string | No | Azure OpenAI endpoint URL |
+| `azureApiVersion` | string | No | Azure OpenAI API version |
+| `vertexProject` | string | No | Google Cloud project ID for Vertex AI |
+| `vertexLocation` | string | No | Google Cloud location for Vertex AI \(defaults to us-central1\) |
+| `vertexCredential` | string | No | Google Cloud OAuth credential ID for Vertex AI |
+| `bedrockAccessKeyId` | string | No | AWS Access Key ID for Bedrock |
+| `bedrockSecretKey` | string | No | AWS Secret Access Key for Bedrock |
+| `bedrockRegion` | string | No | AWS region for Bedrock \(defaults to us-east-1\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | The generated response content |
+| `model` | string | The model used for generation |
+| `tokens` | object | Token usage information |
+
+

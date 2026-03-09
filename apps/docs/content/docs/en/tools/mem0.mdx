@@ -1,0 +1,129 @@
+---
+title: Mem0
+description: Agent memory management
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mem0"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Mem0](https://mem0.ai) is a powerful memory management system designed specifically for AI agents. It provides a persistent, searchable memory store that enables agents to remember past interactions, learn from experiences, and maintain context across conversations and workflow executions.
+
+With Mem0, you can:
+
+- **Store agent memories**: Save conversation history, user preferences, and important context
+- **Retrieve relevant information**: Use semantic search to find the most relevant past interactions
+- **Build context-aware agents**: Enable your agents to reference past conversations and maintain continuity
+- **Personalize interactions**: Tailor responses based on user history and preferences
+- **Implement long-term memory**: Create agents that learn and adapt over time
+- **Scale memory management**: Handle memory needs for multiple users and complex workflows
+
+In Sim, the Mem0 integration enables your agents to maintain persistent memory across workflow executions. This allows for more natural, context-aware interactions where agents can recall past conversations, remember user preferences, and build upon previous interactions. By connecting Sim with Mem0, you can create agents that feel more human-like in their ability to remember and learn from past experiences. The integration supports adding new memories, searching existing memories semantically, and retrieving specific memory records. This memory management capability is essential for building sophisticated agents that can maintain context over time, personalize interactions based on user history, and continuously improve their performance through accumulated knowledge.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Mem0 into the workflow. Can add, search, and retrieve memories.
+
+
+
+## Tools
+
+### `mem0_add_memories`
+
+Add memories to Mem0 for persistent storage and retrieval
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | User ID associated with the memory \(e.g., "user_123", "alice@example.com"\) |
+| `messages` | json | Yes | Array of message objects with role and content \(e.g., \[\{"role": "user", "content": "Hello"\}\]\) |
+| `apiKey` | string | Yes | Your Mem0 API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ids` | array | Array of memory IDs that were created |
+| `memories` | array | Array of memory objects that were created |
+|   ↳ `id` | string | Unique identifier for the memory |
+|   ↳ `memory` | string | The content of the memory |
+|   ↳ `event` | string | Event type indicating operation performed \(ADD, UPDATE, DELETE, NOOP\) |
+|   ↳ `metadata` | json | Custom metadata associated with the memory |
+
+### `mem0_search_memories`
+
+Search for memories in Mem0 using semantic search
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | User ID to search memories for \(e.g., "user_123", "alice@example.com"\) |
+| `query` | string | Yes | Search query to find relevant memories \(e.g., "What are my favorite foods?"\) |
+| `limit` | number | No | Maximum number of results to return \(e.g., 10, 50, 100\) |
+| `apiKey` | string | Yes | Your Mem0 API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `searchResults` | array | Array of search results with memory data and similarity scores |
+|   ↳ `id` | string | Unique identifier for the memory |
+|   ↳ `memory` | string | The content of the memory |
+|   ↳ `user_id` | string | User ID associated with this memory |
+|   ↳ `agent_id` | string | Agent ID associated with this memory |
+|   ↳ `app_id` | string | App ID associated with this memory |
+|   ↳ `run_id` | string | Run/session ID associated with this memory |
+|   ↳ `hash` | string | Hash of the memory content |
+|   ↳ `metadata` | json | Custom metadata associated with the memory |
+|   ↳ `categories` | json | Auto-assigned categories for the memory |
+|   ↳ `created_at` | string | ISO 8601 timestamp when the memory was created |
+|   ↳ `updated_at` | string | ISO 8601 timestamp when the memory was last updated |
+|   ↳ `score` | number | Similarity score from vector search |
+| `ids` | array | Array of memory IDs found in the search results |
+
+### `mem0_get_memories`
+
+Retrieve memories from Mem0 by ID or filter criteria
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | User ID to retrieve memories for \(e.g., "user_123", "alice@example.com"\) |
+| `memoryId` | string | No | Specific memory ID to retrieve \(e.g., "mem_abc123"\) |
+| `startDate` | string | No | Start date for filtering by created_at \(e.g., "2024-01-15"\) |
+| `endDate` | string | No | End date for filtering by created_at \(e.g., "2024-12-31"\) |
+| `limit` | number | No | Maximum number of results to return \(e.g., 10, 50, 100\) |
+| `apiKey` | string | Yes | Your Mem0 API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `memories` | array | Array of retrieved memory objects |
+|   ↳ `id` | string | Unique identifier for the memory |
+|   ↳ `memory` | string | The content of the memory |
+|   ↳ `user_id` | string | User ID associated with this memory |
+|   ↳ `agent_id` | string | Agent ID associated with this memory |
+|   ↳ `app_id` | string | App ID associated with this memory |
+|   ↳ `run_id` | string | Run/session ID associated with this memory |
+|   ↳ `hash` | string | Hash of the memory content |
+|   ↳ `metadata` | json | Custom metadata associated with the memory |
+|   ↳ `categories` | json | Auto-assigned categories for the memory |
+|   ↳ `created_at` | string | ISO 8601 timestamp when the memory was created |
+|   ↳ `updated_at` | string | ISO 8601 timestamp when the memory was last updated |
+|   ↳ `owner` | string | Owner of the memory |
+|   ↳ `organization` | string | Organization associated with the memory |
+|   ↳ `immutable` | boolean | Whether the memory can be modified |
+|   ↳ `expiration_date` | string | Expiration date after which memory is not retrieved |
+| `ids` | array | Array of memory IDs that were retrieved |
+
+

@@ -1,0 +1,92 @@
+---
+title: Google Books
+description: 搜索并获取图书信息
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_books"
+  color="#FFFFFF"
+/>
+
+## 使用说明
+
+使用 Google Books API 搜索图书。可通过书名、作者、ISBN 或关键词查找图书，并获取特定图书的详细信息，包括简介、评分和出版信息。
+
+## 工具
+
+### `google_books_volume_search`
+
+使用 Google Books API 搜索图书
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Google Books API 密钥 |
+| `query` | string | 是 | 搜索查询。支持特殊关键词：intitle:、inauthor:、inpublisher:、subject:、isbn: |
+| `filter` | string | 否 | 按可用性筛选结果（partial、full、free-ebooks、paid-ebooks、ebooks）|
+| `printType` | string | 否 | 限定印刷类型（all、books、magazines）|
+| `orderBy` | string | 否 | 排序方式（relevance、newest）|
+| `startIndex` | number | 否 | 返回结果的起始索引（用于分页）|
+| `maxResults` | number | 否 | 返回结果的最大数量（1-40）|
+| `langRestrict` | string | 否 | 限定结果为特定语言（ISO 639-1 代码）|
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `totalItems` | number | 匹配结果总数 |
+| `volumes` | array | 匹配的图书列表 |
+|   ↳ `id` | string | 图书卷 ID |
+|   ↳ `title` | string | 书名 |
+|   ↳ `subtitle` | string | 副标题 |
+|   ↳ `authors` | array | 作者列表 |
+|   ↳ `publisher` | string | 出版社名称 |
+|   ↳ `publishedDate` | string | 出版日期 |
+|   ↳ `description` | string | 图书简介 |
+|   ↳ `pageCount` | number | 页数 |
+|   ↳ `categories` | array | 图书分类 |
+|   ↳ `averageRating` | number | 平均评分（1-5）|
+|   ↳ `ratingsCount` | number | 评分人数 |
+|   ↳ `language` | string | 语言代码 |
+|   ↳ `previewLink` | string | Google Books 预览链接 |
+|   ↳ `infoLink` | string | 信息页链接 |
+|   ↳ `thumbnailUrl` | string | 图书封面缩略图 URL |
+|   ↳ `isbn10` | string | ISBN-10 标识符 |
+|   ↳ `isbn13` | string | ISBN-13 标识符 |
+
+### `google_books_volume_details`
+
+获取某本书籍卷册的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Google Books API key |
+| `volumeId` | string | 是 | 要检索的卷册 ID |
+| `projection` | string | 否 | 投影级别（full、lite） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `id` | string | 卷册 ID |
+| `title` | string | 书名 |
+| `subtitle` | string | 副标题 |
+| `authors` | array | 作者列表 |
+| `publisher` | string | 出版社名称 |
+| `publishedDate` | string | 出版日期 |
+| `description` | string | 书籍简介 |
+| `pageCount` | number | 页数 |
+| `categories` | array | 书籍分类 |
+| `averageRating` | number | 平均评分（1-5） |
+| `ratingsCount` | number | 评分人数 |
+| `language` | string | 语言代码 |
+| `previewLink` | string | Google Books 预览链接 |
+| `infoLink` | string | 信息页链接 |
+| `thumbnailUrl` | string | 书籍封面缩略图 URL |
+| `isbn10` | string | ISBN-10 标识符 |
+| `isbn13` | string | ISBN-13 标识符 |

@@ -1,0 +1,54 @@
+---
+title: Search
+description: Search the web ($0.01 per search)
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="search"
+  color="#3B82F6"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+The **Search** tool lets you search the web from within your Sim workflows using state-of-the-art search engines. Use it to pull in the latest information, news, facts, and web content directly into your agents, automations, or conversations.
+
+- **General web search**: Find up-to-date information from the internet to supplement your workflows.
+- **Automated queries**: Let agents or program logic submit search queries and handle the results automatically.
+- **Structured results**: Returns the most relevant web results, including title, link, snippet, and date for each result.
+
+> **Note:** Each search costs **$0.01** per query.
+
+This tool is ideal for any workflow where your agents need access to live web data or must reference current events, perform research, or fetch supplemental content.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Search the web using the Search tool. Each search costs $0.01 per query.
+
+
+
+## Tools
+
+### `search_tool`
+
+Search the web. Returns the most relevant web results, including title, link, snippet, and date for each result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | The search query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results |
+| `query` | string | The search query |
+| `totalResults` | number | Total number of results |
+| `source` | string | Search source \(exa\) |
+| `cost` | json | Cost information \($0.01\) |
+
+

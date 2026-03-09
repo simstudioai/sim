@@ -1,0 +1,520 @@
+---
+title: Pipedrive
+description: Interact with Pipedrive CRM
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="pipedrive"
+  color="#2E6936"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Pipedrive](https://www.pipedrive.com) is a sales-focused CRM platform designed to help sales teams manage leads, track deals, and optimize their sales pipeline. Built with simplicity and effectiveness in mind, Pipedrive provides intuitive visual pipeline management and actionable sales insights.
+
+With the Pipedrive integration in Sim, you can:
+
+- **Manage deals**: List, get, create, and update deals in your sales pipeline
+- **Manage leads**: Get, create, update, and delete leads for prospect tracking
+- **Track activities**: Get, create, and update sales activities such as calls, meetings, and tasks
+- **Manage projects**: List and create projects for post-sale delivery tracking
+- **Access pipelines**: Get pipeline configurations and list deals within specific pipelines
+- **Retrieve files**: Access files attached to deals, contacts, or other records
+- **Access email**: Get mail messages and threads linked to CRM records
+
+In Sim, the Pipedrive integration enables your agents to interact with your sales workflow as part of automated processes. Agents can qualify leads, manage deals through pipeline stages, schedule activities, and keep CRM data synchronized—enabling intelligent sales automation.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Pipedrive into your workflow. Manage deals, contacts, sales pipeline, projects, activities, files, and communications with powerful CRM capabilities.
+
+
+
+## Tools
+
+### `pipedrive_get_all_deals`
+
+Retrieve all deals from Pipedrive with optional filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `status` | string | No | Only fetch deals with a specific status. Values: open, won, lost. If omitted, all not deleted deals are returned |
+| `person_id` | string | No | If supplied, only deals linked to the specified person are returned \(e.g., "456"\) |
+| `org_id` | string | No | If supplied, only deals linked to the specified organization are returned \(e.g., "789"\) |
+| `pipeline_id` | string | No | If supplied, only deals in the specified pipeline are returned \(e.g., "1"\) |
+| `updated_since` | string | No | If set, only deals updated after this time are returned. Format: 2025-01-01T10:20:00Z |
+| `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
+| `cursor` | string | No | For pagination, the marker representing the first item on the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deals` | array | Array of deal objects from Pipedrive |
+|   ↳ `id` | number | Deal ID |
+|   ↳ `title` | string | Deal title |
+|   ↳ `value` | number | Deal value |
+|   ↳ `currency` | string | Currency code |
+|   ↳ `status` | string | Deal status \(open, won, lost, deleted\) |
+|   ↳ `stage_id` | number | Pipeline stage ID |
+|   ↳ `pipeline_id` | number | Pipeline ID |
+|   ↳ `person_id` | number | Associated person ID |
+|   ↳ `org_id` | number | Associated organization ID |
+|   ↳ `owner_id` | number | Deal owner user ID |
+|   ↳ `add_time` | string | When the deal was created \(ISO 8601\) |
+|   ↳ `update_time` | string | When the deal was last updated \(ISO 8601\) |
+|   ↳ `won_time` | string | When the deal was won |
+|   ↳ `lost_time` | string | When the deal was lost |
+|   ↳ `close_time` | string | When the deal was closed |
+|   ↳ `expected_close_date` | string | Expected close date |
+| `metadata` | object | Pagination metadata for the response |
+|   ↳ `total_items` | number | Total number of items |
+|   ↳ `has_more` | boolean | Whether more items are available |
+|   ↳ `next_cursor` | string | Cursor for fetching the next page \(v2 endpoints\) |
+|   ↳ `next_start` | number | Offset for fetching the next page \(v1 endpoints\) |
+| `success` | boolean | Operation success status |
+
+### `pipedrive_get_deal`
+
+Retrieve detailed information about a specific deal
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deal_id` | string | Yes | The ID of the deal to retrieve \(e.g., "123"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deal` | object | Deal object with full details |
+| `success` | boolean | Operation success status |
+
+### `pipedrive_create_deal`
+
+Create a new deal in Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Yes | The title of the deal \(e.g., "Enterprise Software License"\) |
+| `value` | string | No | The monetary value of the deal \(e.g., "5000"\) |
+| `currency` | string | No | Currency code \(e.g., "USD", "EUR", "GBP"\) |
+| `person_id` | string | No | ID of the person this deal is associated with \(e.g., "456"\) |
+| `org_id` | string | No | ID of the organization this deal is associated with \(e.g., "789"\) |
+| `pipeline_id` | string | No | ID of the pipeline this deal should be placed in \(e.g., "1"\) |
+| `stage_id` | string | No | ID of the stage this deal should be placed in \(e.g., "2"\) |
+| `status` | string | No | Status of the deal: open, won, lost |
+| `expected_close_date` | string | No | Expected close date in YYYY-MM-DD format \(e.g., "2025-06-30"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deal` | object | The created deal object |
+| `success` | boolean | Operation success status |
+
+### `pipedrive_update_deal`
+
+Update an existing deal in Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deal_id` | string | Yes | The ID of the deal to update \(e.g., "123"\) |
+| `title` | string | No | New title for the deal \(e.g., "Updated Enterprise License"\) |
+| `value` | string | No | New monetary value for the deal \(e.g., "7500"\) |
+| `status` | string | No | New status: open, won, lost |
+| `stage_id` | string | No | New stage ID for the deal \(e.g., "3"\) |
+| `expected_close_date` | string | No | New expected close date in YYYY-MM-DD format \(e.g., "2025-07-15"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deal` | object | The updated deal object |
+| `success` | boolean | Operation success status |
+
+### `pipedrive_get_files`
+
+Retrieve files from Pipedrive with optional filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `sort` | string | No | Sort files by field \(supported: "id", "update_time"\) |
+| `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 100\) |
+| `start` | string | No | Pagination start offset \(0-based index of the first item to return\) |
+| `downloadFiles` | boolean | No | Download file contents into file outputs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | array | Array of file objects from Pipedrive |
+|   ↳ `id` | number | File ID |
+|   ↳ `name` | string | File name |
+|   ↳ `file_type` | string | File type/extension |
+|   ↳ `file_size` | number | File size in bytes |
+|   ↳ `add_time` | string | When the file was uploaded |
+|   ↳ `update_time` | string | When the file was last updated |
+|   ↳ `deal_id` | number | Associated deal ID |
+|   ↳ `person_id` | number | Associated person ID |
+|   ↳ `org_id` | number | Associated organization ID |
+|   ↳ `url` | string | File download URL |
+| `downloadedFiles` | file[] | Downloaded files from Pipedrive |
+| `total_items` | number | Total number of files returned |
+| `has_more` | boolean | Whether more files are available |
+| `next_start` | number | Offset for fetching the next page |
+| `success` | boolean | Operation success status |
+
+### `pipedrive_get_mail_messages`
+
+Retrieve mail threads from Pipedrive mailbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `folder` | string | No | Filter by folder: inbox, drafts, sent, archive \(default: inbox\) |
+| `limit` | string | No | Number of results to return \(e.g., "25", default: 50\) |
+| `start` | string | No | Pagination start offset \(0-based index of the first item to return\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messages` | array | Array of mail thread objects from Pipedrive mailbox |
+| `total_items` | number | Total number of mail threads returned |
+| `has_more` | boolean | Whether more messages are available |
+| `next_start` | number | Offset for fetching the next page |
+| `success` | boolean | Operation success status |
+
+### `pipedrive_get_mail_thread`
+
+Retrieve all messages from a specific mail thread
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `thread_id` | string | Yes | The ID of the mail thread \(e.g., "12345"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messages` | array | Array of mail message objects from the thread |
+| `metadata` | object | Thread and pagination metadata |
+| `success` | boolean | Operation success status |
+
+### `pipedrive_get_pipelines`
+
+Retrieve all pipelines from Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `sort_by` | string | No | Field to sort by: id, update_time, add_time \(default: id\) |
+| `sort_direction` | string | No | Sorting direction: asc, desc \(default: asc\) |
+| `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
+| `start` | string | No | Pagination start offset \(0-based index of the first item to return\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pipelines` | array | Array of pipeline objects from Pipedrive |
+|   ↳ `id` | number | Pipeline ID |
+|   ↳ `name` | string | Pipeline name |
+|   ↳ `url_title` | string | URL-friendly title |
+|   ↳ `order_nr` | number | Pipeline order number |
+|   ↳ `active` | boolean | Whether the pipeline is active |
+|   ↳ `deal_probability` | boolean | Whether deal probability is enabled |
+|   ↳ `add_time` | string | When the pipeline was created |
+|   ↳ `update_time` | string | When the pipeline was last updated |
+| `total_items` | number | Total number of pipelines returned |
+| `has_more` | boolean | Whether more pipelines are available |
+| `next_start` | number | Offset for fetching the next page |
+| `success` | boolean | Operation success status |
+
+### `pipedrive_get_pipeline_deals`
+
+Retrieve all deals in a specific pipeline
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `pipeline_id` | string | Yes | The ID of the pipeline \(e.g., "1"\) |
+| `stage_id` | string | No | Filter by specific stage within the pipeline \(e.g., "2"\) |
+| `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
+| `start` | string | No | Pagination start offset \(0-based index of the first item to return\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deals` | array | Array of deal objects from the pipeline |
+| `metadata` | object | Pipeline and pagination metadata |
+| `success` | boolean | Operation success status |
+
+### `pipedrive_get_projects`
+
+Retrieve all projects or a specific project from Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `project_id` | string | No | Optional: ID of a specific project to retrieve \(e.g., "123"\) |
+| `status` | string | No | Filter by project status: open, completed, deleted \(only for listing all\) |
+| `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500, only for listing all\) |
+| `cursor` | string | No | For pagination, the marker representing the first item on the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | array | Array of project objects \(when listing all\) |
+| `project` | object | Single project object \(when project_id is provided\) |
+| `total_items` | number | Total number of projects returned |
+| `has_more` | boolean | Whether more projects are available |
+| `next_cursor` | string | Cursor for fetching the next page |
+| `success` | boolean | Operation success status |
+
+### `pipedrive_create_project`
+
+Create a new project in Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Yes | The title of the project \(e.g., "Q2 Marketing Campaign"\) |
+| `description` | string | No | Description of the project |
+| `start_date` | string | No | Project start date in YYYY-MM-DD format \(e.g., "2025-04-01"\) |
+| `end_date` | string | No | Project end date in YYYY-MM-DD format \(e.g., "2025-06-30"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | object | The created project object |
+| `success` | boolean | Operation success status |
+
+### `pipedrive_get_activities`
+
+Retrieve activities (tasks) from Pipedrive with optional filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `user_id` | string | No | Filter activities by user ID \(e.g., "123"\) |
+| `type` | string | No | Filter by activity type \(call, meeting, task, deadline, email, lunch\) |
+| `done` | string | No | Filter by completion status: 0 for not done, 1 for done |
+| `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
+| `start` | string | No | Pagination start offset \(0-based index of the first item to return\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `activities` | array | Array of activity objects from Pipedrive |
+|   ↳ `id` | number | Activity ID |
+|   ↳ `subject` | string | Activity subject |
+|   ↳ `type` | string | Activity type \(call, meeting, task, etc.\) |
+|   ↳ `due_date` | string | Due date \(YYYY-MM-DD\) |
+|   ↳ `due_time` | string | Due time \(HH:MM\) |
+|   ↳ `duration` | string | Duration \(HH:MM\) |
+|   ↳ `deal_id` | number | Associated deal ID |
+|   ↳ `person_id` | number | Associated person ID |
+|   ↳ `org_id` | number | Associated organization ID |
+|   ↳ `done` | boolean | Whether the activity is done |
+|   ↳ `note` | string | Activity note |
+|   ↳ `add_time` | string | When the activity was created |
+|   ↳ `update_time` | string | When the activity was last updated |
+| `total_items` | number | Total number of activities returned |
+| `has_more` | boolean | Whether more activities are available |
+| `next_start` | number | Offset for fetching the next page |
+| `success` | boolean | Operation success status |
+
+### `pipedrive_create_activity`
+
+Create a new activity (task) in Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subject` | string | Yes | The subject/title of the activity \(e.g., "Follow up call with John"\) |
+| `type` | string | Yes | Activity type: call, meeting, task, deadline, email, lunch |
+| `due_date` | string | Yes | Due date in YYYY-MM-DD format \(e.g., "2025-03-15"\) |
+| `due_time` | string | No | Due time in HH:MM format \(e.g., "14:30"\) |
+| `duration` | string | No | Duration in HH:MM format \(e.g., "01:00" for 1 hour\) |
+| `deal_id` | string | No | ID of the deal to associate with \(e.g., "123"\) |
+| `person_id` | string | No | ID of the person to associate with \(e.g., "456"\) |
+| `org_id` | string | No | ID of the organization to associate with \(e.g., "789"\) |
+| `note` | string | No | Notes for the activity |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `activity` | object | The created activity object |
+| `success` | boolean | Operation success status |
+
+### `pipedrive_update_activity`
+
+Update an existing activity (task) in Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `activity_id` | string | Yes | The ID of the activity to update \(e.g., "12345"\) |
+| `subject` | string | No | New subject/title for the activity \(e.g., "Updated meeting with client"\) |
+| `due_date` | string | No | New due date in YYYY-MM-DD format \(e.g., "2025-03-20"\) |
+| `due_time` | string | No | New due time in HH:MM format \(e.g., "15:00"\) |
+| `duration` | string | No | New duration in HH:MM format \(e.g., "00:30" for 30 minutes\) |
+| `done` | string | No | Mark as done: 0 for not done, 1 for done |
+| `note` | string | No | New notes for the activity |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `activity` | object | The updated activity object |
+| `success` | boolean | Operation success status |
+
+### `pipedrive_get_leads`
+
+Retrieve all leads or a specific lead from Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `lead_id` | string | No | Optional: ID of a specific lead to retrieve \(e.g., "abc123-def456-ghi789"\) |
+| `archived` | string | No | Get archived leads instead of active ones \(e.g., "true" or "false"\) |
+| `owner_id` | string | No | Filter by owner user ID \(e.g., "123"\) |
+| `person_id` | string | No | Filter by person ID \(e.g., "456"\) |
+| `organization_id` | string | No | Filter by organization ID \(e.g., "789"\) |
+| `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
+| `start` | string | No | Pagination start offset \(0-based index of the first item to return\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leads` | array | Array of lead objects \(when listing all\) |
+|   ↳ `id` | string | Lead ID \(UUID\) |
+|   ↳ `title` | string | Lead title |
+|   ↳ `person_id` | number | ID of the associated person |
+|   ↳ `organization_id` | number | ID of the associated organization |
+|   ↳ `owner_id` | number | ID of the lead owner |
+|   ↳ `value` | object | Lead value |
+|     ↳ `amount` | number | Value amount |
+|     ↳ `currency` | string | Currency code \(e.g., USD, EUR\) |
+|   ↳ `expected_close_date` | string | Expected close date \(YYYY-MM-DD\) |
+|   ↳ `is_archived` | boolean | Whether the lead is archived |
+|   ↳ `was_seen` | boolean | Whether the lead was seen |
+|   ↳ `add_time` | string | When the lead was created \(ISO 8601\) |
+|   ↳ `update_time` | string | When the lead was last updated \(ISO 8601\) |
+| `lead` | object | Single lead object \(when lead_id is provided\) |
+|   ↳ `id` | string | Lead ID \(UUID\) |
+|   ↳ `title` | string | Lead title |
+|   ↳ `person_id` | number | ID of the associated person |
+|   ↳ `organization_id` | number | ID of the associated organization |
+|   ↳ `owner_id` | number | ID of the lead owner |
+|   ↳ `value` | object | Lead value |
+|     ↳ `amount` | number | Value amount |
+|     ↳ `currency` | string | Currency code \(e.g., USD, EUR\) |
+|   ↳ `expected_close_date` | string | Expected close date \(YYYY-MM-DD\) |
+|   ↳ `is_archived` | boolean | Whether the lead is archived |
+|   ↳ `was_seen` | boolean | Whether the lead was seen |
+|   ↳ `add_time` | string | When the lead was created \(ISO 8601\) |
+|   ↳ `update_time` | string | When the lead was last updated \(ISO 8601\) |
+| `total_items` | number | Total number of leads returned |
+| `has_more` | boolean | Whether more leads are available |
+| `next_start` | number | Offset for fetching the next page |
+| `success` | boolean | Operation success status |
+
+### `pipedrive_create_lead`
+
+Create a new lead in Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Yes | The name of the lead \(e.g., "Acme Corp - Website Redesign"\) |
+| `person_id` | string | No | ID of the person \(REQUIRED unless organization_id is provided\) \(e.g., "456"\) |
+| `organization_id` | string | No | ID of the organization \(REQUIRED unless person_id is provided\) \(e.g., "789"\) |
+| `owner_id` | string | No | ID of the user who will own the lead \(e.g., "123"\) |
+| `value_amount` | string | No | Potential value amount \(e.g., "10000"\) |
+| `value_currency` | string | No | Currency code \(e.g., "USD", "EUR", "GBP"\) |
+| `expected_close_date` | string | No | Expected close date in YYYY-MM-DD format \(e.g., "2025-04-15"\) |
+| `visible_to` | string | No | Visibility: 1 \(Owner & followers\), 3 \(Entire company\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lead` | object | The created lead object |
+| `success` | boolean | Operation success status |
+
+### `pipedrive_update_lead`
+
+Update an existing lead in Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `lead_id` | string | Yes | The ID of the lead to update \(e.g., "abc123-def456-ghi789"\) |
+| `title` | string | No | New name for the lead \(e.g., "Updated Lead - Premium Package"\) |
+| `person_id` | string | No | New person ID \(e.g., "456"\) |
+| `organization_id` | string | No | New organization ID \(e.g., "789"\) |
+| `owner_id` | string | No | New owner user ID \(e.g., "123"\) |
+| `value_amount` | string | No | New value amount \(e.g., "15000"\) |
+| `value_currency` | string | No | New currency code \(e.g., "USD", "EUR", "GBP"\) |
+| `expected_close_date` | string | No | New expected close date in YYYY-MM-DD format \(e.g., "2025-05-01"\) |
+| `is_archived` | string | No | Archive the lead: true or false |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lead` | object | The updated lead object |
+| `success` | boolean | Operation success status |
+
+### `pipedrive_delete_lead`
+
+Delete a specific lead from Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `lead_id` | string | Yes | The ID of the lead to delete \(e.g., "abc123-def456-ghi789"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | object | Deletion confirmation data |
+| `success` | boolean | Operation success status |
+
+

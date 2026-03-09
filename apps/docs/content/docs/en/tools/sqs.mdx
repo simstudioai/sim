@@ -1,0 +1,63 @@
+---
+title: Amazon SQS
+description: Connect to Amazon SQS
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sqs"
+  color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon Simple Queue Service (SQS)](https://aws.amazon.com/sqs/) is a fully managed message queuing service that enables you to decouple and scale microservices, distributed systems, and serverless applications. SQS eliminates the complexity and overhead associated with managing and operating message-oriented middleware, and empowers developers to focus on differentiating work.
+
+With Amazon SQS, you can:
+
+- **Send messages**: Publish messages to queues for asynchronous processing
+- **Decouple applications**: Enable loose coupling between components of your system
+- **Scale workloads**: Handle variable workloads without provisioning infrastructure
+- **Ensure reliability**: Built-in redundancy and high availability
+- **Support FIFO queues**: Maintain strict message ordering and exactly-once processing
+
+In Sim, the SQS integration enables your agents to send messages to Amazon SQS queues securely and programmatically. Supported operations include:
+
+- **Send Message**: Send messages to SQS queues with optional message group ID and deduplication ID for FIFO queues
+
+This integration allows your agents to automate message sending workflows without manual intervention. By connecting Sim with Amazon SQS, you can build agents that publish messages to queues within your workflows—all without handling queue infrastructure or connections.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Amazon SQS into the workflow. Can send messages to SQS queues.
+
+
+
+## Tools
+
+### `sqs_send`
+
+Send a message to an Amazon SQS queue
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `data` | object | Yes | Message body to send as JSON object \(e.g., \{ "action": "process", "payload": \{...\} \}\) |
+| `messageGroupId` | string | No | Message group ID for FIFO queues \(e.g., "order-processing-group"\) |
+| `messageDeduplicationId` | string | No | Message deduplication ID for FIFO queues \(e.g., "order-12345-v1"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `id` | string | Message ID |
+
+

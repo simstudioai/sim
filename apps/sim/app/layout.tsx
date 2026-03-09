@@ -1,0 +1,250 @@
+import type { Metadata, Viewport } from 'next'
+import Script from 'next/script'
+import { PublicEnvScript } from 'next-runtime-env'
+import { BrandedLayout } from '@/components/branded-layout'
+import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
+import {
+  generateBrandedMetadata,
+  generateStructuredData,
+  generateThemeCSS,
+} from '@/ee/whitelabeling'
+import '@/app/_styles/globals.css'
+import { OneDollarStats } from '@/components/analytics/onedollarstats'
+import { isReactGrabEnabled, isReactScanEnabled } from '@/lib/core/config/feature-flags'
+import { HydrationErrorHandler } from '@/app/_shell/hydration-error-handler'
+import { QueryProvider } from '@/app/_shell/providers/query-provider'
+import { SessionProvider } from '@/app/_shell/providers/session-provider'
+import { ThemeProvider } from '@/app/_shell/providers/theme-provider'
+import { TooltipProvider } from '@/app/_shell/providers/tooltip-provider'
+import { season } from '@/app/_styles/fonts/season/season'
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#0c0c0c' },
+  ],
+}
+
+export const metadata: Metadata = generateBrandedMetadata()
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const structuredData = generateStructuredData()
+  const themeCSS = generateThemeCSS()
+
+  return (
+    <html lang='en' suppressHydrationWarning>
+      <head>
+        {/* Polyfill crypto.randomUUID for non-secure contexts (HTTP on non-localhost) */}
+        <script
+          id='crypto-randomuuid-polyfill'
+          dangerouslySetInnerHTML={{
+            __html: `
+              if (typeof crypto !== 'undefined' && typeof crypto.randomUUID !== 'function' && typeof crypto.getRandomValues === 'function') {
+                crypto.randomUUID = function() {
+                  var a = new Uint8Array(16);
+                  crypto.getRandomValues(a);
+                  a[6] = (a[6] & 0x0f) | 0x40;
+                  a[8] = (a[8] & 0x3f) | 0x80;
+                  var h = Array.prototype.map.call(a, function(b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+                  return h.slice(0,8) + '-' + h.slice(8,12) + '-' + h.slice(12,16) + '-' + h.slice(16,20) + '-' + h.slice(20);
+                };
+              }
+            `,
+          }}
+        />
+        {isReactScanEnabled && (
+          <Script
+            src='https://unpkg.com/react-scan/dist/auto.global.js'
+            crossOrigin='anonymous'
+            strategy='beforeInteractive'
+          />
+        )}
+        {isReactGrabEnabled && (
+          <Script
+            src='https://unpkg.com/react-grab/dist/index.global.js'
+            crossOrigin='anonymous'
+            strategy='beforeInteractive'
+          />
+        )}
+        {isReactGrabEnabled && (
+          <Script
+            src='https://unpkg.com/@react-grab/cursor/dist/client.global.js'
+            strategy='lazyOnload'
+          />
+        )}
+        {/* Structured Data for SEO */}
+        <script
+          type='application/ld+json'
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(structuredData),
+          }}
+        />
+
+        {/* 
+          Workspace layout dimensions: set CSS vars before hydration to avoid layout jump.
+          
+          IMPORTANT: These hardcoded values must stay in sync with stores/constants.ts
+          We cannot use imports here since this is a blocking script that runs before React.
+        */}
+        <script
+          id='workspace-layout-dimensions'
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function () {
+                try {
+                  var path = window.location.pathname;
+                  if (path.indexOf('/workspace/') === -1) {
+                    return;
+                  }
+                } catch (e) {
+                  return;
+                }
+
+                // Sidebar width
+                try {
+                  var stored = localStorage.getItem('sidebar-state');
+                  if (stored) {
+                    var parsed = JSON.parse(stored);
+                    var state = parsed && parsed.state;
+                    var width = state && state.sidebarWidth;
+                    var maxSidebarWidth = window.innerWidth * 0.3;
+
+                    if (width >= 232 && width <= maxSidebarWidth) {
+                      document.documentElement.style.setProperty('--sidebar-width', width + 'px');
+                    } else if (width > maxSidebarWidth) {
+                      document.documentElement.style.setProperty('--sidebar-width', maxSidebarWidth + 'px');
+                    }
+                  }
+                } catch (e) {
+                  // Fallback handled by CSS defaults
+                }
+
+                // Panel width and active tab
+                try {
+                  var panelStored = localStorage.getItem('panel-state');
+                  if (panelStored) {
+                    var panelParsed = JSON.parse(panelStored);
+                    var panelState = panelParsed && panelParsed.state;
+                    var panelWidth = panelState && panelState.panelWidth;
+                    var maxPanelWidth = window.innerWidth * 0.4;
+
+                    if (panelWidth >= 290 && panelWidth <= maxPanelWidth) {
+                      document.documentElement.style.setProperty('--panel-width', panelWidth + 'px');
+                    } else if (panelWidth > maxPanelWidth) {
+                      document.documentElement.style.setProperty('--panel-width', maxPanelWidth + 'px');
+                    }
+
+                    var activeTab = panelState && panelState.activeTab;
+                    if (activeTab) {
+                      document.documentElement.setAttribute('data-panel-active-tab', activeTab);
+                    }
+                  }
+                } catch (e) {
+                  // Fallback handled by CSS defaults
+                }
+
+                // Toolbar triggers height
+                try {
+                  var toolbarStored = localStorage.getItem('toolbar-state');
+                  if (toolbarStored) {
+                    var toolbarParsed = JSON.parse(toolbarStored);
+                    var toolbarState = toolbarParsed && toolbarParsed.state;
+                    var toolbarTriggersHeight = toolbarState && toolbarState.toolbarTriggersHeight;
+                    if (
+                      toolbarTriggersHeight !== undefined &&
+                      toolbarTriggersHeight >= 30 &&
+                      toolbarTriggersHeight <= 800
+                    ) {
+                      document.documentElement.style.setProperty(
+                        '--toolbar-triggers-height',
+                        toolbarTriggersHeight + 'px'
+                      );
+                    }
+                  }
+                } catch (e) {
+                  // Fallback handled by CSS defaults
+                }
+
+                // Editor connections height
+                try {
+                  var editorStored = localStorage.getItem('panel-editor-state');
+                  if (editorStored) {
+                    var editorParsed = JSON.parse(editorStored);
+                    var editorState = editorParsed && editorParsed.state;
+                    var connectionsHeight = editorState && editorState.connectionsHeight;
+                    if (connectionsHeight !== undefined && connectionsHeight >= 30 && connectionsHeight <= 300) {
+                      document.documentElement.style.setProperty(
+                        '--editor-connections-height',
+                        connectionsHeight + 'px'
+                      );
+                    }
+                  }
+                } catch (e) {
+                  // Fallback handled by CSS defaults
+                }
+
+                // Terminal height
+                try {
+                  var terminalStored = localStorage.getItem('terminal-state');
+                  if (terminalStored) {
+                    var terminalParsed = JSON.parse(terminalStored);
+                    var terminalState = terminalParsed && terminalParsed.state;
+                    var terminalHeight = terminalState && terminalState.terminalHeight;
+                    var maxTerminalHeight = window.innerHeight * 0.7;
+
+                    if (terminalHeight >= 30 && terminalHeight <= maxTerminalHeight) {
+                      document.documentElement.style.setProperty('--terminal-height', terminalHeight + 'px');
+                    } else if (terminalHeight > maxTerminalHeight) {
+                      document.documentElement.style.setProperty('--terminal-height', maxTerminalHeight + 'px');
+                    }
+                  }
+                } catch (e) {
+                  // Fallback handled by CSS defaults
+                }
+              })();
+            `,
+          }}
+        />
+
+        {/* Theme CSS Override */}
+        {themeCSS && (
+          <style
+            id='theme-override'
+            dangerouslySetInnerHTML={{
+              __html: themeCSS,
+            }}
+          />
+        )}
+
+        {/* Basic head hints that are not covered by the Metadata API */}
+        <meta name='color-scheme' content='light dark' />
+        <meta name='format-detection' content='telephone=no' />
+        <meta httpEquiv='x-ua-compatible' content='ie=edge' />
+
+        {/* OneDollarStats Analytics */}
+        <script defer src='https://assets.onedollarstats.com/stonks.js' />
+
+        <PublicEnvScript />
+      </head>
+      <body className={`${season.variable} font-season`} suppressHydrationWarning>
+        <HydrationErrorHandler />
+        <OneDollarStats />
+        <PostHogProvider>
+          <ThemeProvider>
+            <QueryProvider>
+              <SessionProvider>
+                <TooltipProvider>
+                  <BrandedLayout>{children}</BrandedLayout>
+                </TooltipProvider>
+              </SessionProvider>
+            </QueryProvider>
+          </ThemeProvider>
+        </PostHogProvider>
+      </body>
+    </html>
+  )
+}

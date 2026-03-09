@@ -1,0 +1,212 @@
+---
+title: A2A
+description: Interact with external A2A-compatible agents
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="a2a"
+  color="#4151B5"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+The A2A (Agent-to-Agent) protocol enables Sim to interact with external AI agents and systems that implement A2A-compatible APIs. With A2A, you can connect Sim’s automations and workflows to remote agents—such as LLM-powered bots, microservices, and other AI-based tools—using a standardized messaging format.
+
+Using the A2A tools in Sim, you can:
+
+- **Send Messages to External Agents**: Communicate directly with remote agents, providing prompts, commands, or data.
+- **Receive and Stream Responses**: Get structured responses, artifacts, or real-time updates from the agent as the task progresses.
+- **Continue Conversations or Tasks**: Carry on multi-turn conversations or workflows by referencing task and context IDs.
+- **Integrate Third-Party AI and Automation**: Leverage external A2A-compatible services as part of your Sim workflows.
+
+These features allow you to build advanced workflows that combine Sim’s native capabilities with the intelligence and automation of external AIs or custom agents. To use A2A integrations, you’ll need the external agent’s endpoint URL and, if required, an API key or credentials.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Use the A2A (Agent-to-Agent) protocol to interact with external AI agents. 
+
+
+
+## Tools
+
+### `a2a_send_message`
+
+Send a message to an external A2A-compatible agent.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | Yes | The A2A agent endpoint URL |
+| `message` | string | Yes | Message to send to the agent |
+| `taskId` | string | No | Task ID for continuing an existing task |
+| `contextId` | string | No | Context ID for conversation continuity |
+| `data` | string | No | Structured data to include with the message \(JSON string\) |
+| `files` | array | No | Files to include with the message |
+| `apiKey` | string | No | API key for authentication |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Text response content from the agent |
+| `taskId` | string | Unique task identifier |
+| `contextId` | string | Groups related tasks/messages |
+| `state` | string | Current lifecycle state \(working, completed, failed, canceled, rejected, input_required, auth_required\) |
+| `artifacts` | array | Task output artifacts |
+| `history` | array | Conversation history \(Message array\) |
+
+### `a2a_get_task`
+
+Query the status of an existing A2A task.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | Yes | The A2A agent endpoint URL |
+| `taskId` | string | Yes | Task ID to query |
+| `apiKey` | string | No | API key for authentication |
+| `historyLength` | number | No | Number of history messages to include |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskId` | string | Unique task identifier |
+| `contextId` | string | Groups related tasks/messages |
+| `state` | string | Current lifecycle state \(working, completed, failed, canceled, rejected, input_required, auth_required\) |
+| `artifacts` | array | Task output artifacts |
+| `history` | array | Conversation history \(Message array\) |
+
+### `a2a_cancel_task`
+
+Cancel a running A2A task.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | Yes | The A2A agent endpoint URL |
+| `taskId` | string | Yes | Task ID to cancel |
+| `apiKey` | string | No | API key for authentication |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `cancelled` | boolean | Whether cancellation was successful |
+| `state` | string | Current lifecycle state \(working, completed, failed, canceled, rejected, input_required, auth_required\) |
+
+### `a2a_get_agent_card`
+
+Fetch the Agent Card (discovery document) for an A2A agent.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | Yes | The A2A agent endpoint URL |
+| `apiKey` | string | No | API key for authentication \(if required\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Agent display name |
+| `description` | string | Agent purpose/capabilities |
+| `url` | string | Service endpoint URL |
+| `provider` | object | Creator organization details |
+| `capabilities` | object | Feature support matrix |
+| `skills` | array | Available operations |
+| `version` | string | A2A protocol version supported by the agent |
+| `defaultInputModes` | array | Default input content types accepted by the agent |
+| `defaultOutputModes` | array | Default output content types produced by the agent |
+
+### `a2a_resubscribe`
+
+Reconnect to an ongoing A2A task stream after connection interruption.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | Yes | The A2A agent endpoint URL |
+| `taskId` | string | Yes | Task ID to resubscribe to |
+| `apiKey` | string | No | API key for authentication |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskId` | string | Unique task identifier |
+| `contextId` | string | Groups related tasks/messages |
+| `state` | string | Current lifecycle state \(working, completed, failed, canceled, rejected, input_required, auth_required\) |
+| `isRunning` | boolean | Whether the task is still running |
+| `artifacts` | array | Task output artifacts |
+| `history` | array | Conversation history \(Message array\) |
+
+### `a2a_set_push_notification`
+
+Configure a webhook to receive task update notifications.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | Yes | The A2A agent endpoint URL |
+| `taskId` | string | Yes | Task ID to configure notifications for |
+| `webhookUrl` | string | Yes | HTTPS webhook URL to receive notifications |
+| `token` | string | No | Token for webhook validation |
+| `apiKey` | string | No | API key for authentication |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `url` | string | HTTPS webhook URL for notifications |
+| `token` | string | Authentication token for webhook validation |
+| `success` | boolean | Whether the operation was successful |
+
+### `a2a_get_push_notification`
+
+Get the push notification webhook configuration for a task.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | Yes | The A2A agent endpoint URL |
+| `taskId` | string | Yes | Task ID to get notification config for |
+| `apiKey` | string | No | API key for authentication |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `token` | string | Authentication token for webhook validation |
+| `exists` | boolean | Whether the resource exists |
+
+### `a2a_delete_push_notification`
+
+Delete the push notification webhook configuration for a task.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | Yes | The A2A agent endpoint URL |
+| `taskId` | string | Yes | Task ID to delete notification config for |
+| `pushNotificationConfigId` | string | No | Push notification configuration ID to delete \(optional - server can derive from taskId\) |
+| `apiKey` | string | No | API key for authentication |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the operation was successful |
+
+

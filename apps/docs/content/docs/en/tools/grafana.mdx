@@ -1,0 +1,553 @@
+---
+title: Grafana
+description: Interact with Grafana dashboards, alerts, and annotations
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="grafana"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Grafana](https://grafana.com/) is a leading open-source platform for monitoring, observability, and visualization. It allows users to query, visualize, alert on, and analyze data from a variety of sources, making it an essential tool for infrastructure and application monitoring.
+
+With Grafana, you can:
+
+- **Visualize data**: Build and customize dashboards to display metrics, logs, and traces in real time
+- **Monitor health and status**: Check the health of your Grafana instance and connected data sources
+- **Manage alerts and annotations**: Set up alert rules, manage notifications, and annotate dashboards with important events
+- **Organize content**: Organize dashboards and data sources into folders for better access management
+
+In Sim, the Grafana integration empowers your agents to interact directly with your Grafana instance via API, enabling actions such as:
+
+- Checking the Grafana server, database, and data source health status
+- Retrieving, listing, and managing dashboards, alert rules, annotations, data sources, and folders
+- Automating the monitoring of your infrastructure by integrating Grafana data and alerts into your workflow automations
+
+These capabilities enable Sim agents to monitor systems, proactively respond to alerts, and help ensure the reliability and visibility of your services — all as part of your automated workflows.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Grafana into workflows. Manage dashboards, alerts, annotations, data sources, folders, and monitor health status.
+
+
+
+## Tools
+
+### `grafana_get_dashboard`
+
+Get a dashboard by its UID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `dashboardUid` | string | Yes | The UID of the dashboard to retrieve \(e.g., abc123def\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dashboard` | json | The full dashboard JSON object |
+| `meta` | json | Dashboard metadata \(version, permissions, etc.\) |
+
+### `grafana_list_dashboards`
+
+Search and list all dashboards
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `query` | string | No | Search query to filter dashboards by title |
+| `tag` | string | No | Filter by tag \(comma-separated for multiple tags\) |
+| `folderIds` | string | No | Filter by folder IDs \(comma-separated, e.g., 1,2,3\) |
+| `starred` | boolean | No | Only return starred dashboards |
+| `limit` | number | No | Maximum number of dashboards to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dashboards` | array | List of dashboard search results |
+|   ↳ `id` | number | Dashboard ID |
+|   ↳ `uid` | string | Dashboard UID |
+|   ↳ `title` | string | Dashboard title |
+|   ↳ `url` | string | Dashboard URL path |
+|   ↳ `tags` | array | Dashboard tags |
+|   ↳ `folderTitle` | string | Parent folder title |
+
+### `grafana_create_dashboard`
+
+Create a new dashboard
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `title` | string | Yes | The title of the new dashboard |
+| `folderUid` | string | No | The UID of the folder to create the dashboard in \(e.g., folder-abc123\) |
+| `tags` | string | No | Comma-separated list of tags |
+| `timezone` | string | No | Dashboard timezone \(e.g., browser, utc\) |
+| `refresh` | string | No | Auto-refresh interval \(e.g., 5s, 1m, 5m\) |
+| `panels` | string | No | JSON array of panel configurations |
+| `overwrite` | boolean | No | Overwrite existing dashboard with same title |
+| `message` | string | No | Commit message for the dashboard version |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The numeric ID of the created dashboard |
+| `uid` | string | The UID of the created dashboard |
+| `url` | string | The URL path to the dashboard |
+| `status` | string | Status of the operation \(success\) |
+| `version` | number | The version number of the dashboard |
+| `slug` | string | URL-friendly slug of the dashboard |
+
+### `grafana_update_dashboard`
+
+Update an existing dashboard. Fetches the current dashboard and merges your changes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `dashboardUid` | string | Yes | The UID of the dashboard to update \(e.g., abc123def\) |
+| `title` | string | No | New title for the dashboard |
+| `folderUid` | string | No | New folder UID to move the dashboard to \(e.g., folder-abc123\) |
+| `tags` | string | No | Comma-separated list of new tags |
+| `timezone` | string | No | Dashboard timezone \(e.g., browser, utc\) |
+| `refresh` | string | No | Auto-refresh interval \(e.g., 5s, 1m, 5m\) |
+| `panels` | string | No | JSON array of panel configurations |
+| `overwrite` | boolean | No | Overwrite even if there is a version conflict |
+| `message` | string | No | Commit message for this version |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The numeric ID of the updated dashboard |
+| `uid` | string | The UID of the updated dashboard |
+| `url` | string | The URL path to the dashboard |
+| `status` | string | Status of the operation \(success\) |
+| `version` | number | The new version number of the dashboard |
+| `slug` | string | URL-friendly slug of the dashboard |
+
+### `grafana_delete_dashboard`
+
+Delete a dashboard by its UID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `dashboardUid` | string | Yes | The UID of the dashboard to delete \(e.g., abc123def\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `title` | string | The title of the deleted dashboard |
+| `message` | string | Confirmation message |
+| `id` | number | The ID of the deleted dashboard |
+
+### `grafana_list_alert_rules`
+
+List all alert rules in the Grafana instance
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rules` | array | List of alert rules |
+|   ↳ `uid` | string | Alert rule UID |
+|   ↳ `title` | string | Alert rule title |
+|   ↳ `condition` | string | Alert condition |
+|   ↳ `folderUID` | string | Parent folder UID |
+|   ↳ `ruleGroup` | string | Rule group name |
+|   ↳ `noDataState` | string | State when no data is returned |
+|   ↳ `execErrState` | string | State on execution error |
+
+### `grafana_get_alert_rule`
+
+Get a specific alert rule by its UID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `alertRuleUid` | string | Yes | The UID of the alert rule to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `uid` | string | Alert rule UID |
+| `title` | string | Alert rule title |
+| `condition` | string | Alert condition |
+| `data` | json | Alert rule query data |
+| `folderUID` | string | Parent folder UID |
+| `ruleGroup` | string | Rule group name |
+| `noDataState` | string | State when no data is returned |
+| `execErrState` | string | State on execution error |
+| `annotations` | json | Alert annotations |
+| `labels` | json | Alert labels |
+
+### `grafana_create_alert_rule`
+
+Create a new alert rule
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `title` | string | Yes | The title of the alert rule |
+| `folderUid` | string | Yes | The UID of the folder to create the alert in \(e.g., folder-abc123\) |
+| `ruleGroup` | string | Yes | The name of the rule group |
+| `condition` | string | Yes | The refId of the query or expression to use as the alert condition |
+| `data` | string | Yes | JSON array of query/expression data objects |
+| `forDuration` | string | No | Duration to wait before firing \(e.g., 5m, 1h\) |
+| `noDataState` | string | No | State when no data is returned \(NoData, Alerting, OK\) |
+| `execErrState` | string | No | State on execution error \(Alerting, OK\) |
+| `annotations` | string | No | JSON object of annotations |
+| `labels` | string | No | JSON object of labels |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `uid` | string | The UID of the created alert rule |
+| `title` | string | Alert rule title |
+| `folderUID` | string | Parent folder UID |
+| `ruleGroup` | string | Rule group name |
+
+### `grafana_update_alert_rule`
+
+Update an existing alert rule. Fetches the current rule and merges your changes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `alertRuleUid` | string | Yes | The UID of the alert rule to update |
+| `title` | string | No | New title for the alert rule |
+| `folderUid` | string | No | New folder UID to move the alert to \(e.g., folder-abc123\) |
+| `ruleGroup` | string | No | New rule group name |
+| `condition` | string | No | New condition refId |
+| `data` | string | No | New JSON array of query/expression data objects |
+| `forDuration` | string | No | Duration to wait before firing \(e.g., 5m, 1h\) |
+| `noDataState` | string | No | State when no data is returned \(NoData, Alerting, OK\) |
+| `execErrState` | string | No | State on execution error \(Alerting, OK\) |
+| `annotations` | string | No | JSON object of annotations |
+| `labels` | string | No | JSON object of labels |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `uid` | string | The UID of the updated alert rule |
+| `title` | string | Alert rule title |
+| `folderUID` | string | Parent folder UID |
+| `ruleGroup` | string | Rule group name |
+
+### `grafana_delete_alert_rule`
+
+Delete an alert rule by its UID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `alertRuleUid` | string | Yes | The UID of the alert rule to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Confirmation message |
+
+### `grafana_list_contact_points`
+
+List all alert notification contact points
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contactPoints` | array | List of contact points |
+|   ↳ `uid` | string | Contact point UID |
+|   ↳ `name` | string | Contact point name |
+|   ↳ `type` | string | Notification type \(email, slack, etc.\) |
+|   ↳ `settings` | object | Type-specific settings |
+
+### `grafana_create_annotation`
+
+Create an annotation on a dashboard or as a global annotation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `text` | string | Yes | The text content of the annotation |
+| `tags` | string | No | Comma-separated list of tags |
+| `dashboardUid` | string | Yes | UID of the dashboard to add the annotation to \(e.g., abc123def\) |
+| `panelId` | number | No | ID of the panel to add the annotation to \(e.g., 1, 2\) |
+| `time` | number | No | Start time in epoch milliseconds \(e.g., 1704067200000, defaults to now\) |
+| `timeEnd` | number | No | End time in epoch milliseconds for range annotations \(e.g., 1704153600000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The ID of the created annotation |
+| `message` | string | Confirmation message |
+
+### `grafana_list_annotations`
+
+Query annotations by time range, dashboard, or tags
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `from` | number | No | Start time in epoch milliseconds \(e.g., 1704067200000\) |
+| `to` | number | No | End time in epoch milliseconds \(e.g., 1704153600000\) |
+| `dashboardUid` | string | Yes | Dashboard UID to query annotations from \(e.g., abc123def\) |
+| `panelId` | number | No | Filter by panel ID \(e.g., 1, 2\) |
+| `tags` | string | No | Comma-separated list of tags to filter by |
+| `type` | string | No | Filter by type \(alert or annotation\) |
+| `limit` | number | No | Maximum number of annotations to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `annotations` | array | List of annotations |
+|   ↳ `id` | number | Annotation ID |
+|   ↳ `dashboardId` | number | Dashboard ID |
+|   ↳ `dashboardUID` | string | Dashboard UID |
+|   ↳ `created` | number | Creation timestamp in epoch ms |
+|   ↳ `updated` | number | Last update timestamp in epoch ms |
+|   ↳ `time` | number | Start time in epoch ms |
+|   ↳ `timeEnd` | number | End time in epoch ms |
+|   ↳ `text` | string | Annotation text |
+|   ↳ `tags` | array | Annotation tags |
+|   ↳ `login` | string | Login of the user who created the annotation |
+|   ↳ `email` | string | Email of the user who created the annotation |
+|   ↳ `avatarUrl` | string | Avatar URL of the user |
+|   ↳ `data` | json | Additional annotation data object from Grafana |
+
+### `grafana_update_annotation`
+
+Update an existing annotation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `annotationId` | number | Yes | The ID of the annotation to update |
+| `text` | string | Yes | New text content for the annotation |
+| `tags` | string | No | Comma-separated list of new tags |
+| `time` | number | No | New start time in epoch milliseconds \(e.g., 1704067200000\) |
+| `timeEnd` | number | No | New end time in epoch milliseconds \(e.g., 1704153600000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The ID of the updated annotation |
+| `message` | string | Confirmation message |
+
+### `grafana_delete_annotation`
+
+Delete an annotation by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `annotationId` | number | Yes | The ID of the annotation to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Confirmation message |
+
+### `grafana_list_data_sources`
+
+List all data sources configured in Grafana
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dataSources` | array | List of data sources |
+|   ↳ `id` | number | Data source ID |
+|   ↳ `uid` | string | Data source UID |
+|   ↳ `name` | string | Data source name |
+|   ↳ `type` | string | Data source type \(prometheus, mysql, etc.\) |
+|   ↳ `url` | string | Data source URL |
+|   ↳ `isDefault` | boolean | Whether this is the default data source |
+
+### `grafana_get_data_source`
+
+Get a data source by its ID or UID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `dataSourceId` | string | Yes | The ID or UID of the data source to retrieve \(e.g., prometheus, P1234AB5678\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Data source ID |
+| `uid` | string | Data source UID |
+| `name` | string | Data source name |
+| `type` | string | Data source type |
+| `url` | string | Data source connection URL |
+| `database` | string | Database name \(if applicable\) |
+| `isDefault` | boolean | Whether this is the default data source |
+| `jsonData` | json | Additional data source configuration |
+
+### `grafana_list_folders`
+
+List all folders in Grafana
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `limit` | number | No | Maximum number of folders to return |
+| `page` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folders` | array | List of folders |
+|   ↳ `id` | number | Folder ID |
+|   ↳ `uid` | string | Folder UID |
+|   ↳ `title` | string | Folder title |
+|   ↳ `hasAcl` | boolean | Whether the folder has custom ACL permissions |
+|   ↳ `canSave` | boolean | Whether the current user can save the folder |
+|   ↳ `canEdit` | boolean | Whether the current user can edit the folder |
+|   ↳ `canAdmin` | boolean | Whether the current user has admin rights |
+|   ↳ `canDelete` | boolean | Whether the current user can delete the folder |
+|   ↳ `createdBy` | string | Username of who created the folder |
+|   ↳ `created` | string | Timestamp when the folder was created |
+|   ↳ `updatedBy` | string | Username of who last updated the folder |
+|   ↳ `updated` | string | Timestamp when the folder was last updated |
+|   ↳ `version` | number | Version number of the folder |
+
+### `grafana_create_folder`
+
+Create a new folder in Grafana
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `title` | string | Yes | The title of the new folder |
+| `uid` | string | No | Optional UID for the folder \(auto-generated if not provided\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The numeric ID of the created folder |
+| `uid` | string | The UID of the created folder |
+| `title` | string | The title of the created folder |
+| `url` | string | The URL path to the folder |
+| `hasAcl` | boolean | Whether the folder has custom ACL permissions |
+| `canSave` | boolean | Whether the current user can save the folder |
+| `canEdit` | boolean | Whether the current user can edit the folder |
+| `canAdmin` | boolean | Whether the current user has admin rights on the folder |
+| `canDelete` | boolean | Whether the current user can delete the folder |
+| `createdBy` | string | Username of who created the folder |
+| `created` | string | Timestamp when the folder was created |
+| `updatedBy` | string | Username of who last updated the folder |
+| `updated` | string | Timestamp when the folder was last updated |
+| `version` | number | Version number of the folder |
+
+

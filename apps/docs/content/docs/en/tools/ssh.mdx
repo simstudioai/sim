@@ -1,0 +1,403 @@
+---
+title: SSH
+description: Connect to remote servers via SSH
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="ssh"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SSH (Secure Shell)](https://en.wikipedia.org/wiki/Secure_Shell) is a widely-used protocol for securely connecting to remote servers, allowing you to execute commands, transfer files, and manage systems over encrypted channels.
+
+With SSH support in Sim, your agents can:
+
+- **Execute remote commands**: Run shell commands on any SSH-accessible server
+- **Upload and run scripts**: Easily transfer and execute multi-line scripts for advanced automation
+- **Transfer files securely**: Upload and download files as part of your workflows (coming soon or via command)
+- **Automate server management**: Perform updates, maintenance, monitoring, deployments, and configuration tasks programmatically
+- **Use flexible authentication**: Connect with password or private key authentication, including support for encrypted keys
+
+The following Sim SSH tools enable your agents to interact with servers as part of larger automations:
+
+- `ssh_execute_command`: Run any single shell command remotely and capture output, status, and errors.
+- `ssh_execute_script`: Upload and execute a full multi-line script on the remote system.
+- (Additional tools coming soon, such as file transfer.)
+
+By integrating SSH into your agent workflows, you can automate secure access, remote operations, and server orchestration—streamlining DevOps, IT automation, and custom remote management, all from within Sim.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Execute commands, transfer files, and manage remote servers via SSH. Supports password and private key authentication for secure server access.
+
+
+
+## Tools
+
+### `ssh_execute_command`
+
+Execute a shell command on a remote SSH server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | SSH server hostname or IP address |
+| `port` | number | Yes | SSH server port \(default: 22\) |
+| `username` | string | Yes | SSH username |
+| `password` | string | No | Password for authentication \(if not using private key\) |
+| `privateKey` | string | No | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | No | Passphrase for encrypted private key |
+| `command` | string | Yes | Shell command to execute on the remote server |
+| `workingDirectory` | string | No | Working directory for command execution |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stdout` | string | Standard output from command |
+| `stderr` | string | Standard error output |
+| `exitCode` | number | Command exit code |
+| `success` | boolean | Whether command succeeded \(exit code 0\) |
+| `message` | string | Operation status message |
+
+### `ssh_execute_script`
+
+Upload and execute a multi-line script on a remote SSH server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | SSH server hostname or IP address |
+| `port` | number | Yes | SSH server port \(default: 22\) |
+| `username` | string | Yes | SSH username |
+| `password` | string | No | Password for authentication \(if not using private key\) |
+| `privateKey` | string | No | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | No | Passphrase for encrypted private key |
+| `script` | string | Yes | Script content to execute \(bash, python, etc.\) |
+| `interpreter` | string | No | Script interpreter \(default: /bin/bash\) |
+| `workingDirectory` | string | No | Working directory for script execution |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stdout` | string | Standard output from script |
+| `stderr` | string | Standard error output |
+| `exitCode` | number | Script exit code |
+| `success` | boolean | Whether script succeeded \(exit code 0\) |
+| `scriptPath` | string | Temporary path where script was uploaded |
+| `message` | string | Operation status message |
+
+### `ssh_check_command_exists`
+
+Check if a command/program exists on the remote SSH server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | SSH server hostname or IP address |
+| `port` | number | Yes | SSH server port \(default: 22\) |
+| `username` | string | Yes | SSH username |
+| `password` | string | No | Password for authentication \(if not using private key\) |
+| `privateKey` | string | No | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | No | Passphrase for encrypted private key |
+| `commandName` | string | Yes | Command name to check \(e.g., docker, git, python3\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `commandExists` | boolean | Whether the command exists |
+| `commandPath` | string | Full path to the command \(if found\) |
+| `version` | string | Command version output \(if applicable\) |
+| `message` | string | Operation status message |
+
+### `ssh_upload_file`
+
+Upload a file to a remote SSH server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | SSH server hostname or IP address |
+| `port` | number | Yes | SSH server port \(default: 22\) |
+| `username` | string | Yes | SSH username |
+| `password` | string | No | Password for authentication \(if not using private key\) |
+| `privateKey` | string | No | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | No | Passphrase for encrypted private key |
+| `fileContent` | string | Yes | File content to upload \(base64 encoded for binary files\) |
+| `fileName` | string | Yes | Name of the file being uploaded |
+| `remotePath` | string | Yes | Destination path on the remote server |
+| `permissions` | string | No | File permissions \(e.g., 0644\) |
+| `overwrite` | boolean | No | Whether to overwrite existing files \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `uploaded` | boolean | Whether the file was uploaded successfully |
+| `remotePath` | string | Final path on the remote server |
+| `size` | number | File size in bytes |
+| `message` | string | Operation status message |
+
+### `ssh_download_file`
+
+Download a file from a remote SSH server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | SSH server hostname or IP address |
+| `port` | number | Yes | SSH server port \(default: 22\) |
+| `username` | string | Yes | SSH username |
+| `password` | string | No | Password for authentication \(if not using private key\) |
+| `privateKey` | string | No | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | No | Passphrase for encrypted private key |
+| `remotePath` | string | Yes | Path of the file on the remote server |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `downloaded` | boolean | Whether the file was downloaded successfully |
+| `file` | file | Downloaded file stored in execution files |
+| `fileContent` | string | File content \(base64 encoded for binary files\) |
+| `fileName` | string | Name of the downloaded file |
+| `remotePath` | string | Source path on the remote server |
+| `size` | number | File size in bytes |
+| `message` | string | Operation status message |
+
+### `ssh_list_directory`
+
+List files and directories in a remote directory
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | SSH server hostname or IP address |
+| `port` | number | Yes | SSH server port \(default: 22\) |
+| `username` | string | Yes | SSH username |
+| `password` | string | No | Password for authentication \(if not using private key\) |
+| `privateKey` | string | No | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | No | Passphrase for encrypted private key |
+| `path` | string | Yes | Remote directory path to list |
+| `detailed` | boolean | No | Include file details \(size, permissions, modified date\) |
+| `recursive` | boolean | No | List subdirectories recursively \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entries` | array | Array of file and directory entries |
+|   ↳ `name` | string | File or directory name |
+|   ↳ `type` | string | Entry type \(file, directory, symlink\) |
+|   ↳ `size` | number | File size in bytes |
+|   ↳ `permissions` | string | File permissions |
+|   ↳ `modified` | string | Last modified timestamp |
+| `totalFiles` | number | Total number of files |
+| `totalDirectories` | number | Total number of directories |
+| `message` | string | Operation status message |
+
+### `ssh_check_file_exists`
+
+Check if a file or directory exists on the remote SSH server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | SSH server hostname or IP address |
+| `port` | number | Yes | SSH server port \(default: 22\) |
+| `username` | string | Yes | SSH username |
+| `password` | string | No | Password for authentication \(if not using private key\) |
+| `privateKey` | string | No | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | No | Passphrase for encrypted private key |
+| `path` | string | Yes | Remote file or directory path to check |
+| `type` | string | No | Expected type: file, directory, or any \(default: any\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `exists` | boolean | Whether the path exists |
+| `type` | string | Type of path \(file, directory, symlink, not_found\) |
+| `size` | number | File size if it is a file |
+| `permissions` | string | File permissions \(e.g., 0755\) |
+| `modified` | string | Last modified timestamp |
+| `message` | string | Operation status message |
+
+### `ssh_create_directory`
+
+Create a directory on the remote SSH server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | SSH server hostname or IP address |
+| `port` | number | Yes | SSH server port \(default: 22\) |
+| `username` | string | Yes | SSH username |
+| `password` | string | No | Password for authentication \(if not using private key\) |
+| `privateKey` | string | No | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | No | Passphrase for encrypted private key |
+| `path` | string | Yes | Directory path to create |
+| `recursive` | boolean | No | Create parent directories if they do not exist \(default: true\) |
+| `permissions` | string | No | Directory permissions \(default: 0755\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `created` | boolean | Whether the directory was created successfully |
+| `remotePath` | string | Created directory path |
+| `alreadyExists` | boolean | Whether the directory already existed |
+| `message` | string | Operation status message |
+
+### `ssh_delete_file`
+
+Delete a file or directory from the remote SSH server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | SSH server hostname or IP address |
+| `port` | number | Yes | SSH server port \(default: 22\) |
+| `username` | string | Yes | SSH username |
+| `password` | string | No | Password for authentication \(if not using private key\) |
+| `privateKey` | string | No | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | No | Passphrase for encrypted private key |
+| `path` | string | Yes | Path to delete |
+| `recursive` | boolean | No | Recursively delete directories \(default: false\) |
+| `force` | boolean | No | Force deletion without confirmation \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the path was deleted successfully |
+| `remotePath` | string | Deleted path |
+| `message` | string | Operation status message |
+
+### `ssh_move_rename`
+
+Move or rename a file or directory on the remote SSH server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | SSH server hostname or IP address |
+| `port` | number | Yes | SSH server port \(default: 22\) |
+| `username` | string | Yes | SSH username |
+| `password` | string | No | Password for authentication \(if not using private key\) |
+| `privateKey` | string | No | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | No | Passphrase for encrypted private key |
+| `sourcePath` | string | Yes | Current path of the file or directory |
+| `destinationPath` | string | Yes | New path for the file or directory |
+| `overwrite` | boolean | No | Overwrite destination if it exists \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `moved` | boolean | Whether the operation was successful |
+| `sourcePath` | string | Original path |
+| `destinationPath` | string | New path |
+| `message` | string | Operation status message |
+
+### `ssh_get_system_info`
+
+Retrieve system information from the remote SSH server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | SSH server hostname or IP address |
+| `port` | number | Yes | SSH server port \(default: 22\) |
+| `username` | string | Yes | SSH username |
+| `password` | string | No | Password for authentication \(if not using private key\) |
+| `privateKey` | string | No | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | No | Passphrase for encrypted private key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `hostname` | string | Server hostname |
+| `os` | string | Operating system \(e.g., Linux, Darwin\) |
+| `architecture` | string | CPU architecture \(e.g., x64, arm64\) |
+| `uptime` | number | System uptime in seconds |
+| `memory` | json | Memory information \(total, free, used\) |
+| `diskSpace` | json | Disk space information \(total, free, used\) |
+| `message` | string | Operation status message |
+
+### `ssh_read_file_content`
+
+Read the contents of a remote file
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | SSH server hostname or IP address |
+| `port` | number | Yes | SSH server port \(default: 22\) |
+| `username` | string | Yes | SSH username |
+| `password` | string | No | Password for authentication \(if not using private key\) |
+| `privateKey` | string | No | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | No | Passphrase for encrypted private key |
+| `path` | string | Yes | Remote file path to read |
+| `encoding` | string | No | File encoding \(default: utf-8\) |
+| `maxSize` | number | No | Maximum file size to read in MB \(default: 10\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | File content as string |
+| `size` | number | File size in bytes |
+| `lines` | number | Number of lines in file |
+| `remotePath` | string | Remote file path |
+| `message` | string | Operation status message |
+
+### `ssh_write_file_content`
+
+Write or append content to a remote file
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | SSH server hostname or IP address |
+| `port` | number | Yes | SSH server port \(default: 22\) |
+| `username` | string | Yes | SSH username |
+| `password` | string | No | Password for authentication \(if not using private key\) |
+| `privateKey` | string | No | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | No | Passphrase for encrypted private key |
+| `path` | string | Yes | Remote file path to write to |
+| `content` | string | Yes | Content to write to the file |
+| `mode` | string | No | Write mode: overwrite, append, or create \(default: overwrite\) |
+| `permissions` | string | No | File permissions \(e.g., 0644\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `written` | boolean | Whether the file was written successfully |
+| `remotePath` | string | File path |
+| `size` | number | Final file size in bytes |
+| `message` | string | Operation status message |
+
+

@@ -1,0 +1,258 @@
+---
+title: Google Forms
+description: Manage Google Forms and responses
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_forms"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Forms](https://forms.google.com) is Google's online survey and form tool that allows users to create forms, collect responses, and analyze results. As part of Google's productivity suite, Google Forms makes it easy to gather information, feedback, and data from users.
+
+Learn how to integrate the Google Forms tool in Sim to automatically read and process form responses in your workflows. This tutorial walks you through connecting Google Forms, retrieving responses, and using collected data to power automation. Perfect for syncing survey results, registrations, or feedback with your agents in real-time.
+
+With Google Forms, you can:
+
+- **Create surveys and forms**: Design custom forms for feedback, registration, quizzes, and more
+- **Collect responses automatically**: Gather data from users in real-time
+- **Analyze results**: View responses in Google Forms or export to Google Sheets for further analysis
+- **Collaborate easily**: Share forms and work with others to build and review questions
+- **Integrate with other Google services**: Connect with Google Sheets, Drive, and more
+
+In Sim, the Google Forms integration enables your agents to programmatically access form responses. This allows for powerful automation scenarios such as processing survey data, triggering workflows based on new submissions, and syncing form results with other tools. Your agents can fetch all responses for a form, retrieve a specific response, and use the data to drive intelligent automation. By connecting Sim with Google Forms, you can automate data collection, streamline feedback processing, and incorporate form responses into your agent's capabilities.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Google Forms into your workflow. Read form structure, get responses, create forms, update content, and manage notification watches.
+
+
+
+## Tools
+
+### `google_forms_get_responses`
+
+Retrieve a single response or list responses from a Google Form
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Yes | Google Forms form ID |
+| `responseId` | string | No | Response ID - if provided, returns this specific response |
+| `pageSize` | number | No | Maximum number of responses to return \(service may return fewer\). Defaults to 5000. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `responses` | array | Array of form responses \(when no responseId provided\) |
+|   ↳ `responseId` | string | Unique response ID |
+|   ↳ `createTime` | string | When the response was created |
+|   ↳ `lastSubmittedTime` | string | When the response was last submitted |
+|   ↳ `answers` | json | Map of question IDs to answer values |
+| `response` | object | Single form response \(when responseId is provided\) |
+|   ↳ `responseId` | string | Unique response ID |
+|   ↳ `createTime` | string | When the response was created |
+|   ↳ `lastSubmittedTime` | string | When the response was last submitted |
+|   ↳ `answers` | json | Map of question IDs to answer values |
+| `raw` | json | Raw API response data |
+
+### `google_forms_get_form`
+
+Retrieve a form structure including its items, settings, and metadata
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Yes | Google Forms form ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `formId` | string | The form ID |
+| `title` | string | The form title visible to responders |
+| `description` | string | The form description |
+| `documentTitle` | string | The document title visible in Drive |
+| `responderUri` | string | The URI to share with responders |
+| `linkedSheetId` | string | The ID of the linked Google Sheet |
+| `revisionId` | string | The revision ID of the form |
+| `items` | array | The form items \(questions, sections, etc.\) |
+|   ↳ `itemId` | string | Item ID |
+|   ↳ `title` | string | Item title |
+|   ↳ `description` | string | Item description |
+| `settings` | json | Form settings |
+| `publishSettings` | json | Form publish settings |
+
+### `google_forms_create_form`
+
+Create a new Google Form with a title
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Yes | The title of the form visible to responders |
+| `documentTitle` | string | No | The document title visible in Drive \(defaults to form title\) |
+| `unpublished` | boolean | No | If true, create an unpublished form that does not accept responses |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `formId` | string | The ID of the created form |
+| `title` | string | The form title |
+| `documentTitle` | string | The document title in Drive |
+| `responderUri` | string | The URI to share with responders |
+| `revisionId` | string | The revision ID of the form |
+
+### `google_forms_batch_update`
+
+Apply multiple updates to a form (add items, update info, change settings, etc.)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Yes | Google Forms form ID |
+| `requests` | json | Yes | Array of update requests \(updateFormInfo, updateSettings, createItem, updateItem, moveItem, deleteItem\) |
+| `includeFormInResponse` | boolean | No | Whether to return the updated form in the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `replies` | array | The replies from each update request |
+| `writeControl` | object | Write control information with revision IDs |
+|   ↳ `requiredRevisionId` | string | Required revision ID for conflict detection |
+|   ↳ `targetRevisionId` | string | Target revision ID |
+| `form` | object | The updated form \(if includeFormInResponse was true\) |
+|   ↳ `formId` | string | The form ID |
+|   ↳ `info` | object | Form info containing title and description |
+|     ↳ `title` | string | The form title visible to responders |
+|     ↳ `description` | string | The form description |
+|     ↳ `documentTitle` | string | The document title visible in Drive |
+|   ↳ `settings` | object | Form settings |
+|     ↳ `quizSettings` | object | Quiz settings |
+|       ↳ `isQuiz` | boolean | Whether the form is a quiz |
+|     ↳ `emailCollectionType` | string | Email collection type |
+|   ↳ `revisionId` | string | The revision ID of the form |
+|   ↳ `responderUri` | string | The URI to share with responders |
+|   ↳ `linkedSheetId` | string | The ID of the linked Google Sheet |
+|   ↳ `publishSettings` | object | Form publish settings |
+|     ↳ `publishState` | object | Current publish state |
+|       ↳ `isPublished` | boolean | Whether the form is published |
+|       ↳ `isAcceptingResponses` | boolean | Whether the form is accepting responses |
+
+### `google_forms_set_publish_settings`
+
+Update the publish settings of a form (publish/unpublish, accept responses)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Yes | Google Forms form ID |
+| `isPublished` | boolean | Yes | Whether the form is published and visible to others |
+| `isAcceptingResponses` | boolean | No | Whether the form accepts responses \(forced to false if isPublished is false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `formId` | string | The form ID |
+| `publishSettings` | json | The updated publish settings |
+|   ↳ `publishState` | object | The publish state |
+|     ↳ `isPublished` | boolean | Whether the form is published |
+|     ↳ `isAcceptingResponses` | boolean | Whether the form accepts responses |
+
+### `google_forms_create_watch`
+
+Create a notification watch for form changes (schema changes or new responses)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Yes | Google Forms form ID to watch |
+| `eventType` | string | Yes | Event type to watch: SCHEMA \(form changes\) or RESPONSES \(new submissions\) |
+| `topicName` | string | Yes | The Cloud Pub/Sub topic name \(format: projects/\{project\}/topics/\{topic\}\) |
+| `watchId` | string | No | Custom watch ID \(4-63 chars, lowercase letters, numbers, hyphens\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | The watch ID |
+| `eventType` | string | The event type being watched |
+| `topicName` | string | The Cloud Pub/Sub topic |
+| `createTime` | string | When the watch was created |
+| `expireTime` | string | When the watch expires \(7 days after creation\) |
+| `state` | string | The watch state \(ACTIVE, SUSPENDED\) |
+
+### `google_forms_list_watches`
+
+List all notification watches for a form
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Yes | Google Forms form ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `watches` | array | List of watches for the form |
+|   ↳ `id` | string | Watch ID |
+|   ↳ `eventType` | string | Event type \(SCHEMA or RESPONSES\) |
+|   ↳ `createTime` | string | When the watch was created |
+|   ↳ `expireTime` | string | When the watch expires |
+|   ↳ `state` | string | Watch state |
+
+### `google_forms_delete_watch`
+
+Delete a notification watch from a form
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Yes | Google Forms form ID |
+| `watchId` | string | Yes | Watch ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the watch was successfully deleted |
+
+### `google_forms_renew_watch`
+
+Renew a notification watch for another 7 days
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Yes | Google Forms form ID |
+| `watchId` | string | Yes | Watch ID to renew |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | The watch ID |
+| `eventType` | string | The event type being watched |
+| `expireTime` | string | The new expiration time |
+| `state` | string | The watch state |
+
+

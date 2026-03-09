@@ -1,0 +1,429 @@
+---
+title: GitLab
+description: Interact with GitLab projects, issues, merge requests, and pipelines
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="gitlab"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[GitLab](https://gitlab.com/) is a comprehensive DevOps platform that allows teams to manage, collaborate on, and automate their software development lifecycle. With GitLab, you can effortlessly handle source code management, CI/CD, reviews, and collaboration in a single application.
+
+With GitLab in Sim, you can:
+
+- **Manage projects and repositories**: List and retrieve your GitLab projects, access details, and organize your repositories
+- **Work with issues**: List, create, and comment on issues to track work and collaborate effectively
+- **Handle merge requests**: Review, create, and manage merge requests for code changes and peer reviews
+- **Automate CI/CD pipelines**: Trigger, monitor, and interact with GitLab pipelines as part of your automation flows
+- **Collaborate with comments**: Add comments to issues or merge requests for efficient communication within your team
+
+Using Sim’s GitLab integration, your agents can programmatically interact with your GitLab projects. Automate project management, issue tracking, code reviews, and pipeline operations seamlessly in your workflows, optimizing your software development process and enhancing collaboration across your team.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate GitLab into the workflow. Can manage projects, issues, merge requests, pipelines, and add comments. Supports all core GitLab DevOps operations.
+
+
+
+## Tools
+
+### `gitlab_list_projects`
+
+List GitLab projects accessible to the authenticated user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owned` | boolean | No | Limit to projects owned by the current user |
+| `membership` | boolean | No | Limit to projects the current user is a member of |
+| `search` | string | No | Search projects by name |
+| `visibility` | string | No | Filter by visibility \(public, internal, private\) |
+| `orderBy` | string | No | Order by field \(id, name, path, created_at, updated_at, last_activity_at\) |
+| `sort` | string | No | Sort direction \(asc, desc\) |
+| `perPage` | number | No | Number of results per page \(default 20, max 100\) |
+| `page` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | array | List of GitLab projects |
+| `total` | number | Total number of projects |
+
+### `gitlab_get_project`
+
+Get details of a specific GitLab project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID or URL-encoded path \(e.g., "namespace/project"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | object | The GitLab project details |
+
+### `gitlab_list_issues`
+
+List issues in a GitLab project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `state` | string | No | Filter by state \(opened, closed, all\) |
+| `labels` | string | No | Comma-separated list of label names |
+| `assigneeId` | number | No | Filter by assignee user ID |
+| `milestoneTitle` | string | No | Filter by milestone title |
+| `search` | string | No | Search issues by title and description |
+| `orderBy` | string | No | Order by field \(created_at, updated_at\) |
+| `sort` | string | No | Sort direction \(asc, desc\) |
+| `perPage` | number | No | Number of results per page \(default 20, max 100\) |
+| `page` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `issues` | array | List of GitLab issues |
+| `total` | number | Total number of issues |
+
+### `gitlab_get_issue`
+
+Get details of a specific GitLab issue
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `issueIid` | number | Yes | Issue number within the project \(the # shown in GitLab UI\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `issue` | object | The GitLab issue details |
+
+### `gitlab_create_issue`
+
+Create a new issue in a GitLab project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `title` | string | Yes | Issue title |
+| `description` | string | No | Issue description \(Markdown supported\) |
+| `labels` | string | No | Comma-separated list of label names |
+| `assigneeIds` | array | No | Array of user IDs to assign |
+| `milestoneId` | number | No | Milestone ID to assign |
+| `dueDate` | string | No | Due date in YYYY-MM-DD format |
+| `confidential` | boolean | No | Whether the issue is confidential |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `issue` | object | The created GitLab issue |
+
+### `gitlab_update_issue`
+
+Update an existing issue in a GitLab project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `issueIid` | number | Yes | Issue internal ID \(IID\) |
+| `title` | string | No | New issue title |
+| `description` | string | No | New issue description \(Markdown supported\) |
+| `stateEvent` | string | No | State event \(close or reopen\) |
+| `labels` | string | No | Comma-separated list of label names |
+| `assigneeIds` | array | No | Array of user IDs to assign |
+| `milestoneId` | number | No | Milestone ID to assign |
+| `dueDate` | string | No | Due date in YYYY-MM-DD format |
+| `confidential` | boolean | No | Whether the issue is confidential |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `issue` | object | The updated GitLab issue |
+
+### `gitlab_delete_issue`
+
+Delete an issue from a GitLab project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `issueIid` | number | Yes | Issue internal ID \(IID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the issue was deleted successfully |
+
+### `gitlab_create_issue_note`
+
+Add a comment to a GitLab issue
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `issueIid` | number | Yes | Issue internal ID \(IID\) |
+| `body` | string | Yes | Comment body \(Markdown supported\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `note` | object | The created comment |
+
+### `gitlab_list_merge_requests`
+
+List merge requests in a GitLab project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `state` | string | No | Filter by state \(opened, closed, merged, all\) |
+| `labels` | string | No | Comma-separated list of label names |
+| `sourceBranch` | string | No | Filter by source branch |
+| `targetBranch` | string | No | Filter by target branch |
+| `orderBy` | string | No | Order by field \(created_at, updated_at\) |
+| `sort` | string | No | Sort direction \(asc, desc\) |
+| `perPage` | number | No | Number of results per page \(default 20, max 100\) |
+| `page` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `mergeRequests` | array | List of GitLab merge requests |
+| `total` | number | Total number of merge requests |
+
+### `gitlab_get_merge_request`
+
+Get details of a specific GitLab merge request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `mergeRequest` | object | The GitLab merge request details |
+
+### `gitlab_create_merge_request`
+
+Create a new merge request in a GitLab project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `sourceBranch` | string | Yes | Source branch name |
+| `targetBranch` | string | Yes | Target branch name |
+| `title` | string | Yes | Merge request title |
+| `description` | string | No | Merge request description \(Markdown supported\) |
+| `labels` | string | No | Comma-separated list of label names |
+| `assigneeIds` | array | No | Array of user IDs to assign |
+| `milestoneId` | number | No | Milestone ID to assign |
+| `removeSourceBranch` | boolean | No | Delete source branch after merge |
+| `squash` | boolean | No | Squash commits on merge |
+| `draft` | boolean | No | Mark as draft \(work in progress\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `mergeRequest` | object | The created GitLab merge request |
+
+### `gitlab_update_merge_request`
+
+Update an existing merge request in a GitLab project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
+| `title` | string | No | New merge request title |
+| `description` | string | No | New merge request description |
+| `stateEvent` | string | No | State event \(close or reopen\) |
+| `labels` | string | No | Comma-separated list of label names |
+| `assigneeIds` | array | No | Array of user IDs to assign |
+| `milestoneId` | number | No | Milestone ID to assign |
+| `targetBranch` | string | No | New target branch |
+| `removeSourceBranch` | boolean | No | Delete source branch after merge |
+| `squash` | boolean | No | Squash commits on merge |
+| `draft` | boolean | No | Mark as draft \(work in progress\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `mergeRequest` | object | The updated GitLab merge request |
+
+### `gitlab_merge_merge_request`
+
+Merge a merge request in a GitLab project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
+| `mergeCommitMessage` | string | No | Custom merge commit message |
+| `squashCommitMessage` | string | No | Custom squash commit message |
+| `squash` | boolean | No | Squash commits before merging |
+| `shouldRemoveSourceBranch` | boolean | No | Delete source branch after merge |
+| `mergeWhenPipelineSucceeds` | boolean | No | Merge when pipeline succeeds |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `mergeRequest` | object | The merged GitLab merge request |
+
+### `gitlab_create_merge_request_note`
+
+Add a comment to a GitLab merge request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
+| `body` | string | Yes | Comment body \(Markdown supported\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `note` | object | The created comment |
+
+### `gitlab_list_pipelines`
+
+List pipelines in a GitLab project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `ref` | string | No | Filter by ref \(branch or tag\) |
+| `status` | string | No | Filter by status \(created, waiting_for_resource, preparing, pending, running, success, failed, canceled, skipped, manual, scheduled\) |
+| `orderBy` | string | No | Order by field \(id, status, ref, updated_at, user_id\) |
+| `sort` | string | No | Sort direction \(asc, desc\) |
+| `perPage` | number | No | Number of results per page \(default 20, max 100\) |
+| `page` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pipelines` | array | List of GitLab pipelines |
+| `total` | number | Total number of pipelines |
+
+### `gitlab_get_pipeline`
+
+Get details of a specific GitLab pipeline
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `pipelineId` | number | Yes | Pipeline ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pipeline` | object | The GitLab pipeline details |
+
+### `gitlab_create_pipeline`
+
+Trigger a new pipeline in a GitLab project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `ref` | string | Yes | Branch or tag to run the pipeline on |
+| `variables` | array | No | Array of variables for the pipeline \(each with key, value, and optional variable_type\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pipeline` | object | The created GitLab pipeline |
+
+### `gitlab_retry_pipeline`
+
+Retry a failed GitLab pipeline
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `pipelineId` | number | Yes | Pipeline ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pipeline` | object | The retried GitLab pipeline |
+
+### `gitlab_cancel_pipeline`
+
+Cancel a running GitLab pipeline
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `pipelineId` | number | Yes | Pipeline ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pipeline` | object | The cancelled GitLab pipeline |
+
+

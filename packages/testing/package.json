@@ -1,0 +1,55 @@
+{
+  "name": "@sim/testing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "bun": ">=1.2.13",
+    "node": ">=20.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./factories": {
+      "types": "./src/factories/index.ts",
+      "default": "./src/factories/index.ts"
+    },
+    "./builders": {
+      "types": "./src/builders/index.ts",
+      "default": "./src/builders/index.ts"
+    },
+    "./mocks": {
+      "types": "./src/mocks/index.ts",
+      "default": "./src/mocks/index.ts"
+    },
+    "./mocks/executor": {
+      "types": "./src/mocks/executor.mock.ts",
+      "default": "./src/mocks/executor.mock.ts"
+    },
+    "./assertions": {
+      "types": "./src/assertions/index.ts",
+      "default": "./src/assertions/index.ts"
+    },
+    "./setup": {
+      "types": "./src/setup/vitest.setup.ts",
+      "default": "./src/setup/vitest.setup.ts"
+    }
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "vitest": "^3.0.0"
+  },
+  "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.8"
+  },
+  "dependencies": {
+    "nanoid": "5.1.6"
+  }
+}

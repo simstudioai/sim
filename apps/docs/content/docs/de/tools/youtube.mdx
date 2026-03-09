@@ -1,0 +1,257 @@
+---
+title: YouTube
+description: Interagiere mit YouTube-Videos, Kanälen und Playlists
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="youtube"
+  color="#FF0000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[YouTube](https://www.youtube.com/) ist die weltweit größte Videoplattform, die Milliarden von Videos hostet und über 2 Milliarden eingeloggte monatliche Nutzer bedient.
+
+Mit YouTubes umfangreichen API-Funktionen können Sie:
+
+- **Inhalte suchen**: Finden Sie relevante Videos in YouTubes riesiger Bibliothek mit spezifischen Schlüsselwörtern, Filtern und Parametern
+- **Auf Metadaten zugreifen**: Rufen Sie detaillierte Informationen über Videos ab, einschließlich Titel, Beschreibungen, Aufrufe und Engagement-Metriken
+- **Trends analysieren**: Identifizieren Sie beliebte Inhalte und Trendthemen innerhalb bestimmter Kategorien oder Regionen
+- **Erkenntnisse gewinnen**: Sammeln Sie Daten über Zuschauerpräferenzen, Content-Performance und Engagement-Muster
+
+In Sim ermöglicht die YouTube-Integration Ihren Agenten, YouTube-Inhalte programmatisch zu suchen und zu analysieren als Teil ihrer Workflows. Dies ermöglicht leistungsstarke Automatisierungsszenarien, die aktuelle Videoinformationen erfordern. Ihre Agenten können nach Anleitungsvideos suchen, Content-Trends recherchieren, Informationen von Bildungskanälen sammeln oder bestimmte Ersteller auf neue Uploads überwachen. Diese Integration überbrückt die Lücke zwischen Ihren KI-Workflows und dem weltweit größten Video-Repository und ermöglicht anspruchsvollere und inhaltsbewusstere Automatisierungen. Durch die Verbindung von Sim mit YouTube können Sie Agenten erstellen, die mit den neuesten Informationen auf dem Laufenden bleiben, genauere Antworten liefern und Nutzern mehr Mehrwert bieten - alles ohne manuelle Eingriffe oder benutzerdefinierten Code.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integrieren Sie YouTube in den Workflow. Kann Videos suchen, Videodetails abrufen, Kanalinformationen abrufen, alle Videos eines Kanals abrufen, Kanal-Playlists abrufen, Playlist-Elemente abrufen, verwandte Videos finden und Videokommentare abrufen.
+
+## Tools
+
+### `youtube_search`
+
+Suchen Sie nach Videos auf YouTube mit der YouTube Data API. Unterstützt erweiterte Filterung nach Kanal, Datumsbereich, Dauer, Kategorie, Qualität, Untertiteln und mehr.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Ja | Suchanfrage für YouTube-Videos |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Videos (1-50) |
+| `apiKey` | string | Ja | YouTube API-Schlüssel |
+| `channelId` | string | Nein | Filtert Ergebnisse nach einer bestimmten YouTube-Kanal-ID |
+| `publishedAfter` | string | Nein | Nur Videos zurückgeben, die nach diesem Datum veröffentlicht wurden (RFC 3339-Format: "2024-01-01T00:00:00Z") |
+| `publishedBefore` | string | Nein | Nur Videos zurückgeben, die vor diesem Datum veröffentlicht wurden (RFC 3339-Format: "2024-01-01T00:00:00Z") |
+| `videoDuration` | string | Nein | Nach Videolänge filtern: "short" (weniger als 4 Minuten), "medium" (4-20 Minuten), "long" (mehr als 20 Minuten), "any" |
+| `order` | string | Nein | Ergebnisse sortieren nach: "date", "rating", "relevance" (Standard), "title", "videoCount", "viewCount" |
+| `videoCategoryId` | string | Nein | Nach YouTube-Kategorie-ID filtern (z.B. "10" für Musik, "20" für Gaming) |
+| `videoDefinition` | string | Nein | Nach Videoqualität filtern: "high" (HD), "standard", "any" |
+| `videoCaption` | string | Nein | Nach Untertitelverfügbarkeit filtern: "closedCaption" (hat Untertitel), "none" (keine Untertitel), "any" |
+| `regionCode` | string | Nein | Ergebnisse zurückgeben, die für eine bestimmte Region relevant sind (ISO 3166-1 alpha-2 Ländercode, z.B. "US", "GB") |
+| `relevanceLanguage` | string | Nein | Ergebnisse zurückgeben, die für eine Sprache am relevantesten sind (ISO 639-1 Code, z.B. "en", "es") |
+| `safeSearch` | string | Nein | Inhaltsfilterungsstufe: "moderate" (Standard), "none", "strict" |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `items` | array | Array von YouTube-Videos, die der Suchanfrage entsprechen |
+
+### `youtube_video_details`
+
+Erhalte detaillierte Informationen über ein bestimmtes YouTube-Video.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | string | Ja | YouTube-Video-ID |
+| `apiKey` | string | Ja | YouTube API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `videoId` | string | YouTube-Video-ID |
+| `title` | string | Videotitel |
+| `description` | string | Videobeschreibung |
+| `channelId` | string | Kanal-ID |
+| `channelTitle` | string | Kanalname |
+| `publishedAt` | string | Veröffentlichungsdatum und -uhrzeit |
+| `duration` | string | Videodauer im ISO 8601-Format |
+| `viewCount` | number | Anzahl der Aufrufe |
+| `likeCount` | number | Anzahl der Likes |
+| `commentCount` | number | Anzahl der Kommentare |
+| `thumbnail` | string | Video-Thumbnail-URL |
+| `tags` | array | Video-Tags |
+
+### `youtube_channel_info`
+
+Erhalte detaillierte Informationen über einen YouTube-Kanal.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `channelId` | string | Nein | YouTube-Kanal-ID \(verwende entweder channelId oder username\) |
+| `username` | string | Nein | YouTube-Kanalbenutzername \(verwende entweder channelId oder username\) |
+| `apiKey` | string | Ja | YouTube API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `channelId` | string | YouTube-Kanal-ID |
+| `title` | string | Kanalname |
+| `description` | string | Kanalbeschreibung |
+| `subscriberCount` | number | Anzahl der Abonnenten |
+| `videoCount` | number | Anzahl der Videos |
+| `viewCount` | number | Gesamtaufrufe des Kanals |
+| `publishedAt` | string | Erstellungsdatum des Kanals |
+| `thumbnail` | string | URL des Kanal-Thumbnails |
+| `customUrl` | string | Benutzerdefinierte Kanal-URL |
+
+### `youtube_channel_videos`
+
+Alle Videos von einem bestimmten YouTube-Kanal abrufen, mit Sortieroptionen.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `channelId` | string | Ja | YouTube-Kanal-ID, von der Videos abgerufen werden sollen |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Videos \(1-50\) |
+| `order` | string | Nein | Sortierreihenfolge: "date" \(neueste zuerst\), "rating", "relevance", "title", "viewCount" |
+| `pageToken` | string | Nein | Seitentoken für Paginierung |
+| `apiKey` | string | Ja | YouTube API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `items` | array | Array von Videos des Kanals |
+
+### `youtube_channel_playlists`
+
+Alle Playlists von einem bestimmten YouTube-Kanal abrufen.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `channelId` | string | Ja | YouTube-Kanal-ID, von der Playlists abgerufen werden sollen |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Playlists \(1-50\) |
+| `pageToken` | string | Nein | Seitentoken für Paginierung |
+| `apiKey` | string | Ja | YouTube API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `items` | array | Array von Playlists des Kanals |
+
+### `youtube_playlist_items`
+
+Videos aus einer YouTube-Playlist abrufen.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | Ja | YouTube-Playlist-ID |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Videos |
+| `pageToken` | string | Nein | Seitentoken für Paginierung |
+| `apiKey` | string | Ja | YouTube API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `items` | array | Array von Videos in der Playlist |
+
+### `youtube_comments`
+
+Kommentare von einem YouTube-Video abrufen.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | string | Ja | YouTube-Video-ID |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Kommentare |
+| `order` | string | Nein | Reihenfolge der Kommentare: time oder relevance |
+| `pageToken` | string | Nein | Seitentoken für Paginierung |
+| `apiKey` | string | Ja | YouTube API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `items` | array | Array von Kommentaren zum Video |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `youtube`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `regionCode` | string | Nein | ISO 3166-1 alpha-2 Ländercode, um Kategorien für ein bestimmtes Land abzurufen \(z.B. "US", "GB", "JP"\). Standard ist US. |
+| `hl` | string | Nein | Sprache für Kategorietitel \(ISO 639-1 Code, z.B. "en", "es", "fr"\). Standard ist Englisch. |
+| `apiKey` | string | Ja | YouTube API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `items` | array | Array von Videokategorien, die in der angegebenen Region verfügbar sind |
+|   ↳ `categoryId` | string | Kategorie-ID zur Verwendung in Such-/Trendfiltern \(z.B. "10" für Musik\) |
+|   ↳ `title` | string | Lesbarer Kategoriename |
+|   ↳ `assignable` | boolean | Ob Videos mit dieser Kategorie getaggt werden können |
+| `totalResults` | number | Gesamtanzahl der verfügbaren Kategorien |
+
+### `youtube_video_details`
+
+Detaillierte Informationen zu einem bestimmten YouTube-Video abrufen, einschließlich Statistiken, Inhaltsdetails, Live-Streaming-Informationen und Metadaten.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | string | Ja | YouTube-Video-ID \(11-stellige Zeichenfolge, z.B. "dQw4w9WgXcQ"\) |
+| `apiKey` | string | Ja | YouTube API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `videoId` | string | YouTube-Video-ID |
+| `title` | string | Videotitel |
+| `description` | string | Videobeschreibung |
+| `channelId` | string | Kanal-ID |
+| `channelTitle` | string | Kanalname |
+| `publishedAt` | string | Veröffentlichungsdatum und -uhrzeit |
+| `duration` | string | Videodauer im ISO 8601-Format \(z.B. "PT4M13S" für 4 Min. 13 Sek.\) |
+| `viewCount` | number | Anzahl der Aufrufe |
+| `likeCount` | number | Anzahl der Likes |
+| `commentCount` | number | Anzahl der Kommentare |
+| `favoriteCount` | number | Anzahl der Hinzufügungen zu Favoriten |
+| `thumbnail` | string | URL des Video-Thumbnails |
+| `tags` | array | Video-Tags |
+| `categoryId` | string | YouTube-Videokategorie-ID |
+| `definition` | string | Videodefinition: "hd" oder "sd" |
+| `caption` | string | Ob Untertitel verfügbar sind: "true" oder "false" |
+| `licensedContent` | boolean | Ob das Video lizenzierter Inhalt ist |
+| `privacyStatus` | string | Datenschutzstatus des Videos: "public", "private" oder "unlisted" |
+| `liveBroadcastContent` | string | Live-Übertragungsstatus: "live", "upcoming" oder "none" |
+| `defaultLanguage` | string | Standardsprache der Video-Metadaten |
+| `defaultAudioLanguage` | string | Standard-Audiosprache des Videos |
+| `isLiveContent` | boolean | Ob dieses Video ein Live-Stream ist oder war |
+| `scheduledStartTime` | string | Geplante Startzeit für bevorstehende Live-Streams \(ISO 8601\) |
+| `actualStartTime` | string | Wann der Live-Stream tatsächlich gestartet ist \(ISO 8601\) |
+| `actualEndTime` | string | Wann der Live-Stream beendet wurde \(ISO 8601\) |
+| `concurrentViewers` | number | Aktuelle Anzahl der Zuschauer \(nur für aktive Live-Streams\) |
+| `activeLiveChatId` | string | Live-Chat-ID für den Stream \(nur für aktive Live-Streams\) |

@@ -1,0 +1,5 @@
+export { ActionBar } from './action-bar/action-bar'
+export { AddDocumentsModal } from './add-documents-modal/add-documents-modal'
+export { BaseTagsModal } from './base-tags-modal/base-tags-modal'
+export { DocumentContextMenu } from './document-context-menu'
+export { RenameDocumentModal } from './rename-document-modal'

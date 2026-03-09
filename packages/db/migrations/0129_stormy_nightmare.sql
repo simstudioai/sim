@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "snap_to_grid_size" integer DEFAULT 0 NOT NULL;

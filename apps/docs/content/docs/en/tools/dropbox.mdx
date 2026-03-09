@@ -1,0 +1,271 @@
+---
+title: Dropbox
+description: Upload, download, share, and manage files in Dropbox
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="dropbox"
+  color="#0061FF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Dropbox](https://dropbox.com/) is a popular cloud storage and collaboration platform that enables individuals and teams to securely store, access, and share files from anywhere. Dropbox is designed for easy file management, syncing, and powerful collaboration, whether you're working solo or with a group.
+
+With Dropbox in Sim, you can:
+
+- **Upload and download files**: Seamlessly upload any file to your Dropbox or retrieve content on demand
+- **List folder contents**: Browse the files and folders within any Dropbox directory
+- **Create new folders**: Organize your files by programmatically creating new folders in your Dropbox
+- **Search files and folders**: Locate documents, images, or other items by name or content
+- **Generate shared links**: Quickly create shareable public or private links for files and folders
+- **Manage files**: Move, delete, or rename files and folders as part of automated workflows
+
+These capabilities allow your Sim agents to automate Dropbox operations directly within your workflows — from backing up important files to distributing content and maintaining organized folders. Use Dropbox as both a source and destination for files, enabling seamless cloud storage management as part of your business processes.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Dropbox into your workflow for file management, sharing, and collaboration. Upload files, download content, create folders, manage shared links, and more.
+
+
+
+## Tools
+
+### `dropbox_upload`
+
+Upload a file to Dropbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Yes | The path in Dropbox where the file should be saved \(e.g., /folder/document.pdf\) |
+| `file` | file | No | The file to upload \(UserFile object\) |
+| `fileContent` | string | No | Legacy: base64 encoded file content |
+| `fileName` | string | No | Optional filename \(used if path is a folder\) |
+| `mode` | string | No | Write mode: add \(default\) or overwrite |
+| `autorename` | boolean | No | If true, rename the file if there is a conflict |
+| `mute` | boolean | No | If true, don't notify the user about this upload |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | object | The uploaded file metadata |
+|   ↳ `id` | string | Unique identifier for the file |
+|   ↳ `name` | string | Name of the file |
+|   ↳ `path_display` | string | Display path of the file |
+|   ↳ `path_lower` | string | Lowercase path of the file |
+|   ↳ `size` | number | Size of the file in bytes |
+|   ↳ `client_modified` | string | Client modification time |
+|   ↳ `server_modified` | string | Server modification time |
+|   ↳ `rev` | string | Revision identifier |
+|   ↳ `content_hash` | string | Content hash for the file |
+
+### `dropbox_download`
+
+Download a file from Dropbox with metadata and content
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Yes | The path of the file to download \(e.g., /folder/document.pdf\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded file stored in execution files |
+| `metadata` | json | The file metadata |
+| `temporaryLink` | string | Temporary link to download the file \(valid for ~4 hours\) |
+| `content` | string | Base64 encoded file content \(if fetched\) |
+
+### `dropbox_list_folder`
+
+List the contents of a folder in Dropbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Yes | The path of the folder to list \(use "" for root\) |
+| `recursive` | boolean | No | If true, list contents recursively |
+| `includeDeleted` | boolean | No | If true, include deleted files/folders |
+| `includeMediaInfo` | boolean | No | If true, include media info for photos/videos |
+| `limit` | number | No | Maximum number of results to return \(default: 500\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entries` | array | List of files and folders in the directory |
+|   ↳ `id` | string | Unique identifier |
+|   ↳ `name` | string | Name of the file/folder |
+|   ↳ `path_display` | string | Display path |
+|   ↳ `size` | number | Size in bytes \(files only\) |
+| `cursor` | string | Cursor for pagination |
+| `hasMore` | boolean | Whether there are more results |
+
+### `dropbox_create_folder`
+
+Create a new folder in Dropbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Yes | The path where the folder should be created \(e.g., /new-folder\) |
+| `autorename` | boolean | No | If true, rename the folder if there is a conflict |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folder` | object | The created folder metadata |
+|   ↳ `id` | string | Unique identifier for the folder |
+|   ↳ `name` | string | Name of the folder |
+|   ↳ `path_display` | string | Display path of the folder |
+|   ↳ `path_lower` | string | Lowercase path of the folder |
+
+### `dropbox_delete`
+
+Delete a file or folder in Dropbox (moves to trash)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Yes | The path of the file or folder to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `metadata` | object | Metadata of the deleted item |
+|   ↳ `name` | string | Name of the deleted item |
+|   ↳ `path_display` | string | Display path |
+| `deleted` | boolean | Whether the deletion was successful |
+
+### `dropbox_copy`
+
+Copy a file or folder in Dropbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fromPath` | string | Yes | The source path of the file or folder to copy |
+| `toPath` | string | Yes | The destination path for the copied file or folder |
+| `autorename` | boolean | No | If true, rename the file if there is a conflict at destination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `metadata` | object | Metadata of the copied item |
+|   ↳ `id` | string | Unique identifier |
+|   ↳ `name` | string | Name of the copied item |
+|   ↳ `path_display` | string | Display path |
+|   ↳ `size` | number | Size in bytes \(files only\) |
+
+### `dropbox_move`
+
+Move or rename a file or folder in Dropbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fromPath` | string | Yes | The source path of the file or folder to move |
+| `toPath` | string | Yes | The destination path for the moved file or folder |
+| `autorename` | boolean | No | If true, rename the file if there is a conflict at destination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `metadata` | object | Metadata of the moved item |
+|   ↳ `id` | string | Unique identifier |
+|   ↳ `name` | string | Name of the moved item |
+|   ↳ `path_display` | string | Display path |
+|   ↳ `size` | number | Size in bytes \(files only\) |
+
+### `dropbox_get_metadata`
+
+Get metadata for a file or folder in Dropbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Yes | The path of the file or folder to get metadata for |
+| `includeMediaInfo` | boolean | No | If true, include media info for photos/videos |
+| `includeDeleted` | boolean | No | If true, include deleted files in results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `metadata` | object | Metadata for the file or folder |
+|   ↳ `id` | string | Unique identifier |
+|   ↳ `name` | string | Name of the item |
+|   ↳ `path_display` | string | Display path |
+|   ↳ `path_lower` | string | Lowercase path |
+|   ↳ `size` | number | Size in bytes \(files only\) |
+|   ↳ `client_modified` | string | Client modification time |
+|   ↳ `server_modified` | string | Server modification time |
+|   ↳ `rev` | string | Revision identifier |
+|   ↳ `content_hash` | string | Content hash |
+
+### `dropbox_create_shared_link`
+
+Create a shareable link for a file or folder in Dropbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Yes | The path of the file or folder to share |
+| `requestedVisibility` | string | No | Visibility: public, team_only, or password |
+| `linkPassword` | string | No | Password for the shared link \(only if visibility is password\) |
+| `expires` | string | No | Expiration date in ISO 8601 format \(e.g., 2025-12-31T23:59:59Z\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sharedLink` | object | The created shared link |
+|   ↳ `url` | string | The shared link URL |
+|   ↳ `name` | string | Name of the shared item |
+|   ↳ `path_lower` | string | Lowercase path of the shared item |
+|   ↳ `expires` | string | Expiration date if set |
+|   ↳ `link_permissions` | object | Permissions for the shared link |
+
+### `dropbox_search`
+
+Search for files and folders in Dropbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | The search query |
+| `path` | string | No | Dropbox folder path to limit search scope \(e.g., /folder/subfolder\) |
+| `fileExtensions` | string | No | Comma-separated list of file extensions to filter by \(e.g., pdf,xlsx\) |
+| `maxResults` | number | No | Maximum number of results to return \(default: 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matches` | array | Search results |
+|   ↳ `match_type` | object | Type of match: filename, content, or both |
+|   ↳ `metadata` | object | File or folder metadata |
+| `hasMore` | boolean | Whether there are more results |
+| `cursor` | string | Cursor for pagination |
+
+

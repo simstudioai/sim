@@ -1,0 +1,322 @@
+---
+title: YouTube
+description: Interact with YouTube videos, channels, and playlists
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="youtube"
+  color="#FF0000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[YouTube](https://www.youtube.com/) is the world's largest video sharing platform, hosting billions of videos and serving over 2 billion logged-in monthly users.
+
+With YouTube's extensive API capabilities, you can:
+
+- **Search content**: Find relevant videos across YouTube's vast library using specific keywords, filters, and parameters
+- **Access metadata**: Retrieve detailed information about videos including titles, descriptions, view counts, and engagement metrics
+- **Analyze trends**: Identify popular content and trending topics within specific categories or regions
+- **Extract insights**: Gather data about audience preferences, content performance, and engagement patterns
+
+In Sim, the YouTube integration enables your agents to programmatically search and analyze YouTube content as part of their workflows. This allows for powerful automation scenarios that require up-to-date video information. Your agents can search for instructional videos, research content trends, gather information from educational channels, or monitor specific creators for new uploads. This integration bridges the gap between your AI workflows and the world's largest video repository, enabling more sophisticated and content-aware automations. By connecting Sim with YouTube, you can create agents that stay current with the latest information, provide more accurate responses, and deliver more value to users - all without requiring manual intervention or custom code.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate YouTube into the workflow. Can search for videos, get trending videos, get video details, get video categories, get channel information, get all videos from a channel, get channel playlists, get playlist items, and get video comments.
+
+
+
+## Tools
+
+### `youtube_channel_info`
+
+Get detailed information about a YouTube channel including statistics, branding, and content details.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channelId` | string | No | YouTube channel ID starting with "UC" \(24-character string, use either channelId or username\) |
+| `username` | string | No | YouTube channel username \(use either channelId or username\) |
+| `apiKey` | string | Yes | YouTube API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `channelId` | string | YouTube channel ID |
+| `title` | string | Channel name |
+| `description` | string | Channel description |
+| `subscriberCount` | number | Number of subscribers \(0 if hidden\) |
+| `videoCount` | number | Number of public videos |
+| `viewCount` | number | Total channel views |
+| `publishedAt` | string | Channel creation date |
+| `thumbnail` | string | Channel thumbnail/avatar URL |
+| `customUrl` | string | Channel custom URL \(handle\) |
+| `country` | string | Country the channel is associated with |
+| `uploadsPlaylistId` | string | Playlist ID containing all channel uploads \(use with playlist_items\) |
+| `bannerImageUrl` | string | Channel banner image URL |
+| `hiddenSubscriberCount` | boolean | Whether the subscriber count is hidden |
+
+### `youtube_channel_playlists`
+
+Get all public playlists from a specific YouTube channel.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channelId` | string | Yes | YouTube channel ID starting with "UC" \(24-character string\) to get playlists from |
+| `maxResults` | number | No | Maximum number of playlists to return \(1-50\) |
+| `pageToken` | string | No | Page token for pagination \(from previous response nextPageToken\) |
+| `apiKey` | string | Yes | YouTube API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of playlists from the channel |
+|   ↳ `playlistId` | string | YouTube playlist ID |
+|   ↳ `title` | string | Playlist title |
+|   ↳ `description` | string | Playlist description |
+|   ↳ `thumbnail` | string | Playlist thumbnail URL |
+|   ↳ `itemCount` | number | Number of videos in playlist |
+|   ↳ `publishedAt` | string | Playlist creation date |
+|   ↳ `channelTitle` | string | Channel name |
+| `totalResults` | number | Total number of playlists in the channel |
+| `nextPageToken` | string | Token for accessing the next page of results |
+
+### `youtube_channel_videos`
+
+Search for videos from a specific YouTube channel with sorting options. For complete channel video list, use channel_info to get uploadsPlaylistId, then use playlist_items.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channelId` | string | Yes | YouTube channel ID starting with "UC" \(24-character string\) to get videos from |
+| `maxResults` | number | No | Maximum number of videos to return \(1-50\) |
+| `order` | string | No | Sort order: "date" \(newest first, default\), "rating", "relevance", "title", "viewCount" |
+| `pageToken` | string | No | Page token for pagination \(from previous response nextPageToken\) |
+| `apiKey` | string | Yes | YouTube API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of videos from the channel |
+|   ↳ `videoId` | string | YouTube video ID |
+|   ↳ `title` | string | Video title |
+|   ↳ `description` | string | Video description |
+|   ↳ `thumbnail` | string | Video thumbnail URL |
+|   ↳ `publishedAt` | string | Video publish date |
+|   ↳ `channelTitle` | string | Channel name |
+| `totalResults` | number | Total number of videos in the channel |
+| `nextPageToken` | string | Token for accessing the next page of results |
+
+### `youtube_comments`
+
+Get top-level comments from a YouTube video with author details and engagement.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | string | Yes | YouTube video ID \(11-character string, e.g., "dQw4w9WgXcQ"\) |
+| `maxResults` | number | No | Maximum number of comments to return \(1-100\) |
+| `order` | string | No | Order of comments: "time" \(newest first\) or "relevance" \(most relevant first\) |
+| `pageToken` | string | No | Page token for pagination \(from previous response nextPageToken\) |
+| `apiKey` | string | Yes | YouTube API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of top-level comments from the video |
+|   ↳ `commentId` | string | Comment ID |
+|   ↳ `authorDisplayName` | string | Comment author display name |
+|   ↳ `authorChannelUrl` | string | Comment author channel URL |
+|   ↳ `authorProfileImageUrl` | string | Comment author profile image URL |
+|   ↳ `textDisplay` | string | Comment text \(HTML formatted\) |
+|   ↳ `textOriginal` | string | Comment text \(plain text\) |
+|   ↳ `likeCount` | number | Number of likes on the comment |
+|   ↳ `publishedAt` | string | When the comment was posted |
+|   ↳ `updatedAt` | string | When the comment was last edited |
+|   ↳ `replyCount` | number | Number of replies to this comment |
+| `totalResults` | number | Total number of comment threads available |
+| `nextPageToken` | string | Token for accessing the next page of results |
+
+### `youtube_playlist_items`
+
+Get videos from a YouTube playlist. Can be used with a channel uploads playlist to get all channel videos.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | Yes | YouTube playlist ID starting with "PL" or "UU" \(34-character string\). Use uploadsPlaylistId from channel_info to get all channel videos. |
+| `maxResults` | number | No | Maximum number of videos to return \(1-50\) |
+| `pageToken` | string | No | Page token for pagination \(from previous response nextPageToken\) |
+| `apiKey` | string | Yes | YouTube API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of videos in the playlist |
+|   ↳ `videoId` | string | YouTube video ID |
+|   ↳ `title` | string | Video title |
+|   ↳ `description` | string | Video description |
+|   ↳ `thumbnail` | string | Video thumbnail URL |
+|   ↳ `publishedAt` | string | Date added to playlist |
+|   ↳ `channelTitle` | string | Playlist owner channel name |
+|   ↳ `position` | number | Position in playlist \(0-indexed\) |
+|   ↳ `videoOwnerChannelId` | string | Channel ID of the video owner |
+|   ↳ `videoOwnerChannelTitle` | string | Channel name of the video owner |
+| `totalResults` | number | Total number of items in playlist |
+| `nextPageToken` | string | Token for accessing the next page of results |
+
+### `youtube_search`
+
+Search for videos on YouTube using the YouTube Data API. Supports advanced filtering by channel, date range, duration, category, quality, captions, live streams, and more.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search query for YouTube videos |
+| `maxResults` | number | No | Maximum number of videos to return \(1-50\) |
+| `pageToken` | string | No | Page token for pagination \(from previous response nextPageToken\) |
+| `apiKey` | string | Yes | YouTube API Key |
+| `channelId` | string | No | Filter results to a specific YouTube channel ID starting with "UC" \(24-character string\) |
+| `publishedAfter` | string | No | Only return videos published after this date \(RFC 3339 format: "2024-01-01T00:00:00Z"\) |
+| `publishedBefore` | string | No | Only return videos published before this date \(RFC 3339 format: "2024-01-01T00:00:00Z"\) |
+| `videoDuration` | string | No | Filter by video length: "short" \(&lt;4 min\), "medium" \(4-20 min\), "long" \(&gt;20 min\), "any" |
+| `order` | string | No | Sort results by: "date", "rating", "relevance" \(default\), "title", "videoCount", "viewCount" |
+| `videoCategoryId` | string | No | Filter by YouTube category ID \(e.g., "10" for Music, "20" for Gaming\). Use video_categories to list IDs. |
+| `videoDefinition` | string | No | Filter by video quality: "high" \(HD\), "standard", "any" |
+| `videoCaption` | string | No | Filter by caption availability: "closedCaption" \(has captions\), "none" \(no captions\), "any" |
+| `eventType` | string | No | Filter by live broadcast status: "live" \(currently live\), "upcoming" \(scheduled\), "completed" \(past streams\) |
+| `regionCode` | string | No | Return results relevant to a specific region \(ISO 3166-1 alpha-2 country code, e.g., "US", "GB"\) |
+| `relevanceLanguage` | string | No | Return results most relevant to a language \(ISO 639-1 code, e.g., "en", "es"\) |
+| `safeSearch` | string | No | Content filtering level: "moderate" \(default\), "none", "strict" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of YouTube videos matching the search query |
+|   ↳ `videoId` | string | YouTube video ID |
+|   ↳ `title` | string | Video title |
+|   ↳ `description` | string | Video description |
+|   ↳ `thumbnail` | string | Video thumbnail URL |
+|   ↳ `channelId` | string | Channel ID that uploaded the video |
+|   ↳ `channelTitle` | string | Channel name |
+|   ↳ `publishedAt` | string | Video publish date |
+|   ↳ `liveBroadcastContent` | string | Live broadcast status: "none", "live", or "upcoming" |
+| `totalResults` | number | Total number of search results available |
+| `nextPageToken` | string | Token for accessing the next page of results |
+
+### `youtube_trending`
+
+Get the most popular/trending videos on YouTube. Can filter by region and video category.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `regionCode` | string | No | ISO 3166-1 alpha-2 country code to get trending videos for \(e.g., "US", "GB", "JP"\). Defaults to US. |
+| `videoCategoryId` | string | No | Filter by video category ID \(e.g., "10" for Music, "20" for Gaming, "17" for Sports\) |
+| `maxResults` | number | No | Maximum number of trending videos to return \(1-50\) |
+| `pageToken` | string | No | Page token for pagination \(from previous response nextPageToken\) |
+| `apiKey` | string | Yes | YouTube API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of trending videos |
+|   ↳ `videoId` | string | YouTube video ID |
+|   ↳ `title` | string | Video title |
+|   ↳ `description` | string | Video description |
+|   ↳ `thumbnail` | string | Video thumbnail URL |
+|   ↳ `channelId` | string | Channel ID |
+|   ↳ `channelTitle` | string | Channel name |
+|   ↳ `publishedAt` | string | Video publish date |
+|   ↳ `viewCount` | number | Number of views |
+|   ↳ `likeCount` | number | Number of likes |
+|   ↳ `commentCount` | number | Number of comments |
+|   ↳ `duration` | string | Video duration in ISO 8601 format |
+| `totalResults` | number | Total number of trending videos available |
+| `nextPageToken` | string | Token for accessing the next page of results |
+
+### `youtube_video_categories`
+
+Get a list of video categories available on YouTube. Use this to discover valid category IDs for filtering search and trending results.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `regionCode` | string | No | ISO 3166-1 alpha-2 country code to get categories for \(e.g., "US", "GB", "JP"\). Defaults to US. |
+| `hl` | string | No | Language for category titles \(ISO 639-1 code, e.g., "en", "es", "fr"\). Defaults to English. |
+| `apiKey` | string | Yes | YouTube API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of video categories available in the specified region |
+|   ↳ `categoryId` | string | Category ID to use in search/trending filters \(e.g., "10" for Music\) |
+|   ↳ `title` | string | Human-readable category name |
+|   ↳ `assignable` | boolean | Whether videos can be tagged with this category |
+| `totalResults` | number | Total number of categories available |
+
+### `youtube_video_details`
+
+Get detailed information about a specific YouTube video including statistics, content details, live streaming info, and metadata.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | string | Yes | YouTube video ID \(11-character string, e.g., "dQw4w9WgXcQ"\) |
+| `apiKey` | string | Yes | YouTube API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `videoId` | string | YouTube video ID |
+| `title` | string | Video title |
+| `description` | string | Video description |
+| `channelId` | string | Channel ID |
+| `channelTitle` | string | Channel name |
+| `publishedAt` | string | Published date and time |
+| `duration` | string | Video duration in ISO 8601 format \(e.g., "PT4M13S" for 4 min 13 sec\) |
+| `viewCount` | number | Number of views |
+| `likeCount` | number | Number of likes |
+| `commentCount` | number | Number of comments |
+| `favoriteCount` | number | Number of times added to favorites |
+| `thumbnail` | string | Video thumbnail URL |
+| `tags` | array | Video tags |
+| `categoryId` | string | YouTube video category ID |
+| `definition` | string | Video definition: "hd" or "sd" |
+| `caption` | string | Whether captions are available: "true" or "false" |
+| `licensedContent` | boolean | Whether the video is licensed content |
+| `privacyStatus` | string | Video privacy status: "public", "private", or "unlisted" |
+| `liveBroadcastContent` | string | Live broadcast status: "live", "upcoming", or "none" |
+| `defaultLanguage` | string | Default language of the video metadata |
+| `defaultAudioLanguage` | string | Default audio language of the video |
+| `isLiveContent` | boolean | Whether this video is or was a live stream |
+| `scheduledStartTime` | string | Scheduled start time for upcoming live streams \(ISO 8601\) |
+| `actualStartTime` | string | When the live stream actually started \(ISO 8601\) |
+| `actualEndTime` | string | When the live stream ended \(ISO 8601\) |
+| `concurrentViewers` | number | Current number of viewers \(only for active live streams\) |
+| `activeLiveChatId` | string | Live chat ID for the stream \(only for active live streams\) |
+
+

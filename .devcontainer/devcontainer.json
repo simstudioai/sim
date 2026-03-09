@@ -1,0 +1,37 @@
+{
+  "name": "Sim Dev Environment",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.biome": "explicit",
+          "source.organizeImports.biome": "explicit"
+        },
+        "terminal.integrated.shellIntegration.enabled": true
+      },
+      "extensions": [
+        "biomejs.biome",
+        "bradlc.vscode-tailwindcss",
+        "ms-vscode.vscode-typescript-next",
+        "github.copilot",
+        "github.copilot-chat",
+        "mikestead.dotenv",
+        "dsznajder.es7-react-js-snippets",
+        "steoates.autoimport",
+        "oven.bun-vscode"
+      ]
+    }
+  },
+
+  "forwardPorts": [3000, 3002, 5432],
+
+  "postCreateCommand": "bash -c 'bash .devcontainer/post-create.sh || true'",
+
+  "remoteUser": "bun"
+}

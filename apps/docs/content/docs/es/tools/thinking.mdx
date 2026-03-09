@@ -1,0 +1,51 @@
+---
+title: Pensamiento
+description: Obliga al modelo a detallar su proceso de pensamiento.
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="thinking"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+La herramienta de Pensamiento anima a los modelos de IA a realizar un razonamiento explícito antes de responder a consultas complejas. Al proporcionar un espacio dedicado para el análisis paso a paso, esta herramienta ayuda a los modelos a desglosar problemas, considerar múltiples perspectivas y llegar a conclusiones más reflexivas.
+
+Las investigaciones han demostrado que incitar a los modelos de lenguaje a "pensar paso a paso" puede mejorar significativamente sus capacidades de razonamiento. Según [la investigación de Anthropic sobre la herramienta Think de Claude](https://www.anthropic.com/engineering/claude-think-tool), cuando a los modelos se les da espacio para desarrollar explícitamente su razonamiento, demuestran:
+
+- **Resolución de problemas mejorada**: Desglosando problemas complejos en pasos manejables
+- **Mayor precisión**: Reduciendo errores al trabajar cuidadosamente en cada componente de un problema
+- **Mayor transparencia**: Haciendo visible y auditable el proceso de razonamiento del modelo
+- **Respuestas más matizadas**: Considerando múltiples ángulos antes de llegar a conclusiones
+
+En Sim, la herramienta de Pensamiento crea una oportunidad estructurada para que tus agentes participen en este tipo de razonamiento deliberado. Al incorporar pasos de pensamiento en tus flujos de trabajo, puedes ayudar a tus agentes a abordar tareas complejas de manera más efectiva, evitar errores comunes de razonamiento y producir resultados de mayor calidad. Esto es particularmente valioso para tareas que involucran razonamiento de múltiples pasos, toma de decisiones complejas o situaciones donde la precisión es crítica.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Añade un paso donde el modelo explícitamente describe su proceso de pensamiento antes de continuar. Esto puede mejorar la calidad del razonamiento al fomentar un análisis paso a paso.
+
+## Herramientas
+
+### `thinking_tool`
+
+Procesa un pensamiento/instrucción proporcionado, haciéndolo disponible para los pasos subsiguientes.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `thought` | string | Sí | Tu razonamiento interno, análisis o proceso de pensamiento. Utiliza esto para analizar el problema paso a paso antes de responder. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `acknowledgedThought` | string | El pensamiento que fue procesado y reconocido |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `thinking`

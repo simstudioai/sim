@@ -1,0 +1,149 @@
+---
+title: 条件
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+条件模块根据布尔表达式分支工作流执行。使用前一个模块的输出评估条件，并路由到不同的路径，无需使用 LLM。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/condition.png"
+    alt="条件块"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## 配置选项
+
+### 条件
+
+定义一个或多个需要评估的条件。每个条件包括：
+
+- **表达式**：一个 JavaScript/TypeScript 表达式，结果为 true 或 false
+- **路径**：如果条件为 true，则路由到的目标模块
+- **描述**：可选，解释条件检查的内容
+
+您可以创建多个条件，这些条件按顺序评估，第一个匹配的条件决定执行路径。
+
+### 条件表达式格式
+
+条件使用 JavaScript 语法，并可以引用前一个模块的输入值。
+
+<Tabs items={['分数阈值', '文本分析', '多个条件']}>
+  <Tab>
+
+    ```javascript
+    // Check if a score is above a threshold
+    <agent.score> > 75
+    ```
+
+  </Tab>
+  <Tab>
+
+    ```javascript
+    // Check if a text contains specific keywords
+    <agent.text>.includes('urgent') || <agent.text>.includes('emergency')
+    ```
+
+  </Tab>
+  <Tab>
+
+    ```javascript
+    // Check multiple conditions
+    <agent.age> >= 18 && <agent.country> === 'US'
+    ```
+
+  </Tab>
+</Tabs>
+
+### 访问结果
+
+条件评估后，您可以访问其输出：
+
+- **`<condition.result>`**：条件评估的布尔结果
+- **`<condition.matched_condition>`**：匹配条件的 ID
+- **`<condition.content>`**：评估结果的描述
+- **`<condition.path>`**：所选路由目标的详细信息
+
+## 高级功能
+
+### 复杂表达式
+
+在条件中使用 JavaScript 运算符和函数：
+
+```javascript
+// String operations
+<user.email>.endsWith('@company.com')
+
+// Array operations
+<api.tags>.includes('urgent')
+
+// Mathematical operations
+<agent.confidence> * 100 > 85
+
+// Date comparisons
+new Date(<api.created_at>) > new Date('2024-01-01')
+```
+
+### 多条件评估
+
+条件按顺序评估，直到一个条件匹配为止：
+
+```javascript
+// Condition 1: Check for high priority
+<ticket.priority> === 'high'
+
+// Condition 2: Check for urgent keywords
+<ticket.subject>.toLowerCase().includes('urgent')
+
+// Condition 3: Default fallback
+true
+```
+
+### 错误处理
+
+条件会自动处理：
+- 使用安全评估处理未定义或空值
+- 使用适当的回退处理类型不匹配
+- 记录错误日志处理无效表达式
+- 使用默认值处理缺失变量
+
+## 输出
+
+- **`<condition.result>`**：评估的布尔结果
+- **`<condition.matched_condition>`**：匹配条件的 ID
+- **`<condition.content>`**：评估结果的描述
+- **`<condition.path>`**：所选路由目标的详细信息
+
+## 示例用例
+
+**客户支持路由** - 根据优先级路由工单
+
+```
+API (Ticket) → Condition (priority === 'high') → Agent (Escalation) or Agent (Standard)
+```
+
+**内容审核** - 基于分析过滤内容
+
+```
+Agent (Analyze) → Condition (toxicity > 0.7) → Moderation or Publish
+```
+
+**用户引导流程** - 根据用户类型个性化引导
+
+```
+Function (Process) → Condition (account_type === 'enterprise') → Advanced or Simple
+```
+
+## 最佳实践
+
+- **正确排列条件顺序**：将更具体的条件放在一般条件之前，以确保特定逻辑优先于回退逻辑
+- **在需要时使用 else 分支**：如果没有条件匹配且 else 分支未连接，工作流分支将优雅地结束。如果需要为未匹配的情况提供回退路径，请连接 else 分支
+- **保持表达式简单**：使用清晰、直观的布尔表达式以提高可读性和调试的便利性
+- **为条件添加文档说明**：添加描述以解释每个条件的目的，从而提高团队协作和维护效率
+- **测试边界情况**：通过测试条件范围边界值，验证条件是否正确处理边界值

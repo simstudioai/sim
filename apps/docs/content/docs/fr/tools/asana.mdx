@@ -1,0 +1,178 @@
+---
+title: Asana
+description: Interagir avec Asana
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="asana"
+  color="#E0E0E0"
+/>
+
+## Instructions d'utilisation
+
+Intégrez Asana dans le flux de travail. Peut lire, écrire et mettre à jour des tâches.
+
+## Outils
+
+### `asana_get_task`
+
+Récupérer une tâche unique par GID ou obtenir plusieurs tâches avec des filtres
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskGid` | string | Non | L'identifiant unique global \(GID\) de la tâche. Si non fourni, récupérera plusieurs tâches. |
+| `workspace` | string | Non | GID de l'espace de travail pour filtrer les tâches \(requis lorsque taskGid n'est pas utilisé\) |
+| `project` | string | Non | GID du projet pour filtrer les tâches |
+| `limit` | number | Non | Nombre maximum de tâches à retourner \(par défaut : 50\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `ts` | string | Horodatage de la réponse |
+| `gid` | string | Identifiant unique global de la tâche |
+| `resource_type` | string | Type de ressource \(tâche\) |
+| `resource_subtype` | string | Sous-type de ressource |
+| `name` | string | Nom de la tâche |
+| `notes` | string | Notes ou description de la tâche |
+| `completed` | boolean | Si la tâche est terminée |
+| `assignee` | object | Détails de l'assigné |
+
+### `asana_create_task`
+
+Créer une nouvelle tâche dans Asana
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `workspace` | chaîne | Oui | GID de l'espace de travail où la tâche sera créée |
+| `name` | chaîne | Oui | Nom de la tâche |
+| `notes` | chaîne | Non | Notes ou description pour la tâche |
+| `assignee` | chaîne | Non | GID de l'utilisateur à qui assigner la tâche |
+| `due_on` | chaîne | Non | Date d'échéance au format AAAA-MM-JJ |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `ts` | string | Horodatage de la réponse |
+| `gid` | string | Identifiant unique global de la tâche |
+| `name` | string | Nom de la tâche |
+| `notes` | string | Notes ou description de la tâche |
+| `completed` | boolean | Si la tâche est terminée |
+| `created_at` | string | Horodatage de création de la tâche |
+| `permalink_url` | string | URL vers la tâche dans Asana |
+
+### `asana_update_task`
+
+Mettre à jour une tâche existante dans Asana
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `taskGid` | chaîne | Oui | L'identifiant unique global (GID) de la tâche à mettre à jour |
+| `name` | chaîne | Non | Nom mis à jour pour la tâche |
+| `notes` | chaîne | Non | Notes ou description mises à jour pour la tâche |
+| `assignee` | chaîne | Non | GID de l'utilisateur assigné mis à jour |
+| `completed` | booléen | Non | Marquer la tâche comme terminée ou non terminée |
+| `due_on` | chaîne | Non | Date d'échéance mise à jour au format AAAA-MM-JJ |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `ts` | string | Horodatage de la réponse |
+| `gid` | string | Identifiant unique global de la tâche |
+| `name` | string | Nom de la tâche |
+| `notes` | string | Notes ou description de la tâche |
+| `completed` | boolean | Si la tâche est terminée |
+| `modified_at` | string | Horodatage de dernière modification de la tâche |
+
+### `asana_get_projects`
+
+Récupérer tous les projets d'un espace de travail Asana
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `workspace` | string | Oui | GID de l'espace de travail pour récupérer les projets |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `ts` | string | Horodatage de la réponse |
+| `projects` | array | Tableau de projets |
+
+### `asana_search_tasks`
+
+Rechercher des tâches dans un espace de travail Asana
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `workspace` | string | Oui | GID de l'espace de travail pour rechercher des tâches |
+| `text` | string | Non | Texte à rechercher dans les noms de tâches |
+| `assignee` | string | Non | Filtrer les tâches par GID d'utilisateur assigné |
+| `projects` | array | Non | Tableau de GID de projets pour filtrer les tâches |
+| `completed` | boolean | Non | Filtrer par statut d'achèvement |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `ts` | string | Horodatage de la réponse |
+| `tasks` | array | Tableau des tâches correspondantes |
+
+### `asana_add_comment`
+
+Ajouter un commentaire (story) à une tâche Asana
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `taskGid` | string | Oui | L'identifiant unique global \(GID\) de la tâche |
+| `text` | string | Oui | Le contenu textuel du commentaire |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `ts` | string | Horodatage de la réponse |
+| `gid` | string | Identifiant unique global du commentaire |
+| `text` | string | Contenu textuel du commentaire |
+| `created_at` | string | Horodatage de création du commentaire |
+| `created_by` | object | Détails de l'auteur du commentaire |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `asana`
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Statut de réussite de l'opération |
+| `ts` | chaîne | Horodatage de la réponse |
+| `gid` | chaîne | Identifiant unique global du commentaire |
+| `text` | chaîne | Contenu textuel du commentaire |
+| `created_at` | chaîne | Horodatage de création du commentaire |
+| `created_by` | objet | Détails de l'auteur du commentaire |
+|   ↳ `gid` | chaîne | GID de l'auteur |
+|   ↳ `name` | chaîne | Nom de l'auteur |

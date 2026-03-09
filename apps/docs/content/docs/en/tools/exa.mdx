@@ -1,0 +1,170 @@
+---
+title: Exa
+description: Search with Exa AI
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="exa"
+  color="#1F40ED"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Exa](https://exa.ai/) is an AI-powered search engine designed specifically for developers and researchers, providing highly relevant and up-to-date information from across the web. It combines advanced semantic search capabilities with AI understanding to deliver more accurate and contextually relevant results than traditional search engines.
+
+With Exa, you can:
+
+- **Search with natural language**: Find information using conversational queries and questions
+- **Get precise results**: Receive highly relevant search results with semantic understanding
+- **Access up-to-date information**: Retrieve current information from across the web
+- **Find similar content**: Discover related resources based on content similarity
+- **Extract webpage contents**: Retrieve and process the full text of web pages
+- **Answer questions with citations**: Ask questions and receive direct answers with supporting sources
+- **Perform research tasks**: Automate multi-step research workflows to gather, synthesize, and summarize information
+
+In Sim, the Exa integration allows your agents to search the web for information, retrieve content from specific URLs, find similar resources, answer questions with citations, and conduct research tasks—all programmatically through API calls. This enables your agents to access real-time information from the internet, enhancing their ability to provide accurate, current, and relevant responses. The integration is particularly valuable for research tasks, information gathering, content discovery, and answering questions that require up-to-date information from across the web.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Exa into the workflow. Can search, get contents, find similar links, answer a question, and perform research.
+
+
+
+## Tools
+
+### `exa_search`
+
+Search the web using Exa AI. Returns relevant search results with titles, URLs, and text snippets.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | The search query to execute |
+| `numResults` | number | No | Number of results to return \(e.g., 5, 10, 25\). Default: 10, max: 25 |
+| `useAutoprompt` | boolean | No | Whether to use autoprompt to improve the query \(true or false\). Default: false |
+| `type` | string | No | Search type: "neural", "keyword", "auto", or "fast". Default: "auto" |
+| `includeDomains` | string | No | Comma-separated list of domains to include in results \(e.g., "github.com, stackoverflow.com"\) |
+| `excludeDomains` | string | No | Comma-separated list of domains to exclude from results \(e.g., "reddit.com, pinterest.com"\) |
+| `category` | string | No | Filter by category: company, research paper, news, pdf, github, tweet, personal site, linkedin profile, financial report |
+| `text` | boolean | No | Include full text content in results \(default: false\) |
+| `highlights` | boolean | No | Include highlighted snippets in results \(default: false\) |
+| `summary` | boolean | No | Include AI-generated summaries in results \(default: false\) |
+| `livecrawl` | string | No | Live crawling mode: never \(default\), fallback, always, or preferred \(always try livecrawl, fall back to cache if fails\) |
+| `apiKey` | string | Yes | Exa AI API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Search results with titles, URLs, and text snippets |
+|   ↳ `title` | string | The title of the search result |
+|   ↳ `url` | string | The URL of the search result |
+|   ↳ `publishedDate` | string | Date when the content was published |
+|   ↳ `author` | string | The author of the content |
+|   ↳ `summary` | string | A brief summary of the content |
+|   ↳ `favicon` | string | URL of the site's favicon |
+|   ↳ `image` | string | URL of a representative image from the page |
+|   ↳ `text` | string | Text snippet or full content from the page |
+|   ↳ `score` | number | Relevance score for the search result |
+
+### `exa_get_contents`
+
+Retrieve the contents of webpages using Exa AI. Returns the title, text content, and optional summaries for each URL.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `urls` | string | Yes | Comma-separated list of URLs to retrieve content from |
+| `text` | boolean | No | If true, returns full page text with default settings. If false, disables text return. |
+| `summaryQuery` | string | No | Query to guide the summary generation |
+| `subpages` | number | No | Number of subpages to crawl from the provided URLs |
+| `subpageTarget` | string | No | Comma-separated keywords to target specific subpages \(e.g., "docs,tutorial,about"\) |
+| `highlights` | boolean | No | Include highlighted snippets in results \(default: false\) |
+| `livecrawl` | string | No | Live crawling mode: never \(default\), fallback, always, or preferred \(always try livecrawl, fall back to cache if fails\) |
+| `apiKey` | string | Yes | Exa AI API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Retrieved content from URLs with title, text, and summaries |
+|   ↳ `url` | string | The URL that content was retrieved from |
+|   ↳ `title` | string | The title of the webpage |
+|   ↳ `text` | string | The full text content of the webpage |
+|   ↳ `summary` | string | AI-generated summary of the webpage content |
+
+### `exa_find_similar_links`
+
+Find webpages similar to a given URL using Exa AI. Returns a list of similar links with titles and text snippets.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | The URL to find similar links for |
+| `numResults` | number | No | Number of similar links to return \(e.g., 5, 10, 25\). Default: 10, max: 25 |
+| `text` | boolean | No | Whether to include the full text of the similar pages |
+| `includeDomains` | string | No | Comma-separated list of domains to include in results \(e.g., "github.com, stackoverflow.com"\) |
+| `excludeDomains` | string | No | Comma-separated list of domains to exclude from results \(e.g., "reddit.com, pinterest.com"\) |
+| `excludeSourceDomain` | boolean | No | Exclude the source domain from results \(default: false\) |
+| `highlights` | boolean | No | Include highlighted snippets in results \(default: false\) |
+| `summary` | boolean | No | Include AI-generated summaries in results \(default: false\) |
+| `livecrawl` | string | No | Live crawling mode: never \(default\), fallback, always, or preferred \(always try livecrawl, fall back to cache if fails\) |
+| `apiKey` | string | Yes | Exa AI API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `similarLinks` | array | Similar links found with titles, URLs, and text snippets |
+|   ↳ `title` | string | The title of the similar webpage |
+|   ↳ `url` | string | The URL of the similar webpage |
+|   ↳ `text` | string | Text snippet or full content from the similar webpage |
+|   ↳ `score` | number | Similarity score indicating how similar the page is |
+
+### `exa_answer`
+
+Get an AI-generated answer to a question with citations from the web using Exa AI.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | The question to answer |
+| `text` | boolean | No | Whether to include the full text of the answer |
+| `apiKey` | string | Yes | Exa AI API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `answer` | string | AI-generated answer to the question |
+| `citations` | array | Sources and citations for the answer |
+|   ↳ `title` | string | The title of the cited source |
+|   ↳ `url` | string | The URL of the cited source |
+|   ↳ `text` | string | Relevant text from the cited source |
+
+### `exa_research`
+
+Perform comprehensive research using AI to generate detailed reports with citations
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Research query or topic |
+| `model` | string | No | Research model: exa-research-fast, exa-research \(default\), or exa-research-pro |
+| `apiKey` | string | Yes | Exa AI API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `research` | array | Comprehensive research findings with citations and summaries |
+
+

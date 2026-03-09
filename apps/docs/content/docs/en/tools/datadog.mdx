@@ -1,0 +1,357 @@
+---
+title: Datadog
+description: Monitor infrastructure, applications, and logs with Datadog
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="datadog"
+  color="#632CA6"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Datadog](https://datadoghq.com/) is a comprehensive monitoring and analytics platform for infrastructure, applications, logs, and more. It enables organizations to gain real-time visibility into the health and performance of systems, detect anomalies, and automate incident response.
+
+With Datadog, you can:
+
+- **Monitor metrics**: Collect, visualize, and analyze metrics from servers, cloud services, and custom applications.
+- **Query time series data**: Run advanced queries on performance metrics for trend analysis and reporting.
+- **Manage monitors and events**: Set up monitors to detect issues, trigger alerts, and create events for observability.
+- **Handle downtimes**: Schedule and programmatically manage planned downtimes to suppress alerts during maintenance.
+- **Analyze logs and traces** *(with additional setup in Datadog)*: Centralize and inspect logs or distributed traces for deeper troubleshooting.
+
+Sim’s Datadog integration lets your agents automate these operations and interact with your Datadog account programmatically. Use it to submit custom metrics, query timeseries data, manage monitors, create events, and streamline your monitoring workflows directly within Sim automations.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Datadog monitoring into workflows. Submit metrics, manage monitors, query logs, create events, handle downtimes, and more.
+
+
+
+## Tools
+
+### `datadog_submit_metrics`
+
+Submit custom metrics to Datadog. Use for tracking application performance, business metrics, or custom monitoring data.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `series` | string | Yes | JSON array of metric series to submit. Each series should include metric name, type \(gauge/rate/count\), points \(timestamp/value pairs\), and optional tags. |
+| `apiKey` | string | Yes | Datadog API key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the metrics were submitted successfully |
+| `errors` | array | Any errors that occurred during submission |
+
+### `datadog_query_timeseries`
+
+Query metric timeseries data from Datadog. Use for analyzing trends, creating reports, or retrieving metric values.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Datadog metrics query \(e.g., "avg:system.cpu.user\{*\}", "sum:nginx.requests\{env:prod\}.as_count\(\)"\) |
+| `from` | number | Yes | Start time as Unix timestamp in seconds \(e.g., 1705320000\) |
+| `to` | number | Yes | End time as Unix timestamp in seconds \(e.g., 1705323600\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `series` | array | Array of timeseries data with metric name, tags, and data points |
+| `status` | string | Query status |
+
+### `datadog_create_event`
+
+Post an event to the Datadog event stream. Use for deployment notifications, alerts, or any significant occurrences.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Yes | Event title |
+| `text` | string | Yes | Event body/description. Supports markdown. |
+| `alertType` | string | No | Alert type: error, warning, info, success, user_update, recommendation, or snapshot |
+| `priority` | string | No | Event priority: normal or low |
+| `host` | string | No | Host name to associate with this event \(e.g., "web-server-01", "prod-api-1"\) |
+| `tags` | string | No | Comma-separated list of tags \(e.g., "env:production,service:api", "team:backend,priority:high"\) |
+| `aggregationKey` | string | No | Key to aggregate events together |
+| `sourceTypeName` | string | No | Source type name for the event |
+| `dateHappened` | number | No | Unix timestamp in seconds when the event occurred \(e.g., 1705320000, defaults to now\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | object | The created event details |
+|   ↳ `id` | number | Event ID |
+|   ↳ `title` | string | Event title |
+|   ↳ `text` | string | Event text |
+|   ↳ `date_happened` | number | Unix timestamp when event occurred |
+|   ↳ `priority` | string | Event priority |
+|   ↳ `alert_type` | string | Alert type |
+|   ↳ `host` | string | Associated host |
+|   ↳ `tags` | array | Event tags |
+|   ↳ `url` | string | URL to view the event in Datadog |
+
+### `datadog_create_monitor`
+
+Create a new monitor/alert in Datadog. Monitors can track metrics, service checks, events, and more.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Monitor name |
+| `type` | string | Yes | Monitor type: metric alert, service check, event alert, process alert, log alert, query alert, composite, synthetics alert, slo alert |
+| `query` | string | Yes | Monitor query \(e.g., "avg\(last_5m\):avg:system.cpu.idle\{*\} &lt; 20", "logs\(\"status:error\"\).index\(\"main\"\).rollup\(\"count\"\).last\(\"5m\"\) &gt; 100"\) |
+| `message` | string | No | Message to include with notifications. Can include @-mentions and markdown. |
+| `tags` | string | No | Comma-separated list of tags |
+| `priority` | number | No | Monitor priority \(1-5, where 1 is highest\) |
+| `options` | string | No | JSON string of monitor options \(thresholds, notify_no_data, renotify_interval, etc.\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `monitor` | object | The created monitor details |
+|   ↳ `id` | number | Monitor ID |
+|   ↳ `name` | string | Monitor name |
+|   ↳ `type` | string | Monitor type |
+|   ↳ `query` | string | Monitor query |
+|   ↳ `message` | string | Notification message |
+|   ↳ `tags` | array | Monitor tags |
+|   ↳ `priority` | number | Monitor priority |
+|   ↳ `overall_state` | string | Current monitor state |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+
+### `datadog_get_monitor`
+
+Retrieve details of a specific monitor by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `monitorId` | string | Yes | The ID of the monitor to retrieve \(e.g., "12345678"\) |
+| `groupStates` | string | No | Comma-separated group states to include \(e.g., "alert,warn", "alert,warn,no data,ok"\) |
+| `withDowntimes` | boolean | No | Include downtime data with the monitor |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `monitor` | object | The monitor details |
+|   ↳ `id` | number | Monitor ID |
+|   ↳ `name` | string | Monitor name |
+|   ↳ `type` | string | Monitor type |
+|   ↳ `query` | string | Monitor query |
+|   ↳ `message` | string | Notification message |
+|   ↳ `tags` | array | Monitor tags |
+|   ↳ `priority` | number | Monitor priority |
+|   ↳ `overall_state` | string | Current monitor state |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+
+### `datadog_list_monitors`
+
+List all monitors in Datadog with optional filtering by name, tags, or state.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupStates` | string | No | Comma-separated group states to filter by \(e.g., "alert,warn", "alert,warn,no data,ok"\) |
+| `name` | string | No | Filter monitors by name with partial match \(e.g., "CPU", "Production"\) |
+| `tags` | string | No | Comma-separated list of tags to filter by \(e.g., "env:prod,team:backend"\) |
+| `monitorTags` | string | No | Comma-separated list of monitor tags to filter by \(e.g., "service:api,priority:high"\) |
+| `withDowntimes` | boolean | No | Include downtime data with monitors |
+| `page` | number | No | Page number for pagination \(0-indexed, e.g., 0, 1, 2\) |
+| `pageSize` | number | No | Number of monitors per page \(e.g., 50, max: 1000\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `monitors` | array | List of monitors |
+|   ↳ `id` | number | Monitor ID |
+|   ↳ `name` | string | Monitor name |
+|   ↳ `type` | string | Monitor type |
+|   ↳ `query` | string | Monitor query |
+|   ↳ `overall_state` | string | Current state |
+|   ↳ `tags` | array | Tags |
+
+### `datadog_mute_monitor`
+
+Mute a monitor to temporarily suppress notifications.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `monitorId` | string | Yes | The ID of the monitor to mute \(e.g., "12345678"\) |
+| `scope` | string | No | Scope to mute \(e.g., "host:myhost", "env:prod"\). If not specified, mutes all scopes. |
+| `end` | number | No | Unix timestamp in seconds when the mute should end \(e.g., 1705323600\). If not specified, mutes indefinitely. |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the monitor was successfully muted |
+
+### `datadog_query_logs`
+
+Search and retrieve logs from Datadog. Use for troubleshooting, analysis, or monitoring.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Log search query using Datadog query syntax \(e.g., "service:web-app status:error", "host:prod-* @http.status_code:500"\) |
+| `from` | string | Yes | Start time in ISO-8601 format or relative time \(e.g., "now-1h", "now-15m", "2024-01-15T10:00:00Z"\) |
+| `to` | string | Yes | End time in ISO-8601 format or relative time \(e.g., "now", "now-5m", "2024-01-15T12:00:00Z"\) |
+| `limit` | number | No | Maximum number of logs to return \(e.g., 50, 100, max: 1000\) |
+| `sort` | string | No | Sort order: "timestamp" for oldest first, "-timestamp" for newest first |
+| `indexes` | string | No | Comma-separated list of log indexes to search |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `logs` | array | List of log entries |
+|   ↳ `id` | string | Log ID |
+|   ↳ `content` | object | Log content |
+|     ↳ `timestamp` | string | Log timestamp |
+|     ↳ `host` | string | Host name |
+|     ↳ `service` | string | Service name |
+|     ↳ `message` | string | Log message |
+|     ↳ `status` | string | Log status/level |
+| `nextLogId` | string | Cursor for pagination |
+
+### `datadog_send_logs`
+
+Send log entries to Datadog for centralized logging and analysis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `logs` | string | Yes | JSON array of log entries. Each entry should have message and optionally ddsource, ddtags, hostname, service. |
+| `apiKey` | string | Yes | Datadog API key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the logs were sent successfully |
+
+### `datadog_create_downtime`
+
+Schedule a downtime to suppress monitor notifications during maintenance windows.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `scope` | string | Yes | Scope to apply downtime to \(e.g., "host:myhost", "env:production", or "*" for all\) |
+| `message` | string | No | Message to display during downtime |
+| `start` | number | No | Unix timestamp for downtime start in seconds \(e.g., 1705320000, defaults to now\) |
+| `end` | number | No | Unix timestamp for downtime end in seconds \(e.g., 1705323600\) |
+| `timezone` | string | No | Timezone for the downtime \(e.g., "America/New_York", "UTC", "Europe/London"\) |
+| `monitorId` | string | No | Specific monitor ID to mute \(e.g., "12345678"\) |
+| `monitorTags` | string | No | Comma-separated monitor tags to match \(e.g., "team:backend,priority:high"\) |
+| `muteFirstRecoveryNotification` | boolean | No | Mute the first recovery notification |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `downtime` | object | The created downtime details |
+|   ↳ `id` | number | Downtime ID |
+|   ↳ `scope` | array | Downtime scope |
+|   ↳ `message` | string | Downtime message |
+|   ↳ `start` | number | Start time \(Unix timestamp\) |
+|   ↳ `end` | number | End time \(Unix timestamp\) |
+|   ↳ `active` | boolean | Whether downtime is currently active |
+
+### `datadog_list_downtimes`
+
+List all scheduled downtimes in Datadog.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `currentOnly` | boolean | No | Only return currently active downtimes |
+| `monitorId` | string | No | Filter by monitor ID \(e.g., "12345678"\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `downtimes` | array | List of downtimes |
+|   ↳ `id` | number | Downtime ID |
+|   ↳ `scope` | array | Downtime scope |
+|   ↳ `message` | string | Downtime message |
+|   ↳ `start` | number | Start time \(Unix timestamp\) |
+|   ↳ `end` | number | End time \(Unix timestamp\) |
+|   ↳ `active` | boolean | Whether downtime is currently active |
+
+### `datadog_cancel_downtime`
+
+Cancel a scheduled downtime.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `downtimeId` | string | Yes | The ID of the downtime to cancel \(e.g., "abc123def456"\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the downtime was successfully canceled |
+
+

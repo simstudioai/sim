@@ -1,0 +1,61 @@
+---
+title: Google Search
+description: Search the web
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_search"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Search](https://www.google.com) is the world's most widely used web search engine, making it easy to find information, discover new content, and answer questions in real time.
+
+With the Google Search integration in Sim, you can:
+
+- **Search the web**: Perform queries using Google's Custom Search API and retrieve structured search results with titles, snippets, and URLs
+
+In Sim, the Google Search integration allows your agents to search the web and retrieve live information as part of automated workflows. This enables use cases such as automated research, fact-checking, knowledge synthesis, and dynamic content discovery.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Google Search into the workflow. Can search the web.
+
+
+
+## Tools
+
+### `google_search`
+
+Search the web with the Custom Search API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | The search query to execute |
+| `searchEngineId` | string | Yes | Custom Search Engine ID |
+| `num` | string | No | Number of results to return \(default: 10, max: 10\) |
+| `apiKey` | string | Yes | Google API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of search results from Google |
+|   ↳ `title` | string | Title of the search result |
+|   ↳ `link` | string | URL of the search result |
+|   ↳ `snippet` | string | Snippet or description of the search result |
+|   ↳ `displayLink` | string | Display URL \(abbreviated form\) |
+|   ↳ `pagemap` | object | PageMap information for the result \(structured data\) |
+| `searchInformation` | object | Information about the search query and results |
+|   ↳ `totalResults` | string | Total number of search results available |
+|   ↳ `searchTime` | number | Time taken to perform the search in seconds |
+|   ↳ `formattedSearchTime` | string | Formatted search time for display |
+|   ↳ `formattedTotalResults` | string | Formatted total results count for display |
+
+

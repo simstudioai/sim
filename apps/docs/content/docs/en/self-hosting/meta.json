@@ -1,0 +1,12 @@
+{
+  "title": "Self-Hosting",
+  "pages": [
+    "index",
+    "docker",
+    "kubernetes",
+    "platforms",
+    "environment-variables",
+    "troubleshooting"
+  ],
+  "defaultOpen": false
+}

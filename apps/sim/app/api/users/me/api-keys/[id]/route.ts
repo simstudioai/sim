@@ -1,0 +1,63 @@
+import { db } from '@sim/db'
+import { apiKey } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { and, eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { getSession } from '@/lib/auth'
+import { generateRequestId } from '@/lib/core/utils/request'
+
+const logger = createLogger('ApiKeyAPI')
+
+// DELETE /api/users/me/api-keys/[id] - Delete an API key
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const requestId = generateRequestId()
+  const { id } = await params
+
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const userId = session.user.id
+    const keyId = id
+
+    if (!keyId) {
+      return NextResponse.json({ error: 'API key ID is required' }, { status: 400 })
+    }
+
+    // Delete the API key, ensuring it belongs to the current user
+    const result = await db
+      .delete(apiKey)
+      .where(and(eq(apiKey.id, keyId), eq(apiKey.userId, userId)))
+      .returning({ id: apiKey.id, name: apiKey.name })
+
+    if (!result.length) {
+      return NextResponse.json({ error: 'API key not found' }, { status: 404 })
+    }
+
+    const deletedKey = result[0]
+
+    recordAudit({
+      workspaceId: null,
+      actorId: userId,
+      action: AuditAction.PERSONAL_API_KEY_REVOKED,
+      resourceType: AuditResourceType.API_KEY,
+      resourceId: keyId,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: deletedKey.name,
+      description: `Revoked personal API key: ${deletedKey.name}`,
+      request,
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    logger.error('Failed to delete API key', { error })
+    return NextResponse.json({ error: 'Failed to delete API key' }, { status: 500 })
+  }
+}

@@ -1,0 +1,48 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/packages/**/node_modules
+
+# bun specific
+.bun
+bun.lockb
+bun-debug.log*
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+/dist
+**/dist/
+**/standalone/
+sim-standalone.tar.gz
+
+# misc
+.DS_Store
+*.pem
+
+# env files
+.env
+*.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Uploads
+/uploads
+
+.trigger

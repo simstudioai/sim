@@ -1,0 +1,60 @@
+---
+title: 翻译
+description: 将文本翻译成任何语言
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="translate"
+  color="#FF4B4B"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+翻译是一种工具，可以让您在不同语言之间翻译文本。
+
+使用翻译工具，您可以：
+
+- **翻译文本**：在不同语言之间翻译文本
+- **翻译文档**：在不同语言之间翻译文档
+- **翻译网站**：在不同语言之间翻译网站
+- **翻译图片**：在不同语言之间翻译图片
+- **翻译音频**：在不同语言之间翻译音频
+- **翻译视频**：在不同语言之间翻译视频
+- **翻译语音**：在不同语言之间翻译语音
+- **翻译文本**：在不同语言之间翻译文本
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Translate 集成到工作流程中。可以将文本翻译成任何语言。
+
+## 工具
+
+### `llm_chat`
+
+向任何支持的 LLM 提供商发送聊天完成请求
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `model` | string | 是 | 要使用的模型（例如，gpt-4o、claude-sonnet-4-5、gemini-2.0-flash） |
+| `systemPrompt` | string | 否 | 设置助手行为的 system prompt |
+| `context` | string | 是 | 发送给模型的用户消息或上下文 |
+| `apiKey` | string | 否 | 提供方的 API key（如未提供，托管模型将使用平台密钥） |
+| `temperature` | number | 否 | 响应生成的 temperature（0-2） |
+| `maxTokens` | number | 否 | 响应中的最大 tokens 数 |
+| `azureEndpoint` | string | 否 | Azure OpenAI endpoint URL |
+| `azureApiVersion` | string | 否 | Azure OpenAI API 版本 |
+| `vertexProject` | string | 否 | Vertex AI 的 Google Cloud 项目 ID |
+| `vertexLocation` | string | 否 | Vertex AI 的 Google Cloud 区域（默认为 us-central1） |
+| `vertexCredential` | string | 否 | Vertex AI 的 Google Cloud OAuth 凭证 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 生成的响应内容 |
+| `model` | string | 用于生成的模型 |
+| `tokens` | object | 令牌使用信息 |

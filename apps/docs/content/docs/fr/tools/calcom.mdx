@@ -1,0 +1,784 @@
+---
+title: Cal Com
+description: Gérer les réservations, types d'événements, plannings et disponibilités Cal.com
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="calcom"
+  color="#FFFFFE"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Cal.com](https://cal.com/) est une plateforme de planification flexible et open-source qui facilite la gestion des rendez-vous, réservations, types d'événements et disponibilités d'équipe.
+
+Avec Cal.com, vous pouvez :
+
+- **Automatiser la planification** : permettre aux utilisateurs de consulter vos créneaux disponibles et de réserver des réunions automatiquement, sans échanges d'e-mails.
+- **Gérer les événements** : créer et personnaliser les types d'événements, durées et règles pour les réunions individuelles ou de groupe.
+- **Intégrer les calendriers** : se connecter facilement avec Google, Outlook, Apple ou d'autres fournisseurs de calendrier pour éviter les doubles réservations.
+- **Gérer les participants et invités** : collecter les informations des participants, gérer les invités et envoyer des invitations ou rappels.
+- **Contrôler la disponibilité** : définir des horaires de travail personnalisés, des temps de battement et des règles d'annulation/reprogrammation.
+- **Automatiser les workflows** : déclencher des actions personnalisées via webhooks lors de la création, l'annulation ou la reprogrammation d'une réservation.
+
+Dans Sim, l'intégration Cal.com permet à vos agents de réserver des réunions, vérifier les disponibilités, gérer les types d'événements et automatiser les tâches de planification de manière programmatique. Cela aide les agents à coordonner les réunions, envoyer des réservations au nom des utilisateurs, vérifier les plannings ou répondre aux événements de réservation, le tout sans intervention manuelle. En connectant Sim avec Cal.com, vous débloquez des workflows de planification hautement automatisés et intelligents qui s'intègrent parfaitement à vos besoins d'automatisation plus larges.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Cal.com dans votre workflow. Créez et gérez des réservations, types d'événements, plannings et vérifiez les créneaux de disponibilité. Prend en charge la création, le listage, la reprogrammation et l'annulation de réservations, ainsi que la gestion des types d'événements et des plannings. Peut également déclencher des workflows basés sur les événements webhook Cal.com (réservation créée, annulée, reprogrammée). Connectez votre compte Cal.com via OAuth.
+
+## Outils
+
+### `calcom_create_booking`
+
+Créer une nouvelle réservation sur Cal.com
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `eventTypeId` | number | Oui | L'ID du type d'événement à réserver |
+| `start` | string | Oui | Heure de début au format UTC ISO 8601 \(par ex., 2024-01-15T09:00:00Z\) |
+| `attendee` | object | Oui | Objet d'informations du participant avec nom, email, fuseau horaire et numéro de téléphone optionnel \(construit à partir des champs individuels du participant\) |
+| `guests` | array | Non | Tableau des adresses email des invités |
+| `items` | string | Non | Adresse email de l'invité |
+| `lengthInMinutes` | number | Non | Durée de la réservation en minutes \(remplace la valeur par défaut du type d'événement\) |
+| `metadata` | object | Non | Métadonnées personnalisées à joindre à la réservation |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Statut de la réponse |
+| `data` | object | Détails de la réservation créée |
+|   ↳ `eventType` | object | Détails du type d'événement |
+|     ↳ `id` | number | ID du type d'événement |
+|     ↳ `slug` | string | Slug du type d'événement |
+|   ↳ `attendees` | array | Liste des participants |
+|     ↳ `name` | string | Nom du participant |
+|     ↳ `email` | string | Adresse email réelle du participant |
+|     ↳ `displayEmail` | string | Email affiché publiquement \(peut différer de l'email réel\) |
+|     ↳ `timeZone` | string | Fuseau horaire du participant \(format IANA\) |
+|     ↳ `phoneNumber` | string | Numéro de téléphone du participant |
+|     ↳ `language` | string | Préférence de langue du participant \(code ISO\) |
+|     ↳ `absent` | boolean | Si le participant était absent |
+|   ↳ `hosts` | array | Liste des hôtes |
+|     ↳ `id` | number | ID utilisateur de l'hôte |
+|     ↳ `name` | string | Nom d'affichage de l'hôte |
+|     ↳ `email` | string | Adresse email réelle de l'hôte |
+|     ↳ `displayEmail` | string | Email affiché publiquement \(peut différer de l'email réel\) |
+|     ↳ `username` | string | Nom d'utilisateur Cal.com de l'hôte |
+|     ↳ `timeZone` | string | Fuseau horaire de l'hôte \(format IANA\) |
+|   ↳ `id` | number | ID numérique de la réservation |
+|   ↳ `uid` | string | Identifiant unique de la réservation |
+|   ↳ `title` | string | Titre de la réservation |
+|   ↳ `status` | string | Statut de la réservation \(par ex., acceptée, en attente, annulée\) |
+|   ↳ `start` | string | Heure de début au format ISO 8601 |
+|   ↳ `end` | string | Heure de fin au format ISO 8601 |
+|   ↳ `duration` | number | Durée en minutes |
+|   ↳ `eventTypeId` | number | ID du type d'événement |
+|   ↳ `meetingUrl` | string | URL pour rejoindre la réunion |
+|   ↳ `location` | string | Lieu de la réservation |
+|   ↳ `absentHost` | boolean | Si l'hôte était absent |
+|   ↳ `guests` | array | Adresses email des invités |
+|   ↳ `bookingFieldsResponses` | json | Réponses aux champs personnalisés de réservation \(clés dynamiques basées sur la configuration du type d'événement\) |
+|   ↳ `metadata` | json | Métadonnées personnalisées jointes à la réservation \(paires clé-valeur dynamiques\) |
+|   ↳ `icsUid` | string | UID du calendrier ICS |
+|   ↳ `createdAt` | string | Date de création de la réservation |
+
+### `calcom_get_booking`
+
+Obtenir les détails d'une réservation spécifique par son UID
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | Oui | Identifiant unique \(UID\) de la réservation |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Statut de la réponse |
+| `data` | object | Détails de la réservation |
+|   ↳ `eventType` | object | Détails du type d'événement |
+|     ↳ `id` | number | ID du type d'événement |
+|     ↳ `slug` | string | Slug du type d'événement |
+|   ↳ `attendees` | array | Liste des participants |
+|     ↳ `name` | string | Nom du participant |
+|     ↳ `email` | string | Adresse e-mail réelle du participant |
+|     ↳ `displayEmail` | string | E-mail affiché publiquement \(peut différer de l'e-mail réel\) |
+|     ↳ `timeZone` | string | Fuseau horaire du participant \(format IANA\) |
+|     ↳ `phoneNumber` | string | Numéro de téléphone du participant |
+|     ↳ `language` | string | Préférence linguistique du participant \(code ISO\) |
+|     ↳ `absent` | boolean | Si le participant était absent |
+|   ↳ `hosts` | array | Liste des hôtes |
+|     ↳ `id` | number | ID utilisateur de l'hôte |
+|     ↳ `name` | string | Nom d'affichage de l'hôte |
+|     ↳ `email` | string | Adresse e-mail réelle de l'hôte |
+|     ↳ `displayEmail` | string | E-mail affiché publiquement \(peut différer de l'e-mail réel\) |
+|     ↳ `username` | string | Nom d'utilisateur Cal.com de l'hôte |
+|     ↳ `timeZone` | string | Fuseau horaire de l'hôte \(format IANA\) |
+|   ↳ `id` | number | ID numérique de la réservation |
+|   ↳ `uid` | string | Identifiant unique de la réservation |
+|   ↳ `title` | string | Titre de la réservation |
+|   ↳ `description` | string | Description de la réservation |
+|   ↳ `status` | string | Statut de la réservation \(par ex., acceptée, en attente, annulée\) |
+|   ↳ `start` | string | Heure de début au format ISO 8601 |
+|   ↳ `end` | string | Heure de fin au format ISO 8601 |
+|   ↳ `duration` | number | Durée en minutes |
+|   ↳ `eventTypeId` | number | ID du type d'événement |
+|   ↳ `meetingUrl` | string | URL pour rejoindre la réunion |
+|   ↳ `location` | string | Lieu de la réservation |
+|   ↳ `absentHost` | boolean | Si l'hôte était absent |
+|   ↳ `guests` | array | Adresses e-mail des invités |
+|   ↳ `bookingFieldsResponses` | json | Réponses aux champs de réservation personnalisés \(clés dynamiques basées sur la configuration du type d'événement\) |
+|   ↳ `metadata` | json | Métadonnées personnalisées attachées à la réservation \(paires clé-valeur dynamiques\) |
+|   ↳ `rating` | number | Note de la réservation |
+|   ↳ `icsUid` | string | UID du calendrier ICS |
+|   ↳ `cancellationReason` | string | Raison de l'annulation si annulée |
+|   ↳ `reschedulingReason` | string | Raison du report si reportée |
+|   ↳ `rescheduledFromUid` | string | UID de la réservation d'origine si cette réservation a été reportée |
+|   ↳ `rescheduledToUid` | string | Nouvel UID de réservation après report |
+|   ↳ `cancelledByEmail` | string | E-mail de la personne qui a annulé la réservation |
+|   ↳ `rescheduledByEmail` | string | E-mail de la personne qui a reporté la réservation |
+|   ↳ `createdAt` | string | Date de création de la réservation |
+|   ↳ `updatedAt` | string | Date de dernière mise à jour de la réservation |
+
+### `calcom_list_bookings`
+
+Lister toutes les réservations avec filtre de statut optionnel
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `status` | string | Non | Filtrer les réservations par statut : upcoming, recurring, past, cancelled ou unconfirmed |
+| `take` | number | Non | Nombre de réservations à retourner \(limite de pagination\) |
+| `skip` | number | Non | Nombre de réservations à ignorer \(décalage de pagination\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Statut de la réponse |
+| `data` | array | Tableau de réservations |
+|   ↳ `eventType` | object | Détails du type d'événement |
+|     ↳ `id` | number | ID du type d'événement |
+|     ↳ `slug` | string | Slug du type d'événement |
+|   ↳ `attendees` | array | Liste des participants |
+|     ↳ `name` | string | Nom du participant |
+|     ↳ `email` | string | Adresse e-mail réelle du participant |
+|     ↳ `displayEmail` | string | E-mail affiché publiquement \(peut différer de l'e-mail réel\) |
+|     ↳ `timeZone` | string | Fuseau horaire du participant \(format IANA\) |
+|     ↳ `phoneNumber` | string | Numéro de téléphone du participant |
+|     ↳ `language` | string | Préférence de langue du participant \(code ISO\) |
+|     ↳ `absent` | boolean | Si le participant était absent |
+|   ↳ `hosts` | array | Liste des hôtes |
+|     ↳ `id` | number | ID utilisateur de l'hôte |
+|     ↳ `name` | string | Nom d'affichage de l'hôte |
+|     ↳ `email` | string | Adresse e-mail réelle de l'hôte |
+|     ↳ `displayEmail` | string | E-mail affiché publiquement \(peut différer de l'e-mail réel\) |
+|     ↳ `username` | string | Nom d'utilisateur Cal.com de l'hôte |
+|     ↳ `timeZone` | string | Fuseau horaire de l'hôte \(format IANA\) |
+|   ↳ `id` | number | ID numérique de la réservation |
+|   ↳ `uid` | string | Identifiant unique de la réservation |
+|   ↳ `title` | string | Titre de la réservation |
+|   ↳ `description` | string | Description de la réservation |
+|   ↳ `status` | string | Statut de la réservation \(par ex. accepted, pending, cancelled\) |
+|   ↳ `start` | string | Heure de début au format ISO 8601 |
+|   ↳ `end` | string | Heure de fin au format ISO 8601 |
+|   ↳ `duration` | number | Durée en minutes |
+|   ↳ `eventTypeId` | number | ID du type d'événement |
+|   ↳ `meetingUrl` | string | URL pour rejoindre la réunion |
+|   ↳ `location` | string | Lieu de la réservation |
+|   ↳ `absentHost` | boolean | Si l'hôte était absent |
+|   ↳ `guests` | array | Adresses e-mail des invités |
+|   ↳ `bookingFieldsResponses` | json | Réponses aux champs personnalisés de réservation \(clés dynamiques basées sur la configuration du type d'événement\) |
+|   ↳ `metadata` | json | Métadonnées personnalisées attachées à la réservation \(paires clé-valeur dynamiques\) |
+|   ↳ `rating` | number | Note de la réservation |
+|   ↳ `icsUid` | string | UID du calendrier ICS |
+|   ↳ `cancellationReason` | string | Raison de l'annulation si annulée |
+|   ↳ `cancelledByEmail` | string | E-mail de la personne qui a annulé la réservation |
+|   ↳ `reschedulingReason` | string | Raison du report si reportée |
+|   ↳ `rescheduledByEmail` | string | E-mail de la personne qui a reporté la réservation |
+|   ↳ `rescheduledFromUid` | string | UID de la réservation d'origine si cette réservation a été reportée |
+|   ↳ `rescheduledToUid` | string | Nouvel UID de réservation après report |
+|   ↳ `createdAt` | string | Date de création de la réservation |
+|   ↳ `updatedAt` | string | Date de dernière mise à jour de la réservation |
+| `pagination` | object | Métadonnées de pagination |
+|   ↳ `totalItems` | number | Nombre total d'éléments |
+|   ↳ `remainingItems` | number | Éléments restants après la page actuelle |
+|   ↳ `returnedItems` | number | Nombre d'éléments retournés dans cette réponse |
+|   ↳ `itemsPerPage` | number | Éléments par page |
+|   ↳ `currentPage` | number | Numéro de page actuelle |
+|   ↳ `totalPages` | number | Nombre total de pages |
+|   ↳ `hasNextPage` | boolean | S'il existe une page suivante |
+|   ↳ `hasPreviousPage` | boolean | S'il existe une page précédente |
+
+### `calcom_cancel_booking`
+
+Annuler une réservation existante
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | Oui | Identifiant unique \(UID\) de la réservation à annuler |
+| `cancellationReason` | string | Non | Raison de l'annulation de la réservation |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Statut de la réponse |
+| `data` | object | Détails de la réservation annulée |
+|   ↳ `eventType` | object | Détails du type d'événement |
+|     ↳ `id` | number | ID du type d'événement |
+|     ↳ `slug` | string | Slug du type d'événement |
+|   ↳ `attendees` | array | Liste des participants |
+|     ↳ `name` | string | Nom du participant |
+|     ↳ `email` | string | Adresse e-mail réelle du participant |
+|     ↳ `displayEmail` | string | E-mail affiché publiquement \(peut différer de l'e-mail réel\) |
+|     ↳ `timeZone` | string | Fuseau horaire du participant \(format IANA\) |
+|     ↳ `phoneNumber` | string | Numéro de téléphone du participant |
+|     ↳ `language` | string | Préférence linguistique du participant \(code ISO\) |
+|     ↳ `absent` | boolean | Si le participant était absent |
+|   ↳ `hosts` | array | Liste des hôtes |
+|     ↳ `id` | number | ID utilisateur de l'hôte |
+|     ↳ `name` | string | Nom d'affichage de l'hôte |
+|     ↳ `email` | string | Adresse e-mail réelle de l'hôte |
+|     ↳ `displayEmail` | string | E-mail affiché publiquement \(peut différer de l'e-mail réel\) |
+|     ↳ `username` | string | Nom d'utilisateur Cal.com de l'hôte |
+|     ↳ `timeZone` | string | Fuseau horaire de l'hôte \(format IANA\) |
+|   ↳ `id` | number | ID numérique de la réservation |
+|   ↳ `uid` | string | Identifiant unique de la réservation |
+|   ↳ `title` | string | Titre de la réservation |
+|   ↳ `cancellationReason` | string | Raison de l'annulation si annulée |
+|   ↳ `cancelledByEmail` | string | E-mail de la personne qui a annulé la réservation |
+|   ↳ `start` | string | Heure de début au format ISO 8601 |
+|   ↳ `end` | string | Heure de fin au format ISO 8601 |
+|   ↳ `duration` | number | Durée en minutes |
+|   ↳ `eventTypeId` | number | ID du type d'événement |
+|   ↳ `location` | string | Lieu de la réservation |
+|   ↳ `metadata` | json | Métadonnées personnalisées attachées à la réservation \(paires clé-valeur dynamiques\) |
+|   ↳ `createdAt` | string | Date de création de la réservation |
+|   ↳ `status` | string | Statut de la réservation \(devrait être annulée\) |
+
+### `calcom_reschedule_booking`
+
+Reprogrammer une réservation existante à une nouvelle heure
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | Oui | Identifiant unique \(UID\) de la réservation à reprogrammer |
+| `start` | string | Oui | Nouvelle heure de début au format ISO 8601 UTC \(par ex., 2024-01-15T09:00:00Z\) |
+| `reschedulingReason` | string | Non | Raison de la reprogrammation de la réservation |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Statut de la réponse |
+| `data` | object | Détails de la réservation reprogrammée |
+|   ↳ `eventType` | object | Détails du type d'événement |
+|     ↳ `id` | number | ID du type d'événement |
+|     ↳ `slug` | string | Slug du type d'événement |
+|   ↳ `attendees` | array | Liste des participants |
+|     ↳ `name` | string | Nom du participant |
+|     ↳ `email` | string | Adresse e-mail réelle du participant |
+|     ↳ `displayEmail` | string | E-mail affiché publiquement \(peut différer de l'e-mail réel\) |
+|     ↳ `timeZone` | string | Fuseau horaire du participant \(format IANA\) |
+|     ↳ `phoneNumber` | string | Numéro de téléphone du participant |
+|     ↳ `language` | string | Préférence de langue du participant \(code ISO\) |
+|     ↳ `absent` | boolean | Si le participant était absent |
+|   ↳ `hosts` | array | Liste des hôtes |
+|     ↳ `id` | number | ID utilisateur de l'hôte |
+|     ↳ `name` | string | Nom d'affichage de l'hôte |
+|     ↳ `email` | string | Adresse e-mail réelle de l'hôte |
+|     ↳ `displayEmail` | string | E-mail affiché publiquement \(peut différer de l'e-mail réel\) |
+|     ↳ `username` | string | Nom d'utilisateur Cal.com de l'hôte |
+|     ↳ `timeZone` | string | Fuseau horaire de l'hôte \(format IANA\) |
+|   ↳ `id` | number | ID numérique de la réservation |
+|   ↳ `title` | string | Titre de la réservation |
+|   ↳ `status` | string | Statut de la réservation \(par ex., acceptée, en attente, annulée\) |
+|   ↳ `reschedulingReason` | string | Raison de la reprogrammation si reprogrammée |
+|   ↳ `rescheduledFromUid` | string | UID de la réservation d'origine si cette réservation a été reprogrammée |
+|   ↳ `rescheduledByEmail` | string | E-mail de la personne qui a reprogrammé la réservation |
+|   ↳ `duration` | number | Durée en minutes |
+|   ↳ `eventTypeId` | number | ID du type d'événement |
+|   ↳ `meetingUrl` | string | URL pour rejoindre la réunion |
+|   ↳ `location` | string | Lieu de la réservation |
+|   ↳ `guests` | array | Adresses e-mail des invités |
+|   ↳ `metadata` | json | Métadonnées personnalisées attachées à la réservation \(paires clé-valeur dynamiques\) |
+|   ↳ `icsUid` | string | UID du calendrier ICS |
+|   ↳ `createdAt` | string | Date de création de la réservation |
+|   ↳ `uid` | string | Identifiant unique de la nouvelle réservation |
+|   ↳ `start` | string | Nouvelle heure de début au format ISO 8601 |
+|   ↳ `end` | string | Nouvelle heure de fin au format ISO 8601 |
+
+### `calcom_confirm_booking`
+
+Confirmer une réservation en attente qui nécessite une confirmation
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | Oui | Identifiant unique \(UID\) de la réservation à confirmer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Statut de la réponse |
+| `data` | object | Détails de la réservation confirmée |
+|   ↳ `eventType` | object | Détails du type d'événement |
+|     ↳ `id` | number | ID du type d'événement |
+|     ↳ `slug` | string | Slug du type d'événement |
+|   ↳ `attendees` | array | Liste des participants |
+|     ↳ `name` | string | Nom du participant |
+|     ↳ `email` | string | Adresse e-mail réelle du participant |
+|     ↳ `displayEmail` | string | E-mail affiché publiquement \(peut différer de l'e-mail réel\) |
+|     ↳ `timeZone` | string | Fuseau horaire du participant \(format IANA\) |
+|     ↳ `phoneNumber` | string | Numéro de téléphone du participant |
+|     ↳ `language` | string | Préférence linguistique du participant \(code ISO\) |
+|     ↳ `absent` | boolean | Indique si le participant était absent |
+|   ↳ `hosts` | array | Liste des hôtes |
+|     ↳ `id` | number | ID utilisateur de l'hôte |
+|     ↳ `name` | string | Nom d'affichage de l'hôte |
+|     ↳ `email` | string | Adresse e-mail réelle de l'hôte |
+|     ↳ `displayEmail` | string | E-mail affiché publiquement \(peut différer de l'e-mail réel\) |
+|     ↳ `username` | string | Nom d'utilisateur Cal.com de l'hôte |
+|     ↳ `timeZone` | string | Fuseau horaire de l'hôte \(format IANA\) |
+|   ↳ `id` | number | ID numérique de la réservation |
+|   ↳ `uid` | string | Identifiant unique de la réservation |
+|   ↳ `title` | string | Titre de la réservation |
+|   ↳ `start` | string | Heure de début au format ISO 8601 |
+|   ↳ `end` | string | Heure de fin au format ISO 8601 |
+|   ↳ `duration` | number | Durée en minutes |
+|   ↳ `eventTypeId` | number | ID du type d'événement |
+|   ↳ `meetingUrl` | string | URL pour rejoindre la réunion |
+|   ↳ `location` | string | Lieu de la réservation |
+|   ↳ `guests` | array | Adresses e-mail des invités |
+|   ↳ `metadata` | json | Métadonnées personnalisées attachées à la réservation \(paires clé-valeur dynamiques\) |
+|   ↳ `icsUid` | string | UID du calendrier ICS |
+|   ↳ `createdAt` | string | Date de création de la réservation |
+|   ↳ `status` | string | Statut de la réservation \(doit être acceptée/confirmée\) |
+
+### `calcom_decline_booking`
+
+Refuser une demande de réservation en attente
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | Oui | Identifiant unique \(UID\) de la réservation à refuser |
+| `reason` | string | Non | Raison du refus de la réservation |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Statut de la réponse |
+| `data` | object | Détails de la réservation refusée |
+|   ↳ `eventType` | object | Détails du type d'événement |
+|     ↳ `id` | number | ID du type d'événement |
+|     ↳ `slug` | string | Slug du type d'événement |
+|   ↳ `attendees` | array | Liste des participants |
+|     ↳ `name` | string | Nom du participant |
+|     ↳ `email` | string | Adresse e-mail réelle du participant |
+|     ↳ `displayEmail` | string | E-mail affiché publiquement \(peut différer de l'e-mail réel\) |
+|     ↳ `timeZone` | string | Fuseau horaire du participant \(format IANA\) |
+|     ↳ `phoneNumber` | string | Numéro de téléphone du participant |
+|     ↳ `language` | string | Préférence linguistique du participant \(code ISO\) |
+|     ↳ `absent` | boolean | Si le participant était absent |
+|   ↳ `hosts` | array | Liste des hôtes |
+|     ↳ `id` | number | ID utilisateur de l'hôte |
+|     ↳ `name` | string | Nom d'affichage de l'hôte |
+|     ↳ `email` | string | Adresse e-mail réelle de l'hôte |
+|     ↳ `displayEmail` | string | E-mail affiché publiquement \(peut différer de l'e-mail réel\) |
+|     ↳ `username` | string | Nom d'utilisateur Cal.com de l'hôte |
+|     ↳ `timeZone` | string | Fuseau horaire de l'hôte \(format IANA\) |
+|   ↳ `id` | number | ID numérique de la réservation |
+|   ↳ `uid` | string | Identifiant unique de la réservation |
+|   ↳ `title` | string | Titre de la réservation |
+|   ↳ `cancellationReason` | string | Raison de l'annulation si annulée |
+|   ↳ `start` | string | Heure de début au format ISO 8601 |
+|   ↳ `end` | string | Heure de fin au format ISO 8601 |
+|   ↳ `duration` | number | Durée en minutes |
+|   ↳ `eventTypeId` | number | ID du type d'événement |
+|   ↳ `location` | string | Lieu de la réservation |
+|   ↳ `metadata` | json | Métadonnées personnalisées attachées à la réservation \(paires clé-valeur dynamiques\) |
+|   ↳ `createdAt` | string | Date de création de la réservation |
+|   ↳ `status` | string | Statut de la réservation \(devrait être annulée/refusée\) |
+
+### `calcom_create_event_type`
+
+Créer un nouveau type d'événement dans Cal.com
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Oui | Titre du type d'événement |
+| `slug` | string | Oui | Slug unique pour l'URL du type d'événement |
+| `lengthInMinutes` | number | Oui | Durée de l'événement en minutes |
+| `description` | string | Non | Description du type d'événement |
+| `slotInterval` | number | Non | Intervalle entre les créneaux de réservation disponibles en minutes |
+| `minimumBookingNotice` | number | Non | Délai minimum requis avant la réservation en minutes |
+| `beforeEventBuffer` | number | Non | Temps de battement avant l'événement en minutes |
+| `afterEventBuffer` | number | Non | Temps de battement après l'événement en minutes |
+| `scheduleId` | number | Non | ID du planning à utiliser pour les disponibilités |
+| `disableGuests` | boolean | Non | Indique si l'ajout d'invités aux réservations est désactivé |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Statut de la réponse |
+| `data` | object | Détails du type d'événement créé |
+|   ↳ `id` | number | ID du type d'événement |
+|   ↳ `title` | string | Titre du type d'événement |
+|   ↳ `slug` | string | Slug du type d'événement |
+|   ↳ `description` | string | Description du type d'événement |
+|   ↳ `lengthInMinutes` | number | Durée en minutes |
+|   ↳ `slotInterval` | number | Intervalle de créneau en minutes |
+|   ↳ `minimumBookingNotice` | number | Délai minimum de réservation en minutes |
+|   ↳ `beforeEventBuffer` | number | Temps de battement avant l'événement en minutes |
+|   ↳ `afterEventBuffer` | number | Temps de battement après l'événement en minutes |
+|   ↳ `scheduleId` | number | ID du planning |
+|   ↳ `disableGuests` | boolean | Indique si les invités sont désactivés |
+|   ↳ `createdAt` | string | Horodatage ISO de la création |
+|   ↳ `updatedAt` | string | Horodatage ISO de la dernière mise à jour |
+
+### `calcom_get_event_type`
+
+Obtenir des informations détaillées sur un type d'événement spécifique
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `eventTypeId` | number | Oui | ID du type d'événement à récupérer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Statut de la réponse |
+| `data` | object | Détails du type d'événement |
+|   ↳ `id` | number | ID du type d'événement |
+|   ↳ `title` | string | Titre du type d'événement |
+|   ↳ `slug` | string | Slug du type d'événement |
+|   ↳ `description` | string | Description du type d'événement |
+|   ↳ `lengthInMinutes` | number | Durée en minutes |
+|   ↳ `slotInterval` | number | Intervalle de créneau en minutes |
+|   ↳ `minimumBookingNotice` | number | Préavis minimum de réservation en minutes |
+|   ↳ `beforeEventBuffer` | number | Tampon avant l'événement en minutes |
+|   ↳ `afterEventBuffer` | number | Tampon après l'événement en minutes |
+|   ↳ `scheduleId` | number | ID du planning |
+|   ↳ `disableGuests` | boolean | Indique si les invités sont désactivés |
+|   ↳ `createdAt` | string | Horodatage ISO de la création |
+|   ↳ `updatedAt` | string | Horodatage ISO de la dernière mise à jour |
+
+### `calcom_list_event_types`
+
+Récupérer une liste de tous les types d'événements
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `sortCreatedAt` | string | Non | Trier par date de création : « asc » ou « desc » |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Statut de la réponse |
+| `data` | array | Tableau des types d'événements |
+|   ↳ `id` | number | ID du type d'événement |
+|   ↳ `title` | string | Titre du type d'événement |
+|   ↳ `slug` | string | Slug du type d'événement |
+|   ↳ `description` | string | Description du type d'événement |
+|   ↳ `lengthInMinutes` | number | Durée en minutes |
+|   ↳ `slotInterval` | number | Intervalle de créneau en minutes |
+|   ↳ `minimumBookingNotice` | number | Préavis minimum de réservation en minutes |
+|   ↳ `beforeEventBuffer` | number | Tampon avant l'événement en minutes |
+|   ↳ `afterEventBuffer` | number | Tampon après l'événement en minutes |
+|   ↳ `scheduleId` | number | ID du planning |
+|   ↳ `disableGuests` | boolean | Indique si les invités sont désactivés |
+|   ↳ `createdAt` | string | Horodatage ISO de la création |
+|   ↳ `updatedAt` | string | Horodatage ISO de la dernière mise à jour |
+
+### `calcom_update_event_type`
+
+Mettre à jour un type d'événement existant dans Cal.com
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `eventTypeId` | number | Oui | ID du type d'événement à mettre à jour \(par ex., 12345\) |
+| `title` | string | Non | Titre du type d'événement |
+| `slug` | string | Non | Slug unique pour l'URL du type d'événement |
+| `lengthInMinutes` | number | Non | Durée de l'événement en minutes |
+| `description` | string | Non | Description du type d'événement |
+| `slotInterval` | number | Non | Intervalle entre les créneaux de réservation disponibles en minutes |
+| `minimumBookingNotice` | number | Non | Préavis minimum requis avant la réservation en minutes |
+| `beforeEventBuffer` | number | Non | Temps tampon avant l'événement en minutes |
+| `afterEventBuffer` | number | Non | Temps tampon après l'événement en minutes |
+| `scheduleId` | number | Non | ID du planning à utiliser pour la disponibilité |
+| `disableGuests` | boolean | Non | Indique s'il faut désactiver l'ajout d'invités aux réservations |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Statut de la réponse |
+| `data` | object | Détails du type d'événement mis à jour |
+|   ↳ `id` | number | ID du type d'événement |
+|   ↳ `title` | string | Titre du type d'événement |
+|   ↳ `slug` | string | Slug du type d'événement |
+|   ↳ `description` | string | Description du type d'événement |
+|   ↳ `lengthInMinutes` | number | Durée en minutes |
+|   ↳ `slotInterval` | number | Intervalle de créneau en minutes |
+|   ↳ `minimumBookingNotice` | number | Préavis minimum de réservation en minutes |
+|   ↳ `beforeEventBuffer` | number | Tampon avant l'événement en minutes |
+|   ↳ `afterEventBuffer` | number | Tampon après l'événement en minutes |
+|   ↳ `scheduleId` | number | ID du planning |
+|   ↳ `disableGuests` | boolean | Indique si les invités sont désactivés |
+|   ↳ `createdAt` | string | Horodatage ISO de la création |
+|   ↳ `updatedAt` | string | Horodatage ISO de la dernière mise à jour |
+
+### `calcom_delete_event_type`
+
+Supprimer un type d'événement de Cal.com
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `eventTypeId` | number | Oui | ID du type d'événement à supprimer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Statut de la réponse |
+| `data` | object | Détails du type d'événement supprimé |
+|   ↳ `id` | number | ID du type d'événement |
+|   ↳ `lengthInMinutes` | number | Durée en minutes |
+|   ↳ `title` | string | Titre du type d'événement |
+|   ↳ `slug` | string | Slug du type d'événement |
+
+### `calcom_create_schedule`
+
+Créer un nouveau planning de disponibilité dans Cal.com
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Oui | Nom du planning |
+| `timeZone` | string | Oui | Fuseau horaire du planning \(par ex., America/New_York\) |
+| `isDefault` | boolean | Oui | Indique si ce planning doit être le planning par défaut |
+| `availability` | array | Non | Intervalles de disponibilité pour le planning |
+| `items` | object | Non | Intervalle de disponibilité |
+| `properties` | array | Non | Jours de la semaine \(lundi, mardi, mercredi, jeudi, vendredi, samedi, dimanche\) |
+| `days` | array | Non | Jours de la semaine \(lundi, mardi, mercredi, jeudi, vendredi, samedi, dimanche\) |
+| `startTime` | string | Non | Heure de début au format HH:MM |
+| `endTime` | string | Non | Heure de fin au format HH:MM |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Statut de la réponse |
+| `data` | object | Données du planning créé |
+|   ↳ `id` | number | ID du planning |
+|   ↳ `ownerId` | number | ID de l'utilisateur propriétaire |
+|   ↳ `name` | string | Nom du planning |
+|   ↳ `timeZone` | string | Fuseau horaire \(par ex., America/New_York\) |
+|   ↳ `isDefault` | boolean | Indique s'il s'agit du planning par défaut |
+|   ↳ `availability` | array | Créneaux de disponibilité |
+|     ↳ `days` | array | Jours de la semaine \(lundi, mardi, etc.\) |
+|     ↳ `startTime` | string | Heure de début au format HH:MM |
+|     ↳ `endTime` | string | Heure de fin au format HH:MM |
+|   ↳ `overrides` | array | Remplacements de disponibilité spécifiques à une date |
+|     ↳ `date` | string | Date au format AAAA-MM-JJ |
+|     ↳ `startTime` | string | Heure de début au format HH:MM |
+|     ↳ `endTime` | string | Heure de fin au format HH:MM |
+
+### `calcom_get_schedule`
+
+Obtenir un planning spécifique par ID depuis Cal.com
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `scheduleId` | string | Oui | ID du planning à récupérer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Statut de la réponse |
+| `data` | object | Données du planning |
+|   ↳ `id` | number | ID du planning |
+|   ↳ `ownerId` | number | ID de l'utilisateur propriétaire |
+|   ↳ `name` | string | Nom du planning |
+|   ↳ `timeZone` | string | Fuseau horaire \(par ex., America/New_York\) |
+|   ↳ `isDefault` | boolean | Indique s'il s'agit du planning par défaut |
+|   ↳ `availability` | array | Créneaux de disponibilité |
+|     ↳ `days` | array | Jours de la semaine \(lundi, mardi, etc.\) |
+|     ↳ `startTime` | string | Heure de début au format HH:MM |
+|     ↳ `endTime` | string | Heure de fin au format HH:MM |
+|   ↳ `overrides` | array | Remplacements de disponibilité spécifiques à une date |
+|     ↳ `date` | string | Date au format AAAA-MM-JJ |
+|     ↳ `startTime` | string | Heure de début au format HH:MM |
+|     ↳ `endTime` | string | Heure de fin au format HH:MM |
+
+### `calcom_list_schedules`
+
+Lister tous les plannings de disponibilité depuis Cal.com
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Statut de la réponse |
+| `data` | array | Tableau d'objets planning |
+|   ↳ `id` | number | ID du planning |
+|   ↳ `ownerId` | number | ID de l'utilisateur propriétaire |
+|   ↳ `name` | string | Nom du planning |
+|   ↳ `timeZone` | string | Fuseau horaire \(par ex., America/New_York\) |
+|   ↳ `isDefault` | boolean | Indique s'il s'agit du planning par défaut |
+|   ↳ `availability` | array | Créneaux de disponibilité |
+|     ↳ `days` | array | Jours de la semaine \(lundi, mardi, etc.\) |
+|     ↳ `startTime` | string | Heure de début au format HH:MM |
+|     ↳ `endTime` | string | Heure de fin au format HH:MM |
+|   ↳ `overrides` | array | Remplacements de disponibilité spécifiques à une date |
+|     ↳ `date` | string | Date au format AAAA-MM-JJ |
+|     ↳ `startTime` | string | Heure de début au format HH:MM |
+|     ↳ `endTime` | string | Heure de fin au format HH:MM |
+
+### `calcom_update_schedule`
+
+Mettre à jour un planning existant dans Cal.com
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `scheduleId` | string | Oui | ID du planning à mettre à jour |
+| `name` | string | Non | Nouveau nom pour le planning |
+| `timeZone` | string | Non | Nouveau fuseau horaire pour le planning \(par ex., America/New_York\) |
+| `isDefault` | boolean | Non | Si ce planning doit être celui par défaut |
+| `availability` | array | Non | Nouveaux intervalles de disponibilité pour le planning |
+| `items` | object | Non | Intervalle de disponibilité |
+| `properties` | array | Non | Jours de la semaine \(lundi, mardi, mercredi, jeudi, vendredi, samedi, dimanche\) |
+| `days` | array | Non | Jours de la semaine \(lundi, mardi, mercredi, jeudi, vendredi, samedi, dimanche\) |
+| `startTime` | string | Non | Heure de début au format HH:MM |
+| `endTime` | string | Non | Heure de fin au format HH:MM |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Statut de la réponse |
+| `data` | object | Données du planning mis à jour |
+|   ↳ `id` | number | ID du planning |
+|   ↳ `ownerId` | number | ID de l'utilisateur propriétaire |
+|   ↳ `name` | string | Nom du planning |
+|   ↳ `timeZone` | string | Fuseau horaire \(par ex., America/New_York\) |
+|   ↳ `isDefault` | boolean | Si c'est le planning par défaut |
+|   ↳ `availability` | array | Créneaux de disponibilité |
+|     ↳ `days` | array | Jours de la semaine \(lundi, mardi, etc.\) |
+|     ↳ `startTime` | string | Heure de début au format HH:MM |
+|     ↳ `endTime` | string | Heure de fin au format HH:MM |
+|   ↳ `overrides` | array | Remplacements de disponibilité pour des dates spécifiques |
+|     ↳ `date` | string | Date au format AAAA-MM-JJ |
+|     ↳ `startTime` | string | Heure de début au format HH:MM |
+|     ↳ `endTime` | string | Heure de fin au format HH:MM |
+
+### `calcom_delete_schedule`
+
+Supprimer un planning de Cal.com
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `scheduleId` | string | Oui | ID du planning à supprimer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Statut de la réponse \(succès ou erreur\) |
+
+### `calcom_get_default_schedule`
+
+Obtenir le planning de disponibilité par défaut de Cal.com
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Statut de la réponse |
+| `data` | object | Données du planning par défaut |
+|   ↳ `id` | number | ID du planning |
+|   ↳ `ownerId` | number | ID de l'utilisateur propriétaire |
+|   ↳ `name` | string | Nom du planning |
+|   ↳ `timeZone` | string | Fuseau horaire \(par ex., America/New_York\) |
+|   ↳ `isDefault` | boolean | Indique s'il s'agit du planning par défaut |
+|   ↳ `availability` | array | Créneaux de disponibilité |
+|     ↳ `days` | array | Jours de la semaine \(lundi, mardi, etc.\) |
+|     ↳ `startTime` | string | Heure de début au format HH:MM |
+|     ↳ `endTime` | string | Heure de fin au format HH:MM |
+|   ↳ `overrides` | array | Remplacements de disponibilité pour des dates spécifiques |
+|     ↳ `date` | string | Date au format AAAA-MM-JJ |
+|     ↳ `startTime` | string | Heure de début au format HH:MM |
+|     ↳ `endTime` | string | Heure de fin au format HH:MM |
+
+### `calcom_get_slots`
+
+Obtenir les créneaux de réservation disponibles pour un type d'événement Cal.com dans une plage horaire
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `start` | string | Oui | Début de la plage horaire au format UTC ISO 8601 \(par ex., 2024-01-15T00:00:00Z\) |
+| `end` | string | Oui | Fin de la plage horaire au format UTC ISO 8601 \(par ex., 2024-01-22T00:00:00Z\) |
+| `eventTypeId` | number | Non | ID du type d'événement pour une recherche directe |
+| `eventTypeSlug` | string | Non | Slug du type d'événement \(nécessite que le nom d'utilisateur soit défini\) |
+| `username` | string | Non | Nom d'utilisateur pour les types d'événements personnels \(requis lors de l'utilisation de eventTypeSlug\) |
+| `timeZone` | string | Non | Fuseau horaire pour les créneaux retournés \(par défaut UTC\) |
+| `duration` | number | Non | Durée du créneau en minutes |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Statut de la réponse |
+| `data` | json | Créneaux horaires disponibles regroupés par date \(clés au format AAAA-MM-JJ\). Chaque date correspond à un tableau d'objets de créneaux avec l'heure de début, l'heure de fin optionnelle et les informations sur les événements avec places assises. |

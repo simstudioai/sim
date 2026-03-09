@@ -1,0 +1,77 @@
+---
+title: Schedule
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+The Schedule block automatically triggers workflows on a recurring schedule at specified intervals or times.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/schedule.png"
+    alt="Schedule Block"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Schedule Options
+
+Configure when your workflow runs:
+
+<Tabs items={['Simple Intervals', 'Cron Expressions']}>
+  <Tab>
+    <ul className="list-disc space-y-1 pl-6">
+      <li><strong>Every X Minutes</strong>: Run at minute intervals (1-1440)</li>
+      <li><strong>Hourly</strong>: Run at a specific minute each hour</li>
+      <li><strong>Daily</strong>: Run at a specific time each day</li>
+      <li><strong>Weekly</strong>: Run on a specific day and time each week</li>
+      <li><strong>Monthly</strong>: Run on a specific day and time each month</li>
+    </ul>
+  </Tab>
+  <Tab>
+    <p>Use cron expressions for advanced scheduling:</p>
+    <div className="text-sm space-y-1">
+      <div><code>0 9 * * 1-5</code> - Every weekday at 9 AM</div>
+      <div><code>*/15 * * * *</code> - Every 15 minutes</div>
+      <div><code>0 0 1 * *</code> - First day of each month</div>
+    </div>
+  </Tab>
+</Tabs>
+
+## Activation
+
+Schedules are tied to workflow deployment:
+
+- **Deploy workflow** → Schedule becomes active and starts running
+- **Undeploy workflow** → Schedule is removed
+- **Redeploy workflow** → Schedule is recreated with current configuration
+
+<Callout>
+You must deploy your workflow for the schedule to start running. Configure the schedule block, then deploy from the toolbar.
+</Callout>
+
+## Automatic Disabling
+
+Schedules automatically disable after **100 consecutive failures** to prevent runaway errors. When disabled:
+
+- A warning badge appears on the schedule block
+- The schedule stops executing
+- Click the badge to reactivate the schedule
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/schedule-3.png"
+    alt="Disabled Schedule"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout>
+Schedule blocks cannot receive incoming connections and serve as workflow entry points only.
+</Callout>

@@ -1,0 +1,152 @@
+---
+title: Greptile
+description: AI-powered codebase search and Q&A
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="greptile"
+  color="#e5e5e5"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Greptile](https://greptile.com/) is an AI-powered developer tool for searching and querying source code across one or more repositories. Greptile enables engineers to quickly answer complex codebase questions in natural language, locate relevant files or symbols, and gain insights into unfamiliar or legacy code.
+
+With Greptile, you can:
+
+- **Ask complex questions about your codebase in natural language**: Get AI-generated answers about architecture, usage patterns, or specific implementations.
+- **Find relevant code, files, or functions instantly**: Search using keywords or natural language queries and jump right to matching lines, files, or code blocks.
+- **Understand dependencies and relationships**: Uncover where functions are called, how modules are related, or where APIs are used across large codebases.
+- **Accelerate onboarding and code exploration**: Quickly ramp up on new projects or debug tricky issues without needing deep prior context.
+
+The Sim Greptile integration allows your AI agents to:
+
+- Query and search private and public repositories using Greptile’s advanced language models.
+- Retrieve contextually relevant code snippets, file references, and explanations to support code review, documentation, and development workflows.
+- Trigger automations in Sim workflows based on search/query results or embed code intelligence directly into your processes.
+
+Whether you’re trying to accelerate developer productivity, automate documentation, or supercharge your team’s understanding of a complex codebase, Greptile and Sim provide seamless access to code intelligence and search—right where you need it.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Query and search codebases using natural language with Greptile. Get AI-generated answers about your code, find relevant files, and understand complex codebases.
+
+
+
+## Tools
+
+### `greptile_query`
+
+Query repositories in natural language and get answers with relevant code references. Greptile uses AI to understand your codebase and answer questions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Natural language question about the codebase. Example: "How does authentication work?" or "Where is the payment processing logic?" |
+| `repositories` | string | Yes | Comma-separated list of repositories. Format: "github:branch:owner/repo" or just "owner/repo" \(defaults to github:main\). Example: "facebook/react" or "github:main:facebook/react,github:main:facebook/relay" |
+| `sessionId` | string | No | Session ID for conversation continuity. Use the same sessionId across multiple queries to maintain context. Example: "session-abc123" |
+| `genius` | boolean | No | Enable genius mode for more thorough analysis \(slower but more accurate\) |
+| `apiKey` | string | Yes | Greptile API key |
+| `githubToken` | string | Yes | GitHub Personal Access Token with repo read access |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | AI-generated answer to the query |
+| `sources` | array | Relevant code references that support the answer |
+|   ↳ `repository` | string | Repository name \(owner/repo\) |
+|   ↳ `remote` | string | Git remote \(github/gitlab\) |
+|   ↳ `branch` | string | Branch name |
+|   ↳ `filepath` | string | Path to the file |
+|   ↳ `linestart` | number | Starting line number |
+|   ↳ `lineend` | number | Ending line number |
+|   ↳ `summary` | string | Summary of the code section |
+|   ↳ `distance` | number | Similarity score \(lower = more relevant\) |
+
+### `greptile_search`
+
+Search repositories in natural language and get relevant code references without generating an answer. Useful for finding specific code locations.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Natural language search query to find relevant code. Example: "authentication middleware" or "database connection handling" |
+| `repositories` | string | Yes | Comma-separated list of repositories. Format: "github:branch:owner/repo" or just "owner/repo" \(defaults to github:main\). Example: "facebook/react" or "github:main:facebook/react,github:main:facebook/relay" |
+| `sessionId` | string | No | Session ID for conversation continuity. Use the same sessionId across multiple searches to maintain context. Example: "session-abc123" |
+| `genius` | boolean | No | Enable genius mode for more thorough search \(slower but more accurate\) |
+| `apiKey` | string | Yes | Greptile API key |
+| `githubToken` | string | Yes | GitHub Personal Access Token with repo read access |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sources` | array | Relevant code references matching the search query |
+|   ↳ `repository` | string | Repository name \(owner/repo\) |
+|   ↳ `remote` | string | Git remote \(github/gitlab\) |
+|   ↳ `branch` | string | Branch name |
+|   ↳ `filepath` | string | Path to the file |
+|   ↳ `linestart` | number | Starting line number |
+|   ↳ `lineend` | number | Ending line number |
+|   ↳ `summary` | string | Summary of the code section |
+|   ↳ `distance` | number | Similarity score \(lower = more relevant\) |
+
+### `greptile_index_repo`
+
+Submit a repository to be indexed by Greptile. Indexing must complete before the repository can be queried. Small repos take 3-5 minutes, larger ones can take over an hour.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `remote` | string | Yes | Git remote type: github or gitlab |
+| `repository` | string | Yes | Repository in owner/repo format. Example: "facebook/react" or "vercel/next.js" |
+| `branch` | string | Yes | Branch to index \(e.g., "main" or "master"\) |
+| `reload` | boolean | No | Force re-indexing even if already indexed |
+| `notify` | boolean | No | Send email notification when indexing completes |
+| `apiKey` | string | Yes | Greptile API key |
+| `githubToken` | string | Yes | GitHub Personal Access Token with repo read access |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `repositoryId` | string | Unique identifier for the indexed repository \(format: remote:branch:owner/repo\) |
+| `statusEndpoint` | string | URL endpoint to check indexing status |
+| `message` | string | Status message about the indexing operation |
+
+### `greptile_status`
+
+Check the indexing status of a repository. Use this to verify if a repository is ready to be queried or to monitor indexing progress.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `remote` | string | Yes | Git remote type: github or gitlab |
+| `repository` | string | Yes | Repository in owner/repo format. Example: "facebook/react" or "vercel/next.js" |
+| `branch` | string | Yes | Branch name \(e.g., "main" or "master"\) |
+| `apiKey` | string | Yes | Greptile API key |
+| `githubToken` | string | Yes | GitHub Personal Access Token with repo read access |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `repository` | string | Repository name \(owner/repo\) |
+| `remote` | string | Git remote \(github/gitlab\) |
+| `branch` | string | Branch name |
+| `private` | boolean | Whether the repository is private |
+| `status` | string | Indexing status: submitted, cloning, processing, completed, or failed |
+| `filesProcessed` | number | Number of files processed so far |
+| `numFiles` | number | Total number of files in the repository |
+| `sampleQuestions` | array | Sample questions for the indexed repository |
+| `sha` | string | Git commit SHA of the indexed version |
+
+

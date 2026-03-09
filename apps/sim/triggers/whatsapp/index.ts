@@ -1,0 +1,1 @@
+export { whatsappWebhookTrigger } from './webhook'

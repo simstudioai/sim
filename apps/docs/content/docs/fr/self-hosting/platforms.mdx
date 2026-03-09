@@ -1,0 +1,124 @@
+---
+title: Plateformes cloud
+description: Déployer Sim sur des plateformes cloud
+---
+
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+## Railway
+
+Déploiement en un clic avec provisionnement automatique de PostgreSQL.
+
+[
+
+![Déployer sur Railway](https://railway.app/button.svg)
+
+](https://railway.com/new/template/sim-studio)
+
+Après le déploiement, ajoutez des variables d'environnement dans le tableau de bord Railway :
+- `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `INTERNAL_API_SECRET` (générées automatiquement)
+- `OPENAI_API_KEY` ou d'autres clés de fournisseur d'IA
+- Domaine personnalisé dans Paramètres → Réseau
+
+## Déploiement VPS
+
+Pour DigitalOcean, AWS EC2, Azure VMs, ou tout serveur Linux :
+
+<Tabs items={['DigitalOcean', 'AWS EC2', 'Azure VM']}>
+  <Tab value="DigitalOcean">
+**Recommandé :** Droplet de 16 Go de RAM, Ubuntu 24.04
+
+```bash
+# Create Droplet via console, then SSH in
+ssh root@your-droplet-ip
+```
+
+  </Tab>
+  <Tab value="AWS EC2">
+**Recommandé :** t3.xlarge (16 Go de RAM), Ubuntu 24.04
+
+```bash
+ssh -i your-key.pem ubuntu@your-ec2-ip
+```
+
+  </Tab>
+  <Tab value="Azure VM">
+**Recommandé :** Standard_D4s_v3 (16 Go de RAM), Ubuntu 24.04
+
+```bash
+ssh azureuser@your-vm-ip
+```
+
+  </Tab>
+</Tabs>
+
+### Installer Docker
+
+```bash
+# Install Docker (official method)
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER
+
+# Logout and reconnect, then verify
+docker --version
+```
+
+### Déployer Sim
+
+```bash
+git clone https://github.com/simstudioai/sim.git && cd sim
+
+# Create .env with secrets
+cat > .env << EOF
+DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
+BETTER_AUTH_SECRET=$(openssl rand -hex 32)
+ENCRYPTION_KEY=$(openssl rand -hex 32)
+INTERNAL_API_SECRET=$(openssl rand -hex 32)
+NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
+BETTER_AUTH_URL=https://sim.yourdomain.com
+NEXT_PUBLIC_SOCKET_URL=https://sim.yourdomain.com
+EOF
+
+# Start
+docker compose -f docker-compose.prod.yml up -d
+```
+
+### SSL avec Caddy
+
+```bash
+# Install Caddy
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update && sudo apt install caddy
+
+# Configure (replace domain)
+echo 'sim.yourdomain.com {
+    reverse_proxy localhost:3000
+    handle /socket.io/* {
+        reverse_proxy localhost:3002
+    }
+}' | sudo tee /etc/caddy/Caddyfile
+
+sudo systemctl restart caddy
+```
+
+Pointez l'enregistrement DNS A de votre domaine vers l'IP de votre serveur.
+
+## Kubernetes (EKS, AKS, GKE)
+
+Consultez le [guide Kubernetes](/self-hosting/kubernetes) pour le déploiement Helm sur Kubernetes géré.
+
+## Base de données gérée (optionnel)
+
+Pour la production, utilisez un service PostgreSQL géré :
+
+- **AWS RDS** / **Azure Database** / **Cloud SQL** - Activez l'extension pgvector
+- **Supabase** / **Neon** - pgvector inclus
+
+Définissez `DATABASE_URL` dans votre environnement :
+
+```bash
+DATABASE_URL="postgresql://user:pass@host:5432/db?sslmode=require"
+```

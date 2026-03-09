@@ -1,0 +1,586 @@
+---
+title: Jira
+description: 与 Jira 互动
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="jira"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Jira](https://www.atlassian.com/jira) 是一个领先的项目管理和问题跟踪平台，帮助团队有效地规划、跟踪和管理敏捷软件开发项目。作为 Atlassian 套件的一部分，Jira 已成为全球软件开发团队和项目管理专业人士的行业标准。
+
+Jira 提供了一套全面的工具，通过其灵活且可定制的工作流系统来管理复杂项目。凭借其强大的 API 和集成能力，Jira 使团队能够简化开发流程，并保持对项目进度的清晰可见性。
+
+Jira 的主要功能包括：
+
+- 敏捷项目管理：支持 Scrum 和 Kanban 方法论，提供可定制的看板和工作流
+- 问题跟踪：复杂的跟踪系统，用于管理缺陷、用户故事、史诗和任务，并提供详细报告
+- 工作流自动化：强大的自动化规则，用于简化重复性任务和流程
+- 高级搜索：JQL（Jira 查询语言）支持复杂问题过滤和报告
+
+在 Sim 中，Jira 集成允许您的代理无缝地与您的项目管理工作流互动。这为自动化问题创建、更新和跟踪提供了可能性，作为您的 AI 工作流的一部分。该集成使代理能够以编程方式创建、检索和更新 Jira 问题，从而促进自动化项目管理任务，确保重要信息得到妥善跟踪和记录。通过将 Sim 与 Jira 连接，您可以构建智能代理，在自动化日常项目管理任务的同时保持项目的可见性，提高团队生产力，并确保一致的项目跟踪。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Jira 集成到工作流程中。可以读取、写入和更新问题。还可以基于 Jira 的 webhook 事件触发工作流程。
+
+## 工具
+
+### `jira_retrieve`
+
+检索特定 Jira 问题的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `projectId` | 字符串 | 否 | Jira 项目 ID \(可选；检索单个问题时不需要\)。 |
+| `issueKey` | 字符串 | 是 | 要检索的 Jira 问题键 \(例如：PROJ-123\) |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | 字符串 | 操作的时间戳 |
+| `issueKey` | 字符串 | 问题键 \(例如：PROJ-123\) |
+| `summary` | 字符串 | 问题摘要 |
+| `description` | JSON | 问题描述内容 |
+| `created` | 字符串 | 问题创建的时间戳 |
+| `updated` | 字符串 | 问题最后更新的时间戳 |
+| `issue` | JSON | 包含所有字段的完整问题对象 |
+
+### `jira_update`
+
+更新 Jira 问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `projectId` | 字符串 | 否 | 要更新问题的 Jira 项目 ID。如果未提供，将检索所有问题。 |
+| `issueKey` | 字符串 | 是 | 要更新的 Jira 问题键 |
+| `summary` | 字符串 | 否 | 问题的新摘要 |
+| `description` | 字符串 | 否 | 问题的新描述 |
+| `status` | 字符串 | 否 | 问题的新状态 |
+| `priority` | 字符串 | 否 | 问题的新优先级 |
+| `assignee` | 字符串 | 否 | 问题的新负责人 |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | 字符串 | 操作的时间戳 |
+| `issueKey` | 字符串 | 更新后的问题键 \(例如：PROJ-123\) |
+| `summary` | 字符串 | 更新后的问题摘要 |
+
+### `jira_write`
+
+编写一个 Jira 问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `projectId` | 字符串 | 是 | 问题所属项目 ID |
+| `summary` | 字符串 | 是 | 问题摘要 |
+| `description` | 字符串 | 否 | 问题描述 |
+| `priority` | 字符串 | 否 | 问题优先级 ID 或名称 \(例如：“10000”或“High”\) |
+| `assignee` | 字符串 | 否 | 问题负责人账户 ID |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+| `issueType` | 字符串 | 是 | 要创建的问题类型 \(例如：Task、Story\) |
+| `labels` | 数组 | 否 | 问题标签 \(标签名称数组\) |
+| `duedate` | 字符串 | 否 | 问题截止日期 \(格式：YYYY-MM-DD\) |
+| `reporter` | 字符串 | 否 | 问题报告人账户 ID |
+| `environment` | 字符串 | 否 | 问题环境信息 |
+| `customFieldId` | 字符串 | 否 | 自定义字段 ID \(例如：customfield_10001\) |
+| `customFieldValue` | 字符串 | 否 | 自定义字段的值 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | 字符串 | 操作的时间戳 |
+| `issueKey` | 字符串 | 创建的问题键 \(例如：PROJ-123\) |
+| `summary` | 字符串 | 问题摘要 |
+| `url` | 字符串 | 创建的问题的 URL |
+| `assigneeId` | 字符串 | 已分配用户的账户 ID（如已分配） |
+
+### `jira_bulk_read`
+
+批量检索多个 Jira 问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `projectId` | 字符串 | 是 | Jira 项目 ID |
+| `cloudId` | 字符串 | 否 | Jira 云 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `issues` | 数组 | 包含时间戳、摘要、描述、创建和更新时间戳的 Jira 问题数组 |
+
+### `jira_delete_issue`
+
+删除 Jira 问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `issueKey` | 字符串 | 是 | 要删除的 Jira 问题键 \(例如：PROJ-123\) |
+| `deleteSubtasks` | 布尔值 | 否 | 是否删除子任务。如果为 false，则无法删除具有子任务的父问题。 |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | 字符串 | 操作的时间戳 |
+| `issueKey` | 字符串 | 删除的问题键 |
+
+### `jira_assign_issue`
+
+将 Jira 问题分配给用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `issueKey` | 字符串 | 是 | 要分配的 Jira 问题键 \(例如：PROJ-123\) |
+| `accountId` | 字符串 | 是 | 要分配问题的用户的账户 ID。使用 "-1" 进行自动分配，或使用 null 取消分配。 |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | 字符串 | 操作的时间戳 |
+| `issueKey` | 字符串 | 被分配的任务键 |
+| `assigneeId` | 字符串 | 分配者的账户 ID |
+
+### `jira_transition_issue`
+
+在工作流状态之间移动 Jira 问题（例如，从“待办”到“进行中”）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `issueKey` | 字符串 | 是 | 要转换的 Jira 问题键 \(例如：PROJ-123\) |
+| `transitionId` | 字符串 | 是 | 要执行的转换 ID \(例如：“11”表示“待办”，“21”表示“进行中”\) |
+| `comment` | 字符串 | 否 | 转换问题时添加的可选评论 |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 已转换的问题键 |
+| `transitionId` | string | 应用的转换 ID |
+
+### `jira_search_issues`
+
+使用 JQL（Jira 查询语言）搜索 Jira 问题
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `jql` | 字符串 | 是 | 用于搜索问题的 JQL 查询字符串 \(例如：“project = PROJ AND status = Open”\) |
+| `startAt` | 数字 | 否 | 要返回的第一个结果的索引 \(用于分页\) |
+| `maxResults` | 数字 | 否 | 要返回的最大结果数 \(默认值：50\) |
+| `fields` | 数组 | 否 | 要返回的字段名称数组 \(默认值：\['summary', 'status', 'assignee', 'created', 'updated'\]\) |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `total` | number | 匹配问题的总数 |
+| `startAt` | number | 分页起始索引 |
+| `maxResults` | number | 每页的最大结果数 |
+| `issues` | array | 包含键、摘要、状态、负责人、创建时间和更新时间的匹配问题数组 |
+
+### `jira_add_comment`
+
+向 Jira 问题添加评论
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `issueKey` | 字符串 | 是 | 要添加评论的 Jira 问题键 \(例如：PROJ-123\) |
+| `body` | 字符串 | 是 | 评论正文文本 |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 添加评论的问题键 |
+| `commentId` | string | 创建的评论 ID |
+| `body` | string | 评论的文本内容 |
+
+### `jira_get_comments`
+
+获取 Jira 问题的所有评论
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `issueKey` | 字符串 | 是 | 要获取评论的 Jira 问题键 \(例如：PROJ-123\) |
+| `startAt` | 数字 | 否 | 要返回的第一条评论的索引 \(默认值：0\) |
+| `maxResults` | 数字 | 否 | 要返回的评论的最大数量 \(默认值：50\) |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 问题键 |
+| `total` | number | 评论的总数 |
+| `comments` | array | 包含 ID、作者、正文、创建时间和更新时间的评论数组 |
+
+### `jira_update_comment`
+
+更新 Jira 问题上的现有评论
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `issueKey` | 字符串 | 是 | 包含评论的 Jira 问题键 \(例如：PROJ-123\) |
+| `commentId` | 字符串 | 是 | 要更新的评论 ID |
+| `body` | 字符串 | 是 | 更新后的评论文本 |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 问题键 |
+| `commentId` | string | 更新的评论 ID |
+| `body` | string | 更新的评论文本 |
+
+### `jira_delete_comment`
+
+从 Jira 问题中删除评论
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `issueKey` | 字符串 | 是 | 包含评论的 Jira 问题键 \(例如：PROJ-123\) |
+| `commentId` | 字符串 | 是 | 要删除的评论 ID |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 问题键 |
+| `commentId` | string | 已删除的评论 ID |
+
+### `jira_get_attachments`
+
+从 Jira 问题中获取所有附件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `issueKey` | 字符串 | 是 | 要获取附件的 Jira 问题键 \(例如：PROJ-123\) |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 问题键 |
+| `attachments` | array | 附件数组，包括 id、文件名、大小、mimeType、创建时间、作者 |
+
+### `jira_delete_attachment`
+
+从 Jira 问题中删除附件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `attachmentId` | 字符串 | 是 | 要删除的附件 ID |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `attachmentId` | string | 已删除的附件 ID |
+
+### `jira_add_worklog`
+
+向 Jira 问题添加时间跟踪工作日志条目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `issueKey` | 字符串 | 是 | 要添加工作日志的 Jira 问题键 \(例如：PROJ-123\) |
+| `timeSpentSeconds` | 数字 | 是 | 花费的时间（以秒为单位） |
+| `comment` | 字符串 | 否 | 工作日志条目的可选评论 |
+| `started` | 字符串 | 否 | 可选的 ISO 格式开始时间 \(默认为当前时间\) |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 添加工作日志的相关问题键 |
+| `worklogId` | string | 创建的工作日志 ID |
+| `timeSpentSeconds` | number | 花费的时间（以秒为单位） |
+
+### `jira_get_worklogs`
+
+从 Jira 问题中获取所有工作日志条目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `issueKey` | 字符串 | 是 | 要获取工作日志的 Jira 问题键 \(例如：PROJ-123\) |
+| `startAt` | 数字 | 否 | 要返回的第一个工作日志的索引 \(默认值：0\) |
+| `maxResults` | 数字 | 否 | 要返回的最大工作日志数 \(默认值：50\) |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 问题键 |
+| `total` | number | 工作日志的总数 |
+| `worklogs` | array | 工作日志数组，包括 id、作者、timeSpentSeconds、timeSpent、评论、创建时间、更新时间、开始时间 |
+
+### `jira_update_worklog`
+
+更新 Jira 问题上的现有工作日志条目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `issueKey` | 字符串 | 是 | 包含工作日志的 Jira 问题键 \(例如：PROJ-123\) |
+| `worklogId` | 字符串 | 是 | 要更新的工作日志条目的 ID |
+| `timeSpentSeconds` | 数字 | 否 | 花费的时间（以秒为单位） |
+| `comment` | 字符串 | 否 | 工作日志条目的可选评论 |
+| `started` | 字符串 | 否 | ISO 格式的可选开始时间 |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 问题键 |
+| `worklogId` | string | 更新的工作日志 ID |
+
+### `jira_delete_worklog`
+
+从 Jira 问题中删除工作日志条目
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `issueKey` | 字符串 | 是 | 包含工作日志的 Jira 问题键 \(例如：PROJ-123\) |
+| `worklogId` | 字符串 | 是 | 要删除的工作日志条目的 ID |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 问题键 |
+| `worklogId` | string | 已删除的工作日志 ID |
+
+### `jira_create_issue_link`
+
+在两个 Jira 问题之间创建链接关系
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `inwardIssueKey` | 字符串 | 是 | 内部问题的 Jira 问题键 \(例如：PROJ-123\) |
+| `outwardIssueKey` | 字符串 | 是 | 外部问题的 Jira 问题键 \(例如：PROJ-456\) |
+| `linkType` | 字符串 | 是 | 链接关系的类型 \(例如：“阻止”、“关联到”、“重复”\) |
+| `comment` | 字符串 | 否 | 可选评论，添加到问题链接中 |
+| `cloudId` | 字符串 | 否 | 实例的 Jira 云 ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `inwardIssue` | string | 内部问题键 |
+| `outwardIssue` | string | 外部问题键 |
+| `linkType` | string | 问题链接的类型 |
+| `linkId` | string | 创建的链接 ID |
+
+### `jira_delete_issue_link`
+
+删除两个 Jira 问题之间的链接
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `linkId` | 字符串 | 是 | 要删除的问题链接的 ID |
+| `cloudId` | 字符串 | 否 | 实例的 Jira 云 ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `linkId` | string | 已删除的链接 ID |
+
+### `jira_add_watcher`
+
+为 Jira 问题添加观察者以接收更新通知
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `issueKey` | 字符串 | 是 | 要添加观察者的 Jira 问题键 \(例如：PROJ-123\) |
+| `accountId` | 字符串 | 是 | 要添加为观察者的用户账户 ID |
+| `cloudId` | 字符串 | 否 | 实例的 Jira 云 ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 问题键 |
+| `watcherAccountId` | string | 添加的观察者账户 ID |
+
+### `jira_remove_watcher`
+
+从 Jira 问题中移除观察者
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `issueKey` | 字符串 | 是 | 要移除观察者的 Jira 问题键 \(例如：PROJ-123\) |
+| `accountId` | 字符串 | 是 | 要移除的观察者用户账户 ID |
+| `cloudId` | 字符串 | 否 | 实例的 Jira 云 ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueKey` | string | 问题键 |
+| `watcherAccountId` | string | 移除的观察者账户 ID |
+
+### `jira_get_users`
+
+获取 Jira 用户。如果提供了账户 ID，则返回单个用户，否则返回所有用户的列表。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `accountId` | 字符串 | 否 | 可选账户 ID，用于获取特定用户。如果未提供，则返回所有用户。 |
+| `startAt` | 数字 | 否 | 要返回的第一个用户的索引 \(用于分页，默认值：0\) |
+| `maxResults` | 数字 | 否 | 要返回的最大用户数 \(默认值：50\) |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | 字符串 | 操作的时间戳 |
+| `users` | json | 用户数组，包含 accountId、displayName、emailAddress、active 状态和 avatarUrls |
+| `total` | 数字 | 返回的用户总数 |
+| `startAt` | 数字 | 分页起始索引 |
+| `maxResults` | 数字 | 每页最大结果数 |
+
+## 备注
+
+- 分类：`tools`
+- 类型：`jira`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `accountId` | 字符串 | 否 | 可选账户 ID，用于获取特定用户。如果未提供，则返回所有用户。 |
+| `startAt` | 数字 | 否 | 要返回的第一个用户的索引 \(用于分页，默认值：0\) |
+| `maxResults` | 数字 | 否 | 要返回的最大用户数 \(默认值：50\) |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的 ISO 8601 时间戳 |
+| `users` | array | Jira 用户数组 |
+|   ↳ `accountId` | string | 用户的 Atlassian 账户 ID |
+|   ↳ `displayName` | string | 用户显示名称 |
+|   ↳ `active` | boolean | 用户账户是否激活 |
+|   ↳ `emailAddress` | string | 用户邮箱地址 |
+|   ↳ `accountType` | string | 账户类型 \(如 atlassian、app、customer\) |
+|   ↳ `avatarUrl` | string | 用户头像 URL \(48x48\) |
+|   ↳ `timeZone` | string | 用户时区 |
+|   ↳ `avatarUrls` | json | 多尺寸用户头像 URL \(16x16、24x24、32x32、48x48\) |
+|   ↳ `self` | string | 此用户的 REST API URL |
+| `total` | number | 返回的用户总数 |
+| `startAt` | number | 分页起始索引 |
+| `maxResults` | number | 每页最大结果数 |

@@ -1,0 +1,124 @@
+---
+title: 云平台
+description: 在云平台上部署 Sim
+---
+
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+## Railway
+
+一键部署并自动配置 PostgreSQL。
+
+[
+
+![在 Railway 上部署](https://railway.app/button.svg)
+
+](https://railway.com/new/template/sim-studio)
+
+部署后，在 Railway 仪表板中添加环境变量：
+- `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `INTERNAL_API_SECRET`（自动生成）
+- `OPENAI_API_KEY` 或其他 AI 提供商密钥
+- 自定义域名：设置 → 网络
+
+## VPS 部署
+
+适用于 DigitalOcean、AWS EC2、Azure VMs 或任何 Linux 服务器：
+
+<Tabs items={['DigitalOcean', 'AWS EC2', 'Azure VM']}>
+  <Tab value="DigitalOcean">
+**推荐配置：** 16 GB RAM Droplet，Ubuntu 24.04
+
+```bash
+# Create Droplet via console, then SSH in
+ssh root@your-droplet-ip
+```
+
+  </Tab>
+  <Tab value="AWS EC2">
+**推荐配置：** t3.xlarge（16 GB RAM），Ubuntu 24.04
+
+```bash
+ssh -i your-key.pem ubuntu@your-ec2-ip
+```
+
+  </Tab>
+  <Tab value="Azure VM">
+**推荐配置：** Standard_D4s_v3（16 GB RAM），Ubuntu 24.04
+
+```bash
+ssh azureuser@your-vm-ip
+```
+
+  </Tab>
+</Tabs>
+
+### 安装 Docker
+
+```bash
+# Install Docker (official method)
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER
+
+# Logout and reconnect, then verify
+docker --version
+```
+
+### 部署 Sim
+
+```bash
+git clone https://github.com/simstudioai/sim.git && cd sim
+
+# Create .env with secrets
+cat > .env << EOF
+DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
+BETTER_AUTH_SECRET=$(openssl rand -hex 32)
+ENCRYPTION_KEY=$(openssl rand -hex 32)
+INTERNAL_API_SECRET=$(openssl rand -hex 32)
+NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
+BETTER_AUTH_URL=https://sim.yourdomain.com
+NEXT_PUBLIC_SOCKET_URL=https://sim.yourdomain.com
+EOF
+
+# Start
+docker compose -f docker-compose.prod.yml up -d
+```
+
+### 使用 Caddy 配置 SSL
+
+```bash
+# Install Caddy
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update && sudo apt install caddy
+
+# Configure (replace domain)
+echo 'sim.yourdomain.com {
+    reverse_proxy localhost:3000
+    handle /socket.io/* {
+        reverse_proxy localhost:3002
+    }
+}' | sudo tee /etc/caddy/Caddyfile
+
+sudo systemctl restart caddy
+```
+
+将您的域名的 DNS A 记录指向您的服务器 IP。
+
+## Kubernetes（EKS、AKS、GKE）
+
+有关在托管 Kubernetes 上使用 Helm 部署的详细信息，请参阅 [Kubernetes 指南](/self-hosting/kubernetes)。
+
+## 托管数据库（可选）
+
+在生产环境中，请使用托管的 PostgreSQL 服务：
+
+- **AWS RDS** / **Azure Database** / **Cloud SQL** - 启用 pgvector 扩展
+- **Supabase** / **Neon** - 已包含 pgvector
+
+在您的环境中设置 `DATABASE_URL`：
+
+```bash
+DATABASE_URL="postgresql://user:pass@host:5432/db?sslmode=require"
+```

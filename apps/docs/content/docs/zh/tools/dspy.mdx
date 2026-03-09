@@ -1,0 +1,106 @@
+---
+title: DSPy
+description: 使用自托管的 DSPy 程序运行预测
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="dspy"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[DSPy](https://github.com/stanford-oval/dspy) 是一个开源框架，用于通过编程（而非提示）来操作语言模型。DSPy 让你能够通过 Python 函数、结构化模块和声明式签名，构建可解释、模块化的 LLM 智能体，便于组合、调试和可靠部署语言模型应用。
+
+在 Sim 中使用 DSPy，你可以：
+
+- **运行自定义预测**：连接你的自托管 DSPy 服务器，调用预测端点，完成多种自然语言任务。
+- **链式思维与 ReAct 推理**：利用先进的 DSPy 模块，实现逐步推理、多轮对话和行动-观察循环。
+- **集成到你的工作流**：将 LLM 预测和推理自动化，作为任何 Sim 自动化或智能体流程的一部分。
+- **自定义端点与上下文**：灵活调用你自有的 DSPy API，支持自定义认证、端点、输入字段和上下文。
+
+这些功能让你的 Sim 智能体能够访问模块化、可解释的 LLM 程序，适用于问答、文档分析、决策支持等任务——你始终掌控模型、数据和逻辑。{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+集成你的自托管 DSPy 程序，实现 LLM 驱动的预测。支持 Predict、Chain of Thought 和 ReAct 智能体。DSPy 是用于编程（而非提示）语言模型的框架。
+
+## 工具
+
+### `dspy_predict`
+
+使用自托管的 DSPy 程序端点运行预测
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | ---- | ---- |
+| `baseUrl` | string | 是 | DSPy 服务器的基础 URL（如 https://your-dspy-server.com） |
+| `apiKey` | string | 否 | 用于认证的 API key（如服务器需要） |
+| `endpoint` | string | 否 | API 端点路径（默认为 /predict） |
+| `input` | string | 是 | 发送给 DSPy 程序的输入文本 |
+| `inputField` | string | 否 | DSPy 程序期望的输入字段名（默认为 "text"） |
+| `context` | string | 否 | 提供给 DSPy 程序的额外上下文 |
+| `additionalInputs` | json | 否 | 请求体中包含的其他键值对 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `answer` | string | DSPy 程序的主要输出/答案 |
+| `reasoning` | string | 答案背后的推理或理由（如有） |
+| `status` | string | 来自 DSPy 服务器的响应状态（success 或 error） |
+| `rawOutput` | json | DSPy 程序的完整原始输出（result.toDict()） |
+
+### `dspy_chain_of_thought`
+
+使用自托管的 DSPy ChainOfThought 程序端点运行 Chain of Thought 预测
+
+#### 输入
+
+| 参数 | 类型 | 是否必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | 是 | DSPy 服务器的基础 URL（例如：https://your-dspy-server.com） |
+| `apiKey` | string | 否 | 用于身份验证的 API key（如服务器需要） |
+| `endpoint` | string | 否 | API 端点路径（默认为 /predict） |
+| `question` | string | 是 | 需要用 chain of thought 推理来回答的问题 |
+| `context` | string | 否 | 用于回答问题的额外上下文 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `answer` | string | 通过 chain of thought 推理生成的答案 |
+| `reasoning` | string | 得出答案的逐步推理过程 |
+| `status` | string | 来自 DSPy 服务器的响应状态（success 或 error） |
+| `rawOutput` | json | DSPy 程序的完整原始输出（result.toDict()） |
+
+### `dspy_react`
+
+使用自托管的 DSPy ReAct 程序端点运行 ReAct agent，实现多步推理与操作
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | 是 | DSPy 服务器的基础 URL（例如：https://your-dspy-server.com） |
+| `apiKey` | string | 否 | 用于身份验证的 API key（如果服务器需要） |
+| `endpoint` | string | 否 | API 端点路径（默认为 /predict） |
+| `task` | string | 是 | ReAct agent 需要处理的任务或问题 |
+| `context` | string | 否 | 提供给任务的额外上下文信息 |
+| `maxIterations` | number | 否 | 最大推理迭代次数（默认为服务器设置） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `answer` | string | ReAct agent 返回的最终答案或结果 |
+| `reasoning` | string | agent 的整体推理总结 |
+| `trajectory` | array | 每一步的思考、操作和观察的轨迹 |
+|   ↳ `thought` | string | 当前步骤的推理思路 |
+|   ↳ `toolName` | string | 调用的工具/操作名称 |
+|   ↳ `toolArgs` | json | 传递给工具的参数 |
+|   ↳ `observation` | string | 工具执行后的观察/结果 |
+| `status` | string | DSPy 服务器的响应状态（success 或 error） |
+| `rawOutput` | json | DSPy 程序的完整原始输出（result.toDict()） |

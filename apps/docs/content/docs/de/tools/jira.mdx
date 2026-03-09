@@ -1,0 +1,586 @@
+---
+title: Jira
+description: Mit Jira interagieren
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="jira"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Jira](https://www.atlassian.com/jira) ist eine führende Projektmanagement- und Issue-Tracking-Plattform, die Teams dabei hilft, agile Softwareentwicklungsprojekte effektiv zu planen, zu verfolgen und zu verwalten. Als Teil der Atlassian-Suite hat sich Jira zum Industriestandard für Softwareentwicklungsteams und Projektmanagement-Fachleute weltweit entwickelt.
+
+Jira bietet ein umfassendes Set an Werkzeugen für die Verwaltung komplexer Projekte durch sein flexibles und anpassbares Workflow-System. Mit seinen robusten API- und Integrationsfähigkeiten ermöglicht Jira Teams, ihre Entwicklungsprozesse zu optimieren und eine klare Übersicht über den Projektfortschritt zu behalten.
+
+Zu den Hauptfunktionen von Jira gehören:
+
+- Agiles Projektmanagement: Unterstützung für Scrum- und Kanban-Methoden mit anpassbaren Boards und Workflows
+- Issue-Tracking: Ausgeklügeltes Tracking-System für Bugs, Stories, Epics und Tasks mit detaillierter Berichterstattung
+- Workflow-Automatisierung: Leistungsstarke Automatisierungsregeln zur Optimierung wiederkehrender Aufgaben und Prozesse
+- Erweiterte Suche: JQL (Jira Query Language) für komplexe Issue-Filterung und Berichterstattung
+
+In Sim ermöglicht die Jira-Integration Ihren Agenten eine nahtlose Interaktion mit Ihrem Projektmanagement-Workflow. Dies schafft Möglichkeiten für automatisierte Issue-Erstellung, -Aktualisierung und -Verfolgung als Teil Ihrer KI-Workflows. Die Integration ermöglicht es Agenten, Jira-Issues programmatisch zu erstellen, abzurufen und zu aktualisieren, was automatisierte Projektmanagement-Aufgaben erleichtert und sicherstellt, dass wichtige Informationen ordnungsgemäß verfolgt und dokumentiert werden. Durch die Verbindung von Sim mit Jira können Sie intelligente Agenten erstellen, die die Projektübersicht aufrechterhalten und gleichzeitig Routine-Projektmanagementaufgaben automatisieren, die Teamproduktivität steigern und eine konsistente Projektverfolgung gewährleisten.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Integrieren Sie Jira in den Workflow. Kann Issues lesen, schreiben und aktualisieren. Kann auch Workflows basierend auf Jira-Webhook-Ereignissen auslösen.
+
+## Tools
+
+### `jira_retrieve`
+
+Ruft detaillierte Informationen zu einem bestimmten Jira-Issue ab
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `projectId` | string | Nein | Jira-Projekt-ID \(optional; nicht erforderlich, um ein einzelnes Issue abzurufen\). |
+| `issueKey` | string | Ja | Jira-Issue-Key zum Abrufen \(z.B. PROJ-123\) |
+| `cloudId` | string | Nein | Jira Cloud ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `issueKey` | string | Issue-Key \(z.B. PROJ-123\) |
+| `summary` | string | Issue-Zusammenfassung |
+| `description` | json | Inhalt der Issue-Beschreibung |
+| `created` | string | Zeitstempel der Issue-Erstellung |
+| `updated` | string | Zeitstempel der letzten Issue-Aktualisierung |
+| `issue` | json | Vollständiges Issue-Objekt mit allen Feldern |
+
+### `jira_update`
+
+Ein Jira-Issue aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `projectId` | string | Nein | Jira-Projekt-ID, in der Issues aktualisiert werden sollen. Wenn nicht angegeben, werden alle Issues abgerufen. |
+| `issueKey` | string | Ja | Jira-Issue-Key zum Aktualisieren |
+| `summary` | string | Nein | Neue Zusammenfassung für das Issue |
+| `description` | string | Nein | Neue Beschreibung für das Issue |
+| `status` | string | Nein | Neuer Status für das Issue |
+| `priority` | string | Nein | Neue Priorität für das Issue |
+| `assignee` | string | Nein | Neuer Bearbeiter für das Issue |
+| `cloudId` | string | Nein | Jira Cloud ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `issueKey` | string | Aktualisierter Issue-Key \(z.B. PROJ-123\) |
+| `summary` | string | Issue-Zusammenfassung nach der Aktualisierung |
+
+### `jira_write`
+
+Ein Jira-Issue erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `projectId` | string | Ja | Projekt-ID für das Issue |
+| `summary` | string | Ja | Zusammenfassung für das Issue |
+| `description` | string | Nein | Beschreibung für das Issue |
+| `priority` | string | Nein | Prioritäts-ID oder -Name für das Issue \(z.B. "10000" oder "High"\) |
+| `assignee` | string | Nein | Account-ID des Bearbeiters für das Issue |
+| `cloudId` | string | Nein | Jira Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+| `issueType` | string | Ja | Typ des zu erstellenden Issues \(z.B. Task, Story\) |
+| `labels` | array | Nein | Labels für das Issue \(Array von Label-Namen\) |
+| `duedate` | string | Nein | Fälligkeitsdatum für das Issue \(Format: YYYY-MM-DD\) |
+| `reporter` | string | Nein | Account-ID des Melders für das Issue |
+| `environment` | string | Nein | Umgebungsinformationen für das Issue |
+| `customFieldId` | string | Nein | Benutzerdefinierte Feld-ID \(z.B. customfield_10001\) |
+| `customFieldValue` | string | Nein | Wert für das benutzerdefinierte Feld |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `issueKey` | string | Erstellter Issue-Key \(z.B. PROJ-123\) |
+| `summary` | string | Issue-Zusammenfassung |
+| `url` | string | URL zum erstellten Issue |
+| `assigneeId` | string | Account-ID des zugewiesenen Benutzers \(falls zugewiesen\) |
+
+### `jira_bulk_read`
+
+Mehrere Jira-Issues in Masse abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain (z.B. ihrfirma.atlassian.net) |
+| `projectId` | string | Ja | Jira-Projekt-ID |
+| `cloudId` | string | Nein | Jira-Cloud-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `issues` | array | Array von Jira-Issues mit Zeitstempel, Zusammenfassung, Beschreibung, Erstellungs- und Aktualisierungszeitstempeln |
+
+### `jira_delete_issue`
+
+Ein Jira-Issue löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `issueKey` | string | Ja | Jira-Issue-Key zum Löschen \(z.B. PROJ-123\) |
+| `deleteSubtasks` | boolean | Nein | Ob Unteraufgaben gelöscht werden sollen. Wenn false, können übergeordnete Issues mit Unteraufgaben nicht gelöscht werden. |
+| `cloudId` | string | Nein | Jira Cloud ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `issueKey` | string | Gelöschter Issue-Key |
+
+### `jira_assign_issue`
+
+Ein Jira-Issue einem Benutzer zuweisen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `issueKey` | string | Ja | Jira-Issue-Key zum Zuweisen \(z.B. PROJ-123\) |
+| `accountId` | string | Ja | Account-ID des Benutzers, dem das Issue zugewiesen werden soll. Verwenden Sie "-1" für automatische Zuweisung oder null, um die Zuweisung aufzuheben. |
+| `cloudId` | string | Nein | Jira Cloud ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `issueKey` | string | Issue-Key, der zugewiesen wurde |
+| `assigneeId` | string | Konto-ID des Bearbeiters |
+
+### `jira_transition_issue`
+
+Ein Jira-Issue zwischen Workflow-Status verschieben (z.B. To Do -> In Progress)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `issueKey` | string | Ja | Jira-Issue-Key für den Übergang \(z.B. PROJ-123\) |
+| `transitionId` | string | Ja | ID des auszuführenden Übergangs \(z.B. "11" für "To Do", "21" für "In Progress"\) |
+| `comment` | string | Nein | Optionaler Kommentar, der beim Übergang des Issues hinzugefügt werden soll |
+| `cloudId` | string | Nein | Jira Cloud ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `issueKey` | string | Issue-Key, der übergangen wurde |
+| `transitionId` | string | Angewendete Übergangs-ID |
+
+### `jira_search_issues`
+
+Nach Jira-Issues mit JQL (Jira Query Language) suchen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `jql` | string | Ja | JQL-Abfragestring zur Suche nach Issues \(z.B. "project = PROJ AND status = Open"\) |
+| `startAt` | number | Nein | Der Index des ersten zurückzugebenden Ergebnisses \(für Paginierung\) |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Ergebnisse \(Standard: 50\) |
+| `fields` | array | Nein | Array von Feldnamen, die zurückgegeben werden sollen \(Standard: \['summary', 'status', 'assignee', 'created', 'updated'\]\) |
+| `cloudId` | string | Nein | Jira Cloud ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `total` | number | Gesamtanzahl der übereinstimmenden Issues |
+| `startAt` | number | Paginierungsstartindex |
+| `maxResults` | number | Maximale Ergebnisse pro Seite |
+| `issues` | array | Array übereinstimmender Issues mit Key, Zusammenfassung, Status, Bearbeiter, Erstellungs- und Aktualisierungsdatum |
+
+### `jira_add_comment`
+
+Einen Kommentar zu einem Jira-Issue hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `issueKey` | string | Ja | Jira-Issue-Key, zu dem ein Kommentar hinzugefügt werden soll \(z.B. PROJ-123\) |
+| `body` | string | Ja | Text des Kommentars |
+| `cloudId` | string | Nein | Jira Cloud ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `issueKey` | string | Issue-Key, zu dem der Kommentar hinzugefügt wurde |
+| `commentId` | string | Erstellte Kommentar-ID |
+| `body` | string | Kommentartextinhalt |
+
+### `jira_get_comments`
+
+Alle Kommentare eines Jira-Issues abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `issueKey` | string | Ja | Jira-Issue-Key, von dem Kommentare abgerufen werden sollen \(z.B. PROJ-123\) |
+| `startAt` | number | Nein | Index des ersten zurückzugebenden Kommentars \(Standard: 0\) |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Kommentare \(Standard: 50\) |
+| `cloudId` | string | Nein | Jira Cloud ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `issueKey` | string | Issue-Key |
+| `total` | number | Gesamtanzahl der Kommentare |
+| `comments` | array | Array von Kommentaren mit ID, Autor, Inhalt, Erstellungs- und Aktualisierungsdatum |
+
+### `jira_update_comment`
+
+Einen bestehenden Kommentar zu einem Jira-Issue aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `issueKey` | string | Ja | Jira-Issue-Key, der den Kommentar enthält \(z.B. PROJ-123\) |
+| `commentId` | string | Ja | ID des zu aktualisierenden Kommentars |
+| `body` | string | Ja | Aktualisierter Kommentartext |
+| `cloudId` | string | Nein | Jira Cloud ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `issueKey` | string | Issue-Key |
+| `commentId` | string | Aktualisierte Kommentar-ID |
+| `body` | string | Aktualisierter Kommentartext |
+
+### `jira_delete_comment`
+
+Einen Kommentar aus einem Jira-Issue löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `issueKey` | string | Ja | Jira-Issue-Key, der den Kommentar enthält \(z.B. PROJ-123\) |
+| `commentId` | string | Ja | ID des zu löschenden Kommentars |
+| `cloudId` | string | Nein | Jira Cloud ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `issueKey` | string | Issue-Key |
+| `commentId` | string | ID des gelöschten Kommentars |
+
+### `jira_get_attachments`
+
+Alle Anhänge eines Jira-Issues abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `issueKey` | string | Ja | Jira-Issue-Key, von dem Anhänge abgerufen werden sollen \(z.B. PROJ-123\) |
+| `cloudId` | string | Nein | Jira Cloud ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `issueKey` | string | Issue-Key |
+| `attachments` | array | Array von Anhängen mit ID, Dateiname, Größe, MIME-Typ, Erstellungsdatum und Autor |
+
+### `jira_delete_attachment`
+
+Einen Anhang von einem Jira-Issue löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `attachmentId` | string | Ja | ID des zu löschenden Anhangs |
+| `cloudId` | string | Nein | Jira Cloud ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `attachmentId` | string | ID des gelöschten Anhangs |
+
+### `jira_add_worklog`
+
+Einen Zeiterfassungseintrag zu einem Jira-Issue hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain (z.B. ihrfirma.atlassian.net) |
+| `issueKey` | string | Ja | Jira-Issue-Key, zu dem der Worklog hinzugefügt werden soll (z.B. PROJ-123) |
+| `timeSpentSeconds` | number | Ja | Aufgewendete Zeit in Sekunden |
+| `comment` | string | Nein | Optionaler Kommentar für den Worklog-Eintrag |
+| `started` | string | Nein | Optionale Startzeit im ISO-Format (standardmäßig aktuelle Zeit) |
+| `cloudId` | string | Nein | Jira Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie anhand der Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `issueKey` | string | Issue-Key, zu dem der Worklog hinzugefügt wurde |
+| `worklogId` | string | ID des erstellten Worklogs |
+| `timeSpentSeconds` | number | Aufgewendete Zeit in Sekunden |
+
+### `jira_get_worklogs`
+
+Alle Worklog-Einträge eines Jira-Issues abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain (z.B. ihrfirma.atlassian.net) |
+| `issueKey` | string | Ja | Jira-Issue-Key, von dem Worklogs abgerufen werden sollen (z.B. PROJ-123) |
+| `startAt` | number | Nein | Index des ersten zurückzugebenden Worklogs (Standard: 0) |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Worklogs (Standard: 50) |
+| `cloudId` | string | Nein | Jira Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie anhand der Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `issueKey` | string | Issue-Key |
+| `total` | number | Gesamtanzahl der Worklogs |
+| `worklogs` | array | Array von Worklogs mit ID, Autor, aufgewendeter Zeit in Sekunden, aufgewendeter Zeit, Kommentar, Erstellungs-, Aktualisierungs- und Startdatum |
+
+### `jira_update_worklog`
+
+Aktualisieren eines vorhandenen Worklog-Eintrags in einem Jira-Issue
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `issueKey` | string | Ja | Jira-Issue-Key, der den Worklog enthält \(z.B. PROJ-123\) |
+| `worklogId` | string | Ja | ID des zu aktualisierenden Worklog-Eintrags |
+| `timeSpentSeconds` | number | Nein | Aufgewendete Zeit in Sekunden |
+| `comment` | string | Nein | Optionaler Kommentar für den Worklog-Eintrag |
+| `started` | string | Nein | Optionale Startzeit im ISO-Format |
+| `cloudId` | string | Nein | Jira Cloud ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `issueKey` | string | Issue-Key |
+| `worklogId` | string | ID des aktualisierten Worklogs |
+
+### `jira_delete_worklog`
+
+Löschen eines Worklog-Eintrags aus einem Jira-Issue
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `issueKey` | string | Ja | Jira-Issue-Key, der den Worklog enthält \(z.B. PROJ-123\) |
+| `worklogId` | string | Ja | ID des zu löschenden Worklog-Eintrags |
+| `cloudId` | string | Nein | Jira Cloud ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `issueKey` | string | Issue-Key |
+| `worklogId` | string | ID des gelöschten Worklogs |
+
+### `jira_create_issue_link`
+
+Eine Verknüpfungsbeziehung zwischen zwei Jira-Issues erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `inwardIssueKey` | string | Ja | Jira-Issue-Key für das eingehende Issue \(z.B. PROJ-123\) |
+| `outwardIssueKey` | string | Ja | Jira-Issue-Key für das ausgehende Issue \(z.B. PROJ-456\) |
+| `linkType` | string | Ja | Die Art der Verknüpfungsbeziehung \(z.B. "Blocks", "Relates to", "Duplicates"\) |
+| `comment` | string | Nein | Optionaler Kommentar zur Issue-Verknüpfung |
+| `cloudId` | string | Nein | Jira Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie anhand der Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `inwardIssue` | string | Key des eingehenden Issues |
+| `outwardIssue` | string | Key des ausgehenden Issues |
+| `linkType` | string | Art der Issue-Verknüpfung |
+| `linkId` | string | ID der erstellten Verknüpfung |
+
+### `jira_delete_issue_link`
+
+Eine Verknüpfung zwischen zwei Jira-Issues löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `linkId` | string | Ja | ID der zu löschenden Issue-Verknüpfung |
+| `cloudId` | string | Nein | Jira Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie anhand der Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `linkId` | string | ID der gelöschten Verknüpfung |
+
+### `jira_add_watcher`
+
+Einen Beobachter zu einem Jira-Issue hinzufügen, um Benachrichtigungen über Aktualisierungen zu erhalten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `issueKey` | string | Ja | Jira-Issue-Key, zu dem ein Beobachter hinzugefügt werden soll \(z.B. PROJ-123\) |
+| `accountId` | string | Ja | Account-ID des Benutzers, der als Beobachter hinzugefügt werden soll |
+| `cloudId` | string | Nein | Jira Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `issueKey` | string | Issue-Key |
+| `watcherAccountId` | string | Account-ID des hinzugefügten Beobachters |
+
+### `jira_remove_watcher`
+
+Einen Beobachter von einem Jira-Issue entfernen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `issueKey` | string | Ja | Jira-Issue-Key, von dem ein Beobachter entfernt werden soll \(z.B. PROJ-123\) |
+| `accountId` | string | Ja | Account-ID des Benutzers, der als Beobachter entfernt werden soll |
+| `cloudId` | string | Nein | Jira Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `issueKey` | string | Issue-Key |
+| `watcherAccountId` | string | Account-ID des entfernten Beobachters |
+
+### `jira_get_users`
+
+Jira-Benutzer abrufen. Wenn eine Account-ID angegeben wird, wird ein einzelner Benutzer zurückgegeben. Andernfalls wird eine Liste aller Benutzer zurückgegeben.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `accountId` | string | Nein | Optionale Account-ID, um einen bestimmten Benutzer abzurufen. Wenn nicht angegeben, werden alle Benutzer zurückgegeben. |
+| `startAt` | number | Nein | Der Index des ersten zurückzugebenden Benutzers \(für Paginierung, Standard: 0\) |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Benutzer \(Standard: 50\) |
+| `cloudId` | string | Nein | Jira Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie anhand der Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `users` | json | Array von Benutzern mit accountId, displayName, emailAddress, active-Status und avatarUrls |
+| `total` | number | Gesamtanzahl der zurückgegebenen Benutzer |
+| `startAt` | number | Startindex für Paginierung |
+| `maxResults` | number | Maximale Ergebnisse pro Seite |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `jira`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `accountId` | string | Nein | Optionale Account-ID, um einen bestimmten Benutzer abzurufen. Wenn nicht angegeben, werden alle Benutzer zurückgegeben. |
+| `startAt` | number | Nein | Der Index des ersten zurückzugebenden Benutzers \(für Paginierung, Standard: 0\) |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Benutzer \(Standard: 50\) |
+| `cloudId` | string | Nein | Jira Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie anhand der Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601-Zeitstempel der Operation |
+| `users` | array | Array von Jira-Benutzern |
+|   ↳ `accountId` | string | Atlassian-Account-ID des Benutzers |
+|   ↳ `displayName` | string | Anzeigename des Benutzers |
+|   ↳ `active` | boolean | Ob das Benutzerkonto aktiv ist |
+|   ↳ `emailAddress` | string | E-Mail-Adresse des Benutzers |
+|   ↳ `accountType` | string | Kontotyp \(z.B. atlassian, app, customer\) |
+|   ↳ `avatarUrl` | string | URL zum Benutzer-Avatar \(48x48\) |
+|   ↳ `timeZone` | string | Zeitzone des Benutzers |
+|   ↳ `avatarUrls` | json | Benutzer-Avatar-URLs in mehreren Größen \(16x16, 24x24, 32x32, 48x48\) |
+|   ↳ `self` | string | REST-API-URL für diesen Benutzer |
+| `total` | number | Gesamtanzahl der zurückgegebenen Benutzer |
+| `startAt` | number | Paginierungs-Startindex |
+| `maxResults` | number | Maximale Ergebnisse pro Seite |

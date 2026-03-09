@@ -1,0 +1,204 @@
+---
+slug: v0-5
+title: 'Introducing Sim v0.5'
+description: 'This new release brings a state of the art Copilot, seamless MCP server and tool deployment, 100+ integrations with 300+ tools, comprehensive execution logs, and realtime collaboration—built for teams shipping AI agents in production.'
+date: 2026-01-22
+updated: 2026-01-22
+authors:
+  - waleed
+readingTime: 8
+tags: [Release, Copilot, MCP, Observability, Collaboration, Integrations, Sim]
+ogImage: /studio/v0-5/cover.png
+ogAlt: 'Sim v0.5 release announcement'
+about: ['AI Agents', 'Workflow Automation', 'Developer Tools']
+timeRequired: PT8M
+canonical: https://sim.ai/studio/v0-5
+featured: true
+draft: false
+---
+
+**Sim v0.5** is the next evolution of our agent workflow platform—built for teams shipping AI agents to production.
+
+## Copilot
+
+![Sim Copilot](/studio/v0-5/copilot.jpg)
+
+Copilot is a context-aware assistant embedded in the Sim editor. Unlike general-purpose AI assistants, Copilot has direct access to your workspace: workflows, block configurations, execution logs, connected credentials, and documentation. It can also search the web to pull in external context when needed.
+
+Your workspace is indexed for hybrid retrieval. When you ask a question, Copilot queries this index to ground its responses in your actual workflow state. Ask "why did my workflow fail at 3am?" and it retrieves the relevant execution trace, identifies the error, and explains what happened.
+
+Copilot supports slash commands that trigger specialized capabilities:
+
+- `/fast` — uses a faster model for quick responses when you need speed over depth
+- `/research` — performs multi-step web research on a topic, synthesizing results from multiple sources
+- `/actions` — lets Copilot directly use your connected integrations as tools, like reading your Gmail, sending Slack messages, or querying your database—all outside the context of a workflow
+- `/search` — searches the web for relevant information
+- `/read` — reads and extracts content from a URL
+- `/scrape` — scrapes structured data from web pages
+- `/crawl` — crawls multiple pages from a website to gather comprehensive information
+
+Use `@` commands to pull specific context into your conversation. `@block` references a specific block's configuration and recent outputs. `@workflow` includes the full workflow structure. `@logs` pulls in recent execution traces. This lets you ask targeted questions like "why is `@Slack1` returning an error?" and Copilot has the exact context it needs to diagnose the issue.
+
+For complex tasks, Copilot uses subagents—breaking requests into discrete operations and executing them sequentially. Ask it to "add error handling to this workflow" and it will analyze your blocks, determine where failures could occur, add appropriate condition blocks, and wire up notification paths. Each change surfaces as a diff for your review before applying.
+
+<DiffControlsDemo />
+
+## MCP Deployment
+
+![MCP Deployment](/studio/v0-5/mcp.png)
+
+Deploy any workflow as an [MCP](https://modelcontextprotocol.io) server. Once deployed, the workflow becomes a callable tool for any MCP-compatible agent—[Claude Desktop](https://claude.ai/download), [Cursor](https://cursor.com), or your own applications.
+
+Sim generates a tool definition from your workflow: the name and description you specify, plus a JSON schema derived from your Start block's input format. The MCP server uses Streamable HTTP transport, so agents connect via a single URL. Authentication is handled via API key headers or public access, depending on your configuration.
+
+Consider a lead enrichment workflow: it queries Apollo for contact data, checks Salesforce for existing records, formats the output, and posts a summary to Slack. That's 8 blocks in Sim. Deploy it as MCP, and any agent can call `enrich_lead("jane@acme.com")` and receive structured data back. The agent treats it as a single tool call—it doesn't need to know about Apollo, Salesforce, or Slack.
+
+This pattern scales to research pipelines, data processing workflows, approval chains, and internal tooling. Anything you build in Sim becomes a tool any agent can invoke.
+
+## Logs & Dashboard
+
+![Logs & Dashboard](/studio/v0-5/dashboard.jpg)
+
+Every workflow execution generates a full trace. Each block records its start time, end time, inputs, outputs, and any errors. For LLM blocks, we capture prompt tokens, completion tokens, and cost by model.
+
+The dashboard aggregates this data into queryable views:
+
+- **Trace spans**: Hierarchical view of block executions with timing waterfall
+- **Cost attribution**: Token usage and spend broken down by model per execution
+- **Error context**: Full stack traces with the block, input values, and failure reason
+- **Filtering**: Query by time range, trigger type, workflow, or status
+- **Execution snapshots**: Each run captures the workflow state at execution time—restore to see exactly what was running
+
+This level of observability is necessary when workflows handle production traffic—sending customer emails, processing payments, or making API calls on behalf of users.
+
+## Realtime Collaboration
+
+![Realtime Collaboration](/studio/v0-5/collaboration.png)
+
+Multiple users can edit the same workflow simultaneously. Changes propagate in real time—you see teammates' cursors, block additions, and configuration updates as they happen.
+
+The editor now supports full undo/redo history (Cmd+Z / Cmd+Shift+Z), so you can step back through changes without losing work. Copy and paste works for individual blocks, groups of blocks, or entire subflows—select what you need, Cmd+C, and paste into the same workflow or a different one. This makes it easy to duplicate patterns, share components across workflows, or quickly prototype variations.
+
+This is particularly useful during development sessions where engineers, product managers, and domain experts need to iterate together. Everyone works on the same workflow state, and changes sync immediately across all connected clients.
+
+## Versioning
+
+![Versioning](/studio/v0-5/versioning.png)
+
+Every deployment creates a new version. The version history shows who deployed what and when, with a preview of the workflow state at that point in time. Roll back to any previous version with one click—the live deployment updates immediately.
+
+This matters when something breaks in production. You can instantly revert to the last known good version while you debug, rather than scrambling to fix forward. It also provides a clear audit trail: you can see exactly what changed between versions and who made the change.
+
+---
+
+## 100+ Integrations
+
+![Integrations](/studio/v0-5/integrations.png)
+
+v0.5 adds **100+ integrations** with **300+ actions**. These cover the specific operations you need—not just generic CRUD, but actions like "send Slack message to channel," "create Jira ticket with custom fields," "query Postgres with parameterized SQL," or "enrich contact via Apollo."
+
+- **CRMs & Sales**: Salesforce, HubSpot, Pipedrive, Apollo, Wealthbox
+- **Communication**: Slack, Discord, Microsoft Teams, Telegram, WhatsApp, Twilio
+- **Productivity**: Notion, Confluence, Google Workspace, Microsoft 365, Airtable, Asana, Trello
+- **Developer Tools**: GitHub, GitLab, Jira, Linear, Sentry, Datadog, Grafana
+- **Databases**: PostgreSQL, MySQL, MongoDB, [Supabase](https://supabase.com), DynamoDB, Elasticsearch, [Pinecone](https://pinecone.io), [Qdrant](https://qdrant.tech), Neo4j
+- **Finance**: Stripe, Kalshi, Polymarket
+- **Web & Search**: [Firecrawl](https://firecrawl.dev), [Exa](https://exa.ai), [Tavily](https://tavily.com), [Jina](https://jina.ai), [Serper](https://serper.dev)
+- **Cloud**: AWS (S3, RDS, SQS, Textract, Bedrock), [Browser Use](https://browser-use.com), [Stagehand](https://github.com/browserbase/stagehand)
+
+Each integration handles OAuth or API key authentication. Connect once, and the credentials are available across all workflows in your workspace.
+
+---
+
+## Triggers
+
+Workflows can be triggered through multiple mechanisms:
+
+**Webhooks**: Sim provisions a unique HTTPS endpoint for each workflow. Incoming POST requests are parsed and passed to the first block as input. Supports standard webhook patterns including signature verification for services that provide it.
+
+**Schedules**: Cron-based scheduling with timezone support. Use the visual scheduler or write expressions directly. Execution locks prevent overlapping runs.
+
+**Chat**: Deploy workflows as conversational interfaces. Messages stream to your workflow, responses stream back to the user. Supports multi-turn context.
+
+**API**: REST endpoint with your workflow's input schema. Call it from any system that can make HTTP requests.
+
+**Integration triggers**: Event-driven triggers for specific services—GitHub (PR opened, issue created, push), Stripe (payment succeeded, subscription updated), TypeForm (form submitted), RSS (new item), and more.
+
+**Forms**: Coming soon—build custom input forms that trigger workflows directly.
+
+---
+
+## Knowledge Base
+
+![Knowledge Base](/studio/v0-5/kb.png)
+
+Upload documents—PDFs, text files, markdown, HTML—and make them queryable by your agents. This is [RAG](https://en.wikipedia.org/wiki/Retrieval-augmented_generation) (Retrieval Augmented Generation) built directly into Sim.
+
+Documents are chunked, embedded, and indexed using hybrid search ([BM25](https://en.wikipedia.org/wiki/Okapi_BM25) + vector embeddings). Agent blocks can query the knowledge base as a tool, retrieving relevant passages based on semantic similarity and keyword matching. When documents are updated, they re-index automatically.
+
+Use cases:
+
+- **Customer support agents** that reference your help docs and troubleshooting guides to resolve tickets
+- **Sales assistants** that pull from product specs, pricing sheets, and competitive intel
+- **Internal Q&A bots** that answer questions about company policies, HR docs, or engineering runbooks
+- **Research workflows** that synthesize information from uploaded papers, reports, or data exports
+
+---
+
+## New Blocks
+
+### Human in the Loop
+
+Pause workflow execution pending human approval. The block sends a notification (email, Slack, or webhook) with approve/reject actions. Execution resumes only on approval—useful for high-stakes operations like customer-facing emails, financial transactions, or content publishing.
+
+### Agent Block
+
+The Agent block now supports three additional tool types:
+
+- **Workflows as tools**: Agents can invoke other Sim workflows, enabling hierarchical architectures where a coordinator agent delegates to specialized sub-workflows
+- **Knowledge base queries**: Agents search your indexed documents directly, retrieving relevant context for their responses
+- **Custom functions**: Execute JavaScript or Python code in isolated sandboxes with configurable timeout and memory limits
+
+### Subflows
+
+Group blocks into collapsible subflows. Use them for loops (iterate over arrays), parallel execution (run branches concurrently), or logical organization. Subflows can be nested and keep complex workflows manageable.
+
+### Router
+
+Conditional branching based on data or LLM classification. Define rules or let the router use an LLM to determine intent and select the appropriate path.
+
+The router now exposes its reasoning in execution logs—when debugging unexpected routing, you can see exactly why a particular branch was selected.
+
+---
+
+## Model Providers
+
+Sim supports 14 providers: [OpenAI](https://openai.com), [Anthropic](https://anthropic.com), [Google](https://ai.google.dev), [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service), [xAI](https://x.ai), [Mistral](https://mistral.ai), [Deepseek](https://deepseek.com), [Groq](https://groq.com), [Cerebras](https://cerebras.ai), [Ollama](https://ollama.com), and [OpenRouter](https://openrouter.ai).
+
+New in v0.5:
+
+- **[AWS Bedrock](https://aws.amazon.com/bedrock)**: Claude, Nova, Llama, Mistral, and Cohere models via your AWS account
+- **[Google Vertex AI](https://cloud.google.com/vertex-ai)**: Gemini models through Google Cloud
+- **[vLLM](https://github.com/vllm-project/vllm)**: Self-hosted models on your own infrastructure
+
+Model selection is per-block, so you can use faster/cheaper models for simple tasks and more capable models where needed.
+
+---
+
+## Developer Experience
+
+**Custom Tools**: Define your own integrations with custom HTTP endpoints, authentication (API key, OAuth, Bearer token), and request/response schemas. Custom tools appear in the block palette alongside built-in integrations.
+
+**Environment Variables**: Encrypted key-value storage for secrets and configuration. Variables are decrypted at runtime and can be referenced in any block configuration.
+
+**Import/Export**: Export workflows or entire workspaces as JSON. Imports preserve all blocks, connections, configurations, and variable references.
+
+**File Manager**: Upload files to your workspace for use in workflows—templates, seed data, static assets. Files are accessible via internal references or presigned URLs.
+
+---
+
+## Get Started
+
+Available now at [sim.ai](https://sim.ai). Check out the [docs](https://docs.sim.ai) to dive deeper.
+
+*Questions? [help@sim.ai](mailto:help@sim.ai) · [Discord](https://sim.ai/discord)*

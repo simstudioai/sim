@@ -1,0 +1,383 @@
+---
+title: Google Slides
+description: Read, write, and create presentations
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_slides_v2"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Slides](https://slides.google.com) is a dynamic cloud-based presentation application that allows users to create, edit, collaborate on, and present slideshows in real-time. As part of Google's productivity suite, Google Slides offers a flexible platform for designing engaging presentations, collaborating with others, and sharing content seamlessly through the cloud.
+
+Learn how to integrate the Google Slides tools in Sim to effortlessly manage presentations as part of your automated workflows. With Sim, you can read, write, create, and update Google Slides presentations directly through your agents and automated processes, making it easy to deliver up-to-date information, generate custom reports, or produce branded decks programmatically.
+
+With Google Slides, you can:
+
+- **Create and edit presentations**: Design visually appealing slides with themes, layouts, and multimedia content
+- **Collaborate in real-time**: Work simultaneously with teammates, comment, assign tasks, and receive live feedback on presentations
+- **Present anywhere**: Display presentations online or offline, share links, or publish to the web
+- **Add images and rich content**: Insert images, graphics, charts, and videos to make your presentations engaging
+- **Integrate with other services**: Connect seamlessly with Google Drive, Docs, Sheets, and other third-party tools
+- **Access from any device**: Use Google Slides on desktops, laptops, tablets, and mobile devices for maximum flexibility
+
+In Sim, the Google Slides integration enables your agents to interact directly with presentation files programmatically. Automate tasks like reading slide content, inserting new slides or images, replacing text throughout a deck, generating new presentations, and retrieving slide thumbnails. This empowers you to scale content creation, keep presentations up-to-date, and embed them into automated document workflows. By connecting Sim with Google Slides, you facilitate AI-driven presentation management—making it easy to generate, update, or extract information from presentations without manual effort.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Google Slides into the workflow. Can read, write, create presentations, replace text, add slides, add images, get thumbnails, get page details, delete objects, duplicate objects, reorder slides, create tables, create shapes, and insert text.
+
+
+
+## Tools
+
+### `google_slides_read`
+
+Read content from a Google Slides presentation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `slides` | json | Array of slides with their content |
+| `metadata` | json | Presentation metadata including ID, title, and URL |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `title` | string | The presentation title |
+|   ↳ `pageSize` | object | Presentation page size |
+|     ↳ `width` | json | Page width as a Dimension object |
+|     ↳ `height` | json | Page height as a Dimension object |
+|   ↳ `mimeType` | string | The mime type of the presentation |
+|   ↳ `url` | string | URL to open the presentation |
+
+### `google_slides_write`
+
+Write or update content in a Google Slides presentation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `content` | string | Yes | The content to write to the slide |
+| `slideIndex` | number | No | The index of the slide to write to \(defaults to first slide\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updatedContent` | boolean | Indicates if presentation content was updated successfully |
+| `metadata` | json | Updated presentation metadata including ID, title, and URL |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `title` | string | The presentation title |
+|   ↳ `mimeType` | string | The mime type of the presentation |
+|   ↳ `url` | string | URL to open the presentation |
+
+### `google_slides_create`
+
+Create a new Google Slides presentation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Yes | The title of the presentation to create |
+| `content` | string | No | The content to add to the first slide |
+| `folderSelector` | string | No | Google Drive folder ID to create the presentation in \(e.g., 1ABCxyz...\) |
+| `folderId` | string | No | The ID of the folder to create the presentation in \(internal use\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `metadata` | json | Created presentation metadata including ID, title, and URL |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `title` | string | The presentation title |
+|   ↳ `mimeType` | string | The mime type of the presentation |
+|   ↳ `url` | string | URL to open the presentation |
+
+### `google_slides_replace_all_text`
+
+Find and replace all occurrences of text throughout a Google Slides presentation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `findText` | string | Yes | The text to find \(e.g., \{\{placeholder\}\}\) |
+| `replaceText` | string | Yes | The text to replace with |
+| `matchCase` | boolean | No | Whether the search should be case-sensitive \(default: true\) |
+| `pageObjectIds` | string | No | Comma-separated list of slide object IDs to limit replacements to specific slides \(leave empty for all slides\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `occurrencesChanged` | number | Number of text occurrences that were replaced |
+| `metadata` | json | Operation metadata including presentation ID and URL |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `findText` | string | The text that was searched for |
+|   ↳ `replaceText` | string | The text that replaced the matches |
+|   ↳ `url` | string | URL to open the presentation |
+
+### `google_slides_add_slide`
+
+Add a new slide to a Google Slides presentation with a specified layout
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `layout` | string | No | The predefined layout for the slide \(BLANK, TITLE, TITLE_AND_BODY, TITLE_ONLY, SECTION_HEADER, etc.\). Defaults to BLANK. |
+| `insertionIndex` | number | No | The optional zero-based index indicating where to insert the slide. If not specified, the slide is added at the end. |
+| `placeholderIdMappings` | string | No | JSON array of placeholder mappings to assign custom object IDs to placeholders. Format: \[\{"layoutPlaceholder":\{"type":"TITLE"\},"objectId":"custom_title_id"\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `slideId` | string | The object ID of the newly created slide |
+| `metadata` | json | Operation metadata including presentation ID, layout, and URL |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `layout` | string | The layout used for the new slide |
+|   ↳ `insertionIndex` | number | The zero-based index where the slide was inserted |
+|   ↳ `url` | string | URL to open the presentation |
+
+### `google_slides_add_image`
+
+Insert an image into a specific slide in a Google Slides presentation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `pageObjectId` | string | Yes | The object ID of the slide/page to add the image to |
+| `imageUrl` | string | Yes | The publicly accessible URL of the image \(must be PNG, JPEG, or GIF, max 50MB\) |
+| `width` | number | No | Width of the image in points \(default: 300\) |
+| `height` | number | No | Height of the image in points \(default: 200\) |
+| `positionX` | number | No | X position from the left edge in points \(default: 100\) |
+| `positionY` | number | No | Y position from the top edge in points \(default: 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `imageId` | string | The object ID of the newly created image |
+| `metadata` | json | Operation metadata including presentation ID and image URL |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `pageObjectId` | string | The page object ID where the image was inserted |
+|   ↳ `imageUrl` | string | The source image URL |
+|   ↳ `url` | string | URL to open the presentation |
+
+### `google_slides_get_thumbnail`
+
+Generate a thumbnail image of a specific slide in a Google Slides presentation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `pageObjectId` | string | Yes | The object ID of the slide/page to get a thumbnail for |
+| `thumbnailSize` | string | No | The size of the thumbnail: SMALL \(200px\), MEDIUM \(800px\), or LARGE \(1600px\). Defaults to MEDIUM. |
+| `mimeType` | string | No | The MIME type of the thumbnail image: PNG or GIF. Defaults to PNG. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contentUrl` | string | URL to the thumbnail image \(valid for 30 minutes\) |
+| `width` | number | Width of the thumbnail in pixels |
+| `height` | number | Height of the thumbnail in pixels |
+| `metadata` | json | Operation metadata including presentation ID and page object ID |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `pageObjectId` | string | The page object ID for the thumbnail |
+|   ↳ `thumbnailSize` | string | The requested thumbnail size |
+|   ↳ `mimeType` | string | The thumbnail MIME type |
+
+### `google_slides_get_page`
+
+Get detailed information about a specific slide/page in a Google Slides presentation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `pageObjectId` | string | Yes | The object ID of the slide/page to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `objectId` | string | The object ID of the page |
+| `pageType` | string | The type of page \(SLIDE, MASTER, LAYOUT, NOTES, NOTES_MASTER\) |
+| `pageElements` | array | Array of page elements \(shapes, images, tables, etc.\) on this page |
+| `slideProperties` | object | Properties specific to slides \(layout, master, notes\) |
+|   ↳ `layoutObjectId` | string | Object ID of the layout this slide is based on |
+|   ↳ `masterObjectId` | string | Object ID of the master this slide is based on |
+|   ↳ `notesPage` | json | The notes page associated with the slide |
+| `metadata` | object | Operation metadata including presentation ID and URL |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_delete_object`
+
+Delete a page element (shape, image, table, etc.) or an entire slide from a Google Slides presentation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | The object ID of the element or slide to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the object was successfully deleted |
+| `objectId` | string | The object ID that was deleted |
+| `metadata` | object | Operation metadata including presentation ID and URL |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_duplicate_object`
+
+Duplicate an object (slide, shape, image, table, etc.) in a Google Slides presentation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | The object ID of the element or slide to duplicate |
+| `objectIds` | string | No | Optional JSON object mapping source object IDs \(within the slide being duplicated\) to new object IDs for the duplicates. Format: \{"sourceId1":"newId1","sourceId2":"newId2"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `duplicatedObjectId` | string | The object ID of the newly created duplicate |
+| `metadata` | object | Operation metadata including presentation ID and source object ID |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `sourceObjectId` | string | The original object ID that was duplicated |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_update_slides_position`
+
+Move one or more slides to a new position in a Google Slides presentation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `slideObjectIds` | string | Yes | Comma-separated list of slide object IDs to move. The slides will maintain their relative order. |
+| `insertionIndex` | number | Yes | The zero-based index where the slides should be moved. All slides with indices greater than or equal to this will be shifted right. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `moved` | boolean | Whether the slides were successfully moved |
+| `slideObjectIds` | array | The slide object IDs that were moved |
+| `insertionIndex` | number | The index where the slides were moved to |
+| `metadata` | object | Operation metadata including presentation ID and URL |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_create_table`
+
+Create a new table on a slide in a Google Slides presentation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `pageObjectId` | string | Yes | The object ID of the slide/page to add the table to |
+| `rows` | number | Yes | Number of rows in the table \(minimum 1\) |
+| `columns` | number | Yes | Number of columns in the table \(minimum 1\) |
+| `width` | number | No | Width of the table in points \(default: 400\) |
+| `height` | number | No | Height of the table in points \(default: 200\) |
+| `positionX` | number | No | X position from the left edge in points \(default: 100\) |
+| `positionY` | number | No | Y position from the top edge in points \(default: 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tableId` | string | The object ID of the newly created table |
+| `rows` | number | Number of rows in the table |
+| `columns` | number | Number of columns in the table |
+| `metadata` | object | Operation metadata including presentation ID and page object ID |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `pageObjectId` | string | The page object ID where the table was created |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_create_shape`
+
+Create a shape (rectangle, ellipse, text box, arrow, etc.) on a slide in a Google Slides presentation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `pageObjectId` | string | Yes | The object ID of the slide/page to add the shape to |
+| `shapeType` | string | Yes | The type of shape to create. Common types: TEXT_BOX, RECTANGLE, ROUND_RECTANGLE, ELLIPSE, TRIANGLE, DIAMOND, STAR_5, ARROW_EAST, HEART, CLOUD |
+| `width` | number | No | Width of the shape in points \(default: 200\) |
+| `height` | number | No | Height of the shape in points \(default: 100\) |
+| `positionX` | number | No | X position from the left edge in points \(default: 100\) |
+| `positionY` | number | No | Y position from the top edge in points \(default: 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `shapeId` | string | The object ID of the newly created shape |
+| `shapeType` | string | The type of shape that was created |
+| `metadata` | object | Operation metadata including presentation ID and page object ID |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `pageObjectId` | string | The page object ID where the shape was created |
+|   ↳ `url` | string | URL to the presentation |
+
+### `google_slides_insert_text`
+
+Insert text into a shape or table cell in a Google Slides presentation. Use this to add text to text boxes, shapes, or table cells.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Yes | Google Slides presentation ID |
+| `objectId` | string | Yes | The object ID of the shape or table cell to insert text into. For table cells, use the cell object ID. |
+| `text` | string | Yes | The text to insert |
+| `insertionIndex` | number | No | The zero-based index at which to insert the text. If not specified, text is inserted at the beginning \(index 0\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inserted` | boolean | Whether the text was successfully inserted |
+| `objectId` | string | The object ID where text was inserted |
+| `text` | string | The text that was inserted |
+| `metadata` | object | Operation metadata including presentation ID and URL |
+|   ↳ `presentationId` | string | The presentation ID |
+|   ↳ `url` | string | URL to the presentation |
+
+

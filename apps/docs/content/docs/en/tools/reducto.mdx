@@ -1,0 +1,55 @@
+---
+title: Reducto
+description: Extract text from PDF documents
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="reducto_v2"
+  color="#5c0c5c"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+The [Reducto](https://reducto.ai/) tool enables fast and accurate extraction of text and data from PDF documents via OCR (Optical Character Recognition). Reducto is designed for agent workflows, making it easy to process uploaded or linked PDFs and transform their contents into ready-to-use information.
+
+With the Reducto tool, you can:
+
+- **Extract text and tables from PDFs**: Quickly convert scanned or digital PDFs to text, markdown, or structured JSON.
+- **Parse PDFs from uploads or URLs**: Process documents either by uploading a PDF or specifying a direct URL.
+- **Customize output formatting**: Choose your preferred output format—markdown, plain text, or JSON—and specify table formats as markdown or HTML.
+- **Select specific pages**: Optionally extract content from particular pages to optimize processing and focus on what matters.
+- **Receive detailed processing metadata**: Alongside extracted content, get job details, processing times, source file info, page counts, and OCR usage stats for audit and automation.
+
+Whether you’re automating workflow steps, extracting business-critical information, or unlocking archival documents for search and analysis, Reducto’s OCR parser gives you structured, actionable data from even the most complex PDFs.
+
+Looking for reliable and scalable PDF parsing? Reducto is optimized for developer and agent use—providing accuracy, speed, and flexibility for modern document understanding.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Reducto Parse into the workflow. Can extract text from uploaded PDF documents or file references.
+
+
+
+## Tools
+
+### `reducto_parser`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filePath` | string | No | URL to a PDF document to be processed |
+| `file` | file | No | Document file to be processed |
+| `fileUpload` | object | No | File upload data from file-upload component |
+| `pages` | array | No | Specific pages to process \(1-indexed page numbers\) |
+| `tableOutputFormat` | string | No | Table output format \(html or markdown\). Defaults to markdown. |
+| `apiKey` | string | Yes | Reducto API key \(REDUCTO_API_KEY\) |
+
+#### Output
+
+This tool does not produce any outputs.
+
+

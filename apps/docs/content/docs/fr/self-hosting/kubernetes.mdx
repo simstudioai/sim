@@ -1,0 +1,133 @@
+---
+title: Kubernetes
+description: Déployer Sim avec Helm
+---
+
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+## Prérequis
+
+- Kubernetes 1.19+
+- Helm 3.0+
+- Support du provisionneur PV
+
+## Installation
+
+```bash
+# Clone repo
+git clone https://github.com/simstudioai/sim.git && cd sim
+
+# Generate secrets
+BETTER_AUTH_SECRET=$(openssl rand -hex 32)
+ENCRYPTION_KEY=$(openssl rand -hex 32)
+INTERNAL_API_SECRET=$(openssl rand -hex 32)
+
+# Install
+helm install sim ./helm/sim \
+  --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+  --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
+  --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+  --namespace simstudio --create-namespace
+```
+
+## Valeurs spécifiques au cloud
+
+<Tabs items={['AWS EKS', 'Azure AKS', 'GCP GKE']}>
+  <Tab value="AWS EKS">
+
+```bash
+helm install sim ./helm/sim \
+  --values ./helm/sim/examples/values-aws.yaml \
+  --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+  --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
+  --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+  --set app.env.NEXT_PUBLIC_APP_URL="https://sim.yourdomain.com" \
+  --namespace simstudio --create-namespace
+```
+
+  </Tab>
+  <Tab value="Azure AKS">
+
+```bash
+helm install sim ./helm/sim \
+  --values ./helm/sim/examples/values-azure.yaml \
+  --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+  --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
+  --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+  --set app.env.NEXT_PUBLIC_APP_URL="https://sim.yourdomain.com" \
+  --namespace simstudio --create-namespace
+```
+
+  </Tab>
+  <Tab value="GCP GKE">
+
+```bash
+helm install sim ./helm/sim \
+  --values ./helm/sim/examples/values-gcp.yaml \
+  --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+  --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
+  --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+  --set app.env.NEXT_PUBLIC_APP_URL="https://sim.yourdomain.com" \
+  --namespace simstudio --create-namespace
+```
+
+  </Tab>
+</Tabs>
+
+## Configuration clé
+
+```yaml
+# Custom values.yaml
+app:
+  replicaCount: 2
+  env:
+    NEXT_PUBLIC_APP_URL: "https://sim.yourdomain.com"
+    OPENAI_API_KEY: "sk-..."
+
+postgresql:
+  persistence:
+    size: 50Gi
+
+ingress:
+  enabled: true
+  className: nginx
+  tls:
+    enabled: true
+  app:
+    host: sim.yourdomain.com
+```
+
+Voir `helm/sim/values.yaml` pour toutes les options.
+
+## Base de données externe
+
+```yaml
+postgresql:
+  enabled: false
+
+externalDatabase:
+  enabled: true
+  host: "your-db-host"
+  port: 5432
+  username: "postgres"
+  password: "your-password"
+  database: "simstudio"
+  sslMode: "require"
+```
+
+## Commandes
+
+```bash
+# Port forward for local access
+kubectl port-forward deployment/sim-sim-app 3000:3000 -n simstudio
+
+# View logs
+kubectl logs -l app.kubernetes.io/component=app -n simstudio --tail=100
+
+# Upgrade
+helm upgrade sim ./helm/sim --namespace simstudio
+
+# Uninstall
+helm uninstall sim --namespace simstudio
+```

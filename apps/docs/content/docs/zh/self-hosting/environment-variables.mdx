@@ -1,0 +1,87 @@
+---
+title: 环境变量
+description: Sim 的配置参考
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+## 必需
+
+| 变量 | 描述 |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL 连接字符串 |
+| `BETTER_AUTH_SECRET` | 认证密钥（32 个十六进制字符）：`openssl rand -hex 32` |
+| `BETTER_AUTH_URL` | 您的应用程序 URL |
+| `ENCRYPTION_KEY` | 加密密钥（32 个十六进制字符）：`openssl rand -hex 32` |
+| `INTERNAL_API_SECRET` | 内部 API 密钥（32 个十六进制字符）：`openssl rand -hex 32` |
+| `NEXT_PUBLIC_APP_URL` | 公共应用程序 URL |
+| `NEXT_PUBLIC_SOCKET_URL` | WebSocket URL（默认值：`http://localhost:3002`） |
+
+## AI 提供商
+
+| 变量 | 提供商 |
+|----------|----------|
+| `OPENAI_API_KEY` | OpenAI |
+| `ANTHROPIC_API_KEY_1` | Anthropic Claude |
+| `GEMINI_API_KEY_1` | Google Gemini |
+| `MISTRAL_API_KEY` | Mistral |
+| `OLLAMA_URL` | Ollama（默认值：`http://localhost:11434`） |
+
+<Callout type="info">
+  为了负载均衡，请添加带有 `_1`、`_2`、`_3` 后缀的多个密钥（例如，`OPENAI_API_KEY_1`、`OPENAI_API_KEY_2`）。适用于 OpenAI、Anthropic 和 Gemini。
+</Callout>
+
+<Callout type="info">
+  在 Docker 中，使用 `OLLAMA_URL=http://host.docker.internal:11434` 作为主机机器的 Ollama。
+</Callout>
+
+### Azure OpenAI
+
+| 变量 | 描述 |
+|----------|-------------|
+| `AZURE_OPENAI_API_KEY` | Azure OpenAI API 密钥 |
+| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI 端点 URL |
+| `AZURE_OPENAI_API_VERSION` | API 版本（例如，`2024-02-15-preview`） |
+
+### vLLM（自托管）
+
+| 变量 | 描述 |
+|----------|-------------|
+| `VLLM_BASE_URL` | vLLM 服务器 URL（例如，`http://localhost:8000/v1`） |
+| `VLLM_API_KEY` | vLLM 的可选 Bearer Token |
+
+## OAuth 提供商
+
+| 变量 | 描述 |
+|----------|-------------|
+| `GOOGLE_CLIENT_ID` | Google OAuth 客户端 ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth 客户端密钥 |
+| `GITHUB_CLIENT_ID` | GitHub OAuth 客户端 ID |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth 客户端密钥 |
+
+## 可选
+
+| 变量 | 描述 |
+|----------|-------------|
+| `API_ENCRYPTION_KEY` | 加密存储的 API 密钥（32 个十六进制字符）：`openssl rand -hex 32` |
+| `COPILOT_API_KEY` | 用于 copilot 功能的 API 密钥 |
+| `ADMIN_API_KEY` | 用于 GitOps 操作的管理员 API 密钥 |
+| `RESEND_API_KEY` | 用于通知的电子邮件服务 |
+| `ALLOWED_LOGIN_DOMAINS` | 限制注册到特定域（逗号分隔） |
+| `ALLOWED_LOGIN_EMAILS` | 限制注册到特定电子邮件（逗号分隔） |
+| `DISABLE_REGISTRATION` | 设置为 `true` 以禁用新用户注册 |
+
+## 示例 .env
+
+```bash
+DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
+BETTER_AUTH_SECRET=<openssl rand -hex 32>
+BETTER_AUTH_URL=https://sim.yourdomain.com
+ENCRYPTION_KEY=<openssl rand -hex 32>
+INTERNAL_API_SECRET=<openssl rand -hex 32>
+NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
+NEXT_PUBLIC_SOCKET_URL=https://sim.yourdomain.com
+OPENAI_API_KEY=sk-...
+```
+
+查看 `apps/sim/.env.example` 以获取所有选项。

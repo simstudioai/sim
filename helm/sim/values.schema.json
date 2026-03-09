@@ -1,0 +1,1063 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["app", "realtime"],
+  "properties": {
+    "global": {
+      "type": "object",
+      "properties": {
+        "imageRegistry": {
+          "type": "string",
+          "format": "hostname",
+          "description": "Global Docker image registry"
+        },
+        "useRegistryForAllImages": {
+          "type": "boolean",
+          "description": "Use registry for all images, not just simstudioai/* images"
+        },
+        "imagePullSecrets": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "description": "Global image pull secrets"
+        },
+        "storageClass": {
+          "type": "string",
+          "description": "Global storage class for PVCs"
+        }
+      }
+    },
+    "app": {
+      "type": "object",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the main application"
+        },
+        "replicaCount": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of app replicas"
+        },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "limits": {
+              "type": "object",
+              "properties": {
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Ki|Mi|Gi|Ti|Pi|Ei|m|k|M|G|T|P|E)?$",
+                  "description": "Memory limit (e.g., 4Gi, 2048Mi)"
+                },
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?m?$",
+                  "description": "CPU limit (e.g., 2000m, 2.0)"
+                },
+                "nvidia.com/gpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$",
+                  "description": "GPU limit"
+                }
+              }
+            },
+            "requests": {
+              "type": "object",
+              "properties": {
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Ki|Mi|Gi|Ti|Pi|Ei|m|k|M|G|T|P|E)?$",
+                  "description": "Memory request (e.g., 2Gi, 1024Mi)"
+                },
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?m?$",
+                  "description": "CPU request (e.g., 1000m, 1.0)"
+                }
+              }
+            }
+          }
+        },
+        "secrets": {
+          "type": "object",
+          "description": "Secret management configuration",
+          "properties": {
+            "existingSecret": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Use an existing secret instead of creating one"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Name of the existing Kubernetes secret"
+                },
+                "keys": {
+                  "type": "object",
+                  "description": "Key name mappings in the existing secret"
+                }
+              }
+            }
+          }
+        },
+        "env": {
+          "type": "object",
+          "properties": {
+            "BETTER_AUTH_SECRET": {
+              "type": "string",
+              "description": "Auth secret (minimum 32 characters required when not using existingSecret)"
+            },
+            "ENCRYPTION_KEY": {
+              "type": "string",
+              "description": "Encryption key (minimum 32 characters required when not using existingSecret)"
+            },
+            "NEXT_PUBLIC_APP_URL": {
+              "type": "string",
+              "format": "uri",
+              "description": "Public application URL"
+            },
+            "INTERNAL_API_BASE_URL": {
+              "type": "string",
+              "anyOf": [
+                {
+                  "format": "uri"
+                },
+                {
+                  "const": ""
+                }
+              ],
+              "description": "Optional server-side internal base URL for internal /api self-calls (must include http:// or https://); defaults to NEXT_PUBLIC_APP_URL when unset"
+            },
+            "BETTER_AUTH_URL": {
+              "type": "string",
+              "format": "uri",
+              "description": "Authentication service URL"
+            },
+            "SOCKET_SERVER_URL": {
+              "type": "string",
+              "format": "uri",
+              "description": "Socket server URL"
+            },
+            "NEXT_PUBLIC_SOCKET_URL": {
+              "type": "string",
+              "format": "uri",
+              "description": "Public socket URL"
+            },
+            "NODE_ENV": {
+              "type": "string",
+              "enum": ["development", "test", "production"],
+              "description": "Runtime environment"
+            },
+            "NEXT_TELEMETRY_DISABLED": {
+              "type": "string",
+              "description": "Disable Next.js telemetry"
+            },
+            "RESEND_API_KEY": {
+              "type": "string",
+              "description": "Resend API key for transactional emails"
+            },
+            "FROM_EMAIL_ADDRESS": {
+              "type": "string",
+              "description": "Complete from address (e.g., \"Sim <noreply@domain.com>\" or \"DoNotReply@domain.com\")"
+            },
+            "EMAIL_DOMAIN": {
+              "type": "string",
+              "description": "Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)"
+            },
+            "GOOGLE_CLIENT_ID": {
+              "type": "string",
+              "description": "Google OAuth client ID"
+            },
+            "GOOGLE_CLIENT_SECRET": {
+              "type": "string",
+              "description": "Google OAuth client secret"
+            },
+            "GITHUB_CLIENT_ID": {
+              "type": "string",
+              "description": "GitHub OAuth client ID"
+            },
+            "GITHUB_CLIENT_SECRET": {
+              "type": "string",
+              "description": "GitHub OAuth client secret"
+            },
+            "OPENAI_API_KEY": {
+              "type": "string",
+              "description": "Primary OpenAI API key"
+            },
+            "OPENAI_API_KEY_1": {
+              "type": "string",
+              "description": "Additional OpenAI API key for load balancing"
+            },
+            "OPENAI_API_KEY_2": {
+              "type": "string",
+              "description": "Additional OpenAI API key for load balancing"
+            },
+            "OPENAI_API_KEY_3": {
+              "type": "string",
+              "description": "Additional OpenAI API key for load balancing"
+            },
+            "MISTRAL_API_KEY": {
+              "type": "string",
+              "description": "Mistral AI API key"
+            },
+            "ANTHROPIC_API_KEY_1": {
+              "type": "string",
+              "description": "Primary Anthropic Claude API key"
+            },
+            "ANTHROPIC_API_KEY_2": {
+              "type": "string",
+              "description": "Additional Anthropic API key for load balancing"
+            },
+            "ANTHROPIC_API_KEY_3": {
+              "type": "string",
+              "description": "Additional Anthropic API key for load balancing"
+            },
+            "OLLAMA_URL": {
+              "type": "string",
+              "description": "Ollama local LLM server URL (leave empty if not using Ollama)"
+            },
+            "ELEVENLABS_API_KEY": {
+              "type": "string",
+              "description": "ElevenLabs API key for text-to-speech in deployed chat"
+            },
+            "RATE_LIMIT_WINDOW_MS": {
+              "type": "string",
+              "description": "Rate limit window duration in milliseconds"
+            },
+            "RATE_LIMIT_FREE_SYNC": {
+              "type": "string",
+              "description": "Free tier sync API executions per minute"
+            },
+            "RATE_LIMIT_PRO_SYNC": {
+              "type": "string",
+              "description": "Pro tier sync API executions per minute"
+            },
+            "RATE_LIMIT_TEAM_SYNC": {
+              "type": "string",
+              "description": "Team tier sync API executions per minute"
+            },
+            "RATE_LIMIT_ENTERPRISE_SYNC": {
+              "type": "string",
+              "description": "Enterprise tier sync API executions per minute"
+            },
+            "RATE_LIMIT_FREE_ASYNC": {
+              "type": "string",
+              "description": "Free tier async API executions per minute"
+            },
+            "RATE_LIMIT_PRO_ASYNC": {
+              "type": "string",
+              "description": "Pro tier async API executions per minute"
+            },
+            "RATE_LIMIT_TEAM_ASYNC": {
+              "type": "string",
+              "description": "Team tier async API executions per minute"
+            },
+            "RATE_LIMIT_ENTERPRISE_ASYNC": {
+              "type": "string",
+              "description": "Enterprise tier async API executions per minute"
+            },
+            "MANUAL_EXECUTION_LIMIT": {
+              "type": "string",
+              "description": "Manual execution bypass value"
+            },
+            "NEXT_PUBLIC_BRAND_NAME": {
+              "type": "string",
+              "description": "Custom brand name"
+            },
+            "NEXT_PUBLIC_BRAND_LOGO_URL": {
+              "type": "string",
+              "description": "Custom logo URL (leave empty for default)"
+            },
+            "NEXT_PUBLIC_BRAND_FAVICON_URL": {
+              "type": "string",
+              "description": "Custom favicon URL (leave empty for default)"
+            },
+            "NEXT_PUBLIC_CUSTOM_CSS_URL": {
+              "type": "string",
+              "description": "Custom stylesheet URL (leave empty for none)"
+            },
+            "NEXT_PUBLIC_SUPPORT_EMAIL": {
+              "type": "string",
+              "format": "email",
+              "description": "Support email address"
+            },
+            "NEXT_PUBLIC_DOCUMENTATION_URL": {
+              "type": "string",
+              "description": "Documentation URL"
+            },
+            "NEXT_PUBLIC_TERMS_URL": {
+              "type": "string",
+              "description": "Terms of service URL"
+            },
+            "NEXT_PUBLIC_PRIVACY_URL": {
+              "type": "string",
+              "description": "Privacy policy URL"
+            },
+            "ALLOWED_LOGIN_EMAILS": {
+              "type": "string",
+              "description": "Comma-separated list of allowed email addresses for login"
+            },
+            "ALLOWED_LOGIN_DOMAINS": {
+              "type": "string",
+              "description": "Comma-separated list of allowed email domains for login"
+            }
+          }
+        }
+      }
+    },
+    "realtime": {
+      "type": "object",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the realtime service"
+        },
+        "replicaCount": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of realtime replicas"
+        },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "limits": {
+              "type": "object",
+              "properties": {
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Ki|Mi|Gi|Ti|Pi|Ei|m|k|M|G|T|P|E)?$",
+                  "description": "Memory limit (e.g., 2Gi, 1024Mi)"
+                },
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?m?$",
+                  "description": "CPU limit (e.g., 1000m, 1.0)"
+                }
+              }
+            },
+            "requests": {
+              "type": "object",
+              "properties": {
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Ki|Mi|Gi|Ti|Pi|Ei|m|k|M|G|T|P|E)?$",
+                  "description": "Memory request (e.g., 1Gi, 512Mi)"
+                },
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?m?$",
+                  "description": "CPU request (e.g., 500m, 0.5)"
+                }
+              }
+            }
+          }
+        },
+        "env": {
+          "type": "object",
+          "properties": {
+            "BETTER_AUTH_SECRET": {
+              "type": "string",
+              "description": "Auth secret (minimum 32 characters required when not using existingSecret)"
+            },
+            "NEXT_PUBLIC_APP_URL": {
+              "type": "string",
+              "format": "uri",
+              "description": "Public application URL"
+            },
+            "BETTER_AUTH_URL": {
+              "type": "string",
+              "format": "uri",
+              "description": "Authentication service URL"
+            },
+            "NEXT_PUBLIC_SOCKET_URL": {
+              "type": "string",
+              "format": "uri",
+              "description": "Public socket URL"
+            },
+            "ALLOWED_ORIGINS": {
+              "type": "string",
+              "description": "CORS allowed origins"
+            },
+            "NODE_ENV": {
+              "type": "string",
+              "enum": ["development", "test", "production"],
+              "description": "Runtime environment"
+            }
+          }
+        }
+      }
+    },
+    "postgresql": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable internal PostgreSQL"
+        },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "limits": {
+              "type": "object",
+              "properties": {
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Ki|Mi|Gi|Ti|Pi|Ei|m|k|M|G|T|P|E)?$",
+                  "description": "Memory limit (e.g., 2Gi, 1024Mi)"
+                },
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?m?$",
+                  "description": "CPU limit"
+                }
+              }
+            },
+            "requests": {
+              "type": "object",
+              "properties": {
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Ki|Mi|Gi|Ti|Pi|Ei|m|k|M|G|T|P|E)?$",
+                  "description": "Memory request (e.g., 1Gi, 512Mi)"
+                },
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?m?$",
+                  "description": "CPU request (e.g., 500m, 0.5)"
+                }
+              }
+            }
+          }
+        },
+        "persistence": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable persistent storage"
+            },
+            "size": {
+              "type": "string",
+              "pattern": "^[0-9]+(Ki|Mi|Gi|Ti|Pi|Ei)$",
+              "description": "Storage size (e.g., 10Gi, 50Gi)"
+            }
+          }
+        },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "username": {
+              "type": "string",
+              "minLength": 1,
+              "description": "PostgreSQL username"
+            },
+            "database": {
+              "type": "string",
+              "minLength": 1,
+              "description": "PostgreSQL database name"
+            },
+            "password": {
+              "type": "string",
+              "description": "PostgreSQL password (minimum 8 characters when not using existingSecret)"
+            },
+            "existingSecret": {
+              "type": "object",
+              "description": "Use an existing secret for PostgreSQL credentials",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Use an existing secret instead of creating one"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Name of the existing Kubernetes secret"
+                },
+                "passwordKey": {
+                  "type": "string",
+                  "description": "Key in the secret containing the password"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "externalDatabase": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Use external database"
+        },
+        "host": {
+          "type": "string",
+          "format": "hostname",
+          "description": "External database host"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "External database port"
+        },
+        "username": {
+          "type": "string",
+          "description": "External database username"
+        },
+        "password": {
+          "type": "string",
+          "description": "External database password"
+        },
+        "database": {
+          "type": "string",
+          "description": "External database name"
+        },
+        "sslMode": {
+          "type": "string",
+          "enum": ["disable", "allow", "prefer", "require", "verify-ca", "verify-full"],
+          "description": "SSL mode for database connection"
+        },
+        "existingSecret": {
+          "type": "object",
+          "description": "Use an existing secret for external database credentials",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Use an existing secret instead of creating one"
+            },
+            "name": {
+              "type": "string",
+              "description": "Name of the existing Kubernetes secret"
+            },
+            "passwordKey": {
+              "type": "string",
+              "description": "Key in the secret containing the password"
+            }
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "enabled": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "required": ["host", "username", "password", "database"]
+      }
+    },
+    "autoscaling": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable autoscaling"
+        },
+        "minReplicas": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minimum replicas"
+        },
+        "maxReplicas": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum replicas"
+        }
+      },
+      "if": {
+        "properties": {
+          "enabled": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "required": ["minReplicas", "maxReplicas"]
+      }
+    },
+    "ollama": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable Ollama service"
+        },
+        "replicaCount": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of Ollama replicas"
+        },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "limits": {
+              "type": "object",
+              "properties": {
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Ki|Mi|Gi|Ti|Pi|Ei|m|k|M|G|T|P|E)?$",
+                  "description": "Memory limit (e.g., 8Gi, 4096Mi)"
+                },
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?m?$",
+                  "description": "CPU limit"
+                },
+                "nvidia.com/gpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$",
+                  "description": "GPU limit"
+                }
+              }
+            },
+            "requests": {
+              "type": "object",
+              "properties": {
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Ki|Mi|Gi|Ti|Pi|Ei|m|k|M|G|T|P|E)?$",
+                  "description": "Memory request (e.g., 4Gi, 2048Mi)"
+                },
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?m?$",
+                  "description": "CPU request (e.g., 1000m, 1.0)"
+                }
+              }
+            }
+          }
+        },
+        "persistence": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable persistent storage"
+            },
+            "size": {
+              "type": "string",
+              "pattern": "^[0-9]+(Ki|Mi|Gi|Ti|Pi|Ei)$",
+              "description": "Storage size (e.g., 100Gi, 500Gi)"
+            }
+          }
+        },
+        "gpu": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable GPU support"
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Number of GPUs"
+            }
+          }
+        }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable telemetry collection"
+        },
+        "replicaCount": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of telemetry collector replicas"
+        }
+      }
+    },
+    "sharedStorage": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable shared storage"
+        },
+        "volumes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "size"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Volume name"
+              },
+              "size": {
+                "type": "string",
+                "pattern": "^[0-9]+[KMGT]i$",
+                "description": "Volume size (e.g., 100Gi)"
+              }
+            }
+          }
+        }
+      }
+    },
+    "copilot": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the Copilot microservice"
+        },
+        "server": {
+          "type": "object",
+          "properties": {
+            "replicaCount": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Number of Copilot replicas"
+            },
+            "image": {
+              "type": "object",
+              "properties": {
+                "repository": {
+                  "type": "string",
+                  "description": "Copilot image repository"
+                },
+                "tag": {
+                  "type": "string",
+                  "description": "Copilot image tag"
+                },
+                "pullPolicy": {
+                  "type": "string",
+                  "enum": ["Always", "IfNotPresent", "Never"],
+                  "description": "Image pull policy"
+                }
+              }
+            },
+            "resources": {
+              "type": "object",
+              "properties": {
+                "limits": { "type": "object" },
+                "requests": { "type": "object" }
+              }
+            },
+            "nodeSelector": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "env": {
+              "type": "object",
+              "additionalProperties": { "type": "string" },
+              "description": "Environment variables for Copilot"
+            },
+            "extraEnv": {
+              "type": "array",
+              "items": { "type": "object" },
+              "description": "Additional environment variable definitions"
+            },
+            "extraEnvFrom": {
+              "type": "array",
+              "items": { "type": "object" },
+              "description": "Additional envFrom sources"
+            },
+            "secret": {
+              "type": "object",
+              "properties": {
+                "create": {
+                  "type": "boolean",
+                  "description": "Whether to create a secret from copilot.server.env"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Override name for the Copilot secret"
+                },
+                "annotations": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" },
+                  "description": "Annotations added to the Copilot secret"
+                }
+              }
+            },
+            "service": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" },
+                "port": { "type": "integer" },
+                "targetPort": { "type": "integer" }
+              }
+            },
+            "podDisruptionBudget": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Enable PodDisruptionBudget for Copilot server"
+                },
+                "minAvailable": {
+                  "type": "integer",
+                  "description": "Minimum number of available pods"
+                },
+                "maxUnavailable": {
+                  "type": "integer",
+                  "description": "Maximum number of unavailable pods"
+                }
+              }
+            }
+          }
+        },
+        "postgresql": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Deploy an internal PostgreSQL instance for Copilot"
+            },
+            "auth": {
+              "type": "object",
+              "properties": {
+                "username": { "type": "string" },
+                "password": { "type": "string" },
+                "database": { "type": "string" }
+              }
+            },
+            "persistence": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "size": { "type": "string" },
+                "storageClass": { "type": "string" }
+              }
+            }
+          }
+        },
+        "database": {
+          "type": "object",
+          "properties": {
+            "existingSecretName": {
+              "type": "string",
+              "description": "Existing secret containing the Copilot DATABASE_URL"
+            },
+            "secretKey": {
+              "type": "string",
+              "description": "Key name inside the database secret"
+            },
+            "url": {
+              "type": "string",
+              "description": "External database connection string"
+            }
+          }
+        },
+        "migrations": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable the Copilot migration job"
+            },
+            "image": {
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string" }
+              }
+            },
+            "resources": {
+              "type": "object",
+              "properties": {
+                "limits": { "type": "object" },
+                "requests": { "type": "object" }
+              }
+            },
+            "backoffLimit": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "restartPolicy": {
+              "type": "string",
+              "enum": ["Never", "OnFailure"]
+            }
+          }
+        }
+      }
+    },
+    "externalSecrets": {
+      "type": "object",
+      "description": "External Secrets Operator integration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable External Secrets Operator integration"
+        },
+        "apiVersion": {
+          "type": "string",
+          "enum": ["v1", "v1beta1"],
+          "description": "ESO API version - use v1 for ESO v0.17+ (recommended), v1beta1 for older versions"
+        },
+        "refreshInterval": {
+          "type": "string",
+          "description": "How often to sync secrets from external store"
+        },
+        "secretStoreRef": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name of the SecretStore or ClusterSecretStore"
+            },
+            "kind": {
+              "type": "string",
+              "enum": ["SecretStore", "ClusterSecretStore"],
+              "description": "Kind of the store"
+            }
+          }
+        },
+        "remoteRefs": {
+          "type": "object",
+          "description": "Remote key paths in external secret store",
+          "properties": {
+            "app": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "postgresql": {
+              "type": "object",
+              "properties": {
+                "password": { "type": "string" }
+              }
+            },
+            "externalDatabase": {
+              "type": "object",
+              "properties": {
+                "password": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable ingress"
+        },
+        "className": {
+          "type": "string",
+          "description": "Ingress class name"
+        },
+        "app": {
+          "type": "object",
+          "properties": {
+            "host": {
+              "type": "string",
+              "format": "hostname",
+              "description": "Main application hostname"
+            }
+          }
+        },
+        "realtime": {
+          "type": "object",
+          "properties": {
+            "host": {
+              "type": "string",
+              "format": "hostname",
+              "description": "Realtime service hostname"
+            }
+          }
+        },
+        "copilot": {
+          "type": "object",
+          "properties": {
+            "host": {
+              "type": "string",
+              "format": "hostname",
+              "description": "Copilot service hostname"
+            },
+            "paths": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": { "type": "string" },
+                  "pathType": { "type": "string" }
+                }
+              },
+              "description": "Ingress paths for Copilot service"
+            }
+          }
+        },
+        "tls": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable TLS"
+            },
+            "secretName": {
+              "type": "string",
+              "minLength": 1,
+              "description": "TLS secret name"
+            }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "postgresql": {
+            "properties": {
+              "enabled": {
+                "const": false
+              }
+            }
+          }
+        },
+        "anyOf": [
+          {
+            "properties": {
+              "app": {
+                "properties": {
+                  "enabled": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "realtime": {
+                "properties": {
+                  "enabled": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "then": {
+        "properties": {
+          "externalDatabase": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            },
+            "required": ["enabled"]
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,287 @@
+---
+paths:
+  - "apps/sim/tools/**"
+  - "apps/sim/blocks/**"
+  - "apps/sim/triggers/**"
+---
+
+# Adding Integrations
+
+## Overview
+
+Adding a new integration typically requires:
+1. **Tools** - API operations (`tools/{service}/`)
+2. **Block** - UI component (`blocks/blocks/{service}.ts`)
+3. **Icon** - SVG icon (`components/icons.tsx`)
+4. **Trigger** (optional) - Webhooks/polling (`triggers/{service}/`)
+
+Always look up the service's API docs first.
+
+## 1. Tools (`tools/{service}/`)
+
+```
+tools/{service}/
+├── index.ts           # Export all tools
+├── types.ts           # Params/response types
+├── {action}.ts        # Individual tool (e.g., send_message.ts)
+└── ...
+```
+
+**Tool file structure:**
+
+```typescript
+// tools/{service}/{action}.ts
+import type { {Service}Params, {Service}Response } from '@/tools/{service}/types'
+import type { ToolConfig } from '@/tools/types'
+
+export const {service}{Action}Tool: ToolConfig<{Service}Params, {Service}Response> = {
+  id: '{service}_{action}',
+  name: '{Service} {Action}',
+  description: 'What this tool does',
+  version: '1.0.0',
+  oauth: { required: true, provider: '{service}' }, // if OAuth
+  params: { /* param definitions */ },
+  request: {
+    url: '/api/tools/{service}/{action}',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({ ...params }),
+  },
+  transformResponse: async (response) => {
+    const data = await response.json()
+    if (!data.success) throw new Error(data.error)
+    return { success: true, output: data.output }
+  },
+  outputs: { /* output definitions */ },
+}
+```
+
+**Register in `tools/registry.ts`:**
+
+```typescript
+import { {service}{Action}Tool } from '@/tools/{service}'
+// Add to registry object
+{service}_{action}: {service}{Action}Tool,
+```
+
+## 2. Block (`blocks/blocks/{service}.ts`)
+
+```typescript
+import { {Service}Icon } from '@/components/icons'
+import type { BlockConfig } from '@/blocks/types'
+import type { {Service}Response } from '@/tools/{service}/types'
+
+export const {Service}Block: BlockConfig<{Service}Response> = {
+  type: '{service}',
+  name: '{Service}',
+  description: 'Short description',
+  longDescription: 'Detailed description',
+  category: 'tools',
+  bgColor: '#hexcolor',
+  icon: {Service}Icon,
+  subBlocks: [ /* see SubBlock Properties below */ ],
+  tools: {
+    access: ['{service}_{action}', ...],
+    config: {
+      tool: (params) => `{service}_${params.operation}`,
+      params: (params) => ({ ...params }),
+    },
+  },
+  inputs: { /* input definitions */ },
+  outputs: { /* output definitions */ },
+}
+```
+
+### SubBlock Properties
+
+```typescript
+{
+  id: 'fieldName',           // Unique identifier
+  title: 'Field Label',      // UI label
+  type: 'short-input',       // See SubBlock Types below
+  placeholder: 'Hint text',
+  required: true,            // See Required below
+  condition: { ... },        // See Condition below
+  dependsOn: ['otherField'], // See DependsOn below
+  mode: 'basic',             // 'basic' | 'advanced' | 'both' | 'trigger'
+}
+```
+
+**SubBlock Types:** `short-input`, `long-input`, `dropdown`, `code`, `switch`, `slider`, `oauth-input`, `channel-selector`, `user-selector`, `file-upload`, etc.
+
+### `condition` - Show/hide based on another field
+
+```typescript
+// Show when operation === 'send'
+condition: { field: 'operation', value: 'send' }
+
+// Show when operation is 'send' OR 'read'
+condition: { field: 'operation', value: ['send', 'read'] }
+
+// Show when operation !== 'send'
+condition: { field: 'operation', value: 'send', not: true }
+
+// Complex: NOT in list AND another condition
+condition: {
+  field: 'operation',
+  value: ['list_channels', 'list_users'],
+  not: true,
+  and: { field: 'destinationType', value: 'dm', not: true }
+}
+```
+
+### `required` - Field validation
+
+```typescript
+// Always required
+required: true
+
+// Conditionally required (same syntax as condition)
+required: { field: 'operation', value: 'send' }
+```
+
+### `dependsOn` - Clear field when dependencies change
+
+```typescript
+// Clear when credential changes
+dependsOn: ['credential']
+
+// Clear when authMethod changes AND (credential OR botToken) changes
+dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] }
+```
+
+### `mode` - When to show field
+
+- `'basic'` - Only in basic mode (default UI)
+- `'advanced'` - Only in advanced mode (manual input)
+- `'both'` - Show in both modes (default)
+- `'trigger'` - Only when block is used as trigger
+
+### `canonicalParamId` - Link basic/advanced alternatives
+
+Use to map multiple UI inputs to a single logical parameter:
+
+```typescript
+// Basic mode: Visual selector
+{
+  id: 'fileSelector',
+  type: 'file-selector',
+  mode: 'basic',
+  canonicalParamId: 'fileId',
+  required: true,
+},
+// Advanced mode: Manual input
+{
+  id: 'manualFileId',
+  type: 'short-input',
+  mode: 'advanced',
+  canonicalParamId: 'fileId',
+  required: true,
+},
+```
+
+**Critical Rules:**
+- `canonicalParamId` must NOT match any subblock's `id`
+- `canonicalParamId` must be unique per operation/condition context
+- **Required consistency:** All subblocks in a canonical group must have the same `required` status
+- **Inputs section:** Must list canonical param IDs (e.g., `fileId`), NOT raw subblock IDs
+- **Params function:** Must use canonical param IDs (raw IDs are deleted after canonical transformation)
+
+**Register in `blocks/registry.ts`:**
+
+```typescript
+import { {Service}Block } from '@/blocks/blocks/{service}'
+// Add to registry object (alphabetically)
+{service}: {Service}Block,
+```
+
+## 3. Icon (`components/icons.tsx`)
+
+```typescript
+export function {Service}Icon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* SVG path from service's brand assets */}
+    </svg>
+  )
+}
+```
+
+## 4. Trigger (`triggers/{service}/`) - Optional
+
+```
+triggers/{service}/
+├── index.ts           # Export all triggers
+├── webhook.ts         # Webhook handler
+├── utils.ts           # Shared utilities
+└── {event}.ts         # Specific event handlers
+```
+
+**Register in `triggers/registry.ts`:**
+
+```typescript
+import { {service}WebhookTrigger } from '@/triggers/{service}'
+// Add to TRIGGER_REGISTRY
+{service}_webhook: {service}WebhookTrigger,
+```
+
+## File Handling
+
+When integrations handle file uploads/downloads, use `UserFile` objects consistently.
+
+### File Input (Uploads)
+
+1. **Block subBlocks:** Use basic/advanced mode pattern with `canonicalParamId`
+2. **Normalize in block config:** Use `normalizeFileInput` from `@/blocks/utils`
+3. **Internal API route:** Create route that uses `downloadFileFromStorage` to get file content
+4. **Tool routes to internal API:** Don't call external APIs directly with files
+
+```typescript
+// In block tools.config:
+import { normalizeFileInput } from '@/blocks/utils'
+
+const normalizedFile = normalizeFileInput(
+  params.uploadFile || params.fileRef || params.fileContent,
+  { single: true }
+)
+if (normalizedFile) params.file = normalizedFile
+```
+
+### File Output (Downloads)
+
+Use `FileToolProcessor` in tool `transformResponse` to store files:
+
+```typescript
+import { FileToolProcessor } from '@/executor/utils/file-tool-processor'
+
+const processor = new FileToolProcessor(context)
+const file = await processor.processFileData({
+  data: base64Content,
+  mimeType: 'application/pdf',
+  filename: 'doc.pdf',
+})
+```
+
+### Key Helpers
+
+| Helper | Location | Purpose |
+|--------|----------|---------|
+| `normalizeFileInput` | `@/blocks/utils` | Normalize file params in block config |
+| `processFilesToUserFiles` | `@/lib/uploads/utils/file-utils` | Convert raw inputs to UserFile[] |
+| `downloadFileFromStorage` | `@/lib/uploads/utils/file-utils.server` | Get Buffer from UserFile |
+| `FileToolProcessor` | `@/executor/utils/file-tool-processor` | Process tool output files |
+
+## Checklist
+
+- [ ] Look up API docs for the service
+- [ ] Create `tools/{service}/types.ts` with proper types
+- [ ] Create tool files for each operation
+- [ ] Create `tools/{service}/index.ts` barrel export
+- [ ] Register tools in `tools/registry.ts`
+- [ ] Add icon to `components/icons.tsx`
+- [ ] Create block in `blocks/blocks/{service}.ts`
+- [ ] Register block in `blocks/registry.ts`
+- [ ] (Optional) Create triggers in `triggers/{service}/`
+- [ ] (Optional) Register triggers in `triggers/registry.ts`
+- [ ] (If file uploads) Create internal API route with `downloadFileFromStorage`
+- [ ] (If file uploads) Use `normalizeFileInput` in block config

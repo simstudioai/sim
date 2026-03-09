@@ -1,0 +1,253 @@
+---
+title: Hunter io
+description: Find and verify professional email addresses
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="hunter"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Hunter.io](https://hunter.io/) is a leading platform for finding and verifying professional email addresses, discovering companies, and enriching contact data. Hunter.io provides robust APIs for domain search, email finding, verification, and company discovery, making it an essential tool for sales, recruiting, and business development.
+
+With Hunter.io, you can:
+
+- **Find email addresses by domain:** Search for all publicly available email addresses associated with a specific company domain.
+- **Discover companies:** Use advanced filters and AI-powered search to find companies matching your criteria.
+- **Find a specific email address:** Locate the most likely email address for a person at a company using their name and domain.
+- **Verify email addresses:** Check the deliverability and validity of any email address.
+- **Enrich company data:** Retrieve detailed information about companies, including size, technologies used, and more.
+
+In Sim, the Hunter.io integration enables your agents to programmatically search for and verify email addresses, discover companies, and enrich contact data using Hunter.io’s API. This allows you to automate lead generation, contact enrichment, and email verification directly within your workflows. Your agents can leverage Hunter.io’s tools to streamline outreach, keep your CRM up-to-date, and power intelligent automation scenarios for sales, recruiting, and more.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Hunter into the workflow. Can search domains, find email addresses, verify email addresses, discover companies, find companies, and count email addresses.
+
+
+
+## Tools
+
+### `hunter_discover`
+
+Returns companies matching a set of criteria using Hunter.io AI-powered search.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | No | Natural language search query for companies |
+| `domain` | string | No | Company domain name to filter by \(e.g., "stripe.com", "company.io"\) |
+| `headcount` | string | No | Company size filter \(e.g., "1-10", "11-50"\) |
+| `company_type` | string | No | Type of organization |
+| `technology` | string | No | Technology used by companies |
+| `apiKey` | string | Yes | Hunter.io API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | List of companies matching the search criteria |
+|   ↳ `domain` | string | Company domain |
+|   ↳ `name` | string | Company/organization name |
+|   ↳ `headcount` | number | Company size/headcount |
+|   ↳ `technologies` | array | Technologies used by the company |
+|   ↳ `email_count` | number | Total number of email addresses found |
+
+### `hunter_domain_search`
+
+Returns all the email addresses found using one given domain name, with sources.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Domain name to search for email addresses \(e.g., "stripe.com", "company.io"\) |
+| `limit` | number | No | Maximum email addresses to return \(e.g., 10, 25, 50\). Default: 10 |
+| `offset` | number | No | Number of email addresses to skip for pagination \(e.g., 0, 10, 20\) |
+| `type` | string | No | Filter for personal or generic emails \(e.g., "personal", "generic", "all"\) |
+| `seniority` | string | No | Filter by seniority level \(e.g., "junior", "senior", "executive"\) |
+| `department` | string | No | Filter by specific department \(e.g., "sales", "marketing", "engineering", "hr"\) |
+| `apiKey` | string | Yes | Hunter.io API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `emails` | array | List of email addresses found for the domain \(up to 100 per request\) |
+|   ↳ `value` | string | The email address |
+|   ↳ `type` | string | Email type: personal or generic \(role-based\) |
+|   ↳ `confidence` | number | Probability score \(0-100\) that the email is correct |
+|   ↳ `first_name` | string | Person's first name |
+|   ↳ `last_name` | string | Person's last name |
+|   ↳ `position` | string | Job title/position |
+|   ↳ `seniority` | string | Seniority level \(junior, senior, executive\) |
+|   ↳ `department` | string | Department \(executive, it, finance, management, sales, legal, support, hr, marketing, communication\) |
+|   ↳ `linkedin` | string | LinkedIn profile URL |
+|   ↳ `twitter` | string | Twitter handle |
+|   ↳ `phone_number` | string | Phone number |
+|   ↳ `sources` | array | List of sources where the email was found \(limited to 20\) |
+|     ↳ `domain` | string | Domain where the email was found |
+|     ↳ `uri` | string | Full URL of the source page |
+|     ↳ `extracted_on` | string | Date when the email was first extracted \(YYYY-MM-DD\) |
+|     ↳ `last_seen_on` | string | Date when the email was last seen \(YYYY-MM-DD\) |
+|     ↳ `still_on_page` | boolean | Whether the email is still present on the source page |
+|   ↳ `verification` | object | Email verification information |
+|     ↳ `date` | string | Date when the email was verified \(YYYY-MM-DD\) |
+|     ↳ `status` | string | Verification status \(valid, invalid, accept_all, webmail, disposable, unknown\) |
+| `domain` | string | The searched domain name |
+| `disposable` | boolean | Whether the domain is a disposable email service |
+| `webmail` | boolean | Whether the domain is a webmail provider \(e.g., Gmail\) |
+| `accept_all` | boolean | Whether the server accepts all email addresses \(may cause false positives\) |
+| `pattern` | string | The email pattern used by the organization \(e.g., \{first\}, \{first\}.\{last\}\) |
+| `organization` | string | The organization/company name |
+| `description` | string | Description of the organization |
+| `industry` | string | Industry classification of the organization |
+| `twitter` | string | Twitter handle of the organization |
+| `facebook` | string | Facebook page URL of the organization |
+| `linkedin` | string | LinkedIn company page URL |
+| `instagram` | string | Instagram profile of the organization |
+| `youtube` | string | YouTube channel of the organization |
+| `technologies` | array | Technologies used by the organization |
+| `country` | string | Country where the organization is headquartered |
+| `state` | string | State/province where the organization is located |
+| `city` | string | City where the organization is located |
+| `postal_code` | string | Postal code of the organization |
+| `street` | string | Street address of the organization |
+
+### `hunter_email_finder`
+
+Finds the most likely email address for a person given their name and company domain.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Company domain name \(e.g., "stripe.com", "company.io"\) |
+| `first_name` | string | Yes | Person\'s first name \(e.g., "John", "Sarah"\) |
+| `last_name` | string | Yes | Person\'s last name \(e.g., "Smith", "Johnson"\) |
+| `company` | string | No | Company name \(e.g., "Stripe", "Acme Inc"\) |
+| `apiKey` | string | Yes | Hunter.io API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sources` | array | List of sources where the email was found \(limited to 20\) |
+|   ↳ `domain` | string | Domain where the email was found |
+|   ↳ `uri` | string | Full URL of the source page |
+|   ↳ `extracted_on` | string | Date when the email was first extracted \(YYYY-MM-DD\) |
+|   ↳ `last_seen_on` | string | Date when the email was last seen \(YYYY-MM-DD\) |
+|   ↳ `still_on_page` | boolean | Whether the email is still present on the source page |
+| `verification` | object | Email verification information |
+|   ↳ `date` | string | Date when the email was verified \(YYYY-MM-DD\) |
+|   ↳ `status` | string | Verification status \(valid, invalid, accept_all, webmail, disposable, unknown\) |
+| `email` | string | The found email address |
+| `score` | number | Confidence score \(0-100\) for the found email address |
+
+### `hunter_email_verifier`
+
+Verifies the deliverability of an email address and provides detailed verification status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Yes | The email address to verify |
+| `apiKey` | string | Yes | Hunter.io API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sources` | array | List of sources where the email was found \(limited to 20\) |
+|   ↳ `domain` | string | Domain where the email was found |
+|   ↳ `uri` | string | Full URL of the source page |
+|   ↳ `extracted_on` | string | Date when the email was first extracted \(YYYY-MM-DD\) |
+|   ↳ `last_seen_on` | string | Date when the email was last seen \(YYYY-MM-DD\) |
+|   ↳ `still_on_page` | boolean | Whether the email is still present on the source page |
+| `result` | string | Deliverability result: deliverable, undeliverable, or risky |
+| `score` | number | Deliverability score \(0-100\). Webmail and disposable emails receive an arbitrary score of 50. |
+| `email` | string | The verified email address |
+| `regexp` | boolean | Whether the email passes regular expression validation |
+| `gibberish` | boolean | Whether the email appears to be auto-generated \(e.g., e65rc109q@company.com\) |
+| `disposable` | boolean | Whether the email is from a disposable email service |
+| `webmail` | boolean | Whether the email is from a webmail provider \(e.g., Gmail\) |
+| `mx_records` | boolean | Whether MX records exist for the domain |
+| `smtp_server` | boolean | Whether connection to the SMTP server was successful |
+| `smtp_check` | boolean | Whether the email address doesn't bounce |
+| `accept_all` | boolean | Whether the server accepts all email addresses \(may cause false positives\) |
+| `block` | boolean | Whether the domain is blocking verification \(validity could not be determined\) |
+| `status` | string | Verification status: valid, invalid, accept_all, webmail, disposable, unknown, or blocked |
+
+### `hunter_companies_find`
+
+Enriches company data using domain name.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Domain to find company data for \(e.g., "stripe.com", "company.io"\) |
+| `apiKey` | string | Yes | Hunter.io API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `company` | object | Company information |
+|   ↳ `name` | string | Company name |
+|   ↳ `domain` | string | Company domain |
+|   ↳ `industry` | string | Industry classification |
+|   ↳ `size` | string | Company size/headcount range |
+|   ↳ `country` | string | Country where the company is located |
+|   ↳ `linkedin` | string | LinkedIn company page URL |
+|   ↳ `twitter` | string | Twitter handle |
+| `person` | object | Person information \(undefined for companies_find tool\) |
+
+### `hunter_email_count`
+
+Returns the total number of email addresses found for a domain or company.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | No | Domain to count emails for \(e.g., "stripe.com"\). Required if company not provided |
+| `company` | string | No | Company name to count emails for \(e.g., "Stripe", "Acme Inc"\). Required if domain not provided |
+| `type` | string | No | Filter for personal or generic emails only \(e.g., "personal", "generic", "all"\) |
+| `apiKey` | string | Yes | Hunter.io API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `department` | object | Email count breakdown by department |
+|   ↳ `executive` | number | Number of executive department emails |
+|   ↳ `it` | number | Number of IT department emails |
+|   ↳ `finance` | number | Number of finance department emails |
+|   ↳ `management` | number | Number of management department emails |
+|   ↳ `sales` | number | Number of sales department emails |
+|   ↳ `legal` | number | Number of legal department emails |
+|   ↳ `support` | number | Number of support department emails |
+|   ↳ `hr` | number | Number of HR department emails |
+|   ↳ `marketing` | number | Number of marketing department emails |
+|   ↳ `communication` | number | Number of communication department emails |
+|   ↳ `education` | number | Number of education department emails |
+|   ↳ `design` | number | Number of design department emails |
+|   ↳ `health` | number | Number of health department emails |
+|   ↳ `operations` | number | Number of operations department emails |
+| `seniority` | object | Email count breakdown by seniority level |
+|   ↳ `junior` | number | Number of junior-level emails |
+|   ↳ `senior` | number | Number of senior-level emails |
+|   ↳ `executive` | number | Number of executive-level emails |
+| `total` | number | Total number of email addresses found |
+| `personal_emails` | number | Number of personal email addresses \(individual employees\) |
+| `generic_emails` | number | Number of generic/role-based email addresses \(e.g., contact@, info@\) |
+
+

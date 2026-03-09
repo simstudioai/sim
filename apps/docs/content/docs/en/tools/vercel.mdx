@@ -1,0 +1,1391 @@
+---
+title: Vercel
+description: Manage Vercel deployments, projects, and infrastructure
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="vercel"
+  color="#171717"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Vercel](https://vercel.com/) describes itself as **the AI Cloud**: a platform that provides developer tools and cloud infrastructure to build, scale, and secure faster, more personalized web experiences. It is widely used to build and ship modern web apps and agentic workloads, with built-in support for Git-based workflows, preview deployments, and production delivery.
+
+With Vercel, you can:
+
+- **Automate deployments**: Deploy from Git and manage preview and production releases with minimal operational overhead
+- **Manage projects and teams**: Organize projects, team access, and settings across multiple environments
+- **Control infrastructure settings**: Configure domains, DNS, aliases, environment variables, and edge settings in one place
+- **Monitor and troubleshoot**: Track deployment status, inspect logs, and debug build or runtime issues
+
+In Sim, the Vercel integration lets your agents programmatically manage deployments, projects, domains, DNS records, aliases, environment variables, edge configs, and teams directly from workflows. You can automate deployment operations, react to status changes, and run infrastructure tasks as part of reliable, end-to-end delivery workflows.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate with Vercel to manage deployments, projects, domains, DNS records, environment variables, aliases, edge configs, teams, and more.
+
+
+
+## Tools
+
+### `vercel_list_deployments`
+
+List deployments for a Vercel project or team
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `projectId` | string | No | Filter deployments by project ID or name |
+| `target` | string | No | Filter by environment: production or staging |
+| `state` | string | No | Filter by state: BUILDING, ERROR, INITIALIZING, QUEUED, READY, CANCELED |
+| `app` | string | No | Filter by deployment name |
+| `since` | number | No | Get deployments created after this JavaScript timestamp |
+| `until` | number | No | Get deployments created before this JavaScript timestamp |
+| `limit` | number | No | Maximum number of deployments to return per request |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deployments` | array | List of deployments |
+|   ↳ `uid` | string | Unique deployment identifier |
+|   ↳ `name` | string | Deployment name |
+|   ↳ `url` | string | Deployment URL |
+|   ↳ `state` | string | Deployment state: BUILDING, ERROR, INITIALIZING, QUEUED, READY, CANCELED, DELETED |
+|   ↳ `target` | string | Target environment |
+|   ↳ `created` | number | Creation timestamp |
+|   ↳ `projectId` | string | Associated project ID |
+|   ↳ `source` | string | Deployment source: api-trigger-git-deploy, cli, clone/repo, git, import, import/repo, redeploy, v0-web |
+|   ↳ `inspectorUrl` | string | Vercel inspector URL |
+|   ↳ `creator` | object | Creator information |
+|     ↳ `uid` | string | Creator user ID |
+|     ↳ `email` | string | Creator email |
+|     ↳ `username` | string | Creator username |
+|   ↳ `meta` | object | Git provider metadata \(key-value strings\) |
+| `count` | number | Number of deployments returned |
+| `hasMore` | boolean | Whether more deployments are available |
+
+### `vercel_get_deployment`
+
+Get details of a specific Vercel deployment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `deploymentId` | string | Yes | The unique deployment identifier or hostname |
+| `withGitRepoInfo` | string | No | Whether to add in gitRepo information \(true/false\) |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Deployment ID |
+| `name` | string | Deployment name |
+| `url` | string | Unique deployment URL |
+| `readyState` | string | Deployment ready state: QUEUED, BUILDING, ERROR, INITIALIZING, READY, CANCELED |
+| `status` | string | Deployment status |
+| `target` | string | Target environment |
+| `createdAt` | number | Creation timestamp in milliseconds |
+| `buildingAt` | number | Build start timestamp |
+| `ready` | number | Ready timestamp |
+| `source` | string | Deployment source: cli, git, redeploy, import, v0-web, etc. |
+| `alias` | array | Assigned aliases |
+| `regions` | array | Deployment regions |
+| `inspectorUrl` | string | Vercel inspector URL |
+| `projectId` | string | Associated project ID |
+| `creator` | object | Creator information |
+|   ↳ `uid` | string | Creator user ID |
+|   ↳ `username` | string | Creator username |
+| `project` | object | Associated project |
+|   ↳ `id` | string | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `framework` | string | Project framework |
+| `meta` | object | Deployment metadata \(key-value strings\) |
+|   ↳ `githubCommitSha` | string | GitHub commit SHA |
+|   ↳ `githubCommitMessage` | string | GitHub commit message |
+|   ↳ `githubCommitRef` | string | GitHub branch/ref |
+|   ↳ `githubRepo` | string | GitHub repository |
+|   ↳ `githubOrg` | string | GitHub organization |
+|   ↳ `githubCommitAuthorName` | string | Commit author name |
+| `gitSource` | object | Git source information |
+|   ↳ `type` | string | Git provider type \(e.g., github, gitlab, bitbucket\) |
+|   ↳ `ref` | string | Git ref \(branch or tag\) |
+|   ↳ `sha` | string | Git commit SHA |
+|   ↳ `repoId` | string | Repository ID |
+
+### `vercel_create_deployment`
+
+Create a new deployment or redeploy an existing one
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `name` | string | Yes | Project name for the deployment |
+| `project` | string | No | Project ID \(overrides name for project lookup\) |
+| `deploymentId` | string | No | Existing deployment ID to redeploy |
+| `target` | string | No | Target environment: production, staging, or a custom environment identifier |
+| `gitSource` | string | No | JSON string defining the Git Repository source to deploy \(e.g. \{"type":"github","repo":"owner/repo","ref":"main"\}\) |
+| `forceNew` | string | No | Forces a new deployment even if there is a previous similar deployment \(0 or 1\) |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Deployment ID |
+| `name` | string | Deployment name |
+| `url` | string | Unique deployment URL |
+| `readyState` | string | Deployment ready state: QUEUED, BUILDING, ERROR, INITIALIZING, READY, CANCELED |
+| `projectId` | string | Associated project ID |
+| `createdAt` | number | Creation timestamp in milliseconds |
+| `alias` | array | Assigned aliases |
+| `target` | string | Target environment |
+| `inspectorUrl` | string | Vercel inspector URL |
+
+### `vercel_cancel_deployment`
+
+Cancel a running Vercel deployment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `deploymentId` | string | Yes | The deployment ID to cancel |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Deployment ID |
+| `name` | string | Deployment name |
+| `state` | string | Deployment state after cancellation |
+| `url` | string | Deployment URL |
+
+### `vercel_delete_deployment`
+
+Delete a Vercel deployment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `deploymentId` | string | Yes | The deployment ID or URL to delete |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `uid` | string | The removed deployment ID |
+| `state` | string | Deployment state after deletion \(DELETED\) |
+
+### `vercel_get_deployment_events`
+
+Get build and runtime events for a Vercel deployment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `deploymentId` | string | Yes | The unique deployment identifier or hostname |
+| `direction` | string | No | Order of events by timestamp: backward or forward \(default: forward\) |
+| `follow` | number | No | When set to 1, returns live events as they happen |
+| `limit` | number | No | Maximum number of events to return \(-1 for all\) |
+| `since` | number | No | Timestamp to start pulling build logs from |
+| `until` | number | No | Timestamp to stop pulling build logs at |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | List of deployment events |
+|   ↳ `type` | string | Event type: delimiter, command, stdout, stderr, exit, deployment-state, middleware, middleware-invocation, edge-function-invocation, metric, report, fatal |
+|   ↳ `created` | number | Event creation timestamp |
+|   ↳ `date` | number | Event date timestamp |
+|   ↳ `text` | string | Event text content |
+|   ↳ `serial` | string | Event serial identifier |
+|   ↳ `deploymentId` | string | Associated deployment ID |
+|   ↳ `id` | string | Event unique identifier |
+|   ↳ `level` | string | Event level: error or warning |
+| `count` | number | Number of events returned |
+
+### `vercel_list_deployment_files`
+
+List files in a Vercel deployment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `deploymentId` | string | Yes | The deployment ID to list files for |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | array | List of deployment files |
+|   ↳ `name` | string | The name of the file tree entry |
+|   ↳ `type` | string | File type: directory, file, symlink, lambda, middleware, or invalid |
+|   ↳ `uid` | string | Unique file identifier \(only valid for file type\) |
+|   ↳ `mode` | number | File mode indicating file type and permissions |
+|   ↳ `contentType` | string | Content-type of the file \(only valid for file type\) |
+|   ↳ `children` | array | Child files of the directory \(only valid for directory type\) |
+|     ↳ `name` | string | File name |
+|     ↳ `type` | string | Entry type |
+|     ↳ `uid` | string | File identifier |
+| `count` | number | Number of files returned |
+
+### `vercel_list_projects`
+
+List all projects in a Vercel team or account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `search` | string | No | Search projects by name |
+| `limit` | number | No | Maximum number of projects to return |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | array | List of projects |
+|   ↳ `id` | string | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `framework` | string | Framework |
+|   ↳ `createdAt` | number | Creation timestamp |
+|   ↳ `updatedAt` | number | Last updated timestamp |
+|   ↳ `domains` | array | Project domains |
+| `count` | number | Number of projects returned |
+| `hasMore` | boolean | Whether more projects are available |
+
+### `vercel_get_project`
+
+Get details of a specific Vercel project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `projectId` | string | Yes | Project ID or name |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Project ID |
+| `name` | string | Project name |
+| `framework` | string | Project framework |
+| `createdAt` | number | Creation timestamp |
+| `updatedAt` | number | Last updated timestamp |
+| `domains` | array | Project domains |
+| `link` | object | Git repository connection |
+|   ↳ `type` | string | Repository type \(github, gitlab, bitbucket\) |
+|   ↳ `repo` | string | Repository name |
+|   ↳ `org` | string | Organization or owner |
+
+### `vercel_create_project`
+
+Create a new Vercel project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `name` | string | Yes | Project name |
+| `framework` | string | No | Project framework \(e.g. nextjs, remix, vite\) |
+| `gitRepository` | json | No | Git repository connection object with type and repo |
+| `buildCommand` | string | No | Custom build command |
+| `outputDirectory` | string | No | Custom output directory |
+| `installCommand` | string | No | Custom install command |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Project ID |
+| `name` | string | Project name |
+| `framework` | string | Project framework |
+| `createdAt` | number | Creation timestamp |
+| `updatedAt` | number | Last updated timestamp |
+
+### `vercel_update_project`
+
+Update an existing Vercel project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `projectId` | string | Yes | Project ID or name |
+| `name` | string | No | New project name |
+| `framework` | string | No | Project framework \(e.g. nextjs, remix, vite\) |
+| `buildCommand` | string | No | Custom build command |
+| `outputDirectory` | string | No | Custom output directory |
+| `installCommand` | string | No | Custom install command |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Project ID |
+| `name` | string | Project name |
+| `framework` | string | Project framework |
+| `updatedAt` | number | Last updated timestamp |
+
+### `vercel_delete_project`
+
+Delete a Vercel project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `projectId` | string | Yes | Project ID or name |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the project was successfully deleted |
+
+### `vercel_pause_project`
+
+Pause a Vercel project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `projectId` | string | Yes | Project ID or name |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Project ID |
+| `name` | string | Project name |
+| `paused` | boolean | Whether the project is paused |
+
+### `vercel_unpause_project`
+
+Unpause a Vercel project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `projectId` | string | Yes | Project ID or name |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Project ID |
+| `name` | string | Project name |
+| `paused` | boolean | Whether the project is paused |
+
+### `vercel_list_project_domains`
+
+List all domains for a Vercel project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `projectId` | string | Yes | Project ID or name |
+| `teamId` | string | No | Team ID to scope the request |
+| `limit` | number | No | Maximum number of domains to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `domains` | array | List of project domains |
+|   ↳ `name` | string | Domain name |
+|   ↳ `apexName` | string | Apex domain name |
+|   ↳ `redirect` | string | Redirect target |
+|   ↳ `redirectStatusCode` | number | Redirect status code |
+|   ↳ `verified` | boolean | Whether the domain is verified |
+|   ↳ `gitBranch` | string | Git branch for the domain |
+|   ↳ `createdAt` | number | Creation timestamp |
+|   ↳ `updatedAt` | number | Last updated timestamp |
+| `count` | number | Number of domains returned |
+| `hasMore` | boolean | Whether more domains are available |
+
+### `vercel_add_project_domain`
+
+Add a domain to a Vercel project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `projectId` | string | Yes | Project ID or name |
+| `domain` | string | Yes | Domain name to add |
+| `redirect` | string | No | Target domain for redirect |
+| `redirectStatusCode` | number | No | HTTP status code for redirect \(301, 302, 307, 308\) |
+| `gitBranch` | string | No | Git branch to link the domain to |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Domain name |
+| `apexName` | string | Apex domain name |
+| `verified` | boolean | Whether the domain is verified |
+| `gitBranch` | string | Git branch for the domain |
+| `redirect` | string | Redirect target domain |
+| `redirectStatusCode` | number | HTTP status code for redirect \(301, 302, 307, 308\) |
+| `createdAt` | number | Creation timestamp |
+| `updatedAt` | number | Last updated timestamp |
+
+### `vercel_remove_project_domain`
+
+Remove a domain from a Vercel project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `projectId` | string | Yes | Project ID or name |
+| `domain` | string | Yes | Domain name to remove |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the domain was successfully removed |
+
+### `vercel_get_env_vars`
+
+Retrieve environment variables for a Vercel project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `projectId` | string | Yes | Project ID or name |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `envs` | array | List of environment variables |
+|   ↳ `id` | string | Environment variable ID |
+|   ↳ `key` | string | Variable name |
+|   ↳ `value` | string | Variable value |
+|   ↳ `type` | string | Variable type \(secret, system, encrypted, plain, sensitive\) |
+|   ↳ `target` | array | Target environments |
+|   ↳ `gitBranch` | string | Git branch filter |
+|   ↳ `comment` | string | Comment providing context for the variable |
+| `count` | number | Number of environment variables returned |
+
+### `vercel_create_env_var`
+
+Create an environment variable for a Vercel project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `projectId` | string | Yes | Project ID or name |
+| `key` | string | Yes | Environment variable name |
+| `value` | string | Yes | Environment variable value |
+| `target` | string | Yes | Comma-separated list of target environments \(production, preview, development\) |
+| `type` | string | No | Variable type: system, secret, encrypted, plain, or sensitive \(default: plain\) |
+| `gitBranch` | string | No | Git branch to associate with the variable \(requires target to include preview\) |
+| `comment` | string | No | Comment to add context to the variable \(max 500 characters\) |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Environment variable ID |
+| `key` | string | Variable name |
+| `value` | string | Variable value |
+| `type` | string | Variable type \(secret, system, encrypted, plain, sensitive\) |
+| `target` | array | Target environments |
+| `gitBranch` | string | Git branch filter |
+| `comment` | string | Comment providing context for the variable |
+
+### `vercel_update_env_var`
+
+Update an environment variable for a Vercel project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `projectId` | string | Yes | Project ID or name |
+| `envId` | string | Yes | Environment variable ID to update |
+| `key` | string | No | New variable name |
+| `value` | string | No | New variable value |
+| `target` | string | No | Comma-separated list of target environments \(production, preview, development\) |
+| `type` | string | No | Variable type: system, secret, encrypted, plain, or sensitive |
+| `gitBranch` | string | No | Git branch to associate with the variable \(requires target to include preview\) |
+| `comment` | string | No | Comment to add context to the variable \(max 500 characters\) |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Environment variable ID |
+| `key` | string | Variable name |
+| `value` | string | Variable value |
+| `type` | string | Variable type \(secret, system, encrypted, plain, sensitive\) |
+| `target` | array | Target environments |
+| `gitBranch` | string | Git branch filter |
+| `comment` | string | Comment providing context for the variable |
+
+### `vercel_delete_env_var`
+
+Delete an environment variable from a Vercel project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `projectId` | string | Yes | Project ID or name |
+| `envId` | string | Yes | Environment variable ID to delete |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the environment variable was successfully deleted |
+
+### `vercel_list_domains`
+
+List all domains in a Vercel account or team
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `limit` | number | No | Maximum number of domains to return \(default 20\) |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `domains` | array | List of domains |
+|   ↳ `id` | string | Domain ID |
+|   ↳ `name` | string | Domain name |
+|   ↳ `verified` | boolean | Whether domain is verified |
+|   ↳ `createdAt` | number | Creation timestamp |
+|   ↳ `expiresAt` | number | Expiration timestamp |
+|   ↳ `serviceType` | string | Service type \(zeit.world, external, na\) |
+|   ↳ `nameservers` | array | Current nameservers |
+|   ↳ `intendedNameservers` | array | Intended nameservers |
+|   ↳ `renew` | boolean | Whether auto-renewal is enabled |
+|   ↳ `boughtAt` | number | Purchase timestamp |
+| `count` | number | Number of domains returned |
+| `hasMore` | boolean | Whether more domains are available |
+
+### `vercel_get_domain`
+
+Get information about a specific domain in a Vercel account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `domain` | string | Yes | The domain name to retrieve |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Domain ID |
+| `name` | string | Domain name |
+| `verified` | boolean | Whether domain is verified |
+| `createdAt` | number | Creation timestamp |
+| `expiresAt` | number | Expiration timestamp |
+| `serviceType` | string | Service type \(zeit.world, external, na\) |
+| `nameservers` | array | Current nameservers |
+| `intendedNameservers` | array | Intended nameservers |
+| `customNameservers` | array | Custom nameservers |
+| `renew` | boolean | Whether auto-renewal is enabled |
+| `boughtAt` | number | Purchase timestamp |
+| `transferredAt` | number | Transfer completion timestamp |
+
+### `vercel_add_domain`
+
+Add a new domain to a Vercel account or team
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `name` | string | Yes | The domain name to add |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Domain ID |
+| `name` | string | Domain name |
+| `verified` | boolean | Whether domain is verified |
+| `createdAt` | number | Creation timestamp |
+| `serviceType` | string | Service type \(zeit.world, external, na\) |
+| `nameservers` | array | Current nameservers |
+| `intendedNameservers` | array | Intended nameservers |
+
+### `vercel_delete_domain`
+
+Delete a domain from a Vercel account or team
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `domain` | string | Yes | The domain name to delete |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `uid` | string | The ID of the deleted domain |
+| `deleted` | boolean | Whether the domain was deleted |
+
+### `vercel_get_domain_config`
+
+Get the configuration for a domain in a Vercel account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `domain` | string | Yes | The domain name to get configuration for |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `configuredBy` | string | How the domain is configured \(CNAME, A, http, dns-01, or null\) |
+| `acceptedChallenges` | array | Accepted challenge types for certificate issuance \(dns-01, http-01\) |
+| `misconfigured` | boolean | Whether the domain is misconfigured for TLS certificate generation |
+| `recommendedIPv4` | array | Recommended IPv4 addresses with rank values |
+|   ↳ `rank` | number | Priority rank \(1 is preferred\) |
+|   ↳ `value` | array | IPv4 addresses |
+| `recommendedCNAME` | array | Recommended CNAME records with rank values |
+|   ↳ `rank` | number | Priority rank \(1 is preferred\) |
+|   ↳ `value` | string | CNAME value |
+
+### `vercel_list_dns_records`
+
+List all DNS records for a domain in a Vercel account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `domain` | string | Yes | The domain name to list records for |
+| `limit` | number | No | Maximum number of records to return |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | List of DNS records |
+|   ↳ `id` | string | Record ID |
+|   ↳ `slug` | string | Record slug |
+|   ↳ `name` | string | Record name |
+|   ↳ `type` | string | Record type \(A, AAAA, ALIAS, CAA, CNAME, HTTPS, MX, SRV, TXT, NS\) |
+|   ↳ `value` | string | Record value |
+|   ↳ `ttl` | number | Time to live in seconds |
+|   ↳ `mxPriority` | number | MX record priority |
+|   ↳ `priority` | number | Record priority |
+|   ↳ `creator` | string | Creator identifier |
+|   ↳ `createdAt` | number | Creation timestamp |
+|   ↳ `updatedAt` | number | Last update timestamp |
+|   ↳ `comment` | string | Record comment |
+| `count` | number | Number of records returned |
+| `hasMore` | boolean | Whether more records are available |
+
+### `vercel_create_dns_record`
+
+Create a DNS record for a domain in a Vercel account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `domain` | string | Yes | The domain name to create the record for |
+| `recordName` | string | Yes | The subdomain or record name |
+| `recordType` | string | Yes | DNS record type \(A, AAAA, ALIAS, CAA, CNAME, HTTPS, MX, SRV, TXT, NS\) |
+| `value` | string | Yes | The value of the DNS record |
+| `ttl` | number | No | Time to live in seconds |
+| `mxPriority` | number | No | Priority for MX records |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `uid` | string | The DNS record ID |
+| `updated` | number | Timestamp of the update |
+
+### `vercel_delete_dns_record`
+
+Delete a DNS record for a domain in a Vercel account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `domain` | string | Yes | The domain name the record belongs to |
+| `recordId` | string | Yes | The ID of the DNS record to delete |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the record was deleted |
+
+### `vercel_list_aliases`
+
+List aliases for a Vercel project or team
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `projectId` | string | No | Filter aliases by project ID |
+| `domain` | string | No | Filter aliases by domain |
+| `limit` | number | No | Maximum number of aliases to return |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `aliases` | array | List of aliases |
+|   ↳ `uid` | string | Alias ID |
+|   ↳ `alias` | string | Alias hostname |
+|   ↳ `deploymentId` | string | Associated deployment ID |
+|   ↳ `projectId` | string | Associated project ID |
+|   ↳ `createdAt` | number | Creation timestamp in milliseconds |
+|   ↳ `updatedAt` | number | Last update timestamp in milliseconds |
+| `count` | number | Number of aliases returned |
+| `hasMore` | boolean | Whether more aliases are available |
+
+### `vercel_get_alias`
+
+Get details about a specific alias by ID or hostname
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `aliasId` | string | Yes | Alias ID or hostname to look up |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `uid` | string | Alias ID |
+| `alias` | string | Alias hostname |
+| `deploymentId` | string | Associated deployment ID |
+| `projectId` | string | Associated project ID |
+| `createdAt` | number | Creation timestamp in milliseconds |
+| `updatedAt` | number | Last update timestamp in milliseconds |
+| `redirect` | string | Target domain for redirect aliases |
+| `redirectStatusCode` | number | HTTP status code for redirect \(301, 302, 307, or 308\) |
+
+### `vercel_create_alias`
+
+Assign an alias (domain/subdomain) to a deployment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `deploymentId` | string | Yes | Deployment ID to assign the alias to |
+| `alias` | string | Yes | The domain or subdomain to assign as an alias |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `uid` | string | Alias ID |
+| `alias` | string | Alias hostname |
+| `created` | string | Creation timestamp as ISO 8601 date-time string |
+| `oldDeploymentId` | string | ID of the previously aliased deployment, if the alias was reassigned |
+
+### `vercel_delete_alias`
+
+Delete an alias by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `aliasId` | string | Yes | Alias ID to delete |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Deletion status \(SUCCESS\) |
+
+### `vercel_list_edge_configs`
+
+List all Edge Config stores for a team
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `edgeConfigs` | array | List of Edge Config stores |
+|   ↳ `id` | string | Edge Config ID |
+|   ↳ `slug` | string | Edge Config slug |
+|   ↳ `ownerId` | string | Owner ID |
+|   ↳ `digest` | string | Content digest hash |
+|   ↳ `createdAt` | number | Creation timestamp |
+|   ↳ `updatedAt` | number | Last update timestamp |
+|   ↳ `itemCount` | number | Number of items |
+|   ↳ `sizeInBytes` | number | Size in bytes |
+| `count` | number | Number of Edge Configs returned |
+
+### `vercel_get_edge_config`
+
+Get details about a specific Edge Config store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `edgeConfigId` | string | Yes | Edge Config ID to look up |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Edge Config ID |
+| `slug` | string | Edge Config slug |
+| `ownerId` | string | Owner ID |
+| `digest` | string | Content digest hash |
+| `createdAt` | number | Creation timestamp |
+| `updatedAt` | number | Last update timestamp |
+| `itemCount` | number | Number of items |
+| `sizeInBytes` | number | Size in bytes |
+
+### `vercel_create_edge_config`
+
+Create a new Edge Config store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `slug` | string | Yes | The name/slug for the new Edge Config |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Edge Config ID |
+| `slug` | string | Edge Config slug |
+| `ownerId` | string | Owner ID |
+| `digest` | string | Content digest hash |
+| `createdAt` | number | Creation timestamp |
+| `updatedAt` | number | Last update timestamp |
+| `itemCount` | number | Number of items |
+| `sizeInBytes` | number | Size in bytes |
+
+### `vercel_get_edge_config_items`
+
+Get all items in an Edge Config store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `edgeConfigId` | string | Yes | Edge Config ID to get items from |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | List of Edge Config items |
+|   ↳ `key` | string | Item key |
+|   ↳ `value` | json | Item value |
+|   ↳ `description` | string | Item description |
+|   ↳ `edgeConfigId` | string | Parent Edge Config ID |
+|   ↳ `createdAt` | number | Creation timestamp |
+|   ↳ `updatedAt` | number | Last update timestamp |
+| `count` | number | Number of items returned |
+
+### `vercel_update_edge_config_items`
+
+Create, update, upsert, or delete items in an Edge Config store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `edgeConfigId` | string | Yes | Edge Config ID to update items in |
+| `items` | json | Yes | Array of operations: \[\{operation: "create"\|"update"\|"upsert"\|"delete", key: string, value?: any\}\] |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Operation status |
+
+### `vercel_list_webhooks`
+
+List webhooks for a Vercel project or team
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `projectId` | string | No | Filter webhooks by project ID |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `webhooks` | array | List of webhooks |
+|   ↳ `id` | string | Webhook ID |
+|   ↳ `url` | string | Webhook URL |
+|   ↳ `events` | array | Events the webhook listens to |
+|   ↳ `ownerId` | string | Owner ID |
+|   ↳ `projectIds` | array | Associated project IDs |
+|   ↳ `createdAt` | number | Creation timestamp |
+|   ↳ `updatedAt` | number | Last updated timestamp |
+| `count` | number | Number of webhooks returned |
+
+### `vercel_create_webhook`
+
+Create a new webhook for a Vercel team
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `url` | string | Yes | Webhook URL \(must be https\) |
+| `events` | string | Yes | Comma-separated event names to subscribe to |
+| `projectIds` | string | No | Comma-separated project IDs to scope the webhook to |
+| `teamId` | string | Yes | Team ID to create the webhook for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook ID |
+| `url` | string | Webhook URL |
+| `secret` | string | Webhook signing secret |
+| `events` | array | Events the webhook listens to |
+| `ownerId` | string | Owner ID |
+| `projectIds` | array | Associated project IDs |
+| `createdAt` | number | Creation timestamp |
+| `updatedAt` | number | Last updated timestamp |
+
+### `vercel_delete_webhook`
+
+Delete a webhook from a Vercel team
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `webhookId` | string | Yes | The webhook ID to delete |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the webhook was successfully deleted |
+
+### `vercel_create_check`
+
+Create a new deployment check
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `deploymentId` | string | Yes | Deployment ID to create the check for |
+| `name` | string | Yes | Name of the check \(max 100 characters\) |
+| `blocking` | boolean | Yes | Whether the check blocks the deployment |
+| `path` | string | No | Page path being checked |
+| `detailsUrl` | string | No | URL with details about the check |
+| `externalId` | string | No | External identifier for the check |
+| `rerequestable` | boolean | No | Whether the check can be rerequested |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Check ID |
+| `name` | string | Check name |
+| `status` | string | Check status: registered, running, or completed |
+| `conclusion` | string | Check conclusion: canceled, failed, neutral, succeeded, skipped, or stale |
+| `blocking` | boolean | Whether the check blocks the deployment |
+| `deploymentId` | string | Associated deployment ID |
+| `integrationId` | string | Associated integration ID |
+| `externalId` | string | External identifier |
+| `detailsUrl` | string | URL with details about the check |
+| `path` | string | Page path being checked |
+| `rerequestable` | boolean | Whether the check can be rerequested |
+| `createdAt` | number | Creation timestamp in milliseconds |
+| `updatedAt` | number | Last update timestamp in milliseconds |
+| `startedAt` | number | Start timestamp in milliseconds |
+| `completedAt` | number | Completion timestamp in milliseconds |
+
+### `vercel_get_check`
+
+Get details of a specific deployment check
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `deploymentId` | string | Yes | Deployment ID the check belongs to |
+| `checkId` | string | Yes | Check ID to retrieve |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Check ID |
+| `name` | string | Check name |
+| `status` | string | Check status: registered, running, or completed |
+| `conclusion` | string | Check conclusion: canceled, failed, neutral, succeeded, skipped, or stale |
+| `blocking` | boolean | Whether the check blocks the deployment |
+| `deploymentId` | string | Associated deployment ID |
+| `integrationId` | string | Associated integration ID |
+| `externalId` | string | External identifier |
+| `detailsUrl` | string | URL with details about the check |
+| `path` | string | Page path being checked |
+| `rerequestable` | boolean | Whether the check can be rerequested |
+| `createdAt` | number | Creation timestamp in milliseconds |
+| `updatedAt` | number | Last update timestamp in milliseconds |
+| `startedAt` | number | Start timestamp in milliseconds |
+| `completedAt` | number | Completion timestamp in milliseconds |
+
+### `vercel_list_checks`
+
+List all checks for a deployment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `deploymentId` | string | Yes | Deployment ID to list checks for |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `checks` | array | List of deployment checks |
+|   ↳ `id` | string | Check ID |
+|   ↳ `name` | string | Check name |
+|   ↳ `status` | string | Check status |
+|   ↳ `conclusion` | string | Check conclusion |
+|   ↳ `blocking` | boolean | Whether the check blocks the deployment |
+|   ↳ `deploymentId` | string | Associated deployment ID |
+|   ↳ `integrationId` | string | Associated integration ID |
+|   ↳ `externalId` | string | External identifier |
+|   ↳ `detailsUrl` | string | URL with details about the check |
+|   ↳ `path` | string | Page path being checked |
+|   ↳ `rerequestable` | boolean | Whether the check can be rerequested |
+|   ↳ `createdAt` | number | Creation timestamp |
+|   ↳ `updatedAt` | number | Last update timestamp |
+|   ↳ `startedAt` | number | Start timestamp |
+|   ↳ `completedAt` | number | Completion timestamp |
+| `count` | number | Total number of checks |
+
+### `vercel_update_check`
+
+Update an existing deployment check
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `deploymentId` | string | Yes | Deployment ID the check belongs to |
+| `checkId` | string | Yes | Check ID to update |
+| `name` | string | No | Updated name of the check |
+| `status` | string | No | Updated status: running or completed |
+| `conclusion` | string | No | Check conclusion: canceled, failed, neutral, succeeded, or skipped |
+| `detailsUrl` | string | No | URL with details about the check |
+| `externalId` | string | No | External identifier for the check |
+| `path` | string | No | Page path being checked |
+| `output` | string | No | JSON string with check output metrics |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Check ID |
+| `name` | string | Check name |
+| `status` | string | Check status: registered, running, or completed |
+| `conclusion` | string | Check conclusion: canceled, failed, neutral, succeeded, skipped, or stale |
+| `blocking` | boolean | Whether the check blocks the deployment |
+| `deploymentId` | string | Associated deployment ID |
+| `integrationId` | string | Associated integration ID |
+| `externalId` | string | External identifier |
+| `detailsUrl` | string | URL with details about the check |
+| `path` | string | Page path being checked |
+| `rerequestable` | boolean | Whether the check can be rerequested |
+| `createdAt` | number | Creation timestamp in milliseconds |
+| `updatedAt` | number | Last update timestamp in milliseconds |
+| `startedAt` | number | Start timestamp in milliseconds |
+| `completedAt` | number | Completion timestamp in milliseconds |
+
+### `vercel_rerequest_check`
+
+Rerequest a deployment check
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `deploymentId` | string | Yes | Deployment ID the check belongs to |
+| `checkId` | string | Yes | Check ID to rerequest |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rerequested` | boolean | Whether the check was successfully rerequested |
+
+### `vercel_list_teams`
+
+List all teams in a Vercel account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `limit` | number | No | Maximum number of teams to return |
+| `since` | number | No | Timestamp in milliseconds to only include teams created since then |
+| `until` | number | No | Timestamp in milliseconds to only include teams created until then |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `teams` | array | List of teams |
+|   ↳ `id` | string | Team ID |
+|   ↳ `slug` | string | Team slug |
+|   ↳ `name` | string | Team name |
+|   ↳ `avatar` | string | Avatar file ID |
+|   ↳ `createdAt` | number | Creation timestamp in milliseconds |
+|   ↳ `updatedAt` | number | Last update timestamp in milliseconds |
+|   ↳ `creatorId` | string | User ID of team creator |
+|   ↳ `membership` | object | Current user membership details |
+|     ↳ `role` | string | Membership role |
+|     ↳ `confirmed` | boolean | Whether membership is confirmed |
+|     ↳ `created` | number | Membership creation timestamp |
+|     ↳ `uid` | string | User ID of the member |
+|     ↳ `teamId` | string | Team ID |
+| `count` | number | Number of teams returned |
+| `pagination` | object | Pagination information |
+|   ↳ `count` | number | Items in current page |
+|   ↳ `next` | number | Timestamp for next page request |
+|   ↳ `prev` | number | Timestamp for previous page request |
+
+### `vercel_get_team`
+
+Get information about a specific Vercel team
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `teamId` | string | Yes | The team ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Team ID |
+| `slug` | string | Team slug |
+| `name` | string | Team name |
+| `avatar` | string | Avatar file ID |
+| `description` | string | Short team description |
+| `createdAt` | number | Creation timestamp in milliseconds |
+| `updatedAt` | number | Last update timestamp in milliseconds |
+| `creatorId` | string | User ID of team creator |
+| `membership` | object | Current user membership details |
+|   ↳ `uid` | string | User ID of the member |
+|   ↳ `teamId` | string | Team ID |
+|   ↳ `role` | string | Membership role |
+|   ↳ `confirmed` | boolean | Whether membership is confirmed |
+|   ↳ `created` | number | Membership creation timestamp |
+|   ↳ `createdAt` | number | Membership creation timestamp \(milliseconds\) |
+|   ↳ `accessRequestedAt` | number | When access was requested |
+|   ↳ `teamRoles` | array | Team role assignments |
+|   ↳ `teamPermissions` | array | Team permission assignments |
+
+### `vercel_list_team_members`
+
+List all members of a Vercel team
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `teamId` | string | Yes | The team ID to list members for |
+| `limit` | number | No | Maximum number of members to return |
+| `role` | string | No | Filter by role \(OWNER, MEMBER, DEVELOPER, SECURITY, BILLING, VIEWER, VIEWER_FOR_PLUS, CONTRIBUTOR\) |
+| `since` | number | No | Timestamp in milliseconds to only include members added since then |
+| `until` | number | No | Timestamp in milliseconds to only include members added until then |
+| `search` | string | No | Search team members by their name, username, and email |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | List of team members |
+|   ↳ `uid` | string | Member user ID |
+|   ↳ `email` | string | Member email |
+|   ↳ `username` | string | Member username |
+|   ↳ `name` | string | Member full name |
+|   ↳ `avatar` | string | Avatar file ID |
+|   ↳ `role` | string | Member role |
+|   ↳ `confirmed` | boolean | Whether membership is confirmed |
+|   ↳ `createdAt` | number | Join timestamp in milliseconds |
+|   ↳ `joinedFrom` | object | Origin of how the member joined |
+|     ↳ `origin` | string | Join origin identifier |
+| `count` | number | Number of members returned |
+| `pagination` | object | Pagination information |
+|   ↳ `hasNext` | boolean | Whether there are more pages |
+|   ↳ `count` | number | Items in current page |
+
+### `vercel_get_user`
+
+Get information about the authenticated Vercel user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | User ID |
+| `email` | string | User email |
+| `username` | string | Username |
+| `name` | string | Display name |
+| `avatar` | string | SHA1 hash of the avatar |
+| `defaultTeamId` | string | Default team ID |
+| `createdAt` | number | Account creation timestamp in milliseconds |
+| `stagingPrefix` | string | Prefix for preview deployment URLs |
+| `softBlock` | object | Account restriction details if blocked |
+|   ↳ `blockedAt` | number | When the account was blocked |
+|   ↳ `reason` | string | Reason for the block |
+| `hasTrialAvailable` | boolean | Whether a trial is available |
+
+

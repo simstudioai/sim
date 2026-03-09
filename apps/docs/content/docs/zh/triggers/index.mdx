@@ -1,0 +1,93 @@
+---
+title: 概览
+description: 触发器是启动 Sim 工作流的核心方式
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/triggers.png"
+    alt="触发器概览"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+## 核心触发器
+
+使用 Start 块处理从编辑器、部署到 API 或部署到聊天的所有操作。其他触发器可用于事件驱动的工作流：
+
+<Cards>
+  <Card title="Start" href="/triggers/start">
+    支持编辑器运行、API 部署和聊天部署的统一入口
+  </Card>
+  <Card title="Webhook" href="/triggers/webhook">
+    接收外部 webhook 负载
+  </Card>
+  <Card title="Schedule" href="/triggers/schedule">
+    基于 cron 或间隔的执行
+  </Card>
+  <Card title="RSS Feed" href="/triggers/rss">
+    监控 RSS 和 Atom 订阅源的新内容
+  </Card>
+  <Card title="Email Polling Groups" href="#email-polling-groups">
+    监控团队 Gmail 和 Outlook 收件箱
+  </Card>
+</Cards>
+
+## 快速对比
+
+| 触发器 | 启动条件 |
+|---------|-----------------|
+| **Start** | 编辑器运行、API 部署请求或聊天消息 |
+| **Schedule** | 在 schedule 块中管理的定时器 |
+| **Webhook** | 收到入站 HTTP 请求时 |
+| **RSS Feed** | 订阅源中有新内容发布时 |
+| **Email Polling Groups** | 团队 Gmail 或 Outlook 收件箱收到新邮件时 |
+
+> Start 块始终公开 `input`、`conversationId` 和 `files` 字段。通过向输入格式添加自定义字段来增加结构化数据。
+
+## 使用触发器
+
+1. 将 Start 块放入起始槽（或其他触发器如 Webhook/Schedule）。
+2. 配置任何所需的模式或认证。
+3. 将该块连接到工作流的其余部分。
+
+> 部署为每个触发器提供支持。更新工作流，重新部署，所有触发器入口点将获取新的快照。在[执行 → 部署快照](/execution)中了解更多。
+
+## 手动执行优先级
+
+当您在编辑器中点击 **运行** 时，Sim 会根据以下优先级顺序自动选择要执行的触发器：
+
+1. **Start 块**（最高优先级）
+2. **Schedule 触发器**
+3. **外部触发器**（如 webhooks、Slack、Gmail、Airtable 等集成）
+
+如果您的工作流有多个触发器，将执行优先级最高的触发器。例如，如果您同时有 Start 块和 Webhook 触发器，点击运行将执行 Start 块。
+
+**带有模拟负载的外部触发器**：当手动执行外部触发器（如 webhooks 和集成）时，Sim 会根据触发器的预期数据结构自动生成模拟负载。这确保了在测试过程中，下游模块可以正确解析变量。
+
+## 邮件轮询组
+
+轮询组可让你通过单一触发器监控多个团队成员的 Gmail 或 Outlook 收件箱。需要 Team 或 Enterprise 方案。
+
+**创建轮询组**（管理员/所有者）
+
+1. 前往 **设置 → 邮件轮询**
+2. 点击 **创建**，选择 Gmail 或 Outlook
+3. 输入组名
+
+**邀请成员**
+
+1. 在你的轮询组中点击 **添加成员**
+2. 输入邮箱地址（用逗号或换行分隔，或拖拽 CSV 文件）
+3. 点击 **发送邀请**
+
+受邀者会收到一封带有连接账户链接的邮件。连接后，他们的收件箱会自动加入轮询组。受邀者无需成为你的 Sim 组织成员。
+
+**在工作流中使用**
+
+配置邮件触发器时，从凭据下拉菜单中选择你的轮询组，而不是单独账户。系统会为每位成员创建 webhook，并将所有邮件通过你的工作流进行处理。

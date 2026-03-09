@@ -1,0 +1,145 @@
+---
+title: API
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+APIブロックは、HTTPリクエストを通じてワークフローを外部サービスに接続します。REST APIとの対話のために、GET、POST、PUT、DELETE、PATCHメソッドをサポートしています。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/api.png"
+    alt="APIブロック"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## 設定オプション
+
+### URL
+
+APIリクエストのエンドポイントURL。以下のいずれかになります：
+
+- ブロックに直接入力された静的URL
+- 別のブロックの出力から接続された動的URL
+- パスパラメータを含むURL
+
+### メソッド
+
+リクエストに使用するHTTPメソッドを選択します：
+
+- **GET**: サーバーからデータを取得する
+- **POST**: リソースを作成するためにサーバーにデータを送信する
+- **PUT**: サーバー上の既存のリソースを更新する
+- **DELETE**: サーバーからリソースを削除する
+- **PATCH**: 既存のリソースを部分的に更新する
+
+### クエリパラメータ
+
+URLにクエリパラメータとして追加されるキーと値のペアを定義します。例えば：
+
+```
+Key: apiKey
+Value: your_api_key_here
+
+Key: limit
+Value: 10
+```
+
+これらはURLに `?apiKey=your_api_key_here&limit=10` として追加されます。
+
+### ヘッダー
+
+リクエストのHTTPヘッダーを設定します。一般的なヘッダーには以下があります：
+
+```
+Key: Content-Type
+Value: application/json
+
+Key: Authorization
+Value: Bearer your_token_here
+```
+
+### リクエストボディ
+
+リクエストボディをサポートするメソッド（POST、PUT、PATCH）では、送信するデータを定義できます。ボディは以下のいずれかになります：
+
+- ブロックに直接入力されたJSONデータ
+- 別のブロックの出力から接続されたデータ
+- ワークフロー実行中に動的に生成されたデータ
+
+### 結果へのアクセス
+
+APIリクエストが完了すると、以下の出力にアクセスできます：
+
+- **`<api.data>`**: APIからのレスポンスボディデータ
+- **`<api.status>`**: HTTPステータスコード（200、404、500など）
+- **`<api.headers>`**: サーバーからのレスポンスヘッダー
+- **`<api.error>`**: リクエストが失敗した場合のエラー詳細
+
+## 高度な機能
+
+### 動的URL構築
+
+前のブロックの変数を使用して動的にURLを構築します：
+
+```javascript
+// In a Function block before the API
+const userId = <start.userId>;
+const apiUrl = `https://api.example.com/users/${userId}/profile`;
+```
+
+### リクエストの再試行
+
+APIブロックは自動的に以下を処理します：
+- 指数バックオフによるネットワークタイムアウト
+- レート制限レスポンス（429ステータスコード）
+- 再試行ロジックによるサーバーエラー（5xxステータスコード）
+- 再接続試行による接続失敗
+
+### レスポンス検証
+
+処理前にAPIレスポンスを検証します：
+
+```javascript
+// In a Function block after the API
+if (<api.status> === 200) {
+  const data = <api.data>;
+  // Process successful response
+} else {
+  // Handle error response
+  console.error(`API Error: ${<api.status>}`);
+}
+```
+
+## 出力
+
+- **`<api.data>`**: APIからのレスポンスボディデータ
+- **`<api.status>`**: HTTPステータスコード
+- **`<api.headers>`**: レスポンスヘッダー
+- **`<api.error>`**: リクエストが失敗した場合のエラー詳細
+
+## 使用例
+
+**ユーザープロファイルデータの取得** - 外部サービスからユーザー情報を取得する
+
+```
+Function (Build ID) → API (GET /users/{id}) → Function (Format) → Response
+```
+
+**決済処理** - Stripe APIを通じて決済を処理する
+
+```
+Function (Validate) → API (Stripe) → Condition (Success) → Supabase (Update)
+```
+
+## ベストプラクティス
+
+- **機密データには環境変数を使用する**: APIキーや認証情報をハードコードしないでください
+- **エラーを適切に処理する**: 失敗したリクエストにはエラー処理ロジックを接続してください
+- **レスポンスを検証する**: データを処理する前にステータスコードとレスポンス形式を確認してください
+- **レート制限を尊重する**: APIのレート制限に注意し、適切なスロットリングを実装してください

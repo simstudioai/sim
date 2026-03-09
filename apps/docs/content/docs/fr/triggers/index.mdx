@@ -1,0 +1,93 @@
+---
+title: Aperçu
+description: Les déclencheurs sont les moyens essentiels pour lancer les flux de travail Sim
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/triggers.png"
+    alt="Aperçu des déclencheurs"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+## Déclencheurs principaux
+
+Utilisez le bloc Démarrer pour tout ce qui provient de l'éditeur, du déploiement vers l'API ou des expériences de déploiement vers le chat. D'autres déclencheurs restent disponibles pour les flux de travail basés sur des événements :
+
+<Cards>
+  <Card title="Start" href="/triggers/start">
+    Point d'entrée unifié qui prend en charge les exécutions dans l'éditeur, les déploiements API et les déploiements de chat
+  </Card>
+  <Card title="Webhook" href="/triggers/webhook">
+    Recevoir des charges utiles de webhook externes
+  </Card>
+  <Card title="Schedule" href="/triggers/schedule">
+    Exécution basée sur cron ou intervalle
+  </Card>
+  <Card title="RSS Feed" href="/triggers/rss">
+    Surveiller les flux RSS et Atom pour détecter du nouveau contenu
+  </Card>
+  <Card title="Email Polling Groups" href="#email-polling-groups">
+    Surveiller les boîtes de réception Gmail et Outlook de l'équipe
+  </Card>
+</Cards>
+
+## Comparaison rapide
+
+| Déclencheur | Condition de démarrage |
+|-------------|------------------------|
+| **Start** | Exécutions dans l'éditeur, requêtes de déploiement vers l'API ou messages de chat |
+| **Schedule** | Minuteur géré dans le bloc de planification |
+| **Webhook** | Lors d'une requête HTTP entrante |
+| **RSS Feed** | Nouvel élément publié dans le flux |
+| **Email Polling Groups** | Nouvel e-mail reçu dans les boîtes de réception Gmail ou Outlook de l'équipe |
+
+> Le bloc Démarrer expose toujours les champs `input`, `conversationId` et `files`. Ajoutez des champs personnalisés au format d'entrée pour des données structurées supplémentaires.
+
+## Utilisation des déclencheurs
+
+1. Déposez le bloc Démarrer dans l'emplacement de départ (ou un déclencheur alternatif comme Webhook/Planification).
+2. Configurez tout schéma ou authentification requis.
+3. Connectez le bloc au reste du flux de travail.
+
+> Les déploiements alimentent chaque déclencheur. Mettez à jour le flux de travail, redéployez, et tous les points d'entrée des déclencheurs récupèrent le nouveau snapshot. En savoir plus dans [Exécution → Snapshots de déploiement](/execution).
+
+## Priorité d'exécution manuelle
+
+Lorsque vous cliquez sur **Exécuter** dans l'éditeur, Sim sélectionne automatiquement quel déclencheur exécuter selon l'ordre de priorité suivant :
+
+1. **Bloc Démarrer** (priorité la plus élevée)
+2. **Déclencheurs de planification**
+3. **Déclencheurs externes** (webhooks, intégrations comme Slack, Gmail, Airtable, etc.)
+
+Si votre flux de travail comporte plusieurs déclencheurs, le déclencheur de priorité la plus élevée sera exécuté. Par exemple, si vous avez à la fois un bloc Démarrer et un déclencheur Webhook, cliquer sur Exécuter exécutera le bloc Démarrer.
+
+**Déclencheurs externes avec charges utiles simulées** : lorsque des déclencheurs externes (webhooks et intégrations) sont exécutés manuellement, Sim génère automatiquement des charges utiles simulées basées sur la structure de données attendue du déclencheur. Cela garantit que les blocs en aval peuvent résoudre correctement les variables pendant les tests.
+
+## Groupes de surveillance d'e-mails
+
+Les groupes de surveillance vous permettent de surveiller les boîtes de réception Gmail ou Outlook de plusieurs membres de l'équipe avec un seul déclencheur. Nécessite un forfait Team ou Enterprise.
+
+**Créer un groupe de surveillance** (Admin/Propriétaire)
+
+1. Accédez à **Paramètres → Surveillance d'e-mails**
+2. Cliquez sur **Créer** et choisissez Gmail ou Outlook
+3. Entrez un nom pour le groupe
+
+**Inviter des membres**
+
+1. Cliquez sur **Ajouter des membres** dans votre groupe de surveillance
+2. Entrez les adresses e-mail (séparées par des virgules ou des sauts de ligne, ou glissez-déposez un fichier CSV)
+3. Cliquez sur **Envoyer les invitations**
+
+Les personnes invitées reçoivent un e-mail avec un lien pour connecter leur compte. Une fois connectée, leur boîte de réception est automatiquement incluse dans le groupe de surveillance. Les personnes invitées n'ont pas besoin d'être membres de votre organisation Sim.
+
+**Utiliser dans un workflow**
+
+Lors de la configuration d'un déclencheur d'e-mail, sélectionnez votre groupe de surveillance dans le menu déroulant des identifiants au lieu d'un compte individuel. Le système crée des webhooks pour chaque membre et achemine tous les e-mails via votre workflow.

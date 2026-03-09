@@ -1,0 +1,86 @@
+---
+title: 变量
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+变量模块在执行过程中更新工作流变量。变量必须首先在工作流的变量部分中初始化，然后您可以使用此模块在工作流运行时更新其值。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/variables.png"
+    alt="变量块"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout>
+  在工作流中的任何地方使用 `<variable.variableName>` 语法访问变量。
+</Callout>
+
+## 如何使用变量
+
+### 1. 在工作流变量中初始化
+
+首先，在工作流的变量部分（可通过工作流设置访问）中创建变量：
+
+```
+customerEmail = ""
+retryCount = 0
+currentStatus = "pending"
+```
+
+### 2. 使用变量块更新
+
+使用变量块在执行过程中更新这些值：
+
+```
+customerEmail = <api.email>
+retryCount = <variable.retryCount> + 1
+currentStatus = "processing"
+```
+
+### 3. 随处访问
+
+在任何块中引用变量：
+
+```
+Agent prompt: "Send email to <variable.customerEmail>"
+Condition: <variable.retryCount> < 5
+API body: {"status": "<variable.currentStatus>"}
+```
+
+## 示例用例
+
+**循环计数器和状态** - 跟踪迭代过程中的进度
+
+```
+Loop → Agent (Process) → Variables (itemsProcessed + 1) → Variables (Store lastResult)
+```
+
+**重试逻辑** - 跟踪 API 重试次数
+
+```
+API (Try) → Variables (retryCount + 1) → Condition (retryCount < 3)
+```
+
+**动态配置** - 存储工作流的用户上下文
+
+```
+API (Fetch Profile) → Variables (userId, userTier) → Agent (Personalize)
+```
+
+## 输出
+
+- **`<variables.assignments>`**: 包含此块中所有变量赋值的 JSON 对象
+
+## 最佳实践
+
+- **在工作流设置中初始化**：在使用变量之前，始终在工作流变量部分创建变量
+- **动态更新**：使用变量块根据块输出或计算结果更新值
+- **在循环中使用**：非常适合在迭代中跟踪状态
+- **命名清晰**：使用明确的名称，例如 `currentIndex`、`totalProcessed` 或 `lastError`

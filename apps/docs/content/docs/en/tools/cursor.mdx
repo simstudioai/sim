@@ -1,0 +1,176 @@
+---
+title: Cursor
+description: Launch and manage Cursor cloud agents to work on GitHub repositories
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="cursor_v2"
+  color="#1E1E1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Cursor](https://www.cursor.so) is an intelligent cloud-based platform that enables you to launch and manage AI agents capable of collaborating on your GitHub repositories. Cursor agents are designed to help automate software development workflows, accelerate code changes, and provide powerful assistance directly within your version control stack.
+
+With Cursor, you can:
+
+- **Launch cloud agents**: Instantly start AI agents to perform tasks on your repositories—ranging from code generation and refactoring to documentation and bug fixing.
+- **Collaborate on pull requests and branches**: Agents can work on feature branches, propose changes, and assist with code reviews.
+- **Guide and refine AI work**: Provide follow-up instructions to agents, enabling you to iteratively direct their actions and results.
+- **Monitor progress and results**: Check agent status, review their output, and inspect conversation threads—all from a unified dashboard or API.
+- **Control agent lifecycle**: Start, stop, restart, or archive agents as needed to manage compute resources and workflow states.
+- **Integrate with your workflow**: Use the API to connect Cursor agents with CI/CD pipelines, chatbots, or internal tools for automated workflows.
+
+Integrating Cursor into your Sim automations unleashes the power of AI assistance on your software projects. Let agents contribute code, resolve issues, and complete repetitive development tasks so you and your team can focus on higher-level engineering work.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Interact with Cursor Cloud Agents API to launch AI agents that can work on your GitHub repositories. Supports launching agents, adding follow-up instructions, checking status, viewing conversations, and managing agent lifecycle.
+
+
+
+## Tools
+
+### `cursor_list_agents`
+
+List all cloud agents for the authenticated user with optional pagination. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Cursor API key |
+| `limit` | number | No | Number of agents to return \(default: 20, max: 100\) |
+| `cursor` | string | No | Pagination cursor from previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `agents` | array | Array of agent objects |
+| `nextCursor` | string | Pagination cursor for next page |
+
+### `cursor_get_agent`
+
+Retrieve the current status and results of a cloud agent. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Cursor API key |
+| `agentId` | string | Yes | Unique identifier for the cloud agent \(e.g., bc_abc123\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Agent ID |
+| `name` | string | Agent name |
+| `status` | string | Agent status |
+| `source` | json | Source repository info |
+| `target` | json | Target branch/PR info |
+| `summary` | string | Agent summary |
+| `createdAt` | string | Creation timestamp |
+
+### `cursor_get_conversation`
+
+Retrieve the conversation history of a cloud agent, including all user prompts and assistant responses. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Cursor API key |
+| `agentId` | string | Yes | Unique identifier for the cloud agent \(e.g., bc_abc123\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Agent ID |
+| `messages` | array | Array of conversation messages |
+
+### `cursor_launch_agent`
+
+Start a new cloud agent to work on a GitHub repository with the given instructions. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Cursor API key |
+| `repository` | string | Yes | GitHub repository URL \(e.g., https://github.com/your-org/your-repo\) |
+| `ref` | string | No | Branch, tag, or commit to work from \(defaults to default branch\) |
+| `promptText` | string | Yes | The instruction text for the agent |
+| `promptImages` | string | No | JSON array of image objects with base64 data and dimensions |
+| `model` | string | No | Model to use \(leave empty for auto-selection\) |
+| `branchName` | string | No | Custom branch name for the agent to use |
+| `autoCreatePr` | boolean | No | Automatically create a PR when the agent finishes |
+| `openAsCursorGithubApp` | boolean | No | Open the PR as the Cursor GitHub App |
+| `skipReviewerRequest` | boolean | No | Skip requesting reviewers on the PR |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Agent ID |
+| `url` | string | Agent URL |
+
+### `cursor_add_followup`
+
+Add a follow-up instruction to an existing cloud agent. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Cursor API key |
+| `agentId` | string | Yes | Unique identifier for the cloud agent \(e.g., bc_abc123\) |
+| `followupPromptText` | string | Yes | The follow-up instruction text for the agent |
+| `promptImages` | string | No | JSON array of image objects with base64 data and dimensions \(max 5\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Agent ID |
+
+### `cursor_stop_agent`
+
+Stop a running cloud agent. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Cursor API key |
+| `agentId` | string | Yes | Unique identifier for the cloud agent \(e.g., bc_abc123\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Agent ID |
+
+### `cursor_delete_agent`
+
+Permanently delete a cloud agent. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Cursor API key |
+| `agentId` | string | Yes | Unique identifier for the cloud agent \(e.g., bc_abc123\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Agent ID |
+
+

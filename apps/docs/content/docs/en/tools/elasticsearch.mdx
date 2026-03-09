@@ -1,0 +1,388 @@
+---
+title: Elasticsearch
+description: Search, index, and manage data in Elasticsearch
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="elasticsearch"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Elasticsearch](https://www.elastic.co/elasticsearch/) is a powerful distributed search and analytics engine that enables you to index, search, and analyze large volumes of data in real time. It’s widely used for powering search features, log and event data analytics, observability, and more.
+
+With Elasticsearch in Sim, you gain programmatic access to core Elasticsearch capabilities, including:
+
+- **Search documents**: Perform advanced searches on structured or unstructured text using Query DSL, with support for sorting, pagination, and field selection.
+- **Index documents**: Add new documents or update existing ones in any Elasticsearch index for immediate retrieval and analysis.
+- **Get, update, or delete documents**: Retrieve, modify, or remove specific documents by ID.
+- **Bulk operations**: Execute multiple indexing or update actions in a single request for high-throughput data processing.
+- **Manage indexes**: Create, delete, or get details about indexes as part of your workflow automation.
+- **Cluster monitoring**: Check the health and stats of your Elasticsearch deployment.
+
+Sim's Elasticsearch tools work with both self-hosted and Elastic Cloud environments. Integrate Elasticsearch into your agent workflows to automate data ingestion, search across vast datasets, run reporting, or build custom search-powered applications – all without manual intervention.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Elasticsearch into workflows for powerful search, indexing, and data management. Supports document CRUD operations, advanced search queries, bulk operations, index management, and cluster monitoring. Works with both self-hosted and Elastic Cloud deployments.
+
+
+
+## Tools
+
+### `elasticsearch_search`
+
+Search documents in Elasticsearch using Query DSL. Returns matching documents with scores and metadata.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Yes | Deployment type: self_hosted or cloud |
+| `host` | string | No | Elasticsearch host URL \(for self-hosted\) |
+| `cloudId` | string | No | Elastic Cloud ID \(for cloud deployments\) |
+| `authMethod` | string | Yes | Authentication method: api_key or basic_auth |
+| `apiKey` | string | No | Elasticsearch API key |
+| `username` | string | No | Username for basic auth |
+| `password` | string | No | Password for basic auth |
+| `index` | string | Yes | Index name to search \(e.g., "products", "logs-2024"\) |
+| `query` | string | No | Query DSL as JSON string. Example: \{"match":\{"title":"search term"\}\} or \{"bool":\{"must":\[...\]\}\} |
+| `from` | number | No | Starting offset for pagination \(e.g., 0, 10, 20\). Default: 0 |
+| `size` | number | No | Number of results to return \(e.g., 10, 25, 100\). Default: 10 |
+| `sort` | string | No | Sort specification as JSON string. Example: \[\{"created_at":"desc"\}\] or \[\{"_score":"desc"\},\{"name":"asc"\}\] |
+| `sourceIncludes` | string | No | Comma-separated list of fields to include in _source |
+| `sourceExcludes` | string | No | Comma-separated list of fields to exclude from _source |
+| `trackTotalHits` | boolean | No | Track accurate total hit count \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `took` | number | Time in milliseconds the search took |
+| `timed_out` | boolean | Whether the search timed out |
+| `hits` | object | Search results with total count and matching documents |
+| `aggregations` | json | Aggregation results if any |
+
+### `elasticsearch_index_document`
+
+Index (create or update) a document in Elasticsearch.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Yes | Deployment type: self_hosted or cloud |
+| `host` | string | No | Elasticsearch host URL \(for self-hosted\) |
+| `cloudId` | string | No | Elastic Cloud ID \(for cloud deployments\) |
+| `authMethod` | string | Yes | Authentication method: api_key or basic_auth |
+| `apiKey` | string | No | Elasticsearch API key |
+| `username` | string | No | Username for basic auth |
+| `password` | string | No | Password for basic auth |
+| `index` | string | Yes | Target index name \(e.g., "products", "logs-2024"\) |
+| `documentId` | string | No | Document ID \(e.g., "abc123", "user_456"\). Auto-generated if not provided |
+| `document` | string | Yes | Document body as JSON string |
+| `refresh` | string | No | Refresh policy: true, false, or wait_for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `_index` | string | Index where the document was stored |
+| `_id` | string | Document ID |
+| `_version` | number | Document version |
+| `result` | string | Operation result \(created or updated\) |
+
+### `elasticsearch_get_document`
+
+Retrieve a document by ID from Elasticsearch.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Yes | Deployment type: self_hosted or cloud |
+| `host` | string | No | Elasticsearch host URL \(for self-hosted\) |
+| `cloudId` | string | No | Elastic Cloud ID \(for cloud deployments\) |
+| `authMethod` | string | Yes | Authentication method: api_key or basic_auth |
+| `apiKey` | string | No | Elasticsearch API key |
+| `username` | string | No | Username for basic auth |
+| `password` | string | No | Password for basic auth |
+| `index` | string | Yes | Index name \(e.g., "products", "logs-2024"\) |
+| `documentId` | string | Yes | Document ID to retrieve \(e.g., "abc123", "user_456"\) |
+| `sourceIncludes` | string | No | Comma-separated list of fields to include |
+| `sourceExcludes` | string | No | Comma-separated list of fields to exclude |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `_index` | string | Index name |
+| `_id` | string | Document ID |
+| `_version` | number | Document version |
+| `found` | boolean | Whether the document was found |
+| `_source` | json | Document content |
+
+### `elasticsearch_update_document`
+
+Partially update a document in Elasticsearch using doc merge.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Yes | Deployment type: self_hosted or cloud |
+| `host` | string | No | Elasticsearch host URL \(for self-hosted\) |
+| `cloudId` | string | No | Elastic Cloud ID \(for cloud deployments\) |
+| `authMethod` | string | Yes | Authentication method: api_key or basic_auth |
+| `apiKey` | string | No | Elasticsearch API key |
+| `username` | string | No | Username for basic auth |
+| `password` | string | No | Password for basic auth |
+| `index` | string | Yes | Index name \(e.g., "products", "logs-2024"\) |
+| `documentId` | string | Yes | Document ID to update \(e.g., "abc123", "user_456"\) |
+| `document` | string | Yes | Partial document to merge as JSON string |
+| `retryOnConflict` | number | No | Number of retries on version conflict |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `_index` | string | Index name |
+| `_id` | string | Document ID |
+| `_version` | number | New document version |
+| `result` | string | Operation result \(updated or noop\) |
+
+### `elasticsearch_delete_document`
+
+Delete a document from Elasticsearch by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Yes | Deployment type: self_hosted or cloud |
+| `host` | string | No | Elasticsearch host URL \(for self-hosted\) |
+| `cloudId` | string | No | Elastic Cloud ID \(for cloud deployments\) |
+| `authMethod` | string | Yes | Authentication method: api_key or basic_auth |
+| `apiKey` | string | No | Elasticsearch API key |
+| `username` | string | No | Username for basic auth |
+| `password` | string | No | Password for basic auth |
+| `index` | string | Yes | Index name \(e.g., "products", "logs-2024"\) |
+| `documentId` | string | Yes | Document ID to delete \(e.g., "abc123", "user_456"\) |
+| `refresh` | string | No | Refresh policy: true, false, or wait_for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `_index` | string | Index name |
+| `_id` | string | Document ID |
+| `_version` | number | Document version |
+| `result` | string | Operation result \(deleted or not_found\) |
+
+### `elasticsearch_bulk`
+
+Perform multiple index, create, delete, or update operations in a single request for high performance.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Yes | Deployment type: self_hosted or cloud |
+| `host` | string | No | Elasticsearch host URL \(for self-hosted\) |
+| `cloudId` | string | No | Elastic Cloud ID \(for cloud deployments\) |
+| `authMethod` | string | Yes | Authentication method: api_key or basic_auth |
+| `apiKey` | string | No | Elasticsearch API key |
+| `username` | string | No | Username for basic auth |
+| `password` | string | No | Password for basic auth |
+| `index` | string | No | Default index for operations \(e.g., "products", "logs-2024"\) |
+| `operations` | string | Yes | Bulk operations as NDJSON string. Each operation is two lines: action metadata and optional document. Example: \{"index":\{"_index":"products","_id":"1"\}\}\\n\{"name":"Widget"\}\\n |
+| `refresh` | string | No | Refresh policy: true, false, or wait_for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `took` | number | Time in milliseconds the bulk operation took |
+| `errors` | boolean | Whether any operation had an error |
+| `items` | array | Results for each operation |
+
+### `elasticsearch_count`
+
+Count documents matching a query in Elasticsearch.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Yes | Deployment type: self_hosted or cloud |
+| `host` | string | No | Elasticsearch host URL \(for self-hosted\) |
+| `cloudId` | string | No | Elastic Cloud ID \(for cloud deployments\) |
+| `authMethod` | string | Yes | Authentication method: api_key or basic_auth |
+| `apiKey` | string | No | Elasticsearch API key |
+| `username` | string | No | Username for basic auth |
+| `password` | string | No | Password for basic auth |
+| `index` | string | Yes | Index name to count documents in \(e.g., "products", "logs-2024"\) |
+| `query` | string | No | Query DSL to filter documents \(JSON string\). Example: \{"match":\{"status":"active"\}\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of documents matching the query |
+| `_shards` | object | Shard statistics |
+
+### `elasticsearch_create_index`
+
+Create a new index with optional settings and mappings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Yes | Deployment type: self_hosted or cloud |
+| `host` | string | No | Elasticsearch host URL \(for self-hosted\) |
+| `cloudId` | string | No | Elastic Cloud ID \(for cloud deployments\) |
+| `authMethod` | string | Yes | Authentication method: api_key or basic_auth |
+| `apiKey` | string | No | Elasticsearch API key |
+| `username` | string | No | Username for basic auth |
+| `password` | string | No | Password for basic auth |
+| `index` | string | Yes | Index name to create \(e.g., "products", "logs-2024"\) |
+| `settings` | string | No | Index settings as JSON string |
+| `mappings` | string | No | Index mappings as JSON string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `acknowledged` | boolean | Whether the request was acknowledged |
+| `shards_acknowledged` | boolean | Whether the shards were acknowledged |
+| `index` | string | Created index name |
+
+### `elasticsearch_delete_index`
+
+Delete an index and all its documents. This operation is irreversible.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Yes | Deployment type: self_hosted or cloud |
+| `host` | string | No | Elasticsearch host URL \(for self-hosted\) |
+| `cloudId` | string | No | Elastic Cloud ID \(for cloud deployments\) |
+| `authMethod` | string | Yes | Authentication method: api_key or basic_auth |
+| `apiKey` | string | No | Elasticsearch API key |
+| `username` | string | No | Username for basic auth |
+| `password` | string | No | Password for basic auth |
+| `index` | string | Yes | Index name to delete \(e.g., "products", "logs-2024"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `acknowledged` | boolean | Whether the deletion was acknowledged |
+
+### `elasticsearch_get_index`
+
+Retrieve index information including settings, mappings, and aliases.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Yes | Deployment type: self_hosted or cloud |
+| `host` | string | No | Elasticsearch host URL \(for self-hosted\) |
+| `cloudId` | string | No | Elastic Cloud ID \(for cloud deployments\) |
+| `authMethod` | string | Yes | Authentication method: api_key or basic_auth |
+| `apiKey` | string | No | Elasticsearch API key |
+| `username` | string | No | Username for basic auth |
+| `password` | string | No | Password for basic auth |
+| `index` | string | Yes | Index name to retrieve info for \(e.g., "products", "logs-2024"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `index` | json | Index information including aliases, mappings, and settings |
+
+### `elasticsearch_cluster_health`
+
+Get the health status of the Elasticsearch cluster.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Yes | Deployment type: self_hosted or cloud |
+| `host` | string | No | Elasticsearch host URL \(for self-hosted\) |
+| `cloudId` | string | No | Elastic Cloud ID \(for cloud deployments\) |
+| `authMethod` | string | Yes | Authentication method: api_key or basic_auth |
+| `apiKey` | string | No | Elasticsearch API key |
+| `username` | string | No | Username for basic auth |
+| `password` | string | No | Password for basic auth |
+| `waitForStatus` | string | No | Wait until cluster reaches this status: green, yellow, or red |
+| `timeout` | string | No | Timeout for the wait operation \(e.g., 30s, 1m\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `cluster_name` | string | Name of the cluster |
+| `status` | string | Cluster health status: green, yellow, or red |
+| `number_of_nodes` | number | Total number of nodes in the cluster |
+| `number_of_data_nodes` | number | Number of data nodes |
+| `active_shards` | number | Number of active shards |
+| `unassigned_shards` | number | Number of unassigned shards |
+
+### `elasticsearch_cluster_stats`
+
+Get comprehensive statistics about the Elasticsearch cluster.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Yes | Deployment type: self_hosted or cloud |
+| `host` | string | No | Elasticsearch host URL \(for self-hosted\) |
+| `cloudId` | string | No | Elastic Cloud ID \(for cloud deployments\) |
+| `authMethod` | string | Yes | Authentication method: api_key or basic_auth |
+| `apiKey` | string | No | Elasticsearch API key |
+| `username` | string | No | Username for basic auth |
+| `password` | string | No | Password for basic auth |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `cluster_name` | string | Name of the cluster |
+| `status` | string | Cluster health status |
+| `nodes` | object | Node statistics including count and versions |
+| `indices` | object | Index statistics including document count and store size |
+
+### `elasticsearch_list_indices`
+
+List all indices in the Elasticsearch cluster with their health, status, and statistics.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Yes | Deployment type: self_hosted or cloud |
+| `host` | string | No | Elasticsearch host URL \(for self-hosted\) |
+| `cloudId` | string | No | Elastic Cloud ID \(for cloud deployments\) |
+| `authMethod` | string | Yes | Authentication method: api_key or basic_auth |
+| `apiKey` | string | No | Elasticsearch API key |
+| `username` | string | No | Username for basic auth |
+| `password` | string | No | Password for basic auth |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Summary message about the indices |
+| `indices` | json | Array of index information objects |
+
+

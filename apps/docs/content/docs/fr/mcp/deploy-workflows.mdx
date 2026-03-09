@@ -1,0 +1,108 @@
+---
+title: Déployer des workflows en tant que MCP
+description: Exposez vos workflows en tant qu'outils MCP pour les assistants IA
+  externes et les applications
+---
+
+import { Video } from '@/components/ui/video'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Déployez vos workflows en tant qu'outils MCP pour les rendre accessibles aux assistants IA externes comme Claude Desktop, Cursor et autres clients compatibles MCP. Cela transforme vos workflows en outils appelables qui peuvent être invoqués depuis n'importe où.
+
+## Créer et gérer des serveurs MCP
+
+Les serveurs MCP regroupent vos outils de workflow. Créez-les et gérez-les dans les paramètres de l'espace de travail :
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp/mcp-server.mp4" width={700} height={450} />
+</div>
+
+1. Accédez à **Paramètres → Serveurs MCP**
+2. Cliquez sur **Créer un serveur**
+3. Saisissez un nom et une description facultative
+4. Copiez l'URL du serveur pour l'utiliser dans vos clients MCP
+5. Affichez et gérez tous les outils ajoutés au serveur
+
+## Ajouter un workflow en tant qu'outil
+
+Une fois votre workflow déployé, vous pouvez l'exposer en tant qu'outil MCP :
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp/mcp-deploy-tool.mp4" width={700} height={450} />
+</div>
+
+1. Ouvrez votre workflow déployé
+2. Cliquez sur **Déployer** et accédez à l'onglet **MCP**
+3. Configurez le nom et la description de l'outil
+4. Ajoutez des descriptions pour chaque paramètre (aide l'IA à comprendre les entrées)
+5. Sélectionnez les serveurs MCP auxquels l'ajouter
+
+<Callout type="info">
+Le workflow doit être déployé avant de pouvoir être ajouté en tant qu'outil MCP.
+</Callout>
+
+## Configuration de l'outil
+
+### Nom de l'outil
+Utilisez des lettres minuscules, des chiffres et des traits de soulignement. Le nom doit être descriptif et suivre les conventions de nommage MCP (par exemple, `search_documents`, `send_email`).
+
+### Description
+Rédigez une description claire de ce que fait l'outil. Cela aide les assistants IA à comprendre quand utiliser l'outil.
+
+### Paramètres
+Les champs du format d'entrée de votre workflow deviennent des paramètres d'outil. Ajoutez des descriptions à chaque paramètre pour aider les assistants IA à fournir les valeurs correctes.
+
+## Connexion des clients MCP
+
+Utilisez l'URL du serveur depuis les paramètres pour connecter des applications externes :
+
+### Claude Desktop
+Ajoutez à votre configuration Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json`) :
+
+```json
+{
+  "mcpServers": {
+    "my-sim-workflows": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "YOUR_SERVER_URL"]
+    }
+  }
+}
+```
+
+### Cursor
+Ajoutez l'URL du serveur dans les paramètres MCP de Cursor en utilisant le même modèle mcp-remote.
+
+<Callout type="warn">
+Incluez votre en-tête de clé API (`X-API-Key`) pour un accès authentifié lors de l'utilisation de mcp-remote ou d'autres transports MCP basés sur HTTP.
+</Callout>
+
+## Gestion du serveur
+
+Depuis la vue détaillée du serveur dans **Paramètres → Serveurs MCP**, vous pouvez :
+
+- **Voir les outils** : voir tous les workflows ajoutés à un serveur
+- **Copier l'URL** : obtenir l'URL du serveur pour les clients MCP
+- **Ajouter des workflows** : ajouter d'autres workflows déployés comme outils
+- **Supprimer des outils** : retirer des workflows du serveur
+- **Supprimer le serveur** : supprimer l'intégralité du serveur et tous ses outils
+
+## Comment ça fonctionne
+
+Lorsqu'un client MCP appelle votre outil :
+
+1. La requête est reçue à l'URL de votre serveur MCP
+2. Sim valide la requête et mappe les paramètres aux entrées du workflow
+3. Le workflow déployé s'exécute avec les entrées fournies
+4. Les résultats sont renvoyés au client MCP
+
+Les workflows s'exécutent en utilisant la même version de déploiement que les appels API, garantissant un comportement cohérent.
+
+## Exigences de permission
+
+| Action | Permission requise |
+|--------|-------------------|
+| Créer des serveurs MCP | **Admin** |
+| Ajouter des workflows aux serveurs | **Write** ou **Admin** |
+| Voir les serveurs MCP | **Read**, **Write** ou **Admin** |
+| Supprimer des serveurs MCP | **Admin** |

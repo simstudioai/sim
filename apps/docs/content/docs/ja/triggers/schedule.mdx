@@ -1,0 +1,77 @@
+---
+title: スケジュール
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+スケジュールブロックは、指定された間隔または時間に定期的なスケジュールでワークフローを自動的にトリガーします。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/schedule.png"
+    alt="スケジュールブロック"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## スケジュールオプション
+
+ワークフローの実行タイミングを設定します：
+
+<Tabs items={['Simple Intervals', 'Cron Expressions']}>
+  <Tab>
+    <ul className="list-disc space-y-1 pl-6">
+      <li><strong>X分ごと</strong>：分単位の間隔で実行（1〜1440）</li>
+      <li><strong>毎時</strong>：毎時指定した分に実行</li>
+      <li><strong>毎日</strong>：毎日指定した時刻に実行</li>
+      <li><strong>毎週</strong>：毎週指定した曜日と時刻に実行</li>
+      <li><strong>毎月</strong>：毎月指定した日時に実行</li>
+    </ul>
+  </Tab>
+  <Tab>
+    <p>高度なスケジュール設定にはcron式を使用します：</p>
+    <div className="text-sm space-y-1">
+      <div><code>0 9 * * 1-5</code> - 平日の午前9時</div>
+      <div><code>*/15 * * * *</code> - 15分ごと</div>
+      <div><code>0 0 1 * *</code> - 毎月1日</div>
+    </div>
+  </Tab>
+</Tabs>
+
+## アクティベーション
+
+スケジュールはワークフローのデプロイに連動します：
+
+- **ワークフローをデプロイ** → スケジュールが有効になり実行を開始
+- **ワークフローをアンデプロイ** → スケジュールが削除
+- **ワークフローを再デプロイ** → 現在の設定でスケジュールが再作成
+
+<Callout>
+スケジュールを開始するには、ワークフローをデプロイする必要があります。スケジュールブロックを設定してから、ツールバーからデプロイしてください。
+</Callout>
+
+## 自動無効化
+
+スケジュールは**100回連続で失敗**すると、エラーの連鎖を防ぐために自動的に無効化されます。無効化されると:
+
+- スケジュールブロックに警告バッジが表示されます
+- スケジュールの実行が停止します
+- バッジをクリックしてスケジュールを再有効化できます
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/schedule-3.png"
+    alt="無効化されたスケジュール"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout>
+スケジュールブロックは入力接続を受け取ることができず、ワークフローのエントリーポイントとしてのみ機能します。
+</Callout>

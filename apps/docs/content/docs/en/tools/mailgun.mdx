@@ -1,0 +1,216 @@
+---
+title: Mailgun
+description: Send emails and manage mailing lists with Mailgun
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mailgun"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Mailgun](https://www.mailgun.com) is a powerful email delivery service designed for developers and businesses to send, receive, and track emails effortlessly. Mailgun enables you to leverage robust APIs for reliable transactional and marketing email, flexible mailing list management, and advanced event tracking.
+
+With Mailgun's comprehensive feature set, you can automate key email operations and closely monitor deliverability and recipient engagement. This makes it an ideal solution for workflow automation where communications, notifications, and campaign mails are core parts of your processes.
+
+Key features of Mailgun include:
+
+- **Transactional Email Sending:** Deliver high-volume emails such as account notifications, receipts, alerts, and password resets.
+- **Rich Email Content:** Send both plain text and HTML emails, and use tags for categorizing and tracking your messages.
+- **Mailing List Management:** Create, update, and manage mailing lists and members to send grouped communications efficiently.
+- **Domain Information:** Retrieve details about your sending domains to monitor configuration and health.
+- **Event Tracking:** Analyze email deliverability and engagement with detailed event data on sent messages.
+- **Message Retrieval:** Access stored messages for compliance, analysis, or troubleshooting needs.
+
+By integrating Mailgun into Sim, your agents are empowered to programmatically send emails, manage email lists, access domain information, and monitor real-time events as part of automated workflows. This allows for intelligent, data-driven engagement with your users directly from your AI-powered processes.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Mailgun into your workflow. Send transactional emails, manage mailing lists and members, view domain information, and track email events. Supports text and HTML emails, tags for tracking, and comprehensive list management.
+
+
+
+## Tools
+
+### `mailgun_send_message`
+
+Send an email using Mailgun API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailgun API key |
+| `domain` | string | Yes | Mailgun sending domain \(e.g., mg.example.com\) |
+| `from` | string | Yes | Sender email address \(e.g., sender@example.com or "Name &lt;sender@example.com&gt;"\) |
+| `to` | string | Yes | Recipient email address \(e.g., user@example.com\). Use comma-separated values for multiple recipients |
+| `subject` | string | Yes | Email subject line |
+| `text` | string | No | Plain text body of the email |
+| `html` | string | No | HTML body of the email \(e.g., "&lt;h1&gt;Hello&lt;/h1&gt;&lt;p&gt;Message content&lt;/p&gt;"\) |
+| `cc` | string | No | CC recipient email address \(e.g., cc@example.com\). Use comma-separated values for multiple recipients |
+| `bcc` | string | No | BCC recipient email address \(e.g., bcc@example.com\). Use comma-separated values for multiple recipients |
+| `tags` | string | No | Tags for the email \(comma-separated\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the message was sent successfully |
+| `id` | string | Message ID |
+| `message` | string | Response message from Mailgun |
+
+### `mailgun_get_message`
+
+Retrieve a stored message by its key
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailgun API key |
+| `domain` | string | Yes | Mailgun domain for retrieving messages \(e.g., mg.example.com\) |
+| `messageKey` | string | Yes | Message storage key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the request was successful |
+| `recipients` | string | Message recipients |
+| `from` | string | Sender email |
+| `subject` | string | Message subject |
+| `bodyPlain` | string | Plain text body |
+| `strippedText` | string | Stripped text |
+| `strippedSignature` | string | Stripped signature |
+| `bodyHtml` | string | HTML body |
+| `strippedHtml` | string | Stripped HTML |
+| `attachmentCount` | number | Number of attachments |
+| `timestamp` | number | Message timestamp |
+| `messageHeaders` | json | Message headers |
+| `contentIdMap` | json | Content ID map |
+
+### `mailgun_list_messages`
+
+List events (logs) for messages sent through Mailgun
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailgun API key |
+| `domain` | string | Yes | Mailgun domain for listing events \(e.g., mg.example.com\) |
+| `event` | string | No | Filter by event type \(accepted, delivered, failed, opened, clicked, etc.\) |
+| `limit` | number | No | Maximum number of events to return \(default: 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the request was successful |
+| `items` | json | Array of event items |
+| `paging` | json | Paging information |
+
+### `mailgun_create_mailing_list`
+
+Create a new mailing list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailgun API key |
+| `address` | string | Yes | Mailing list address \(e.g., newsletter@mg.example.com\) |
+| `name` | string | No | Mailing list name |
+| `description` | string | No | Mailing list description |
+| `accessLevel` | string | No | Access level: readonly, members, or everyone |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the list was created successfully |
+| `message` | string | Response message |
+| `list` | json | Created mailing list details |
+
+### `mailgun_get_mailing_list`
+
+Get details of a mailing list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailgun API key |
+| `address` | string | Yes | Mailing list address to retrieve \(e.g., newsletter@mg.example.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the request was successful |
+| `list` | json | Mailing list details |
+
+### `mailgun_add_list_member`
+
+Add a member to a mailing list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailgun API key |
+| `listAddress` | string | Yes | Mailing list address \(e.g., list@mg.example.com\) |
+| `address` | string | Yes | Member email address to add \(e.g., user@example.com\) |
+| `name` | string | No | Member name |
+| `vars` | string | No | JSON string of custom variables |
+| `subscribed` | boolean | No | Whether the member is subscribed |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the member was added successfully |
+| `message` | string | Response message |
+| `member` | json | Added member details |
+
+### `mailgun_list_domains`
+
+List all domains for your Mailgun account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailgun API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the request was successful |
+| `totalCount` | number | Total number of domains |
+| `items` | json | Array of domain objects |
+
+### `mailgun_get_domain`
+
+Get details of a specific domain
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailgun API key |
+| `domain` | string | Yes | Domain name to retrieve details for \(e.g., mg.example.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the request was successful |
+| `domain` | json | Domain details |
+
+

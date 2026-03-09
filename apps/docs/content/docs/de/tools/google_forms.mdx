@@ -1,0 +1,244 @@
+---
+title: Google Forms
+description: Antworten aus einem Google-Formular lesen
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_forms"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Forms](https://forms.google.com) ist Googles Online-Umfrage- und Formular-Tool, mit dem Benutzer Formulare erstellen, Antworten sammeln und Ergebnisse analysieren können. Als Teil der Google-Produktivitätssuite macht Google Forms es einfach, Informationen, Feedback und Daten von Benutzern zu sammeln.
+
+Erfahren Sie, wie Sie das Google Forms-Tool in Sim integrieren, um Formularantworten automatisch in Ihren Workflows zu lesen und zu verarbeiten. Dieses Tutorial führt Sie durch die Verbindung mit Google Forms, das Abrufen von Antworten und die Nutzung der gesammelten Daten zur Automatisierung. Perfekt für die Synchronisierung von Umfrageergebnissen, Registrierungen oder Feedback mit Ihren Agenten in Echtzeit.
+
+Mit Google Forms können Sie:
+
+- **Umfragen und Formulare erstellen**: Entwerfen Sie benutzerdefinierte Formulare für Feedback, Registrierung, Quizze und mehr
+- **Antworten automatisch sammeln**: Erfassen Sie Daten von Benutzern in Echtzeit
+- **Ergebnisse analysieren**: Sehen Sie sich Antworten in Google Forms an oder exportieren Sie sie nach Google Sheets für weitere Analysen
+- **Einfach zusammenarbeiten**: Teilen Sie Formulare und arbeiten Sie mit anderen zusammen, um Fragen zu erstellen und zu überprüfen
+- **Mit anderen Google-Diensten integrieren**: Verbinden Sie sich mit Google Sheets, Drive und mehr
+
+In Sim ermöglicht die Google Forms-Integration Ihren Agenten den programmatischen Zugriff auf Formularantworten. Dies ermöglicht leistungsstarke Automatisierungsszenarien wie die Verarbeitung von Umfragedaten, das Auslösen von Workflows basierend auf neuen Einreichungen und die Synchronisierung von Formularergebnissen mit anderen Tools. Ihre Agenten können alle Antworten für ein Formular abrufen, eine bestimmte Antwort abrufen und die Daten nutzen, um intelligente Automatisierung zu steuern. Durch die Verbindung von Sim mit Google Forms können Sie die Datenerfassung automatisieren, die Feedback-Verarbeitung optimieren und Formularantworten in die Fähigkeiten Ihres Agenten integrieren.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integrieren Sie Google Forms in Ihren Workflow. Geben Sie eine Formular-ID an, um Antworten aufzulisten, oder geben Sie eine Antwort-ID an, um eine einzelne Antwort abzurufen. Erfordert OAuth.
+
+## Tools
+
+### `google_forms_get_responses`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| formId | string | Ja | Die ID des Google-Formulars |
+| responseId | string | Nein | Falls angegeben, wird diese spezifische Antwort zurückgegeben |
+| pageSize | number | Nein | Maximale Anzahl der zurückzugebenden Antworten (der Dienst kann weniger zurückgeben). Standardwert ist 5000 |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `data` | json | Antwort oder Liste von Antworten |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `google_forms`
+
+Ruft eine Formularstruktur einschließlich ihrer Elemente, Einstellungen und Metadaten ab
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Ja | Die ID des abzurufenden Google-Formulars |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `formId` | string | Die Formular-ID |
+| `title` | string | Der für Befragte sichtbare Formulartitel |
+| `description` | string | Die Formularbeschreibung |
+| `documentTitle` | string | Der in Drive sichtbare Dokumenttitel |
+| `responderUri` | string | Die URI zum Teilen mit Befragten |
+| `linkedSheetId` | string | Die ID der verknüpften Google-Tabelle |
+| `revisionId` | string | Die Revisions-ID des Formulars |
+| `items` | array | Die Formularelemente (Fragen, Abschnitte usw.) |
+|   ↳ `itemId` | string | Element-ID |
+|   ↳ `title` | string | Elementtitel |
+|   ↳ `description` | string | Elementbeschreibung |
+| `settings` | json | Formulareinstellungen |
+| `publishSettings` | json | Formularveröffentlichungseinstellungen |
+
+### `google_forms_create_form`
+
+Erstellt ein neues Google-Formular mit einem Titel
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Ja | Der für Befragte sichtbare Titel des Formulars |
+| `documentTitle` | string | Nein | Der in Drive sichtbare Dokumenttitel (standardmäßig der Formulartitel) |
+| `unpublished` | boolean | Nein | Falls true, wird ein unveröffentlichtes Formular erstellt, das keine Antworten akzeptiert |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `formId` | string | Die ID des erstellten Formulars |
+| `title` | string | Der Formulartitel |
+| `documentTitle` | string | Der Dokumenttitel in Drive |
+| `responderUri` | string | Die URI zum Teilen mit Befragten |
+| `revisionId` | string | Die Revisions-ID des Formulars |
+
+### `google_forms_batch_update`
+
+Mehrere Aktualisierungen auf ein Formular anwenden (Elemente hinzufügen, Informationen aktualisieren, Einstellungen ändern usw.)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Ja | Google Forms Formular-ID |
+| `requests` | json | Ja | Array von Aktualisierungsanfragen (updateFormInfo, updateSettings, createItem, updateItem, moveItem, deleteItem) |
+| `includeFormInResponse` | boolean | Nein | Ob das aktualisierte Formular in der Antwort zurückgegeben werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `replies` | array | Die Antworten von jeder Aktualisierungsanfrage |
+| `writeControl` | object | Schreibsteuerungsinformationen mit Revisions-IDs |
+|   ↳ `requiredRevisionId` | string | Erforderliche Revisions-ID zur Konflikterkennung |
+|   ↳ `targetRevisionId` | string | Ziel-Revisions-ID |
+| `form` | object | Das aktualisierte Formular (falls includeFormInResponse true war) |
+|   ↳ `formId` | string | Die Formular-ID |
+|   ↳ `info` | object | Formularinformationen mit Titel und Beschreibung |
+|     ↳ `title` | string | Der für Befragte sichtbare Formulartitel |
+|     ↳ `description` | string | Die Formularbeschreibung |
+|     ↳ `documentTitle` | string | Der in Drive sichtbare Dokumenttitel |
+|   ↳ `settings` | object | Formulareinstellungen |
+|     ↳ `quizSettings` | object | Quiz-Einstellungen |
+|       ↳ `isQuiz` | boolean | Ob das Formular ein Quiz ist |
+|     ↳ `emailCollectionType` | string | E-Mail-Erfassungstyp |
+|   ↳ `revisionId` | string | Die Revisions-ID des Formulars |
+|   ↳ `responderUri` | string | Die URI zum Teilen mit Befragten |
+|   ↳ `linkedSheetId` | string | Die ID des verknüpften Google Sheets |
+|   ↳ `publishSettings` | object | Formularveröffentlichungseinstellungen |
+|     ↳ `publishState` | object | Aktueller Veröffentlichungsstatus |
+|       ↳ `isPublished` | boolean | Ob das Formular veröffentlicht ist |
+|       ↳ `isAcceptingResponses` | boolean | Ob das Formular Antworten akzeptiert |
+
+### `google_forms_set_publish_settings`
+
+Aktualisiert die Veröffentlichungseinstellungen eines Formulars (veröffentlichen/zurückziehen, Antworten akzeptieren)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Ja | Google Forms Formular-ID |
+| `isPublished` | boolean | Ja | Ob das Formular veröffentlicht und für andere sichtbar ist |
+| `isAcceptingResponses` | boolean | Nein | Ob das Formular Antworten akzeptiert \(wird auf false gesetzt, wenn isPublished false ist\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `formId` | string | Die Formular-ID |
+| `publishSettings` | json | Die aktualisierten Veröffentlichungseinstellungen |
+|   ↳ `publishState` | object | Der Veröffentlichungsstatus |
+|     ↳ `isPublished` | boolean | Ob das Formular veröffentlicht ist |
+|     ↳ `isAcceptingResponses` | boolean | Ob das Formular Antworten akzeptiert |
+
+### `google_forms_create_watch`
+
+Erstellt eine Benachrichtigungsüberwachung für Formularänderungen (Schemaänderungen oder neue Antworten)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Ja | Google Forms Formular-ID zur Überwachung |
+| `eventType` | string | Ja | Zu überwachender Ereignistyp: SCHEMA \(Formularänderungen\) oder RESPONSES \(neue Einreichungen\) |
+| `topicName` | string | Ja | Der Cloud Pub/Sub Topic-Name \(Format: projects/\{project\}/topics/\{topic\}\) |
+| `watchId` | string | Nein | Benutzerdefinierte Watch-ID \(4-63 Zeichen, Kleinbuchstaben, Zahlen, Bindestriche\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Die Watch-ID |
+| `eventType` | string | Der überwachte Ereignistyp |
+| `topicName` | string | Das Cloud Pub/Sub-Thema |
+| `createTime` | string | Zeitpunkt der Erstellung der Watch |
+| `expireTime` | string | Ablaufzeitpunkt der Watch \(7 Tage nach Erstellung\) |
+| `state` | string | Der Watch-Status \(ACTIVE, SUSPENDED\) |
+
+### `google_forms_list_watches`
+
+Alle Benachrichtigungs-Watches für ein Formular auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Ja | Google Forms Formular-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `watches` | array | Liste der Watches für das Formular |
+|   ↳ `id` | string | Watch-ID |
+|   ↳ `eventType` | string | Ereignistyp \(SCHEMA oder RESPONSES\) |
+|   ↳ `createTime` | string | Zeitpunkt der Erstellung der Watch |
+|   ↳ `expireTime` | string | Ablaufzeitpunkt der Watch |
+|   ↳ `state` | string | Watch-Status |
+
+### `google_forms_delete_watch`
+
+Eine Benachrichtigungs-Watch von einem Formular löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Ja | Google Forms Formular-ID |
+| `watchId` | string | Ja | Zu löschende Watch-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Ob die Überwachung erfolgreich gelöscht wurde |
+
+### `google_forms_renew_watch`
+
+Verlängert eine Benachrichtigungsüberwachung um weitere 7 Tage
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Ja | Google Forms Formular-ID |
+| `watchId` | string | Ja | Zu verlängernde Überwachungs-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Die Überwachungs-ID |
+| `eventType` | string | Der überwachte Ereignistyp |
+| `expireTime` | string | Die neue Ablaufzeit |
+| `state` | string | Der Überwachungsstatus |

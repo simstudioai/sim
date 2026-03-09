@@ -1,0 +1,119 @@
+---
+title: Router
+---
+
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+The Router block uses AI to intelligently route workflows based on content analysis. Unlike Condition blocks that use simple rules, Routers understand context and intent. Each route you define creates a separate output port, allowing you to connect different paths to different downstream blocks.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/router.png"
+    alt="Router Block with Multiple Route Ports"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Router vs Condition
+
+**Use Router when:**
+- AI-powered content analysis is needed
+- Working with unstructured or varying content
+- Intent-based routing is required (e.g., "route support tickets to departments")
+
+**Use Condition when:**
+- Simple rule-based decisions are sufficient
+- Working with structured data or numeric comparisons
+- Fast, deterministic routing is needed
+
+## Configuration Options
+
+### Context
+
+The context that the Router will analyze to make routing decisions. This is the input data that gets evaluated against your route descriptions. It can be:
+
+- A direct user query or input
+- Output from a previous block
+- A system-generated message
+- Any text content that needs intelligent routing
+
+### Routes
+
+Define the possible paths that the Router can take. Each route consists of:
+
+- **Route Title**: A name for the route (e.g., "Sales", "Support", "Technical")
+- **Route Description**: A clear description of when this route should be selected (e.g., "Route here when the query is about pricing, purchasing, or sales inquiries")
+
+Each route you add creates a **separate output port** on the Router block. Connect each port to the appropriate downstream block for that route.
+
+### Model Selection
+
+Choose an AI model to power the routing decision:
+
+- **OpenAI**: GPT-4o, o1, o3, o4-mini, gpt-4.1
+- **Anthropic**: Claude 3.7 Sonnet
+- **Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
+- **Other Providers**: Groq, Cerebras, xAI, DeepSeek
+- **Local Models**: Ollama or VLLM compatible models
+
+Use models with strong reasoning capabilities like GPT-4o or Claude 3.7 Sonnet for best results.
+
+### API Key
+
+Your API key for the selected LLM provider. This is securely stored and used for authentication.
+
+## Outputs
+
+- **`<router.context>`**: The context that was analyzed
+- **`<router.selectedRoute>`**: The ID of the selected route
+- **`<router.selected_path>`**: Details of the chosen destination block
+- **`<router.tokens>`**: Token usage statistics
+- **`<router.cost>`**: Estimated routing cost
+- **`<router.model>`**: Model used for decision-making
+
+## Example Use Cases
+
+**Customer Support Triage** - Route tickets to specialized departments
+
+```
+Input (Ticket) → Router
+                  ├── [Sales Route] → Agent (Sales Team)
+                  ├── [Technical Route] → Agent (Engineering)
+                  └── [Billing Route] → Agent (Finance)
+```
+
+**Content Classification** - Classify and route user-generated content
+
+```
+Input (Feedback) → Router
+                    ├── [Product Feedback] → Workflow (Product Team)
+                    └── [Bug Report] → Workflow (Technical Team)
+```
+
+**Lead Qualification** - Route leads based on qualification criteria
+
+```
+Input (Lead) → Router
+                ├── [Enterprise] → Agent (Enterprise Sales)
+                └── [Self-serve] → Workflow (Automated Onboarding)
+```
+
+## Error Handling
+
+When the Router cannot determine an appropriate route for the given context, it will route to the **error path** instead of arbitrarily selecting a route. This happens when:
+
+- The context doesn't clearly match any of the defined route descriptions
+- The AI determines that none of the available routes are appropriate
+
+## Best Practices
+
+- **Write clear route descriptions**: Each route description should clearly explain when that route should be selected. Be specific about the criteria.
+- **Make routes mutually exclusive**: When possible, ensure route descriptions don't overlap to prevent ambiguous routing decisions.
+- **Connect an error path**: Handle cases where no route matches by connecting an error handler for graceful fallback behavior.
+- **Use descriptive route titles**: Route titles appear in the workflow canvas, so make them meaningful for readability.
+- **Test with diverse inputs**: Ensure the Router handles various input types, edge cases, and unexpected content.
+- **Monitor routing performance**: Review routing decisions regularly and refine route descriptions based on actual usage patterns.
+- **Choose appropriate models**: Use models with strong reasoning capabilities for complex routing decisions.

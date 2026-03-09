@@ -1,0 +1,2 @@
+ALTER TABLE "permission_group" ADD COLUMN "auto_add_new_members" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "permission_group_org_auto_add_unique" ON "permission_group" USING btree ("organization_id") WHERE auto_add_new_members = true;

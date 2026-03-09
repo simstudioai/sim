@@ -1,0 +1,76 @@
+---
+title: Función
+---
+
+import { Image } from '@/components/ui/image'
+
+El bloque de Función ejecuta código JavaScript o TypeScript personalizado en tus flujos de trabajo. Transforma datos, realiza cálculos o implementa lógica personalizada.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/function.png"
+    alt="Bloque de función con editor de código"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Salidas
+
+- **`<function.result>`**: El valor devuelto por tu función
+- **`<function.stdout>`**: Salida de console.log() de tu código
+
+## Ejemplos de casos de uso
+
+**Pipeline de procesamiento de datos** - Transforma respuestas de API en datos estructurados
+
+```
+API (Fetch) → Function (Process & Validate) → Function (Calculate Metrics) → Response
+```
+
+**Implementación de lógica de negocio** - Calcula puntuaciones y niveles de fidelización
+
+```
+Agent (Get History) → Function (Calculate Score) → Function (Determine Tier) → Condition (Route)
+```
+
+**Validación y limpieza de datos** - Valida y limpia la entrada del usuario
+
+```
+Input → Function (Validate & Sanitize) → API (Save to Database)
+```
+
+### Ejemplo: Calculadora de puntuación de fidelización
+
+```javascript title="loyalty-calculator.js"
+// Process customer data and calculate loyalty score
+const { purchaseHistory, accountAge, supportTickets } = <agent>;
+
+// Calculate metrics
+const totalSpent = purchaseHistory.reduce((sum, purchase) => sum + purchase.amount, 0);
+const purchaseFrequency = purchaseHistory.length / (accountAge / 365);
+const ticketRatio = supportTickets.resolved / supportTickets.total;
+
+// Calculate loyalty score (0-100)
+const spendScore = Math.min(totalSpent / 1000 * 30, 30);
+const frequencyScore = Math.min(purchaseFrequency * 20, 40);
+const supportScore = ticketRatio * 30;
+
+const loyaltyScore = Math.round(spendScore + frequencyScore + supportScore);
+
+return {
+  customer: <agent.name>,
+  loyaltyScore,
+  loyaltyTier: loyaltyScore >= 80 ? "Platinum" : loyaltyScore >= 60 ? "Gold" : "Silver",
+  metrics: { spendScore, frequencyScore, supportScore }
+};
+```
+
+## Mejores prácticas
+
+- **Mantén las funciones enfocadas**: Escribe funciones que hagan una sola cosa bien para mejorar la mantenibilidad y la depuración
+- **Maneja los errores con elegancia**: Usa bloques try/catch para manejar posibles errores y proporcionar mensajes de error significativos
+- **Prueba casos extremos**: Asegúrate de que tu código maneje correctamente entradas inusuales, valores nulos y condiciones límite
+- **Optimiza el rendimiento**: Ten en cuenta la complejidad computacional y el uso de memoria para grandes conjuntos de datos
+- **Usa console.log() para depuración**: Aprovecha la salida stdout para depurar y monitorear la ejecución de funciones

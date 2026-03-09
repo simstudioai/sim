@@ -1,0 +1,121 @@
+---
+title: Aperçu
+description: Téléchargez, traitez et recherchez dans vos documents grâce à la
+  recherche vectorielle intelligente et au découpage
+---
+
+import { Video } from '@/components/ui/video'
+import { Image } from '@/components/ui/image'
+
+La base de connaissances vous permet de télécharger, traiter et rechercher vos documents grâce à une recherche vectorielle intelligente et au découpage en segments. Les documents de différents types sont automatiquement traités, intégrés et rendus consultables. Vos documents sont intelligemment segmentés, et vous pouvez les visualiser, les modifier et les rechercher à l'aide de requêtes en langage naturel.
+
+## Téléchargement et traitement
+
+Il vous suffit de télécharger vos documents pour commencer. Sim les traite automatiquement en arrière-plan, extrayant le texte, créant des embeddings et les divisant en segments consultables.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="knowledgebase-1.mp4" width={700} height={450} />
+</div>
+
+Le système gère l'ensemble du processus de traitement pour vous :
+
+1. **Extraction de texte** : Le contenu est extrait de vos documents à l'aide d'analyseurs spécialisés pour chaque type de fichier
+2. **Segmentation intelligente** : Les documents sont divisés en segments significatifs avec une taille et un chevauchement configurables
+3. **Génération d'embeddings** : Des embeddings vectoriels sont créés pour les capacités de recherche sémantique
+4. **État du traitement** : Suivez la progression du traitement de vos documents
+
+## Types de fichiers pris en charge
+
+Sim prend en charge les fichiers PDF, Word (DOC/DOCX), texte brut (TXT), Markdown (MD), HTML, Excel (XLS/XLSX), PowerPoint (PPT/PPTX) et CSV. Les fichiers peuvent atteindre jusqu'à 100 Mo chacun, avec des performances optimales pour les fichiers de moins de 50 Mo. Vous pouvez télécharger plusieurs documents simultanément, et les fichiers PDF bénéficient d'un traitement OCR pour les documents numérisés.
+
+## Visualisation et modification des segments
+
+Une fois vos documents traités, vous pouvez visualiser et modifier les segments individuels. Cela vous donne un contrôle total sur l'organisation et la recherche de votre contenu.
+
+<Image src="/static/knowledgebase/knowledgebase.png" alt="Vue des segments de document montrant le contenu traité" width={800} height={500} />
+
+### Configuration des fragments
+
+Lors de la création d'une base de connaissances, vous pouvez configurer la façon dont les documents sont divisés en fragments :
+
+| Paramètre | Unité | Par défaut | Plage | Description |
+|---------|------|---------|-------|-------------|
+| **Taille max. du fragment** | jetons | 1 024 | 100-4 000 | Taille maximale de chaque fragment (1 jeton ≈ 4 caractères) |
+| **Taille min. du fragment** | caractères | 1 | 1-2 000 | Taille minimale du fragment pour éviter les fragments minuscules |
+| **Chevauchement** | caractères | 200 | 0-500 | Chevauchement de contexte entre fragments consécutifs |
+
+- **Division hiérarchique** : respecte la structure du document (sections, paragraphes, phrases)
+
+### Capacités d'édition
+- **Modifier le contenu du fragment** : modifiez le contenu textuel des fragments individuels
+- **Ajuster les limites du fragment** : fusionnez ou divisez les fragments selon les besoins
+- **Ajouter des métadonnées** : enrichissez les fragments avec du contexte supplémentaire
+- **Opérations en masse** : gérez plusieurs fragments efficacement
+
+## Traitement avancé des PDF
+
+Pour les documents PDF, Sim offre des capacités de traitement améliorées :
+
+### Prise en charge de l'OCR
+Lorsqu'il est configuré avec Azure ou [Mistral OCR](https://docs.mistral.ai/ocr/) :
+- **Traitement de documents numérisés** : extrayez le texte des PDF basés sur des images
+- **Gestion de contenu mixte** : traitez les PDF contenant à la fois du texte et des images
+- **Haute précision** : les modèles d'IA avancés garantissent une extraction de texte précise
+
+## Utilisation du bloc de connaissances dans les workflows
+
+Une fois vos documents traités, vous pouvez les utiliser dans vos workflows d'IA via le bloc de connaissances. Cela active la génération augmentée par récupération (RAG), permettant à vos agents d'IA d'accéder à votre contenu documentaire et de raisonner dessus pour fournir des réponses plus précises et contextuelles.
+
+<Image src="/static/knowledgebase/knowledgebase-2.png" alt="Utilisation du bloc de connaissances dans les workflows" width={800} height={500} />
+
+### Fonctionnalités du bloc de connaissances
+- **Recherche sémantique** : trouvez du contenu pertinent à l'aide de requêtes en langage naturel
+- **Intégration contextuelle** : incluez automatiquement les fragments pertinents dans les prompts de l'agent
+- **Récupération dynamique** : la recherche s'effectue en temps réel pendant l'exécution du workflow
+- **Score de pertinence** : résultats classés par similarité sémantique
+
+### Options d'intégration
+- **Prompts système** : fournissez du contexte à vos agents IA
+- **Contexte dynamique** : recherchez et incluez des informations pertinentes pendant les conversations
+- **Recherche multi-documents** : interrogez l'ensemble de votre base de connaissances
+- **Recherche filtrée** : combinez avec des tags pour une récupération de contenu précise
+
+## Technologie de recherche vectorielle
+
+Sim utilise la recherche vectorielle propulsée par [pgvector](https://github.com/pgvector/pgvector) pour comprendre le sens et le contexte de votre contenu :
+
+### Compréhension sémantique
+- **Recherche contextuelle** : trouve du contenu pertinent même lorsque les mots-clés exacts ne correspondent pas
+- **Récupération basée sur les concepts** : comprend les relations entre les idées
+- **Support multilingue** : fonctionne dans différentes langues
+- **Reconnaissance des synonymes** : trouve des termes et concepts associés
+
+### Capacités de recherche
+- **Requêtes en langage naturel** : posez des questions en français courant
+- **Recherche par similarité** : trouvez du contenu conceptuellement similaire
+- **Recherche hybride** : combine la recherche vectorielle et la recherche traditionnelle par mots-clés
+- **Résultats configurables** : contrôlez le nombre et le seuil de pertinence des résultats
+
+## Gestion des documents
+
+### Fonctionnalités d'organisation
+- **Téléchargement en masse** : téléchargez plusieurs fichiers à la fois via l'API asynchrone
+- **Statut de traitement** : mises à jour en temps réel sur le traitement des documents
+- **Recherche et filtrage** : trouvez rapidement des documents dans de grandes collections
+- **Suivi des métadonnées** : capture automatique des informations de fichier et des détails de traitement
+
+### Sécurité et confidentialité
+- **Stockage sécurisé** : documents stockés avec une sécurité de niveau entreprise
+- **Contrôle d'accès** : permissions basées sur l'espace de travail
+- **Isolation du traitement** : chaque espace de travail dispose d'un traitement de documents isolé
+- **Conservation des données** : configurez les politiques de conservation des documents
+
+## Premiers pas
+
+1. **Accédez à votre base de connaissances** : accès depuis la barre latérale de votre espace de travail
+2. **Téléchargez des documents** : glissez-déposez ou sélectionnez des fichiers à télécharger
+3. **Surveillez le traitement** : observez le traitement et la segmentation des documents
+4. **Explorez les segments** : visualisez et modifiez le contenu traité
+5. **Ajoutez aux workflows** : utilisez le bloc Knowledge pour intégrer avec vos agents IA
+
+La base de connaissances transforme vos documents statiques en une ressource intelligente et consultable que vos workflows IA peuvent exploiter pour des réponses plus éclairées et contextuelles.

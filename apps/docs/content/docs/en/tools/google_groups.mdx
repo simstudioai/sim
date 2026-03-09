@@ -1,0 +1,422 @@
+---
+title: Google Groups
+description: Manage Google Workspace Groups and their members
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_groups"
+  color="#E8F0FE"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Groups](https://groups.google.com) is part of Google Workspace, providing email-based group communication, collaboration, and access control for teams and organizations. Google Groups lets you create mailing lists, manage membership, and control permissions for both internal and external users.
+
+This page explains how you can use Sim to automate the management of Google Groups in your workflows. With Sim, agents can create and configure groups, add or remove members, update group settings, and keep directory lists up-to-date automatically—ideal for onboarding workflows, syncing IT systems, or dynamically managing project teams.
+
+With Google Groups, you can:
+
+- **Centralize communications**: Create team or project mailing lists for group conversations
+- **Manage group membership**: Add, remove, or update members with granular roles (owner, manager, member)
+- **Control access**: Manage who can view, post, or join; set permissions for public/private visibility
+- **Collaborate across teams**: Streamline communication and document sharing via group-based access
+- **Automate IT tasks**: Use Sim to keep group memberships current as teams change
+
+In Sim, the Google Groups integration gives your agents API-driven control to automate common administrative tasks. Connect directly to your Google Workspace domain to add users to groups, manage lists, audit group settings, and ensure your organization’s access controls are always up-to-date—without manual overhead.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Connect to Google Workspace to create, update, and manage groups and their members using the Admin SDK Directory API.
+
+
+
+## Tools
+
+### `google_groups_list_groups`
+
+List all groups in a Google Workspace domain
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customer` | string | No | Customer ID or "my_customer" for the authenticated user\'s domain |
+| `domain` | string | No | Domain name to filter groups by |
+| `maxResults` | number | No | Maximum number of results to return \(1-200\). Example: 50 |
+| `pageToken` | string | No | Token for fetching the next page of results |
+| `query` | string | No | Search query to filter groups \(e.g., "email:admin*"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groups` | json | Array of group objects |
+| `nextPageToken` | string | Token for fetching next page of results |
+
+### `google_groups_get_group`
+
+Get details of a specific Google Group by email or group ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Yes | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `group` | json | Group object |
+
+### `google_groups_create_group`
+
+Create a new Google Group in the domain
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Yes | Email address for the new group \(e.g., team@example.com\) |
+| `name` | string | Yes | Display name for the group \(e.g., Engineering Team\) |
+| `description` | string | No | Description of the group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `group` | json | Created group object |
+
+### `google_groups_update_group`
+
+Update an existing Google Group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Yes | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
+| `name` | string | No | New display name for the group \(e.g., Engineering Team\) |
+| `description` | string | No | New description for the group |
+| `email` | string | No | New email address for the group \(e.g., newteam@example.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `group` | json | Updated group object |
+
+### `google_groups_delete_group`
+
+Delete a Google Group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Yes | Group identifier to delete. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success message |
+
+### `google_groups_list_members`
+
+List all members of a Google Group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Yes | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
+| `maxResults` | number | No | Maximum number of results to return \(1-200\). Example: 50 |
+| `pageToken` | string | No | Token for fetching the next page of results |
+| `roles` | string | No | Filter by roles \(comma-separated: OWNER, MANAGER, MEMBER\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | json | Array of member objects |
+| `nextPageToken` | string | Token for fetching next page of results |
+
+### `google_groups_get_member`
+
+Get details of a specific member in a Google Group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Yes | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
+| `memberKey` | string | Yes | Member identifier. Can be the member email address \(e.g., user@example.com\) or the unique member ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `member` | json | Member object |
+
+### `google_groups_add_member`
+
+Add a new member to a Google Group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Yes | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
+| `email` | string | Yes | Email address of the member to add \(e.g., user@example.com\) |
+| `role` | string | No | Role for the member: MEMBER, MANAGER, or OWNER. Defaults to MEMBER |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `member` | json | Added member object |
+
+### `google_groups_remove_member`
+
+Remove a member from a Google Group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Yes | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
+| `memberKey` | string | Yes | Member identifier to remove. Can be the member email address \(e.g., user@example.com\) or the unique member ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success message |
+
+### `google_groups_update_member`
+
+Update a member
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Yes | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
+| `memberKey` | string | Yes | Member identifier. Can be the member email address \(e.g., user@example.com\) or the unique member ID |
+| `role` | string | Yes | New role for the member: MEMBER, MANAGER, or OWNER |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `member` | json | Updated member object |
+
+### `google_groups_has_member`
+
+Check if a user is a member of a Google Group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Yes | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
+| `memberKey` | string | Yes | Member identifier to check. Can be the member email address \(e.g., user@example.com\) or the unique member ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `isMember` | boolean | Whether the user is a member of the group |
+
+### `google_groups_list_aliases`
+
+List all email aliases for a Google Group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Yes | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `aliases` | array | List of email aliases for the group |
+|   ↳ `id` | string | Unique group identifier |
+|   ↳ `primaryEmail` | string | Group's primary email address |
+|   ↳ `alias` | string | Alias email address |
+|   ↳ `kind` | string | API resource type |
+|   ↳ `etag` | string | Resource version identifier |
+
+### `google_groups_add_alias`
+
+Add an email alias to a Google Group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Yes | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
+| `alias` | string | Yes | The email alias to add to the group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique group identifier |
+| `primaryEmail` | string | Group's primary email address |
+| `alias` | string | The alias that was added |
+| `kind` | string | API resource type |
+| `etag` | string | Resource version identifier |
+
+### `google_groups_remove_alias`
+
+Remove an email alias from a Google Group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Yes | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
+| `alias` | string | Yes | The email alias to remove from the group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the alias was successfully deleted |
+
+### `google_groups_get_settings`
+
+Get the settings for a Google Group including access permissions, moderation, and posting options
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupEmail` | string | Yes | The email address of the group \(e.g., team@example.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | string | The group's email address |
+| `name` | string | The group name \(max 75 characters\) |
+| `description` | string | The group description \(max 4096 characters\) |
+| `whoCanJoin` | string | Who can join the group \(ANYONE_CAN_JOIN, ALL_IN_DOMAIN_CAN_JOIN, INVITED_CAN_JOIN, CAN_REQUEST_TO_JOIN\) |
+| `whoCanViewMembership` | string | Who can view group membership |
+| `whoCanViewGroup` | string | Who can view group messages |
+| `whoCanPostMessage` | string | Who can post messages to the group |
+| `allowExternalMembers` | string | Whether external users can be members |
+| `allowWebPosting` | string | Whether web posting is allowed |
+| `primaryLanguage` | string | The group's primary language |
+| `isArchived` | string | Whether messages are archived |
+| `archiveOnly` | string | Whether the group is archive-only \(inactive\) |
+| `messageModerationLevel` | string | Message moderation level |
+| `spamModerationLevel` | string | Spam handling level \(ALLOW, MODERATE, SILENTLY_MODERATE, REJECT\) |
+| `replyTo` | string | Default reply destination |
+| `customReplyTo` | string | Custom email for replies |
+| `includeCustomFooter` | string | Whether to include custom footer |
+| `customFooterText` | string | Custom footer text \(max 1000 characters\) |
+| `sendMessageDenyNotification` | string | Whether to send rejection notifications |
+| `defaultMessageDenyNotificationText` | string | Default rejection message text |
+| `membersCanPostAsTheGroup` | string | Whether members can post as the group |
+| `includeInGlobalAddressList` | string | Whether included in Global Address List |
+| `whoCanLeaveGroup` | string | Who can leave the group |
+| `whoCanContactOwner` | string | Who can contact the group owner |
+| `favoriteRepliesOnTop` | string | Whether favorite replies appear at top |
+| `whoCanApproveMembers` | string | Who can approve new members |
+| `whoCanBanUsers` | string | Who can ban users |
+| `whoCanModerateMembers` | string | Who can manage members |
+| `whoCanModerateContent` | string | Who can moderate content |
+| `whoCanAssistContent` | string | Who can assist with content metadata |
+| `enableCollaborativeInbox` | string | Whether collaborative inbox is enabled |
+| `whoCanDiscoverGroup` | string | Who can discover the group |
+| `defaultSender` | string | Default sender identity \(DEFAULT_SELF or GROUP\) |
+
+### `google_groups_update_settings`
+
+Update the settings for a Google Group including access permissions, moderation, and posting options
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupEmail` | string | Yes | The email address of the group \(e.g., team@example.com\) |
+| `name` | string | No | The group name \(max 75 characters\) |
+| `description` | string | No | The group description \(max 4096 characters\) |
+| `whoCanJoin` | string | No | Who can join: ANYONE_CAN_JOIN, ALL_IN_DOMAIN_CAN_JOIN, INVITED_CAN_JOIN, CAN_REQUEST_TO_JOIN |
+| `whoCanViewMembership` | string | No | Who can view membership: ALL_IN_DOMAIN_CAN_VIEW, ALL_MEMBERS_CAN_VIEW, ALL_MANAGERS_CAN_VIEW |
+| `whoCanViewGroup` | string | No | Who can view group messages: ANYONE_CAN_VIEW, ALL_IN_DOMAIN_CAN_VIEW, ALL_MEMBERS_CAN_VIEW, ALL_MANAGERS_CAN_VIEW |
+| `whoCanPostMessage` | string | No | Who can post: NONE_CAN_POST, ALL_MANAGERS_CAN_POST, ALL_MEMBERS_CAN_POST, ALL_OWNERS_CAN_POST, ALL_IN_DOMAIN_CAN_POST, ANYONE_CAN_POST |
+| `allowExternalMembers` | string | No | Whether external users can be members: true or false |
+| `allowWebPosting` | string | No | Whether web posting is allowed: true or false |
+| `primaryLanguage` | string | No | The group's primary language \(e.g., en\) |
+| `isArchived` | string | No | Whether messages are archived: true or false |
+| `archiveOnly` | string | No | Whether the group is archive-only \(inactive\): true or false |
+| `messageModerationLevel` | string | No | Message moderation: MODERATE_ALL_MESSAGES, MODERATE_NON_MEMBERS, MODERATE_NEW_MEMBERS, MODERATE_NONE |
+| `spamModerationLevel` | string | No | Spam handling: ALLOW, MODERATE, SILENTLY_MODERATE, REJECT |
+| `replyTo` | string | No | Default reply: REPLY_TO_CUSTOM, REPLY_TO_SENDER, REPLY_TO_LIST, REPLY_TO_OWNER, REPLY_TO_IGNORE, REPLY_TO_MANAGERS |
+| `customReplyTo` | string | No | Custom email for replies \(when replyTo is REPLY_TO_CUSTOM\) |
+| `includeCustomFooter` | string | No | Whether to include custom footer: true or false |
+| `customFooterText` | string | No | Custom footer text \(max 1000 characters\) |
+| `sendMessageDenyNotification` | string | No | Whether to send rejection notifications: true or false |
+| `defaultMessageDenyNotificationText` | string | No | Default rejection message text |
+| `membersCanPostAsTheGroup` | string | No | Whether members can post as the group: true or false |
+| `includeInGlobalAddressList` | string | No | Whether included in Global Address List: true or false |
+| `whoCanLeaveGroup` | string | No | Who can leave: ALL_MANAGERS_CAN_LEAVE, ALL_MEMBERS_CAN_LEAVE, NONE_CAN_LEAVE |
+| `whoCanContactOwner` | string | No | Who can contact owner: ALL_IN_DOMAIN_CAN_CONTACT, ALL_MANAGERS_CAN_CONTACT, ALL_MEMBERS_CAN_CONTACT, ANYONE_CAN_CONTACT |
+| `favoriteRepliesOnTop` | string | No | Whether favorite replies appear at top: true or false |
+| `whoCanApproveMembers` | string | No | Who can approve members: ALL_OWNERS_CAN_APPROVE, ALL_MANAGERS_CAN_APPROVE, ALL_MEMBERS_CAN_APPROVE, NONE_CAN_APPROVE |
+| `whoCanBanUsers` | string | No | Who can ban users: OWNERS_ONLY, OWNERS_AND_MANAGERS, NONE |
+| `whoCanModerateMembers` | string | No | Who can manage members: OWNERS_ONLY, OWNERS_AND_MANAGERS, ALL_MEMBERS, NONE |
+| `whoCanModerateContent` | string | No | Who can moderate content: OWNERS_ONLY, OWNERS_AND_MANAGERS, ALL_MEMBERS, NONE |
+| `whoCanAssistContent` | string | No | Who can assist with content metadata: OWNERS_ONLY, OWNERS_AND_MANAGERS, ALL_MEMBERS, NONE |
+| `enableCollaborativeInbox` | string | No | Whether collaborative inbox is enabled: true or false |
+| `whoCanDiscoverGroup` | string | No | Who can discover: ANYONE_CAN_DISCOVER, ALL_IN_DOMAIN_CAN_DISCOVER, ALL_MEMBERS_CAN_DISCOVER |
+| `defaultSender` | string | No | Default sender: DEFAULT_SELF or GROUP |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | string | The group's email address |
+| `name` | string | The group name |
+| `description` | string | The group description |
+| `whoCanJoin` | string | Who can join the group |
+| `whoCanViewMembership` | string | Who can view group membership |
+| `whoCanViewGroup` | string | Who can view group messages |
+| `whoCanPostMessage` | string | Who can post messages to the group |
+| `allowExternalMembers` | string | Whether external users can be members |
+| `allowWebPosting` | string | Whether web posting is allowed |
+| `primaryLanguage` | string | The group's primary language |
+| `isArchived` | string | Whether messages are archived |
+| `archiveOnly` | string | Whether the group is archive-only |
+| `messageModerationLevel` | string | Message moderation level |
+| `spamModerationLevel` | string | Spam handling level |
+| `replyTo` | string | Default reply destination |
+| `customReplyTo` | string | Custom email for replies |
+| `includeCustomFooter` | string | Whether to include custom footer |
+| `customFooterText` | string | Custom footer text |
+| `sendMessageDenyNotification` | string | Whether to send rejection notifications |
+| `defaultMessageDenyNotificationText` | string | Default rejection message text |
+| `membersCanPostAsTheGroup` | string | Whether members can post as the group |
+| `includeInGlobalAddressList` | string | Whether included in Global Address List |
+| `whoCanLeaveGroup` | string | Who can leave the group |
+| `whoCanContactOwner` | string | Who can contact the group owner |
+| `favoriteRepliesOnTop` | string | Whether favorite replies appear at top |
+| `whoCanApproveMembers` | string | Who can approve new members |
+| `whoCanBanUsers` | string | Who can ban users |
+| `whoCanModerateMembers` | string | Who can manage members |
+| `whoCanModerateContent` | string | Who can moderate content |
+| `whoCanAssistContent` | string | Who can assist with content metadata |
+| `enableCollaborativeInbox` | string | Whether collaborative inbox is enabled |
+| `whoCanDiscoverGroup` | string | Who can discover the group |
+| `defaultSender` | string | Default sender identity |
+
+

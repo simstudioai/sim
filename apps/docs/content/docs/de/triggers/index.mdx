@@ -1,0 +1,93 @@
+---
+title: Übersicht
+description: Trigger sind die grundlegenden Möglichkeiten, um Sim-Workflows zu starten
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/triggers.png"
+    alt="Triggers-Übersicht"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+## Kern-Trigger
+
+Verwende den Start-Block für alles, was aus dem Editor, deploy-to-API oder deploy-to-chat Erfahrungen stammt. Andere Trigger bleiben für ereignisgesteuerte Workflows verfügbar:
+
+<Cards>
+  <Card title="Start" href="/triggers/start">
+    Einheitlicher Einstiegspunkt, der Editor-Ausführungen, API-Deployments und Chat-Deployments unterstützt
+  </Card>
+  <Card title="Webhook" href="/triggers/webhook">
+    Externe Webhook-Payloads empfangen
+  </Card>
+  <Card title="Schedule" href="/triggers/schedule">
+    Cron- oder intervallbasierte Ausführung
+  </Card>
+  <Card title="RSS Feed" href="/triggers/rss">
+    RSS- und Atom-Feeds auf neue Inhalte überwachen
+  </Card>
+  <Card title="Email Polling Groups" href="#email-polling-groups">
+    Team-Gmail- und Outlook-Postfächer überwachen
+  </Card>
+</Cards>
+
+## Schneller Vergleich
+
+| Trigger | Startbedingung |
+|---------|-----------------|
+| **Start** | Editor-Ausführungen, Deploy-to-API-Anfragen oder Chat-Nachrichten |
+| **Schedule** | Timer, der im Schedule-Block verwaltet wird |
+| **Webhook** | Bei eingehender HTTP-Anfrage |
+| **RSS Feed** | Neues Element im Feed veröffentlicht |
+| **Email Polling Groups** | Neue E-Mail in Team-Gmail- oder Outlook-Postfächern empfangen |
+
+> Der Start-Block stellt immer `input`, `conversationId` und `files` Felder bereit. Füge benutzerdefinierte Felder zum Eingabeformat für zusätzliche strukturierte Daten hinzu.
+
+## Verwendung von Triggern
+
+1. Platziere den Start-Block im Start-Slot (oder einen alternativen Trigger wie Webhook/Schedule).
+2. Konfiguriere alle erforderlichen Schema- oder Auth-Einstellungen.
+3. Verbinde den Block mit dem Rest des Workflows.
+
+> Bereitstellungen steuern jeden Trigger. Aktualisiere den Workflow, stelle ihn erneut bereit, und alle Trigger-Einstiegspunkte übernehmen den neuen Snapshot. Erfahre mehr unter [Ausführung → Bereitstellungs-Snapshots](/execution).
+
+## Priorität bei manueller Ausführung
+
+Wenn du im Editor auf **Run** klickst, wählt Sim automatisch aus, welcher Trigger basierend auf der folgenden Prioritätsreihenfolge ausgeführt wird:
+
+1. **Start-Block** (höchste Priorität)
+2. **Schedule-Trigger**
+3. **Externe Trigger** (Webhooks, Integrationen wie Slack, Gmail, Airtable usw.)
+
+Wenn dein Workflow mehrere Trigger hat, wird der Trigger mit der höchsten Priorität ausgeführt. Wenn du beispielsweise sowohl einen Start-Block als auch einen Webhook-Trigger hast, wird beim Klicken auf Run der Start-Block ausgeführt.
+
+**Externe Auslöser mit Mock-Payloads**: Wenn externe Auslöser (Webhooks und Integrationen) manuell ausgeführt werden, generiert Sim automatisch Mock-Payloads basierend auf der erwarteten Datenstruktur des Auslösers. Dies stellt sicher, dass nachgelagerte Blöcke während des Testens Variablen korrekt auflösen können.
+
+## E-Mail-Polling-Gruppen
+
+Polling-Gruppen ermöglichen es Ihnen, die Gmail- oder Outlook-Postfächer mehrerer Teammitglieder mit einem einzigen Trigger zu überwachen. Erfordert einen Team- oder Enterprise-Plan.
+
+**Erstellen einer Polling-Gruppe** (Admin/Owner)
+
+1. Gehen Sie zu **Einstellungen → E-Mail-Polling**
+2. Klicken Sie auf **Erstellen** und wählen Sie Gmail oder Outlook
+3. Geben Sie einen Namen für die Gruppe ein
+
+**Mitglieder einladen**
+
+1. Klicken Sie auf **Mitglieder hinzufügen** bei Ihrer Polling-Gruppe
+2. Geben Sie E-Mail-Adressen ein (durch Komma oder Zeilenumbruch getrennt oder ziehen Sie eine CSV-Datei per Drag & Drop)
+3. Klicken Sie auf **Einladungen senden**
+
+Eingeladene erhalten eine E-Mail mit einem Link, um ihr Konto zu verbinden. Sobald die Verbindung hergestellt ist, wird ihr Postfach automatisch in die Polling-Gruppe aufgenommen. Eingeladene müssen keine Mitglieder Ihrer Sim-Organisation sein.
+
+**Verwendung in einem Workflow**
+
+Wählen Sie beim Konfigurieren eines E-Mail-Triggers Ihre Polling-Gruppe aus dem Dropdown-Menü für Anmeldeinformationen anstelle eines einzelnen Kontos aus. Das System erstellt Webhooks für jedes Mitglied und leitet alle E-Mails durch Ihren Workflow.

@@ -1,0 +1,96 @@
+---
+title: Evaluador
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+El bloque Evaluador utiliza IA para puntuar y evaluar la calidad del contenido según métricas personalizadas. Perfecto para control de calidad, pruebas A/B y para garantizar que los resultados de IA cumplan con estándares específicos.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/evaluator.png"
+    alt="Configuración del bloque Evaluador"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Opciones de configuración
+
+### Métricas de evaluación
+
+Define métricas personalizadas para evaluar el contenido. Cada métrica incluye:
+
+- **Nombre**: Un identificador corto para la métrica
+- **Descripción**: Una explicación detallada de lo que mide la métrica
+- **Rango**: El rango numérico para la puntuación (p. ej., 1-5, 0-10)
+
+Ejemplos de métricas:
+
+```
+Accuracy (1-5): How factually accurate is the content?
+Clarity (1-5): How clear and understandable is the content?
+Relevance (1-5): How relevant is the content to the original query?
+```
+
+### Contenido
+
+El contenido que se evaluará. Puede ser:
+
+- Proporcionado directamente en la configuración del bloque
+- Conectado desde la salida de otro bloque (típicamente un bloque Agente)
+- Generado dinámicamente durante la ejecución del flujo de trabajo
+
+### Selección de modelo
+
+Elige un modelo de IA para realizar la evaluación:
+
+- **OpenAI**: GPT-4o, o1, o3, o4-mini, gpt-4.1
+- **Anthropic**: Claude 3.7 Sonnet
+- **Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
+- **Otros proveedores**: Groq, Cerebras, xAI, DeepSeek
+- **Modelos locales**: modelos compatibles con Ollama o VLLM
+
+Utiliza modelos con fuertes capacidades de razonamiento como GPT-4o o Claude 3.7 Sonnet para obtener mejores resultados.
+
+### Clave API
+
+Tu clave API para el proveedor de LLM seleccionado. Se almacena de forma segura y se utiliza para la autenticación.
+
+## Ejemplos de casos de uso
+
+**Evaluación de calidad de contenido** - Evalúa el contenido antes de su publicación
+
+```
+Agent (Generate) → Evaluator (Score) → Condition (Check threshold) → Publish or Revise
+```
+
+**Pruebas A/B de contenido** - Compara múltiples respuestas generadas por IA
+
+```
+Parallel (Variations) → Evaluator (Score Each) → Function (Select Best) → Response
+```
+
+**Control de calidad de atención al cliente** - Asegura que las respuestas cumplan con los estándares de calidad
+
+```
+Agent (Support Response) → Evaluator (Score) → Function (Log) → Condition (Review if Low)
+```
+
+## Salidas
+
+- **`<evaluator.content>`**: Resumen de la evaluación con puntuaciones
+- **`<evaluator.model>`**: Modelo utilizado para la evaluación
+- **`<evaluator.tokens>`**: Estadísticas de uso de tokens
+- **`<evaluator.cost>`**: Costo estimado de la evaluación
+
+## Mejores prácticas
+
+- **Usa descripciones específicas de métricas**: Define claramente qué mide cada métrica para obtener evaluaciones más precisas
+- **Elige rangos apropiados**: Selecciona rangos de puntuación que proporcionen suficiente detalle sin ser excesivamente complejos
+- **Conecta con bloques de Agente**: Utiliza bloques Evaluadores para evaluar las salidas de bloques de Agente y crear bucles de retroalimentación
+- **Usa métricas consistentes**: Para análisis comparativos, mantén métricas consistentes en evaluaciones similares
+- **Combina múltiples métricas**: Utiliza varias métricas para obtener una evaluación integral

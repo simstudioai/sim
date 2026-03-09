@@ -1,0 +1,93 @@
+---
+title: Descripción general
+description: Los disparadores son las formas principales de iniciar flujos de trabajo de Sim
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/triggers.png"
+    alt="Resumen de disparadores"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+## Disparadores principales
+
+Utiliza el bloque Start para todo lo que se origina desde el editor, despliegue a API o experiencias de despliegue a chat. Otros disparadores siguen disponibles para flujos de trabajo basados en eventos:
+
+<Cards>
+  <Card title="Start" href="/triggers/start">
+    Punto de entrada unificado que admite ejecuciones en el editor, despliegues de API y despliegues de chat
+  </Card>
+  <Card title="Webhook" href="/triggers/webhook">
+    Recibe cargas útiles de webhooks externos
+  </Card>
+  <Card title="Schedule" href="/triggers/schedule">
+    Ejecución basada en cron o intervalos
+  </Card>
+  <Card title="RSS Feed" href="/triggers/rss">
+    Monitorea feeds RSS y Atom para detectar contenido nuevo
+  </Card>
+  <Card title="Email Polling Groups" href="#email-polling-groups">
+    Monitorea bandejas de entrada de Gmail y Outlook del equipo
+  </Card>
+</Cards>
+
+## Comparación rápida
+
+| Trigger | Condición de inicio |
+|---------|-----------------|
+| **Start** | Ejecuciones en el editor, solicitudes de despliegue a API o mensajes de chat |
+| **Schedule** | Temporizador gestionado en el bloque de programación |
+| **Webhook** | Al recibir una solicitud HTTP entrante |
+| **RSS Feed** | Nuevo elemento publicado en el feed |
+| **Email Polling Groups** | Nuevo correo electrónico recibido en bandejas de entrada de Gmail o Outlook del equipo |
+
+> El bloque Start siempre expone los campos `input`, `conversationId` y `files`. Añade campos personalizados al formato de entrada para datos estructurados adicionales.
+
+## Uso de disparadores
+
+1. Coloca el bloque Start en la ranura de inicio (o un disparador alternativo como Webhook/Schedule).
+2. Configura cualquier esquema o autenticación requerida.
+3. Conecta el bloque al resto del flujo de trabajo.
+
+> Los despliegues alimentan cada disparador. Actualiza el flujo de trabajo, vuelve a desplegarlo, y todos los puntos de entrada de los disparadores recogen la nueva instantánea. Aprende más en [Ejecución → Instantáneas de despliegue](/execution).
+
+## Prioridad de ejecución manual
+
+Cuando haces clic en **Ejecutar** en el editor, Sim selecciona automáticamente qué disparador ejecutar según el siguiente orden de prioridad:
+
+1. **Bloque Start** (prioridad más alta)
+2. **Disparadores de programación**
+3. **Disparadores externos** (webhooks, integraciones como Slack, Gmail, Airtable, etc.)
+
+Si tu flujo de trabajo tiene múltiples disparadores, se ejecutará el disparador de mayor prioridad. Por ejemplo, si tienes tanto un bloque Start como un disparador Webhook, al hacer clic en Ejecutar se ejecutará el bloque Start.
+
+**Disparadores externos con cargas útiles simuladas**: Cuando los disparadores externos (webhooks e integraciones) se ejecutan manualmente, Sim genera automáticamente cargas útiles simuladas basadas en la estructura de datos esperada del disparador. Esto asegura que los bloques posteriores puedan resolver las variables correctamente durante las pruebas.
+
+## Grupos de sondeo de correo electrónico
+
+Los grupos de sondeo te permiten monitorear las bandejas de entrada de Gmail o Outlook de varios miembros del equipo con un solo activador. Requiere un plan Team o Enterprise.
+
+**Crear un grupo de sondeo** (administrador/propietario)
+
+1. Ve a **Configuración → Sondeo de correo electrónico**
+2. Haz clic en **Crear** y elige Gmail u Outlook
+3. Ingresa un nombre para el grupo
+
+**Invitar miembros**
+
+1. Haz clic en **Agregar miembros** en tu grupo de sondeo
+2. Ingresa direcciones de correo electrónico (separadas por comas o saltos de línea, o arrastra y suelta un CSV)
+3. Haz clic en **Enviar invitaciones**
+
+Los invitados reciben un correo electrónico con un enlace para conectar su cuenta. Una vez conectada, su bandeja de entrada se incluye automáticamente en el grupo de sondeo. Los invitados no necesitan ser miembros de tu organización Sim.
+
+**Usar en un flujo de trabajo**
+
+Al configurar un activador de correo electrónico, selecciona tu grupo de sondeo del menú desplegable de credenciales en lugar de una cuenta individual. El sistema crea webhooks para cada miembro y enruta todos los correos electrónicos a través de tu flujo de trabajo.

@@ -1,0 +1,155 @@
+---
+title: Docker
+description: Despliega Sim con Docker Compose
+---
+
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+## Inicio rápido
+
+```bash
+# Clone and start
+git clone https://github.com/simstudioai/sim.git && cd sim
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Abre [http://localhost:3000](http://localhost:3000)
+
+## Configuración de producción
+
+### 1. Configurar entorno
+
+```bash
+# Generate secrets
+cat > .env << EOF
+DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
+BETTER_AUTH_SECRET=$(openssl rand -hex 32)
+ENCRYPTION_KEY=$(openssl rand -hex 32)
+INTERNAL_API_SECRET=$(openssl rand -hex 32)
+NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
+BETTER_AUTH_URL=https://sim.yourdomain.com
+NEXT_PUBLIC_SOCKET_URL=https://sim.yourdomain.com
+EOF
+```
+
+### 2. Iniciar servicios
+
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+### 3. Configurar SSL
+
+<Tabs items={['Caddy (Recomendado)', 'Nginx + Certbot']}>
+  <Tab value="Caddy (Recomendado)">
+Caddy gestiona automáticamente los certificados SSL.
+
+```bash
+# Install Caddy
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update && sudo apt install caddy
+```
+
+Crea `/etc/caddy/Caddyfile`:
+
+```
+sim.yourdomain.com {
+    reverse_proxy localhost:3000
+
+    handle /socket.io/* {
+        reverse_proxy localhost:3002
+    }
+}
+```
+
+```bash
+sudo systemctl restart caddy
+```
+
+  </Tab>
+  <Tab value="Nginx + Certbot">
+
+```bash
+# Install
+sudo apt install nginx certbot python3-certbot-nginx -y
+
+# Create /etc/nginx/sites-available/sim
+server {
+    listen 80;
+    server_name sim.yourdomain.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:3002;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+
+# Enable and get certificate
+sudo ln -s /etc/nginx/sites-available/sim /etc/nginx/sites-enabled/
+sudo certbot --nginx -d sim.yourdomain.com
+```
+
+  </Tab>
+</Tabs>
+
+## Ollama
+
+```bash
+# With GPU
+docker compose -f docker-compose.ollama.yml --profile gpu --profile setup up -d
+
+# CPU only
+docker compose -f docker-compose.ollama.yml --profile cpu --profile setup up -d
+```
+
+Descarga modelos adicionales:
+
+```bash
+docker compose -f docker-compose.ollama.yml exec ollama ollama pull llama3.2
+```
+
+### Ollama externo
+
+Si Ollama se ejecuta en tu máquina host (no en Docker):
+
+```bash
+# macOS/Windows
+OLLAMA_URL=http://host.docker.internal:11434 docker compose -f docker-compose.prod.yml up -d
+
+# Linux - use your host IP
+OLLAMA_URL=http://192.168.1.100:11434 docker compose -f docker-compose.prod.yml up -d
+```
+
+<Callout type="warning">
+  Dentro de Docker, `localhost` se refiere al contenedor, no a tu host. Usa `host.docker.internal` o la IP de tu host.
+</Callout>
+
+## Comandos
+
+```bash
+# View logs
+docker compose -f docker-compose.prod.yml logs -f simstudio
+
+# Stop
+docker compose -f docker-compose.prod.yml down
+
+# Update
+docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d
+
+# Backup database
+docker compose -f docker-compose.prod.yml exec db pg_dump -U postgres simstudio > backup.sql
+```

@@ -1,0 +1,1428 @@
+---
+title: PostHog
+description: Product analytics and feature management
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="posthog"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+The [PostHog](https://posthog.com/) tool integrates powerful product analytics, feature flag management, experimentation, and user behavior insights directly into your agentic workflows. Designed for modern teams, it enables you to capture, analyze, and act on user data in real time — helping you build better products, understand engagement, and boost conversions.
+
+With the PostHog tool, you can:
+
+- **Track and analyze events**: Use the `posthog_capture_event` and `posthog_batch_events` operations to record individual or multiple user actions, page views, or custom events for deep analytics.
+- **Explore event data**: Retrieve and list historical or real-time events using the `posthog_list_events` operation for advanced event analysis.
+- **Understand users**: Leverage the `posthog_list_persons`, `posthog_get_person`, and `posthog_delete_person` operations to manage user profiles, get detailed user insights, or remove them as needed.
+- **Gain actionable product insights**: Visualize user journeys, feature usage, and engagement via `posthog_list_insights`, `posthog_get_insight`, and `posthog_create_insight` operations.
+- **Manage and roll out features safely**: Toggle features and run A/B or multivariate tests at scale using operations like `posthog_list_feature_flags`, `posthog_get_feature_flag`, `posthog_create_feature_flag`, `posthog_update_feature_flag`, and `posthog_delete_feature_flag`.
+- **Segment and target audiences**: Build, list, or manage cohorts with `posthog_list_cohorts`, `posthog_get_cohort`, and `posthog_create_cohort`.
+- **Gather direct feedback**: Design, deploy, and analyze surveys through `posthog_list_surveys`, `posthog_get_survey`, `posthog_create_survey`, and `posthog_update_survey`.
+- **Monitor user experience**: Access and analyze session recordings via the `posthog_list_session_recordings` and `posthog_get_session_recording` operations.
+- **Collaborate with your team**: Organize dashboards (`posthog_list_dashboards`, `posthog_get_dashboard`), create and annotate insights and events, and manage projects and organizations within PostHog.
+
+Whether you want to implement full-scale product analytics, enhance user onboarding, refine your product roadmap, or automate decisions based on real usage data, the PostHog tool empowers your agents and workflows with advanced analytics and in-product experimentation — all in one unified platform.
+
+Looking for true product analytics with privacy, scalability, and an open-source option? PostHog is trusted by fast-moving teams and enterprises worldwide.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate PostHog into your workflow. Track events, manage feature flags, analyze user behavior, run experiments, create surveys, and access session recordings.
+
+
+
+## Tools
+
+### `posthog_capture_event`
+
+Capture a single event in PostHog. Use this to track user actions, page views, or custom events.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectApiKey` | string | Yes | PostHog Project API Key \(public token for event ingestion\) |
+| `region` | string | No | PostHog region: us \(default\) or eu |
+| `event` | string | Yes | The name of the event to capture \(e.g., "page_view", "button_clicked"\) |
+| `distinctId` | string | Yes | Unique identifier for the user or device \(e.g., "user123", email, or device UUID\) |
+| `properties` | string | No | JSON string of event properties \(e.g., \{"button_name": "signup", "page": "homepage"\}\) |
+| `timestamp` | string | No | ISO 8601 timestamp for when the event occurred. If not provided, uses current time |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Status message indicating whether the event was captured successfully |
+
+### `posthog_batch_events`
+
+Capture multiple events at once in PostHog. Use this for bulk event ingestion to improve performance.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectApiKey` | string | Yes | PostHog Project API Key \(public token for event ingestion\) |
+| `region` | string | No | PostHog region: us \(default\) or eu |
+| `batch` | string | Yes | JSON array of events to capture. Each event should have: event, distinct_id, and optional properties, timestamp. Example: \[\{"event": "page_view", "distinct_id": "user123", "properties": \{"page": "/"\}\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Status message indicating whether the batch was captured successfully |
+| `events_processed` | number | Number of events processed in the batch |
+
+### `posthog_list_persons`
+
+List persons (users) in PostHog. Returns user profiles with their properties and distinct IDs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `personalApiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
+| `region` | string | No | PostHog region: us \(default\) or eu |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `limit` | number | No | Number of persons to return \(default: 100, max: 100\) |
+| `offset` | number | No | Number of persons to skip for pagination \(e.g., 0, 100, 200\) |
+| `search` | string | No | Search persons by email, name, or distinct ID |
+| `distinctId` | string | No | Filter by specific distinct_id |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `persons` | array | List of persons with their properties and identifiers |
+|   ↳ `id` | string | Person ID |
+|   ↳ `name` | string | Person name |
+|   ↳ `distinct_ids` | array | All distinct IDs associated with this person |
+|   ↳ `created_at` | string | When the person was first seen |
+|   ↳ `uuid` | string | Person UUID |
+| `next` | string | URL for the next page of results \(if available\) |
+
+### `posthog_get_person`
+
+Get detailed information about a specific person in PostHog by their ID or UUID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `personalApiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
+| `region` | string | No | PostHog region: us \(default\) or eu |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `personId` | string | Yes | Person ID or UUID to retrieve \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `person` | object | Person details including properties and identifiers |
+|   ↳ `id` | string | Person ID |
+|   ↳ `name` | string | Person name |
+|   ↳ `distinct_ids` | array | All distinct IDs associated with this person |
+|   ↳ `created_at` | string | When the person was first seen |
+|   ↳ `uuid` | string | Person UUID |
+
+### `posthog_delete_person`
+
+Delete a person from PostHog. This will remove all associated events and data. Use with caution.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `personalApiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
+| `region` | string | No | PostHog region: us \(default\) or eu |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `personId` | string | Yes | Person ID or UUID to delete \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Status message indicating whether the person was deleted successfully |
+
+### `posthog_query`
+
+Execute a HogQL query in PostHog. HogQL is PostHog
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `personalApiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
+| `region` | string | No | PostHog region: us \(default\) or eu |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `query` | string | Yes | HogQL query to execute. Example: \{"kind": "HogQLQuery", "query": "SELECT event, count\(\) FROM events WHERE timestamp &gt; now\(\) - INTERVAL 1 DAY GROUP BY event"\} |
+| `values` | string | No | Optional JSON string of parameter values for parameterized queries. Example: \{"user_id": "123"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Query results as an array of rows |
+| `columns` | array | Column names in the result set |
+| `types` | array | Data types of columns in the result set |
+| `hogql` | string | The actual HogQL query that was executed |
+| `has_more` | boolean | Whether there are more results available |
+
+### `posthog_list_insights`
+
+List all insights in a PostHog project. Returns insight configurations, filters, and metadata.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Total number of insights in the project |
+| `next` | string | URL for the next page of results |
+| `previous` | string | URL for the previous page of results |
+| `results` | array | List of insights with their configurations and metadata |
+|   ↳ `id` | number | Unique identifier for the insight |
+|   ↳ `name` | string | Name of the insight |
+|   ↳ `description` | string | Description of the insight |
+|   ↳ `filters` | object | Filter configuration for the insight |
+|   ↳ `query` | object | Query configuration for the insight |
+|   ↳ `created_at` | string | ISO timestamp when insight was created |
+|   ↳ `created_by` | object | User who created the insight |
+|   ↳ `last_modified_at` | string | ISO timestamp when insight was last modified |
+|   ↳ `last_modified_by` | object | User who last modified the insight |
+|   ↳ `saved` | boolean | Whether the insight is saved |
+|   ↳ `dashboards` | array | IDs of dashboards this insight appears on |
+
+### `posthog_get_insight`
+
+Get a specific insight by ID from PostHog. Returns detailed insight configuration, filters, and metadata.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `insightId` | string | Yes | The insight ID to retrieve \(e.g., "42" or short ID like "abc123"\) |
+| `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Unique identifier for the insight |
+| `name` | string | Name of the insight |
+| `description` | string | Description of the insight |
+| `filters` | object | Filter configuration for the insight |
+| `query` | object | Query configuration for the insight |
+| `created_at` | string | ISO timestamp when insight was created |
+| `created_by` | object | User who created the insight |
+| `last_modified_at` | string | ISO timestamp when insight was last modified |
+| `last_modified_by` | object | User who last modified the insight |
+| `saved` | boolean | Whether the insight is saved |
+| `dashboards` | array | IDs of dashboards this insight appears on |
+| `tags` | array | Tags associated with the insight |
+| `favorited` | boolean | Whether the insight is favorited |
+
+### `posthog_create_insight`
+
+Create a new insight in PostHog. Requires insight name and configuration filters or query.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `name` | string | No | Name for the insight \(optional - PostHog will generate a derived name if not provided\) |
+| `description` | string | No | Description of the insight |
+| `filters` | string | No | JSON string of filter configuration for the insight |
+| `query` | string | No | JSON string of query configuration for the insight |
+| `dashboards` | string | No | Comma-separated list of dashboard IDs to add this insight to |
+| `tags` | string | No | Comma-separated list of tags for the insight |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Unique identifier for the created insight |
+| `name` | string | Name of the insight |
+| `description` | string | Description of the insight |
+| `filters` | object | Filter configuration for the insight |
+| `query` | object | Query configuration for the insight |
+| `created_at` | string | ISO timestamp when insight was created |
+| `created_by` | object | User who created the insight |
+| `last_modified_at` | string | ISO timestamp when insight was last modified |
+| `saved` | boolean | Whether the insight is saved |
+| `dashboards` | array | IDs of dashboards this insight appears on |
+| `tags` | array | Tags associated with the insight |
+
+### `posthog_list_dashboards`
+
+List all dashboards in a PostHog project. Returns dashboard configurations, tiles, and metadata.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Total number of dashboards in the project |
+| `next` | string | URL for the next page of results |
+| `previous` | string | URL for the previous page of results |
+| `results` | array | List of dashboards with their configurations and metadata |
+|   ↳ `id` | number | Unique identifier for the dashboard |
+|   ↳ `name` | string | Name of the dashboard |
+|   ↳ `description` | string | Description of the dashboard |
+|   ↳ `pinned` | boolean | Whether the dashboard is pinned |
+|   ↳ `created_at` | string | ISO timestamp when dashboard was created |
+|   ↳ `created_by` | object | User who created the dashboard |
+|   ↳ `last_modified_at` | string | ISO timestamp when dashboard was last modified |
+|   ↳ `last_modified_by` | object | User who last modified the dashboard |
+|   ↳ `tiles` | array | Tiles/widgets on the dashboard |
+|   ↳ `filters` | object | Global filters for the dashboard |
+|   ↳ `tags` | array | Tags associated with the dashboard |
+
+### `posthog_get_dashboard`
+
+Get a specific dashboard by ID from PostHog. Returns detailed dashboard configuration, tiles, and metadata.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `dashboardId` | string | Yes | The dashboard ID to retrieve \(e.g., "42"\) |
+| `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Unique identifier for the dashboard |
+| `name` | string | Name of the dashboard |
+| `description` | string | Description of the dashboard |
+| `pinned` | boolean | Whether the dashboard is pinned |
+| `created_at` | string | ISO timestamp when dashboard was created |
+| `created_by` | object | User who created the dashboard |
+| `last_modified_at` | string | ISO timestamp when dashboard was last modified |
+| `last_modified_by` | object | User who last modified the dashboard |
+| `tiles` | array | Tiles/widgets on the dashboard with their configurations |
+| `filters` | object | Global filters applied to the dashboard |
+| `tags` | array | Tags associated with the dashboard |
+| `restriction_level` | number | Access restriction level for the dashboard |
+
+### `posthog_list_actions`
+
+List all actions in a PostHog project. Returns action definitions, steps, and metadata.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Total number of actions in the project |
+| `next` | string | URL for the next page of results |
+| `previous` | string | URL for the previous page of results |
+| `results` | array | List of actions with their definitions and metadata |
+|   ↳ `id` | number | Unique identifier for the action |
+|   ↳ `name` | string | Name of the action |
+|   ↳ `description` | string | Description of the action |
+|   ↳ `tags` | array | Tags associated with the action |
+|   ↳ `post_to_slack` | boolean | Whether to post this action to Slack |
+|   ↳ `slack_message_format` | string | Format string for Slack messages |
+|   ↳ `steps` | array | Steps that define the action |
+|   ↳ `created_at` | string | ISO timestamp when action was created |
+|   ↳ `created_by` | object | User who created the action |
+|   ↳ `deleted` | boolean | Whether the action is deleted |
+|   ↳ `is_calculating` | boolean | Whether the action is being calculated |
+|   ↳ `last_calculated_at` | string | ISO timestamp of last calculation |
+
+### `posthog_list_cohorts`
+
+List all cohorts in a PostHog project. Returns cohort definitions, filters, and user counts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Total number of cohorts in the project |
+| `next` | string | URL for the next page of results |
+| `previous` | string | URL for the previous page of results |
+| `results` | array | List of cohorts with their definitions and metadata |
+|   ↳ `id` | number | Unique identifier for the cohort |
+|   ↳ `name` | string | Name of the cohort |
+|   ↳ `description` | string | Description of the cohort |
+|   ↳ `groups` | array | Groups that define the cohort |
+|   ↳ `deleted` | boolean | Whether the cohort is deleted |
+|   ↳ `filters` | object | Filter configuration for the cohort |
+|   ↳ `query` | object | Query configuration for the cohort |
+|   ↳ `created_at` | string | ISO timestamp when cohort was created |
+|   ↳ `created_by` | object | User who created the cohort |
+|   ↳ `is_calculating` | boolean | Whether the cohort is being calculated |
+|   ↳ `last_calculation` | string | ISO timestamp of last calculation |
+|   ↳ `errors_calculating` | number | Number of errors during calculation |
+|   ↳ `count` | number | Number of users in the cohort |
+|   ↳ `is_static` | boolean | Whether the cohort is static |
+
+### `posthog_get_cohort`
+
+Get a specific cohort by ID from PostHog. Returns detailed cohort definition, filters, and user count.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `cohortId` | string | Yes | The cohort ID to retrieve \(e.g., "42"\) |
+| `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Unique identifier for the cohort |
+| `name` | string | Name of the cohort |
+| `description` | string | Description of the cohort |
+| `groups` | array | Groups that define the cohort |
+| `deleted` | boolean | Whether the cohort is deleted |
+| `filters` | object | Filter configuration for the cohort |
+| `query` | object | Query configuration for the cohort |
+| `created_at` | string | ISO timestamp when cohort was created |
+| `created_by` | object | User who created the cohort |
+| `is_calculating` | boolean | Whether the cohort is being calculated |
+| `last_calculation` | string | ISO timestamp of last calculation |
+| `errors_calculating` | number | Number of errors during calculation |
+| `count` | number | Number of users in the cohort |
+| `is_static` | boolean | Whether the cohort is static |
+| `version` | number | Version number of the cohort |
+
+### `posthog_create_cohort`
+
+Create a new cohort in PostHog. Requires cohort name and filter or query configuration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `name` | string | No | Name for the cohort \(optional - PostHog will use "Untitled cohort" if not provided\) |
+| `description` | string | No | Description of the cohort |
+| `filters` | string | No | JSON string of filter configuration for the cohort |
+| `query` | string | No | JSON string of query configuration for the cohort |
+| `is_static` | boolean | No | Whether the cohort is static \(default: false\) |
+| `groups` | string | No | JSON string of groups that define the cohort |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Unique identifier for the created cohort |
+| `name` | string | Name of the cohort |
+| `description` | string | Description of the cohort |
+| `groups` | array | Groups that define the cohort |
+| `deleted` | boolean | Whether the cohort is deleted |
+| `filters` | object | Filter configuration for the cohort |
+| `query` | object | Query configuration for the cohort |
+| `created_at` | string | ISO timestamp when cohort was created |
+| `created_by` | object | User who created the cohort |
+| `is_calculating` | boolean | Whether the cohort is being calculated |
+| `count` | number | Number of users in the cohort |
+| `is_static` | boolean | Whether the cohort is static |
+| `version` | number | Version number of the cohort |
+
+### `posthog_list_annotations`
+
+List all annotations in a PostHog project. Returns annotation content, timestamps, and associated insights.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Total number of annotations in the project |
+| `next` | string | URL for the next page of results |
+| `previous` | string | URL for the previous page of results |
+| `results` | array | List of annotations with their content and metadata |
+|   ↳ `id` | number | Unique identifier for the annotation |
+|   ↳ `content` | string | Content/text of the annotation |
+|   ↳ `date_marker` | string | ISO timestamp marking when the annotation applies |
+|   ↳ `created_at` | string | ISO timestamp when annotation was created |
+|   ↳ `updated_at` | string | ISO timestamp when annotation was last updated |
+|   ↳ `created_by` | object | User who created the annotation |
+|   ↳ `dashboard_item` | number | ID of dashboard item this annotation is attached to |
+|   ↳ `insight_short_id` | string | Short ID of the insight this annotation is attached to |
+|   ↳ `insight_name` | string | Name of the insight this annotation is attached to |
+|   ↳ `scope` | string | Scope of the annotation \(project or dashboard\) |
+|   ↳ `deleted` | boolean | Whether the annotation is deleted |
+
+### `posthog_create_annotation`
+
+Create a new annotation in PostHog. Mark important events on your graphs with date and description.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `content` | string | Yes | Content/text of the annotation |
+| `date_marker` | string | Yes | ISO timestamp marking when the annotation applies \(e.g., "2024-01-15T10:00:00Z"\) |
+| `scope` | string | No | Scope of the annotation: "project" or "dashboard_item" \(default: "project"\) |
+| `dashboard_item` | string | No | ID of dashboard item to attach this annotation to |
+| `insight_short_id` | string | No | Short ID of the insight to attach this annotation to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Unique identifier for the created annotation |
+| `content` | string | Content/text of the annotation |
+| `date_marker` | string | ISO timestamp marking when the annotation applies |
+| `created_at` | string | ISO timestamp when annotation was created |
+| `updated_at` | string | ISO timestamp when annotation was last updated |
+| `created_by` | object | User who created the annotation |
+| `dashboard_item` | number | ID of dashboard item this annotation is attached to |
+| `insight_short_id` | string | Short ID of the insight this annotation is attached to |
+| `insight_name` | string | Name of the insight this annotation is attached to |
+| `scope` | string | Scope of the annotation \(project or dashboard_item\) |
+| `deleted` | boolean | Whether the annotation is deleted |
+
+### `posthog_list_feature_flags`
+
+List all feature flags in a PostHog project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `region` | string | Yes | PostHog cloud region: us or eu |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `limit` | number | No | Number of results to return \(e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | List of feature flags |
+|   ↳ `id` | number | Feature flag ID |
+|   ↳ `name` | string | Feature flag name |
+|   ↳ `key` | string | Feature flag key |
+|   ↳ `filters` | object | Feature flag filters |
+|   ↳ `deleted` | boolean | Whether the flag is deleted |
+|   ↳ `active` | boolean | Whether the flag is active |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `created_by` | object | Creator information |
+|   ↳ `is_simple_flag` | boolean | Whether this is a simple flag |
+|   ↳ `rollout_percentage` | number | Rollout percentage \(if applicable\) |
+|   ↳ `ensure_experience_continuity` | boolean | Whether to ensure experience continuity |
+| `count` | number | Total number of feature flags |
+| `next` | string | URL to next page of results |
+| `previous` | string | URL to previous page of results |
+
+### `posthog_get_feature_flag`
+
+Get details of a specific feature flag
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `flagId` | string | Yes | The feature flag ID \(e.g., "42"\) |
+| `region` | string | Yes | PostHog cloud region: us or eu |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `flag` | object | Feature flag details |
+|   ↳ `id` | number | Feature flag ID |
+|   ↳ `name` | string | Feature flag name |
+|   ↳ `key` | string | Feature flag key |
+|   ↳ `filters` | object | Feature flag filters |
+|   ↳ `deleted` | boolean | Whether the flag is deleted |
+|   ↳ `active` | boolean | Whether the flag is active |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `created_by` | object | Creator information |
+|   ↳ `is_simple_flag` | boolean | Whether this is a simple flag |
+|   ↳ `rollout_percentage` | number | Rollout percentage \(if applicable\) |
+|   ↳ `ensure_experience_continuity` | boolean | Whether to ensure experience continuity |
+|   ↳ `usage_dashboard` | number | Usage dashboard ID |
+|   ↳ `has_enriched_analytics` | boolean | Whether enriched analytics are enabled |
+
+### `posthog_create_feature_flag`
+
+Create a new feature flag in PostHog
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `region` | string | Yes | PostHog cloud region: us or eu |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `name` | string | No | Feature flag name \(optional - can be empty\) |
+| `key` | string | Yes | Feature flag key \(unique identifier\) |
+| `filters` | string | No | Feature flag filters as JSON string |
+| `active` | boolean | No | Whether the flag is active \(default: true\) |
+| `ensureExperienceContinuity` | boolean | No | Whether to ensure experience continuity \(default: false\) |
+| `rolloutPercentage` | number | No | Rollout percentage \(0-100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `flag` | object | Created feature flag |
+|   ↳ `id` | number | Feature flag ID |
+|   ↳ `name` | string | Feature flag name |
+|   ↳ `key` | string | Feature flag key |
+|   ↳ `filters` | object | Feature flag filters |
+|   ↳ `deleted` | boolean | Whether the flag is deleted |
+|   ↳ `active` | boolean | Whether the flag is active |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `created_by` | object | Creator information |
+|   ↳ `is_simple_flag` | boolean | Whether this is a simple flag |
+|   ↳ `rollout_percentage` | number | Rollout percentage \(if applicable\) |
+|   ↳ `ensure_experience_continuity` | boolean | Whether to ensure experience continuity |
+
+### `posthog_update_feature_flag`
+
+Update an existing feature flag in PostHog
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `flagId` | string | Yes | The feature flag ID \(e.g., "42"\) |
+| `region` | string | Yes | PostHog cloud region: us or eu |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `name` | string | No | Feature flag name |
+| `key` | string | No | Feature flag key \(unique identifier\) |
+| `filters` | string | No | Feature flag filters as JSON string |
+| `active` | boolean | No | Whether the flag is active |
+| `ensureExperienceContinuity` | boolean | No | Whether to ensure experience continuity |
+| `rolloutPercentage` | number | No | Rollout percentage \(0-100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `flag` | object | Updated feature flag |
+|   ↳ `id` | number | Feature flag ID |
+|   ↳ `name` | string | Feature flag name |
+|   ↳ `key` | string | Feature flag key |
+|   ↳ `filters` | object | Feature flag filters |
+|   ↳ `deleted` | boolean | Whether the flag is deleted |
+|   ↳ `active` | boolean | Whether the flag is active |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `created_by` | object | Creator information |
+|   ↳ `is_simple_flag` | boolean | Whether this is a simple flag |
+|   ↳ `rollout_percentage` | number | Rollout percentage \(if applicable\) |
+|   ↳ `ensure_experience_continuity` | boolean | Whether to ensure experience continuity |
+
+### `posthog_delete_feature_flag`
+
+Delete a feature flag from PostHog
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `flagId` | string | Yes | The feature flag ID to delete \(e.g., "42"\) |
+| `region` | string | Yes | PostHog cloud region: us or eu |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deletion was successful |
+| `message` | string | Confirmation message |
+
+### `posthog_evaluate_flags`
+
+Evaluate feature flags for a specific user or group. This is a public endpoint that uses the project API key.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | PostHog cloud region: us or eu |
+| `projectApiKey` | string | Yes | PostHog Project API Key \(not personal API key\) |
+| `distinctId` | string | Yes | The distinct ID of the user to evaluate flags for \(e.g., "user123" or email\) |
+| `groups` | string | No | Groups as JSON string \(e.g., \{"company": "company_id_in_your_db"\}\) |
+| `personProperties` | string | No | Person properties as JSON string |
+| `groupProperties` | string | No | Group properties as JSON string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `feature_flags` | object | Feature flag evaluations \(key-value pairs where values are boolean or string variants\) |
+| `feature_flag_payloads` | object | Additional payloads attached to feature flags |
+| `errors_while_computing_flags` | boolean | Whether there were errors while computing flags |
+
+### `posthog_list_experiments`
+
+List all experiments in a PostHog project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `region` | string | Yes | PostHog cloud region: us or eu |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `limit` | number | No | Number of results to return \(e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | List of experiments |
+|   ↳ `id` | number | Experiment ID |
+|   ↳ `name` | string | Experiment name |
+|   ↳ `description` | string | Experiment description |
+|   ↳ `feature_flag_key` | string | Associated feature flag key |
+|   ↳ `feature_flag` | object | Feature flag details |
+|   ↳ `parameters` | object | Experiment parameters |
+|   ↳ `filters` | object | Experiment filters |
+|   ↳ `variants` | object | Experiment variants |
+|   ↳ `start_date` | string | Start date |
+|   ↳ `end_date` | string | End date |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `created_by` | object | Creator information |
+|   ↳ `archived` | boolean | Whether the experiment is archived |
+| `count` | number | Total number of experiments |
+| `next` | string | URL to next page of results |
+| `previous` | string | URL to previous page of results |
+
+### `posthog_get_experiment`
+
+Get details of a specific experiment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `experimentId` | string | Yes | The experiment ID \(e.g., "42"\) |
+| `region` | string | Yes | PostHog cloud region: us or eu |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `experiment` | object | Experiment details |
+|   ↳ `id` | number | Experiment ID |
+|   ↳ `name` | string | Experiment name |
+|   ↳ `description` | string | Experiment description |
+|   ↳ `feature_flag_key` | string | Associated feature flag key |
+|   ↳ `feature_flag` | object | Feature flag details |
+|   ↳ `parameters` | object | Experiment parameters |
+|   ↳ `filters` | object | Experiment filters |
+|   ↳ `variants` | object | Experiment variants |
+|   ↳ `start_date` | string | Start date |
+|   ↳ `end_date` | string | End date |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `created_by` | object | Creator information |
+|   ↳ `archived` | boolean | Whether the experiment is archived |
+|   ↳ `metrics` | array | Primary metrics |
+|   ↳ `metrics_secondary` | array | Secondary metrics |
+
+### `posthog_create_experiment`
+
+Create a new experiment in PostHog
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `region` | string | Yes | PostHog cloud region: us or eu |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `name` | string | No | Experiment name \(optional\) |
+| `description` | string | No | Experiment description |
+| `featureFlagKey` | string | Yes | Feature flag key to use for the experiment |
+| `parameters` | string | No | Experiment parameters as JSON string |
+| `filters` | string | No | Experiment filters as JSON string |
+| `variants` | string | No | Experiment variants as JSON string |
+| `startDate` | string | No | Experiment start date \(ISO format\) |
+| `endDate` | string | No | Experiment end date \(ISO format\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `experiment` | object | Created experiment |
+|   ↳ `id` | number | Experiment ID |
+|   ↳ `name` | string | Experiment name |
+|   ↳ `description` | string | Experiment description |
+|   ↳ `feature_flag_key` | string | Associated feature flag key |
+|   ↳ `feature_flag` | object | Feature flag details |
+|   ↳ `parameters` | object | Experiment parameters |
+|   ↳ `filters` | object | Experiment filters |
+|   ↳ `variants` | object | Experiment variants |
+|   ↳ `start_date` | string | Start date |
+|   ↳ `end_date` | string | End date |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `created_by` | object | Creator information |
+|   ↳ `archived` | boolean | Whether the experiment is archived |
+
+### `posthog_list_surveys`
+
+List all surveys in a PostHog project. Surveys allow you to collect feedback from users.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
+| `limit` | number | No | Number of results to return \(default: 100, e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `surveys` | array | List of surveys in the project |
+|   ↳ `id` | string | Survey ID |
+|   ↳ `name` | string | Survey name |
+|   ↳ `description` | string | Survey description |
+|   ↳ `type` | string | Survey type \(popover or api\) |
+|   ↳ `questions` | array | Survey questions |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `start_date` | string | Survey start date |
+|   ↳ `end_date` | string | Survey end date |
+|   ↳ `archived` | boolean | Whether survey is archived |
+| `count` | number | Total number of surveys |
+| `next` | string | URL for next page of results |
+| `previous` | string | URL for previous page of results |
+
+### `posthog_get_survey`
+
+Get details of a specific survey in PostHog by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `surveyId` | string | Yes | Survey ID to retrieve \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
+| `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `survey` | object | Survey details |
+|   ↳ `id` | string | Survey ID |
+|   ↳ `name` | string | Survey name |
+|   ↳ `description` | string | Survey description |
+|   ↳ `type` | string | Survey type \(popover or api\) |
+|   ↳ `questions` | array | Survey questions |
+|   ↳ `appearance` | object | Survey appearance configuration |
+|   ↳ `conditions` | object | Survey display conditions |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `created_by` | object | Creator information |
+|   ↳ `start_date` | string | Survey start date |
+|   ↳ `end_date` | string | Survey end date |
+|   ↳ `archived` | boolean | Whether survey is archived |
+|   ↳ `responses_limit` | number | Maximum number of responses |
+
+### `posthog_create_survey`
+
+Create a new survey in PostHog. Supports question types: Basic (open), Link, Rating, and Multiple Choice.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
+| `name` | string | No | Survey name \(optional\) |
+| `description` | string | No | Survey description |
+| `type` | string | No | Survey type: popover \(in-app\) or api \(custom implementation\) \(default: popover\) |
+| `questions` | string | Yes | JSON string of survey questions array. Each question must have type \(open/link/rating/multiple_choice\) and question text. Rating questions can have scale \(1-10\), lowerBoundLabel, upperBoundLabel. Multiple choice questions need choices array. Link questions can have buttonText. |
+| `startDate` | string | No | Survey start date in ISO 8601 format |
+| `endDate` | string | No | Survey end date in ISO 8601 format |
+| `appearance` | string | No | JSON string of appearance configuration \(colors, position, etc.\) |
+| `conditions` | string | No | JSON string of display conditions \(URL matching, etc.\) |
+| `targetingFlagFilters` | string | No | JSON string of feature flag filters for targeting |
+| `linkedFlagId` | string | No | Feature flag ID to link to this survey |
+| `responsesLimit` | number | No | Maximum number of responses to collect |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `survey` | object | Created survey details |
+|   ↳ `id` | string | Survey ID |
+|   ↳ `name` | string | Survey name |
+|   ↳ `description` | string | Survey description |
+|   ↳ `type` | string | Survey type \(popover or api\) |
+|   ↳ `questions` | array | Survey questions |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `start_date` | string | Survey start date |
+|   ↳ `end_date` | string | Survey end date |
+
+### `posthog_update_survey`
+
+Update an existing survey in PostHog. Can modify questions, appearance, conditions, and other settings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `surveyId` | string | Yes | Survey ID to update \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
+| `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
+| `name` | string | No | Survey name |
+| `description` | string | No | Survey description |
+| `type` | string | No | Survey type: popover or api |
+| `questions` | string | No | JSON string of survey questions array. Each question must have type \(open/link/rating/multiple_choice\) and question text. |
+| `startDate` | string | No | Survey start date in ISO 8601 format |
+| `endDate` | string | No | Survey end date in ISO 8601 format |
+| `appearance` | string | No | JSON string of appearance configuration \(colors, position, etc.\) |
+| `conditions` | string | No | JSON string of display conditions \(URL matching, etc.\) |
+| `targetingFlagFilters` | string | No | JSON string of feature flag filters for targeting |
+| `linkedFlagId` | string | No | Feature flag ID to link to this survey |
+| `responsesLimit` | number | No | Maximum number of responses to collect |
+| `archived` | boolean | No | Archive or unarchive the survey |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `survey` | object | Updated survey details |
+|   ↳ `id` | string | Survey ID |
+|   ↳ `name` | string | Survey name |
+|   ↳ `description` | string | Survey description |
+|   ↳ `type` | string | Survey type \(popover or api\) |
+|   ↳ `questions` | array | Survey questions |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `start_date` | string | Survey start date |
+|   ↳ `end_date` | string | Survey end date |
+|   ↳ `archived` | boolean | Whether survey is archived |
+
+### `posthog_list_session_recordings`
+
+List session recordings in a PostHog project. Session recordings capture user interactions with your application.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
+| `limit` | number | No | Number of results to return \(default: 50, e.g., 10, 25, 50\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 50, 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordings` | array | List of session recordings |
+|   ↳ `id` | string | Recording ID |
+|   ↳ `distinct_id` | string | User distinct ID |
+|   ↳ `viewed` | boolean | Whether recording has been viewed |
+|   ↳ `recording_duration` | number | Recording duration in seconds |
+|   ↳ `active_seconds` | number | Active time in seconds |
+|   ↳ `inactive_seconds` | number | Inactive time in seconds |
+|   ↳ `start_time` | string | Recording start timestamp |
+|   ↳ `end_time` | string | Recording end timestamp |
+|   ↳ `click_count` | number | Number of clicks |
+|   ↳ `keypress_count` | number | Number of keypresses |
+|   ↳ `console_log_count` | number | Number of console logs |
+|   ↳ `console_warn_count` | number | Number of console warnings |
+|   ↳ `console_error_count` | number | Number of console errors |
+|   ↳ `person` | object | Person information |
+| `count` | number | Total number of recordings |
+| `next` | string | URL for next page of results |
+| `previous` | string | URL for previous page of results |
+
+### `posthog_get_session_recording`
+
+Get details of a specific session recording in PostHog by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `recordingId` | string | Yes | Session recording ID to retrieve \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
+| `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recording` | object | Session recording details |
+|   ↳ `id` | string | Recording ID |
+|   ↳ `distinct_id` | string | User distinct ID |
+|   ↳ `viewed` | boolean | Whether recording has been viewed |
+|   ↳ `recording_duration` | number | Recording duration in seconds |
+|   ↳ `active_seconds` | number | Active time in seconds |
+|   ↳ `inactive_seconds` | number | Inactive time in seconds |
+|   ↳ `start_time` | string | Recording start timestamp |
+|   ↳ `end_time` | string | Recording end timestamp |
+|   ↳ `click_count` | number | Number of clicks |
+|   ↳ `keypress_count` | number | Number of keypresses |
+|   ↳ `console_log_count` | number | Number of console logs |
+|   ↳ `console_warn_count` | number | Number of console warnings |
+|   ↳ `console_error_count` | number | Number of console errors |
+|   ↳ `start_url` | string | Starting URL of the recording |
+|   ↳ `person` | object | Person information |
+|   ↳ `matching_events` | array | Events that occurred during recording |
+
+### `posthog_list_recording_playlists`
+
+List session recording playlists in a PostHog project. Playlists allow you to organize and curate session recordings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
+| `limit` | number | No | Number of results to return \(default: 100, e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `playlists` | array | List of session recording playlists |
+|   ↳ `id` | string | Playlist ID |
+|   ↳ `short_id` | string | Playlist short ID |
+|   ↳ `name` | string | Playlist name |
+|   ↳ `description` | string | Playlist description |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `created_by` | object | Creator information |
+|   ↳ `deleted` | boolean | Whether playlist is deleted |
+|   ↳ `filters` | object | Playlist filters |
+|   ↳ `last_modified_at` | string | Last modification timestamp |
+|   ↳ `last_modified_by` | object | Last modifier information |
+|   ↳ `derived_name` | string | Auto-generated name from filters |
+| `count` | number | Total number of playlists |
+| `next` | string | URL for next page of results |
+| `previous` | string | URL for previous page of results |
+
+### `posthog_list_event_definitions`
+
+List all event definitions in a PostHog project. Event definitions represent tracked events with metadata like descriptions, tags, and usage statistics.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `region` | string | Yes | PostHog cloud region: us or eu |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
+| `offset` | number | No | The initial index from which to return results \(e.g., 0, 100, 200\) |
+| `search` | string | No | Search term to filter event definitions by name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Total number of event definitions |
+| `next` | string | URL for the next page of results |
+| `previous` | string | URL for the previous page of results |
+| `results` | array | List of event definitions |
+|   ↳ `id` | string | Unique identifier for the event definition |
+|   ↳ `name` | string | Event name |
+|   ↳ `description` | string | Event description |
+|   ↳ `tags` | array | Tags associated with the event |
+|   ↳ `volume_30_day` | number | Number of events received in the last 30 days |
+|   ↳ `query_usage_30_day` | number | Number of times this event was queried in the last 30 days |
+|   ↳ `created_at` | string | ISO timestamp when the event was created |
+|   ↳ `last_seen_at` | string | ISO timestamp when the event was last seen |
+|   ↳ `updated_at` | string | ISO timestamp when the event was updated |
+|   ↳ `updated_by` | object | User who last updated the event |
+
+### `posthog_get_event_definition`
+
+Get details of a specific event definition in PostHog. Returns comprehensive information about the event including metadata, usage statistics, and verification status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `eventDefinitionId` | string | Yes | Event Definition ID to retrieve |
+| `region` | string | Yes | PostHog cloud region: us or eu |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique identifier for the event definition |
+| `name` | string | Event name |
+| `description` | string | Event description |
+| `tags` | array | Tags associated with the event |
+| `volume_30_day` | number | Number of events received in the last 30 days |
+| `query_usage_30_day` | number | Number of times this event was queried in the last 30 days |
+| `created_at` | string | ISO timestamp when the event was created |
+| `last_seen_at` | string | ISO timestamp when the event was last seen |
+| `updated_at` | string | ISO timestamp when the event was updated |
+| `updated_by` | object | User who last updated the event |
+| `verified` | boolean | Whether the event has been verified |
+| `verified_at` | string | ISO timestamp when the event was verified |
+| `verified_by` | string | User who verified the event |
+
+### `posthog_update_event_definition`
+
+Update an event definition in PostHog. Can modify description, tags, and verification status to maintain clean event schemas.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `eventDefinitionId` | string | Yes | Event Definition ID to update |
+| `region` | string | Yes | PostHog cloud region: us or eu |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `description` | string | No | Updated description for the event |
+| `tags` | string | No | Comma-separated list of tags to associate with the event |
+| `verified` | boolean | No | Whether to mark the event as verified |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique identifier for the event definition |
+| `name` | string | Event name |
+| `description` | string | Updated event description |
+| `tags` | array | Updated tags associated with the event |
+| `volume_30_day` | number | Number of events received in the last 30 days |
+| `query_usage_30_day` | number | Number of times this event was queried in the last 30 days |
+| `created_at` | string | ISO timestamp when the event was created |
+| `last_seen_at` | string | ISO timestamp when the event was last seen |
+| `updated_at` | string | ISO timestamp when the event was updated |
+| `updated_by` | object | User who last updated the event |
+| `verified` | boolean | Whether the event has been verified |
+| `verified_at` | string | ISO timestamp when the event was verified |
+| `verified_by` | string | User who verified the event |
+
+### `posthog_list_property_definitions`
+
+List all property definitions in a PostHog project. Property definitions represent tracked properties with metadata like descriptions, tags, types, and usage statistics.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `region` | string | Yes | PostHog cloud region: us or eu |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
+| `offset` | number | No | The initial index from which to return results \(e.g., 0, 100, 200\) |
+| `search` | string | No | Search term to filter property definitions by name |
+| `type` | string | No | Filter by property type: event, person, or group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Total number of property definitions |
+| `next` | string | URL for the next page of results |
+| `previous` | string | URL for the previous page of results |
+| `results` | array | List of property definitions |
+|   ↳ `id` | string | Unique identifier for the property definition |
+|   ↳ `name` | string | Property name |
+|   ↳ `description` | string | Property description |
+|   ↳ `tags` | array | Tags associated with the property |
+|   ↳ `is_numerical` | boolean | Whether the property is numerical |
+|   ↳ `is_seen_on_filtered_events` | boolean | Whether the property is seen on filtered events |
+|   ↳ `property_type` | string | The data type of the property |
+|   ↳ `type` | string | Property type: event, person, or group |
+|   ↳ `volume_30_day` | number | Number of times property was seen in the last 30 days |
+|   ↳ `query_usage_30_day` | number | Number of times this property was queried in the last 30 days |
+|   ↳ `created_at` | string | ISO timestamp when the property was created |
+|   ↳ `updated_at` | string | ISO timestamp when the property was updated |
+|   ↳ `updated_by` | object | User who last updated the property |
+
+### `posthog_get_property_definition`
+
+Get details of a specific property definition in PostHog. Returns comprehensive information about the property including metadata, type, usage statistics, and verification status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `propertyDefinitionId` | string | Yes | Property Definition ID to retrieve |
+| `region` | string | Yes | PostHog cloud region: us or eu |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique identifier for the property definition |
+| `name` | string | Property name |
+| `description` | string | Property description |
+| `tags` | array | Tags associated with the property |
+| `is_numerical` | boolean | Whether the property is numerical |
+| `is_seen_on_filtered_events` | boolean | Whether the property is seen on filtered events |
+| `property_type` | string | The data type of the property |
+| `type` | string | Property type: event, person, or group |
+| `volume_30_day` | number | Number of times property was seen in the last 30 days |
+| `query_usage_30_day` | number | Number of times this property was queried in the last 30 days |
+| `created_at` | string | ISO timestamp when the property was created |
+| `updated_at` | string | ISO timestamp when the property was updated |
+| `updated_by` | object | User who last updated the property |
+| `verified` | boolean | Whether the property has been verified |
+| `verified_at` | string | ISO timestamp when the property was verified |
+| `verified_by` | string | User who verified the property |
+| `example` | string | Example value for the property |
+
+### `posthog_update_property_definition`
+
+Update a property definition in PostHog. Can modify description, tags, property type, and verification status to maintain clean property schemas.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `propertyDefinitionId` | string | Yes | Property Definition ID to update |
+| `region` | string | Yes | PostHog cloud region: us or eu |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `description` | string | No | Updated description for the property |
+| `tags` | string | No | Comma-separated list of tags to associate with the property |
+| `verified` | boolean | No | Whether to mark the property as verified |
+| `property_type` | string | No | The data type of the property \(e.g., String, Numeric, Boolean, DateTime, etc.\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique identifier for the property definition |
+| `name` | string | Property name |
+| `description` | string | Updated property description |
+| `tags` | array | Updated tags associated with the property |
+| `is_numerical` | boolean | Whether the property is numerical |
+| `is_seen_on_filtered_events` | boolean | Whether the property is seen on filtered events |
+| `property_type` | string | The data type of the property |
+| `type` | string | Property type: event, person, or group |
+| `volume_30_day` | number | Number of times property was seen in the last 30 days |
+| `query_usage_30_day` | number | Number of times this property was queried in the last 30 days |
+| `created_at` | string | ISO timestamp when the property was created |
+| `updated_at` | string | ISO timestamp when the property was updated |
+| `updated_by` | object | User who last updated the property |
+| `verified` | boolean | Whether the property has been verified |
+| `verified_at` | string | ISO timestamp when the property was verified |
+| `verified_by` | string | User who verified the property |
+| `example` | string | Example value for the property |
+
+### `posthog_list_projects`
+
+List all projects in the organization. Returns project details including IDs, names, API tokens, and settings. Useful for getting project IDs needed by other endpoints.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `region` | string | No | Cloud region: us or eu \(default: us\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | array | List of projects with their configuration and settings |
+|   ↳ `id` | number | Project ID |
+|   ↳ `uuid` | string | Project UUID |
+|   ↳ `organization` | string | Organization UUID |
+|   ↳ `api_token` | string | Project API token for ingestion |
+|   ↳ `app_urls` | array | Allowed app URLs |
+|   ↳ `name` | string | Project name |
+|   ↳ `slack_incoming_webhook` | string | Slack webhook URL for notifications |
+|   ↳ `created_at` | string | Project creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `anonymize_ips` | boolean | Whether IP anonymization is enabled |
+|   ↳ `completed_snippet_onboarding` | boolean | Whether snippet onboarding is completed |
+|   ↳ `ingested_event` | boolean | Whether any event has been ingested |
+|   ↳ `test_account_filters` | array | Filters for test accounts |
+|   ↳ `is_demo` | boolean | Whether this is a demo project |
+|   ↳ `timezone` | string | Project timezone |
+|   ↳ `data_attributes` | array | Custom data attributes |
+
+### `posthog_get_project`
+
+Get detailed information about a specific project by ID. Returns comprehensive project configuration, settings, and feature flags.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID \(e.g., "12345" or project UUID\) |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `region` | string | No | Cloud region: us or eu \(default: us\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | object | Detailed project information with all configuration settings |
+|   ↳ `id` | number | Project ID |
+|   ↳ `uuid` | string | Project UUID |
+|   ↳ `organization` | string | Organization UUID |
+|   ↳ `api_token` | string | Project API token for ingestion |
+|   ↳ `app_urls` | array | Allowed app URLs |
+|   ↳ `name` | string | Project name |
+|   ↳ `slack_incoming_webhook` | string | Slack webhook URL for notifications |
+|   ↳ `created_at` | string | Project creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `anonymize_ips` | boolean | Whether IP anonymization is enabled |
+|   ↳ `completed_snippet_onboarding` | boolean | Whether snippet onboarding is completed |
+|   ↳ `ingested_event` | boolean | Whether any event has been ingested |
+|   ↳ `test_account_filters` | array | Filters for test accounts |
+|   ↳ `is_demo` | boolean | Whether this is a demo project |
+|   ↳ `timezone` | string | Project timezone |
+|   ↳ `data_attributes` | array | Custom data attributes |
+|   ↳ `person_display_name_properties` | array | Properties used for person display names |
+|   ↳ `correlation_config` | object | Configuration for correlation analysis |
+|   ↳ `autocapture_opt_out` | boolean | Whether autocapture is disabled |
+|   ↳ `autocapture_exceptions_opt_in` | boolean | Whether exception autocapture is enabled |
+|   ↳ `session_recording_opt_in` | boolean | Whether session recording is enabled |
+|   ↳ `capture_console_log_opt_in` | boolean | Whether console log capture is enabled |
+|   ↳ `capture_performance_opt_in` | boolean | Whether performance capture is enabled |
+
+### `posthog_list_organizations`
+
+List all organizations the user has access to. Returns organization details including name, slug, membership level, and available product features.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `region` | string | No | Cloud region: us or eu \(default: us\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `organizations` | array | List of organizations with their settings and features |
+|   ↳ `id` | string | Organization ID \(UUID\) |
+|   ↳ `name` | string | Organization name |
+|   ↳ `slug` | string | Organization slug |
+|   ↳ `created_at` | string | Organization creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `membership_level` | number | User membership level in organization |
+|   ↳ `plugins_access_level` | number | Access level for plugins/apps |
+|   ↳ `teams` | array | List of team IDs in this organization |
+|   ↳ `available_product_features` | array | Available product features and their limits |
+
+### `posthog_get_organization`
+
+Get detailed information about a specific organization by ID. Returns comprehensive organization settings, features, usage, and team information.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organizationId` | string | Yes | Organization ID \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `region` | string | No | Cloud region: us or eu \(default: us\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `organization` | object | Detailed organization information with settings and features |
+|   ↳ `id` | string | Organization ID \(UUID\) |
+|   ↳ `name` | string | Organization name |
+|   ↳ `slug` | string | Organization slug |
+|   ↳ `created_at` | string | Organization creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `membership_level` | number | User membership level in organization |
+|   ↳ `plugins_access_level` | number | Access level for plugins/apps |
+|   ↳ `teams` | array | List of team IDs in this organization |
+|   ↳ `available_product_features` | array | Available product features with their limits and descriptions |
+|   ↳ `domain_whitelist` | array | Whitelisted domains for organization |
+|   ↳ `is_member_join_email_enabled` | boolean | Whether member join emails are enabled |
+|   ↳ `metadata` | object | Organization metadata |
+|   ↳ `customer_id` | string | Customer ID for billing |
+|   ↳ `available_features` | array | List of available feature flags for organization |
+|   ↳ `usage` | object | Organization usage statistics |
+
+

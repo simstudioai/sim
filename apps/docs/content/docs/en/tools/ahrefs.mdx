@@ -1,0 +1,243 @@
+---
+title: Ahrefs
+description: SEO analysis with Ahrefs
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="ahrefs"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Ahrefs](https://ahrefs.com/) is a leading SEO toolset for analyzing websites, tracking rankings, monitoring backlinks, and researching keywords. It provides detailed insights into your own website as well as your competitors, helping you make data-driven decisions to improve your search visibility.
+
+With the Ahrefs integration in Sim, you can:
+
+- **Analyze Domain Rating & Authority**: Instantly check the Domain Rating (DR) and Ahrefs Rank of any website to gauge its authority.
+- **Fetch Backlinks**: Retrieve a list of backlinks pointing to a site or specific URL, with details like anchor text, referring page DR, and more.
+- **Get Backlink Statistics**: Access metrics on backlink types (dofollow, nofollow, text, image, redirect, etc.) for a domain or URL.
+- **Explore Organic Keywords** *(planned)*: View keywords a domain ranks for and their positions in Google search results.
+- **Discover Top Pages** *(planned)*: Identify the highest-performing pages by organic traffic and links.
+
+These tools let your agents automate SEO research, monitor competitors, and generate reports—all as part of your workflow automations. To use the Ahrefs integration, you’ll need an Ahrefs Enterprise subscription with API access.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Ahrefs SEO tools into your workflow. Analyze domain ratings, backlinks, organic keywords, top pages, and more. Requires an Ahrefs Enterprise plan with API access.
+
+
+
+## Tools
+
+### `ahrefs_domain_rating`
+
+Get the Domain Rating (DR) and Ahrefs Rank for a target domain. Domain Rating shows the strength of a website
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Yes | The target domain to analyze \(e.g., example.com\) |
+| `date` | string | No | Date for historical data in YYYY-MM-DD format \(defaults to today\) |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `domainRating` | number | Domain Rating score \(0-100\) |
+| `ahrefsRank` | number | Ahrefs Rank - global ranking based on backlink profile strength |
+
+### `ahrefs_backlinks`
+
+Get a list of backlinks pointing to a target domain or URL. Returns details about each backlink including source URL, anchor text, and domain rating.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" or "https://example.com/page" |
+| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains\), exact \(exact URL match\). Example: "domain" |
+| `date` | string | No | Date for historical data in YYYY-MM-DD format \(defaults to today\) |
+| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 100\) |
+| `offset` | number | No | Number of results to skip for pagination. Example: 100 |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `backlinks` | array | List of backlinks pointing to the target |
+|   ↳ `urlFrom` | string | The URL of the page containing the backlink |
+|   ↳ `urlTo` | string | The URL being linked to |
+|   ↳ `anchor` | string | The anchor text of the link |
+|   ↳ `domainRatingSource` | number | Domain Rating of the linking domain |
+|   ↳ `isDofollow` | boolean | Whether the link is dofollow |
+|   ↳ `firstSeen` | string | When the backlink was first discovered |
+|   ↳ `lastVisited` | string | When the backlink was last checked |
+
+### `ahrefs_backlinks_stats`
+
+Get backlink statistics for a target domain or URL. Returns totals for different backlink types including dofollow, nofollow, text, image, and redirect links.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" or "https://example.com/page" |
+| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains\), exact \(exact URL match\). Example: "domain" |
+| `date` | string | No | Date for historical data in YYYY-MM-DD format \(defaults to today\) |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stats` | object | Backlink statistics summary |
+|   ↳ `total` | number | Total number of live backlinks |
+|   ↳ `dofollow` | number | Number of dofollow backlinks |
+|   ↳ `nofollow` | number | Number of nofollow backlinks |
+|   ↳ `text` | number | Number of text backlinks |
+|   ↳ `image` | number | Number of image backlinks |
+|   ↳ `redirect` | number | Number of redirect backlinks |
+
+### `ahrefs_referring_domains`
+
+Get a list of domains that link to a target domain or URL. Returns unique referring domains with their domain rating, backlink counts, and discovery dates.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" or "https://example.com/page" |
+| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains\), exact \(exact URL match\). Example: "domain" |
+| `date` | string | No | Date for historical data in YYYY-MM-DD format \(defaults to today\) |
+| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 100\) |
+| `offset` | number | No | Number of results to skip for pagination. Example: 100 |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `referringDomains` | array | List of domains linking to the target |
+|   ↳ `domain` | string | The referring domain |
+|   ↳ `domainRating` | number | Domain Rating of the referring domain |
+|   ↳ `backlinks` | number | Total number of backlinks from this domain |
+|   ↳ `dofollowBacklinks` | number | Number of dofollow backlinks from this domain |
+|   ↳ `firstSeen` | string | When the domain was first seen linking |
+|   ↳ `lastVisited` | string | When the domain was last checked |
+
+### `ahrefs_organic_keywords`
+
+Get organic keywords that a target domain or URL ranks for in Google search results. Returns keyword details including search volume, ranking position, and estimated traffic.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" or "https://example.com/page" |
+| `country` | string | No | Country code for search results. Example: "us", "gb", "de" \(default: "us"\) |
+| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains\), exact \(exact URL match\). Example: "domain" |
+| `date` | string | No | Date for historical data in YYYY-MM-DD format \(defaults to today\) |
+| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 100\) |
+| `offset` | number | No | Number of results to skip for pagination. Example: 100 |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `keywords` | array | List of organic keywords the target ranks for |
+|   ↳ `keyword` | string | The keyword |
+|   ↳ `volume` | number | Monthly search volume |
+|   ↳ `position` | number | Current ranking position |
+|   ↳ `url` | string | The URL that ranks for this keyword |
+|   ↳ `traffic` | number | Estimated monthly organic traffic |
+|   ↳ `keywordDifficulty` | number | Keyword difficulty score \(0-100\) |
+
+### `ahrefs_top_pages`
+
+Get the top pages of a target domain sorted by organic traffic. Returns page URLs with their traffic, keyword counts, and estimated traffic value.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Yes | The target domain to analyze. Example: "example.com" |
+| `country` | string | No | Country code for traffic data. Example: "us", "gb", "de" \(default: "us"\) |
+| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains\). Example: "domain" |
+| `date` | string | No | Date for historical data in YYYY-MM-DD format \(defaults to today\) |
+| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 100\) |
+| `offset` | number | No | Number of results to skip for pagination. Example: 100 |
+| `select` | string | No | Comma-separated list of fields to return \(e.g., url,traffic,keywords,top_keyword,value\). Default: url,traffic,keywords,top_keyword,value |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pages` | array | List of top pages by organic traffic |
+|   ↳ `url` | string | The page URL |
+|   ↳ `traffic` | number | Estimated monthly organic traffic |
+|   ↳ `keywords` | number | Number of keywords the page ranks for |
+|   ↳ `topKeyword` | string | The top keyword driving traffic to this page |
+|   ↳ `value` | number | Estimated traffic value in USD |
+
+### `ahrefs_keyword_overview`
+
+Get detailed metrics for a keyword including search volume, keyword difficulty, CPC, clicks, and traffic potential.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyword` | string | Yes | The keyword to analyze |
+| `country` | string | No | Country code for keyword data. Example: "us", "gb", "de" \(default: "us"\) |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `overview` | object | Keyword metrics overview |
+|   ↳ `keyword` | string | The analyzed keyword |
+|   ↳ `searchVolume` | number | Monthly search volume |
+|   ↳ `keywordDifficulty` | number | Keyword difficulty score \(0-100\) |
+|   ↳ `cpc` | number | Cost per click in USD |
+|   ↳ `clicks` | number | Estimated clicks per month |
+|   ↳ `clicksPercentage` | number | Percentage of searches that result in clicks |
+|   ↳ `parentTopic` | string | The parent topic for this keyword |
+|   ↳ `trafficPotential` | number | Estimated traffic potential if ranking #1 |
+
+### `ahrefs_broken_backlinks`
+
+Get a list of broken backlinks pointing to a target domain or URL. Useful for identifying link reclamation opportunities.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" or "https://example.com/page" |
+| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains\), exact \(exact URL match\). Example: "domain" |
+| `date` | string | No | Date for historical data in YYYY-MM-DD format \(defaults to today\) |
+| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 100\) |
+| `offset` | number | No | Number of results to skip for pagination. Example: 100 |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `brokenBacklinks` | array | List of broken backlinks |
+|   ↳ `urlFrom` | string | The URL of the page containing the broken link |
+|   ↳ `urlTo` | string | The broken URL being linked to |
+|   ↳ `httpCode` | number | HTTP status code \(e.g., 404, 410\) |
+|   ↳ `anchor` | string | The anchor text of the link |
+|   ↳ `domainRatingSource` | number | Domain Rating of the linking domain |
+
+

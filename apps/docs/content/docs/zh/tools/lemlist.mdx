@@ -1,0 +1,115 @@
+---
+title: Lemlist
+description: 通过 Lemlist 管理外联活动、潜在客户，并发送邮件
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="lemlist"
+  color="#316BFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+借助 [Lemlist](https://lemlist.com) —— 备受数千销售团队信赖的个性化外联自动化平台，全面提升您的销售外联与客户互动。使用 Lemlist，您可以自动化多渠道营销活动，培育潜在客户，提高回复率，同时确保沟通高度个性化且真实。
+
+通过 Lemlist 集成，您可以：
+
+- **自动化外联流程：** 批量发起个性化邮件、LinkedIn 和电话营销活动，为每位收件人量身定制。
+- **追踪活动表现：** 实时监控打开、点击、回复、退信等每一次潜在客户互动，深入洞察营销效果。
+- **集中管理互动数据：** 获取每个活动或潜在客户的实时动态和回复，并直接同步到您的自动化工作流中。
+- **自动获取潜在客户信息：** 通过邮箱或 ID 检索丰富的客户资料，无需手动录入，轻松保持 CRM 和流程的最新状态。
+- **从收件箱发送定向邮件：** 直接在工作流中向潜在客户发送定制邮件，使用最新模板和数据。
+- **提升团队协作与跟进：** 分配潜在客户、追踪结果，借助 Lemlist 内置工具确保每一个商机都不会遗漏——所有功能均可自动化访问。
+
+Lemlist 让销售、市场和外呼团队节省时间，实现大规模个性化，提高转化率。自动化并优化您的营销活动，集成现有工具链，绝不错过任何宝贵机会。
+
+立即将 Lemlist 连接到您的自动化工作流，获得更多回复、预约更多会议，持续扩展您的销售管道！
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Lemlist 集成到您的工作流程中。可检索活动和回复，获取潜在客户信息，并通过 Lemlist 收件箱发送邮件。
+
+## 工具
+
+### `lemlist_get_activities`
+
+检索活动及其执行的步骤，包括邮件开启、点击、回复及其他事件。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Lemlist API key |
+| `type` | string | 否 | 按活动类型筛选（如 emailOpened、emailClicked、emailReplied、paused）|
+| `campaignId` | string | 否 | 按活动 ID 筛选（如 "cam_abc123def456"）|
+| `leadId` | string | 否 | 按潜在客户 ID 筛选（如 "lea_abc123def456"）|
+| `isFirst` | boolean | 否 | 仅筛选首个活动 |
+| `limit` | number | 否 | 每次请求返回的结果数（如 50），最大 100，默认 100 |
+| `offset` | number | 否 | 分页时跳过的记录数（如 0、100、200）|
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `activities` | array | 活动列表 |
+|   ↳ `_id` | string | 活动 ID |
+|   ↳ `type` | string | 活动类型 |
+|   ↳ `leadId` | string | 关联的潜在客户 ID |
+|   ↳ `campaignId` | string | 活动 ID |
+|   ↳ `sequenceId` | string | 序列 ID |
+|   ↳ `stepId` | string | 步骤 ID |
+|   ↳ `createdAt` | string | 活动发生时间 |
+| `count` | number | 返回的活动数量 |
+
+### `lemlist_get_lead`
+
+通过邮箱地址或线索 ID 获取线索信息。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Lemlist API key |
+| `leadIdentifier` | string | 是 | 线索邮箱地址（例如，"john@example.com"）或线索 ID（例如，"lea_abc123def456"） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `_id` | string | 线索 ID |
+| `email` | string | 线索邮箱地址 |
+| `firstName` | string | 线索名字 |
+| `lastName` | string | 线索姓氏 |
+| `companyName` | string | 公司名称 |
+| `jobTitle` | string | 职位名称 |
+| `companyDomain` | string | 公司域名 |
+| `isPaused` | boolean | 线索是否已暂停 |
+| `campaignId` | string | 线索所属活动 ID |
+| `contactId` | string | 联系人 ID |
+| `emailStatus` | string | 邮件可达性状态 |
+
+### `lemlist_send_email`
+
+通过 Lemlist 收件箱向联系人发送邮件。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Lemlist API key |
+| `sendUserId` | string | 是 | 发送消息用户的标识符（例如，"usr_abc123def456"） |
+| `sendUserEmail` | string | 是 | 发件人邮箱地址（例如，"sales@company.com"） |
+| `sendUserMailboxId` | string | 是 | 发件人邮箱的邮箱标识符（例如，"mbx_abc123def456"） |
+| `contactId` | string | 是 | 收件人联系人标识符（例如，"con_abc123def456"） |
+| `leadId` | string | 是 | 关联线索标识符（例如，"lea_abc123def456"） |
+| `subject` | string | 是 | 邮件主题 |
+| `message` | string | 是 | 邮件正文（ HTML 格式） |
+| `cc` | json | 否 | 抄送邮箱地址数组 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ok` | boolean | 邮件是否发送成功 |

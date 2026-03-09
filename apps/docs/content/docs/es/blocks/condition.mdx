@@ -1,0 +1,149 @@
+---
+title: Condición
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+El bloque Condición ramifica la ejecución del flujo de trabajo basándose en expresiones booleanas. Evalúa condiciones utilizando las salidas de bloques anteriores y dirige a diferentes rutas sin requerir un LLM.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/condition.png"
+    alt="Bloque de condición"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Opciones de configuración
+
+### Condiciones
+
+Define una o más condiciones que serán evaluadas. Cada condición incluye:
+
+- **Expresión**: Una expresión JavaScript/TypeScript que evalúa a verdadero o falso
+- **Ruta**: El bloque de destino al que dirigirse si la condición es verdadera
+- **Descripción**: Explicación opcional de lo que verifica la condición
+
+Puedes crear múltiples condiciones que se evalúan en orden, siendo la primera condición coincidente la que determina la ruta de ejecución.
+
+### Formato de expresión de condición
+
+Las condiciones utilizan sintaxis JavaScript y pueden hacer referencia a valores de entrada de bloques anteriores.
+
+<Tabs items={['Umbral de puntuación', 'Análisis de texto', 'Múltiples condiciones']}>
+  <Tab>
+
+    ```javascript
+    // Check if a score is above a threshold
+    <agent.score> > 75
+    ```
+
+  </Tab>
+  <Tab>
+
+    ```javascript
+    // Check if a text contains specific keywords
+    <agent.text>.includes('urgent') || <agent.text>.includes('emergency')
+    ```
+
+  </Tab>
+  <Tab>
+
+    ```javascript
+    // Check multiple conditions
+    <agent.age> >= 18 && <agent.country> === 'US'
+    ```
+
+  </Tab>
+</Tabs>
+
+### Acceso a resultados
+
+Después de que una condición se evalúa, puedes acceder a sus salidas:
+
+- **`<condition.result>`**: Resultado booleano de la evaluación de la condición
+- **`<condition.matched_condition>`**: ID de la condición que coincidió
+- **`<condition.content>`**: Descripción del resultado de la evaluación
+- **`<condition.path>`**: Detalles del destino de enrutamiento elegido
+
+## Funciones avanzadas
+
+### Expresiones complejas
+
+Usa operadores y funciones JavaScript en las condiciones:
+
+```javascript
+// String operations
+<user.email>.endsWith('@company.com')
+
+// Array operations
+<api.tags>.includes('urgent')
+
+// Mathematical operations
+<agent.confidence> * 100 > 85
+
+// Date comparisons
+new Date(<api.created_at>) > new Date('2024-01-01')
+```
+
+### Evaluación de múltiples condiciones
+
+Las condiciones se evalúan en orden hasta que una coincide:
+
+```javascript
+// Condition 1: Check for high priority
+<ticket.priority> === 'high'
+
+// Condition 2: Check for urgent keywords
+<ticket.subject>.toLowerCase().includes('urgent')
+
+// Condition 3: Default fallback
+true
+```
+
+### Manejo de errores
+
+Las condiciones manejan automáticamente:
+- Valores indefinidos o nulos con evaluación segura
+- Discrepancias de tipo con alternativas apropiadas
+- Expresiones inválidas con registro de errores
+- Variables faltantes con valores predeterminados
+
+## Salidas
+
+- **`<condition.result>`**: Resultado booleano de la evaluación
+- **`<condition.matched_condition>`**: ID de la condición coincidente
+- **`<condition.content>`**: Descripción del resultado de la evaluación
+- **`<condition.path>`**: Detalles del destino de enrutamiento elegido
+
+## Ejemplos de casos de uso
+
+**Enrutamiento de atención al cliente** - Enrutar tickets según la prioridad
+
+```
+API (Ticket) → Condition (priority === 'high') → Agent (Escalation) or Agent (Standard)
+```
+
+**Moderación de contenido** - Filtrar contenido basado en análisis
+
+```
+Agent (Analyze) → Condition (toxicity > 0.7) → Moderation or Publish
+```
+
+**Flujo de incorporación de usuarios** - Personalizar la incorporación según el tipo de usuario
+
+```
+Function (Process) → Condition (account_type === 'enterprise') → Advanced or Simple
+```
+
+## Mejores prácticas
+
+- **Ordena las condiciones correctamente**: Coloca las condiciones más específicas antes que las generales para asegurar que la lógica específica tenga prioridad sobre las alternativas
+- **Usa la rama else cuando sea necesario**: Si ninguna condición coincide y la rama else no está conectada, la rama del flujo de trabajo terminará correctamente. Conecta la rama else si necesitas una ruta alternativa para casos no coincidentes
+- **Mantén las expresiones simples**: Usa expresiones booleanas claras y directas para mejorar la legibilidad y facilitar la depuración
+- **Documenta tus condiciones**: Añade descripciones para explicar el propósito de cada condición para una mejor colaboración en equipo y mantenimiento
+- **Prueba casos límite**: Verifica que las condiciones manejen correctamente los valores límite probando con valores en los extremos de los rangos de tus condiciones

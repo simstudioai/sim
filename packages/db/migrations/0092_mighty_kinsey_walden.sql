@@ -1,0 +1,2 @@
+ALTER TABLE "settings" ADD COLUMN "show_floating_controls" boolean DEFAULT true NOT NULL;--> statement-breakpoint
+ALTER TABLE "settings" ADD COLUMN "show_training_controls" boolean DEFAULT false NOT NULL;

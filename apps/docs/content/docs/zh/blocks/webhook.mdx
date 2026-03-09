@@ -1,0 +1,89 @@
+---
+title: Webhook
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+Webhook 模块会向外部 webhook 端点发送 HTTP POST 请求，自动附加 webhook 头部，并可选用 HMAC 签名。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook.png"
+    alt="Webhook 模块"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## 配置
+
+### Webhook URL
+
+Webhook 请求的目标端点。支持静态 URL 和来自其他模块的动态值。
+
+### 负载
+
+要在请求体中发送的 JSON 数据。可使用 AI 魔杖生成负载，或引用工作流变量：
+
+```json
+{
+  "event": "workflow.completed",
+  "data": {
+    "result": "<agent.content>",
+    "timestamp": "<function.result>"
+  }
+}
+```
+
+### 签名密钥
+
+可选的 HMAC-SHA256 负载签名密钥。填写后会添加 `X-Webhook-Signature` 头部：
+
+```
+X-Webhook-Signature: t=1704067200000,v1=5d41402abc4b2a76b9719d911017c592...
+```
+
+要验证签名，请计算 `HMAC-SHA256(secret, "${timestamp}.${body}")` 并与 `v1` 的值进行比对。
+
+### 额外头部
+
+自定义的键值头部，将随请求一同发送。若与自动头部同名，则会覆盖自动头部。
+
+## 自动头部
+
+每个请求都会自动包含以下头部：
+
+| Header | 说明 |
+|--------|------|
+| `Content-Type` | `application/json` |
+| `X-Webhook-Timestamp` | Unix 时间戳（毫秒） |
+| `X-Delivery-ID` | 本次投递的唯一 UUID |
+| `Idempotency-Key` | 与 `X-Delivery-ID` 相同，用于去重 |
+
+## 输出
+
+| 输出 | 类型 | 说明 |
+|------|------|------|
+| `data` | json | 端点返回的响应体 |
+| `status` | number | HTTP 状态码 |
+| `headers` | object | 响应头部 |
+
+## 示例用例
+
+**通知外部服务** - 将工作流结果发送到 Slack、Discord 或自定义端点
+
+```
+Agent → Function (format) → Webhook (notify)
+```
+
+**触发外部工作流** - 当满足条件时，在其他系统中启动流程
+
+```
+Condition (check) → Webhook (trigger) → Response
+```
+
+<Callout>
+Webhook 模块始终使用 POST。如需使用其他 HTTP 方法或获得更多控制，请使用 [API 模块](/blocks/api)。
+</Callout>

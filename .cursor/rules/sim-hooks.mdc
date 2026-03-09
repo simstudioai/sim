@@ -1,0 +1,54 @@
+---
+description: Custom hook patterns and best practices
+globs: ["apps/sim/**/use-*.ts", "apps/sim/**/hooks/**/*.ts"]
+---
+
+# Hook Patterns
+
+## Structure
+
+```typescript
+interface UseFeatureProps {
+  id: string
+  onSuccess?: (result: Result) => void
+}
+
+export function useFeature({ id, onSuccess }: UseFeatureProps) {
+  // 1. Refs for stable dependencies
+  const idRef = useRef(id)
+  const onSuccessRef = useRef(onSuccess)
+
+  // 2. State
+  const [data, setData] = useState<Data | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+
+  // 3. Sync refs
+  useEffect(() => {
+    idRef.current = id
+    onSuccessRef.current = onSuccess
+  }, [id, onSuccess])
+
+  // 4. Operations (useCallback with empty deps when using refs)
+  const fetchData = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const result = await fetch(`/api/${idRef.current}`).then(r => r.json())
+      setData(result)
+      onSuccessRef.current?.(result)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  return { data, isLoading, fetchData }
+}
+```
+
+## Rules
+
+1. Single responsibility per hook
+2. Props interface required
+3. Refs for stable callback dependencies
+4. Wrap returned functions in useCallback
+5. Always try/catch async operations
+6. Track loading/error states

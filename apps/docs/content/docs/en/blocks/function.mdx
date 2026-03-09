@@ -1,0 +1,73 @@
+---
+title: Function
+---
+
+import { Image } from '@/components/ui/image'
+
+The Function block executes custom JavaScript or TypeScript code in your workflows. Transform data, perform calculations, or implement custom logic.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/function.png"
+    alt="Function Block with Code Editor"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Outputs
+
+- **`<function.result>`**: The value returned from your function
+- **`<function.stdout>`**: Console.log() output from your code
+
+## Example Use Cases
+
+**Data Processing Pipeline** - Transform API response into structured data
+```
+API (Fetch) → Function (Process & Validate) → Function (Calculate Metrics) → Response
+```
+
+**Business Logic Implementation** - Calculate loyalty scores and tiers
+```
+Agent (Get History) → Function (Calculate Score) → Function (Determine Tier) → Condition (Route)
+```
+
+**Data Validation and Sanitization** - Validate and clean user input
+```
+Input → Function (Validate & Sanitize) → API (Save to Database)
+```
+
+### Example: Loyalty Score Calculator
+
+```javascript title="loyalty-calculator.js"
+// Process customer data and calculate loyalty score
+const { purchaseHistory, accountAge, supportTickets } = <agent>;
+
+// Calculate metrics
+const totalSpent = purchaseHistory.reduce((sum, purchase) => sum + purchase.amount, 0);
+const purchaseFrequency = purchaseHistory.length / (accountAge / 365);
+const ticketRatio = supportTickets.resolved / supportTickets.total;
+
+// Calculate loyalty score (0-100)
+const spendScore = Math.min(totalSpent / 1000 * 30, 30);
+const frequencyScore = Math.min(purchaseFrequency * 20, 40);
+const supportScore = ticketRatio * 30;
+
+const loyaltyScore = Math.round(spendScore + frequencyScore + supportScore);
+
+return {
+  customer: <agent.name>,
+  loyaltyScore,
+  loyaltyTier: loyaltyScore >= 80 ? "Platinum" : loyaltyScore >= 60 ? "Gold" : "Silver",
+  metrics: { spendScore, frequencyScore, supportScore }
+};
+```
+
+## Best Practices
+
+- **Keep functions focused**: Write functions that do one thing well to improve maintainability and debugging
+- **Handle errors gracefully**: Use try/catch blocks to handle potential errors and provide meaningful error messages
+- **Test edge cases**: Ensure your code handles unusual inputs, null values, and boundary conditions correctly
+- **Optimize for performance**: Be mindful of computational complexity and memory usage for large datasets
+- **Use console.log() for debugging**: Leverage stdout output to debug and monitor function execution

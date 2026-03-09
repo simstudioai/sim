@@ -1,0 +1,113 @@
+---
+title: Fehlerbehebung
+description: Häufige Probleme und Lösungen
+---
+
+## Datenbankverbindung fehlgeschlagen
+
+```bash
+# Check database is running
+docker compose ps db
+
+# Test connection
+docker compose exec db psql -U postgres -c "SELECT 1"
+```
+
+Überprüfen Sie das `DATABASE_URL` Format: `postgresql://user:pass@host:5432/database`
+
+## Ollama-Modelle werden nicht angezeigt
+
+In Docker ist `localhost` = der Container, nicht Ihr Host-Rechner.
+
+```bash
+# For host-machine Ollama, use:
+OLLAMA_URL=http://host.docker.internal:11434  # macOS/Windows
+OLLAMA_URL=http://192.168.1.x:11434           # Linux (use actual IP)
+```
+
+## WebSocket/Echtzeit funktioniert nicht
+
+1. Prüfen Sie, ob `NEXT_PUBLIC_SOCKET_URL` mit Ihrer Domain übereinstimmt
+2. Überprüfen Sie, ob der Echtzeit-Dienst läuft: `docker compose ps realtime`
+3. Stellen Sie sicher, dass der Reverse-Proxy WebSocket-Upgrades weiterleitet (siehe [Docker-Anleitung](/self-hosting/docker))
+
+## 502 Bad Gateway
+
+```bash
+# Check app is running
+docker compose ps simstudio
+docker compose logs simstudio
+
+# Common causes: out of memory, database not ready
+```
+
+## Migrationsfehler
+
+```bash
+# View migration logs
+docker compose logs migrations
+
+# Run manually
+docker compose exec simstudio bun run db:migrate
+```
+
+## pgvector nicht gefunden
+
+Verwenden Sie das richtige PostgreSQL-Image:
+
+```yaml
+image: pgvector/pgvector:pg17  # NOT postgres:17
+```
+
+## Zertifikatsfehler (CERT_HAS_EXPIRED)
+
+Wenn Sie SSL-Zertifikatsfehler beim Aufrufen externer APIs sehen:
+
+```bash
+# Update CA certificates in container
+docker compose exec simstudio apt-get update && apt-get install -y ca-certificates
+
+# Or set in environment (not recommended for production)
+NODE_TLS_REJECT_UNAUTHORIZED=0
+```
+
+## Leere Seite nach dem Login
+
+1. Überprüfen Sie die Browser-Konsole auf Fehler
+2. Stellen Sie sicher, dass `NEXT_PUBLIC_APP_URL` mit Ihrer tatsächlichen Domain übereinstimmt
+3. Löschen Sie Browser-Cookies und lokalen Speicher
+4. Prüfen Sie, ob alle Dienste laufen: `docker compose ps`
+
+## Windows-spezifische Probleme
+
+**Turbopack-Fehler unter Windows:**
+
+```bash
+# Use WSL2 for better compatibility
+wsl --install
+
+# Or disable Turbopack in package.json
+# Change "next dev --turbopack" to "next dev"
+```
+
+**Zeilenende-Probleme:**
+
+```bash
+# Configure git to use LF
+git config --global core.autocrlf input
+```
+
+## Logs anzeigen
+
+```bash
+# All services
+docker compose logs -f
+
+# Specific service
+docker compose logs -f simstudio
+```
+
+## Hilfe erhalten
+
+- [GitHub Issues](https://github.com/simstudioai/sim/issues)
+- [Discord](https://discord.gg/Hr4UWYEcTT)

@@ -1,0 +1,343 @@
+---
+title: Copilot
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+import { MessageCircle, Package, Zap, Infinity as InfinityIcon, Brain, BrainCircuit } from 'lucide-react'
+
+Copilotはエディター内のアシスタントで、Sim Copilotを使用してワークフローの構築や編集を支援し、それらを理解して改善するのに役立ちます。以下のことができます：
+
+- **説明**: Simや現在のワークフローに関する質問に回答
+- **ガイド**: 編集の提案やベストプラクティスの提示
+- **編集**: 承認後にブロック、接続、設定の変更を実行
+
+<Callout type="info">
+  CopilotはSimが管理するサービスです。セルフホスト型のデプロイメントでは、ホスト型アプリ（sim.ai → 設定 → Copilot）でCopilot APIキーを生成してください
+  1. [sim.ai](https://sim.ai) → 設定 → Copilotに移動し、Copilot APIキーを生成
+  2. セルフホスト環境の `COPILOT_API_KEY` にその値を設定
+</Callout>
+
+## コンテキストメニュー (@)
+
+`@` 記号を使用して、さまざまなリソースを参照し、ワークスペースについてCopilotにより多くのコンテキストを提供できます：
+
+<Image
+  src="/static/copilot/copilot-menu.png"
+  alt="利用可能な参照オプションを表示するCopilotコンテキストメニュー"
+  width={600}
+  height={400}
+/>
+
+`@` メニューから以下にアクセスできます：
+- **チャット**: 以前のCopilotの会話を参照
+- **すべてのワークフロー**: ワークスペース内の任意のワークフローを参照
+- **ワークフローブロック**: ワークフローの特定のブロックを参照
+- **ブロック**: ブロックタイプとテンプレートを参照
+- **ナレッジ**: アップロードした文書やナレッジベースを参照
+- **ドキュメント**: Simのドキュメントを参照
+- **テンプレート**: ワークフローテンプレートを参照
+- **ログ**: 実行ログと結果を参照
+
+このコンテキスト情報は、Copilotがあなたの特定のユースケースに対してより正確で関連性の高い支援を提供するのに役立ちます。
+
+## モード
+
+<Cards>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <MessageCircle className="h-4 w-4 text-muted-foreground" />
+        質問
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">
+      ワークフローに変更を加えずに、説明、ガイダンス、提案を行うQ&Aモード。
+    </div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Package className="h-4 w-4 text-muted-foreground" />
+        エージェント
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">
+      構築・編集モード。Copilotが特定の編集（ブロックの追加、変数の接続、設定の調整）を提案し、承認後に適用します。
+    </div>
+  </Card>
+</Cards>
+
+<div className="flex justify-center">
+  <Image
+    src="/static/copilot/copilot-mode.png"
+    alt="Copilotモード選択インターフェース"
+    width={600}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## 深度レベル
+
+<Cards>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Zap className="h-4 w-4 text-muted-foreground" />
+        高速
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">最も速く、最も安価です。小さな編集、シンプルなワークフロー、軽微な調整に最適です。</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <InfinityIcon className="h-4 w-4 text-muted-foreground" />
+        自動
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">速度と推論のバランスが取れています。ほとんどのタスクに推奨されるデフォルト設定です。</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Brain className="h-4 w-4 text-muted-foreground" />
+        高度
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">パフォーマンスを維持しながら、より大きなワークフローや複雑な編集のためのより深い推論を提供します。</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <BrainCircuit className="h-4 w-4 text-muted-foreground" />
+        ビヘモス
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">詳細な計画、デバッグ、複雑なアーキテクチャ変更のための最大限の推論能力を提供します。</div>
+  </Card>
+</Cards>
+
+### モード選択インターフェース
+
+Copilotインターフェースのモードセレクターを使用して、異なる推論モード間を簡単に切り替えることができます：
+
+<Image
+  src="/static/copilot/copilot-models.png"
+  alt="MAXトグル付きの高度モードを表示するCopilotモード選択"
+  width={600}
+  height={300}
+/>
+
+このインターフェースでは以下のことが可能です：
+- **推論レベルの選択**：高速、自動、高度、またはビヘモスから選択
+- **MAXモードの有効化**：最も徹底的な分析が必要な場合に最大限の推論能力を切り替え
+- **モードの説明を確認**：各モードが最適化されている用途を理解
+
+タスクの複雑さに基づいてモードを選択してください - 簡単な質問には高速モードを、複雑なアーキテクチャ変更にはビヘモスモードを使用します。
+
+## 課金とコスト計算
+
+### コストの計算方法
+
+Copilotの使用料金は、基盤となるLLMからのトークンごとに請求されます：
+
+- **入力トークン**：プロバイダーの基本料金で請求（**原価**）
+- **出力トークン**：プロバイダーの基本出力料金の**1.5倍**で請求
+
+```javascript
+copilotCost = (inputTokens × inputPrice + outputTokens × (outputPrice × 1.5)) / 1,000,000
+```
+
+| コンポーネント | 適用される料金         |
+|----------|----------------------|
+| 入力    | inputPrice           |
+| 出力   | outputPrice × 1.5    |
+
+<Callout type="warning">
+  表示価格は2025年9月4日時点のものです。最新の価格については、プロバイダーのドキュメントをご確認ください。
+</Callout>
+
+<Callout type="info">
+  モデル価格は100万トークンあたりの料金です。実際のコストを算出するには1,000,000で割ります。背景と例については<a href="/execution/costs">コスト計算ページ</a>をご覧ください。
+</Callout>
+
+メッセージにカーソルを合わせて**編集**をクリックすると、メッセージを修正して再送信できます。プロンプトを洗練させるのに便利です。
+
+### メッセージキュー
+
+Copilotが応答中にメッセージを送信すると、キューに追加されます。次のことができます:
+- 展開可能なキューパネルでキューに入っているメッセージを表示
+- キューに入っているメッセージをすぐに送信(現在の応答を中止)
+- キューからメッセージを削除
+
+## ファイル添付
+
+添付アイコンをクリックして、メッセージと一緒にファイルをアップロードできます。サポートされているファイル形式:
+- 画像(プレビューサムネイルが表示されます)
+- PDF
+- テキストファイル、JSON、XML
+- その他のドキュメント形式
+
+ファイルはクリック可能なサムネイルとして表示され、新しいタブで開きます。
+
+## チェックポイントと変更
+
+Copilotがワークフローに変更を加えると、必要に応じて元に戻せるようにチェックポイントが保存されます。
+
+### チェックポイントの表示
+
+Copilotのメッセージにカーソルを合わせてチェックポイントアイコンをクリックすると、そのメッセージに保存されたワークフローの状態を確認できます。
+
+### 変更の取り消し
+
+任意のチェックポイントで**元に戻す**をクリックすると、ワークフローをその状態に復元できます。この操作は元に戻せないことを警告する確認ダイアログが表示されます。
+
+### 変更の承認
+
+Copilotが変更を提案した場合、次のことができます:
+- **承認**: 提案された変更を適用(`Mod+Shift+Enter`)
+- **拒否**: 変更を却下して現在のワークフローを維持
+
+## 思考ブロック
+
+複雑なリクエストの場合、Copilotは展開可能な思考ブロックで推論プロセスを表示することがあります:
+
+- Copilotが思考中はブロックが自動的に展開されます
+- クリックして手動で展開/折りたたみ
+- 思考プロセスの所要時間を表示
+- Copilotがどのように解決策に到達したかを理解するのに役立ちます
+
+## オプション選択
+
+Copilotが複数のオプションを提示した場合、次の方法で選択できます:
+
+| 操作 | アクション |
+|---------|--------|
+| **1-9** | 番号でオプションを選択 |
+| **上下矢印キー** | オプション間を移動 |
+| **Enter** | ハイライトされたオプションを選択 |
+
+選択されたオプションはハイライト表示され、未選択のオプションは取り消し線で表示されます。
+
+## キーボードショートカット
+
+| ショートカット | アクション |
+|----------|--------|
+| `@` | コンテキストメニューを開く |
+| `/` | スラッシュコマンドを開く |
+| `Arrow Up/Down` | メニュー項目を移動 |
+| `Enter` | メニュー項目を選択 |
+| `Esc` | メニューを閉じる |
+| `Mod+Shift+Enter` | Copilotの変更を承認 |
+
+## 使用制限
+
+Copilotの使用量は、基盤となるLLMからのトークン単位で課金されます。使用制限に達すると、Copilotは制限の引き上げを促します。現在のベースから増分($50、$100)で使用量を追加できます。
+
+<Callout type="info">
+  課金の詳細については、[コスト計算ページ](/execution/costs)を参照してください。
+</Callout>
+## Copilot MCP
+
+お気に入りのエディタやAIクライアントで、CopilotをMCPサーバーとして使用できます。これにより、Cursor、Claude Code、Claude Desktop、VS Codeなどのツールから直接、Simワークフローの構築、テスト、デプロイ、管理が可能になります。
+
+### Copilot APIキーの生成
+
+Copilot MCPサーバーに接続するには、**Copilot APIキー**が必要です。
+
+1. [sim.ai](https://sim.ai)にアクセスしてサインイン
+2. **設定** → **Copilot**に移動
+3. **APIキーを生成**をクリック
+4. キーをコピー(一度のみ表示されます)
+
+キーは`sk-sim-copilot-...`のような形式です。以下の設定で使用します。
+
+### Cursor
+
+`.cursor/mcp.json`(プロジェクトレベル)またはグローバルなCursor MCP設定に以下を追加してください。
+
+```json
+{
+  "mcpServers": {
+    "sim-copilot": {
+      "url": "https://www.sim.ai/api/mcp/copilot",
+      "headers": {
+        "X-API-Key": "YOUR_COPILOT_API_KEY"
+      }
+    }
+  }
+}
+```
+
+`YOUR_COPILOT_API_KEY`を上記で生成したキーに置き換えてください。
+
+### Claude Code
+
+次のコマンドを実行してCopilot MCPサーバーを追加します:
+
+```bash
+claude mcp add sim-copilot \
+  --transport http \
+  https://www.sim.ai/api/mcp/copilot \
+  --header "X-API-Key: YOUR_COPILOT_API_KEY"
+```
+
+`YOUR_COPILOT_API_KEY`をあなたのキーに置き換えてください。
+
+### Claude Desktop
+
+Claude DesktopはHTTPベースのMCPサーバーに接続するために[`mcp-remote`](https://www.npmjs.com/package/mcp-remote)が必要です。Claude Desktopの設定ファイル(macOSでは`~/Library/Application Support/Claude/claude_desktop_config.json`)に以下を追加してください:
+
+```json
+{
+  "mcpServers": {
+    "sim-copilot": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://www.sim.ai/api/mcp/copilot",
+        "--header",
+        "X-API-Key: YOUR_COPILOT_API_KEY"
+      ]
+    }
+  }
+}
+```
+
+`YOUR_COPILOT_API_KEY`をあなたのキーに置き換えてください。
+
+### VS Code
+
+VS Codeの`settings.json`またはワークスペースの`.vscode/settings.json`に以下を追加してください:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "sim-copilot": {
+        "type": "http",
+        "url": "https://www.sim.ai/api/mcp/copilot",
+        "headers": {
+          "X-API-Key": "YOUR_COPILOT_API_KEY"
+        }
+      }
+    }
+  }
+}
+```
+
+`YOUR_COPILOT_API_KEY`をあなたのキーに置き換えてください。
+
+<Callout type="info">
+  セルフホスト型デプロイメントの場合は、`https://www.sim.ai`をあなたのセルフホスト型SimのURLに置き換えてください。
+</Callout>

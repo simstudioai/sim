@@ -1,0 +1,83 @@
+---
+title: Tinybird
+description: Send events and query data with Tinybird
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="tinybird"
+  color="#2EF598"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Supercharge your real-time data pipelines and analytics with [Tinybird](https://tinybird.co) – the fast, scalable platform for ingesting, querying, and building APIs on large volumes of event data. Tinybird enables developers and data engineers to collect, transform, and expose data instantly, making it easy to power dashboards, applications, and automation with fresh insights.
+
+With the Tinybird integration, you can:
+
+- **Stream events at scale:** Ingest millions of JSON events per second reliably, using HTTP-based APIs with NDJSON or JSON.
+- **Query data with low latency:** Run complex SQL-based analytics and aggregation queries in real time, ideal for dashboards, alerting, and reports.
+- **Expose data via instant APIs:** Build and publish API endpoints for your queries directly from the Tinybird UI or via their API.
+- **Automate workflows:** Use Tinybird’s APIs in your automations to fetch, transform, and sync data across your stack.
+- **Monitor and debug:** Get insights into pipeline performance, query latencies, and ingestion health with real-time monitoring.
+- **Secure access:** Leverage fine-grained authentication and resource scoping with personal or workspace API tokens.
+
+Tinybird empowers engineering, analytics, and product teams to deliver lightning-fast, always-up-to-date data products with minimal operational overhead. Go from raw event data to production-ready endpoints in minutes.
+
+Connect Tinybird to your workflows today to accelerate data-driven features, automation, and analytics!
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Interact with Tinybird using the Events API to stream JSON or NDJSON events, or use the Query API to execute SQL queries against Pipes and Data Sources.
+
+
+
+## Tools
+
+### `tinybird_events`
+
+Send events to a Tinybird Data Source using the Events API. Supports JSON and NDJSON formats with optional gzip compression.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `base_url` | string | Yes | Tinybird API base URL \(e.g., https://api.tinybird.co or https://api.us-east.tinybird.co\) |
+| `datasource` | string | Yes | Name of the Tinybird Data Source to send events to. Example: "events_raw", "user_analytics" |
+| `data` | string | Yes | Data to send as NDJSON \(newline-delimited JSON\) or JSON string. Each event should be a valid JSON object. Example NDJSON: \{"user_id": 1, "event": "click"\}\\n\{"user_id": 2, "event": "view"\} |
+| `wait` | boolean | No | Wait for database acknowledgment before responding. Enables safer retries but introduces latency. Defaults to false. |
+| `format` | string | No | Format of the events data: "ndjson" \(default\) or "json" |
+| `compression` | string | No | Compression format: "none" \(default\) or "gzip" |
+| `token` | string | Yes | Tinybird API Token with DATASOURCE:APPEND or DATASOURCE:CREATE scope |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `successful_rows` | number | Number of rows successfully ingested |
+| `quarantined_rows` | number | Number of rows quarantined \(failed validation\) |
+
+### `tinybird_query`
+
+Execute SQL queries against Tinybird Pipes and Data Sources using the Query API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `base_url` | string | Yes | Tinybird API base URL \(e.g., https://api.tinybird.co\) |
+| `query` | string | Yes | SQL query to execute. Specify your desired output format \(e.g., FORMAT JSON, FORMAT CSV, FORMAT TSV\). JSON format provides structured data, while other formats return raw text. Example: "SELECT * FROM my_datasource LIMIT 100 FORMAT JSON" |
+| `pipeline` | string | No | Optional pipe name. When provided, enables SELECT * FROM _ syntax. Example: "my_pipe", "analytics_pipe" |
+| `token` | string | Yes | Tinybird API Token with PIPE:READ scope |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | json | Query result data. For FORMAT JSON: array of objects. For other formats \(CSV, TSV, etc.\): raw text string. |
+| `rows` | number | Number of rows returned \(only available with FORMAT JSON\) |
+| `statistics` | json | Query execution statistics - elapsed time, rows read, bytes read \(only available with FORMAT JSON\) |
+
+

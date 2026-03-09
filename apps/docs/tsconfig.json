@@ -1,0 +1,18 @@
+{
+  "extends": "@sim/tsconfig/nextjs.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/.source/*": ["./.source/*"],
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "content/docs/execution/index.mdx",
+    "content/docs/connections/index.mdx"
+  ],
+  "exclude": ["node_modules", ".next"]
+}

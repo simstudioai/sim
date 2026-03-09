@@ -1,0 +1,207 @@
+---
+title: A2A
+description: Interactúa con agentes externos compatibles con A2A
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="a2a"
+  color="#4151B5"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+El protocolo A2A (Agent-to-Agent) permite a Sim interactuar con agentes de IA externos y sistemas que implementan APIs compatibles con A2A. Con A2A, puedes conectar las automatizaciones y flujos de trabajo de Sim a agentes remotos—como bots potenciados por LLM, microservicios y otras herramientas basadas en IA—utilizando un formato de mensajería estandarizado.
+
+Usando las herramientas A2A en Sim, puedes:
+
+- **Enviar mensajes a agentes externos**: Comunícate directamente con agentes remotos, proporcionando prompts, comandos o datos.
+- **Recibir y transmitir respuestas**: Obtén respuestas estructuradas, artefactos o actualizaciones en tiempo real del agente a medida que avanza la tarea.
+- **Continuar conversaciones o tareas**: Mantén conversaciones o flujos de trabajo de múltiples turnos haciendo referencia a IDs de tarea y contexto.
+- **Integrar IA y automatización de terceros**: Aprovecha servicios externos compatibles con A2A como parte de tus flujos de trabajo en Sim.
+
+Estas funcionalidades te permiten construir flujos de trabajo avanzados que combinan las capacidades nativas de Sim con la inteligencia y automatización de IAs externas o agentes personalizados. Para usar integraciones A2A, necesitarás la URL del endpoint del agente externo y, si es necesario, una clave API o credenciales.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Usa el protocolo A2A (Agent-to-Agent) para interactuar con agentes de IA externos.
+
+## Herramientas
+
+### `a2a_send_message`
+
+Envía un mensaje a un agente externo compatible con A2A.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | Sí | La URL del endpoint del agente A2A |
+| `message` | string | Sí | Mensaje para enviar al agente |
+| `taskId` | string | No | ID de tarea para continuar una tarea existente |
+| `contextId` | string | No | ID de contexto para continuidad de conversación |
+| `data` | string | No | Datos estructurados para incluir con el mensaje \(cadena JSON\) |
+| `files` | array | No | Archivos para incluir con el mensaje |
+| `apiKey` | string | No | Clave API para autenticación |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Contenido de respuesta de texto del agente |
+| `taskId` | string | Identificador único de tarea |
+| `contextId` | string | Agrupa tareas/mensajes relacionados |
+| `state` | string | Estado actual del ciclo de vida \(working, completed, failed, canceled, rejected, input_required, auth_required\) |
+| `artifacts` | array | Artefactos de salida de la tarea |
+| `history` | array | Historial de conversación \(array de mensajes\) |
+
+### `a2a_get_task`
+
+Consulta el estado de una tarea A2A existente.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | Sí | La URL del endpoint del agente A2A |
+| `taskId` | string | Sí | ID de tarea a consultar |
+| `apiKey` | string | No | Clave API para autenticación |
+| `historyLength` | number | No | Número de mensajes del historial a incluir |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `taskId` | string | Identificador único de tarea |
+| `contextId` | string | Agrupa tareas/mensajes relacionados |
+| `state` | string | Estado actual del ciclo de vida \(working, completed, failed, canceled, rejected, input_required, auth_required\) |
+| `artifacts` | array | Artefactos de salida de la tarea |
+| `history` | array | Historial de conversación \(array de mensajes\) |
+
+### `a2a_cancel_task`
+
+Cancela una tarea A2A en ejecución.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | Sí | La URL del endpoint del agente A2A |
+| `taskId` | string | Sí | ID de tarea a cancelar |
+| `apiKey` | string | No | Clave API para autenticación |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `cancelled` | boolean | Si la cancelación fue exitosa |
+| `state` | string | Estado actual del ciclo de vida \(working, completed, failed, canceled, rejected, input_required, auth_required\) |
+
+### `a2a_get_agent_card`
+
+Obtener la tarjeta del agente (documento de descubrimiento) para un agente A2A.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | Sí | La URL del endpoint del agente A2A |
+| `apiKey` | string | No | Clave API para autenticación \(si es requerida\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `name` | string | Nombre para mostrar del agente |
+| `description` | string | Propósito/capacidades del agente |
+| `url` | string | URL del endpoint del servicio |
+| `provider` | object | Detalles de la organización creadora |
+| `capabilities` | object | Matriz de soporte de características |
+| `skills` | array | Operaciones disponibles |
+| `version` | string | Versión del protocolo A2A soportada por el agente |
+| `defaultInputModes` | array | Tipos de contenido de entrada predeterminados aceptados por el agente |
+| `defaultOutputModes` | array | Tipos de contenido de salida predeterminados producidos por el agente |
+
+### `a2a_resubscribe`
+
+Reconectar a un flujo de tarea A2A en curso después de una interrupción de conexión.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | Sí | La URL del endpoint del agente A2A |
+| `taskId` | string | Sí | ID de tarea para resuscribirse |
+| `apiKey` | string | No | Clave API para autenticación |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `taskId` | string | Identificador único de tarea |
+| `contextId` | string | Agrupa tareas/mensajes relacionados |
+| `state` | string | Estado actual del ciclo de vida \(working, completed, failed, canceled, rejected, input_required, auth_required\) |
+| `isRunning` | boolean | Si la tarea aún se está ejecutando |
+| `artifacts` | array | Artefactos de salida de la tarea |
+| `history` | array | Historial de conversación \(array de mensajes\) |
+
+### `a2a_set_push_notification`
+
+Configura un webhook para recibir notificaciones de actualización de tareas.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | Sí | La URL del endpoint del agente A2A |
+| `taskId` | string | Sí | ID de tarea para configurar notificaciones |
+| `webhookUrl` | string | Sí | URL del webhook HTTPS para recibir notificaciones |
+| `token` | string | No | Token para validación del webhook |
+| `apiKey` | string | No | Clave API para autenticación |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `url` | string | URL del webhook HTTPS para notificaciones |
+| `token` | string | Token de autenticación para validación del webhook |
+| `success` | boolean | Si la operación fue exitosa |
+
+### `a2a_get_push_notification`
+
+Obtiene la configuración del webhook de notificaciones push para una tarea.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | Sí | La URL del endpoint del agente A2A |
+| `taskId` | string | Sí | ID de tarea para obtener la configuración de notificaciones |
+| `apiKey` | string | No | Clave API para autenticación |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `token` | string | Token de autenticación para validación de webhook |
+| `exists` | boolean | Si el recurso existe |
+
+### `a2a_delete_push_notification`
+
+Elimina la configuración de webhook de notificaciones push para una tarea.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | Sí | La URL del endpoint del agente A2A |
+| `taskId` | string | Sí | ID de tarea para eliminar la configuración de notificación |
+| `pushNotificationConfigId` | string | No | ID de configuración de notificación push a eliminar \(opcional - el servidor puede derivarlo del taskId\) |
+| `apiKey` | string | No | Clave API para autenticación |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si la operación fue exitosa |

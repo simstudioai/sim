@@ -1,0 +1,695 @@
+---
+title: Shopify
+description: Manage products, orders, customers, and inventory in your Shopify store
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="shopify"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Shopify](https://www.shopify.com/) is a leading e-commerce platform designed to help merchants build, run, and grow their online stores. Shopify makes it easy to manage every aspect of your store, from products and inventory to orders and customers.
+
+With Shopify in Sim, your agents can:
+
+- **Create and manage products**: Add new products, update product details, and remove products from your store.
+- **List and retrieve orders**: Get information about customer orders, including filtering and order management.
+- **Manage customers**: Access and update customer details, or add new customers to your store.
+- **Adjust inventory levels**: Programmatically change product stock levels to keep your inventory accurate.
+
+Use Sim's Shopify integration to automate common store management workflows—such as syncing inventory, fulfilling orders, or managing listings—directly from your automations. Empower your agents to access, update, and organize all your store data using simple, programmatic tools.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Shopify into your workflow. Manage products, orders, customers, and inventory. Create, read, update, and delete products. List and manage orders. Handle customer data and adjust inventory levels.
+
+
+
+## Tools
+
+### `shopify_create_product`
+
+Create a new product in your Shopify store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `title` | string | Yes | Product title |
+| `descriptionHtml` | string | No | Product description \(HTML\) |
+| `vendor` | string | No | Product vendor/brand |
+| `productType` | string | No | Product type/category |
+| `tags` | array | No | Product tags |
+| `status` | string | No | Product status \(ACTIVE, DRAFT, ARCHIVED\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `product` | object | The created product |
+|   ↳ `id` | string | Unique product identifier \(GID\) |
+|   ↳ `title` | string | Product title |
+|   ↳ `handle` | string | URL-friendly product identifier |
+|   ↳ `descriptionHtml` | string | Product description in HTML format |
+|   ↳ `vendor` | string | Product vendor or manufacturer |
+|   ↳ `productType` | string | Product type classification |
+|   ↳ `tags` | array | Product tags for categorization |
+|   ↳ `status` | string | Product status \(ACTIVE, DRAFT, ARCHIVED\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `variants` | object | Product variants with edges/nodes structure |
+|   ↳ `images` | object | Product images with edges/nodes structure |
+
+### `shopify_get_product`
+
+Get a single product by ID from your Shopify store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `productId` | string | Yes | Product ID \(gid://shopify/Product/123456789\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `product` | object | The product details |
+|   ↳ `id` | string | Unique product identifier \(GID\) |
+|   ↳ `title` | string | Product title |
+|   ↳ `handle` | string | URL-friendly product identifier |
+|   ↳ `descriptionHtml` | string | Product description in HTML format |
+|   ↳ `vendor` | string | Product vendor or manufacturer |
+|   ↳ `productType` | string | Product type classification |
+|   ↳ `tags` | array | Product tags for categorization |
+|   ↳ `status` | string | Product status \(ACTIVE, DRAFT, ARCHIVED\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `variants` | object | Product variants with edges/nodes structure |
+|   ↳ `images` | object | Product images with edges/nodes structure |
+
+### `shopify_list_products`
+
+List products from your Shopify store with optional filtering
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `first` | number | No | Number of products to return \(default: 50, max: 250\) |
+| `query` | string | No | Search query to filter products \(e.g., "title:shirt" or "vendor:Nike" or "status:active"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `products` | array | List of products |
+|   ↳ `id` | string | Unique product identifier \(GID\) |
+|   ↳ `title` | string | Product title |
+|   ↳ `handle` | string | URL-friendly product identifier |
+|   ↳ `descriptionHtml` | string | Product description in HTML format |
+|   ↳ `vendor` | string | Product vendor or manufacturer |
+|   ↳ `productType` | string | Product type classification |
+|   ↳ `tags` | array | Product tags for categorization |
+|   ↳ `status` | string | Product status \(ACTIVE, DRAFT, ARCHIVED\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `variants` | object | Product variants with edges/nodes structure |
+|   ↳ `images` | object | Product images with edges/nodes structure |
+| `pageInfo` | object | Pagination information |
+|   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
+
+### `shopify_update_product`
+
+Update an existing product in your Shopify store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `productId` | string | Yes | Product ID to update \(gid://shopify/Product/123456789\) |
+| `title` | string | No | New product title |
+| `descriptionHtml` | string | No | New product description \(HTML\) |
+| `vendor` | string | No | New product vendor/brand |
+| `productType` | string | No | New product type/category |
+| `tags` | array | No | New product tags |
+| `status` | string | No | New product status \(ACTIVE, DRAFT, ARCHIVED\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `product` | object | The updated product |
+|   ↳ `id` | string | Unique product identifier \(GID\) |
+|   ↳ `title` | string | Product title |
+|   ↳ `handle` | string | URL-friendly product identifier |
+|   ↳ `descriptionHtml` | string | Product description in HTML format |
+|   ↳ `vendor` | string | Product vendor or manufacturer |
+|   ↳ `productType` | string | Product type classification |
+|   ↳ `tags` | array | Product tags for categorization |
+|   ↳ `status` | string | Product status \(ACTIVE, DRAFT, ARCHIVED\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `variants` | object | Product variants with edges/nodes structure |
+|   ↳ `images` | object | Product images with edges/nodes structure |
+
+### `shopify_delete_product`
+
+Delete a product from your Shopify store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `productId` | string | Yes | Product ID to delete \(gid://shopify/Product/123456789\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deletedId` | string | The ID of the deleted product |
+
+### `shopify_get_order`
+
+Get a single order by ID from your Shopify store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `orderId` | string | Yes | Order ID \(gid://shopify/Order/123456789\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `order` | object | The order details |
+|   ↳ `id` | string | Unique order identifier \(GID\) |
+|   ↳ `name` | string | Order name \(e.g., #1001\) |
+|   ↳ `email` | string | Customer email for the order |
+|   ↳ `phone` | string | Customer phone for the order |
+|   ↳ `createdAt` | string | Order creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `cancelledAt` | string | Cancellation timestamp \(ISO 8601\) |
+|   ↳ `closedAt` | string | Closure timestamp \(ISO 8601\) |
+|   ↳ `displayFinancialStatus` | string | Financial status \(PENDING, AUTHORIZED, PARTIALLY_PAID, PAID, PARTIALLY_REFUNDED, REFUNDED, VOIDED\) |
+|   ↳ `displayFulfillmentStatus` | string | Fulfillment status \(UNFULFILLED, PARTIALLY_FULFILLED, FULFILLED, RESTOCKED, PENDING_FULFILLMENT, OPEN, IN_PROGRESS, ON_HOLD, SCHEDULED\) |
+|   ↳ `totalPriceSet` | object | Total order price |
+|   ↳ `subtotalPriceSet` | object | Order subtotal \(before shipping and taxes\) |
+|   ↳ `totalTaxSet` | object | Total tax amount |
+|   ↳ `totalShippingPriceSet` | object | Total shipping price |
+|   ↳ `note` | string | Order note |
+|   ↳ `tags` | array | Order tags |
+|   ↳ `customer` | object | Customer who placed the order |
+|   ↳ `lineItems` | object | Order line items with edges/nodes structure |
+|   ↳ `shippingAddress` | object | Shipping address |
+|   ↳ `billingAddress` | object | Billing address |
+|   ↳ `fulfillments` | array | Order fulfillments |
+
+### `shopify_list_orders`
+
+List orders from your Shopify store with optional filtering
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `first` | number | No | Number of orders to return \(default: 50, max: 250\) |
+| `status` | string | No | Filter by order status \(open, closed, cancelled, any\) |
+| `query` | string | No | Search query to filter orders \(e.g., "financial_status:paid" or "fulfillment_status:unfulfilled" or "email:customer@example.com"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orders` | array | List of orders |
+|   ↳ `id` | string | Unique order identifier \(GID\) |
+|   ↳ `name` | string | Order name \(e.g., #1001\) |
+|   ↳ `email` | string | Customer email for the order |
+|   ↳ `phone` | string | Customer phone for the order |
+|   ↳ `createdAt` | string | Order creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `cancelledAt` | string | Cancellation timestamp \(ISO 8601\) |
+|   ↳ `closedAt` | string | Closure timestamp \(ISO 8601\) |
+|   ↳ `displayFinancialStatus` | string | Financial status \(PENDING, AUTHORIZED, PARTIALLY_PAID, PAID, PARTIALLY_REFUNDED, REFUNDED, VOIDED\) |
+|   ↳ `displayFulfillmentStatus` | string | Fulfillment status \(UNFULFILLED, PARTIALLY_FULFILLED, FULFILLED, RESTOCKED, PENDING_FULFILLMENT, OPEN, IN_PROGRESS, ON_HOLD, SCHEDULED\) |
+|   ↳ `totalPriceSet` | object | Total order price |
+|   ↳ `subtotalPriceSet` | object | Order subtotal \(before shipping and taxes\) |
+|   ↳ `totalTaxSet` | object | Total tax amount |
+|   ↳ `totalShippingPriceSet` | object | Total shipping price |
+|   ↳ `note` | string | Order note |
+|   ↳ `tags` | array | Order tags |
+|   ↳ `customer` | object | Customer who placed the order |
+|   ↳ `lineItems` | object | Order line items with edges/nodes structure |
+|   ↳ `shippingAddress` | object | Shipping address |
+|   ↳ `billingAddress` | object | Billing address |
+|   ↳ `fulfillments` | array | Order fulfillments |
+| `pageInfo` | object | Pagination information |
+|   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
+
+### `shopify_update_order`
+
+Update an existing order in your Shopify store (note, tags, email)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `orderId` | string | Yes | Order ID to update \(gid://shopify/Order/123456789\) |
+| `note` | string | No | New order note |
+| `tags` | array | No | New order tags |
+| `email` | string | No | New customer email for the order |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `order` | object | The updated order |
+|   ↳ `id` | string | Unique order identifier \(GID\) |
+|   ↳ `name` | string | Order name \(e.g., #1001\) |
+|   ↳ `email` | string | Customer email for the order |
+|   ↳ `phone` | string | Customer phone for the order |
+|   ↳ `createdAt` | string | Order creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `cancelledAt` | string | Cancellation timestamp \(ISO 8601\) |
+|   ↳ `closedAt` | string | Closure timestamp \(ISO 8601\) |
+|   ↳ `displayFinancialStatus` | string | Financial status \(PENDING, AUTHORIZED, PARTIALLY_PAID, PAID, PARTIALLY_REFUNDED, REFUNDED, VOIDED\) |
+|   ↳ `displayFulfillmentStatus` | string | Fulfillment status \(UNFULFILLED, PARTIALLY_FULFILLED, FULFILLED, RESTOCKED, PENDING_FULFILLMENT, OPEN, IN_PROGRESS, ON_HOLD, SCHEDULED\) |
+|   ↳ `totalPriceSet` | object | Total order price |
+|   ↳ `subtotalPriceSet` | object | Order subtotal \(before shipping and taxes\) |
+|   ↳ `totalTaxSet` | object | Total tax amount |
+|   ↳ `totalShippingPriceSet` | object | Total shipping price |
+|   ↳ `note` | string | Order note |
+|   ↳ `tags` | array | Order tags |
+|   ↳ `customer` | object | Customer who placed the order |
+|   ↳ `lineItems` | object | Order line items with edges/nodes structure |
+|   ↳ `shippingAddress` | object | Shipping address |
+|   ↳ `billingAddress` | object | Billing address |
+|   ↳ `fulfillments` | array | Order fulfillments |
+
+### `shopify_cancel_order`
+
+Cancel an order in your Shopify store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `orderId` | string | Yes | Order ID to cancel \(gid://shopify/Order/123456789\) |
+| `reason` | string | Yes | Cancellation reason \(CUSTOMER, DECLINED, FRAUD, INVENTORY, STAFF, OTHER\) |
+| `notifyCustomer` | boolean | No | Whether to notify the customer about the cancellation |
+| `refund` | boolean | No | Whether to refund the order |
+| `restock` | boolean | No | Whether to restock the inventory |
+| `staffNote` | string | No | A note about the cancellation for staff reference |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `order` | object | The cancellation result |
+|   ↳ `id` | string | Job identifier for the cancellation |
+|   ↳ `cancelled` | boolean | Whether the cancellation completed |
+|   ↳ `message` | string | Status message |
+
+### `shopify_create_customer`
+
+Create a new customer in your Shopify store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `email` | string | No | Customer email address |
+| `firstName` | string | No | Customer first name |
+| `lastName` | string | No | Customer last name |
+| `phone` | string | No | Customer phone number |
+| `note` | string | No | Note about the customer |
+| `tags` | array | No | Customer tags |
+| `addresses` | array | No | Customer addresses |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customer` | object | The created customer |
+|   ↳ `id` | string | Unique customer identifier \(GID\) |
+|   ↳ `email` | string | Customer email address |
+|   ↳ `firstName` | string | Customer first name |
+|   ↳ `lastName` | string | Customer last name |
+|   ↳ `phone` | string | Customer phone number |
+|   ↳ `createdAt` | string | Account creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `note` | string | Internal notes about the customer |
+|   ↳ `tags` | array | Customer tags for categorization |
+|   ↳ `amountSpent` | object | Total amount spent by customer |
+|   ↳ `addresses` | array | Customer addresses |
+|   ↳ `defaultAddress` | object | Customer default address |
+
+### `shopify_get_customer`
+
+Get a single customer by ID from your Shopify store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `customerId` | string | Yes | Customer ID \(gid://shopify/Customer/123456789\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customer` | object | The customer details |
+|   ↳ `id` | string | Unique customer identifier \(GID\) |
+|   ↳ `email` | string | Customer email address |
+|   ↳ `firstName` | string | Customer first name |
+|   ↳ `lastName` | string | Customer last name |
+|   ↳ `phone` | string | Customer phone number |
+|   ↳ `createdAt` | string | Account creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `note` | string | Internal notes about the customer |
+|   ↳ `tags` | array | Customer tags for categorization |
+|   ↳ `amountSpent` | object | Total amount spent by customer |
+|   ↳ `addresses` | array | Customer addresses |
+|   ↳ `defaultAddress` | object | Customer default address |
+
+### `shopify_list_customers`
+
+List customers from your Shopify store with optional filtering
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `first` | number | No | Number of customers to return \(default: 50, max: 250\) |
+| `query` | string | No | Search query to filter customers \(e.g., "first_name:John" or "last_name:Smith" or "email:*@gmail.com" or "tag:vip"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customers` | array | List of customers |
+|   ↳ `id` | string | Unique customer identifier \(GID\) |
+|   ↳ `email` | string | Customer email address |
+|   ↳ `firstName` | string | Customer first name |
+|   ↳ `lastName` | string | Customer last name |
+|   ↳ `phone` | string | Customer phone number |
+|   ↳ `createdAt` | string | Account creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `note` | string | Internal notes about the customer |
+|   ↳ `tags` | array | Customer tags for categorization |
+|   ↳ `amountSpent` | object | Total amount spent by customer |
+|   ↳ `addresses` | array | Customer addresses |
+|   ↳ `defaultAddress` | object | Customer default address |
+| `pageInfo` | object | Pagination information |
+|   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
+
+### `shopify_update_customer`
+
+Update an existing customer in your Shopify store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `customerId` | string | Yes | Customer ID to update \(gid://shopify/Customer/123456789\) |
+| `email` | string | No | New customer email address |
+| `firstName` | string | No | New customer first name |
+| `lastName` | string | No | New customer last name |
+| `phone` | string | No | New customer phone number |
+| `note` | string | No | New note about the customer |
+| `tags` | array | No | New customer tags |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customer` | object | The updated customer |
+|   ↳ `id` | string | Unique customer identifier \(GID\) |
+|   ↳ `email` | string | Customer email address |
+|   ↳ `firstName` | string | Customer first name |
+|   ↳ `lastName` | string | Customer last name |
+|   ↳ `phone` | string | Customer phone number |
+|   ↳ `createdAt` | string | Account creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `note` | string | Internal notes about the customer |
+|   ↳ `tags` | array | Customer tags for categorization |
+|   ↳ `amountSpent` | object | Total amount spent by customer |
+|   ↳ `addresses` | array | Customer addresses |
+|   ↳ `defaultAddress` | object | Customer default address |
+
+### `shopify_delete_customer`
+
+Delete a customer from your Shopify store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `customerId` | string | Yes | Customer ID to delete \(gid://shopify/Customer/123456789\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deletedId` | string | The ID of the deleted customer |
+
+### `shopify_list_inventory_items`
+
+List inventory items from your Shopify store. Use this to find inventory item IDs by SKU.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `first` | number | No | Number of inventory items to return \(default: 50, max: 250\) |
+| `query` | string | No | Search query to filter inventory items \(e.g., "sku:ABC123"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inventoryItems` | array | List of inventory items with their IDs, SKUs, and stock levels |
+|   ↳ `id` | string | Unique inventory item identifier \(GID\) |
+|   ↳ `sku` | string | Stock keeping unit |
+|   ↳ `tracked` | boolean | Whether inventory is tracked |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `variant` | object | Associated product variant |
+|     ↳ `id` | string | Variant identifier \(GID\) |
+|     ↳ `title` | string | Variant title |
+|     ↳ `product` | object | Associated product |
+|       ↳ `id` | string | Product identifier \(GID\) |
+|       ↳ `title` | string | Product title |
+|   ↳ `inventoryLevels` | array | Inventory levels at different locations |
+|     ↳ `id` | string | Inventory level identifier \(GID\) |
+|     ↳ `available` | number | Available quantity |
+|     ↳ `location` | object | Location for this inventory level |
+|       ↳ `id` | string | Location identifier \(GID\) |
+|       ↳ `name` | string | Location name |
+| `pageInfo` | object | Pagination information |
+|   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
+
+### `shopify_get_inventory_level`
+
+Get inventory level for a product variant at a specific location
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `inventoryItemId` | string | Yes | Inventory item ID \(gid://shopify/InventoryItem/123456789\) |
+| `locationId` | string | No | Location ID to filter by \(optional\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inventoryLevel` | object | The inventory level details |
+|   ↳ `id` | string | Inventory item identifier \(GID\) |
+|   ↳ `sku` | string | Stock keeping unit |
+|   ↳ `tracked` | boolean | Whether inventory is tracked |
+|   ↳ `levels` | array | Inventory levels at different locations |
+|     ↳ `id` | string | Inventory level identifier \(GID\) |
+|     ↳ `available` | number | Available quantity |
+|     ↳ `onHand` | number | On-hand quantity |
+|     ↳ `committed` | number | Committed quantity |
+|     ↳ `incoming` | number | Incoming quantity |
+|     ↳ `reserved` | number | Reserved quantity |
+|     ↳ `location` | object | Location for this inventory level |
+|       ↳ `id` | string | Location identifier \(GID\) |
+|       ↳ `name` | string | Location name |
+
+### `shopify_adjust_inventory`
+
+Adjust inventory quantity for a product variant at a specific location
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `inventoryItemId` | string | Yes | Inventory item ID \(gid://shopify/InventoryItem/123456789\) |
+| `locationId` | string | Yes | Location ID \(gid://shopify/Location/123456789\) |
+| `delta` | number | Yes | Amount to adjust \(positive to increase, negative to decrease\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inventoryLevel` | object | The inventory adjustment result |
+|   ↳ `adjustmentGroup` | object | Inventory adjustment group details |
+|     ↳ `createdAt` | string | Adjustment timestamp \(ISO 8601\) |
+|     ↳ `reason` | string | Adjustment reason |
+|   ↳ `changes` | array | Inventory changes applied |
+|     ↳ `name` | string | Quantity name \(e.g., available\) |
+|     ↳ `delta` | number | Quantity change amount |
+|     ↳ `quantityAfterChange` | number | Quantity after adjustment |
+|     ↳ `item` | object | Inventory item |
+|       ↳ `id` | string | Inventory item identifier \(GID\) |
+|       ↳ `sku` | string | Stock keeping unit |
+|     ↳ `location` | object | Location of the adjustment |
+|       ↳ `id` | string | Location identifier \(GID\) |
+|       ↳ `name` | string | Location name |
+
+### `shopify_list_locations`
+
+List inventory locations from your Shopify store. Use this to find location IDs needed for inventory operations.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `first` | number | No | Number of locations to return \(default: 50, max: 250\) |
+| `includeInactive` | boolean | No | Whether to include deactivated locations \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `locations` | array | List of locations with their IDs, names, and addresses |
+|   ↳ `id` | string | Unique location identifier \(GID\) |
+|   ↳ `name` | string | Location name |
+|   ↳ `isActive` | boolean | Whether the location is active |
+|   ↳ `fulfillsOnlineOrders` | boolean | Whether the location fulfills online orders |
+|   ↳ `address` | object | Location address |
+| `pageInfo` | object | Pagination information |
+|   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
+
+### `shopify_create_fulfillment`
+
+Create a fulfillment to mark order items as shipped. Requires a fulfillment order ID (get this from the order details).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `fulfillmentOrderId` | string | Yes | The fulfillment order ID \(e.g., gid://shopify/FulfillmentOrder/123456789\) |
+| `trackingNumber` | string | No | Tracking number for the shipment |
+| `trackingCompany` | string | No | Shipping carrier name \(e.g., UPS, FedEx, USPS, DHL\) |
+| `trackingUrl` | string | No | URL to track the shipment |
+| `notifyCustomer` | boolean | No | Whether to send a shipping confirmation email to the customer \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fulfillment` | object | The created fulfillment with tracking info and fulfilled items |
+|   ↳ `id` | string | Unique fulfillment identifier \(GID\) |
+|   ↳ `status` | string | Fulfillment status \(pending, open, success, cancelled, error, failure\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `trackingInfo` | array | Tracking information for shipments |
+|   ↳ `fulfillmentLineItems` | array | Fulfilled line items |
+|     ↳ `id` | string | Fulfillment line item identifier \(GID\) |
+|     ↳ `quantity` | number | Quantity fulfilled |
+|     ↳ `lineItem` | object | Associated order line item |
+|       ↳ `title` | string | Product title |
+
+### `shopify_list_collections`
+
+List product collections from your Shopify store. Filter by title, type (custom/smart), or handle.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `first` | number | No | Number of collections to return \(default: 50, max: 250\) |
+| `query` | string | No | Search query to filter collections \(e.g., "title:Summer" or "collection_type:smart"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `collections` | array | List of collections with their IDs, titles, and product counts |
+|   ↳ `id` | string | Unique collection identifier \(GID\) |
+|   ↳ `title` | string | Collection title |
+|   ↳ `handle` | string | URL-friendly collection identifier |
+|   ↳ `description` | string | Plain text description |
+|   ↳ `descriptionHtml` | string | HTML-formatted description |
+|   ↳ `productsCount` | number | Number of products in the collection |
+|   ↳ `sortOrder` | string | Product sort order in the collection |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `image` | object | Collection image |
+| `pageInfo` | object | Pagination information |
+|   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
+
+### `shopify_get_collection`
+
+Get a specific collection by ID, including its products. Use this to retrieve products within a collection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shopDomain` | string | Yes | Your Shopify store domain \(e.g., mystore.myshopify.com\) |
+| `collectionId` | string | Yes | The collection ID \(e.g., gid://shopify/Collection/123456789\) |
+| `productsFirst` | number | No | Number of products to return from this collection \(default: 50, max: 250\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `collection` | object | The collection details including its products |
+|   ↳ `id` | string | Unique collection identifier \(GID\) |
+|   ↳ `title` | string | Collection title |
+|   ↳ `handle` | string | URL-friendly collection identifier |
+|   ↳ `description` | string | Plain text description |
+|   ↳ `descriptionHtml` | string | HTML-formatted description |
+|   ↳ `productsCount` | number | Number of products in the collection |
+|   ↳ `sortOrder` | string | Product sort order in the collection |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `image` | object | Collection image |
+|   ↳ `products` | array | Products in the collection |
+
+

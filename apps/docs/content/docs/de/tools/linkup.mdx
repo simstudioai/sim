@@ -1,0 +1,57 @@
+---
+title: Linkup
+description: Durchsuche das Web mit Linkup
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="linkup"
+  color="#D6D3C7"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Linkup](https://linkup.so) ist ein leistungsstarkes Web-Suchwerkzeug, das sich nahtlos in Sim integrieren lässt und es deinen KI-Agenten ermöglicht, auf aktuelle Informationen aus dem Web mit korrekter Quellenangabe zuzugreifen.
+
+Linkup verbessert deine KI-Agenten, indem es ihnen die Möglichkeit gibt, im Web nach aktuellen Informationen zu suchen. Bei der Integration in das Toolkit deines Agenten:
+
+- **Echtzeit-Informationszugriff**: Agenten können die neuesten Informationen aus dem Web abrufen und so ihre Antworten aktuell und relevant halten.
+- **Quellenangabe**: Alle Informationen werden mit korrekten Zitaten versehen, was Transparenz und Glaubwürdigkeit gewährleistet.
+- **Einfache Implementierung**: Füge Linkup mit minimaler Konfiguration zum Werkzeugkasten deines Agenten hinzu.
+- **Kontextbewusstsein**: Agenten können Webinformationen nutzen und dabei ihre Persönlichkeit und ihren Gesprächsstil beibehalten.
+
+Um Linkup in deinem Agenten zu implementieren, füge das Tool einfach zur Konfiguration deines Agenten hinzu. Dein Agent kann dann im Web suchen, wann immer er Fragen beantworten muss, die aktuelle Informationen erfordern.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integriere Linkup in den Workflow. Kann das Web durchsuchen. Benötigt API-Schlüssel.
+
+## Tools
+
+### `linkup_search`
+
+Durchsuche das Web nach Informationen mit Linkup
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | Ja | Die Suchanfrage |
+| `depth` | string | Ja | Suchtiefe (muss entweder "standard" oder "deep" sein) |
+| `outputType` | string | Ja | Art der zurückzugebenden Ausgabe (muss "sourcedAnswer" oder "searchResults" sein) |
+| `apiKey` | string | Ja | Geben Sie Ihren Linkup API-Schlüssel ein |
+| `includeImages` | boolean | Nein | Ob Bilder in Suchergebnissen enthalten sein sollen |
+| `fromDate` | string | Nein | Startdatum für die Filterung von Ergebnissen (Format JJJJ-MM-TT) |
+| `toDate` | string | Nein | Enddatum für die Filterung von Ergebnissen (Format JJJJ-MM-TT) |
+| `excludeDomains` | string | Nein | Kommagetrennte Liste von Domainnamen, die von Suchergebnissen ausgeschlossen werden sollen |
+| `includeDomains` | string | Nein | Kommagetrennte Liste von Domainnamen, auf die Suchergebnisse beschränkt werden sollen |
+| `includeInlineCitations` | boolean | Nein | Inline-Zitate zu Antworten hinzufügen (gilt nur, wenn outputType "sourcedAnswer" ist) |
+| `includeSources` | boolean | Nein | Quellen in die Antwort einbeziehen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `answer` | string | Die mit Quellen belegte Antwort auf die Suchanfrage |
+| `sources` | array | Array von Quellen, die zur Erstellung der Antwort verwendet wurden, jede enthält Name, URL und Textausschnitt |

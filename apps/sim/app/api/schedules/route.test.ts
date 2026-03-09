@@ -1,0 +1,184 @@
+/**
+ * Tests for schedule GET API route
+ *
+ * @vitest-environment node
+ */
+import { databaseMock, loggerMock, requestUtilsMock } from '@sim/testing'
+import { NextRequest } from 'next/server'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockGetSession, mockAuthorizeWorkflowByWorkspacePermission } = vi.hoisted(() => ({
+  mockGetSession: vi.fn(),
+  mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
+}))
+
+vi.mock('@/lib/auth', () => ({
+  getSession: mockGetSession,
+}))
+
+vi.mock('@/lib/workflows/utils', () => ({
+  authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflowByWorkspacePermission,
+}))
+
+vi.mock('@sim/db', () => databaseMock)
+
+vi.mock('@sim/db/schema', () => ({
+  workflow: { id: 'id', userId: 'userId', workspaceId: 'workspaceId' },
+  workflowSchedule: {
+    workflowId: 'workflowId',
+    blockId: 'blockId',
+    deploymentVersionId: 'deploymentVersionId',
+  },
+  workflowDeploymentVersion: {
+    id: 'id',
+    workflowId: 'workflowId',
+    isActive: 'isActive',
+  },
+}))
+
+vi.mock('drizzle-orm', () => ({
+  eq: vi.fn(),
+  and: vi.fn(),
+  or: vi.fn(),
+  isNull: vi.fn(),
+}))
+
+vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
+
+vi.mock('@sim/logger', () => loggerMock)
+
+import { GET } from '@/app/api/schedules/route'
+
+function createRequest(url: string): NextRequest {
+  return new NextRequest(new URL(url), { method: 'GET' })
+}
+
+const mockDbSelect = databaseMock.db.select as ReturnType<typeof vi.fn>
+
+function mockDbChain(results: any[]) {
+  let callIndex = 0
+  mockDbSelect.mockImplementation(() => ({
+    from: () => ({
+      where: () => ({
+        limit: () => results[callIndex++] || [],
+      }),
+      leftJoin: () => ({
+        where: () => ({
+          limit: () => results[callIndex++] || [],
+        }),
+      }),
+    }),
+  }))
+}
+
+describe('Schedule GET API', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      allowed: true,
+      status: 200,
+      workflow: { id: 'wf-1', workspaceId: 'ws-1' },
+      workspacePermission: 'read',
+    })
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns schedule data for authorized user', async () => {
+    mockDbChain([
+      [
+        {
+          schedule: {
+            id: 'sched-1',
+            cronExpression: '0 9 * * *',
+            status: 'active',
+            failedCount: 0,
+          },
+        },
+      ],
+    ])
+
+    const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
+    const data = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(data.schedule.cronExpression).toBe('0 9 * * *')
+    expect(data.isDisabled).toBe(false)
+  })
+
+  it('returns null when no schedule exists', async () => {
+    mockDbChain([[]])
+
+    const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
+    const data = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(data.schedule).toBeNull()
+  })
+
+  it('requires authentication', async () => {
+    mockGetSession.mockResolvedValue(null)
+
+    const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
+
+    expect(res.status).toBe(401)
+  })
+
+  it('requires workflowId parameter', async () => {
+    const res = await GET(createRequest('http://test/api/schedules'))
+
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 404 for non-existent workflow', async () => {
+    mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      allowed: false,
+      status: 404,
+      message: 'Workflow not found',
+      workflow: null,
+      workspacePermission: null,
+    })
+    mockDbChain([[]])
+
+    const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
+
+    expect(res.status).toBe(404)
+  })
+
+  it('denies access for unauthorized user', async () => {
+    mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      allowed: false,
+      status: 403,
+      message: 'Unauthorized: Access denied to read this workflow',
+      workflow: { id: 'wf-1', workspaceId: 'ws-1' },
+      workspacePermission: null,
+    })
+    mockDbChain([[{ userId: 'other-user', workspaceId: null }]])
+
+    const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
+
+    expect(res.status).toBe(403)
+  })
+
+  it('allows workspace members to view', async () => {
+    mockDbChain([[{ schedule: { id: 'sched-1', status: 'active', failedCount: 0 } }]])
+
+    const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
+
+    expect(res.status).toBe(200)
+  })
+
+  it('indicates disabled schedule with failures', async () => {
+    mockDbChain([[{ schedule: { id: 'sched-1', status: 'disabled', failedCount: 100 } }]])
+
+    const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
+    const data = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(data.isDisabled).toBe(true)
+    expect(data.hasFailures).toBe(true)
+  })
+})

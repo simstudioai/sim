@@ -1,0 +1,107 @@
+---
+title: 将工作流部署为 MCP
+description: 将您的工作流公开为 MCP 工具，供外部 AI 助手和应用程序使用
+---
+
+import { Video } from '@/components/ui/video'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+将您的工作流部署为 MCP 工具，使其可供外部 AI 助手（如 Claude Desktop、Cursor 以及其他兼容 MCP 的客户端）访问。这会让您的工作流变成可随时调用的工具。
+
+## 创建和管理 MCP 服务器
+
+MCP 服务器用于将您的工作流工具进行分组。您可以在工作区设置中创建和管理这些服务器：
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp/mcp-server.mp4" width={700} height={450} />
+</div>
+
+1. 进入 **设置 → MCP 服务器**
+2. 点击 **创建服务器**
+3. 输入名称和可选描述
+4. 复制服务器 URL 以在你的 MCP 客户端中使用
+5. 查看并管理已添加到该服务器的所有工具
+
+## 添加工作流为工具
+
+当您的工作流部署完成后，可以将其公开为 MCP 工具：
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp/mcp-deploy-tool.mp4" width={700} height={450} />
+</div>
+
+1. 打开已部署的工作流
+2. 点击 **部署** 并进入 **MCP** 标签页
+3. 配置工具名称和描述
+4. 为每个参数添加描述（帮助 AI 理解输入）
+5. 选择要添加到的 MCP 服务器
+
+<Callout type="info">
+工作流必须先部署，才能添加为 MCP 工具。
+</Callout>
+
+## 工具配置
+
+### 工具名称
+请使用小写字母、数字和下划线。名称应具有描述性，并遵循 MCP 命名规范（如 `search_documents`、`send_email`）。
+
+### 描述
+请清晰描述该工具的功能。这有助于 AI 助手理解何时使用该工具。
+
+### 参数
+您的工作流输入格式字段会变成工具参数。为每个参数添加描述，有助于 AI 助手提供正确的值。
+
+## 连接 MCP 客户端
+
+使用设置中的服务器 URL 连接外部应用程序：
+
+### Claude Desktop
+将以下内容添加到您的 Claude Desktop 配置中（`~/Library/Application Support/Claude/claude_desktop_config.json`）：
+
+```json
+{
+  "mcpServers": {
+    "my-sim-workflows": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "YOUR_SERVER_URL"]
+    }
+  }
+}
+```
+
+### Cursor
+在 Cursor 的 MCP 设置中，使用相同的 mcp-remote 格式添加服务器 URL。
+
+<Callout type="warn">
+使用 mcp-remote 或其他基于 HTTP 的 MCP 传输方式时，请包含 API key header（`X-API-Key`）以进行身份验证访问。
+</Callout>
+
+## 服务器管理
+
+在 **设置 → MCP 服务器** 的服务器详情页，你可以：
+
+- **查看工具**：查看添加到服务器的所有工作流
+- **复制 URL**：获取 MCP 客户端的服务器 URL
+- **添加工作流**：将更多已部署的工作流添加为工具
+- **移除工具**：从服务器中移除工作流
+- **删除服务器**：移除整个服务器及其所有工具
+
+## 工作原理
+
+当 MCP 客户端调用您的工具时：
+
+1. 请求会发送到您的 MCP 服务器 URL
+2. Sim 验证请求并将参数映射到工作流输入
+3. 已部署的工作流会使用提供的输入执行
+4. 结果返回给 MCP 客户端
+
+工作流执行时使用与 API 调用相同的部署版本，确保行为一致。
+
+## 权限要求
+
+| 操作 | 所需权限 |
+|--------|-------------------|
+| 创建 MCP 服务器 | **Admin** |
+| 向服务器添加工作流 | **Write** 或 **Admin** |
+| 查看 MCP 服务器 | **Read**、**Write** 或 **Admin** |
+| 删除 MCP 服务器 | **Admin** |

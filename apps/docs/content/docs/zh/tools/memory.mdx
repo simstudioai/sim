@@ -1,0 +1,108 @@
+---
+title: 内存
+description: 添加记忆存储
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="memory"
+  color="#F64F9E"
+/>
+
+## 使用说明
+
+将 Memory 集成到工作流程中。可以添加、获取单条记忆、获取所有记忆，以及删除记忆。
+
+## 工具
+
+### `memory_add`
+
+向数据库添加新记忆，或将内容追加到已有相同 ID 的记忆中。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | ---- | ----------- |
+| `conversationId` | string | 否 | 会话标识符（如 user-123、session-abc）。如果已存在该 conversationId 的记忆，则新消息会追加到其中。 |
+| `id` | string | 否 | 旧版会话标识参数。请使用 conversationId，保留用于兼容性。 |
+| `role` | string | 是 | agent 记忆的角色（user、assistant 或 system） |
+| `content` | string | 是 | agent 记忆的内容 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 记忆是否添加成功 |
+| `memories` | array | 包含新建或更新记忆的记忆对象数组 |
+| `error` | string | 操作失败时的错误信息 |
+
+### `memory_get`
+
+根据 conversationId 检索记忆，返回匹配的记忆内容。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | ---- | ----------- |
+| `conversationId` | string | 否 | 会话标识符（如 user-123、session-abc）。返回该会话的记忆。 |
+| `id` | string | 否 | 旧版会话标识参数。请使用 conversationId，保留用于兼容性。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功检索到内存 |
+| `memories` | array | 包含 conversationId 和 data 字段的内存对象数组 |
+| `message` | string | 成功或错误信息 |
+| `error` | string | 操作失败时的错误信息 |
+
+### `memory_get_all`
+
+从数据库中检索所有内存
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功检索到所有内存 |
+| `memories` | array | 包含 key、conversationId 和 data 字段的所有内存对象数组 |
+| `message` | string | 成功或错误信息 |
+| `error` | string | 操作失败时的错误信息 |
+
+### `memory_delete`
+
+根据 conversationId 删除内存。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | 否 | 会话标识符（如 user-123、session-abc）。将删除该会话的所有内存。 |
+| `id` | string | 否 | 旧版会话标识参数。请使用 conversationId，保留用于兼容性。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功删除内存 |
+| `message` | string | 成功或错误信息 |
+| `error` | string | 操作失败时的错误信息 |
+
+## 注意事项
+
+- 类别：`blocks`
+- 类型：`memory`
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功删除了内存 |
+| `message` | string | 成功或错误信息 |
+| `error` | string | 操作失败时的错误信息 |

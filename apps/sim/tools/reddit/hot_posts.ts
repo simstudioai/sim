@@ -1,0 +1,144 @@
+import type { RedditHotPostsResponse, RedditPost } from '@/tools/reddit/types'
+import { normalizeSubreddit } from '@/tools/reddit/utils'
+import type { ToolConfig } from '@/tools/types'
+
+interface HotPostsParams {
+  subreddit: string
+  limit?: number
+  accessToken: string
+}
+
+export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = {
+  id: 'reddit_hot_posts',
+  name: 'Reddit Hot Posts',
+  description: 'Fetch the most popular (hot) posts from a specified subreddit.',
+  version: '1.0.0',
+
+  oauth: {
+    required: true,
+    provider: 'reddit',
+  },
+
+  params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'Access token for Reddit API',
+    },
+    subreddit: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The subreddit to fetch hot posts from (e.g., "technology", "news")',
+    },
+    limit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum number of posts to return (e.g., 25). Default: 10, max: 100',
+    },
+  },
+
+  request: {
+    url: (params) => {
+      const subreddit = normalizeSubreddit(params.subreddit)
+      const limit = Math.min(Math.max(1, params.limit ?? 10), 100)
+
+      return `https://oauth.reddit.com/r/${subreddit}/hot?limit=${limit}&raw_json=1`
+    },
+    method: 'GET',
+    headers: (params: HotPostsParams) => {
+      if (!params.accessToken) {
+        throw new Error('Access token is required for Reddit API')
+      }
+
+      return {
+        Authorization: `Bearer ${params.accessToken}`,
+        'User-Agent': 'sim-studio/1.0 (https://github.com/simstudioai/sim)',
+        Accept: 'application/json',
+      }
+    },
+  },
+
+  transformResponse: async (response: Response, requestParams?: HotPostsParams) => {
+    const data = await response.json()
+
+    // Process the posts data with proper error handling
+    const posts: RedditPost[] =
+      data.data?.children?.map((child: any) => {
+        const post = child.data || {}
+        return {
+          id: post.id ?? '',
+          name: post.name ?? '',
+          title: post.title ?? '',
+          author: post.author || '[deleted]',
+          url: post.url ?? '',
+          permalink: post.permalink ? `https://www.reddit.com${post.permalink}` : '',
+          created_utc: post.created_utc ?? 0,
+          score: post.score ?? 0,
+          num_comments: post.num_comments ?? 0,
+          selftext: post.selftext ?? '',
+          thumbnail:
+            post.thumbnail !== 'self' && post.thumbnail !== 'default' ? post.thumbnail : undefined,
+          is_self: !!post.is_self,
+          subreddit: post.subreddit ?? requestParams?.subreddit ?? '',
+        }
+      }) || []
+
+    // Extract the subreddit name from the response data with fallback
+    const subreddit =
+      data.data?.children?.[0]?.data?.subreddit ||
+      (posts.length > 0 ? posts[0].subreddit : requestParams?.subreddit || '')
+
+    return {
+      success: true,
+      output: {
+        subreddit,
+        posts,
+        after: data.data?.after ?? null,
+        before: data.data?.before ?? null,
+      },
+    }
+  },
+
+  outputs: {
+    subreddit: {
+      type: 'string',
+      description: 'Name of the subreddit where hot posts were fetched from',
+    },
+    posts: {
+      type: 'array',
+      description:
+        'Array of hot posts with title, author, URL, score, comments count, and metadata',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Post ID' },
+          name: { type: 'string', description: 'Thing fullname (t3_xxxxx)' },
+          title: { type: 'string', description: 'Post title' },
+          author: { type: 'string', description: 'Author username' },
+          url: { type: 'string', description: 'Post URL' },
+          permalink: { type: 'string', description: 'Reddit permalink' },
+          score: { type: 'number', description: 'Post score (upvotes - downvotes)' },
+          num_comments: { type: 'number', description: 'Number of comments' },
+          created_utc: { type: 'number', description: 'Creation timestamp (UTC)' },
+          is_self: { type: 'boolean', description: 'Whether this is a text post' },
+          selftext: { type: 'string', description: 'Text content for self posts' },
+          thumbnail: { type: 'string', description: 'Thumbnail URL' },
+          subreddit: { type: 'string', description: 'Subreddit name' },
+        },
+      },
+    },
+    after: {
+      type: 'string',
+      description: 'Fullname of the last item for forward pagination',
+      optional: true,
+    },
+    before: {
+      type: 'string',
+      description: 'Fullname of the first item for backward pagination',
+      optional: true,
+    },
+  },
+}

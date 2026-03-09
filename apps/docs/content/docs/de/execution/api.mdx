@@ -1,0 +1,609 @@
+---
+title: Externe API
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Video } from '@/components/ui/video'
+
+Sim bietet eine umfassende externe API zum Abfragen von Workflow-Ausführungsprotokollen und zum Einrichten von Webhooks für Echtzeit-Benachrichtigungen, wenn Workflows abgeschlossen werden.
+
+## Authentifizierung
+
+Alle API-Anfragen erfordern einen API-Schlüssel, der im Header `x-api-key` übergeben wird:
+
+```bash
+curl -H "x-api-key: YOUR_API_KEY" \
+  https://sim.ai/api/v1/logs?workspaceId=YOUR_WORKSPACE_ID
+```
+
+Sie können API-Schlüssel in Ihren Benutzereinstellungen im Sim-Dashboard generieren.
+
+## Logs-API
+
+Alle API-Antworten enthalten Informationen über Ihre Workflow-Ausführungslimits und -nutzung:
+
+```json
+"limits": {
+  "workflowExecutionRateLimit": {
+    "sync": {
+      "requestsPerMinute": 60,  // Sustained rate limit per minute
+      "maxBurst": 120,          // Maximum burst capacity
+      "remaining": 118,         // Current tokens available (up to maxBurst)
+      "resetAt": "..."          // When tokens next refill
+    },
+    "async": {
+      "requestsPerMinute": 200, // Sustained rate limit per minute
+      "maxBurst": 400,          // Maximum burst capacity
+      "remaining": 398,         // Current tokens available
+      "resetAt": "..."          // When tokens next refill
+    }
+  },
+  "usage": {
+    "currentPeriodCost": 1.234,  // Current billing period usage in USD
+    "limit": 10,                  // Usage limit in USD
+    "plan": "pro",                // Current subscription plan
+    "isExceeded": false           // Whether limit is exceeded
+  }
+}
+```
+
+**Hinweis:** Ratenbegrenzungen verwenden einen Token-Bucket-Algorithmus. `remaining` kann `requestsPerMinute` bis zu `maxBurst` überschreiten, wenn du dein volles Kontingent in letzter Zeit nicht genutzt hast, was Burst-Traffic ermöglicht. Die Ratenbegrenzungen im Antworttext gelten für Workflow-Ausführungen. Die Ratenbegrenzungen für den Aufruf dieses API-Endpunkts befinden sich in den Antwort-Headern (`X-RateLimit-*`).
+
+### Logs abfragen
+
+Fragen Sie Workflow-Ausführungsprotokolle mit umfangreichen Filteroptionen ab.
+
+<Tabs items={['Request', 'Response']}>
+  <Tab value="Request">
+
+    ```http
+    GET /api/v1/logs
+    ```
+
+    **Erforderliche Parameter:**
+    - `workspaceId` - Ihre Workspace-ID
+
+    **Optionale Filter:**
+    - `workflowIds` - Kommagetrennte Workflow-IDs
+    - `folderIds` - Kommagetrennte Ordner-IDs
+    - `triggers` - Kommagetrennte Auslösertypen: `api`, `webhook`, `schedule`, `manual`, `chat`
+    - `level` - Nach Level filtern: `info`, `error`
+    - `startDate` - ISO-Zeitstempel für den Beginn des Datumsbereichs
+    - `endDate` - ISO-Zeitstempel für das Ende des Datumsbereichs
+    - `executionId` - Exakte Übereinstimmung der Ausführungs-ID
+    - `minDurationMs` - Minimale Ausführungsdauer in Millisekunden
+    - `maxDurationMs` - Maximale Ausführungsdauer in Millisekunden
+    - `minCost` - Minimale Ausführungskosten
+    - `maxCost` - Maximale Ausführungskosten
+    - `model` - Nach verwendetem KI-Modell filtern
+
+    **Paginierung:**
+    - `limit` - Ergebnisse pro Seite (Standard: 100)
+    - `cursor` - Cursor für die nächste Seite
+    - `order` - Sortierreihenfolge: `desc`, `asc` (Standard: desc)
+
+    **Detailebene:**
+    - `details` - Detailebene der Antwort: `basic`, `full` (Standard: basic)
+    - `includeTraceSpans` - Trace-Spans einschließen (Standard: false)
+    - `includeFinalOutput` - Endgültige Ausgabe einschließen (Standard: false)
+  </Tab>
+  <Tab value="Response">
+
+    ```json
+    {
+      "data": [
+        {
+          "id": "log_abc123",
+          "workflowId": "wf_xyz789",
+          "executionId": "exec_def456",
+          "level": "info",
+          "trigger": "api",
+          "startedAt": "2025-01-01T12:34:56.789Z",
+          "endedAt": "2025-01-01T12:34:57.123Z",
+          "totalDurationMs": 334,
+          "cost": {
+            "total": 0.00234
+          },
+          "files": null
+        }
+      ],
+      "nextCursor": "eyJzIjoiMjAyNS0wMS0wMVQxMjozNDo1Ni43ODlaIiwiaWQiOiJsb2dfYWJjMTIzIn0",
+      "limits": {
+        "workflowExecutionRateLimit": {
+          "sync": {
+            "requestsPerMinute": 60,
+            "maxBurst": 120,
+            "remaining": 118,
+            "resetAt": "2025-01-01T12:35:56.789Z"
+          },
+          "async": {
+            "requestsPerMinute": 200,
+            "maxBurst": 400,
+            "remaining": 398,
+            "resetAt": "2025-01-01T12:35:56.789Z"
+          }
+        },
+        "usage": {
+          "currentPeriodCost": 1.234,
+          "limit": 10,
+          "plan": "pro",
+          "isExceeded": false
+        }
+      }
+    }
+    ```
+
+  </Tab>
+</Tabs>
+
+### Log-Details abrufen
+
+Rufen Sie detaillierte Informationen zu einem bestimmten Logeintrag ab.
+
+<Tabs items={['Request', 'Response']}>
+  <Tab value="Request">
+
+    ```http
+    GET /api/v1/logs/{id}
+    ```
+
+  </Tab>
+  <Tab value="Response">
+
+    ```json
+    {
+      "data": {
+        "id": "log_abc123",
+        "workflowId": "wf_xyz789",
+        "executionId": "exec_def456",
+        "level": "info",
+        "trigger": "api",
+        "startedAt": "2025-01-01T12:34:56.789Z",
+        "endedAt": "2025-01-01T12:34:57.123Z",
+        "totalDurationMs": 334,
+        "workflow": {
+          "id": "wf_xyz789",
+          "name": "My Workflow",
+          "description": "Process customer data"
+        },
+        "executionData": {
+          "traceSpans": [...],
+          "finalOutput": {...}
+        },
+        "cost": {
+          "total": 0.00234,
+          "tokens": {
+            "prompt": 123,
+            "completion": 456,
+            "total": 579
+          },
+          "models": {
+            "gpt-4o": {
+              "input": 0.001,
+              "output": 0.00134,
+              "total": 0.00234,
+              "tokens": {
+                "prompt": 123,
+                "completion": 456,
+                "total": 579
+              }
+            }
+          }
+        },
+        "limits": {
+          "workflowExecutionRateLimit": {
+            "sync": {
+              "requestsPerMinute": 60,
+              "maxBurst": 120,
+              "remaining": 118,
+              "resetAt": "2025-01-01T12:35:56.789Z"
+            },
+            "async": {
+              "requestsPerMinute": 200,
+              "maxBurst": 400,
+              "remaining": 398,
+              "resetAt": "2025-01-01T12:35:56.789Z"
+            }
+          },
+          "usage": {
+            "currentPeriodCost": 1.234,
+            "limit": 10,
+            "plan": "pro",
+            "isExceeded": false
+          }
+        }
+      }
+    }
+    ```
+
+  </Tab>
+</Tabs>
+
+### Ausführungsdetails abrufen
+
+Rufen Sie Ausführungsdetails einschließlich des Workflow-Zustandsschnappschusses ab.
+
+<Tabs items={['Request', 'Response']}>
+  <Tab value="Request">
+
+    ```http
+    GET /api/v1/logs/executions/{executionId}
+    ```
+
+  </Tab>
+  <Tab value="Response">
+
+    ```json
+    {
+      "executionId": "exec_def456",
+      "workflowId": "wf_xyz789",
+      "workflowState": {
+        "blocks": {...},
+        "edges": [...],
+        "loops": {...},
+        "parallels": {...}
+      },
+      "executionMetadata": {
+        "trigger": "api",
+        "startedAt": "2025-01-01T12:34:56.789Z",
+        "endedAt": "2025-01-01T12:34:57.123Z",
+        "totalDurationMs": 334,
+        "cost": {...}
+      }
+    }
+    ```
+
+  </Tab>
+</Tabs>
+
+## Benachrichtigungen
+
+Erhalten Sie Echtzeit-Benachrichtigungen, wenn Workflow-Ausführungen abgeschlossen sind, per Webhook, E-Mail oder Slack. Benachrichtigungen werden auf Workspace-Ebene von der Protokollseite aus konfiguriert.
+
+### Konfiguration
+
+Konfigurieren Sie Benachrichtigungen von der Protokollseite aus, indem Sie auf die Menütaste klicken und "Benachrichtigungen konfigurieren" auswählen.
+
+**Benachrichtigungskanäle:**
+- **Webhook**: Senden Sie HTTP POST-Anfragen an Ihren Endpunkt
+- **E-Mail**: Erhalten Sie E-Mail-Benachrichtigungen mit Ausführungsdetails
+- **Slack**: Posten Sie Nachrichten in einen Slack-Kanal
+
+**Workflow-Auswahl:**
+- Wählen Sie bestimmte Workflows zur Überwachung aus
+- Oder wählen Sie "Alle Workflows", um aktuelle und zukünftige Workflows einzubeziehen
+
+**Filteroptionen:**
+- `levelFilter`: Zu empfangende Protokollebenen (`info`, `error`)
+- `triggerFilter`: Zu empfangende Auslösertypen (`api`, `webhook`, `schedule`, `manual`, `chat`)
+
+**Optionale Daten:**
+- `includeFinalOutput`: Schließt die endgültige Ausgabe des Workflows ein
+- `includeTraceSpans`: Schließt detaillierte Ausführungs-Trace-Spans ein
+- `includeRateLimits`: Schließt Informationen zum Ratenlimit ein (Sync/Async-Limits und verbleibende)
+- `includeUsageData`: Schließt Abrechnungszeitraum-Nutzung und -Limits ein
+
+### Alarmregeln
+
+Anstatt Benachrichtigungen für jede Ausführung zu erhalten, konfigurieren Sie Alarmregeln, um nur bei erkannten Problemen benachrichtigt zu werden:
+
+**Aufeinanderfolgende Fehler**
+- Alarm nach X aufeinanderfolgenden fehlgeschlagenen Ausführungen (z.B. 3 Fehler in Folge)
+- Wird zurückgesetzt, wenn eine Ausführung erfolgreich ist
+
+**Fehlerrate**
+- Alarm, wenn die Fehlerrate X% in den letzten Y Stunden überschreitet
+- Erfordert mindestens 5 Ausführungen im Zeitfenster
+- Wird erst nach Ablauf des vollständigen Zeitfensters ausgelöst
+
+**Latenz-Schwellenwert**
+- Alarm, wenn eine Ausführung länger als X Sekunden dauert
+- Nützlich zum Erkennen langsamer oder hängender Workflows
+
+**Latenz-Spitze**
+- Alarm, wenn die Ausführung X% langsamer als der Durchschnitt ist
+- Vergleicht mit der durchschnittlichen Dauer über das konfigurierte Zeitfenster
+- Erfordert mindestens 5 Ausführungen, um eine Baseline zu etablieren
+
+**Kostenschwelle**
+- Alarmierung, wenn eine einzelne Ausführung mehr als $X kostet
+- Nützlich, um teure LLM-Aufrufe zu erkennen
+
+**Keine Aktivität**
+- Alarmierung, wenn innerhalb von X Stunden keine Ausführungen stattfinden
+- Nützlich zur Überwachung geplanter Workflows, die regelmäßig ausgeführt werden sollten
+
+**Fehlerzählung**
+- Alarmierung, wenn die Fehleranzahl X innerhalb eines Zeitfensters überschreitet
+- Erfasst die Gesamtfehler, nicht aufeinanderfolgende
+
+Alle Alarmtypen beinhalten eine Abklingzeit von 1 Stunde, um Benachrichtigungsspam zu vermeiden.
+
+### Webhook-Konfiguration
+
+Für Webhooks stehen zusätzliche Optionen zur Verfügung:
+- `url`: Ihre Webhook-Endpunkt-URL
+- `secret`: Optionales Geheimnis für HMAC-Signaturverifizierung
+
+### Payload-Struktur
+
+Wenn eine Workflow-Ausführung abgeschlossen ist, sendet Sim die folgende Payload (über Webhook POST, E-Mail oder Slack):
+
+```json
+{
+  "id": "evt_123",
+  "type": "workflow.execution.completed",
+  "timestamp": 1735925767890,
+  "data": {
+    "workflowId": "wf_xyz789",
+    "executionId": "exec_def456",
+    "status": "success",
+    "level": "info",
+    "trigger": "api",
+    "startedAt": "2025-01-01T12:34:56.789Z",
+    "endedAt": "2025-01-01T12:34:57.123Z",
+    "totalDurationMs": 334,
+    "cost": {
+      "total": 0.00234,
+      "tokens": {
+        "prompt": 123,
+        "completion": 456,
+        "total": 579
+      },
+      "models": {
+        "gpt-4o": {
+          "input": 0.001,
+          "output": 0.00134,
+          "total": 0.00234,
+          "tokens": {
+            "prompt": 123,
+            "completion": 456,
+            "total": 579
+          }
+        }
+      }
+    },
+    "files": null,
+    "finalOutput": {...},  // Only if includeFinalOutput=true
+    "traceSpans": [...],   // Only if includeTraceSpans=true
+    "rateLimits": {...},   // Only if includeRateLimits=true
+    "usage": {...}         // Only if includeUsageData=true
+  },
+  "links": {
+    "log": "/v1/logs/log_abc123",
+    "execution": "/v1/logs/executions/exec_def456"
+  }
+}
+```
+
+### Webhook-Header
+
+Jede Webhook-Anfrage enthält diese Header (nur Webhook-Kanal):
+
+- `sim-event`: Ereignistyp (immer `workflow.execution.completed`)
+- `sim-timestamp`: Unix-Zeitstempel in Millisekunden
+- `sim-delivery-id`: Eindeutige Zustell-ID für Idempotenz
+- `sim-signature`: HMAC-SHA256-Signatur zur Verifizierung (falls Geheimnis konfiguriert)
+- `Idempotency-Key`: Gleich wie Zustell-ID zur Erkennung von Duplikaten
+
+### Signaturverifizierung
+
+Wenn Sie ein Webhook-Geheimnis konfigurieren, überprüfen Sie die Signatur, um sicherzustellen, dass der Webhook von Sim stammt:
+
+<Tabs items={['Node.js', 'Python']}>
+  <Tab value="Node.js">
+
+    ```javascript
+    import crypto from 'crypto';
+
+    function verifyWebhookSignature(body, signature, secret) {
+      const [timestampPart, signaturePart] = signature.split(',');
+      const timestamp = timestampPart.replace('t=', '');
+      const expectedSignature = signaturePart.replace('v1=', '');
+      
+      const signatureBase = `${timestamp}.${body}`;
+      const hmac = crypto.createHmac('sha256', secret);
+      hmac.update(signatureBase);
+      const computedSignature = hmac.digest('hex');
+      
+      return computedSignature === expectedSignature;
+    }
+
+    // In your webhook handler
+    app.post('/webhook', (req, res) => {
+      const signature = req.headers['sim-signature'];
+      const body = JSON.stringify(req.body);
+      
+      if (!verifyWebhookSignature(body, signature, process.env.WEBHOOK_SECRET)) {
+        return res.status(401).send('Invalid signature');
+      }
+      
+      // Process the webhook...
+    });
+    ```
+
+  </Tab>
+  <Tab value="Python">
+
+    ```python
+    import hmac
+    import hashlib
+    import json
+
+    def verify_webhook_signature(body: str, signature: str, secret: str) -> bool:
+        timestamp_part, signature_part = signature.split(',')
+        timestamp = timestamp_part.replace('t=', '')
+        expected_signature = signature_part.replace('v1=', '')
+        
+        signature_base = f"{timestamp}.{body}"
+        computed_signature = hmac.new(
+            secret.encode(),
+            signature_base.encode(),
+            hashlib.sha256
+        ).hexdigest()
+        
+        return hmac.compare_digest(computed_signature, expected_signature)
+
+    # In your webhook handler
+    @app.route('/webhook', methods=['POST'])
+    def webhook():
+        signature = request.headers.get('sim-signature')
+        body = json.dumps(request.json)
+        
+        if not verify_webhook_signature(body, signature, os.environ['WEBHOOK_SECRET']):
+            return 'Invalid signature', 401
+        
+        # Process the webhook...
+    ```
+
+  </Tab>
+</Tabs>
+
+### Wiederholungsrichtlinie
+
+Fehlgeschlagene Webhook-Zustellungen werden mit exponentiellem Backoff und Jitter wiederholt:
+
+- Maximale Versuche: 5
+- Wiederholungsverzögerungen: 5 Sekunden, 15 Sekunden, 1 Minute, 3 Minuten, 10 Minuten
+- Jitter: Bis zu 10% zusätzliche Verzögerung, um Überlastung zu vermeiden
+- Nur HTTP 5xx und 429 Antworten lösen Wiederholungen aus
+- Zustellungen haben ein Timeout nach 30 Sekunden
+
+<Callout type="info">
+  Webhook-Zustellungen werden asynchron verarbeitet und beeinträchtigen nicht die Leistung der Workflow-Ausführung.
+</Callout>
+
+## Best Practices
+
+1. **Polling-Strategie**: Verwende bei der Abfrage von Logs eine cursor-basierte Paginierung mit `order=asc` und `startDate`, um neue Logs effizient abzurufen.
+
+2. **Webhook-Sicherheit**: Konfiguriere immer ein Webhook-Secret und überprüfe Signaturen, um sicherzustellen, dass Anfragen von Sim stammen.
+
+3. **Idempotenz**: Verwende den `Idempotency-Key`Header, um doppelte Webhook-Zustellungen zu erkennen und zu behandeln.
+
+4. **Datenschutz**: Standardmäßig werden `finalOutput` und `traceSpans` aus den Antworten ausgeschlossen. Aktiviere diese nur, wenn du die Daten benötigst und die Datenschutzauswirkungen verstehst.
+
+5. **Rate-Limiting**: Implementiere exponentielles Backoff, wenn du 429-Antworten erhältst. Überprüfe den `Retry-After`Header für die empfohlene Wartezeit.
+
+## Rate-Limiting
+
+Die API verwendet einen **Token-Bucket-Algorithmus** für die Ratenbegrenzung, der eine faire Nutzung ermöglicht und gleichzeitig Burst-Traffic zulässt:
+
+| Plan | Anfragen/Minute | Burst-Kapazität |
+|------|-----------------|----------------|
+| Free | 10 | 20 |
+| Pro | 30 | 60 |
+| Team | 60 | 120 |
+| Enterprise | 120 | 240 |
+
+**Wie es funktioniert:**
+- Tokens werden mit der Rate `requestsPerMinute` aufgefüllt
+- Du kannst im Leerlauf bis zu `maxBurst` Tokens ansammeln
+- Jede Anfrage verbraucht 1 Token
+- Die Burst-Kapazität ermöglicht die Bewältigung von Verkehrsspitzen
+
+Informationen zur Ratenbegrenzung sind in den Antwort-Headern enthalten:
+- `X-RateLimit-Limit`: Anfragen pro Minute (Auffüllrate)
+- `X-RateLimit-Remaining`: Aktuell verfügbare Tokens
+- `X-RateLimit-Reset`: ISO-Zeitstempel, wann Tokens als nächstes aufgefüllt werden
+
+## Beispiel: Abfragen nach neuen Logs
+
+```javascript
+let cursor = null;
+const workspaceId = 'YOUR_WORKSPACE_ID';
+const startDate = new Date().toISOString();
+
+async function pollLogs() {
+  const params = new URLSearchParams({
+    workspaceId,
+    startDate,
+    order: 'asc',
+    limit: '100'
+  });
+  
+  if (cursor) {
+    params.append('cursor', cursor);
+  }
+  
+  const response = await fetch(
+    `https://sim.ai/api/v1/logs?${params}`,
+    {
+      headers: {
+        'x-api-key': 'YOUR_API_KEY'
+      }
+    }
+  );
+  
+  if (response.ok) {
+    const data = await response.json();
+    
+    // Process new logs
+    for (const log of data.data) {
+      console.log(`New execution: ${log.executionId}`);
+    }
+    
+    // Update cursor for next poll
+    if (data.nextCursor) {
+      cursor = data.nextCursor;
+    }
+  }
+}
+
+// Poll every 30 seconds
+setInterval(pollLogs, 30000);
+```
+
+## Beispiel: Verarbeitung von Webhooks
+
+```javascript
+import express from 'express';
+import crypto from 'crypto';
+
+const app = express();
+app.use(express.json());
+
+app.post('/sim-webhook', (req, res) => {
+  // Verify signature
+  const signature = req.headers['sim-signature'];
+  const body = JSON.stringify(req.body);
+  
+  if (!verifyWebhookSignature(body, signature, process.env.WEBHOOK_SECRET)) {
+    return res.status(401).send('Invalid signature');
+  }
+  
+  // Check timestamp to prevent replay attacks
+  const timestamp = parseInt(req.headers['sim-timestamp']);
+  const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+  
+  if (timestamp < fiveMinutesAgo) {
+    return res.status(401).send('Timestamp too old');
+  }
+  
+  // Process the webhook
+  const event = req.body;
+  
+  switch (event.type) {
+    case 'workflow.execution.completed':
+      const { workflowId, executionId, status, cost } = event.data;
+      
+      if (status === 'error') {
+        console.error(`Workflow ${workflowId} failed: ${executionId}`);
+        // Handle error...
+      } else {
+        console.log(`Workflow ${workflowId} completed: ${executionId}`);
+        console.log(`Cost: $${cost.total}`);
+        // Process successful execution...
+      }
+      break;
+  }
+  
+  // Return 200 to acknowledge receipt
+  res.status(200).send('OK');
+});
+
+app.listen(3000, () => {
+  console.log('Webhook server listening on port 3000');
+});
+```

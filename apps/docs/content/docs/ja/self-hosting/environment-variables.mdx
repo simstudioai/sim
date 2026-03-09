@@ -1,0 +1,87 @@
+---
+title: 環境変数
+description: Simの設定リファレンス
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+## 必須項目
+
+| 変数 | 説明 |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL接続文字列 |
+| `BETTER_AUTH_SECRET` | 認証シークレット（32桁の16進数）: `openssl rand -hex 32` |
+| `BETTER_AUTH_URL` | アプリのURL |
+| `ENCRYPTION_KEY` | 暗号化キー（32桁の16進数）: `openssl rand -hex 32` |
+| `INTERNAL_API_SECRET` | 内部APIシークレット（32桁の16進数）: `openssl rand -hex 32` |
+| `NEXT_PUBLIC_APP_URL` | 公開アプリURL |
+| `NEXT_PUBLIC_SOCKET_URL` | WebSocket URL（デフォルト: `http://localhost:3002`） |
+
+## AIプロバイダー
+
+| 変数 | プロバイダー |
+|----------|----------|
+| `OPENAI_API_KEY` | OpenAI |
+| `ANTHROPIC_API_KEY_1` | Anthropic Claude |
+| `GEMINI_API_KEY_1` | Google Gemini |
+| `MISTRAL_API_KEY` | Mistral |
+| `OLLAMA_URL` | Ollama（デフォルト: `http://localhost:11434`） |
+
+<Callout type="info">
+  負荷分散のために、`_1`、`_2`、`_3`のサフィックスを持つ複数のキーを追加できます（例：`OPENAI_API_KEY_1`、`OPENAI_API_KEY_2`）。OpenAI、Anthropic、Geminiで動作します。
+</Callout>
+
+<Callout type="info">
+  Dockerでは、ホストマシンのOllamaに接続するために`OLLAMA_URL=http://host.docker.internal:11434`を使用してください。
+</Callout>
+
+### Azure OpenAI
+
+| 変数 | 説明 |
+|----------|-------------|
+| `AZURE_OPENAI_API_KEY` | Azure OpenAI APIキー |
+| `AZURE_OPENAI_ENDPOINT` | Azure OpenAIエンドポイントURL |
+| `AZURE_OPENAI_API_VERSION` | APIバージョン（例：`2024-02-15-preview`） |
+
+### vLLM（セルフホスト）
+
+| 変数 | 説明 |
+|----------|-------------|
+| `VLLM_BASE_URL` | vLLMサーバーURL（例：`http://localhost:8000/v1`） |
+| `VLLM_API_KEY` | vLLM用のオプションベアラートークン |
+
+## OAuth プロバイダー
+
+| 変数 | 説明 |
+|----------|-------------|
+| `GOOGLE_CLIENT_ID` | Google OAuthクライアントID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuthクライアントシークレット |
+| `GITHUB_CLIENT_ID` | GitHub OAuthクライアントID |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuthクライアントシークレット |
+
+## オプション
+
+| 変数 | 説明 |
+|----------|-------------|
+| `API_ENCRYPTION_KEY` | 保存されたAPIキーを暗号化します（32桁の16進数）: `openssl rand -hex 32` |
+| `COPILOT_API_KEY` | コパイロット機能用のAPIキー |
+| `ADMIN_API_KEY` | GitOps操作用の管理者APIキー |
+| `RESEND_API_KEY` | 通知用のメールサービス |
+| `ALLOWED_LOGIN_DOMAINS` | サインアップをドメインに制限（カンマ区切り） |
+| `ALLOWED_LOGIN_EMAILS` | サインアップを特定のメールに制限（カンマ区切り） |
+| `DISABLE_REGISTRATION` | 新規ユーザーのサインアップを無効にするには `true` に設定 |
+
+## .envの例
+
+```bash
+DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
+BETTER_AUTH_SECRET=<openssl rand -hex 32>
+BETTER_AUTH_URL=https://sim.yourdomain.com
+ENCRYPTION_KEY=<openssl rand -hex 32>
+INTERNAL_API_SECRET=<openssl rand -hex 32>
+NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
+NEXT_PUBLIC_SOCKET_URL=https://sim.yourdomain.com
+OPENAI_API_KEY=sk-...
+```
+
+すべてのオプションについては `apps/sim/.env.example` を参照してください。

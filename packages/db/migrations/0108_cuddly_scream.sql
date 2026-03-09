@@ -1,0 +1,1 @@
+ALTER TABLE "workflow_schedule" ADD COLUMN "last_queued_at" timestamp;

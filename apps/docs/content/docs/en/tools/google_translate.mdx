@@ -1,0 +1,72 @@
+---
+title: Google Translate
+description: Translate text using Google Cloud Translation
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_translate"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Translate](https://translate.google.com/) is Google's powerful translation service, supporting over 100 languages for text, documents, and websites. Backed by advanced neural machine translation, Google Translate delivers fast and accurate translations for a wide range of use cases.
+
+With the Google Translate integration in Sim, you can:
+
+- **Translate text**: Convert text between over 100 languages using Google Cloud Translation
+- **Detect languages**: Automatically identify the language of a given text input
+
+In Sim, the Google Translate integration allows your agents to translate text and detect languages as part of automated workflows. This enables use cases such as localization, multilingual support, content translation, and language detection at scale.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Translate and detect languages using the Google Cloud Translation API. Supports auto-detection of the source language.
+
+
+
+## Tools
+
+### `google_translate_text`
+
+Translate text between languages using the Google Cloud Translation API. Supports auto-detection of the source language.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Google Cloud API key with Cloud Translation API enabled |
+| `text` | string | Yes | The text to translate |
+| `target` | string | Yes | Target language code \(e.g., "es", "fr", "de", "ja"\) |
+| `source` | string | No | Source language code. If omitted, the API will auto-detect the source language. |
+| `format` | string | No | Format of the text: "text" for plain text, "html" for HTML content |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `translatedText` | string | The translated text |
+| `detectedSourceLanguage` | string | The detected source language code \(if source was not specified\) |
+
+### `google_translate_detect`
+
+Detect the language of text using the Google Cloud Translation API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Google Cloud API key with Cloud Translation API enabled |
+| `text` | string | Yes | The text to detect the language of |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `language` | string | The detected language code \(e.g., "en", "es", "fr"\) |
+| `confidence` | number | Confidence score of the detection |
+
+

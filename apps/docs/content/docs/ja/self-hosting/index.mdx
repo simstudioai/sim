@@ -1,0 +1,65 @@
+---
+title: セルフホスティング
+description: 自社のインフラストラクチャにSimをデプロイ
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+DockerまたはKubernetesを使用して、自社のインフラストラクチャにSimをデプロイします。
+
+## 要件
+
+| リソース | スモール | スタンダード | プロダクション |
+|----------|---------|-------------|----------------|
+| CPU | 2コア | 4コア | 8+コア |
+| RAM | 12 GB | 16 GB | 32+ GB |
+| ストレージ | 20 GB SSD | 50 GB SSD | 100+ GB SSD |
+| Docker | 20.10+ | 20.10+ | 最新版 |
+
+**スモール**: 開発、テスト、シングルユーザー（1-5ユーザー）
+**スタンダード**: チーム（5-50ユーザー）、中程度のワークロード
+**プロダクション**: 大規模チーム（50+ユーザー）、高可用性、高負荷ワークフロー実行
+
+<Callout type="info">
+リソース要件は、ワークフロー実行（isolated-vmサンドボックス）、ファイル処理（メモリ内ドキュメント解析）、ベクトル演算（pgvector）によって決まります。CPUよりもメモリが制約要因となることが多いです。本番環境のテレメトリによると、メインアプリは平均4-8 GB、高負荷時は最大12 GBを使用します。
+</Callout>
+
+## クイックスタート
+
+```bash
+git clone https://github.com/simstudioai/sim.git && cd sim
+docker compose -f docker-compose.prod.yml up -d
+```
+
+[http://localhost:3000](http://localhost:3000)を開く
+
+## デプロイオプション
+
+<Cards>
+  <Card title="Docker" href="/self-hosting/docker">
+    任意のサーバーでDocker Composeを使用してデプロイ
+  </Card>
+  <Card title="Kubernetes" href="/self-hosting/kubernetes">
+    KubernetesクラスターでHelmを使用してデプロイ
+  </Card>
+  <Card title="クラウドプラットフォーム" href="/self-hosting/platforms">
+    Railway、DigitalOcean、AWS、Azure、GCPのガイド
+  </Card>
+</Cards>
+
+## アーキテクチャ
+
+| コンポーネント | ポート | 説明 |
+|-----------|------|-------------|
+| simstudio | 3000 | メインアプリケーション |
+| realtime | 3002 | WebSocketサーバー |
+| db | 5432 | pgvector搭載のPostgreSQL |
+| migrations | - | データベースマイグレーション（一度だけ実行） |
+
+| コンポーネント | ポート | 説明 |
+|-----------|------|-------------|
+| simstudio | 3000 | メインアプリケーション |
+| realtime | 3002 | WebSocketサーバー |
+| db | 5432 | pgvector付きPostgreSQL |
+| migrations | - | データベースマイグレーション（1回実行） |

@@ -1,0 +1,65 @@
+---
+title: Autoalojamiento
+description: Despliega Sim en tu propia infraestructura
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Despliega Sim en tu propia infraestructura con Docker o Kubernetes.
+
+## Requisitos
+
+| Recurso | Pequeño | Estándar | Producción |
+|----------|---------|----------|------------|
+| CPU | 2 núcleos | 4 núcleos | 8+ núcleos |
+| RAM | 12 GB | 16 GB | 32+ GB |
+| Almacenamiento | 20 GB SSD | 50 GB SSD | 100+ GB SSD |
+| Docker | 20.10+ | 20.10+ | Última versión |
+
+**Pequeño**: Desarrollo, pruebas, usuario único (1-5 usuarios)
+**Estándar**: Equipos (5-50 usuarios), cargas de trabajo moderadas
+**Producción**: Equipos grandes (50+ usuarios), alta disponibilidad, ejecución intensiva de workflows
+
+<Callout type="info">
+Los requisitos de recursos están determinados por la ejecución de workflows (sandboxing isolated-vm), procesamiento de archivos (análisis de documentos en memoria) y operaciones vectoriales (pgvector). La memoria suele ser el factor limitante, no la CPU. La telemetría de producción muestra que la aplicación principal usa 4-8 GB en promedio con picos de hasta 12 GB bajo carga pesada.
+</Callout>
+
+## Inicio rápido
+
+```bash
+git clone https://github.com/simstudioai/sim.git && cd sim
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Abre [http://localhost:3000](http://localhost:3000)
+
+## Opciones de despliegue
+
+<Cards>
+  <Card title="Docker" href="/self-hosting/docker">
+    Despliega con Docker Compose en cualquier servidor
+  </Card>
+  <Card title="Kubernetes" href="/self-hosting/kubernetes">
+    Despliega con Helm en clústeres de Kubernetes
+  </Card>
+  <Card title="Plataformas en la nube" href="/self-hosting/platforms">
+    Guías para Railway, DigitalOcean, AWS, Azure, GCP
+  </Card>
+</Cards>
+
+## Arquitectura
+
+| Componente | Puerto | Descripción |
+|-----------|------|-------------|
+| simstudio | 3000 | Aplicación principal |
+| realtime | 3002 | Servidor WebSocket |
+| db | 5432 | PostgreSQL con pgvector |
+| migrations | - | Migraciones de base de datos (se ejecuta una vez) |
+
+| Componente | Puerto | Descripción |
+|-----------|------|-------------|
+| simstudio | 3000 | Aplicación principal |
+| realtime | 3002 | Servidor WebSocket |
+| db | 5432 | PostgreSQL con pgvector |
+| migrations | - | Migraciones de base de datos (se ejecuta una vez) |

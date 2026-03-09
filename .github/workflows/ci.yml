@@ -1,0 +1,310 @@
+name: CI
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test-build:
+    name: Test and Build
+    uses: ./.github/workflows/test-build.yml
+    secrets: inherit
+
+  # Detect if this is a version release commit (e.g., "v0.5.24: ...")
+  detect-version:
+    name: Detect Version
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    outputs:
+      version: ${{ steps.extract.outputs.version }}
+      is_release: ${{ steps.extract.outputs.is_release }}
+    steps:
+      - name: Extract version from commit message
+        id: extract
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          # Only tag versions on main branch
+          if [ "$GITHUB_REF" = "refs/heads/main" ] && [[ "$COMMIT_MSG" =~ ^(v[0-9]+\.[0-9]+\.[0-9]+): ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "is_release=true" >> $GITHUB_OUTPUT
+            echo "✅ Detected release commit: ${VERSION}"
+          else
+            echo "version=" >> $GITHUB_OUTPUT
+            echo "is_release=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ Not a release commit"
+          fi
+
+  # Build AMD64 images and push to ECR immediately (+ GHCR for main)
+  build-amd64:
+    name: Build AMD64
+    needs: [test-build, detect-version]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dockerfile: ./docker/app.Dockerfile
+            ghcr_image: ghcr.io/simstudioai/simstudio
+            ecr_repo_secret: ECR_APP
+          - dockerfile: ./docker/db.Dockerfile
+            ghcr_image: ghcr.io/simstudioai/migrations
+            ecr_repo_secret: ECR_MIGRATIONS
+          - dockerfile: ./docker/realtime.Dockerfile
+            ghcr_image: ghcr.io/simstudioai/realtime
+            ecr_repo_secret: ECR_REALTIME
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GHCR
+        if: github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: useblacksmith/setup-docker-builder@v1
+
+      - name: Generate tags
+        id: meta
+        run: |
+          ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
+          ECR_REPO="${{ secrets[matrix.ecr_repo_secret] }}"
+          GHCR_IMAGE="${{ matrix.ghcr_image }}"
+
+          # ECR tags (always build for ECR)
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            ECR_TAG="latest"
+          else
+            ECR_TAG="staging"
+          fi
+          ECR_IMAGE="${ECR_REGISTRY}/${ECR_REPO}:${ECR_TAG}"
+
+          # Build tags list
+          TAGS="${ECR_IMAGE}"
+
+          # Add GHCR tags only for main branch
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            GHCR_AMD64="${GHCR_IMAGE}:latest-amd64"
+            GHCR_SHA="${GHCR_IMAGE}:${{ github.sha }}-amd64"
+            TAGS="${TAGS},$GHCR_AMD64,$GHCR_SHA"
+
+            # Add version tag if this is a release commit
+            if [ "${{ needs.detect-version.outputs.is_release }}" = "true" ]; then
+              VERSION="${{ needs.detect-version.outputs.version }}"
+              GHCR_VERSION="${GHCR_IMAGE}:${VERSION}-amd64"
+              TAGS="${TAGS},$GHCR_VERSION"
+              echo "📦 Adding version tag: ${VERSION}-amd64"
+            fi
+          fi
+
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+
+      - name: Build and push images
+        uses: useblacksmith/build-push-action@v2
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          provenance: false
+          sbom: false
+
+  # Build ARM64 images for GHCR (main branch only, runs in parallel)
+  build-ghcr-arm64:
+    name: Build ARM64 (GHCR Only)
+    needs: [test-build, detect-version]
+    runs-on: blacksmith-8vcpu-ubuntu-2404-arm
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dockerfile: ./docker/app.Dockerfile
+            image: ghcr.io/simstudioai/simstudio
+          - dockerfile: ./docker/db.Dockerfile
+            image: ghcr.io/simstudioai/migrations
+          - dockerfile: ./docker/realtime.Dockerfile
+            image: ghcr.io/simstudioai/realtime
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: useblacksmith/setup-docker-builder@v1
+
+      - name: Generate ARM64 tags
+        id: meta
+        run: |
+          IMAGE="${{ matrix.image }}"
+          TAGS="${IMAGE}:latest-arm64,${IMAGE}:${{ github.sha }}-arm64"
+
+          # Add version tag if this is a release commit
+          if [ "${{ needs.detect-version.outputs.is_release }}" = "true" ]; then
+            VERSION="${{ needs.detect-version.outputs.version }}"
+            TAGS="${TAGS},${IMAGE}:${VERSION}-arm64"
+            echo "📦 Adding version tag: ${VERSION}-arm64"
+          fi
+
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+
+      - name: Build and push ARM64 to GHCR
+        uses: useblacksmith/build-push-action@v2
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          provenance: false
+          sbom: false
+
+  # Create GHCR multi-arch manifests (only for main, after both builds)
+  create-ghcr-manifests:
+    name: Create GHCR Manifests
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    needs: [build-amd64, build-ghcr-arm64, detect-version]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - image: ghcr.io/simstudioai/simstudio
+          - image: ghcr.io/simstudioai/migrations
+          - image: ghcr.io/simstudioai/realtime
+
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push manifests
+        run: |
+          IMAGE_BASE="${{ matrix.image }}"
+
+          # Create latest manifest
+          docker manifest create "${IMAGE_BASE}:latest" \
+            "${IMAGE_BASE}:latest-amd64" \
+            "${IMAGE_BASE}:latest-arm64"
+          docker manifest push "${IMAGE_BASE}:latest"
+
+          # Create SHA manifest
+          docker manifest create "${IMAGE_BASE}:${{ github.sha }}" \
+            "${IMAGE_BASE}:${{ github.sha }}-amd64" \
+            "${IMAGE_BASE}:${{ github.sha }}-arm64"
+          docker manifest push "${IMAGE_BASE}:${{ github.sha }}"
+
+          # Create version manifest if this is a release commit
+          if [ "${{ needs.detect-version.outputs.is_release }}" = "true" ]; then
+            VERSION="${{ needs.detect-version.outputs.version }}"
+            echo "📦 Creating version manifest: ${VERSION}"
+            docker manifest create "${IMAGE_BASE}:${VERSION}" \
+              "${IMAGE_BASE}:${VERSION}-amd64" \
+              "${IMAGE_BASE}:${VERSION}-arm64"
+            docker manifest push "${IMAGE_BASE}:${VERSION}"
+          fi
+
+  # Check if docs changed
+  check-docs-changes:
+    name: Check Docs Changes
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    outputs:
+      docs_changed: ${{ steps.filter.outputs.docs }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need at least 2 commits to detect changes
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            docs:
+              - 'apps/docs/content/docs/en/**'
+              - 'apps/sim/scripts/process-docs.ts'
+              - 'apps/sim/lib/chunkers/**'
+
+  # Process docs embeddings (only when docs change, after ECR images are pushed)
+  process-docs:
+    name: Process Docs
+    needs: [build-amd64, check-docs-changes]
+    if: needs.check-docs-changes.outputs.docs_changed == 'true'
+    uses: ./.github/workflows/docs-embeddings.yml
+    secrets: inherit
+
+  # Create GitHub Release (only for version commits on main, after all builds complete)
+  create-release:
+    name: Create GitHub Release
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs: [create-ghcr-manifests, detect-version]
+    if: needs.detect-version.outputs.is_release == 'true'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Create release
+        env:
+          GH_PAT: ${{ secrets.GITHUB_TOKEN }}
+        run: bun run scripts/create-single-release.ts ${{ needs.detect-version.outputs.version }}

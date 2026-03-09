@@ -1,0 +1,98 @@
+---
+title: Parallel AI
+description: Investigación web con Parallel AI
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="parallel_ai"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Parallel AI](https://parallel.ai/) es una plataforma avanzada de búsqueda web y extracción de contenido diseñada para ofrecer resultados completos y de alta calidad para cualquier consulta. Al aprovechar el procesamiento inteligente y la extracción de datos a gran escala, Parallel AI permite a usuarios y agentes acceder, analizar y sintetizar información de toda la web con rapidez y precisión.
+
+Con Parallel AI, puedes:
+
+- **Buscar en la web de forma inteligente**: Obtener información relevante y actualizada de una amplia gama de fuentes  
+- **Extraer y resumir contenido**: Conseguir extractos concisos y significativos de páginas web y documentos  
+- **Personalizar objetivos de búsqueda**: Adaptar consultas a necesidades o preguntas específicas para resultados más precisos  
+- **Procesar resultados a gran escala**: Manejar grandes volúmenes de resultados de búsqueda con opciones de procesamiento avanzadas  
+- **Integrar con flujos de trabajo**: Usar Parallel AI dentro de Sim para automatizar la investigación, recopilación de contenido y extracción de conocimiento  
+- **Controlar la granularidad de salida**: Especificar el número de resultados y la cantidad de contenido por resultado  
+- **Acceso seguro mediante API**: Proteger tus búsquedas y datos con autenticación por clave API
+
+En Sim, la integración con Parallel AI permite a tus agentes realizar búsquedas web y extraer contenido de forma programática. Esto posibilita potentes escenarios de automatización como investigación en tiempo real, análisis competitivo, monitoreo de contenido y creación de bases de conocimiento. Al conectar Sim con Parallel AI, desbloqueas la capacidad de que los agentes recopilen, procesen y utilicen datos web como parte de tus flujos de trabajo automatizados.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Parallel AI en el flujo de trabajo. Puede buscar en la web, extraer información de URLs y realizar investigaciones profundas.
+
+## Herramientas
+
+### `parallel_search`
+
+Busca en la web usando Parallel AI. Proporciona resultados de búsqueda completos con procesamiento inteligente y extracción de contenido.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `objective` | string | Sí | El objetivo de búsqueda o pregunta a responder |
+| `search_queries` | string | No | Lista opcional de consultas de búsqueda separadas por comas para ejecutar |
+| `processor` | string | No | Método de procesamiento: base o pro \(predeterminado: base\) |
+| `max_results` | number | No | Número máximo de resultados a devolver \(predeterminado: 5\) |
+| `max_chars_per_result` | number | No | Máximo de caracteres por resultado \(predeterminado: 1500\) |
+| `apiKey` | string | Sí | Clave API de Parallel AI |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `results` | array | Resultados de búsqueda con extractos de páginas relevantes |
+
+### `parallel_extract`
+
+Extrae información específica de URLs concretas utilizando Parallel AI. Procesa las URLs proporcionadas para obtener contenido relevante basado en tu objetivo.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `urls` | string | Sí | Lista de URLs separadas por comas para extraer información |
+| `objective` | string | Sí | Qué información extraer de las URLs proporcionadas |
+| `excerpts` | boolean | Sí | Incluir extractos relevantes del contenido |
+| `full_content` | boolean | Sí | Incluir contenido completo de la página |
+| `apiKey` | string | Sí | Clave API de Parallel AI |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `results` | array | Información extraída de las URLs proporcionadas |
+
+### `parallel_deep_research`
+
+Realiza investigaciones exhaustivas y profundas en la web utilizando Parallel AI. Sintetiza información de múltiples fuentes con citas. Puede tardar hasta 15 minutos en completarse.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `input` | string | Sí | Consulta de investigación o pregunta \(hasta 15.000 caracteres\) |
+| `processor` | string | No | Nivel de cómputo: base, lite, pro, ultra, ultra2x, ultra4x, ultra8x \(predeterminado: base\) |
+| `include_domains` | string | No | Lista de dominios separados por comas para restringir la investigación \(política de fuentes\) |
+| `exclude_domains` | string | No | Lista de dominios separados por comas para excluir de la investigación \(política de fuentes\) |
+| `apiKey` | string | Sí | Clave API de Parallel AI |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `status` | string | Estado de la tarea (completada, fallida) |
+| `run_id` | string | ID único para esta tarea de investigación |
+| `message` | string | Mensaje de estado |
+| `content` | object | Resultados de la investigación (estructurados según output_schema) |
+| `basis` | array | Citas y fuentes con razonamiento y niveles de confianza |

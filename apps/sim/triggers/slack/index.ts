@@ -1,0 +1,1 @@
+export { slackWebhookTrigger } from './webhook'

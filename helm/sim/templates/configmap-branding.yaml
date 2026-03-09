@@ -1,0 +1,25 @@
+{{- if and .Values.branding.enabled (or .Values.branding.files .Values.branding.binaryFiles) }}
+---
+# Branding ConfigMap
+# Mounts custom branding assets (logos, CSS, etc.) into the application
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sim.fullname" . }}-branding
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: branding
+{{- if .Values.branding.files }}
+data:
+  {{- range $key, $value := .Values.branding.files }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+{{- end }}
+{{- if .Values.branding.binaryFiles }}
+binaryData:
+  {{- range $key, $value := .Values.branding.binaryFiles }}
+  {{ $key }}: {{ $value }}
+  {{- end }}
+{{- end }}
+{{- end }}

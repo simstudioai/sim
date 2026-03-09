@@ -1,0 +1,356 @@
+import type {
+  GoogleSheetsToolParams,
+  GoogleSheetsV2ToolParams,
+  GoogleSheetsV2WriteResponse,
+  GoogleSheetsWriteResponse,
+} from '@/tools/google_sheets/types'
+import type { ToolConfig } from '@/tools/types'
+
+export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResponse> = {
+  id: 'google_sheets_write',
+  name: 'Write to Google Sheets',
+  description: 'Write data to a Google Sheets spreadsheet',
+  version: '1.0',
+
+  oauth: {
+    required: true,
+    provider: 'google-sheets',
+  },
+
+  params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'The access token for the Google Sheets API',
+    },
+    spreadsheetId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The ID of the spreadsheet',
+    },
+    range: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'The A1 notation range to write to (e.g. "Sheet1!A1:D10", "A1:B5")',
+    },
+    values: {
+      type: 'array',
+      required: true,
+      visibility: 'user-or-llm',
+      description:
+        'The data to write as a 2D array (e.g. [["Name", "Age"], ["Alice", 30], ["Bob", 25]]) or array of objects.',
+    },
+    valueInputOption: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'The format of the data to write',
+    },
+    includeValuesInResponse: {
+      type: 'boolean',
+      required: false,
+      visibility: 'hidden',
+      description: 'Whether to include the written values in the response',
+    },
+  },
+
+  request: {
+    url: (params) => {
+      // If range is not provided, use a default range for the first sheet, second row to preserve headers
+      const range = params.range || 'Sheet1!A2'
+
+      const url = new URL(
+        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId}/values/${encodeURIComponent(range)}`
+      )
+
+      // Default to USER_ENTERED if not specified
+      const valueInputOption = params.valueInputOption || 'USER_ENTERED'
+      url.searchParams.append('valueInputOption', valueInputOption)
+
+      if (params.includeValuesInResponse) {
+        url.searchParams.append('includeValuesInResponse', 'true')
+      }
+
+      return url.toString()
+    },
+    method: 'PUT',
+    headers: (params) => ({
+      Authorization: `Bearer ${params.accessToken}`,
+      'Content-Type': 'application/json',
+    }),
+    body: (params) => {
+      let processedValues: any = params.values || []
+
+      // Handle array of objects
+      if (
+        Array.isArray(processedValues) &&
+        processedValues.length > 0 &&
+        typeof processedValues[0] === 'object' &&
+        !Array.isArray(processedValues[0])
+      ) {
+        // It's an array of objects
+
+        // First, extract all unique keys from all objects to create headers
+        const allKeys = new Set<string>()
+        processedValues.forEach((obj: any) => {
+          if (obj && typeof obj === 'object') {
+            Object.keys(obj).forEach((key) => allKeys.add(key))
+          }
+        })
+        const headers = Array.from(allKeys)
+
+        // Then create rows with object values in the order of headers
+        const rows = processedValues.map((obj: any) => {
+          if (!obj || typeof obj !== 'object') {
+            // Handle non-object items by creating an array with empty values
+            return Array(headers.length).fill('')
+          }
+          return headers.map((key) => {
+            const value = obj[key]
+            // Handle nested objects/arrays by converting to JSON string
+            if (value !== null && typeof value === 'object') {
+              return JSON.stringify(value)
+            }
+            return value === undefined ? '' : value
+          })
+        })
+
+        // Add headers as the first row, then add data rows
+        processedValues = [headers, ...rows]
+      }
+
+      const body: Record<string, any> = {
+        majorDimension: params.majorDimension || 'ROWS',
+        values: processedValues,
+      }
+
+      // Only include range if it's provided
+      if (params.range) {
+        body.range = params.range
+      }
+
+      return body
+    },
+  },
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+
+    // Extract spreadsheet ID from the URL (guard if url is missing)
+    const urlParts = typeof response.url === 'string' ? response.url.split('/spreadsheets/') : []
+    const spreadsheetId = urlParts[1]?.split('/')[0] || ''
+
+    // Create a simple metadata object with just the ID and URL
+    const metadata = {
+      spreadsheetId,
+      properties: {},
+      spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
+    }
+
+    const result = {
+      success: true,
+      output: {
+        updatedRange: data.updatedRange,
+        updatedRows: data.updatedRows,
+        updatedColumns: data.updatedColumns,
+        updatedCells: data.updatedCells,
+        metadata: {
+          spreadsheetId: metadata.spreadsheetId,
+          spreadsheetUrl: metadata.spreadsheetUrl,
+        },
+      },
+    }
+
+    return result
+  },
+
+  outputs: {
+    updatedRange: { type: 'string', description: 'Range of cells that were updated' },
+    updatedRows: { type: 'number', description: 'Number of rows updated' },
+    updatedColumns: { type: 'number', description: 'Number of columns updated' },
+    updatedCells: { type: 'number', description: 'Number of cells updated' },
+    metadata: {
+      type: 'json',
+      description: 'Spreadsheet metadata including ID and URL',
+      properties: {
+        spreadsheetId: { type: 'string', description: 'Google Sheets spreadsheet ID' },
+        spreadsheetUrl: { type: 'string', description: 'Spreadsheet URL' },
+      },
+    },
+  },
+}
+
+export const writeV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2WriteResponse> = {
+  id: 'google_sheets_write_v2',
+  name: 'Write to Google Sheets V2',
+  description: 'Write data to a specific sheet in a Google Sheets spreadsheet',
+  version: '2.0.0',
+
+  oauth: {
+    required: true,
+    provider: 'google-sheets',
+  },
+
+  params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'The access token for the Google Sheets API',
+    },
+    spreadsheetId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Google Sheets spreadsheet ID',
+    },
+    sheetName: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The name of the sheet/tab to write to',
+    },
+    cellRange: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'The cell range to write to (e.g. "A1:D10", "A1"). Defaults to "A1" if not specified.',
+    },
+    values: {
+      type: 'array',
+      required: true,
+      visibility: 'user-or-llm',
+      description:
+        'The data to write as a 2D array (e.g. [["Name", "Age"], ["Alice", 30], ["Bob", 25]]) or array of objects.',
+    },
+    valueInputOption: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'The format of the data to write',
+    },
+    includeValuesInResponse: {
+      type: 'boolean',
+      required: false,
+      visibility: 'hidden',
+      description: 'Whether to include the written values in the response',
+    },
+  },
+
+  request: {
+    url: (params) => {
+      const sheetName = params.sheetName?.trim()
+      if (!sheetName) {
+        throw new Error('Sheet name is required')
+      }
+
+      // Build the range: SheetName!CellRange or just SheetName!A1
+      const cellRange = params.cellRange?.trim() || 'A1'
+      const fullRange = `${sheetName}!${cellRange}`
+
+      const url = new URL(
+        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId}/values/${encodeURIComponent(fullRange)}`
+      )
+
+      const valueInputOption = params.valueInputOption || 'USER_ENTERED'
+      url.searchParams.append('valueInputOption', valueInputOption)
+
+      if (params.includeValuesInResponse) {
+        url.searchParams.append('includeValuesInResponse', 'true')
+      }
+
+      return url.toString()
+    },
+    method: 'PUT',
+    headers: (params) => ({
+      Authorization: `Bearer ${params.accessToken}`,
+      'Content-Type': 'application/json',
+    }),
+    body: (params) => {
+      let processedValues: any = params.values || []
+
+      // Handle array of objects
+      if (
+        Array.isArray(processedValues) &&
+        processedValues.length > 0 &&
+        typeof processedValues[0] === 'object' &&
+        !Array.isArray(processedValues[0])
+      ) {
+        const allKeys = new Set<string>()
+        processedValues.forEach((obj: any) => {
+          if (obj && typeof obj === 'object') {
+            Object.keys(obj).forEach((key) => allKeys.add(key))
+          }
+        })
+        const headers = Array.from(allKeys)
+
+        const rows = processedValues.map((obj: any) => {
+          if (!obj || typeof obj !== 'object') {
+            return Array(headers.length).fill('')
+          }
+          return headers.map((key) => {
+            const value = obj[key]
+            if (value !== null && typeof value === 'object') {
+              return JSON.stringify(value)
+            }
+            return value === undefined ? '' : value
+          })
+        })
+
+        processedValues = [headers, ...rows]
+      }
+
+      const body: Record<string, any> = {
+        majorDimension: params.majorDimension || 'ROWS',
+        values: processedValues,
+      }
+
+      return body
+    },
+  },
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+
+    const urlParts = typeof response.url === 'string' ? response.url.split('/spreadsheets/') : []
+    const spreadsheetId = urlParts[1]?.split('/')[0] || ''
+
+    const metadata = {
+      spreadsheetId,
+      spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
+    }
+
+    return {
+      success: true,
+      output: {
+        updatedRange: data.updatedRange ?? null,
+        updatedRows: data.updatedRows ?? 0,
+        updatedColumns: data.updatedColumns ?? 0,
+        updatedCells: data.updatedCells ?? 0,
+        metadata: {
+          spreadsheetId: metadata.spreadsheetId,
+          spreadsheetUrl: metadata.spreadsheetUrl,
+        },
+      },
+    }
+  },
+
+  outputs: {
+    updatedRange: { type: 'string', description: 'Range of cells that were updated' },
+    updatedRows: { type: 'number', description: 'Number of rows updated' },
+    updatedColumns: { type: 'number', description: 'Number of columns updated' },
+    updatedCells: { type: 'number', description: 'Number of cells updated' },
+    metadata: {
+      type: 'json',
+      description: 'Spreadsheet metadata including ID and URL',
+      properties: {
+        spreadsheetId: { type: 'string', description: 'Google Sheets spreadsheet ID' },
+        spreadsheetUrl: { type: 'string', description: 'Spreadsheet URL' },
+      },
+    },
+  },
+}

@@ -1,0 +1,249 @@
+import { createLogger } from '@sim/logger'
+import { getSessionCookie } from 'better-auth/cookies'
+import { type NextRequest, NextResponse } from 'next/server'
+import { isAuthDisabled, isHosted } from './lib/core/config/feature-flags'
+import { generateRuntimeCSP } from './lib/core/security/csp'
+
+const logger = createLogger('Proxy')
+
+const SUSPICIOUS_UA_PATTERNS = [
+  /^\s*$/, // Empty user agents
+  /\.\./, // Path traversal attempt
+  /<\s*script/i, // Potential XSS payloads
+  /^\(\)\s*{/, // Command execution attempt
+  /\b(sqlmap|nikto|gobuster|dirb|nmap)\b/i, // Known scanning tools
+] as const
+
+/**
+ * Handles authentication-based redirects for root paths
+ */
+function handleRootPathRedirects(
+  request: NextRequest,
+  hasActiveSession: boolean
+): NextResponse | null {
+  const url = request.nextUrl
+
+  if (url.pathname !== '/') {
+    return null
+  }
+
+  if (!isHosted) {
+    // Self-hosted: Always redirect based on session
+    if (hasActiveSession) {
+      return NextResponse.redirect(new URL('/workspace', request.url))
+    }
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // For root path, redirect authenticated users to workspace
+  // Unless they have a 'from' query parameter (e.g., ?from=nav, ?from=settings)
+  // This allows intentional navigation to the homepage from anywhere in the app
+  if (hasActiveSession) {
+    const from = url.searchParams.get('from')
+    if (!from) {
+      return NextResponse.redirect(new URL('/workspace', request.url))
+    }
+  }
+
+  return null
+}
+
+/**
+ * Handles invitation link redirects for unauthenticated users
+ */
+function handleInvitationRedirects(
+  request: NextRequest,
+  hasActiveSession: boolean
+): NextResponse | null {
+  if (!request.nextUrl.pathname.startsWith('/invite/')) {
+    return null
+  }
+
+  if (
+    !hasActiveSession &&
+    !request.nextUrl.pathname.endsWith('/login') &&
+    !request.nextUrl.pathname.endsWith('/signup') &&
+    !request.nextUrl.search.includes('callbackUrl')
+  ) {
+    const token = request.nextUrl.searchParams.get('token')
+    const inviteId = request.nextUrl.pathname.split('/').pop()
+    const callbackParam = encodeURIComponent(`/invite/${inviteId}${token ? `?token=${token}` : ''}`)
+    return NextResponse.redirect(
+      new URL(`/login?callbackUrl=${callbackParam}&invite_flow=true`, request.url)
+    )
+  }
+  return NextResponse.next()
+}
+
+/**
+ * Handles workspace invitation API endpoint access
+ */
+function handleWorkspaceInvitationAPI(
+  request: NextRequest,
+  hasActiveSession: boolean
+): NextResponse | null {
+  if (!request.nextUrl.pathname.startsWith('/api/workspaces/invitations')) {
+    return null
+  }
+
+  if (request.nextUrl.pathname.includes('/accept') && !hasActiveSession) {
+    const token = request.nextUrl.searchParams.get('token')
+    if (token) {
+      return NextResponse.redirect(new URL(`/invite/${token}?token=${token}`, request.url))
+    }
+  }
+  return NextResponse.next()
+}
+
+/**
+ * Handles security filtering for suspicious user agents
+ */
+function handleSecurityFiltering(request: NextRequest): NextResponse | null {
+  const userAgent = request.headers.get('user-agent') || ''
+  const { pathname } = request.nextUrl
+  const isWebhookEndpoint = pathname.startsWith('/api/webhooks/trigger/')
+  const isMcpEndpoint = pathname.startsWith('/api/mcp/')
+  const isMcpOauthDiscoveryEndpoint =
+    pathname.startsWith('/.well-known/oauth-authorization-server') ||
+    pathname.startsWith('/.well-known/oauth-protected-resource')
+  const isSuspicious = SUSPICIOUS_UA_PATTERNS.some((pattern) => pattern.test(userAgent))
+
+  // Block suspicious requests, but exempt machine-to-machine endpoints that may
+  // legitimately omit User-Agent headers (webhooks and MCP protocol discovery/calls).
+  if (isSuspicious && !isWebhookEndpoint && !isMcpEndpoint && !isMcpOauthDiscoveryEndpoint) {
+    logger.warn('Blocked suspicious request', {
+      userAgent,
+      ip: request.headers.get('x-forwarded-for') || 'unknown',
+      url: request.url,
+      method: request.method,
+      pattern: SUSPICIOUS_UA_PATTERNS.find((pattern) => pattern.test(userAgent))?.toString(),
+    })
+
+    return new NextResponse(null, {
+      status: 403,
+      statusText: 'Forbidden',
+      headers: {
+        'Content-Type': 'text/plain',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'Content-Security-Policy': "default-src 'none'",
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0',
+      },
+    })
+  }
+
+  return null
+}
+
+const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content'] as const
+const UTM_COOKIE_NAME = 'sim_utm'
+const UTM_COOKIE_MAX_AGE = 3600
+
+/**
+ * Sets a `sim_utm` cookie when UTM params are present on auth pages.
+ * Captures UTM values, the HTTP Referer, landing page, and a timestamp.
+ */
+function setUtmCookie(request: NextRequest, response: NextResponse): void {
+  const { searchParams, pathname } = request.nextUrl
+  const hasUtm = UTM_KEYS.some((key) => searchParams.get(key))
+  if (!hasUtm) return
+
+  const utmData: Record<string, string> = {}
+  for (const key of UTM_KEYS) {
+    const value = searchParams.get(key)
+    if (value) utmData[key] = value
+  }
+  utmData.referrer_url = request.headers.get('referer') || ''
+  utmData.landing_page = pathname
+  utmData.created_at = Date.now().toString()
+
+  response.cookies.set(UTM_COOKIE_NAME, JSON.stringify(utmData), {
+    path: '/',
+    maxAge: UTM_COOKIE_MAX_AGE,
+    sameSite: 'lax',
+    httpOnly: false, // Client-side hook needs to detect cookie presence
+  })
+}
+
+export async function proxy(request: NextRequest) {
+  const url = request.nextUrl
+
+  const sessionCookie = getSessionCookie(request)
+  const hasActiveSession = isAuthDisabled || !!sessionCookie
+
+  const redirect = handleRootPathRedirects(request, hasActiveSession)
+  if (redirect) return redirect
+
+  if (url.pathname === '/login' || url.pathname === '/signup') {
+    if (hasActiveSession) {
+      const redirect = NextResponse.redirect(new URL('/workspace', request.url))
+      setUtmCookie(request, redirect)
+      return redirect
+    }
+    const response = NextResponse.next()
+    response.headers.set('Content-Security-Policy', generateRuntimeCSP())
+    setUtmCookie(request, response)
+    return response
+  }
+
+  if (url.pathname.startsWith('/chat/')) {
+    return NextResponse.next()
+  }
+
+  // Allow public access to template pages for SEO
+  if (url.pathname.startsWith('/templates')) {
+    return NextResponse.next()
+  }
+
+  if (url.pathname.startsWith('/workspace')) {
+    // Allow public access to workspace template pages - they handle their own redirects
+    if (url.pathname.match(/^\/workspace\/[^/]+\/templates/)) {
+      return NextResponse.next()
+    }
+
+    if (!hasActiveSession) {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+    return NextResponse.next()
+  }
+
+  const invitationRedirect = handleInvitationRedirects(request, hasActiveSession)
+  if (invitationRedirect) return invitationRedirect
+
+  const workspaceInvitationRedirect = handleWorkspaceInvitationAPI(request, hasActiveSession)
+  if (workspaceInvitationRedirect) return workspaceInvitationRedirect
+
+  const securityBlock = handleSecurityFiltering(request)
+  if (securityBlock) return securityBlock
+
+  const response = NextResponse.next()
+  response.headers.set('Vary', 'User-Agent')
+
+  if (
+    url.pathname.startsWith('/workspace') ||
+    url.pathname.startsWith('/chat') ||
+    url.pathname === '/'
+  ) {
+    response.headers.set('Content-Security-Policy', generateRuntimeCSP())
+  }
+
+  return response
+}
+
+export const config = {
+  matcher: [
+    '/', // Root path for self-hosted redirect logic
+    '/terms', // Whitelabel terms redirect
+    '/privacy', // Whitelabel privacy redirect
+    '/w', // Legacy /w redirect
+    '/w/:path*', // Legacy /w/* redirects
+    '/workspace/:path*', // New workspace routes
+    '/login',
+    '/signup',
+    '/invite/:path*', // Match invitation routes
+    // Catch-all for other pages, excluding static assets and public directories
+    '/((?!_next/static|_next/image|ingest|favicon.ico|logo/|static/|footer/|social/|enterprise/|favicon/|twitter/|robots.txt|sitemap.xml).*)',
+  ],
+}

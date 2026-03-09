@@ -1,0 +1,144 @@
+---
+title: 使用 MCP 工具
+description: 通过 Model Context Protocol 连接外部工具和服务
+---
+
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+模型上下文协议（[MCP](https://modelcontextprotocol.com/)）允许您使用标准化协议连接外部工具和服务，从而将 API 和服务直接集成到您的工作流程中。通过 MCP，您可以通过添加自定义集成来扩展 Sim 的功能，使其与您的代理和工作流程无缝协作。
+
+## 什么是 MCP？
+
+MCP 是一项开放标准，使 AI 助手能够安全地连接到外部数据源和工具。它提供了一种标准化的方法来：
+
+- 连接数据库、API 和文件系统
+- 访问外部服务的实时数据
+- 执行自定义工具和脚本
+- 维护对外部资源的安全、受控访问
+
+## 配置 MCP 服务器
+
+MCP 服务器提供工具集合，供您的代理使用。您可以在工作区设置中进行配置：
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp/settings-mcp-tools.mp4" width={700} height={450} />
+</div>
+
+1. 进入您的工作区设置
+2. 前往 **MCP Servers** 部分
+3. 点击 **Add MCP Server**
+4. 输入服务器配置信息
+5. 保存配置
+
+<Callout type="info">
+您还可以直接从代理模块的工具栏中配置 MCP 服务器，以便快速设置。
+</Callout>
+
+### 刷新工具
+
+点击服务器上的 **刷新**，即可获取最新的工具 schema，并自动用新的参数定义更新所有使用这些工具的 agent 模块。
+
+## 在 Agent 中使用 MCP 工具
+
+配置好 MCP 服务器后，其工具会在你的 agent 模块中可用：
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/mcp-2.png"
+    alt="在 Agent 模块中使用 MCP 工具"
+    width={700}
+    height={450}
+    className="my-6"
+  />
+</div>
+
+1. 打开一个 **Agent** 模块
+2. 在 **工具** 部分，你会看到可用的 MCP 工具
+3. 选择你希望 agent 使用的工具
+4. agent 在执行时即可访问这些工具
+
+## 独立 MCP 工具模块
+
+如需更细致的控制，可以使用专用的 MCP 工具模块来执行特定的 MCP 工具：
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/mcp-3.png"
+    alt="独立 MCP 工具模块"
+    width={700}
+    height={450}
+    className="my-6"
+  />
+</div>
+
+MCP 工具模块可以让你：
+- 直接执行任意已配置的 MCP 工具
+- 向工具传递特定参数
+- 在后续工作流步骤中使用工具输出
+- 串联多个 MCP 工具
+
+### 何时使用 MCP 工具模块与 Agent
+
+**当你需要以下场景时，使用 Agent 搭配 MCP 工具：**
+- 希望 AI 决定使用哪些工具
+- 需要复杂推理来判断何时及如何使用工具
+- 希望通过自然语言与工具交互
+
+**在以下情况下使用 MCP 工具块：**
+- 你需要确定性的工具执行
+- 你想用已知参数执行特定工具
+- 你正在构建具有可预测步骤的结构化工作流
+
+## 权限要求
+
+MCP 功能需要特定的工作区权限：
+
+| 操作 | 所需权限 |
+|--------|-------------------|
+| 在设置中配置 MCP 服务器 | **Admin** |
+| 在代理中使用 MCP 工具 | **Write** 或 **Admin** |
+| 查看可用的 MCP 工具 | **Read**、**Write** 或 **Admin** |
+| 执行 MCP 工具块 | **Write** 或 **Admin** |
+
+## 常见用例
+
+### 数据库集成
+在你的工作流中连接数据库以查询、插入或更新数据。
+
+### API 集成
+访问没有内置 Sim 集成的外部 API 和 Web 服务。
+
+### 文件系统访问
+在本地或远程文件系统上读取、写入和操作文件。
+
+### 自定义业务逻辑
+执行针对你组织需求的自定义脚本或工具。
+
+### 实时数据访问
+在工作流执行期间从外部系统获取实时数据。
+
+## 安全注意事项
+
+- MCP 服务器以配置它们的用户权限运行
+- 安装前务必验证 MCP 服务器来源
+- 对敏感配置信息使用环境变量
+- 在授予代理访问权限前，审查 MCP 服务器的功能
+
+## 故障排查
+
+### MCP 服务器未显示
+- 验证服务器配置是否正确
+- 检查你是否拥有所需权限
+- 确保 MCP 服务器正在运行且可访问
+
+### 工具执行失败
+- 验证工具参数格式是否正确
+- 检查 MCP 服务器日志中的错误信息
+- 确保已配置所需的身份验证
+
+### 权限错误
+- 确认你的工作区权限级别
+- 检查 MCP 服务器是否需要额外认证
+- 验证服务器是否已为你的工作区正确配置

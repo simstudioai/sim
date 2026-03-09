@@ -1,0 +1,211 @@
+---
+title: Typeform
+description: Mit Typeform interagieren
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="typeform"
+  color="#262627"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Typeform](https://www.typeform.com/) ist eine benutzerfreundliche Plattform zur Erstellung von konversationellen Formularen, Umfragen und Quiz mit Fokus auf ein ansprechendes Nutzererlebnis.
+
+Mit Typeform können Sie:
+
+- **Interaktive Formulare erstellen**: Gestalten Sie schöne, konversationelle Formulare, die Befragte mit einer einzigartigen Frage-für-Frage-Oberfläche einbinden
+- **Ihr Erlebnis anpassen**: Verwenden Sie bedingte Logik, versteckte Felder und benutzerdefinierte Designs, um personalisierte Benutzerreisen zu erstellen
+- **Mit anderen Tools integrieren**: Verbinden Sie sich mit über 1000 Apps durch native Integrationen und APIs
+- **Antwortdaten analysieren**: Erhalten Sie umsetzbare Erkenntnisse durch umfassende Analyse- und Berichtswerkzeuge
+
+In Sim ermöglicht die Typeform-Integration Ihren Agenten, programmatisch mit Ihren Typeform-Daten als Teil ihrer Workflows zu interagieren. Agenten können Formularantworten abrufen, Übermittlungsdaten verarbeiten und Benutzerfeedback direkt in Entscheidungsprozesse einbeziehen. Diese Integration ist besonders wertvoll für Szenarien wie Lead-Qualifizierung, Kundenfeedback-Analyse und datengesteuerte Personalisierung. Durch die Verbindung von Sim mit Typeform können Sie intelligente Automatisierungs-Workflows erstellen, die Formularantworten in umsetzbare Erkenntnisse umwandeln - Stimmungen analysieren, Feedback kategorisieren, Zusammenfassungen generieren und sogar Folgemaßnahmen basierend auf spezifischen Antwortmustern auslösen.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Integriert Typeform in den Workflow. Kann Antworten abrufen, Dateien herunterladen und Formularstatistiken erhalten. Kann im Trigger-Modus verwendet werden, um einen Workflow auszulösen, wenn ein Formular abgesendet wird. Erfordert API-Schlüssel.
+
+## Tools
+
+### `typeform_responses`
+
+Formularantworten von Typeform abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Ja | Typeform Formular-ID |
+| `apiKey` | string | Ja | Typeform persönliches Zugriffstoken |
+| `pageSize` | number | Nein | Anzahl der abzurufenden Antworten \(Standard: 25\) |
+| `since` | string | Nein | Antworten abrufen, die nach diesem Datum übermittelt wurden \(ISO 8601-Format\) |
+| `until` | string | Nein | Antworten abrufen, die vor diesem Datum übermittelt wurden \(ISO 8601-Format\) |
+| `completed` | string | Nein | Nach Abschlussstatus filtern \(true/false\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `total_items` | number | Gesamtanzahl der Antworten |
+| `page_count` | number | Gesamtanzahl der verfügbaren Seiten |
+| `items` | array | Array von Antwortobjekten mit response_id, submitted_at, answers und metadata |
+
+### `typeform_files`
+
+Dateien herunterladen, die in Typeform-Antworten hochgeladen wurden
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Ja | Typeform Formular-ID |
+| `responseId` | string | Ja | Antwort-ID, die die Dateien enthält |
+| `fieldId` | string | Ja | Eindeutige ID des Datei-Upload-Feldes |
+| `filename` | string | Ja | Dateiname der hochgeladenen Datei |
+| `inline` | boolean | Nein | Ob die Datei mit Inline Content-Disposition angefordert werden soll |
+| `apiKey` | string | Ja | Typeform persönliches Zugriffstoken |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `fileUrl` | string | Direkter Download-Link für die hochgeladene Datei |
+| `contentType` | string | MIME-Typ der hochgeladenen Datei |
+| `filename` | string | Ursprünglicher Dateiname der hochgeladenen Datei |
+
+### `typeform_insights`
+
+Einblicke und Analysen für Typeform-Formulare abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Ja | Typeform Formular-ID |
+| `apiKey` | string | Ja | Typeform persönliches Zugriffstoken |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `fields` | array | Anzahl der Benutzer, die bei diesem Feld abgebrochen haben |
+
+### `typeform_list_forms`
+
+Eine Liste aller Formulare in Ihrem Typeform-Konto abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Typeform persönliches Zugriffstoken |
+| `search` | string | Nein | Suchanfrage zum Filtern von Formularen nach Titel |
+| `page` | number | Nein | Seitennummer \(Standard: 1\) |
+| `pageSize` | number | Nein | Anzahl der Formulare pro Seite \(Standard: 10, max: 200\) |
+| `workspaceId` | string | Nein | Formulare nach Workspace-ID filtern |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `total_items` | number | Gesamtanzahl der Formulare im Konto |
+| `page_count` | number | Gesamtanzahl der verfügbaren Seiten |
+| `items` | array | Array von Formularobjekten mit id, title, created_at, last_updated_at, settings, theme und _links |
+
+### `typeform_get_form`
+
+Vollständige Details und Struktur eines bestimmten Formulars abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Typeform persönliches Zugriffstoken |
+| `formId` | string | Ja | Eindeutige Formular-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Eindeutige Formularkennung |
+| `title` | string | Formulartitel |
+| `type` | string | Formulartyp \(form, quiz, etc.\) |
+| `settings` | object | Formulareinstellungen einschließlich Sprache, Fortschrittsbalken, etc. |
+| `theme` | object | Theme-Referenz |
+| `workspace` | object | Workspace-Referenz |
+| `fields` | array | Array von Formularfeldern/Fragen |
+| `welcome_screens` | array | Array von Willkommensbildschirmen \(leer, wenn keine konfiguriert\) |
+| `thankyou_screens` | array | Array von Danke-Bildschirmen |
+| `created_at` | string | Zeitstempel der Formularerstellung \(ISO-8601-Format\) |
+| `last_updated_at` | string | Zeitstempel der letzten Formularaktualisierung \(ISO-8601-Format\) |
+| `published_at` | string | Zeitstempel der Formularveröffentlichung \(ISO-8601-Format\) |
+| `_links` | object | Links zu verwandten Ressourcen einschließlich öffentlicher Formular-URL |
+
+### `typeform_create_form`
+
+Ein neues Formular mit Feldern und Einstellungen erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Typeform persönliches Zugriffstoken |
+| `title` | string | Ja | Formulartitel |
+| `type` | string | Nein | Formulartyp \(Standard: "form"\). Optionen: "form", "quiz" |
+| `workspaceId` | string | Nein | Workspace-ID, in der das Formular erstellt werden soll |
+| `fields` | json | Nein | Array von Feldobjekten, die die Formularstruktur definieren. Jedes Feld benötigt: Typ, Titel und optionale Eigenschaften/Validierungen |
+| `settings` | json | Nein | Formulareinstellungsobjekt \(Sprache, Fortschrittsbalken, etc.\) |
+| `themeId` | string | Nein | Theme-ID, die auf das Formular angewendet werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Eindeutige Kennung des erstellten Formulars |
+| `title` | string | Formulartitel |
+| `type` | string | Formulartyp |
+| `settings` | object | Formulareinstellungsobjekt |
+| `theme` | object | Theme-Referenz |
+| `workspace` | object | Workspace-Referenz |
+| `fields` | array | Array von erstellten Formularfeldern \(leer, wenn keine hinzugefügt\) |
+| `welcome_screens` | array | Array von Willkommensbildschirmen \(leer, wenn keine konfiguriert\) |
+| `thankyou_screens` | array | Array von Danke-Bildschirmen |
+| `_links` | object | Links zu verwandten Ressourcen einschließlich öffentlicher Formular-URL |
+
+### `typeform_update_form`
+
+Ein bestehendes Formular mit JSON Patch-Operationen aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Typeform persönliches Zugriffstoken |
+| `formId` | string | Ja | Eindeutige Kennung des zu aktualisierenden Formulars |
+| `operations` | json | Ja | Array von JSON Patch-Operationen \(RFC 6902\). Jede Operation benötigt: op \(add/remove/replace\), path und value \(für add/replace\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Erfolgsbestätigungsnachricht |
+
+### `typeform_delete_form`
+
+Ein Formular und alle seine Antworten dauerhaft löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Typeform persönliches Zugriffstoken |
+| `formId` | string | Ja | Eindeutige Kennung des zu löschenden Formulars |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Ob das Formular erfolgreich gelöscht wurde |
+| `message` | string | Löschbestätigungsnachricht |

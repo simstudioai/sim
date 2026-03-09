@@ -1,0 +1,113 @@
+---
+title: Solución de problemas
+description: Problemas comunes y soluciones
+---
+
+## Falló la conexión a la base de datos
+
+```bash
+# Check database is running
+docker compose ps db
+
+# Test connection
+docker compose exec db psql -U postgres -c "SELECT 1"
+```
+
+Verifica el formato de `DATABASE_URL`: `postgresql://user:pass@host:5432/database`
+
+## Los modelos de Ollama no se muestran
+
+Dentro de Docker, `localhost` = el contenedor, no tu máquina host.
+
+```bash
+# For host-machine Ollama, use:
+OLLAMA_URL=http://host.docker.internal:11434  # macOS/Windows
+OLLAMA_URL=http://192.168.1.x:11434           # Linux (use actual IP)
+```
+
+## WebSocket/Tiempo real no funciona
+
+1. Comprueba que `NEXT_PUBLIC_SOCKET_URL` coincida con tu dominio
+2. Verifica que el servicio en tiempo real esté funcionando: `docker compose ps realtime`
+3. Asegúrate de que el proxy inverso pase las actualizaciones de WebSocket (consulta la [guía de Docker](/self-hosting/docker))
+
+## Error 502 Bad Gateway
+
+```bash
+# Check app is running
+docker compose ps simstudio
+docker compose logs simstudio
+
+# Common causes: out of memory, database not ready
+```
+
+## Errores de migración
+
+```bash
+# View migration logs
+docker compose logs migrations
+
+# Run manually
+docker compose exec simstudio bun run db:migrate
+```
+
+## pgvector no encontrado
+
+Usa la imagen correcta de PostgreSQL:
+
+```yaml
+image: pgvector/pgvector:pg17  # NOT postgres:17
+```
+
+## Errores de certificado (CERT_HAS_EXPIRED)
+
+Si ves errores de certificado SSL al llamar a APIs externas:
+
+```bash
+# Update CA certificates in container
+docker compose exec simstudio apt-get update && apt-get install -y ca-certificates
+
+# Or set in environment (not recommended for production)
+NODE_TLS_REJECT_UNAUTHORIZED=0
+```
+
+## Página en blanco después del inicio de sesión
+
+1. Revisa la consola del navegador para ver errores
+2. Verifica que `NEXT_PUBLIC_APP_URL` coincida con tu dominio actual
+3. Borra las cookies del navegador y el almacenamiento local
+4. Comprueba que todos los servicios estén funcionando: `docker compose ps`
+
+## Problemas específicos de Windows
+
+**Errores de Turbopack en Windows:**
+
+```bash
+# Use WSL2 for better compatibility
+wsl --install
+
+# Or disable Turbopack in package.json
+# Change "next dev --turbopack" to "next dev"
+```
+
+**Problemas de fin de línea:**
+
+```bash
+# Configure git to use LF
+git config --global core.autocrlf input
+```
+
+## Ver registros
+
+```bash
+# All services
+docker compose logs -f
+
+# Specific service
+docker compose logs -f simstudio
+```
+
+## Obtener ayuda
+
+- [GitHub Issues](https://github.com/simstudioai/sim/issues)
+- [Discord](https://discord.gg/Hr4UWYEcTT)

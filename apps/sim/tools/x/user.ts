@@ -1,0 +1,128 @@
+import { createLogger } from '@sim/logger'
+import type { ToolConfig } from '@/tools/types'
+import type { XUserParams, XUserResponse } from '@/tools/x/types'
+import { transformUser } from '@/tools/x/types'
+
+const logger = createLogger('XUserTool')
+
+export const xUserTool: ToolConfig<XUserParams, XUserResponse> = {
+  id: 'x_user',
+  name: 'X User',
+  description: 'Get user profile information',
+  version: '1.0.0',
+
+  oauth: {
+    required: true,
+    provider: 'x',
+  },
+
+  params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'X OAuth access token',
+    },
+    username: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Username to look up without @ symbol (e.g., elonmusk, openai)',
+    },
+  },
+
+  request: {
+    url: (params) => {
+      const username = encodeURIComponent(params.username)
+      // Keep fields minimal to reduce chance of rate limits
+      const userFields = 'description,profile_image_url,verified,public_metrics'
+
+      return `https://api.twitter.com/2/users/by/username/${username}?user.fields=${userFields}`
+    },
+    method: 'GET',
+    headers: (params) => ({
+      Authorization: `Bearer ${params.accessToken}`,
+      'Content-Type': 'application/json',
+    }),
+  },
+
+  transformResponse: async (response, params) => {
+    // Handle rate limit issues (429 status code)
+    if (response.status === 429) {
+      logger.warn('X API rate limit exceeded', {
+        status: response.status,
+        headers: Object.fromEntries(response.headers.entries()),
+      })
+
+      // Try to extract rate limit reset time from headers if available
+      const resetTime = response.headers.get('x-rate-limit-reset')
+      const message = resetTime
+        ? `Rate limit exceeded. Please try again after ${new Date(Number.parseInt(resetTime) * 1000).toLocaleTimeString()}.`
+        : 'X API rate limit exceeded. Please try again later.'
+
+      throw new Error(message)
+    }
+
+    try {
+      const responseData = await response.json()
+      logger.debug('X API response', {
+        status: response.status,
+        headers: Object.fromEntries(response.headers.entries()),
+        responseData,
+      })
+
+      // Check if response contains expected data structure
+      if (!responseData.data) {
+        // If there's an error object in the response
+        if (responseData.errors && responseData.errors.length > 0) {
+          const error = responseData.errors[0]
+          // Remove the square brackets from the error message
+          const cleanedMessage = error.detail ? error.detail.replace(/\[(.*?)\]/, '$1') : ''
+          throw new Error(
+            `X API error: ${cleanedMessage || error.message || JSON.stringify(error)}`
+          )
+        }
+        throw new Error('Invalid response format from X API')
+      }
+
+      const userData = responseData.data
+      const user = transformUser(userData)
+
+      return {
+        success: true,
+        output: {
+          user,
+        },
+      }
+    } catch (error) {
+      logger.error('Error processing X API response', {
+        error,
+        status: response.status,
+      })
+      throw error
+    }
+  },
+
+  outputs: {
+    user: {
+      type: 'object',
+      description: 'X user profile information',
+      properties: {
+        id: { type: 'string', description: 'User ID' },
+        username: { type: 'string', description: 'Username without @ symbol' },
+        name: { type: 'string', description: 'Display name' },
+        description: { type: 'string', description: 'User bio/description', optional: true },
+        verified: { type: 'boolean', description: 'Whether the user is verified' },
+        metrics: {
+          type: 'object',
+          description: 'User statistics',
+          properties: {
+            followersCount: { type: 'number', description: 'Number of followers' },
+            followingCount: { type: 'number', description: 'Number of users following' },
+            tweetCount: { type: 'number', description: 'Total number of tweets' },
+          },
+        },
+      },
+    },
+  },
+}

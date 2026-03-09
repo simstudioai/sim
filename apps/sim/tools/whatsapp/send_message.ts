@@ -1,0 +1,103 @@
+import type { ToolConfig } from '@/tools/types'
+import type { WhatsAppResponse, WhatsAppSendMessageParams } from '@/tools/whatsapp/types'
+
+export const sendMessageTool: ToolConfig<WhatsAppSendMessageParams, WhatsAppResponse> = {
+  id: 'whatsapp_send_message',
+  name: 'WhatsApp',
+  description: 'Send WhatsApp messages',
+  version: '1.0.0',
+
+  params: {
+    phoneNumber: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Recipient phone number with country code (e.g., +14155552671)',
+    },
+    message: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Message content to send (plain text or template content)',
+    },
+    phoneNumberId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'WhatsApp Business Phone Number ID (from Meta Business Suite)',
+    },
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'WhatsApp Business API Access Token (from Meta Developer Portal)',
+    },
+  },
+
+  request: {
+    url: (params) => {
+      if (!params.phoneNumberId) {
+        throw new Error('WhatsApp Phone Number ID is required')
+      }
+      return `https://graph.facebook.com/v22.0/${params.phoneNumberId}/messages`
+    },
+    method: 'POST',
+    headers: (params) => {
+      if (!params.accessToken) {
+        throw new Error('WhatsApp Access Token is required')
+      }
+      return {
+        Authorization: `Bearer ${params.accessToken}`,
+        'Content-Type': 'application/json',
+      }
+    },
+    body: (params) => {
+      // Check if required parameters exist
+      if (!params.phoneNumber) {
+        throw new Error('Phone number is required but was not provided')
+      }
+
+      if (!params.message) {
+        throw new Error('Message content is required but was not provided')
+      }
+
+      // Format the phone number (remove + if present)
+      const formattedPhoneNumber = params.phoneNumber.startsWith('+')
+        ? params.phoneNumber.substring(1)
+        : params.phoneNumber
+
+      return {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: formattedPhoneNumber,
+        type: 'text',
+        text: {
+          body: params.message,
+        },
+      }
+    },
+  },
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+
+    return {
+      success: true,
+      output: {
+        success: true,
+        messageId: data.messages?.[0]?.id,
+        phoneNumber: '',
+        status: '',
+        timestamp: '',
+      },
+    }
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'WhatsApp message send success status' },
+    messageId: { type: 'string', description: 'Unique WhatsApp message identifier' },
+    phoneNumber: { type: 'string', description: 'Recipient phone number' },
+    status: { type: 'string', description: 'Message delivery status' },
+    timestamp: { type: 'string', description: 'Message send timestamp' },
+  },
+}

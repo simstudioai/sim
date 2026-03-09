@@ -1,0 +1,484 @@
+import { db } from '@sim/db'
+import { workflow } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { eq } from 'drizzle-orm'
+import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { getExecutionTimeout } from '@/lib/core/execution-limits'
+import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
+import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
+import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
+import type { CoreTriggerType } from '@/stores/logs/filters/types'
+
+const logger = createLogger('ExecutionPreprocessing')
+
+const BILLING_ERROR_MESSAGES = {
+  BILLING_REQUIRED:
+    'Unable to resolve billing account. This workflow cannot execute without a valid billing account.',
+  BILLING_ERROR_GENERIC: 'Error resolving billing account',
+} as const
+
+export interface PreprocessExecutionOptions {
+  // Required fields
+  workflowId: string
+  userId: string // The authenticated user ID
+  triggerType: CoreTriggerType | 'form'
+  executionId: string
+  requestId: string
+
+  // Optional checks configuration
+  checkRateLimit?: boolean // Default: false for manual/chat, true for others
+  checkDeployment?: boolean // Default: true for non-manual triggers
+  skipUsageLimits?: boolean // Default: false (only use for test mode)
+
+  // Context information
+  workspaceId?: string // If known, used for billing resolution
+  loggingSession?: LoggingSession // If provided, will be used for error logging
+  isResumeContext?: boolean // Deprecated: no billing fallback is allowed
+  useAuthenticatedUserAsActor?: boolean // If true, use the authenticated userId as actorUserId (for client-side executions and personal API keys)
+  /** @deprecated No longer used - background/async executions always use deployed state */
+  useDraftState?: boolean
+  /** Pre-fetched workflow record to skip the Step 1 DB query. Must be a full workflow table row. */
+  workflowRecord?: WorkflowRecord
+}
+
+/**
+ * Result of preprocessing checks
+ */
+export interface PreprocessExecutionResult {
+  success: boolean
+  error?: {
+    message: string
+    statusCode: number
+    logCreated: boolean
+  }
+  actorUserId?: string
+  workflowRecord?: WorkflowRecord
+  userSubscription?: SubscriptionInfo | null
+  rateLimitInfo?: {
+    allowed: boolean
+    remaining: number
+    resetAt: Date
+  }
+  executionTimeout?: {
+    sync: number
+    async: number
+  }
+}
+
+type WorkflowRecord = typeof workflow.$inferSelect
+type SubscriptionInfo = HighestPrioritySubscription
+
+export async function preprocessExecution(
+  options: PreprocessExecutionOptions
+): Promise<PreprocessExecutionResult> {
+  const {
+    workflowId,
+    userId,
+    triggerType,
+    executionId,
+    requestId,
+    checkRateLimit = triggerType !== 'manual' && triggerType !== 'chat',
+    checkDeployment = triggerType !== 'manual',
+    skipUsageLimits = false,
+    workspaceId: providedWorkspaceId,
+    loggingSession: providedLoggingSession,
+    isResumeContext: _isResumeContext = false,
+    useAuthenticatedUserAsActor = false,
+    workflowRecord: prefetchedWorkflowRecord,
+  } = options
+
+  logger.info(`[${requestId}] Starting execution preprocessing`, {
+    workflowId,
+    userId,
+    triggerType,
+    executionId,
+  })
+
+  // ========== STEP 1: Validate Workflow Exists ==========
+  if (prefetchedWorkflowRecord && prefetchedWorkflowRecord.id !== workflowId) {
+    logger.error(`[${requestId}] Prefetched workflow record ID mismatch`, {
+      expected: workflowId,
+      received: prefetchedWorkflowRecord.id,
+    })
+    throw new Error(
+      `Prefetched workflow record ID mismatch: expected ${workflowId}, got ${prefetchedWorkflowRecord.id}`
+    )
+  }
+  let workflowRecord: WorkflowRecord | null = prefetchedWorkflowRecord ?? null
+  if (!workflowRecord) {
+    try {
+      const records = await db.select().from(workflow).where(eq(workflow.id, workflowId)).limit(1)
+
+      if (records.length === 0) {
+        logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
+
+        await logPreprocessingError({
+          workflowId,
+          executionId,
+          triggerType,
+          requestId,
+          userId: 'unknown',
+          workspaceId: '',
+          errorMessage:
+            'Workflow not found. The workflow may have been deleted or is no longer accessible.',
+          loggingSession: providedLoggingSession,
+        })
+
+        return {
+          success: false,
+          error: {
+            message: 'Workflow not found',
+            statusCode: 404,
+            logCreated: true,
+          },
+        }
+      }
+
+      workflowRecord = records[0]
+    } catch (error) {
+      logger.error(`[${requestId}] Error fetching workflow`, { error, workflowId })
+
+      await logPreprocessingError({
+        workflowId,
+        executionId,
+        triggerType,
+        requestId,
+        userId: userId || 'unknown',
+        workspaceId: providedWorkspaceId || '',
+        errorMessage: 'Internal error while fetching workflow',
+        loggingSession: providedLoggingSession,
+      })
+
+      return {
+        success: false,
+        error: {
+          message: 'Internal error while fetching workflow',
+          statusCode: 500,
+          logCreated: true,
+        },
+      }
+    }
+  }
+
+  const workspaceId = workflowRecord.workspaceId || providedWorkspaceId || ''
+
+  if (!workspaceId) {
+    logger.warn(`[${requestId}] Workflow ${workflowId} has no workspaceId; execution blocked`)
+    return {
+      success: false,
+      error: {
+        message:
+          'This workflow is not attached to a workspace. Personal workflows are deprecated and cannot execute.',
+        statusCode: 403,
+        logCreated: false,
+      },
+    }
+  }
+
+  // ========== STEP 2: Check Deployment Status ==========
+  // If workflow is not deployed and deployment is required, reject without logging.
+  // No log entry or cost should be created for calls to undeployed workflows
+  // since the workflow was never intended to run.
+  if (checkDeployment && !workflowRecord.isDeployed) {
+    logger.warn(`[${requestId}] Workflow not deployed: ${workflowId}`)
+
+    return {
+      success: false,
+      error: {
+        message: 'Workflow is not deployed',
+        statusCode: 403,
+        logCreated: false,
+      },
+    }
+  }
+
+  // ========== STEP 3: Resolve Billing Actor ==========
+  let actorUserId: string | null = null
+
+  try {
+    // For client-side executions and personal API keys, the authenticated
+    // user is the billing and permission actor — not the workspace owner.
+    if (useAuthenticatedUserAsActor && userId) {
+      actorUserId = userId
+      logger.info(`[${requestId}] Using authenticated user as actor: ${actorUserId}`)
+    }
+
+    if (!actorUserId && workspaceId) {
+      actorUserId = await getWorkspaceBilledAccountUserId(workspaceId)
+      if (actorUserId) {
+        logger.info(`[${requestId}] Using workspace billed account: ${actorUserId}`)
+      }
+    }
+
+    if (!actorUserId) {
+      const fallbackUserId = userId || 'unknown'
+      logger.warn(`[${requestId}] ${BILLING_ERROR_MESSAGES.BILLING_REQUIRED}`, {
+        workflowId,
+        workspaceId,
+      })
+
+      await logPreprocessingError({
+        workflowId,
+        executionId,
+        triggerType,
+        requestId,
+        userId: fallbackUserId,
+        workspaceId,
+        errorMessage: BILLING_ERROR_MESSAGES.BILLING_REQUIRED,
+        loggingSession: providedLoggingSession,
+      })
+
+      return {
+        success: false,
+        error: {
+          message: 'Unable to resolve billing account',
+          statusCode: 500,
+          logCreated: true,
+        },
+      }
+    }
+  } catch (error) {
+    logger.error(`[${requestId}] Error resolving billing actor`, { error, workflowId })
+    const fallbackUserId = userId || 'unknown'
+    await logPreprocessingError({
+      workflowId,
+      executionId,
+      triggerType,
+      requestId,
+      userId: fallbackUserId,
+      workspaceId,
+      errorMessage: BILLING_ERROR_MESSAGES.BILLING_ERROR_GENERIC,
+      loggingSession: providedLoggingSession,
+    })
+
+    return {
+      success: false,
+      error: {
+        message: 'Error resolving billing account',
+        statusCode: 500,
+        logCreated: true,
+      },
+    }
+  }
+
+  // ========== STEP 4: Get Subscription ==========
+  const userSubscription = await getHighestPrioritySubscription(actorUserId)
+
+  // ========== STEP 5: Check Usage Limits ==========
+  if (!skipUsageLimits) {
+    try {
+      const usageCheck = await checkServerSideUsageLimits(actorUserId, userSubscription)
+      if (usageCheck.isExceeded) {
+        logger.warn(
+          `[${requestId}] User ${actorUserId} has exceeded usage limits. Blocking execution.`,
+          {
+            currentUsage: usageCheck.currentUsage,
+            limit: usageCheck.limit,
+            workflowId,
+            triggerType,
+          }
+        )
+
+        await logPreprocessingError({
+          workflowId,
+          executionId,
+          triggerType,
+          requestId,
+          userId: actorUserId,
+          workspaceId,
+          errorMessage:
+            usageCheck.message ||
+            `Usage limit exceeded: $${usageCheck.currentUsage?.toFixed(2)} used of $${usageCheck.limit?.toFixed(2)} limit. Please upgrade your plan to continue.`,
+          loggingSession: providedLoggingSession,
+        })
+
+        return {
+          success: false,
+          error: {
+            message:
+              usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+            statusCode: 402,
+            logCreated: true,
+          },
+        }
+      }
+    } catch (error) {
+      logger.error(`[${requestId}] Error checking usage limits`, {
+        error,
+        actorUserId,
+      })
+
+      await logPreprocessingError({
+        workflowId,
+        executionId,
+        triggerType,
+        requestId,
+        userId: actorUserId,
+        workspaceId,
+        errorMessage:
+          'Unable to determine usage limits. Execution blocked for security. Please contact support.',
+        loggingSession: providedLoggingSession,
+      })
+
+      return {
+        success: false,
+        error: {
+          message: 'Unable to determine usage limits. Execution blocked for security.',
+          statusCode: 500,
+          logCreated: true,
+        },
+      }
+    }
+  }
+
+  // ========== STEP 6: Check Rate Limits ==========
+  let rateLimitInfo: { allowed: boolean; remaining: number; resetAt: Date } | undefined
+
+  if (checkRateLimit) {
+    try {
+      const rateLimiter = new RateLimiter()
+      rateLimitInfo = await rateLimiter.checkRateLimitWithSubscription(
+        actorUserId,
+        userSubscription,
+        triggerType,
+        false // not async
+      )
+
+      if (!rateLimitInfo.allowed) {
+        logger.warn(`[${requestId}] Rate limit exceeded for user ${actorUserId}`, {
+          triggerType,
+          remaining: rateLimitInfo.remaining,
+          resetAt: rateLimitInfo.resetAt,
+        })
+
+        await logPreprocessingError({
+          workflowId,
+          executionId,
+          triggerType,
+          requestId,
+          userId: actorUserId,
+          workspaceId,
+          errorMessage: `Rate limit exceeded. ${rateLimitInfo.remaining} requests remaining. Resets at ${rateLimitInfo.resetAt.toISOString()}.`,
+          loggingSession: providedLoggingSession,
+        })
+
+        return {
+          success: false,
+          error: {
+            message: `Rate limit exceeded. Please try again later.`,
+            statusCode: 429,
+            logCreated: true,
+          },
+        }
+      }
+    } catch (error) {
+      logger.error(`[${requestId}] Error checking rate limits`, { error, actorUserId })
+
+      await logPreprocessingError({
+        workflowId,
+        executionId,
+        triggerType,
+        requestId,
+        userId: actorUserId,
+        workspaceId,
+        errorMessage: 'Error checking rate limits. Execution blocked for safety.',
+        loggingSession: providedLoggingSession,
+      })
+
+      return {
+        success: false,
+        error: {
+          message: 'Error checking rate limits',
+          statusCode: 500,
+          logCreated: true,
+        },
+      }
+    }
+  }
+
+  // ========== SUCCESS: All Checks Passed ==========
+  logger.info(`[${requestId}] All preprocessing checks passed`, {
+    workflowId,
+    actorUserId,
+    triggerType,
+  })
+
+  const plan = userSubscription?.plan as SubscriptionPlan | undefined
+  return {
+    success: true,
+    actorUserId,
+    workflowRecord,
+    userSubscription,
+    rateLimitInfo,
+    executionTimeout: {
+      sync: getExecutionTimeout(plan, 'sync'),
+      async: getExecutionTimeout(plan, 'async'),
+    },
+  }
+}
+
+/**
+ * Helper function to log preprocessing errors to the database
+ *
+ * This ensures users can see why their workflow execution was blocked.
+ */
+async function logPreprocessingError(params: {
+  workflowId: string
+  executionId: string
+  triggerType: string
+  requestId: string
+  userId: string
+  workspaceId: string
+  errorMessage: string
+  loggingSession?: LoggingSession
+}): Promise<void> {
+  const {
+    workflowId,
+    executionId,
+    triggerType,
+    requestId,
+    userId,
+    workspaceId,
+    errorMessage,
+    loggingSession,
+  } = params
+
+  if (!workspaceId) {
+    logger.warn(`[${requestId}] Cannot log preprocessing error: no workspaceId available`, {
+      workflowId,
+      executionId,
+      errorMessage,
+    })
+    return
+  }
+
+  try {
+    const session =
+      loggingSession || new LoggingSession(workflowId, executionId, triggerType, requestId)
+
+    await session.safeStart({
+      userId,
+      workspaceId,
+      variables: {},
+    })
+
+    await session.safeCompleteWithError({
+      error: {
+        message: errorMessage,
+        stackTrace: undefined,
+      },
+      traceSpans: [],
+      skipCost: true, // Preprocessing errors should not charge - no execution occurred
+    })
+  } catch (error) {
+    logger.error(`[${requestId}] Failed to log preprocessing error`, {
+      error,
+      workflowId,
+      executionId,
+    })
+    // Don't throw - error logging should not block the error response
+  }
+}

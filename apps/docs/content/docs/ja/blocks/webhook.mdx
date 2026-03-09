@@ -1,0 +1,89 @@
+---
+title: Webhook
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+Webhookブロックは、自動的なWebhookヘッダーとオプションのHMAC署名を使用して、外部のWebhookエンドポイントにHTTP POSTリクエストを送信します。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook.png"
+    alt="Webhookブロック"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## 設定
+
+### Webhook URL
+
+Webhookリクエストの送信先エンドポイントです。静的URLと他のブロックからの動的な値の両方に対応しています。
+
+### ペイロード
+
+リクエストボディで送信するJSONデータです。AIワンドを使用してペイロードを生成したり、ワークフロー変数を参照したりできます。
+
+```json
+{
+  "event": "workflow.completed",
+  "data": {
+    "result": "<agent.content>",
+    "timestamp": "<function.result>"
+  }
+}
+```
+
+### 署名シークレット
+
+HMAC-SHA256ペイロード署名用のオプションのシークレットです。指定すると、`X-Webhook-Signature`ヘッダーが追加されます。
+
+```
+X-Webhook-Signature: t=1704067200000,v1=5d41402abc4b2a76b9719d911017c592...
+```
+
+署名を検証するには、`HMAC-SHA256(secret, "${timestamp}.${body}")`を計算し、`v1`の値と比較します。
+
+### 追加ヘッダー
+
+リクエストに含めるカスタムのキーと値のヘッダーです。同じ名前の自動ヘッダーがある場合は上書きされます。
+
+## 自動ヘッダー
+
+すべてのリクエストには、以下のヘッダーが自動的に含まれます。
+
+| ヘッダー | 説明 |
+|--------|-------------|
+| `Content-Type` | `application/json` |
+| `X-Webhook-Timestamp` | ミリ秒単位のUnixタイムスタンプ |
+| `X-Delivery-ID` | この配信の一意のUUID |
+| `Idempotency-Key` | 重複排除用の`X-Delivery-ID`と同じ |
+
+## 出力
+
+| 出力 | 型 | 説明 |
+|--------|------|-------------|
+| `data` | json | エンドポイントからのレスポンスボディ |
+| `status` | number | HTTPステータスコード |
+| `headers` | object | レスポンスヘッダー |
+
+## 使用例
+
+**外部サービスへの通知** - ワークフローの結果をSlack、Discord、またはカスタムエンドポイントに送信します。
+
+```
+Agent → Function (format) → Webhook (notify)
+```
+
+**外部ワークフローのトリガー** - 条件が満たされたときに他のシステムでプロセスを開始します。
+
+```
+Condition (check) → Webhook (trigger) → Response
+```
+
+<Callout>
+Webhookブロックは常にPOSTを使用します。他のHTTPメソッドやより詳細な制御が必要な場合は、[APIブロック](/blocks/api)を使用してください。
+</Callout>

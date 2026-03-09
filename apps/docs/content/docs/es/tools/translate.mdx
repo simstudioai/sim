@@ -1,0 +1,60 @@
+---
+title: Traducir
+description: Traduce texto a cualquier idioma
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="translate"
+  color="#FF4B4B"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Traducir es una herramienta que te permite traducir texto entre diferentes idiomas.
+
+Con Traducir, puedes:
+
+- **Traducir texto**: Traducir texto entre idiomas
+- **Traducir documentos**: Traducir documentos entre idiomas
+- **Traducir sitios web**: Traducir sitios web entre idiomas
+- **Traducir imágenes**: Traducir imágenes entre idiomas
+- **Traducir audio**: Traducir audio entre idiomas
+- **Traducir videos**: Traducir videos entre idiomas
+- **Traducir voz**: Traducir voz entre idiomas
+- **Traducir texto**: Traducir texto entre idiomas
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Translate en el flujo de trabajo. Puede traducir texto a cualquier idioma.
+
+## Herramientas
+
+### `llm_chat`
+
+Envía una solicitud de completado de chat a cualquier proveedor de LLM compatible
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | --------- | ----------- |
+| `model` | string | Sí | El modelo a utilizar \(por ejemplo, gpt-4o, claude-sonnet-4-5, gemini-2.0-flash\) |
+| `systemPrompt` | string | No | Prompt del sistema para establecer el comportamiento del asistente |
+| `context` | string | Sí | El mensaje del usuario o contexto a enviar al modelo |
+| `apiKey` | string | No | Clave API del proveedor \(usa la clave de la plataforma si no se proporciona para modelos alojados\) |
+| `temperature` | number | No | Temperatura para la generación de respuestas \(0-2\) |
+| `maxTokens` | number | No | Máximo de tokens en la respuesta |
+| `azureEndpoint` | string | No | URL del endpoint de Azure OpenAI |
+| `azureApiVersion` | string | No | Versión de la API de Azure OpenAI |
+| `vertexProject` | string | No | ID del proyecto de Google Cloud para Vertex AI |
+| `vertexLocation` | string | No | Ubicación de Google Cloud para Vertex AI \(por defecto us-central1\) |
+| `vertexCredential` | string | No | ID de credencial OAuth de Google Cloud para Vertex AI |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | El contenido de la respuesta generada |
+| `model` | string | El modelo utilizado para la generación |
+| `tokens` | object | Información de uso de tokens |

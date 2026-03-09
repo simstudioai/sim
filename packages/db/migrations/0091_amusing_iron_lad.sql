@@ -1,0 +1,1 @@
+ALTER TABLE "user_stats" ADD COLUMN "pro_period_cost_snapshot" numeric DEFAULT '0';

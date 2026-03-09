@@ -1,0 +1,79 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/apps/**/node_modules
+/packages/**/node_modules
+/scripts/node_modules
+
+# bun specific
+bun-debug.log*
+
+# testing
+/coverage
+/apps/**/coverage
+
+# next.js
+/.next/
+/apps/**/out/
+/apps/**/.next/
+/apps/**/build
+
+# production
+/build
+/dist
+**/dist/
+**/standalone/
+sim-standalone.tar.gz
+
+# misc
+.DS_Store
+*.pem
+
+# env files
+.env
+*.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# cursorrules
+# .cursorrules
+
+# docs
+/apps/docs/.source
+/apps/docs/.contentlayer
+/apps/docs/.content-collections
+
+# database instantiation
+**/postgres_data/
+
+# collector configuration
+collector-config.yaml
+docker-compose.collector.yml
+start-collector.sh
+
+# Turborepo
+.turbo
+
+# VSCode
+.vscode
+
+# IntelliJ
+.idea
+
+## Helm Chart Tests
+helm/sim/test
+i18n.cache
+
+## Claude Code
+.claude/launch.json
+.claude/worktrees/

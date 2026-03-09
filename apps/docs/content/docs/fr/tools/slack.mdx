@@ -1,0 +1,409 @@
+---
+title: Slack
+description: Envoyez, mettez à jour, supprimez des messages, ajoutez des
+  réactions dans Slack ou déclenchez des workflows à partir d'événements Slack
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="slack"
+  color="#611f69"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Slack](https://www.slack.com/) est une plateforme de communication professionnelle qui offre aux équipes un espace unifié pour les messages, les outils et les fichiers.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/J5jz3UaWmE8"
+  title="Intégration de Slack avec Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Avec Slack, vous pouvez :
+
+- **Automatisez les notifications des agents** : Envoyez des mises à jour en temps réel depuis vos agents Sim vers n'importe quel canal Slack
+- **Créez des points de terminaison webhook** : Configurez des bots Slack comme webhooks pour déclencher des workflows Sim à partir des activités Slack
+- **Améliorez les workflows des agents** : Intégrez la messagerie Slack dans vos agents pour livrer des résultats, des alertes et des mises à jour de statut
+- **Créez et partagez des canevas Slack** : Générez programmatiquement des documents collaboratifs (canevas) dans les canaux Slack
+- **Lisez les messages des canaux** : Récupérez et traitez les messages récents de n'importe quel canal Slack pour la surveillance ou les déclencheurs de workflow
+- **Gérez les messages des bots** : Mettez à jour, supprimez et ajoutez des réactions aux messages envoyés par votre bot
+
+Dans Sim, l'intégration Slack permet à vos agents d'interagir programmatiquement avec Slack avec des capacités complètes de gestion des messages dans le cadre de leurs workflows :
+
+- **Envoyez des messages** : Les agents peuvent envoyer des messages formatés à n'importe quel canal ou utilisateur Slack, prenant en charge la syntaxe mrkdwn de Slack pour un formatage enrichi
+- **Mettez à jour des messages** : Modifiez les messages de bot précédemment envoyés pour corriger des informations ou fournir des mises à jour de statut
+- **Supprimez des messages** : Supprimez les messages de bot lorsqu'ils ne sont plus nécessaires ou contiennent des erreurs
+- **Ajoutez des réactions** : Exprimez un sentiment ou une reconnaissance en ajoutant des réactions emoji à n'importe quel message
+- **Créez des canevas** : Créez et partagez des canevas Slack (documents collaboratifs) directement dans les canaux, permettant un partage de contenu et une documentation plus riches
+- **Lisez des messages** : Lisez les messages récents des canaux, permettant la surveillance, le reporting ou le déclenchement d'actions supplémentaires basées sur l'activité du canal
+- **Téléchargez des fichiers** : Récupérez les fichiers partagés dans les canaux Slack pour traitement ou archivage
+
+Cela permet des scénarios d'automatisation puissants tels que l'envoi de notifications avec des mises à jour dynamiques, la gestion des flux conversationnels avec des messages de statut modifiables, la reconnaissance de messages importants avec des réactions, et le maintien de canaux propres en supprimant les messages de bot obsolètes. Vos agents peuvent fournir des informations opportunes, mettre à jour des messages au fur et à mesure que les workflows progressent, créer des documents collaboratifs, ou alerter les membres de l'équipe lorsqu'une attention est nécessaire. Cette intégration comble le fossé entre vos workflows d'IA et la communication de votre équipe, garantissant que tout le monde reste informé avec des informations précises et à jour. En connectant Sim avec Slack, vous pouvez créer des agents qui tiennent votre équipe informée avec des informations pertinentes au bon moment, améliorent la collaboration en partageant et en mettant à jour automatiquement des insights, et réduisent le besoin de mises à jour manuelles de statut—tout en tirant parti de votre espace de travail Slack existant où votre équipe communique déjà.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Slack dans le flux de travail. Peut envoyer, mettre à jour et supprimer des messages, créer des canevas, lire des messages et ajouter des réactions. Nécessite un jeton de bot au lieu d'OAuth en mode avancé. Peut être utilisé en mode déclencheur pour lancer un flux de travail lorsqu'un message est envoyé à un canal.
+
+## Outils
+
+### `slack_message`
+
+Envoyez des messages aux canaux Slack ou en messages directs. Prend en charge le formatage mrkdwn de Slack.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour Bot personnalisé |
+| `channel` | chaîne | Non | Canal Slack cible \(ex. : #general\) |
+| `userId` | chaîne | Non | ID utilisateur Slack cible pour les messages directs \(ex. : U1234567890\) |
+| `text` | chaîne | Oui | Texte du message à envoyer \(prend en charge le formatage mrkdwn de Slack\) |
+| `thread_ts` | chaîne | Non | Horodatage du fil de discussion auquel répondre \(crée une réponse dans le fil\) |
+| `files` | fichier[] | Non | Fichiers à joindre au message |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | objet | Objet de message complet avec toutes les propriétés renvoyées par Slack |
+| `ts` | chaîne | Horodatage du message |
+| `channel` | chaîne | ID du canal où le message a été envoyé |
+| `fileCount` | nombre | Nombre de fichiers téléchargés \(lorsque des fichiers sont joints\) |
+
+### `slack_canvas`
+
+Créer et partager des canevas Slack dans les canaux. Les canevas sont des documents collaboratifs au sein de Slack.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour le Bot personnalisé |
+| `channel` | chaîne | Oui | Canal Slack cible (par ex., #general) |
+| `title` | chaîne | Oui | Titre du canevas |
+| `content` | chaîne | Oui | Contenu du canevas au format markdown |
+| `document_content` | objet | Non | Contenu structuré du document canevas |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `canvas_id` | chaîne | ID du canevas créé |
+| `channel` | chaîne | Canal où le canevas a été créé |
+| `title` | chaîne | Titre du canevas |
+
+### `slack_message_reader`
+
+Lisez les derniers messages des canaux Slack. Récupérez l'historique des conversations avec des options de filtrage.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour Bot personnalisé |
+| `channel` | chaîne | Non | Canal Slack depuis lequel lire les messages \(ex. : #general\) |
+| `userId` | chaîne | Non | ID utilisateur pour la conversation en message direct \(ex. : U1234567890\) |
+| `limit` | nombre | Non | Nombre de messages à récupérer \(par défaut : 10, max : 15\) |
+| `oldest` | chaîne | Non | Début de la plage horaire \(horodatage\) |
+| `latest` | chaîne | Non | Fin de la plage horaire \(horodatage\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `messages` | tableau | Tableau d'objets de messages du canal |
+
+### `slack_list_channels`
+
+Liste tous les canaux dans un espace de travail Slack. Renvoie les canaux publics et privés auxquels le bot a accès.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour Bot personnalisé |
+| `includePrivate` | booléen | Non | Inclure les canaux privés dont le bot est membre \(par défaut : true\) |
+| `excludeArchived` | booléen | Non | Exclure les canaux archivés \(par défaut : true\) |
+| `limit` | nombre | Non | Nombre maximum de canaux à renvoyer \(par défaut : 100, max : 200\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `channels` | tableau | Tableau d'objets de canaux de l'espace de travail |
+
+### `slack_list_members`
+
+Liste tous les membres (identifiants d'utilisateurs) dans un canal Slack. À utiliser avec Get User Info pour convertir les identifiants en noms.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour Bot personnalisé |
+| `channel` | chaîne | Oui | ID du canal dont il faut lister les membres |
+| `limit` | nombre | Non | Nombre maximum de membres à renvoyer \(par défaut : 100, max : 200\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | tableau | Tableau d'identifiants d'utilisateurs qui sont membres du canal \(par ex., U1234567890\) |
+
+### `slack_list_users`
+
+Liste tous les utilisateurs dans un espace de travail Slack. Renvoie les profils d'utilisateurs avec noms et avatars.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour le Bot personnalisé |
+| `includeDeleted` | booléen | Non | Inclure les utilisateurs désactivés/supprimés \(par défaut : false\) |
+| `limit` | nombre | Non | Nombre maximum d'utilisateurs à renvoyer \(par défaut : 100, max : 200\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | tableau | Tableau d'objets utilisateur de l'espace de travail |
+
+### `slack_get_user`
+
+Obtenir des informations détaillées sur un utilisateur Slack spécifique à partir de son ID utilisateur.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour le Bot personnalisé |
+| `userId` | chaîne | Oui | ID utilisateur à rechercher \(par ex., U1234567890\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | objet | Informations détaillées sur l'utilisateur |
+
+### `slack_download`
+
+Télécharger un fichier depuis Slack
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour le Bot personnalisé |
+| `fileId` | chaîne | Oui | L'ID du fichier à télécharger |
+| `fileName` | chaîne | Non | Remplacement optionnel du nom de fichier |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | fichier | Fichier téléchargé stocké dans les fichiers d'exécution |
+
+### `slack_update_message`
+
+Mettre à jour un message précédemment envoyé par le bot dans Slack
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour Bot personnalisé |
+| `channel` | chaîne | Oui | ID du canal où le message a été publié \(ex. : C1234567890\) |
+| `timestamp` | chaîne | Oui | Horodatage du message à mettre à jour \(ex. : 1405894322.002768\) |
+| `text` | chaîne | Oui | Nouveau texte du message \(prend en charge le formatage mrkdwn de Slack\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | objet | Objet de message mis à jour complet avec toutes les propriétés renvoyées par Slack |
+| `content` | chaîne | Message de succès |
+| `metadata` | objet | Métadonnées du message mis à jour |
+
+### `slack_delete_message`
+
+Supprimer un message précédemment envoyé par le bot dans Slack
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour Bot personnalisé |
+| `channel` | chaîne | Oui | ID du canal où le message a été publié \(ex. : C1234567890\) |
+| `timestamp` | chaîne | Oui | Horodatage du message à supprimer \(ex. : 1405894322.002768\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | chaîne | Message de succès |
+| `metadata` | objet | Métadonnées du message supprimé |
+
+### `slack_add_reaction`
+
+Ajouter une réaction emoji à un message Slack
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour Bot personnalisé |
+| `channel` | chaîne | Oui | ID du canal où le message a été publié \(ex. : C1234567890\) |
+| `timestamp` | chaîne | Oui | Horodatage du message auquel réagir \(ex. : 1405894322.002768\) |
+| `name` | chaîne | Oui | Nom de la réaction emoji \(sans les deux-points, ex. : thumbsup, heart, eyes\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | chaîne | Message de succès |
+| `metadata` | objet | Métadonnées de la réaction |
+
+## Remarques
+
+- Catégorie : `tools`
+- Type : `slack`
+
+Mettre à jour un message précédemment envoyé par le bot dans Slack
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour le Bot personnalisé |
+| `channel` | chaîne | Oui | ID du canal où le message a été publié (par ex., C1234567890) |
+| `timestamp` | chaîne | Oui | Horodatage du message à mettre à jour (par ex., 1405894322.002768) |
+| `text` | chaîne | Oui | Nouveau texte du message (prend en charge le formatage mrkdwn de Slack) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | objet | Objet message mis à jour complet avec toutes les propriétés renvoyées par Slack |
+|   ↳ `type` | chaîne | Type de message (généralement « message ») |
+|   ↳ `ts` | chaîne | Horodatage du message (identifiant unique) |
+|   ↳ `text` | chaîne | Contenu textuel du message |
+|   ↳ `user` | chaîne | ID de l'utilisateur qui a envoyé le message |
+|   ↳ `bot_id` | chaîne | ID du bot si envoyé par un bot |
+|   ↳ `username` | chaîne | Nom d'utilisateur affiché |
+|   ↳ `channel` | chaîne | ID du canal |
+|   ↳ `team` | chaîne | ID de l'équipe/espace de travail |
+|   ↳ `thread_ts` | chaîne | Horodatage du message parent (pour les réponses en fil) |
+|   ↳ `parent_user_id` | chaîne | ID de l'utilisateur auteur du message parent du fil |
+|   ↳ `reply_count` | nombre | Nombre total de réponses dans le fil |
+|   ↳ `reply_users_count` | nombre | Nombre d'utilisateurs uniques ayant répondu |
+|   ↳ `latest_reply` | chaîne | Horodatage de la réponse la plus récente |
+|   ↳ `subscribed` | booléen | Indique si l'utilisateur est abonné au fil |
+|   ↳ `last_read` | chaîne | Horodatage du dernier message lu |
+|   ↳ `unread_count` | nombre | Nombre de messages non lus dans le fil |
+|   ↳ `subtype` | chaîne | Sous-type de message (bot_message, file_share, etc.) |
+|   ↳ `is_starred` | booléen | Indique si le message est marqué d'une étoile par l'utilisateur |
+|   ↳ `pinned_to` | tableau | ID des canaux où le message est épinglé |
+|   ↳ `permalink` | chaîne | URL permanente vers le message |
+|   ↳ `reactions` | tableau | Réactions sur ce message |
+|     ↳ `name` | chaîne | Nom de l'emoji (sans deux-points) |
+|     ↳ `count` | nombre | Nombre de fois où cette réaction a été ajoutée |
+|     ↳ `users` | tableau | Tableau des ID d'utilisateurs ayant réagi |
+|   ↳ `files` | tableau | Fichiers joints au message |
+|     ↳ `id` | chaîne | Identifiant unique du fichier |
+|     ↳ `name` | chaîne | Nom du fichier |
+|     ↳ `mimetype` | chaîne | Type MIME du fichier |
+|     ↳ `size` | nombre | Taille du fichier en octets |
+|     ↳ `url_private` | chaîne | URL de téléchargement privée (nécessite une authentification) |
+|     ↳ `permalink` | chaîne | Lien permanent vers le fichier |
+|     ↳ `mode` | chaîne | Mode de fichier (hosted, external, etc.) |
+|   ↳ `attachments` | tableau | Pièces jointes héritées sur le message |
+|     ↳ `id` | nombre | ID de la pièce jointe |
+|     ↳ `fallback` | chaîne | Résumé en texte brut |
+|     ↳ `text` | chaîne | Texte principal de la pièce jointe |
+|     ↳ `pretext` | chaîne | Texte affiché avant la pièce jointe |
+|     ↳ `color` | chaîne | Code hexadécimal ou préréglage de la barre de couleur |
+|     ↳ `author_name` | chaîne | Nom d'affichage de l'auteur |
+|     ↳ `author_link` | chaîne | URL du lien de l'auteur |
+|     ↳ `author_icon` | chaîne | URL de l'icône de l'auteur |
+|     ↳ `title` | chaîne | Titre de la pièce jointe |
+|     ↳ `title_link` | chaîne | URL du lien du titre |
+|     ↳ `image_url` | chaîne | URL de l'image |
+|     ↳ `thumb_url` | chaîne | URL de la miniature |
+|     ↳ `footer` | chaîne | Texte du pied de page |
+|     ↳ `footer_icon` | chaîne | URL de l'icône du pied de page |
+|     ↳ `ts` | chaîne | Horodatage affiché dans le pied de page |
+|   ↳ `blocks` | tableau | Blocs Block Kit dans le message |
+|     ↳ `type` | chaîne | Type de bloc (section, divider, image, actions, etc.) |
+|     ↳ `block_id` | chaîne | Identifiant unique du bloc |
+|   ↳ `edited` | objet | Informations de modification si le message a été modifié |
+|     ↳ `user` | chaîne | ID de l'utilisateur qui a modifié le message |
+|     ↳ `ts` | chaîne | Horodatage de la modification |
+| `content` | chaîne | Message de succès |
+| `metadata` | objet | Métadonnées du message mis à jour |
+|   ↳ `channel` | chaîne | ID du canal |
+|   ↳ `timestamp` | chaîne | Horodatage du message |
+|   ↳ `text` | chaîne | Texte du message mis à jour |
+
+### `slack_delete_message`
+
+Supprimer un message précédemment envoyé par le bot dans Slack
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour le Bot personnalisé |
+| `channel` | chaîne | Oui | ID du canal où le message a été publié (par ex., C1234567890) |
+| `timestamp` | chaîne | Oui | Horodatage du message à supprimer (par ex., 1405894322.002768) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | chaîne | Message de succès |
+| `metadata` | objet | Métadonnées du message supprimé |
+|   ↳ `channel` | chaîne | ID du canal |
+|   ↳ `timestamp` | chaîne | Horodatage du message |
+
+### `slack_add_reaction`
+
+Ajouter une réaction emoji à un message Slack
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour le Bot personnalisé |
+| `channel` | chaîne | Oui | ID du canal où le message a été publié (par ex., C1234567890) |
+| `timestamp` | chaîne | Oui | Horodatage du message auquel réagir (par ex., 1405894322.002768) |
+| `name` | chaîne | Oui | Nom de la réaction emoji (sans deux-points, par ex., thumbsup, heart, eyes) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | chaîne | Message de succès |
+| `metadata` | objet | Métadonnées de la réaction |
+|   ↳ `channel` | chaîne | ID du canal |
+|   ↳ `timestamp` | chaîne | Horodatage du message |
+|   ↳ `reaction` | chaîne | Nom de la réaction emoji |

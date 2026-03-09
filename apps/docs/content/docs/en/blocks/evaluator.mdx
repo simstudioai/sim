@@ -1,0 +1,93 @@
+---
+title: Evaluator
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+The Evaluator block uses AI to score and assess content quality against custom metrics. Perfect for quality control, A/B testing, and ensuring AI outputs meet specific standards.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/evaluator.png"
+    alt="Evaluator Block Configuration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Configuration Options
+
+### Evaluation Metrics
+
+Define custom metrics to evaluate content against. Each metric includes:
+
+- **Name**: A short identifier for the metric
+- **Description**: A detailed explanation of what the metric measures
+- **Range**: The numeric range for scoring (e.g., 1-5, 0-10)
+
+Example metrics:
+
+```
+Accuracy (1-5): How factually accurate is the content?
+Clarity (1-5): How clear and understandable is the content?
+Relevance (1-5): How relevant is the content to the original query?
+```
+
+### Content
+
+The content to be evaluated. This can be:
+
+- Directly provided in the block configuration
+- Connected from another block's output (typically an Agent block)
+- Dynamically generated during workflow execution
+
+### Model Selection
+
+Choose an AI model to perform the evaluation:
+
+- **OpenAI**: GPT-4o, o1, o3, o4-mini, gpt-4.1
+- **Anthropic**: Claude 3.7 Sonnet
+- **Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
+- **Other Providers**: Groq, Cerebras, xAI, DeepSeek
+- **Local Models**: Ollama or VLLM compatible models
+
+Use models with strong reasoning capabilities like GPT-4o or Claude 3.7 Sonnet for best results.
+
+### API Key
+
+Your API key for the selected LLM provider. This is securely stored and used for authentication.
+
+## Example Use Cases
+
+**Content Quality Assessment** - Evaluate content before publication
+```
+Agent (Generate) → Evaluator (Score) → Condition (Check threshold) → Publish or Revise
+```
+
+**A/B Testing Content** - Compare multiple AI-generated responses
+```
+Parallel (Variations) → Evaluator (Score Each) → Function (Select Best) → Response
+```
+
+**Customer Support Quality Control** - Ensure responses meet quality standards
+```
+Agent (Support Response) → Evaluator (Score) → Function (Log) → Condition (Review if Low)
+```
+
+## Outputs
+
+- **`<evaluator.content>`**: Summary of the evaluation with scores
+- **`<evaluator.model>`**: Model used for evaluation
+- **`<evaluator.tokens>`**: Token usage statistics
+- **`<evaluator.cost>`**: Estimated evaluation cost
+
+## Best Practices
+
+- **Use specific metric descriptions**: Clearly define what each metric measures to get more accurate evaluations
+- **Choose appropriate ranges**: Select scoring ranges that provide enough granularity without being overly complex
+- **Connect with Agent blocks**: Use Evaluator blocks to assess Agent block outputs and create feedback loops
+- **Use consistent metrics**: For comparative analysis, maintain consistent metrics across similar evaluations
+- **Combine multiple metrics**: Use several metrics to get a comprehensive evaluation

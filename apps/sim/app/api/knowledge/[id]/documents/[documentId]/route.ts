@@ -1,0 +1,296 @@
+import { createLogger } from '@sim/logger'
+import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { generateRequestId } from '@/lib/core/utils/request'
+import {
+  deleteDocument,
+  markDocumentAsFailedTimeout,
+  retryDocumentProcessing,
+  updateDocument,
+} from '@/lib/knowledge/documents/service'
+import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowledge/utils'
+
+const logger = createLogger('DocumentByIdAPI')
+
+const UpdateDocumentSchema = z.object({
+  filename: z.string().min(1, 'Filename is required').optional(),
+  enabled: z.boolean().optional(),
+  chunkCount: z.number().min(0).optional(),
+  tokenCount: z.number().min(0).optional(),
+  characterCount: z.number().min(0).optional(),
+  processingStatus: z.enum(['pending', 'processing', 'completed', 'failed']).optional(),
+  processingError: z.string().optional(),
+  markFailedDueToTimeout: z.boolean().optional(),
+  retryProcessing: z.boolean().optional(),
+  // Text tag fields
+  tag1: z.string().optional(),
+  tag2: z.string().optional(),
+  tag3: z.string().optional(),
+  tag4: z.string().optional(),
+  tag5: z.string().optional(),
+  tag6: z.string().optional(),
+  tag7: z.string().optional(),
+  // Number tag fields
+  number1: z.string().optional(),
+  number2: z.string().optional(),
+  number3: z.string().optional(),
+  number4: z.string().optional(),
+  number5: z.string().optional(),
+  // Date tag fields
+  date1: z.string().optional(),
+  date2: z.string().optional(),
+  // Boolean tag fields
+  boolean1: z.string().optional(),
+  boolean2: z.string().optional(),
+  boolean3: z.string().optional(),
+})
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string; documentId: string }> }
+) {
+  const requestId = generateRequestId()
+  const { id: knowledgeBaseId, documentId } = await params
+
+  try {
+    const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      logger.warn(`[${requestId}] Unauthorized document access attempt`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const userId = auth.userId
+
+    const accessCheck = await checkDocumentAccess(knowledgeBaseId, documentId, userId)
+
+    if (!accessCheck.hasAccess) {
+      if (accessCheck.notFound) {
+        logger.warn(
+          `[${requestId}] ${accessCheck.reason}: KB=${knowledgeBaseId}, Doc=${documentId}`
+        )
+        return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
+      }
+      logger.warn(
+        `[${requestId}] User ${userId} attempted unauthorized document access: ${accessCheck.reason}`
+      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    logger.info(
+      `[${requestId}] Retrieved document: ${documentId} from knowledge base ${knowledgeBaseId}`
+    )
+
+    return NextResponse.json({
+      success: true,
+      data: accessCheck.document,
+    })
+  } catch (error) {
+    logger.error(`[${requestId}] Error fetching document`, error)
+    return NextResponse.json({ error: 'Failed to fetch document' }, { status: 500 })
+  }
+}
+
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string; documentId: string }> }
+) {
+  const requestId = generateRequestId()
+  const { id: knowledgeBaseId, documentId } = await params
+
+  try {
+    const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      logger.warn(`[${requestId}] Unauthorized document update attempt`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const userId = auth.userId
+
+    const accessCheck = await checkDocumentWriteAccess(knowledgeBaseId, documentId, userId)
+
+    if (!accessCheck.hasAccess) {
+      if (accessCheck.notFound) {
+        logger.warn(
+          `[${requestId}] ${accessCheck.reason}: KB=${knowledgeBaseId}, Doc=${documentId}`
+        )
+        return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
+      }
+      logger.warn(
+        `[${requestId}] User ${userId} attempted unauthorized document update: ${accessCheck.reason}`
+      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await req.json()
+
+    try {
+      const validatedData = UpdateDocumentSchema.parse(body)
+
+      const updateData: any = {}
+
+      if (validatedData.markFailedDueToTimeout) {
+        const doc = accessCheck.document
+
+        if (doc.processingStatus !== 'processing') {
+          return NextResponse.json(
+            { error: `Document is not in processing state (current: ${doc.processingStatus})` },
+            { status: 400 }
+          )
+        }
+
+        if (!doc.processingStartedAt) {
+          return NextResponse.json(
+            { error: 'Document has no processing start time' },
+            { status: 400 }
+          )
+        }
+
+        try {
+          await markDocumentAsFailedTimeout(documentId, doc.processingStartedAt, requestId)
+
+          return NextResponse.json({
+            success: true,
+            data: {
+              documentId,
+              status: 'failed',
+              message: 'Document marked as failed due to timeout',
+            },
+          })
+        } catch (error) {
+          if (error instanceof Error) {
+            return NextResponse.json({ error: error.message }, { status: 400 })
+          }
+          throw error
+        }
+      } else if (validatedData.retryProcessing) {
+        const doc = accessCheck.document
+
+        if (doc.processingStatus !== 'failed') {
+          return NextResponse.json({ error: 'Document is not in failed state' }, { status: 400 })
+        }
+
+        const docData = {
+          filename: doc.filename,
+          fileUrl: doc.fileUrl,
+          fileSize: doc.fileSize,
+          mimeType: doc.mimeType,
+        }
+
+        const result = await retryDocumentProcessing(
+          knowledgeBaseId,
+          documentId,
+          docData,
+          requestId
+        )
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            documentId,
+            status: result.status,
+            message: result.message,
+          },
+        })
+      } else {
+        const updatedDocument = await updateDocument(documentId, validatedData, requestId)
+
+        logger.info(
+          `[${requestId}] Document updated: ${documentId} in knowledge base ${knowledgeBaseId}`
+        )
+
+        recordAudit({
+          workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
+          actorId: userId,
+          actorName: auth.userName,
+          actorEmail: auth.userEmail,
+          action: AuditAction.DOCUMENT_UPDATED,
+          resourceType: AuditResourceType.DOCUMENT,
+          resourceId: documentId,
+          resourceName: validatedData.filename ?? accessCheck.document?.filename,
+          description: `Updated document "${documentId}" in knowledge base "${knowledgeBaseId}"`,
+          request: req,
+        })
+
+        return NextResponse.json({
+          success: true,
+          data: updatedDocument,
+        })
+      }
+    } catch (validationError) {
+      if (validationError instanceof z.ZodError) {
+        logger.warn(`[${requestId}] Invalid document update data`, {
+          errors: validationError.errors,
+          documentId,
+        })
+        return NextResponse.json(
+          { error: 'Invalid request data', details: validationError.errors },
+          { status: 400 }
+        )
+      }
+      throw validationError
+    }
+  } catch (error) {
+    logger.error(`[${requestId}] Error updating document ${documentId}`, error)
+    return NextResponse.json({ error: 'Failed to update document' }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string; documentId: string }> }
+) {
+  const requestId = generateRequestId()
+  const { id: knowledgeBaseId, documentId } = await params
+
+  try {
+    const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      logger.warn(`[${requestId}] Unauthorized document delete attempt`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const userId = auth.userId
+
+    const accessCheck = await checkDocumentWriteAccess(knowledgeBaseId, documentId, userId)
+
+    if (!accessCheck.hasAccess) {
+      if (accessCheck.notFound) {
+        logger.warn(
+          `[${requestId}] ${accessCheck.reason}: KB=${knowledgeBaseId}, Doc=${documentId}`
+        )
+        return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
+      }
+      logger.warn(
+        `[${requestId}] User ${userId} attempted unauthorized document deletion: ${accessCheck.reason}`
+      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const result = await deleteDocument(documentId, requestId)
+
+    logger.info(
+      `[${requestId}] Document deleted: ${documentId} from knowledge base ${knowledgeBaseId}`
+    )
+
+    recordAudit({
+      workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
+      actorId: userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      action: AuditAction.DOCUMENT_DELETED,
+      resourceType: AuditResourceType.DOCUMENT,
+      resourceId: documentId,
+      resourceName: accessCheck.document?.filename,
+      description: `Deleted document "${documentId}" from knowledge base "${knowledgeBaseId}"`,
+      metadata: { fileName: accessCheck.document?.filename },
+      request: req,
+    })
+
+    return NextResponse.json({
+      success: true,
+      data: result,
+    })
+  } catch (error) {
+    logger.error(`[${requestId}] Error deleting document`, error)
+    return NextResponse.json({ error: 'Failed to delete document' }, { status: 500 })
+  }
+}

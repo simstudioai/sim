@@ -1,0 +1,108 @@
+---
+title: Workflows als MCP bereitstellen
+description: Stellen Sie Ihre Workflows als MCP-Tools für externe KI-Assistenten
+  und Anwendungen bereit
+---
+
+import { Video } from '@/components/ui/video'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Stellen Sie Ihre Workflows als MCP-Tools bereit, um sie für externe KI-Assistenten wie Claude Desktop, Cursor und andere MCP-kompatible Clients zugänglich zu machen. Dies verwandelt Ihre Workflows in aufrufbare Tools, die von überall aus aufgerufen werden können.
+
+## MCP-Server erstellen und verwalten
+
+MCP-Server gruppieren Ihre Workflow-Tools zusammen. Erstellen und verwalten Sie sie in den Workspace-Einstellungen:
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp/mcp-server.mp4" width={700} height={450} />
+</div>
+
+1. Navigieren Sie zu **Einstellungen → MCP-Server**
+2. Klicken Sie auf **Server erstellen**
+3. Geben Sie einen Namen und eine optionale Beschreibung ein
+4. Kopieren Sie die Server-URL zur Verwendung in Ihren MCP-Clients
+5. Zeigen Sie alle zum Server hinzugefügten Tools an und verwalten Sie diese
+
+## Einen Workflow als Tool hinzufügen
+
+Sobald Ihr Workflow bereitgestellt ist, können Sie ihn als MCP-Tool verfügbar machen:
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp/mcp-deploy-tool.mp4" width={700} height={450} />
+</div>
+
+1. Öffnen Sie Ihren bereitgestellten Workflow
+2. Klicken Sie auf **Bereitstellen** und wechseln Sie zum Tab **MCP**
+3. Konfigurieren Sie den Tool-Namen und die Beschreibung
+4. Fügen Sie Beschreibungen für jeden Parameter hinzu (hilft der KI, Eingaben zu verstehen)
+5. Wählen Sie aus, zu welchen MCP-Servern es hinzugefügt werden soll
+
+<Callout type="info">
+Der Workflow muss bereitgestellt sein, bevor er als MCP-Tool hinzugefügt werden kann.
+</Callout>
+
+## Tool-Konfiguration
+
+### Tool-Name
+Verwenden Sie Kleinbuchstaben, Zahlen und Unterstriche. Der Name sollte beschreibend sein und den MCP-Namenskonventionen folgen (z. B. `search_documents`, `send_email`).
+
+### Beschreibung
+Schreiben Sie eine klare Beschreibung dessen, was das Tool tut. Dies hilft KI-Assistenten zu verstehen, wann das Tool verwendet werden soll.
+
+### Parameter
+Die Eingabeformatfelder deines Workflows werden zu Tool-Parametern. Füge jedem Parameter Beschreibungen hinzu, um KI-Assistenten zu helfen, korrekte Werte bereitzustellen.
+
+## MCP-Clients verbinden
+
+Verwende die Server-URL aus den Einstellungen, um externe Anwendungen zu verbinden:
+
+### Claude Desktop
+Füge dies zu deiner Claude Desktop-Konfiguration hinzu (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "my-sim-workflows": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "YOUR_SERVER_URL"]
+    }
+  }
+}
+```
+
+### Cursor
+Füge die Server-URL in den MCP-Einstellungen von Cursor mit demselben mcp-remote-Muster hinzu.
+
+<Callout type="warn">
+Füge deinen API-Key-Header (`X-API-Key`) für authentifizierten Zugriff hinzu, wenn du mcp-remote oder andere HTTP-basierte MCP-Transporte verwendest.
+</Callout>
+
+## Server-Verwaltung
+
+In der Server-Detailansicht unter **Einstellungen → MCP-Server** können Sie:
+
+- **Tools anzeigen**: Alle Workflows sehen, die einem Server hinzugefügt wurden
+- **URL kopieren**: Die Server-URL für MCP-Clients abrufen
+- **Workflows hinzufügen**: Weitere bereitgestellte Workflows als Tools hinzufügen
+- **Tools entfernen**: Workflows vom Server entfernen
+- **Server löschen**: Den gesamten Server und alle seine Tools entfernen
+
+## So funktioniert es
+
+Wenn ein MCP-Client dein Tool aufruft:
+
+1. Die Anfrage wird an deiner MCP-Server-URL empfangen
+2. Sim validiert die Anfrage und ordnet Parameter den Workflow-Eingaben zu
+3. Der bereitgestellte Workflow wird mit den angegebenen Eingaben ausgeführt
+4. Die Ergebnisse werden an den MCP-Client zurückgegeben
+
+Workflows werden mit derselben Bereitstellungsversion wie API-Aufrufe ausgeführt, was konsistentes Verhalten gewährleistet.
+
+## Berechtigungsanforderungen
+
+| Aktion | Erforderliche Berechtigung |
+|--------|-------------------|
+| MCP-Server erstellen | **Admin** |
+| Workflows zu Servern hinzufügen | **Write** oder **Admin** |
+| MCP-Server anzeigen | **Read**, **Write** oder **Admin** |
+| MCP-Server löschen | **Admin** |

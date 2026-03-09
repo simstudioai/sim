@@ -1,0 +1,112 @@
+import type { ToolConfig } from '@/tools/types'
+import type { XWriteParams, XWriteResponse } from '@/tools/x/types'
+import { transformTweet } from '@/tools/x/types'
+
+export const xWriteTool: ToolConfig<XWriteParams, XWriteResponse> = {
+  id: 'x_write',
+  name: 'X Write',
+  description: 'Post new tweets, reply to tweets, or create polls on X (Twitter)',
+  version: '1.0.0',
+
+  oauth: {
+    required: true,
+    provider: 'x',
+  },
+
+  params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'X OAuth access token',
+    },
+    text: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The text content of your tweet (max 280 characters)',
+    },
+    replyTo: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'ID of the tweet to reply to (e.g., 1234567890123456789)',
+    },
+    mediaIds: {
+      type: 'array',
+      required: false,
+      visibility: 'user-only',
+      description: 'Array of media IDs to attach to the tweet',
+    },
+    poll: {
+      type: 'object',
+      required: false,
+      visibility: 'user-only',
+      description: 'Poll configuration for the tweet',
+    },
+  },
+
+  request: {
+    url: 'https://api.twitter.com/2/tweets',
+    method: 'POST',
+    headers: (params) => ({
+      Authorization: `Bearer ${params.accessToken}`,
+      'Content-Type': 'application/json',
+    }),
+    body: (params) => {
+      const body: any = {
+        text: params.text,
+      }
+
+      if (params.replyTo) {
+        body.reply = { in_reply_to_tweet_id: params.replyTo }
+      }
+
+      if (params.mediaIds?.length) {
+        body.media = { media_ids: params.mediaIds }
+      }
+
+      if (params.poll) {
+        body.poll = {
+          options: params.poll.options,
+          duration_minutes: params.poll.durationMinutes,
+        }
+      }
+
+      return body
+    },
+  },
+
+  transformResponse: async (response) => {
+    const data = await response.json()
+    return {
+      success: true,
+      output: {
+        tweet: transformTweet(data.data),
+      },
+    }
+  },
+
+  outputs: {
+    tweet: {
+      type: 'object',
+      description: 'The newly created tweet data',
+      properties: {
+        id: { type: 'string', description: 'Tweet ID' },
+        text: { type: 'string', description: 'Tweet content text' },
+        createdAt: { type: 'string', description: 'Tweet creation timestamp' },
+        authorId: { type: 'string', description: 'ID of the tweet author' },
+        conversationId: { type: 'string', description: 'Conversation thread ID', optional: true },
+        attachments: {
+          type: 'object',
+          description: 'Media or poll attachments',
+          optional: true,
+          properties: {
+            mediaKeys: { type: 'array', description: 'Media attachment keys', optional: true },
+            pollId: { type: 'string', description: 'Poll ID if poll attached', optional: true },
+          },
+        },
+      },
+    },
+  },
+}

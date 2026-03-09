@@ -1,0 +1,224 @@
+---
+title: Firecrawl
+description: Scrape, search, crawl, map, and extract web data
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="firecrawl"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Firecrawl](https://firecrawl.dev/) is a powerful web scraping and content extraction API that integrates seamlessly into Sim, enabling developers to extract clean, structured content from any website. This integration provides a simple way to transform web pages into usable data formats like Markdown and HTML while preserving the essential content.
+
+With Firecrawl in Sim, you can:
+
+- **Extract clean content**: Remove ads, navigation elements, and other distractions to get just the main content
+- **Convert to structured formats**: Transform web pages into Markdown, HTML, or JSON
+- **Capture metadata**: Extract SEO metadata, Open Graph tags, and other page information
+- **Handle JavaScript-heavy sites**: Process content from modern web applications that rely on JavaScript
+- **Filter content**: Focus on specific parts of a page using CSS selectors
+- **Process at scale**: Handle high-volume scraping needs with a reliable API
+- **Search the web**: Perform intelligent web searches and retrieve structured results
+- **Crawl entire sites**: Crawl multiple pages from a website and aggregate their content
+
+In Sim, the Firecrawl integration enables your agents to access and process web content programmatically as part of their workflows. Supported operations include:
+
+- **Scrape**: Extract structured content (Markdown, HTML, metadata) from a single web page.
+- **Search**: Search the web for information using Firecrawl's intelligent search capabilities.
+- **Crawl**: Crawl multiple pages from a website, returning structured content and metadata for each page.
+
+This allows your agents to gather information from websites, extract structured data, and use that information to make decisions or generate insights—all without having to navigate the complexities of raw HTML parsing or browser automation. Simply configure the Firecrawl block with your API key, select the operation (Scrape, Search, or Crawl), and provide the relevant parameters. Your agents can immediately begin working with web content in a clean, structured format.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Firecrawl into the workflow. Scrape pages, search the web, crawl entire sites, map URL structures, and extract structured data with AI.
+
+
+
+## Tools
+
+### `firecrawl_scrape`
+
+Extract structured content from web pages with comprehensive metadata support. Converts content to markdown or HTML while capturing SEO metadata, Open Graph tags, and page information.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | The URL to scrape content from \(e.g., "https://example.com/page"\) |
+| `scrapeOptions` | json | No | Options for content scraping |
+| `apiKey` | string | Yes | Firecrawl API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `markdown` | string | Page content in markdown format |
+| `html` | string | Raw HTML content of the page |
+| `metadata` | object | Page metadata including SEO and Open Graph information |
+|   ↳ `title` | string | Page title |
+|   ↳ `description` | string | Page meta description |
+|   ↳ `language` | string | Page language code \(e.g., "en"\) |
+|   ↳ `sourceURL` | string | Original source URL that was scraped |
+|   ↳ `statusCode` | number | HTTP status code of the response |
+|   ↳ `keywords` | string | Page meta keywords |
+|   ↳ `robots` | string | Robots meta directive \(e.g., "follow, index"\) |
+|   ↳ `ogTitle` | string | Open Graph title |
+|   ↳ `ogDescription` | string | Open Graph description |
+|   ↳ `ogUrl` | string | Open Graph URL |
+|   ↳ `ogImage` | string | Open Graph image URL |
+|   ↳ `ogLocaleAlternate` | array | Alternate locale versions for Open Graph |
+|   ↳ `ogSiteName` | string | Open Graph site name |
+|   ↳ `error` | string | Error message if scrape failed |
+
+### `firecrawl_search`
+
+Search for information on the web using Firecrawl
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | The search query to use |
+| `apiKey` | string | Yes | Firecrawl API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | array | Search results data with scraped content and metadata |
+|   ↳ `title` | string | Search result title from search engine |
+|   ↳ `description` | string | Search result description/snippet from search engine |
+|   ↳ `url` | string | URL of the search result |
+|   ↳ `markdown` | string | Page content in markdown \(when scrapeOptions.formats includes "markdown"\) |
+|   ↳ `html` | string | Processed HTML content \(when scrapeOptions.formats includes "html"\) |
+|   ↳ `rawHtml` | string | Unprocessed raw HTML \(when scrapeOptions.formats includes "rawHtml"\) |
+|   ↳ `links` | array | Links found on the page \(when scrapeOptions.formats includes "links"\) |
+|   ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours, when scrapeOptions.formats includes "screenshot"\) |
+|   ↳ `metadata` | object | Metadata about the search result page |
+|     ↳ `title` | string | Page title |
+|     ↳ `description` | string | Page meta description |
+|     ↳ `sourceURL` | string | Original source URL |
+|     ↳ `statusCode` | number | HTTP status code |
+|     ↳ `error` | string | Error message if scrape failed |
+
+### `firecrawl_crawl`
+
+Crawl entire websites and extract structured content from all accessible pages
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | The website URL to crawl \(e.g., "https://example.com" or "https://docs.example.com/guide"\) |
+| `limit` | number | No | Maximum number of pages to crawl \(e.g., 50, 100, 500\). Default: 100 |
+| `maxDepth` | number | No | Maximum depth to crawl from the starting URL \(e.g., 1, 2, 3\). Controls how many levels deep to follow links |
+| `formats` | json | No | Output formats for scraped content \(e.g., \["markdown"\], \["markdown", "html"\], \["markdown", "links"\]\) |
+| `excludePaths` | json | No | URL paths to exclude from crawling \(e.g., \["/blog/*", "/admin/*", "/*.pdf"\]\) |
+| `includePaths` | json | No | URL paths to include in crawling \(e.g., \["/docs/*", "/api/*"\]\). Only these paths will be crawled |
+| `onlyMainContent` | boolean | No | Extract only main content from pages |
+| `apiKey` | string | Yes | Firecrawl API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pages` | array | Array of crawled pages with their content and metadata |
+|   ↳ `markdown` | string | Page content in markdown format |
+|   ↳ `html` | string | Processed HTML content of the page |
+|   ↳ `rawHtml` | string | Unprocessed raw HTML content |
+|   ↳ `links` | array | Array of links found on the page |
+|   ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours\) |
+|   ↳ `metadata` | object | Page metadata from crawl operation |
+|     ↳ `title` | string | Page title |
+|     ↳ `description` | string | Page meta description |
+|     ↳ `language` | string | Page language code |
+|     ↳ `sourceURL` | string | Original source URL |
+|     ↳ `statusCode` | number | HTTP status code |
+|     ↳ `ogLocaleAlternate` | array | Alternate locale versions |
+| `total` | number | Total number of pages found during crawl |
+| `creditsUsed` | number | Number of credits consumed by the crawl operation |
+
+### `firecrawl_map`
+
+Get a complete list of URLs from any website quickly and reliably. Useful for discovering all pages on a site without crawling them.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | The base URL to map and discover links from \(e.g., "https://example.com"\) |
+| `search` | string | No | Filter results by relevance to a search term \(e.g., "blog"\) |
+| `sitemap` | string | No | Controls sitemap usage: "skip", "include" \(default\), or "only" |
+| `includeSubdomains` | boolean | No | Whether to include URLs from subdomains \(default: true\) |
+| `ignoreQueryParameters` | boolean | No | Exclude URLs containing query strings \(default: true\) |
+| `limit` | number | No | Maximum number of links to return \(e.g., 100, 1000, 5000\). Max: 100,000, default: 5,000 |
+| `timeout` | number | No | Request timeout in milliseconds |
+| `location` | json | No | Geographic context for proxying \(country, languages\) |
+| `apiKey` | string | Yes | Firecrawl API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the mapping operation was successful |
+| `links` | array | Array of discovered URLs from the website |
+
+### `firecrawl_extract`
+
+Extract structured data from entire webpages using natural language prompts and JSON schema. Powerful agentic feature for intelligent data extraction.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `urls` | json | Yes | Array of URLs to extract data from \(e.g., \["https://example.com/page1", "https://example.com/page2"\] or \["https://example.com/*"\]\) |
+| `prompt` | string | No | Natural language guidance for the extraction process |
+| `schema` | json | No | JSON Schema defining the structure of data to extract |
+| `enableWebSearch` | boolean | No | Enable web search to find supplementary information \(default: false\) |
+| `ignoreSitemap` | boolean | No | Ignore sitemap.xml files during scanning \(default: false\) |
+| `includeSubdomains` | boolean | No | Extend scanning to subdomains \(default: true\) |
+| `showSources` | boolean | No | Return data sources in the response \(default: false\) |
+| `ignoreInvalidURLs` | boolean | No | Skip invalid URLs in the array \(default: true\) |
+| `scrapeOptions` | json | No | Advanced scraping configuration options |
+| `apiKey` | string | Yes | Firecrawl API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the extraction operation was successful |
+| `data` | object | Extracted structured data according to the schema or prompt |
+
+### `firecrawl_agent`
+
+Autonomous web data extraction agent. Searches and gathers information based on natural language prompts without requiring specific URLs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `prompt` | string | Yes | Natural language description of the data to extract \(max 10,000 characters\) |
+| `urls` | json | No | Optional array of URLs to focus the agent on \(e.g., \["https://example.com", "https://docs.example.com"\]\) |
+| `schema` | json | No | JSON Schema defining the structure of data to extract |
+| `maxCredits` | number | No | Maximum credits to spend on this agent task |
+| `strictConstrainToURLs` | boolean | No | If true, agent will only visit URLs provided in the urls array |
+| `apiKey` | string | Yes | Firecrawl API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the agent operation was successful |
+| `status` | string | Current status of the agent job \(processing, completed, failed\) |
+| `data` | object | Extracted data from the agent |
+| `creditsUsed` | number | Number of credits consumed by this agent task |
+| `expiresAt` | string | Timestamp when the results expire \(24 hours\) |
+| `sources` | object | Array of source URLs used by the agent |
+
+

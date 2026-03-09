@@ -1,0 +1,925 @@
+---
+title: Enrich
+description: Enriquecimiento de datos B2B e inteligencia de LinkedIn con Enrich.so
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="enrich"
+  color="#E5E5E6"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Enrich.so](https://enrich.so/) ofrece enriquecimiento de datos B2B en tiempo real y con precisión, además de inteligencia de LinkedIn. Su plataforma proporciona acceso dinámico a información pública y estructurada sobre empresas, contactos y perfiles profesionales, permitiendo a los equipos crear perfiles más completos, mejorar la calidad de los leads e impulsar estrategias de contacto más efectivas.
+
+Con Enrich.so, puedes:
+
+- **Enriquecer perfiles de contactos y empresas**: descubre instantáneamente datos clave de leads, prospectos y empresas usando solo un email o perfil de LinkedIn.
+- **Verificar la entregabilidad de emails**: comprueba si los emails son válidos, entregables y seguros para contactar antes de enviar.
+- **Encontrar emails laborales y personales**: identifica emails empresariales faltantes desde un perfil de LinkedIn o emails personales para ampliar tu alcance.
+- **Revelar números de teléfono y perfiles sociales**: descubre canales de comunicación adicionales para contactos mediante herramientas de enriquecimiento.
+- **Analizar publicaciones y engagement de LinkedIn**: extrae información sobre el alcance, reacciones y audiencia de publicaciones de contenido público de LinkedIn.
+- **Realizar búsquedas avanzadas de personas y empresas**: permite a tus agentes localizar empresas y profesionales basándose en filtros profundos e inteligencia en tiempo real.
+
+La integración de Sim con Enrich.so permite a tus agentes y automatizaciones consultar, enriquecer y validar datos B2B al instante, aumentando la productividad en flujos de trabajo como prospección de ventas, reclutamiento, operaciones de marketing y más. Combinar las capacidades de orquestación de Sim con Enrich.so desbloquea estrategias de automatización más inteligentes y basadas en datos, impulsadas por inteligencia B2B de primera clase.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Accede a inteligencia de datos B2B en tiempo real con Enrich.so. Enriquece perfiles desde direcciones de email, encuentra emails laborales desde LinkedIn, verifica la entregabilidad de emails, busca personas y empresas, y analiza el engagement de publicaciones de LinkedIn.
+
+## Herramientas
+
+### `enrich_check_credits`
+
+Consulta el uso de créditos de tu API de Enrich y el saldo restante.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave de API de Enrich |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `totalCredits` | number | Total de créditos asignados a la cuenta |
+| `creditsUsed` | number | Créditos consumidos hasta el momento |
+| `creditsRemaining` | number | Créditos disponibles restantes |
+
+### `enrich_email_to_profile`
+
+Recupera información detallada del perfil de LinkedIn usando una dirección de correo electrónico, incluyendo historial laboral, educación y habilidades.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave de API de Enrich |
+| `email` | string | Sí | Dirección de correo electrónico a consultar \(ej., john.doe@company.com\) |
+| `inRealtime` | boolean | No | Establece en true para recuperar datos actualizados, omitiendo la información en caché |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `displayName` | string | Nombre completo |
+| `firstName` | string | Nombre |
+| `lastName` | string | Apellido |
+| `headline` | string | Título profesional |
+| `occupation` | string | Ocupación actual |
+| `summary` | string | Resumen del perfil |
+| `location` | string | Ubicación |
+| `country` | string | País |
+| `linkedInUrl` | string | URL del perfil de LinkedIn |
+| `photoUrl` | string | URL de la foto de perfil |
+| `connectionCount` | number | Número de conexiones |
+| `isConnectionCountObfuscated` | boolean | Si el número de conexiones está oculto \(500+\) |
+| `positionHistory` | array | Historial de experiencia laboral |
+|   ↳ `title` | string | Título del puesto |
+|   ↳ `company` | string | Nombre de la empresa |
+|   ↳ `startDate` | string | Fecha de inicio |
+|   ↳ `endDate` | string | Fecha de finalización |
+|   ↳ `location` | string | Ubicación |
+| `education` | array | Historial educativo |
+|   ↳ `school` | string | Nombre de la institución |
+|   ↳ `degree` | string | Título |
+|   ↳ `fieldOfStudy` | string | Campo de estudio |
+|   ↳ `startDate` | string | Fecha de inicio |
+|   ↳ `endDate` | string | Fecha de finalización |
+| `certifications` | array | Certificaciones profesionales |
+|   ↳ `name` | string | Nombre de la certificación |
+|   ↳ `authority` | string | Autoridad emisora |
+|   ↳ `url` | string | URL de la certificación |
+| `skills` | array | Lista de habilidades |
+| `languages` | array | Lista de idiomas |
+| `locale` | string | Configuración regional del perfil \(ej., en_US\) |
+| `version` | number | Número de versión del perfil |
+
+### `enrich_email_to_person_lite`
+
+Recupera información básica del perfil de LinkedIn a partir de una dirección de correo electrónico. Una versión más ligera con solo los datos esenciales.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `email` | string | Sí | Dirección de correo electrónico a buscar \(ej., john.doe@company.com\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `name` | string | Nombre completo |
+| `firstName` | string | Nombre |
+| `lastName` | string | Apellido |
+| `email` | string | Dirección de correo electrónico |
+| `title` | string | Cargo |
+| `location` | string | Ubicación |
+| `company` | string | Empresa actual |
+| `companyLocation` | string | Ubicación de la empresa |
+| `companyLinkedIn` | string | URL de LinkedIn de la empresa |
+| `profileId` | string | ID del perfil de LinkedIn |
+| `schoolName` | string | Nombre de la institución educativa |
+| `schoolUrl` | string | URL de la institución educativa |
+| `linkedInUrl` | string | URL del perfil de LinkedIn |
+| `photoUrl` | string | URL de la foto de perfil |
+| `followerCount` | number | Número de seguidores |
+| `connectionCount` | number | Número de conexiones |
+| `languages` | array | Idiomas hablados |
+| `projects` | array | Proyectos |
+| `certifications` | array | Certificaciones |
+| `volunteerExperience` | array | Experiencia de voluntariado |
+
+### `enrich_linkedin_profile`
+
+Enriquece una URL de perfil de LinkedIn con información detallada que incluye puestos, educación y métricas sociales.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `url` | string | Sí | URL del perfil de LinkedIn \(ej., linkedin.com/in/williamhgates\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `profileId` | string | ID del perfil de LinkedIn |
+| `firstName` | string | Nombre |
+| `lastName` | string | Apellido |
+| `subTitle` | string | Subtítulo/titular del perfil |
+| `profilePicture` | string | URL de la foto de perfil |
+| `backgroundImage` | string | URL de la imagen de fondo |
+| `industry` | string | Industria |
+| `location` | string | Ubicación |
+| `followersCount` | number | Número de seguidores |
+| `connectionsCount` | number | Número de conexiones |
+| `premium` | boolean | Si la cuenta es premium |
+| `influencer` | boolean | Si la cuenta es de un influencer |
+| `positions` | array | Puestos de trabajo |
+|   ↳ `title` | string | Título del puesto |
+|   ↳ `company` | string | Nombre de la empresa |
+|   ↳ `companyLogo` | string | URL del logo de la empresa |
+|   ↳ `startDate` | string | Fecha de inicio |
+|   ↳ `endDate` | string | Fecha de finalización |
+|   ↳ `location` | string | Ubicación |
+| `education` | array | Historial educativo |
+|   ↳ `school` | string | Nombre de la institución |
+|   ↳ `degree` | string | Título |
+|   ↳ `fieldOfStudy` | string | Campo de estudio |
+|   ↳ `startDate` | string | Fecha de inicio |
+|   ↳ `endDate` | string | Fecha de finalización |
+| `websites` | array | Sitios web personales |
+
+### `enrich_find_email`
+
+Buscar una persona
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `fullName` | string | Sí | Nombre completo de la persona \(ej., John Doe\) |
+| `companyDomain` | string | Sí | Dominio de la empresa \(ej., ejemplo.com\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `email` | string | Dirección de correo electrónico encontrada |
+| `firstName` | string | Nombre |
+| `lastName` | string | Apellido |
+| `domain` | string | Dominio de la empresa |
+| `found` | boolean | Si se encontró un correo electrónico |
+| `acceptAll` | boolean | Si el dominio acepta todos los correos electrónicos |
+
+### `enrich_linkedin_to_work_email`
+
+Buscar una dirección de correo electrónico profesional desde una URL de perfil de LinkedIn.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `linkedinProfile` | string | Sí | URL del perfil de LinkedIn \(ej., https://www.linkedin.com/in/williamhgates\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `email` | string | Dirección de correo electrónico profesional encontrada |
+| `found` | boolean | Si se encontró un correo electrónico |
+| `status` | string | Estado de la solicitud \(in_progress o completed\) |
+
+### `enrich_linkedin_to_personal_email`
+
+Buscar dirección de correo electrónico personal desde una URL de perfil de LinkedIn.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `linkedinProfile` | string | Sí | URL del perfil de LinkedIn \(ej., linkedin.com/in/nombreusuario\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `email` | string | Dirección de correo electrónico personal |
+| `found` | boolean | Si se encontró un correo electrónico |
+| `status` | string | Estado de la solicitud |
+
+### `enrich_phone_finder`
+
+Encuentra un número de teléfono a partir de una URL de perfil de LinkedIn.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `linkedinProfile` | string | Sí | URL del perfil de LinkedIn \(ej., linkedin.com/in/williamhgates\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `profileUrl` | string | URL del perfil de LinkedIn |
+| `mobileNumber` | string | Número de teléfono móvil encontrado |
+| `found` | boolean | Si se encontró un número de teléfono |
+| `status` | string | Estado de la solicitud \(in_progress o completed\) |
+
+### `enrich_email_to_phone`
+
+Encuentra un número de teléfono asociado con una dirección de correo electrónico.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `email` | string | Sí | Dirección de correo electrónico a buscar \(ej., john.doe@example.com\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `email` | string | Dirección de correo electrónico consultada |
+| `mobileNumber` | string | Número de teléfono móvil encontrado |
+| `found` | boolean | Si se encontró un número de teléfono |
+| `status` | string | Estado de la solicitud \(in_progress o completed\) |
+
+### `enrich_verify_email`
+
+Verifica una dirección de correo electrónico para determinar su capacidad de entrega, incluyendo detección de catch-all e identificación del proveedor.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `email` | string | Sí | Dirección de correo electrónico a verificar \(p. ej., john.doe@example.com\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `email` | string | Dirección de correo electrónico verificada |
+| `status` | string | Estado de verificación |
+| `result` | string | Resultado de capacidad de entrega \(deliverable, undeliverable, etc.\) |
+| `confidenceScore` | number | Puntuación de confianza \(0-100\) |
+| `smtpProvider` | string | Proveedor de servicio de correo electrónico \(p. ej., Google, Microsoft\) |
+| `mailDisposable` | boolean | Si el correo electrónico es de un proveedor desechable |
+| `mailAcceptAll` | boolean | Si el dominio es un dominio catch-all |
+| `free` | boolean | Si el correo electrónico usa un servicio de correo gratuito |
+
+### `enrich_disposable_email_check`
+
+Comprueba si una dirección de correo electrónico es de un proveedor de correo desechable o temporal. Devuelve una puntuación y detalles de validación.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `email` | string | Sí | Dirección de correo electrónico a comprobar \(p. ej., john.doe@example.com\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `email` | string | Dirección de correo electrónico verificada |
+| `score` | number | Puntuación de validación \(0-100\) |
+| `testsPassed` | string | Número de pruebas superadas \(p. ej., "3/3"\) |
+| `passed` | boolean | Si el correo electrónico superó todas las pruebas de validación |
+| `reason` | string | Motivo del fallo si el correo electrónico no superó las pruebas |
+| `mailServerIp` | string | Dirección IP del servidor de correo |
+| `mxRecords` | array | Registros MX del dominio |
+|   ↳ `host` | string | Host del registro MX |
+|   ↳ `pref` | number | Preferencia del registro MX |
+
+### `enrich_email_to_ip`
+
+Descubre una dirección IP asociada con una dirección de correo electrónico.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `email` | string | Sí | Dirección de correo electrónico a consultar \(p. ej., john.doe@example.com\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `email` | string | Dirección de correo electrónico consultada |
+| `ip` | string | Dirección IP asociada |
+| `found` | boolean | Si se encontró una dirección IP |
+
+### `enrich_ip_to_company`
+
+Identifica una empresa a partir de una dirección IP con información firmográfica detallada.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `ip` | string | Sí | Dirección IP a consultar \(p. ej., 86.92.60.221\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `name` | string | Nombre de la empresa |
+| `legalName` | string | Nombre legal de la empresa |
+| `domain` | string | Dominio principal |
+| `domainAliases` | array | Alias de dominio |
+| `sector` | string | Sector empresarial |
+| `industry` | string | Industria |
+| `phone` | string | Número de teléfono |
+| `employees` | number | Número de empleados |
+| `revenue` | string | Ingresos estimados |
+| `location` | json | Ubicación de la empresa |
+|   ↳ `city` | string | Ciudad |
+|   ↳ `state` | string | Estado |
+|   ↳ `country` | string | País |
+|   ↳ `timezone` | string | Zona horaria |
+| `linkedInUrl` | string | URL de la empresa en LinkedIn |
+| `twitterUrl` | string | URL de Twitter |
+| `facebookUrl` | string | URL de Facebook |
+
+### `enrich_company_lookup`
+
+Consulta información completa de la empresa por nombre o dominio, incluyendo financiación, ubicación y perfiles sociales.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `name` | string | No | Nombre de la empresa \(ej., Google\) |
+| `domain` | string | No | Dominio de la empresa \(ej., google.com\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `name` | string | Nombre de la empresa |
+| `universalName` | string | Nombre universal de la empresa |
+| `companyId` | string | ID de la empresa |
+| `description` | string | Descripción de la empresa |
+| `phone` | string | Número de teléfono |
+| `linkedInUrl` | string | URL de la empresa en LinkedIn |
+| `websiteUrl` | string | Sitio web de la empresa |
+| `followers` | number | Número de seguidores en LinkedIn |
+| `staffCount` | number | Número de empleados |
+| `foundedDate` | string | Fecha de fundación |
+| `type` | string | Tipo de empresa |
+| `industries` | array | Industrias |
+| `specialties` | array | Especialidades de la empresa |
+| `headquarters` | json | Ubicación de la sede central |
+|   ↳ `city` | string | Ciudad |
+|   ↳ `country` | string | País |
+|   ↳ `postalCode` | string | Código postal |
+|   ↳ `line1` | string | Dirección línea 1 |
+| `logo` | string | URL del logo de la empresa |
+| `coverImage` | string | URL de la imagen de portada |
+| `fundingRounds` | array | Historial de financiación |
+|   ↳ `roundType` | string | Tipo de ronda de financiación |
+|   ↳ `amount` | number | Cantidad recaudada |
+|   ↳ `currency` | string | Moneda |
+|   ↳ `investors` | array | Inversores |
+
+### `enrich_company_funding`
+
+Recupera el historial de financiación de la empresa, métricas de tráfico e información de ejecutivos por dominio.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave de API de Enrich |
+| `domain` | string | Sí | Dominio de la empresa \(ej., ejemplo.com\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `legalName` | string | Nombre legal de la empresa |
+| `employeeCount` | number | Número de empleados |
+| `headquarters` | string | Ubicación de la sede central |
+| `industry` | string | Industria |
+| `totalFundingRaised` | number | Financiación total recaudada |
+| `fundingRounds` | array | Rondas de financiación |
+|   ↳ `roundType` | string | Tipo de ronda |
+|   ↳ `amount` | number | Cantidad recaudada |
+|   ↳ `date` | string | Fecha |
+|   ↳ `investors` | array | Inversores |
+| `monthlyVisits` | number | Visitas mensuales al sitio web |
+| `trafficChange` | number | Porcentaje de cambio en el tráfico |
+| `itSpending` | number | Gasto estimado en TI en USD |
+| `executives` | array | Equipo ejecutivo |
+|   ↳ `name` | string | Nombre |
+|   ↳ `title` | string | Cargo |
+
+### `enrich_company_revenue`
+
+Recupera datos de ingresos de la empresa, información del CEO y análisis competitivo por dominio.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave de API de Enrich |
+| `domain` | string | Sí | Dominio de la empresa \(ej., clay.io\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `companyName` | string | Nombre de la empresa |
+| `shortDescription` | string | Descripción breve de la empresa |
+| `fullSummary` | string | Resumen completo de la empresa |
+| `revenue` | string | Ingresos de la empresa |
+| `revenueMin` | number | Estimación mínima de ingresos |
+| `revenueMax` | number | Estimación máxima de ingresos |
+| `employeeCount` | number | Número de empleados |
+| `founded` | string | Año de fundación |
+| `ownership` | string | Tipo de propiedad |
+| `status` | string | Estado de la empresa \(p. ej., Activa\) |
+| `website` | string | URL del sitio web de la empresa |
+| `ceo` | json | Información del CEO |
+|   ↳ `name` | string | Nombre del CEO |
+|   ↳ `designation` | string | Designación/título del CEO |
+|   ↳ `rating` | number | Calificación del CEO |
+| `socialLinks` | json | Enlaces de redes sociales |
+|   ↳ `linkedIn` | string | URL de LinkedIn |
+|   ↳ `twitter` | string | URL de Twitter |
+|   ↳ `facebook` | string | URL de Facebook |
+| `totalFunding` | string | Financiación total recaudada |
+| `fundingRounds` | number | Número de rondas de financiación |
+| `competitors` | array | Competidores |
+|   ↳ `name` | string | Nombre del competidor |
+|   ↳ `revenue` | string | Ingresos |
+|   ↳ `employeeCount` | number | Número de empleados |
+|   ↳ `headquarters` | string | Sede central |
+
+### `enrich_search_people`
+
+Busca profesionales según diversos criterios, incluyendo nombre, título, habilidades, educación y empresa.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `firstName` | string | No | Nombre |
+| `lastName` | string | No | Apellido |
+| `summary` | string | No | Palabras clave del resumen profesional |
+| `subTitle` | string | No | Puesto de trabajo/subtítulo |
+| `locationCountry` | string | No | País |
+| `locationCity` | string | No | Ciudad |
+| `locationState` | string | No | Estado/provincia |
+| `influencer` | boolean | No | Filtrar solo influencers |
+| `premium` | boolean | No | Filtrar solo cuentas premium |
+| `language` | string | No | Idioma principal |
+| `industry` | string | No | Sector |
+| `currentJobTitles` | json | No | Puestos de trabajo actuales \(array\) |
+| `pastJobTitles` | json | No | Puestos de trabajo anteriores \(array\) |
+| `skills` | json | No | Habilidades a buscar \(array\) |
+| `schoolNames` | json | No | Nombres de instituciones educativas \(array\) |
+| `certifications` | json | No | Certificaciones para filtrar \(array\) |
+| `degreeNames` | json | No | Nombres de títulos para filtrar \(array\) |
+| `studyFields` | json | No | Campos de estudio para filtrar \(array\) |
+| `currentCompanies` | json | No | IDs de empresas actuales para filtrar \(array de números\) |
+| `pastCompanies` | json | No | IDs de empresas anteriores para filtrar \(array de números\) |
+| `currentPage` | number | No | Número de página \(predeterminado: 1\) |
+| `pageSize` | number | No | Resultados por página \(predeterminado: 20\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `currentPage` | number | Número de página actual |
+| `totalPage` | number | Número total de páginas |
+| `pageSize` | number | Resultados por página |
+| `profiles` | array | Resultados de búsqueda |
+|   ↳ `profileIdentifier` | string | ID de perfil |
+|   ↳ `givenName` | string | Nombre |
+|   ↳ `familyName` | string | Apellido |
+|   ↳ `currentPosition` | string | Puesto de trabajo actual |
+|   ↳ `profileImage` | string | URL de imagen de perfil |
+|   ↳ `externalProfileUrl` | string | URL de LinkedIn |
+|   ↳ `city` | string | Ciudad |
+|   ↳ `country` | string | País |
+|   ↳ `expertSkills` | array | Habilidades |
+
+### `enrich_search_company`
+
+Busca empresas según diversos criterios, incluyendo nombre, industria, ubicación y tamaño.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave de API de Enrich |
+| `name` | string | No | Nombre de la empresa |
+| `website` | string | No | URL del sitio web de la empresa |
+| `tagline` | string | No | Eslogan de la empresa |
+| `type` | string | No | Tipo de empresa \(ej., Privada, Pública\) |
+| `description` | string | No | Palabras clave de descripción de la empresa |
+| `industries` | json | No | Industrias para filtrar \(array\) |
+| `locationCountry` | string | No | País |
+| `locationCity` | string | No | Ciudad |
+| `postalCode` | string | No | Código postal |
+| `locationCountryList` | json | No | Múltiples países para filtrar \(array\) |
+| `locationCityList` | json | No | Múltiples ciudades para filtrar \(array\) |
+| `specialities` | json | No | Especialidades de la empresa \(array\) |
+| `followers` | number | No | Número mínimo de seguidores |
+| `staffCount` | number | No | Recuento máximo de personal |
+| `staffCountMin` | number | No | Recuento mínimo de personal |
+| `staffCountMax` | number | No | Recuento máximo de personal |
+| `currentPage` | number | No | Número de página \(predeterminado: 1\) |
+| `pageSize` | number | No | Resultados por página \(predeterminado: 20\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `currentPage` | number | Número de página actual |
+| `totalPage` | number | Número total de páginas |
+| `pageSize` | number | Resultados por página |
+| `companies` | array | Resultados de búsqueda |
+|   ↳ `companyName` | string | Nombre de la empresa |
+|   ↳ `tagline` | string | Eslogan de la empresa |
+|   ↳ `webAddress` | string | URL del sitio web |
+|   ↳ `industries` | array | Industrias |
+|   ↳ `teamSize` | number | Tamaño del equipo |
+|   ↳ `linkedInProfile` | string | URL de LinkedIn |
+
+### `enrich_search_company_employees`
+
+Busca empleados dentro de empresas específicas por ubicación y puesto de trabajo.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `companyIds` | json | No | Array de IDs de empresas para buscar |
+| `country` | string | No | Filtro de país \(ej., Estados Unidos\) |
+| `city` | string | No | Filtro de ciudad \(ej., San Francisco\) |
+| `state` | string | No | Filtro de estado \(ej., California\) |
+| `jobTitles` | json | No | Puestos de trabajo para filtrar \(array\) |
+| `page` | number | No | Número de página \(predeterminado: 1\) |
+| `pageSize` | number | No | Resultados por página \(predeterminado: 10\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `currentPage` | number | Número de página actual |
+| `totalPage` | number | Número total de páginas |
+| `pageSize` | number | Número de resultados por página |
+| `profiles` | array | Perfiles de empleados |
+|   ↳ `profileIdentifier` | string | ID del perfil |
+|   ↳ `givenName` | string | Nombre |
+|   ↳ `familyName` | string | Apellido |
+|   ↳ `currentPosition` | string | Puesto de trabajo actual |
+|   ↳ `profileImage` | string | URL de imagen de perfil |
+|   ↳ `externalProfileUrl` | string | URL de LinkedIn |
+|   ↳ `city` | string | Ciudad |
+|   ↳ `country` | string | País |
+|   ↳ `expertSkills` | array | Habilidades |
+
+### `enrich_search_similar_companies`
+
+Encuentra empresas similares a una empresa determinada mediante URL de LinkedIn con filtros de ubicación y tamaño.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `url` | string | Sí | URL de empresa de LinkedIn \(ej., linkedin.com/company/google\) |
+| `accountLocation` | json | No | Filtrar por ubicaciones \(array de nombres de países\) |
+| `employeeSizeType` | string | No | Tipo de filtro de tamaño de empleados \(ej., RANGE\) |
+| `employeeSizeRange` | json | No | Rangos de tamaño de empleados \(array de objetos \{start, end\}\) |
+| `page` | number | No | Número de página \(predeterminado: 1\) |
+| `num` | number | No | Número de resultados por página |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `companies` | array | Empresas similares |
+|   ↳ `url` | string | URL de LinkedIn |
+|   ↳ `name` | string | Nombre de la empresa |
+|   ↳ `universalName` | string | Nombre universal |
+|   ↳ `type` | string | Tipo de empresa |
+|   ↳ `description` | string | Descripción |
+|   ↳ `phone` | string | Número de teléfono |
+|   ↳ `website` | string | URL del sitio web |
+|   ↳ `logo` | string | URL del logo |
+|   ↳ `foundedYear` | number | Año de fundación |
+|   ↳ `staffTotal` | number | Personal total |
+|   ↳ `industries` | array | Industrias |
+|   ↳ `relevancyScore` | number | Puntuación de relevancia |
+|   ↳ `relevancyValue` | string | Valor de relevancia |
+
+### `enrich_sales_pointer_people`
+
+Búsqueda avanzada de personas con filtros complejos para ubicación, tamaño de empresa, nivel de antigüedad, experiencia y más.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `page` | number | Sí | Número de página \(comienza en 1\) |
+| `filters` | json | Sí | Array de objetos de filtro. Cada filtro tiene tipo \(ej., POSTAL_CODE, COMPANY_HEADCOUNT\), valores \(array con id, text, selectionType: INCLUDED/EXCLUDED\), y selectedSubFilter opcional |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `data` | array | Resultados de personas |
+|   ↳ `name` | string | Nombre completo |
+|   ↳ `summary` | string | Resumen profesional |
+|   ↳ `location` | string | Ubicación |
+|   ↳ `profilePicture` | string | URL de foto de perfil |
+|   ↳ `linkedInUrn` | string | URN de LinkedIn |
+|   ↳ `positions` | array | Puestos de trabajo |
+|   ↳ `education` | array | Educación |
+| `pagination` | json | Información de paginación |
+|   ↳ `totalCount` | number | Total de resultados |
+|   ↳ `returnedCount` | number | Cantidad devuelta |
+|   ↳ `start` | number | Posición de inicio |
+|   ↳ `limit` | number | Límite |
+
+### `enrich_search_posts`
+
+Busca publicaciones de LinkedIn por palabras clave con filtrado por fecha.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `keywords` | string | Sí | Palabras clave de búsqueda \(ej., "automatización con IA"\) |
+| `datePosted` | string | No | Filtro de tiempo \(ej., past_week, past_month\) |
+| `page` | number | No | Número de página \(predeterminado: 1\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `count` | number | Número total de resultados |
+| `posts` | array | Resultados de búsqueda |
+|   ↳ `url` | string | URL de la publicación |
+|   ↳ `postId` | string | ID de la publicación |
+|   ↳ `author` | object | Información del autor |
+|     ↳ `name` | string | Nombre del autor |
+|     ↳ `headline` | string | Titular del autor |
+|     ↳ `linkedInUrl` | string | URL de LinkedIn del autor |
+|     ↳ `profileImage` | string | Imagen de perfil del autor |
+|   ↳ `timestamp` | string | Marca de tiempo de la publicación |
+|   ↳ `textContent` | string | Contenido de texto de la publicación |
+|   ↳ `hashtags` | array | Hashtags |
+|   ↳ `mediaUrls` | array | URLs de medios |
+|   ↳ `reactions` | number | Número de reacciones |
+|   ↳ `commentsCount` | number | Número de comentarios |
+
+### `enrich_get_post_details`
+
+Obtén información detallada sobre una publicación de LinkedIn mediante su URL.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `url` | string | Sí | URL de la publicación de LinkedIn |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `postId` | string | ID de la publicación |
+| `author` | json | Información del autor |
+|   ↳ `name` | string | Nombre del autor |
+|   ↳ `headline` | string | Titular del autor |
+|   ↳ `linkedInUrl` | string | URL de LinkedIn del autor |
+|   ↳ `profileImage` | string | Imagen de perfil del autor |
+| `timestamp` | string | Marca de tiempo de la publicación |
+| `textContent` | string | Contenido de texto de la publicación |
+| `hashtags` | array | Hashtags |
+| `mediaUrls` | array | URLs de medios |
+| `reactions` | number | Número de reacciones |
+| `commentsCount` | number | Número de comentarios |
+
+### `enrich_search_post_reactions`
+
+Obtener reacciones en una publicación de LinkedIn con filtrado por tipo de reacción.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `postUrn` | string | Sí | URN de actividad de LinkedIn \(ej., urn:li:activity:7231931952839196672\) |
+| `reactionType` | string | Sí | Filtro de tipo de reacción: all, like, love, celebrate, insightful o funny \(predeterminado: all\) |
+| `page` | number | Sí | Número de página \(comienza en 1\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `page` | number | Número de página actual |
+| `totalPage` | number | Número total de páginas |
+| `count` | number | Número de reacciones devueltas |
+| `reactions` | array | Reacciones |
+|   ↳ `reactionType` | string | Tipo de reacción |
+|   ↳ `reactor` | object | Persona que reaccionó |
+|     ↳ `name` | string | Nombre |
+|     ↳ `subTitle` | string | Cargo |
+|     ↳ `profileId` | string | ID de perfil |
+|     ↳ `profilePicture` | string | URL de foto de perfil |
+|     ↳ `linkedInUrl` | string | URL de LinkedIn |
+
+### `enrich_search_post_comments`
+
+Obtener comentarios en una publicación de LinkedIn.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `postUrn` | string | Sí | URN de actividad de LinkedIn \(ej., urn:li:activity:7191163324208705536\) |
+| `page` | number | No | Número de página \(comienza en 1, predeterminado: 1\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `page` | number | Número de página actual |
+| `totalPage` | number | Número total de páginas |
+| `count` | number | Número de comentarios devueltos |
+| `comments` | array | Comentarios |
+|   ↳ `activityId` | string | ID de actividad del comentario |
+|   ↳ `commentary` | string | Texto del comentario |
+|   ↳ `linkedInUrl` | string | Enlace al comentario |
+|   ↳ `commenter` | object | Información del comentarista |
+|     ↳ `profileId` | string | ID de perfil |
+|     ↳ `firstName` | string | Nombre |
+|     ↳ `lastName` | string | Apellido |
+|     ↳ `subTitle` | string | Subtítulo/titular |
+|     ↳ `profilePicture` | string | URL de la foto de perfil |
+|     ↳ `backgroundImage` | string | URL de la imagen de fondo |
+|     ↳ `entityUrn` | string | URN de entidad |
+|     ↳ `objectUrn` | string | URN de objeto |
+|     ↳ `profileType` | string | Tipo de perfil |
+|   ↳ `reactionBreakdown` | object | Reacciones al comentario |
+|     ↳ `likes` | number | Número de me gusta |
+|     ↳ `empathy` | number | Número de reacciones de empatía |
+|     ↳ `other` | number | Número de otras reacciones |
+
+### `enrich_search_people_activities`
+
+Obtener una persona
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `profileId` | string | Sí | ID de perfil de LinkedIn |
+| `activityType` | string | Sí | Tipo de actividad: posts, comments o articles |
+| `paginationToken` | string | No | Token de paginación para la siguiente página de resultados |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `paginationToken` | string | Token para obtener la siguiente página |
+| `activityType` | string | Tipo de actividades devueltas |
+| `activities` | array | Actividades |
+|   ↳ `activityId` | string | ID de actividad |
+|   ↳ `commentary` | string | Contenido de texto de la actividad |
+|   ↳ `linkedInUrl` | string | Enlace a la actividad |
+|   ↳ `timeElapsed` | string | Tiempo transcurrido desde la actividad |
+|   ↳ `numReactions` | number | Número total de reacciones |
+|   ↳ `author` | object | Información del autor de la actividad |
+|     ↳ `name` | string | Nombre del autor |
+|     ↳ `profileId` | string | ID de perfil |
+|     ↳ `profilePicture` | string | URL de la foto de perfil |
+|   ↳ `reactionBreakdown` | object | Reacciones |
+|     ↳ `likes` | number | Me gusta |
+|     ↳ `empathy` | number | Reacciones de empatía |
+|     ↳ `other` | number | Otras reacciones |
+|   ↳ `attachments` | array | URLs de archivos adjuntos |
+
+### `enrich_search_company_activities`
+
+Obtener una empresa
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `companyId` | string | Sí | ID de empresa de LinkedIn |
+| `activityType` | string | Sí | Tipo de actividad: publicaciones, comentarios o artículos |
+| `paginationToken` | string | No | Token de paginación para la siguiente página de resultados |
+| `offset` | number | No | Número de registros a omitir \(predeterminado: 0\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `paginationToken` | string | Token para obtener la siguiente página |
+| `activityType` | string | Tipo de actividades devueltas |
+| `activities` | array | Actividades |
+|   ↳ `activityId` | string | ID de actividad |
+|   ↳ `commentary` | string | Contenido de texto de la actividad |
+|   ↳ `linkedInUrl` | string | Enlace a la actividad |
+|   ↳ `timeElapsed` | string | Tiempo transcurrido desde la actividad |
+|   ↳ `numReactions` | number | Número total de reacciones |
+|   ↳ `author` | object | Información del autor de la actividad |
+|     ↳ `name` | string | Nombre del autor |
+|     ↳ `profileId` | string | ID de perfil |
+|     ↳ `profilePicture` | string | URL de la foto de perfil |
+|   ↳ `reactionBreakdown` | object | Reacciones |
+|     ↳ `likes` | number | Me gusta |
+|     ↳ `empathy` | number | Reacciones de empatía |
+|     ↳ `other` | number | Otras reacciones |
+|   ↳ `attachments` | array | Archivos adjuntos |
+
+### `enrich_reverse_hash_lookup`
+
+Convierte un hash MD5 de correo electrónico de vuelta a la dirección de correo electrónico original y el nombre para mostrar.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave de API de Enrich |
+| `hash` | string | Sí | Valor de hash MD5 a buscar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `hash` | string | Hash MD5 que fue buscado |
+| `email` | string | Dirección de correo electrónico original |
+| `displayName` | string | Nombre para mostrar asociado con el correo electrónico |
+| `found` | boolean | Si se encontró un correo electrónico para el hash |
+
+### `enrich_search_logo`
+
+Obtener la URL de la imagen del logo de una empresa por dominio.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Enrich |
+| `url` | string | Sí | Dominio de la empresa \(ej., google.com\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `logoUrl` | string | URL para obtener el logo de la empresa |
+| `domain` | string | Dominio que fue consultado |

@@ -1,0 +1,72 @@
+name: Publish CLI Package
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/cli/**'
+
+permissions:
+  contents: read
+
+jobs:
+  publish-npm:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.10
+
+      - name: Setup Node.js for npm publishing
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            **/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        working-directory: packages/cli
+        run: bun install --frozen-lockfile
+
+      - name: Build package
+        working-directory: packages/cli
+        run: bun run build
+
+      - name: Get package version
+        id: package_version
+        working-directory: packages/cli
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Check if version already exists
+        id: version_check
+        run: |
+          if npm view simstudio@${{ steps.package_version.outputs.version }} version &> /dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish to npm
+        if: steps.version_check.outputs.exists == 'false'
+        working-directory: packages/cli
+        run: npm publish --access=public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Log skipped publish
+        if: steps.version_check.outputs.exists == 'true'
+        run: echo "Skipped publishing because version ${{ steps.package_version.outputs.version }} already exists on npm" 

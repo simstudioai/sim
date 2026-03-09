@@ -1,0 +1,155 @@
+---
+title: Docker
+description: 使用 Docker Compose 部署 Sim
+---
+
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+## 快速开始
+
+```bash
+# Clone and start
+git clone https://github.com/simstudioai/sim.git && cd sim
+docker compose -f docker-compose.prod.yml up -d
+```
+
+打开 [http://localhost:3000](http://localhost:3000)
+
+## 生产环境设置
+
+### 1. 配置环境
+
+```bash
+# Generate secrets
+cat > .env << EOF
+DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
+BETTER_AUTH_SECRET=$(openssl rand -hex 32)
+ENCRYPTION_KEY=$(openssl rand -hex 32)
+INTERNAL_API_SECRET=$(openssl rand -hex 32)
+NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
+BETTER_AUTH_URL=https://sim.yourdomain.com
+NEXT_PUBLIC_SOCKET_URL=https://sim.yourdomain.com
+EOF
+```
+
+### 2. 启动服务
+
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+### 3. 设置 SSL
+
+<Tabs items={['Caddy (推荐)', 'Nginx + Certbot']}>
+  <Tab value="Caddy (推荐)">
+Caddy 会自动处理 SSL 证书。
+
+```bash
+# Install Caddy
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update && sudo apt install caddy
+```
+
+创建 `/etc/caddy/Caddyfile`：
+
+```
+sim.yourdomain.com {
+    reverse_proxy localhost:3000
+
+    handle /socket.io/* {
+        reverse_proxy localhost:3002
+    }
+}
+```
+
+```bash
+sudo systemctl restart caddy
+```
+
+  </Tab>
+  <Tab value="Nginx + Certbot">
+
+```bash
+# Install
+sudo apt install nginx certbot python3-certbot-nginx -y
+
+# Create /etc/nginx/sites-available/sim
+server {
+    listen 80;
+    server_name sim.yourdomain.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:3002;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+
+# Enable and get certificate
+sudo ln -s /etc/nginx/sites-available/sim /etc/nginx/sites-enabled/
+sudo certbot --nginx -d sim.yourdomain.com
+```
+
+  </Tab>
+</Tabs>
+
+## Ollama
+
+```bash
+# With GPU
+docker compose -f docker-compose.ollama.yml --profile gpu --profile setup up -d
+
+# CPU only
+docker compose -f docker-compose.ollama.yml --profile cpu --profile setup up -d
+```
+
+拉取其他模型：
+
+```bash
+docker compose -f docker-compose.ollama.yml exec ollama ollama pull llama3.2
+```
+
+### 外部 Ollama
+
+如果 Ollama 在您的主机上运行（而不是在 Docker 中）：
+
+```bash
+# macOS/Windows
+OLLAMA_URL=http://host.docker.internal:11434 docker compose -f docker-compose.prod.yml up -d
+
+# Linux - use your host IP
+OLLAMA_URL=http://192.168.1.100:11434 docker compose -f docker-compose.prod.yml up -d
+```
+
+<Callout type="warning">
+  在 Docker 内，`localhost` 指的是容器，而不是您的主机。请使用 `host.docker.internal` 或您的主机 IP。
+</Callout>
+
+## 命令
+
+```bash
+# View logs
+docker compose -f docker-compose.prod.yml logs -f simstudio
+
+# Stop
+docker compose -f docker-compose.prod.yml down
+
+# Update
+docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d
+
+# Backup database
+docker compose -f docker-compose.prod.yml exec db pg_dump -U postgres simstudio > backup.sql
+```

@@ -1,0 +1,115 @@
+{{- if and .Values.ollama.enabled .Values.ollama.gpu.enabled }}
+---
+# 1. ConfigMap for NVIDIA Device Plugin Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sim.fullname" . }}-nvidia-device-plugin-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nvidia-device-plugin
+data:
+  config.yaml: |
+    version: v1
+    flags:
+      {{- if eq .Values.ollama.gpu.strategy "mig" }}
+      migStrategy: "single"
+      {{- else }}
+      migStrategy: "none"
+      {{- end }}
+      failOnInitError: false
+    plugin:
+      passDeviceSpecs: true
+      deviceListStrategy: envvar
+    {{- if eq .Values.ollama.gpu.strategy "time-slicing" }}
+    sharing:
+      timeSlicing:
+        resources:
+          - name: nvidia.com/gpu
+            replicas: {{ .Values.ollama.gpu.timeSlicingReplicas | default 5 }}
+    {{- end }}
+---
+# 2. NVIDIA Device Plugin DaemonSet for GPU support
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "sim.fullname" . }}-nvidia-device-plugin
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nvidia-device-plugin
+spec:
+  selector:
+    matchLabels:
+      {{- include "sim.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: nvidia-device-plugin
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        {{- include "sim.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: nvidia-device-plugin
+    spec:
+      tolerations:
+        # Allow scheduling on GPU nodes
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+        - key: sku
+          operator: Equal
+          value: gpu
+          effect: NoSchedule
+      nodeSelector:
+        # Only schedule on nodes with NVIDIA GPUs
+        accelerator: nvidia
+      priorityClassName: system-node-critical
+      volumes:
+        - name: device-plugin
+          hostPath:
+            path: /var/lib/kubelet/device-plugins
+        - name: dev
+          hostPath:
+            path: /dev
+        - name: sys
+          hostPath:
+            path: /sys
+        # Volume to mount the ConfigMap
+        - name: nvidia-device-plugin-config
+          configMap:
+            name: {{ include "sim.fullname" . }}-nvidia-device-plugin-config
+      containers:
+        - name: nvidia-device-plugin
+          image: nvcr.io/nvidia/k8s-device-plugin:v0.18.2
+          imagePullPolicy: Always
+          args:
+            - "--config-file=/etc/device-plugin/config.yaml"
+          {{- if eq .Values.ollama.gpu.strategy "mig" }}
+          env:
+            - name: NVIDIA_MIG_MONITOR_DEVICES
+              value: all
+          {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: device-plugin
+              mountPath: /var/lib/kubelet/device-plugins
+            - name: dev
+              mountPath: /dev
+            - name: sys
+              mountPath: /sys
+              readOnly: true
+            - name: nvidia-device-plugin-config
+              mountPath: /etc/device-plugin/
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 20Mi
+            limits:
+              cpu: 50m
+              memory: 50Mi
+{{- end }}

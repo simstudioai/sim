@@ -1,0 +1,89 @@
+---
+title: Webhook
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+El bloque Webhook envía solicitudes HTTP POST a endpoints de webhook externos con encabezados de webhook automáticos y firma HMAC opcional.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook.png"
+    alt="Bloque Webhook"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Configuración
+
+### URL del webhook
+
+El endpoint de destino para tu solicitud de webhook. Admite tanto URL estáticas como valores dinámicos de otros bloques.
+
+### Carga útil
+
+Datos JSON para enviar en el cuerpo de la solicitud. Usa la varita de IA para generar cargas útiles o referenciar variables del flujo de trabajo:
+
+```json
+{
+  "event": "workflow.completed",
+  "data": {
+    "result": "<agent.content>",
+    "timestamp": "<function.result>"
+  }
+}
+```
+
+### Secreto de firma
+
+Secreto opcional para la firma HMAC-SHA256 de la carga útil. Cuando se proporciona, añade un encabezado `X-Webhook-Signature`:
+
+```
+X-Webhook-Signature: t=1704067200000,v1=5d41402abc4b2a76b9719d911017c592...
+```
+
+Para verificar las firmas, calcula `HMAC-SHA256(secret, "${timestamp}.${body}")` y compara con el valor `v1`.
+
+### Encabezados adicionales
+
+Encabezados personalizados de clave-valor para incluir con la solicitud. Estos sobrescriben cualquier encabezado automático con el mismo nombre.
+
+## Encabezados automáticos
+
+Cada solicitud incluye estos encabezados automáticamente:
+
+| Encabezado | Descripción |
+|--------|-------------|
+| `Content-Type` | `application/json` |
+| `X-Webhook-Timestamp` | Marca de tiempo Unix en milisegundos |
+| `X-Delivery-ID` | UUID único para esta entrega |
+| `Idempotency-Key` | Igual que `X-Delivery-ID` para deduplicación |
+
+## Salidas
+
+| Salida | Tipo | Descripción |
+|--------|------|-------------|
+| `data` | json | Cuerpo de respuesta del endpoint |
+| `status` | number | Código de estado HTTP |
+| `headers` | object | Encabezados de respuesta |
+
+## Ejemplos de casos de uso
+
+**Notificar servicios externos** - Envía resultados del flujo de trabajo a Slack, Discord o endpoints personalizados
+
+```
+Agent → Function (format) → Webhook (notify)
+```
+
+**Activar flujos de trabajo externos** - Inicia procesos en otros sistemas cuando se cumplan las condiciones
+
+```
+Condition (check) → Webhook (trigger) → Response
+```
+
+<Callout>
+El bloque Webhook siempre usa POST. Para otros métodos HTTP o más control, usa el [bloque API](/blocks/api).
+</Callout>

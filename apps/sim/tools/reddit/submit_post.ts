@@ -1,0 +1,190 @@
+import type { RedditSubmitParams, RedditWriteResponse } from '@/tools/reddit/types'
+import { normalizeSubreddit } from '@/tools/reddit/utils'
+import type { ToolConfig } from '@/tools/types'
+
+export const submitPostTool: ToolConfig<RedditSubmitParams, RedditWriteResponse> = {
+  id: 'reddit_submit_post',
+  name: 'Submit Reddit Post',
+  description: 'Submit a new post to a subreddit (text or link)',
+  version: '1.0.0',
+
+  oauth: {
+    required: true,
+    provider: 'reddit',
+  },
+
+  params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'Access token for Reddit API',
+    },
+    subreddit: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The subreddit to post to (e.g., "technology", "programming")',
+    },
+    title: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description:
+        'Title of the submission (e.g., "Check out this new AI tool"). Max 300 characters',
+    },
+    text: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Text content for a self post in markdown format (e.g., "This is the **body** of my post")',
+    },
+    url: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'URL for a link post (cannot be used with text)',
+    },
+    nsfw: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Mark post as NSFW',
+    },
+    spoiler: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Mark post as spoiler',
+    },
+    send_replies: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Send reply notifications to inbox (default: true)',
+    },
+    flair_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Flair template UUID for the post (max 36 characters)',
+    },
+    flair_text: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Flair text to display on the post (max 64 characters)',
+    },
+    collection_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Collection UUID to add the post to',
+    },
+  },
+
+  request: {
+    url: () => 'https://oauth.reddit.com/api/submit',
+    method: 'POST',
+    headers: (params: RedditSubmitParams) => {
+      if (!params.accessToken) {
+        throw new Error('Access token is required for Reddit API')
+      }
+
+      return {
+        Authorization: `Bearer ${params.accessToken}`,
+        'User-Agent': 'sim-studio/1.0 (https://github.com/simstudioai/sim)',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      }
+    },
+    body: (params: RedditSubmitParams) => {
+      const subreddit = normalizeSubreddit(params.subreddit)
+
+      // Build form data
+      const formData = new URLSearchParams({
+        sr: subreddit,
+        title: params.title,
+        api_type: 'json',
+      })
+
+      // Determine post kind (self or link)
+      if (params.text) {
+        formData.append('kind', 'self')
+        formData.append('text', params.text)
+      } else if (params.url) {
+        formData.append('kind', 'link')
+        formData.append('url', params.url)
+      } else {
+        formData.append('kind', 'self')
+        formData.append('text', '')
+      }
+
+      // Add optional parameters
+      if (params.nsfw !== undefined) formData.append('nsfw', params.nsfw.toString())
+      if (params.spoiler !== undefined) formData.append('spoiler', params.spoiler.toString())
+      if (params.flair_id) formData.append('flair_id', params.flair_id)
+      if (params.flair_text) formData.append('flair_text', params.flair_text)
+      if (params.collection_id) formData.append('collection_id', params.collection_id)
+      if (params.send_replies !== undefined)
+        formData.append('sendreplies', params.send_replies.toString())
+
+      return formData.toString() as unknown as Record<string, any>
+    },
+  },
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+
+    // Reddit API returns errors in json.errors array
+    if (data.json?.errors && data.json.errors.length > 0) {
+      const errors = data.json.errors.map((err: any) => err.join(': ')).join(', ')
+      return {
+        success: false,
+        output: {
+          success: false,
+          message: `Failed to submit post: ${errors}`,
+        },
+      }
+    }
+
+    // Success response includes post data
+    const postData = data.json?.data
+    return {
+      success: true,
+      output: {
+        success: true,
+        message: 'Post submitted successfully',
+        data: {
+          id: postData?.id,
+          name: postData?.name,
+          url: postData?.url,
+          permalink: postData?.permalink
+            ? `https://www.reddit.com${postData.permalink}`
+            : (postData?.url ?? ''),
+        },
+      },
+    }
+  },
+
+  outputs: {
+    success: {
+      type: 'boolean',
+      description: 'Whether the post was submitted successfully',
+    },
+    message: {
+      type: 'string',
+      description: 'Success or error message',
+    },
+    data: {
+      type: 'object',
+      description: 'Post data including ID, name, URL, and permalink',
+      properties: {
+        id: { type: 'string', description: 'New post ID' },
+        name: { type: 'string', description: 'Thing fullname (t3_xxxxx)' },
+        url: { type: 'string', description: 'Post URL from API response' },
+        permalink: { type: 'string', description: 'Full Reddit permalink' },
+      },
+    },
+  },
+}

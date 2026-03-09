@@ -1,0 +1,143 @@
+---
+title: 概要
+description: AIワークフローの構成要素
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Video } from '@/components/ui/video'
+
+ブロックはAIワークフローを作成するために接続する構成要素です。AIモデルとのチャット、APIコールの実行、データ処理など、特定のタスクを処理する専門モジュールと考えてください。
+
+<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
+  <Video src="connections.mp4" width={700} height={450} />
+</div>
+
+## 主要ブロックタイプ
+
+Simは、AIワークフローの中核機能を処理する必須のブロックタイプを提供します：
+
+### 処理ブロック
+- **[エージェント](/blocks/agent)** - AIモデル（OpenAI、Anthropic、Google、ローカルモデル）とチャット
+- **[ファンクション](/blocks/function)** - カスタムJavaScript/TypeScriptコードを実行
+- **[API](/blocks/api)** - HTTP要求を介して外部サービスに接続
+
+### ロジックブロック
+- **[条件](/blocks/condition)** - ブール式に基づいてワークフローパスを分岐
+- **[ルーター](/blocks/router)** - AIを使用してリクエストを異なるパスにインテリジェントにルーティング
+- **[評価者](/blocks/evaluator)** - AIを使用してコンテンツの品質を評価・採点
+
+### コントロールフローブロック
+- **[変数](/blocks/variables)** - ワークフロースコープの変数を設定および管理
+- **[待機](/blocks/wait)** - 指定した時間だけワークフロー実行を一時停止
+- **[ヒューマンインザループ](/blocks/human-in-the-loop)** - 続行する前に人間の承認とフィードバックを待つ
+
+### 出力ブロック
+- **[レスポンス](/blocks/response)** - ワークフローからの最終結果をフォーマットして返す
+
+## ブロックの仕組み
+
+各ブロックには3つの主要コンポーネントがあります：
+
+**入力**：他のブロックやユーザー入力からブロックに入ってくるデータ
+**設定**：ブロックの動作を制御する設定
+**出力**：ブロックが生成し、他のブロックが使用するデータ
+
+<Steps>
+  <Step>
+    <strong>入力を受け取る</strong>：ブロックは接続されたブロックまたはユーザー入力からデータを受け取ります
+  </Step>
+  <Step>
+    <strong>処理</strong>：ブロックは設定に従って入力を処理します
+  </Step>
+  <Step>
+    <strong>結果を出力</strong>：ブロックはワークフロー内の次のブロックのための出力データを生成します
+  </Step>
+</Steps>
+
+## ブロックの接続
+
+ブロックを接続してワークフローを作成します。あるブロックの出力は、別のブロックの入力になります：
+
+- **ドラッグして接続**：出力ポートから入力ポートにドラッグ
+- **複数の接続**：1つの出力を複数の入力に接続可能
+- **分岐パス**：一部のブロックは条件に基づいて異なるパスにルーティング可能
+
+<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
+  <Video src="connections.mp4" width={700} height={450} />
+</div>
+
+## 一般的なパターン
+
+### 順次処理
+各ブロックが前のブロックの出力を処理するチェーン状にブロックを接続します：
+
+```
+User Input → Agent → Function → Response
+```
+
+### 条件分岐
+条件またはルーターブロックを使用して異なるパスを作成します：
+
+```
+User Input → Router → Agent A (for questions)
+                   → Agent B (for commands)
+```
+
+### 品質管理
+評価ブロックを使用して出力を評価およびフィルタリングします：
+
+```
+Agent → Evaluator → Condition → Response (if good)
+                              → Agent (retry if bad)
+```
+
+## ブロック設定
+
+各ブロックタイプには特定の設定オプションがあります：
+
+**すべてのブロック**:
+- 入出力接続
+- エラー処理の動作
+- 実行タイムアウト設定
+
+**AIブロック** (エージェント、ルーター、評価者):
+- モデル選択（OpenAI、Anthropic、Google、ローカル）
+- APIキーと認証
+- 温度やその他のモデルパラメータ
+- システムプロンプトと指示
+
+**ロジックブロック** (条件、関数):
+- カスタム式またはコード
+- 変数参照
+- 実行環境設定
+
+**統合ブロック** (API、レスポンス):
+- エンドポイント構成
+- ヘッダーと認証
+- リクエスト/レスポンスのフォーマット
+
+<Cards>
+  <Card title="エージェントブロック" href="/blocks/agent">
+    AIモデルに接続し、インテリジェントな応答を作成
+  </Card>
+  <Card title="ファンクションブロック" href="/blocks/function">
+    カスタムコードを実行してデータを処理および変換
+  </Card>
+  <Card title="APIブロック" href="/blocks/api">
+    外部サービスやAPIと統合
+  </Card>
+  <Card title="条件ブロック" href="/blocks/condition">
+    データ評価に基づいた分岐ロジックを作成
+  </Card>
+  <Card title="ヒューマンインザループブロック" href="/blocks/human-in-the-loop">
+    続行する前に人間の承認とフィードバックを待つ
+  </Card>
+  <Card title="変数ブロック" href="/blocks/variables">
+    ワークフロースコープの変数を設定および管理
+  </Card>
+  <Card title="待機ブロック" href="/blocks/wait">
+    指定した時間だけワークフロー実行を一時停止
+  </Card>
+</Cards>

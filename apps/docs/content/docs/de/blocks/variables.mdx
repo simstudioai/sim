@@ -1,0 +1,86 @@
+---
+title: Variablen
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+Der Variablen-Block aktualisiert Workflow-Variablen während der Ausführung. Variablen müssen zuerst im Variablen-Bereich deines Workflows initialisiert werden, dann kannst du diesen Block verwenden, um ihre Werte während der Ausführung deines Workflows zu aktualisieren.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/variables.png"
+    alt="Variablen-Block"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout>
+  Greife überall in deinem Workflow auf Variablen zu, indem du die `<variable.variableName>` Syntax verwendest.
+</Callout>
+
+## Wie man Variablen verwendet
+
+### 1. Initialisierung in Workflow-Variablen
+
+Erstellen Sie zunächst Ihre Variablen im Variablenbereich des Workflows (zugänglich über die Workflow-Einstellungen):
+
+```
+customerEmail = ""
+retryCount = 0
+currentStatus = "pending"
+```
+
+### 2. Aktualisierung mit dem Variablen-Block
+
+Verwenden Sie den Variablen-Block, um diese Werte während der Ausführung zu aktualisieren:
+
+```
+customerEmail = <api.email>
+retryCount = <variable.retryCount> + 1
+currentStatus = "processing"
+```
+
+### 3. Überall zugreifen
+
+Referenzieren Sie Variablen in jedem Block:
+
+```
+Agent prompt: "Send email to <variable.customerEmail>"
+Condition: <variable.retryCount> < 5
+API body: {"status": "<variable.currentStatus>"}
+```
+
+## Beispielanwendungsfälle
+
+**Schleifenzähler und Status** - Fortschritt durch Iterationen verfolgen
+
+```
+Loop → Agent (Process) → Variables (itemsProcessed + 1) → Variables (Store lastResult)
+```
+
+**Wiederholungslogik** - API-Wiederholungsversuche verfolgen
+
+```
+API (Try) → Variables (retryCount + 1) → Condition (retryCount < 3)
+```
+
+**Dynamische Konfiguration** - Benutzerkontext für Workflow speichern
+
+```
+API (Fetch Profile) → Variables (userId, userTier) → Agent (Personalize)
+```
+
+## Ausgaben
+
+- **`<variables.assignments>`**: JSON-Objekt mit allen Variablenzuweisungen aus diesem Block
+
+## Bewährte Praktiken
+
+- **In Workflow-Einstellungen initialisieren**: Erstellen Sie Variablen immer im Variablenbereich des Workflows, bevor Sie sie verwenden
+- **Dynamisch aktualisieren**: Verwenden Sie Variablen-Blöcke, um Werte basierend auf Block-Ausgaben oder Berechnungen zu aktualisieren
+- **In Schleifen verwenden**: Perfekt für die Verfolgung des Status über Iterationen hinweg
+- **Beschreibend benennen**: Verwenden Sie klare Namen wie `currentIndex`, `totalProcessed` oder `lastError`

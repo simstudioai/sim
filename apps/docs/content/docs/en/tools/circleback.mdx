@@ -1,0 +1,59 @@
+---
+title: Circleback
+description: AI-powered meeting notes and action items
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="circleback"
+  color="linear-gradient(180deg, #E0F7FA 0%, #FFFFFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Circleback](https://circleback.ai/) is an AI-powered platform that automates meeting notes, action items, transcripts, and recordings for your team. When a meeting is completed, Circleback processes the conversation and provides detailed notes and action items, along with a transcript and a recording (when available). This helps teams efficiently capture insights, distribute action items, and ensure nothing is missed—all seamlessly integrated into your workflows.
+
+With the Sim Circleback integration, you can:
+
+- **Receive detailed meeting notes and action items**: Automatically collect well-formatted meeting summaries and track actionable tasks discussed during your calls.
+- **Access complete meeting recordings and transcripts**: Get the full conversation and the associated recording, making it easy to review key moments or share with colleagues.
+- **Capture attendee information and meeting context**: Attendee lists, meeting metadata, and tags help keep your data organized and actionable.
+- **Deliver insights directly into your workflows**: Trigger automations or send Circleback data to other systems the moment a meeting is done, using Sim’s powerful webhook triggers.
+
+**How it works in Sim:**  
+Circleback uses webhook triggers: whenever a meeting is processed, data is pushed automatically to your agent or automation. You can build further automations based on:
+
+- Meeting completed (all processed data available)
+- New notes (notes ready even before full meeting is processed)
+- Raw webhook integration for advanced use cases
+
+**The following information is available in the Circleback meeting webhook payload:**
+
+| Field          | Type    | Description                                        |
+|----------------|---------|----------------------------------------------------|
+| `id`           | number  | Circleback meeting ID                              |
+| `name`         | string  | Meeting title                                      |
+| `url`          | string  | Virtual meeting URL (Zoom, Meet, Teams, etc.)      |
+| `createdAt`    | string  | Meeting creation timestamp                         |
+| `duration`     | number  | Duration in seconds                                |
+| `recordingUrl` | string  | Recording URL (valid 24 hours)                     |
+| `tags`         | json    | Array of tags                                      |
+| `icalUid`      | string  | Calendar event ID                                  |
+| `attendees`    | json    | Array of attendee objects                          |
+| `notes`        | string  | Meeting notes in Markdown                          |
+| `actionItems`  | json    | Array of action items                              |
+| `transcript`   | json    | Array of transcript segments                       |
+| `insights`     | json    | User-created insights                              |
+| `meeting`      | json    | Full meeting payload                               |
+
+Whether you want to distribute instant summaries, log action items, or build custom workflows triggered by new meeting data, Circleback and Sim make it seamless to handle everything related to your meetings—automatically.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Receive meeting notes, action items, transcripts, and recordings when meetings are processed. Circleback uses webhooks to push data to your workflows.
+
+
+
+

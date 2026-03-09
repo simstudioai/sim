@@ -1,0 +1,87 @@
+---
+title: Variables de entorno
+description: Referencia de configuración para Sim
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+## Requeridas
+
+| Variable | Descripción |
+|----------|-------------|
+| `DATABASE_URL` | Cadena de conexión PostgreSQL |
+| `BETTER_AUTH_SECRET` | Secreto de autenticación (32 caracteres hex): `openssl rand -hex 32` |
+| `BETTER_AUTH_URL` | URL de tu aplicación |
+| `ENCRYPTION_KEY` | Clave de cifrado (32 caracteres hex): `openssl rand -hex 32` |
+| `INTERNAL_API_SECRET` | Secreto de API interna (32 caracteres hex): `openssl rand -hex 32` |
+| `NEXT_PUBLIC_APP_URL` | URL pública de la aplicación |
+| `NEXT_PUBLIC_SOCKET_URL` | URL de WebSocket (predeterminado: `http://localhost:3002`) |
+
+## Proveedores de IA
+
+| Variable | Proveedor |
+|----------|----------|
+| `OPENAI_API_KEY` | OpenAI |
+| `ANTHROPIC_API_KEY_1` | Anthropic Claude |
+| `GEMINI_API_KEY_1` | Google Gemini |
+| `MISTRAL_API_KEY` | Mistral |
+| `OLLAMA_URL` | Ollama (predeterminado: `http://localhost:11434`) |
+
+<Callout type="info">
+  Para balanceo de carga, añade múltiples claves con sufijos `_1`, `_2`, `_3` (p. ej., `OPENAI_API_KEY_1`, `OPENAI_API_KEY_2`). Funciona con OpenAI, Anthropic y Gemini.
+</Callout>
+
+<Callout type="info">
+  En Docker, usa `OLLAMA_URL=http://host.docker.internal:11434` para Ollama en la máquina host.
+</Callout>
+
+### Azure OpenAI
+
+| Variable | Descripción |
+|----------|-------------|
+| `AZURE_OPENAI_API_KEY` | Clave de API de Azure OpenAI |
+| `AZURE_OPENAI_ENDPOINT` | URL del endpoint de Azure OpenAI |
+| `AZURE_OPENAI_API_VERSION` | Versión de API (p. ej., `2024-02-15-preview`) |
+
+### vLLM (autoalojado)
+
+| Variable | Descripción |
+|----------|-------------|
+| `VLLM_BASE_URL` | URL del servidor vLLM (p. ej., `http://localhost:8000/v1`) |
+| `VLLM_API_KEY` | Token bearer opcional para vLLM |
+
+## Proveedores OAuth
+
+| Variable | Descripción |
+|----------|-------------|
+| `GOOGLE_CLIENT_ID` | ID de cliente OAuth de Google |
+| `GOOGLE_CLIENT_SECRET` | Secreto de cliente OAuth de Google |
+| `GITHUB_CLIENT_ID` | ID de cliente OAuth de GitHub |
+| `GITHUB_CLIENT_SECRET` | Secreto de cliente OAuth de GitHub |
+
+## Opcional
+
+| Variable | Descripción |
+|----------|-------------|
+| `API_ENCRYPTION_KEY` | Encripta las claves API almacenadas (32 caracteres hexadecimales): `openssl rand -hex 32` |
+| `COPILOT_API_KEY` | Clave API para funciones de copilot |
+| `ADMIN_API_KEY` | Clave API de administrador para operaciones GitOps |
+| `RESEND_API_KEY` | Servicio de correo electrónico para notificaciones |
+| `ALLOWED_LOGIN_DOMAINS` | Restringir registros a dominios (separados por comas) |
+| `ALLOWED_LOGIN_EMAILS` | Restringir registros a correos electrónicos específicos (separados por comas) |
+| `DISABLE_REGISTRATION` | Establecer como `true` para deshabilitar nuevos registros de usuarios |
+
+## Ejemplo de archivo .env
+
+```bash
+DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
+BETTER_AUTH_SECRET=<openssl rand -hex 32>
+BETTER_AUTH_URL=https://sim.yourdomain.com
+ENCRYPTION_KEY=<openssl rand -hex 32>
+INTERNAL_API_SECRET=<openssl rand -hex 32>
+NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
+NEXT_PUBLIC_SOCKET_URL=https://sim.yourdomain.com
+OPENAI_API_KEY=sk-...
+```
+
+Consulta `apps/sim/.env.example` para todas las opciones.

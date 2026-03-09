@@ -1,0 +1,402 @@
+---
+title: SendGrid
+description: Send emails and manage contacts, lists, and templates with SendGrid
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sendgrid"
+  color="#1A82E2"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SendGrid](https://sendgrid.com) is a leading cloud-based email delivery platform trusted by developers and businesses to send reliable transactional and marketing emails at scale. With its robust APIs and powerful tools, SendGrid enables you to manage all aspects of your email communication, from sending notifications and receipts to managing complex marketing campaigns.
+
+SendGrid empowers users with a full suite of email operations, allowing you to automate critical email workflows and closely manage contact lists, templates, and recipient engagement. Its seamless integration with Sim enables agents and workflows to deliver targeted messages, maintain dynamic contact and recipient lists, trigger personalized emails through templates, and track the results in real time.
+
+Key features of SendGrid include:
+
+- **Transactional Email:** Send automated and high-volume transactional emails (like notifications, receipts, and password resets).
+- **Dynamic Templates:** Use rich HTML or text templates with dynamic data for highly personalized communication at scale.
+- **Contact Management:** Add and update marketing contacts, manage recipient lists, and target segments for campaigns.
+- **Attachments Support:** Include one or more file attachments in your emails.
+- **Comprehensive API Coverage:** Programmatically manage emails, contacts, lists, templates, suppression groups, and more.
+
+By connecting SendGrid with Sim, your agents can:
+
+- Send both simple and advanced (templated or multi-recipient) emails as part of any workflow.
+- Manage and segment contacts and lists automatically.
+- Leverage templates for consistency and dynamic personalization.
+- Track and respond to email engagement within your automated processes.
+
+This integration allows you to automate all critical communication flows, ensure messages reach the right audience, and maintain control over your organization’s email strategy, directly from Sim workflows.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate SendGrid into your workflow. Send transactional emails, manage marketing contacts and lists, and work with email templates. Supports dynamic templates, attachments, and comprehensive contact management.
+
+
+
+## Tools
+
+### `sendgrid_send_mail`
+
+Send an email using SendGrid API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SendGrid API key |
+| `from` | string | Yes | Sender email address \(must be verified in SendGrid\) |
+| `fromName` | string | No | Sender name |
+| `to` | string | Yes | Recipient email address |
+| `toName` | string | No | Recipient name |
+| `subject` | string | No | Email subject \(required unless using a template with pre-defined subject\) |
+| `content` | string | No | Email body content \(required unless using a template with pre-defined content\) |
+| `contentType` | string | No | Content type \(text/plain or text/html\) |
+| `cc` | string | No | CC email address |
+| `bcc` | string | No | BCC email address |
+| `replyTo` | string | No | Reply-to email address |
+| `replyToName` | string | No | Reply-to name |
+| `attachments` | file[] | No | Files to attach to the email \(UserFile objects\) |
+| `templateId` | string | No | SendGrid template ID to use |
+| `dynamicTemplateData` | json | No | JSON object of dynamic template data |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the email was sent successfully |
+| `messageId` | string | SendGrid message ID |
+| `to` | string | Recipient email address |
+| `subject` | string | Email subject |
+
+### `sendgrid_add_contact`
+
+Add a new contact to SendGrid
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SendGrid API key |
+| `email` | string | Yes | Contact email address |
+| `firstName` | string | No | Contact first name |
+| `lastName` | string | No | Contact last name |
+| `customFields` | json | No | JSON object of custom field key-value pairs \(use field IDs like e1_T, e2_N, e3_D, not field names\) |
+| `listIds` | string | No | Comma-separated list IDs to add the contact to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job ID for tracking the async contact creation |
+| `email` | string | Contact email address |
+| `firstName` | string | Contact first name |
+| `lastName` | string | Contact last name |
+| `message` | string | Status message |
+
+### `sendgrid_get_contact`
+
+Get a specific contact by ID from SendGrid
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SendGrid API key |
+| `contactId` | string | Yes | Contact ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Contact ID |
+| `email` | string | Contact email address |
+| `firstName` | string | Contact first name |
+| `lastName` | string | Contact last name |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `listIds` | json | Array of list IDs the contact belongs to |
+| `customFields` | json | Custom field values |
+
+### `sendgrid_search_contacts`
+
+Search for contacts in SendGrid using a query
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SendGrid API key |
+| `query` | string | Yes | Search query \(e.g., \"email LIKE '%example.com%' AND CONTAINS\(list_ids, 'list-id'\)\"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contacts` | json | Array of matching contacts |
+| `contactCount` | number | Total number of contacts found |
+
+### `sendgrid_delete_contacts`
+
+Delete one or more contacts from SendGrid
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SendGrid API key |
+| `contactIds` | string | Yes | Comma-separated contact IDs to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job ID for the deletion request |
+
+### `sendgrid_create_list`
+
+Create a new contact list in SendGrid
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SendGrid API key |
+| `name` | string | Yes | List name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | List ID |
+| `name` | string | List name |
+| `contactCount` | number | Number of contacts in the list |
+
+### `sendgrid_get_list`
+
+Get a specific list by ID from SendGrid
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SendGrid API key |
+| `listId` | string | Yes | List ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | List ID |
+| `name` | string | List name |
+| `contactCount` | number | Number of contacts in the list |
+
+### `sendgrid_list_all_lists`
+
+Get all contact lists from SendGrid
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SendGrid API key |
+| `pageSize` | number | No | Number of lists to return per page \(default: 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lists` | json | Array of lists |
+
+### `sendgrid_delete_list`
+
+Delete a contact list from SendGrid
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SendGrid API key |
+| `listId` | string | Yes | List ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success message |
+
+### `sendgrid_add_contacts_to_list`
+
+Add or update contacts and assign them to a list in SendGrid (uses PUT /v3/marketing/contacts)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SendGrid API key |
+| `listId` | string | Yes | List ID to add contacts to |
+| `contacts` | json | Yes | JSON array of contact objects. Each contact must have at least: email \(or phone_number_id/external_id/anonymous_id\). Example: \[\{"email": "user@example.com", "first_name": "John"\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job ID for tracking the async operation |
+| `message` | string | Status message |
+
+### `sendgrid_remove_contacts_from_list`
+
+Remove contacts from a specific list in SendGrid
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SendGrid API key |
+| `listId` | string | Yes | List ID |
+| `contactIds` | string | Yes | Comma-separated contact IDs to remove from the list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job ID for the request |
+
+### `sendgrid_create_template`
+
+Create a new email template in SendGrid
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SendGrid API key |
+| `name` | string | Yes | Template name |
+| `generation` | string | No | Template generation type \(legacy or dynamic, default: dynamic\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Template ID |
+| `name` | string | Template name |
+| `generation` | string | Template generation |
+| `updatedAt` | string | Last update timestamp |
+| `versions` | json | Array of template versions |
+
+### `sendgrid_get_template`
+
+Get a specific template by ID from SendGrid
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SendGrid API key |
+| `templateId` | string | Yes | Template ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Template ID |
+| `name` | string | Template name |
+| `generation` | string | Template generation |
+| `updatedAt` | string | Last update timestamp |
+| `versions` | json | Array of template versions |
+
+### `sendgrid_list_templates`
+
+Get all email templates from SendGrid
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SendGrid API key |
+| `generations` | string | No | Filter by generation \(legacy, dynamic, or both\) |
+| `pageSize` | number | No | Number of templates to return per page \(default: 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `templates` | json | Array of templates |
+
+### `sendgrid_delete_template`
+
+Delete an email template from SendGrid
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SendGrid API key |
+| `templateId` | string | Yes | Template ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `message` | string | Status or success message |
+| `messageId` | string | Email message ID \(send_mail\) |
+| `to` | string | Recipient email address \(send_mail\) |
+| `subject` | string | Email subject \(send_mail, create_template_version\) |
+| `id` | string | Resource ID |
+| `jobId` | string | Job ID for async operations |
+| `email` | string | Contact email address |
+| `firstName` | string | Contact first name |
+| `lastName` | string | Contact last name |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `listIds` | json | Array of list IDs the contact belongs to |
+| `customFields` | json | Custom field values |
+| `contacts` | json | Array of contacts |
+| `contactCount` | number | Number of contacts |
+| `lists` | json | Array of lists |
+| `name` | string | Resource name |
+| `templates` | json | Array of templates |
+| `generation` | string | Template generation |
+| `versions` | json | Array of template versions |
+| `templateId` | string | Template ID |
+| `active` | boolean | Whether template version is active |
+| `htmlContent` | string | HTML content |
+| `plainContent` | string | Plain text content |
+
+### `sendgrid_create_template_version`
+
+Create a new version of an email template in SendGrid
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SendGrid API key |
+| `templateId` | string | Yes | Template ID |
+| `name` | string | Yes | Version name |
+| `subject` | string | Yes | Email subject line |
+| `htmlContent` | string | No | HTML content of the template |
+| `plainContent` | string | No | Plain text content of the template |
+| `active` | boolean | No | Whether this version is active \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Version ID |
+| `templateId` | string | Template ID |
+| `name` | string | Version name |
+| `subject` | string | Email subject |
+| `active` | boolean | Whether this version is active |
+| `htmlContent` | string | HTML content |
+| `plainContent` | string | Plain text content |
+| `updatedAt` | string | Last update timestamp |
+
+

@@ -1,0 +1,67 @@
+---
+title: 等待
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+等待模块会在继续执行下一个模块之前暂停您的工作流一段指定的时间。使用它可以在操作之间添加延迟、遵守 API 速率限制或间隔操作。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/wait.png"
+    alt="等待模块"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## 配置
+
+### 等待时间
+
+输入暂停执行的时长：
+- **输入**：正数
+- **最大值**：600 秒（10 分钟）或 10 分钟
+
+### 单位
+
+选择时间单位：
+- **秒**：用于短时间、精确的延迟
+- **分钟**：用于较长时间的暂停
+
+<Callout type="info">
+  通过停止工作流可以取消等待块。最大等待时间为 10 分钟。
+</Callout>
+
+## 输出
+
+- **`<wait.waitDuration>`**：等待时长（以毫秒为单位）
+- **`<wait.status>`**：等待状态（“等待中”、“已完成”或“已取消”）
+
+## 示例用例
+
+**API 速率限制** - 在请求之间保持在 API 速率限制范围内
+
+```
+API (Request 1) → Wait (2s) → API (Request 2)
+```
+
+**定时通知** - 延迟后发送后续消息
+
+```
+Function (Send Email) → Wait (5min) → Function (Follow-up)
+```
+
+**处理延迟** - 等待外部系统完成处理
+
+```
+API (Trigger Job) → Wait (30s) → API (Check Status)
+```
+
+## 最佳实践
+
+- **保持合理的等待时间**：使用等待块延迟最多 10 分钟。对于更长的延迟，请考虑使用计划的工作流
+- **监控执行时间**：请记住，等待会延长工作流的总持续时间

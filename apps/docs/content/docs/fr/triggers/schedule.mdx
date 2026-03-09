@@ -1,0 +1,77 @@
+---
+title: Planification
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Le bloc Planification déclenche automatiquement des workflows de manière récurrente à des intervalles ou moments spécifiés.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/schedule.png"
+    alt="Bloc de planification"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Options de planification
+
+Configurez quand votre workflow s'exécute :
+
+<Tabs items={['Intervalles simples', 'Expressions cron']}>
+  <Tab>
+    <ul className="list-disc space-y-1 pl-6">
+      <li><strong>Toutes les X minutes</strong> : exécution à intervalles de minutes (1-1440)</li>
+      <li><strong>Toutes les heures</strong> : exécution à une minute spécifique chaque heure</li>
+      <li><strong>Quotidien</strong> : exécution à une heure spécifique chaque jour</li>
+      <li><strong>Hebdomadaire</strong> : exécution un jour et une heure spécifiques chaque semaine</li>
+      <li><strong>Mensuel</strong> : exécution un jour et une heure spécifiques chaque mois</li>
+    </ul>
+  </Tab>
+  <Tab>
+    <p>Utilisez les expressions cron pour une planification avancée :</p>
+    <div className="text-sm space-y-1">
+      <div><code>0 9 * * 1-5</code> - Chaque jour de semaine à 9 h</div>
+      <div><code>*/15 * * * *</code> - Toutes les 15 minutes</div>
+      <div><code>0 0 1 * *</code> - Premier jour de chaque mois</div>
+    </div>
+  </Tab>
+</Tabs>
+
+## Activation
+
+Les planifications sont liées au déploiement du workflow :
+
+- **Déployer le workflow** → la planification devient active et commence à s'exécuter
+- **Annuler le déploiement du workflow** → la planification est supprimée
+- **Redéployer le workflow** → la planification est recréée avec la configuration actuelle
+
+<Callout>
+Vous devez déployer votre workflow pour que la planification commence à s'exécuter. Configurez le bloc de planification, puis déployez depuis la barre d'outils.
+</Callout>
+
+## Désactivation automatique
+
+Les planifications se désactivent automatiquement après **100 échecs consécutifs** pour éviter les erreurs en cascade. Lorsqu'elles sont désactivées :
+
+- Un badge d'avertissement apparaît sur le bloc de planification
+- La planification cesse de s'exécuter
+- Cliquez sur le badge pour réactiver la planification
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/schedule-3.png"
+    alt="Planification désactivée"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout>
+Les blocs de planification ne peuvent pas recevoir de connexions entrantes et servent uniquement de points d'entrée de workflow.
+</Callout>

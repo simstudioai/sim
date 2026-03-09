@@ -1,0 +1,196 @@
+---
+title: Erste Schritte
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { File, Files, Folder } from 'fumadocs-ui/components/files'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import {
+  AgentIcon,
+  ApiIcon,
+  ChartBarIcon,
+  CodeIcon,
+  ConditionalIcon,
+  ConnectIcon,
+  ExaAIIcon,
+  FirecrawlIcon,
+  GmailIcon,
+  NotionIcon,
+  PerplexityIcon,
+  SlackIcon,
+} from '@/components/icons'
+import { Video } from '@/components/ui/video'
+import { Image } from '@/components/ui/image'
+
+Erstelle deinen ersten KI-Workflow in 10 Minuten. In diesem Tutorial wirst du einen Personenrecherche-Agenten erstellen, der fortschrittliche LLM-gestützte Suchwerkzeuge nutzt, um Informationen über Personen zu extrahieren und zu strukturieren.
+
+<Callout type="info">
+  Dieses Tutorial behandelt die wesentlichen Konzepte zum Erstellen von Workflows in Sim. Geschätzte Bearbeitungszeit: 10 Minuten.
+</Callout>
+
+## Was du erstellen wirst
+
+Einen Personenrecherche-Agenten, der:
+1. Benutzereingaben über eine Chat-Schnittstelle akzeptiert
+2. Das Web mit KI-gestützten Tools durchsucht (Exa und Linkup)
+3. Informationen über Personen extrahiert und strukturiert
+4. Formatierte JSON-Daten mit Standort, Beruf und Ausbildung zurückgibt
+
+<Image
+  src="/static/getting-started/started-1.png"
+  alt="Beispiel für erste Schritte"
+  width={800}
+  height={500}
+/>
+
+## Schritt-für-Schritt-Anleitung
+
+<Steps>
+  <Step title="Workflow erstellen und einen KI-Agenten hinzufügen">
+    Klicke im Dashboard auf **Neuer Workflow** und benenne ihn "Getting Started".
+    
+    Jeder neue Workflow enthält standardmäßig einen **Start-Block** – dies ist der Eingangspunkt, der Benutzereingaben empfängt. Da wir diesen Workflow über Chat auslösen werden, ist keine Konfiguration für den Start-Block erforderlich.
+    
+    Ziehe einen **Agenten-Block** aus dem linken Bereich auf die Arbeitsfläche und konfiguriere ihn:
+    - **Modell**: Wähle "OpenAI GPT-4o"
+    - **System-Prompt**: "Du bist ein Personenrecherche-Agent. Wenn dir ein Name einer Person gegeben wird, nutze deine verfügbaren Suchwerkzeuge, um umfassende Informationen über sie zu finden, einschließlich ihres Standorts, Berufs, Bildungshintergrunds und anderer relevanter Details."
+    - **Benutzer-Prompt**: Ziehe die Verbindung vom Ausgabefeld des Start-Blocks in dieses Feld, um `<start.input>` mit dem Benutzer-Prompt zu verbinden
+    
+    <div className="mx-auto w-full overflow-hidden rounded-lg">
+      <Video src="getting-started/started-2.mp4" width={700} height={450} />
+    </div>
+  </Step>
+  
+  <Step title="Suchwerkzeuge zum Agenten hinzufügen">
+    Erweitere deinen Agenten mit Websuche-Funktionen. Klicke auf den Agenten-Block, um ihn auszuwählen.
+    
+    Im Bereich **Tools**:
+    - Klicke auf **Tool hinzufügen**
+    - Wähle **Exa** und **Linkup** aus den verfügbaren Tools
+    - Gib deine API-Schlüssel für beide Tools ein, um Websuche und Datenzugriff zu ermöglichen
+    
+    <div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+      <Video src="getting-started/started-3.mp4" width={700} height={450} />
+    </div>
+  </Step>
+  
+  <Step title="Workflow testen">
+    Teste deinen Workflow mit dem **Chat-Panel** auf der rechten Seite des Bildschirms.
+    
+    Im Chat-Panel:
+    - Klicke auf das Dropdown-Menü und wähle `agent1.content`, um die Ausgabe des Agenten anzuzeigen
+    - Gib eine Testnachricht ein: "John ist ein Softwareentwickler aus San Francisco, der Informatik an der Stanford University studiert hat."
+    - Klicke auf **Senden**, um den Workflow auszuführen
+    
+    Der Agent wird die Person analysieren und strukturierte Informationen zurückgeben.
+    
+    <div className="mx-auto w-full overflow-hidden rounded-lg">
+      <Video src="getting-started/started-4.mp4" width={700} height={450} />
+    </div>
+  </Step>
+  
+  <Step title="Strukturierte Ausgabe konfigurieren">
+    Konfiguriere deinen Agenten, um strukturierte JSON-Daten zurückzugeben. Klicke auf den Agenten-Block, um ihn auszuwählen.
+    
+    Im Bereich **Antwortformat**:
+    - Klicke auf das **Zauberstab-Symbol** (✨) neben dem Schema-Feld
+    - Gib den Prompt ein: "Erstelle ein Schema namens person, das Standort, Beruf und Ausbildung enthält"
+    - Die KI wird automatisch das JSON-Schema generieren
+    
+    <div className="mx-auto w-full overflow-hidden rounded-lg">
+      <Video src="getting-started/started-5.mp4" width={700} height={450} />
+    </div>
+  </Step>
+  
+  <Step title="Mit strukturierter Ausgabe testen">
+    Kehre zum **Chat-Panel** zurück, um das strukturierte Antwortformat zu testen.
+    
+    Mit dem konfigurierten Antwortformat sind jetzt neue Ausgabeoptionen verfügbar:
+    - Klicke auf das Dropdown-Menü und wähle die Option für strukturierte Ausgabe (das Schema, das du gerade erstellt hast)
+    - Gib eine Testnachricht ein: "Sarah ist eine Marketing-Managerin aus New York mit einem MBA von der Harvard Business School."
+    - Klicke auf **Senden**, um den Workflow auszuführen
+    
+    Der Agent wird nun strukturierte JSON-Ausgabe zurückgeben, wobei die Informationen der Person in die Felder Standort, Beruf und Ausbildung organisiert sind.
+    
+    <div className="mx-auto w-full overflow-hidden rounded-lg">
+      <Video src="getting-started/started-6.mp4" width={700} height={450} />
+    </div>
+  </Step>
+</Steps>
+
+## Was du erstellt hast
+
+Du hast erfolgreich einen KI-Workflow erstellt, der:
+- ✅ Benutzereingaben über eine Chat-Schnittstelle akzeptiert
+- ✅ Unstrukturierten Text mit KI verarbeitet
+- ✅ Externe Suchwerkzeuge integriert (Exa und Linkup)
+- ✅ Strukturierte JSON-Daten mit KI-generierten Schemas zurückgibt
+- ✅ Echtzeit-Tests und Iteration demonstriert
+- ✅ Die Leistungsfähigkeit der visuellen, codefreien Entwicklung zeigt
+
+## Wichtige Konzepte, die du gelernt hast
+
+### Verwendete Block-Typen
+
+<Files>
+  <File
+    name="Start Block"
+    icon={<ConnectIcon className="h-4 w-4" />}
+    annotation="Einstiegspunkt für Benutzereingaben (automatisch enthalten)"
+  />
+  <File
+    name="Agent Block"
+    icon={<AgentIcon className="h-4 w-4" />}
+    annotation="KI-Modell für Textverarbeitung und -analyse"
+  />
+</Files>
+
+### Grundlegende Workflow-Konzepte
+
+**Datenfluss**  
+Verbinde Blöcke durch Ziehen von Verbindungen, um Daten zwischen Workflow-Schritten zu übertragen
+
+**Chat-Schnittstelle**  
+Teste Workflows in Echtzeit mit dem Chat-Panel und wähle verschiedene Ausgabeoptionen
+
+**Tool-Integration**  
+Erweitere die Fähigkeiten des Agenten durch Integration externer Dienste wie Exa und Linkup
+
+**Variablenreferenzen**  
+Greife auf Block-Ausgaben mit der `<blockName.output>` Syntax zu
+
+**Strukturierte Ausgabe**  
+Definiere JSON-Schemas, um konsistente, formatierte Antworten von der KI zu gewährleisten
+
+**KI-generierte Schemas**  
+Verwende den Zauberstab (✨), um Schemas aus natürlichsprachigen Eingabeaufforderungen zu generieren
+
+**Iterative Entwicklung**  
+Erstelle, teste und verfeinere Workflows schnell mit sofortigem Feedback
+
+## Nächste Schritte
+
+<Cards>
+  <Card title="Workflow-Blöcke erkunden" href="/blocks">
+    Entdecke API-, Funktions-, Bedingungs- und andere Workflow-Blöcke
+  </Card>
+  <Card title="Integrationen durchsuchen" href="/tools">
+    Verbinde über 80 Dienste einschließlich Gmail, Slack, Notion und mehr
+  </Card>
+  <Card title="Benutzerdefinierte Logik hinzufügen" href="/blocks/function">
+    Schreibe benutzerdefinierte Funktionen für fortgeschrittene Datenverarbeitung
+  </Card>
+  <Card title="Deinen Workflow bereitstellen" href="/execution">
+    Mache deinen Workflow über REST API oder Webhooks zugänglich
+  </Card>
+</Cards>
+
+## Ressourcen
+
+**Brauchst du detaillierte Erklärungen?** Besuche die [Blocks-Dokumentation](/blocks) für umfassende Anleitungen zu jeder Komponente.
+
+**Suchst du nach Integrationen?** Erkunde die [Tools-Dokumentation](/tools), um alle 80+ verfügbaren Integrationen zu sehen.
+
+**Bereit für den Livebetrieb?** Erfahre mehr über [Ausführung und Bereitstellung](/execution), um deine Workflows produktionsreif zu machen.

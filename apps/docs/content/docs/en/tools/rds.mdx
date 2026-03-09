@@ -1,0 +1,194 @@
+---
+title: Amazon RDS
+description: Connect to Amazon RDS via Data API
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="rds"
+  color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon RDS Aurora Serverless](https://aws.amazon.com/rds/aurora/serverless/) is a fully managed relational database that automatically starts up, shuts down, and scales capacity based on your application's needs. It allows you to run SQL databases in the cloud without managing database servers.
+
+With RDS Aurora Serverless, you can:
+
+- **Query data**: Run flexible SQL queries across your tables
+- **Insert new records**: Add data to your database automatically
+- **Update existing records**: Modify data in your tables using custom filters
+- **Delete records**: Remove unwanted data using precise criteria
+- **Execute raw SQL**: Run any valid SQL command supported by Aurora
+
+In Sim, the RDS integration enables your agents to work with Amazon Aurora Serverless databases securely and programmatically. Supported operations include:
+
+- **Query**: Run SELECT and other SQL queries to fetch rows from your database
+- **Insert**: Insert new records into tables with structured data
+- **Update**: Change data in rows that match your specified conditions
+- **Delete**: Remove records from a table by custom filters or criteria
+- **Execute**: Run raw SQL for advanced scenarios
+
+This integration allows your agents to automate a wide range of database operations without manual intervention. By connecting Sim with Amazon RDS, you can build agents that manage, update, and retrieve relational data within your workflows—all without handling database infrastructure or connections.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Amazon RDS Aurora Serverless into the workflow using the Data API. Can query, insert, update, delete, and execute raw SQL without managing database connections.
+
+
+
+## Tools
+
+### `rds_query`
+
+Execute a SELECT query on Amazon RDS using the Data API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `resourceArn` | string | Yes | ARN of the Aurora DB cluster \(e.g., arn:aws:rds:us-east-1:123456789012:cluster:my-cluster\) |
+| `secretArn` | string | Yes | ARN of the Secrets Manager secret containing DB credentials |
+| `database` | string | No | Database name to connect to \(e.g., mydb, production_db\) |
+| `query` | string | Yes | SQL SELECT query to execute \(e.g., SELECT * FROM users WHERE status = :status\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of rows returned from the query |
+| `rowCount` | number | Number of rows returned |
+
+### `rds_insert`
+
+Insert data into an Amazon RDS table using the Data API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `resourceArn` | string | Yes | ARN of the Aurora DB cluster \(e.g., arn:aws:rds:us-east-1:123456789012:cluster:my-cluster\) |
+| `secretArn` | string | Yes | ARN of the Secrets Manager secret containing DB credentials |
+| `database` | string | No | Database name to connect to \(e.g., mydb, production_db\) |
+| `table` | string | Yes | Table name to insert into |
+| `data` | object | Yes | Data to insert as key-value pairs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of inserted rows |
+| `rowCount` | number | Number of rows inserted |
+
+### `rds_update`
+
+Update data in an Amazon RDS table using the Data API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `resourceArn` | string | Yes | ARN of the Aurora DB cluster \(e.g., arn:aws:rds:us-east-1:123456789012:cluster:my-cluster\) |
+| `secretArn` | string | Yes | ARN of the Secrets Manager secret containing DB credentials |
+| `database` | string | No | Database name to connect to \(e.g., mydb, production_db\) |
+| `table` | string | Yes | Table name to update |
+| `data` | object | Yes | Data to update as key-value pairs |
+| `conditions` | object | Yes | Conditions for the update \(e.g., \{"id": 1\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of updated rows |
+| `rowCount` | number | Number of rows updated |
+
+### `rds_delete`
+
+Delete data from an Amazon RDS table using the Data API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `resourceArn` | string | Yes | ARN of the Aurora DB cluster \(e.g., arn:aws:rds:us-east-1:123456789012:cluster:my-cluster\) |
+| `secretArn` | string | Yes | ARN of the Secrets Manager secret containing DB credentials |
+| `database` | string | No | Database name to connect to \(e.g., mydb, production_db\) |
+| `table` | string | Yes | Table name to delete from |
+| `conditions` | object | Yes | Conditions for the delete \(e.g., \{"id": 1\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of deleted rows |
+| `rowCount` | number | Number of rows deleted |
+
+### `rds_execute`
+
+Execute raw SQL on Amazon RDS using the Data API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `resourceArn` | string | Yes | ARN of the Aurora DB cluster \(e.g., arn:aws:rds:us-east-1:123456789012:cluster:my-cluster\) |
+| `secretArn` | string | Yes | ARN of the Secrets Manager secret containing DB credentials |
+| `database` | string | No | Database name to connect to \(e.g., mydb, production_db\) |
+| `query` | string | Yes | Raw SQL query to execute \(e.g., CREATE TABLE users \(id SERIAL PRIMARY KEY, name VARCHAR\(255\)\)\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of rows returned or affected |
+| `rowCount` | number | Number of rows affected |
+
+### `rds_introspect`
+
+Introspect Amazon RDS Aurora database schema to retrieve table structures, columns, and relationships
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `resourceArn` | string | Yes | ARN of the Aurora DB cluster \(e.g., arn:aws:rds:us-east-1:123456789012:cluster:my-cluster\) |
+| `secretArn` | string | Yes | ARN of the Secrets Manager secret containing DB credentials |
+| `database` | string | No | Database name to connect to \(e.g., mydb, production_db\) |
+| `schema` | string | No | Schema to introspect \(default: public for PostgreSQL, database name for MySQL\) |
+| `engine` | string | No | Database engine \(aurora-postgresql or aurora-mysql\). Auto-detected if not provided. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `engine` | string | Detected database engine type |
+| `tables` | array | Array of table schemas with columns, keys, and indexes |
+| `schemas` | array | List of available schemas in the database |
+
+

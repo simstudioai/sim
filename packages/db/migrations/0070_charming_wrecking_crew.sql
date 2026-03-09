@@ -1,0 +1,1 @@
+ALTER TABLE "knowledge_base" ALTER COLUMN "chunking_config" SET DEFAULT '{"maxSize": 1024, "minSize": 1, "overlap": 200}';

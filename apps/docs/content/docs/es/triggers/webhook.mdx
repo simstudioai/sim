@@ -1,0 +1,149 @@
+---
+title: Webhooks
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+Los webhooks permiten que servicios externos activen la ejecución de flujos de trabajo mediante el envío de solicitudes HTTP a tu flujo de trabajo. Sim admite dos enfoques para los disparadores basados en webhooks.
+
+## Disparador de webhook genérico
+
+El bloque de webhook genérico crea un punto de conexión flexible que puede recibir cualquier carga útil y activar tu flujo de trabajo:
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook-trigger.png"
+    alt="Configuración de webhook genérico"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+### Cómo funciona
+
+1. **Añadir bloque de webhook genérico** - Arrastra el bloque de webhook genérico para iniciar tu flujo de trabajo
+2. **Configurar carga útil** - Configura la estructura de carga útil esperada (opcional)
+3. **Obtener URL del webhook** - Copia el punto de conexión único generado automáticamente
+4. **Integración externa** - Configura tu servicio externo para enviar solicitudes POST a esta URL
+5. **Ejecución del flujo de trabajo** - Cada solicitud a la URL del webhook activa el flujo de trabajo
+
+### Características
+
+- **Carga útil flexible**: Acepta cualquier estructura de carga útil JSON
+- **Análisis automático**: Los datos del webhook se analizan automáticamente y están disponibles para los bloques subsiguientes
+- **Autenticación**: Autenticación opcional mediante token bearer o encabezado personalizado
+- **Limitación de tasa**: Protección incorporada contra abusos
+- **Deduplicación**: Evita ejecuciones duplicadas de solicitudes repetidas
+
+<Callout type="info">
+El disparador de webhook genérico se activa cada vez que la URL del webhook recibe una solicitud, lo que lo hace perfecto para integraciones en tiempo real.
+</Callout>
+
+## Modo de disparador para bloques de servicio
+
+Alternativamente, puedes usar bloques de servicio específicos (como Slack, GitHub, etc.) en "modo de disparador" para crear puntos de conexión de webhook más especializados:
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="slack-trigger.mp4" width={700} height={450} />
+</div>
+
+### Configuración del modo de activación
+
+1. **Añadir bloque de servicio** - Elige un bloque de servicio (p. ej., Slack, GitHub, Airtable)
+2. **Habilitar modo de activación** - Activa "Usar como activador" en la configuración del bloque
+3. **Configurar servicio** - Configura la autenticación y los filtros de eventos específicos para ese servicio
+4. **Registro del webhook** - El servicio registra automáticamente el webhook en la plataforma externa
+5. **Ejecución basada en eventos** - El flujo de trabajo se activa solo para eventos específicos de ese servicio
+
+### Cuándo usar cada enfoque
+
+**Usa webhook genérico cuando:**
+- Integres con aplicaciones o servicios personalizados
+- Necesites máxima flexibilidad en la estructura de la carga útil
+- Trabajes con servicios que no tienen bloques dedicados
+- Construyas integraciones internas
+
+**Usa el modo de activación cuando:**
+- Trabajes con servicios compatibles (Slack, GitHub, etc.)
+- Quieras filtrado de eventos específico del servicio
+- Necesites registro automático de webhooks
+- Quieras manejo estructurado de datos para ese servicio
+
+## Servicios compatibles con el modo de activación
+
+**Desarrollo y gestión de proyectos**
+- GitHub - Issues, PRs, pushes, releases, ejecuciones de workflow
+- Jira - Eventos de issues, registros de trabajo
+- Linear - Issues, comentarios, proyectos, ciclos, etiquetas
+
+**Comunicación**
+- Slack - Mensajes, menciones, reacciones
+- Microsoft Teams - Mensajes de chat, notificaciones de canal
+- Telegram - Mensajes de bot, comandos
+- WhatsApp - Eventos de mensajería
+
+**Correo electrónico**
+- Gmail - Nuevos correos (polling), cambios de etiquetas
+- Outlook - Nuevos correos (polling), eventos de carpetas
+
+**CRM y ventas**
+- HubSpot - Contactos, empresas, acuerdos, tickets, conversaciones
+- Stripe - Pagos, suscripciones, clientes
+
+**Formularios y encuestas**
+- Typeform - Envíos de formularios
+- Google Forms - Respuestas de formularios
+- Webflow - Elementos de colección, envíos de formularios
+
+**Otros**
+- Airtable - Cambios en registros
+- Twilio Voice - Llamadas entrantes, estado de llamadas
+
+## Seguridad y mejores prácticas
+
+### Opciones de autenticación
+
+- **Tokens Bearer**: Incluir encabezado `Authorization: Bearer <token>`
+- **Encabezados personalizados**: Definir encabezados de autenticación personalizados
+
+### Manejo de payload
+
+- **Validación**: Validar payloads entrantes para prevenir datos malformados
+- **Límites de tamaño**: Los webhooks tienen límites de tamaño de payload por seguridad
+- **Manejo de errores**: Configurar respuestas de error para solicitudes inválidas
+
+### Pruebas de webhooks
+
+1. Usar herramientas como Postman o curl para probar tus endpoints de webhook
+2. Revisar los registros de ejecución del flujo de trabajo para depuración
+3. Verificar que la estructura del payload coincida con tus expectativas
+4. Probar escenarios de autenticación y error
+
+<Callout type="warning">
+Siempre valida y desinfecta los datos entrantes de webhook antes de procesarlos en tus flujos de trabajo.
+</Callout>
+
+## Casos de uso comunes
+
+### Notificaciones en tiempo real
+- Mensajes de Slack que desencadenan respuestas automatizadas
+- Notificaciones por correo electrónico para eventos críticos
+
+### Integración CI/CD  
+- Envíos de GitHub que activan flujos de trabajo de despliegue
+- Actualizaciones del estado de compilación
+- Canales de pruebas automatizadas
+
+### Sincronización de datos
+- Cambios en Airtable que actualizan otros sistemas
+- Envíos de formularios que activan acciones de seguimiento
+- Procesamiento de pedidos de comercio electrónico
+
+### Atención al cliente
+- Flujos de trabajo de creación de tickets de soporte
+- Procesos automatizados de escalamiento
+- Enrutamiento de comunicación multicanal

@@ -1,0 +1,73 @@
+---
+title: SMTP
+description: Send emails via any SMTP mail server
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="smtp"
+  color="#2D3748"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SMTP (Simple Mail Transfer Protocol)](https://en.wikipedia.org/wiki/Simple_Mail_Transfer_Protocol) is the foundational standard for email transmission across the Internet. By connecting to any SMTP-compatible server—such as Gmail, Outlook, or your organization's own mail infrastructure—you can send emails programmatically and automate your outbound communications.
+
+SMTP integration allows you to fully customize email sending through direct server connectivity, supporting both basic and advanced email use cases. With SMTP, you can control every aspect of message delivery, recipient management, and content formatting, making it suitable for transactional notifications, bulk mailings, and any automated workflow requiring robust outbound email delivery.
+
+**Key features available via SMTP integration include:**
+
+- **Universal Email Delivery:** Send emails using any SMTP server by configuring standard server connection parameters.
+- **Customizable Sender and Recipients:** Specify sender address, display name, primary recipients, as well as CC and BCC fields.
+- **Rich Content Support:** Send plain text or richly formatted HTML emails according to your requirements.
+- **Attachments:** Include multiple files as attachments in outgoing emails.
+- **Flexible Security:** Connect using TLS, SSL, or standard (unencrypted) protocols as supported by your SMTP provider.
+- **Advanced Headers:** Set reply-to headers and other advanced email options to cater for complex mailflows and user interactions.
+
+By integrating SMTP with Sim, agents and workflows can programmatically send emails as part of any automated process—ranging from sending notifications and confirmations, to automating external communications, reporting, and document delivery. This offers a highly flexible, provider-agnostic approach to managing email directly within your AI-driven processes.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Send emails using any SMTP server (Gmail, Outlook, custom servers, etc.). Configure SMTP connection settings and send emails with full control over content, recipients, and attachments.
+
+
+
+## Tools
+
+### `smtp_send_mail`
+
+Send emails via SMTP server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `smtpHost` | string | Yes | SMTP server hostname \(e.g., smtp.gmail.com\) |
+| `smtpPort` | number | Yes | SMTP server port \(587 for TLS, 465 for SSL\) |
+| `smtpUsername` | string | Yes | SMTP authentication username |
+| `smtpPassword` | string | Yes | SMTP authentication password |
+| `smtpSecure` | string | Yes | Security protocol \(TLS, SSL, or None\) |
+| `from` | string | Yes | Sender email address |
+| `to` | string | Yes | Recipient email address |
+| `subject` | string | Yes | Email subject |
+| `body` | string | Yes | Email body content |
+| `contentType` | string | No | Content type \(text or html\) |
+| `fromName` | string | No | Display name for sender |
+| `cc` | string | No | CC recipients \(comma-separated\) |
+| `bcc` | string | No | BCC recipients \(comma-separated\) |
+| `replyTo` | string | No | Reply-to email address |
+| `attachments` | file[] | No | Files to attach to the email |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the email was sent successfully |
+| `messageId` | string | Message ID from SMTP server |
+| `to` | string | Recipient email address |
+| `subject` | string | Email subject |
+| `error` | string | Error message if sending failed |
+
+

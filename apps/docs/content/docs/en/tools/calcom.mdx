@@ -1,0 +1,789 @@
+---
+title: Cal Com
+description: Manage Cal.com bookings, event types, schedules, and availability
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="calcom"
+  color="#FFFFFE"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Cal.com](https://cal.com/) is a flexible and open-source scheduling platform that makes it easy to manage appointments, bookings, event types, and team availabilities.
+
+With Cal.com, you can:
+
+- **Automate scheduling**: Allow users to view your available time slots and book meetings automatically, without back-and-forth emails.
+- **Manage events**: Create and customize event types, durations, and rules for one-on-one or group meetings.
+- **Integrate calendars**: Seamlessly connect with Google, Outlook, Apple, or other calendar providers to avoid double bookings.
+- **Handle attendees and guests**: Collect attendee information, manage guests, and send invitations or reminders.
+- **Control availability**: Define custom working hours, buffer times, and cancellation/rebooking rules.
+- **Power workflows**: Trigger custom actions via webhooks when a booking is created, cancelled, or rescheduled.
+
+In Sim, the Cal.com integration enables your agents to book meetings, check availabilities, manage event types, and automate scheduling tasks programmatically. This helps agents coordinate meetings, send bookings on behalf of users, check schedules, or respond to booking events—all without manual intervention. By connecting Sim with Cal.com, you unlock highly automated and intelligent scheduling workflows that can integrate seamlessly with your broader automation needs.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Cal.com into your workflow. Create and manage bookings, event types, schedules, and check availability slots. Supports creating, listing, rescheduling, and canceling bookings, as well as managing event types and schedules. Can also trigger workflows based on Cal.com webhook events (booking created, cancelled, rescheduled). Connect your Cal.com account via OAuth.
+
+
+
+## Tools
+
+### `calcom_create_booking`
+
+Create a new booking on Cal.com
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `eventTypeId` | number | Yes | The ID of the event type to book |
+| `start` | string | Yes | Start time in UTC ISO 8601 format \(e.g., 2024-01-15T09:00:00Z\) |
+| `attendee` | object | Yes | Attendee information object with name, email, timeZone, and optional phoneNumber \(constructed from individual attendee fields\) |
+| `guests` | array | No | Array of guest email addresses |
+| `items` | string | No | Guest email address |
+| `lengthInMinutes` | number | No | Duration of the booking in minutes \(overrides event type default\) |
+| `metadata` | object | No | Custom metadata to attach to the booking |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Response status |
+| `data` | object | Created booking details |
+|   ↳ `eventType` | object | Event type details |
+|     ↳ `id` | number | Event type ID |
+|     ↳ `slug` | string | Event type slug |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `timeZone` | string | Attendee timezone \(IANA format\) |
+|     ↳ `phoneNumber` | string | Attendee phone number |
+|     ↳ `language` | string | Attendee language preference \(ISO code\) |
+|     ↳ `absent` | boolean | Whether attendee was absent |
+|   ↳ `hosts` | array | List of hosts |
+|     ↳ `id` | number | Host user ID |
+|     ↳ `name` | string | Host display name |
+|     ↳ `email` | string | Host actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `username` | string | Host Cal.com username |
+|     ↳ `timeZone` | string | Host timezone \(IANA format\) |
+|   ↳ `id` | number | Numeric booking ID |
+|   ↳ `uid` | string | Unique identifier for the booking |
+|   ↳ `title` | string | Title of the booking |
+|   ↳ `status` | string | Booking status \(e.g., accepted, pending, cancelled\) |
+|   ↳ `start` | string | Start time in ISO 8601 format |
+|   ↳ `end` | string | End time in ISO 8601 format |
+|   ↳ `duration` | number | Duration in minutes |
+|   ↳ `eventTypeId` | number | Event type ID |
+|   ↳ `meetingUrl` | string | URL to join the meeting |
+|   ↳ `location` | string | Location of the booking |
+|   ↳ `absentHost` | boolean | Whether the host was absent |
+|   ↳ `guests` | array | Guest email addresses |
+|   ↳ `bookingFieldsResponses` | json | Custom booking field responses \(dynamic keys based on event type configuration\) |
+|   ↳ `metadata` | json | Custom metadata attached to the booking \(dynamic key-value pairs\) |
+|   ↳ `icsUid` | string | ICS calendar UID |
+|   ↳ `createdAt` | string | When the booking was created |
+
+### `calcom_get_booking`
+
+Get details of a specific booking by its UID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | Yes | Unique identifier \(UID\) of the booking |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Response status |
+| `data` | object | Booking details |
+|   ↳ `eventType` | object | Event type details |
+|     ↳ `id` | number | Event type ID |
+|     ↳ `slug` | string | Event type slug |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `timeZone` | string | Attendee timezone \(IANA format\) |
+|     ↳ `phoneNumber` | string | Attendee phone number |
+|     ↳ `language` | string | Attendee language preference \(ISO code\) |
+|     ↳ `absent` | boolean | Whether attendee was absent |
+|   ↳ `hosts` | array | List of hosts |
+|     ↳ `id` | number | Host user ID |
+|     ↳ `name` | string | Host display name |
+|     ↳ `email` | string | Host actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `username` | string | Host Cal.com username |
+|     ↳ `timeZone` | string | Host timezone \(IANA format\) |
+|   ↳ `id` | number | Numeric booking ID |
+|   ↳ `uid` | string | Unique identifier for the booking |
+|   ↳ `title` | string | Title of the booking |
+|   ↳ `description` | string | Description of the booking |
+|   ↳ `status` | string | Booking status \(e.g., accepted, pending, cancelled\) |
+|   ↳ `start` | string | Start time in ISO 8601 format |
+|   ↳ `end` | string | End time in ISO 8601 format |
+|   ↳ `duration` | number | Duration in minutes |
+|   ↳ `eventTypeId` | number | Event type ID |
+|   ↳ `meetingUrl` | string | URL to join the meeting |
+|   ↳ `location` | string | Location of the booking |
+|   ↳ `absentHost` | boolean | Whether the host was absent |
+|   ↳ `guests` | array | Guest email addresses |
+|   ↳ `bookingFieldsResponses` | json | Custom booking field responses \(dynamic keys based on event type configuration\) |
+|   ↳ `metadata` | json | Custom metadata attached to the booking \(dynamic key-value pairs\) |
+|   ↳ `rating` | number | Booking rating |
+|   ↳ `icsUid` | string | ICS calendar UID |
+|   ↳ `cancellationReason` | string | Reason for cancellation if cancelled |
+|   ↳ `reschedulingReason` | string | Reason for rescheduling if rescheduled |
+|   ↳ `rescheduledFromUid` | string | Original booking UID if this booking was rescheduled |
+|   ↳ `rescheduledToUid` | string | New booking UID after reschedule |
+|   ↳ `cancelledByEmail` | string | Email of person who cancelled the booking |
+|   ↳ `rescheduledByEmail` | string | Email of person who rescheduled the booking |
+|   ↳ `createdAt` | string | When the booking was created |
+|   ↳ `updatedAt` | string | When the booking was last updated |
+
+### `calcom_list_bookings`
+
+List all bookings with optional status filter
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `status` | string | No | Filter bookings by status: upcoming, recurring, past, cancelled, or unconfirmed |
+| `take` | number | No | Number of bookings to return \(pagination limit\) |
+| `skip` | number | No | Number of bookings to skip \(pagination offset\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Response status |
+| `data` | array | Array of bookings |
+|   ↳ `eventType` | object | Event type details |
+|     ↳ `id` | number | Event type ID |
+|     ↳ `slug` | string | Event type slug |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `timeZone` | string | Attendee timezone \(IANA format\) |
+|     ↳ `phoneNumber` | string | Attendee phone number |
+|     ↳ `language` | string | Attendee language preference \(ISO code\) |
+|     ↳ `absent` | boolean | Whether attendee was absent |
+|   ↳ `hosts` | array | List of hosts |
+|     ↳ `id` | number | Host user ID |
+|     ↳ `name` | string | Host display name |
+|     ↳ `email` | string | Host actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `username` | string | Host Cal.com username |
+|     ↳ `timeZone` | string | Host timezone \(IANA format\) |
+|   ↳ `id` | number | Numeric booking ID |
+|   ↳ `uid` | string | Unique identifier for the booking |
+|   ↳ `title` | string | Title of the booking |
+|   ↳ `description` | string | Description of the booking |
+|   ↳ `status` | string | Booking status \(e.g., accepted, pending, cancelled\) |
+|   ↳ `start` | string | Start time in ISO 8601 format |
+|   ↳ `end` | string | End time in ISO 8601 format |
+|   ↳ `duration` | number | Duration in minutes |
+|   ↳ `eventTypeId` | number | Event type ID |
+|   ↳ `meetingUrl` | string | URL to join the meeting |
+|   ↳ `location` | string | Location of the booking |
+|   ↳ `absentHost` | boolean | Whether the host was absent |
+|   ↳ `guests` | array | Guest email addresses |
+|   ↳ `bookingFieldsResponses` | json | Custom booking field responses \(dynamic keys based on event type configuration\) |
+|   ↳ `metadata` | json | Custom metadata attached to the booking \(dynamic key-value pairs\) |
+|   ↳ `rating` | number | Booking rating |
+|   ↳ `icsUid` | string | ICS calendar UID |
+|   ↳ `cancellationReason` | string | Reason for cancellation if cancelled |
+|   ↳ `cancelledByEmail` | string | Email of person who cancelled the booking |
+|   ↳ `reschedulingReason` | string | Reason for rescheduling if rescheduled |
+|   ↳ `rescheduledByEmail` | string | Email of person who rescheduled the booking |
+|   ↳ `rescheduledFromUid` | string | Original booking UID if this booking was rescheduled |
+|   ↳ `rescheduledToUid` | string | New booking UID after reschedule |
+|   ↳ `createdAt` | string | When the booking was created |
+|   ↳ `updatedAt` | string | When the booking was last updated |
+| `pagination` | object | Pagination metadata |
+|   ↳ `totalItems` | number | Total number of items |
+|   ↳ `remainingItems` | number | Remaining items after current page |
+|   ↳ `returnedItems` | number | Number of items returned in this response |
+|   ↳ `itemsPerPage` | number | Items per page |
+|   ↳ `currentPage` | number | Current page number |
+|   ↳ `totalPages` | number | Total number of pages |
+|   ↳ `hasNextPage` | boolean | Whether there is a next page |
+|   ↳ `hasPreviousPage` | boolean | Whether there is a previous page |
+
+### `calcom_cancel_booking`
+
+Cancel an existing booking
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | Yes | Unique identifier \(UID\) of the booking to cancel |
+| `cancellationReason` | string | No | Reason for cancelling the booking |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Response status |
+| `data` | object | Cancelled booking details |
+|   ↳ `eventType` | object | Event type details |
+|     ↳ `id` | number | Event type ID |
+|     ↳ `slug` | string | Event type slug |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `timeZone` | string | Attendee timezone \(IANA format\) |
+|     ↳ `phoneNumber` | string | Attendee phone number |
+|     ↳ `language` | string | Attendee language preference \(ISO code\) |
+|     ↳ `absent` | boolean | Whether attendee was absent |
+|   ↳ `hosts` | array | List of hosts |
+|     ↳ `id` | number | Host user ID |
+|     ↳ `name` | string | Host display name |
+|     ↳ `email` | string | Host actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `username` | string | Host Cal.com username |
+|     ↳ `timeZone` | string | Host timezone \(IANA format\) |
+|   ↳ `id` | number | Numeric booking ID |
+|   ↳ `uid` | string | Unique identifier for the booking |
+|   ↳ `title` | string | Title of the booking |
+|   ↳ `cancellationReason` | string | Reason for cancellation if cancelled |
+|   ↳ `cancelledByEmail` | string | Email of person who cancelled the booking |
+|   ↳ `start` | string | Start time in ISO 8601 format |
+|   ↳ `end` | string | End time in ISO 8601 format |
+|   ↳ `duration` | number | Duration in minutes |
+|   ↳ `eventTypeId` | number | Event type ID |
+|   ↳ `location` | string | Location of the booking |
+|   ↳ `metadata` | json | Custom metadata attached to the booking \(dynamic key-value pairs\) |
+|   ↳ `createdAt` | string | When the booking was created |
+|   ↳ `status` | string | Booking status \(should be cancelled\) |
+
+### `calcom_reschedule_booking`
+
+Reschedule an existing booking to a new time
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | Yes | Unique identifier \(UID\) of the booking to reschedule |
+| `start` | string | Yes | New start time in UTC ISO 8601 format \(e.g., 2024-01-15T09:00:00Z\) |
+| `reschedulingReason` | string | No | Reason for rescheduling the booking |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Response status |
+| `data` | object | Rescheduled booking details |
+|   ↳ `eventType` | object | Event type details |
+|     ↳ `id` | number | Event type ID |
+|     ↳ `slug` | string | Event type slug |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `timeZone` | string | Attendee timezone \(IANA format\) |
+|     ↳ `phoneNumber` | string | Attendee phone number |
+|     ↳ `language` | string | Attendee language preference \(ISO code\) |
+|     ↳ `absent` | boolean | Whether attendee was absent |
+|   ↳ `hosts` | array | List of hosts |
+|     ↳ `id` | number | Host user ID |
+|     ↳ `name` | string | Host display name |
+|     ↳ `email` | string | Host actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `username` | string | Host Cal.com username |
+|     ↳ `timeZone` | string | Host timezone \(IANA format\) |
+|   ↳ `id` | number | Numeric booking ID |
+|   ↳ `title` | string | Title of the booking |
+|   ↳ `status` | string | Booking status \(e.g., accepted, pending, cancelled\) |
+|   ↳ `reschedulingReason` | string | Reason for rescheduling if rescheduled |
+|   ↳ `rescheduledFromUid` | string | Original booking UID if this booking was rescheduled |
+|   ↳ `rescheduledByEmail` | string | Email of person who rescheduled the booking |
+|   ↳ `duration` | number | Duration in minutes |
+|   ↳ `eventTypeId` | number | Event type ID |
+|   ↳ `meetingUrl` | string | URL to join the meeting |
+|   ↳ `location` | string | Location of the booking |
+|   ↳ `guests` | array | Guest email addresses |
+|   ↳ `metadata` | json | Custom metadata attached to the booking \(dynamic key-value pairs\) |
+|   ↳ `icsUid` | string | ICS calendar UID |
+|   ↳ `createdAt` | string | When the booking was created |
+|   ↳ `uid` | string | Unique identifier for the new booking |
+|   ↳ `start` | string | New start time in ISO 8601 format |
+|   ↳ `end` | string | New end time in ISO 8601 format |
+
+### `calcom_confirm_booking`
+
+Confirm a pending booking that requires confirmation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | Yes | Unique identifier \(UID\) of the booking to confirm |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Response status |
+| `data` | object | Confirmed booking details |
+|   ↳ `eventType` | object | Event type details |
+|     ↳ `id` | number | Event type ID |
+|     ↳ `slug` | string | Event type slug |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `timeZone` | string | Attendee timezone \(IANA format\) |
+|     ↳ `phoneNumber` | string | Attendee phone number |
+|     ↳ `language` | string | Attendee language preference \(ISO code\) |
+|     ↳ `absent` | boolean | Whether attendee was absent |
+|   ↳ `hosts` | array | List of hosts |
+|     ↳ `id` | number | Host user ID |
+|     ↳ `name` | string | Host display name |
+|     ↳ `email` | string | Host actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `username` | string | Host Cal.com username |
+|     ↳ `timeZone` | string | Host timezone \(IANA format\) |
+|   ↳ `id` | number | Numeric booking ID |
+|   ↳ `uid` | string | Unique identifier for the booking |
+|   ↳ `title` | string | Title of the booking |
+|   ↳ `start` | string | Start time in ISO 8601 format |
+|   ↳ `end` | string | End time in ISO 8601 format |
+|   ↳ `duration` | number | Duration in minutes |
+|   ↳ `eventTypeId` | number | Event type ID |
+|   ↳ `meetingUrl` | string | URL to join the meeting |
+|   ↳ `location` | string | Location of the booking |
+|   ↳ `guests` | array | Guest email addresses |
+|   ↳ `metadata` | json | Custom metadata attached to the booking \(dynamic key-value pairs\) |
+|   ↳ `icsUid` | string | ICS calendar UID |
+|   ↳ `createdAt` | string | When the booking was created |
+|   ↳ `status` | string | Booking status \(should be accepted/confirmed\) |
+
+### `calcom_decline_booking`
+
+Decline a pending booking request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | Yes | Unique identifier \(UID\) of the booking to decline |
+| `reason` | string | No | Reason for declining the booking |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Response status |
+| `data` | object | Declined booking details |
+|   ↳ `eventType` | object | Event type details |
+|     ↳ `id` | number | Event type ID |
+|     ↳ `slug` | string | Event type slug |
+|   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `timeZone` | string | Attendee timezone \(IANA format\) |
+|     ↳ `phoneNumber` | string | Attendee phone number |
+|     ↳ `language` | string | Attendee language preference \(ISO code\) |
+|     ↳ `absent` | boolean | Whether attendee was absent |
+|   ↳ `hosts` | array | List of hosts |
+|     ↳ `id` | number | Host user ID |
+|     ↳ `name` | string | Host display name |
+|     ↳ `email` | string | Host actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `username` | string | Host Cal.com username |
+|     ↳ `timeZone` | string | Host timezone \(IANA format\) |
+|   ↳ `id` | number | Numeric booking ID |
+|   ↳ `uid` | string | Unique identifier for the booking |
+|   ↳ `title` | string | Title of the booking |
+|   ↳ `cancellationReason` | string | Reason for cancellation if cancelled |
+|   ↳ `start` | string | Start time in ISO 8601 format |
+|   ↳ `end` | string | End time in ISO 8601 format |
+|   ↳ `duration` | number | Duration in minutes |
+|   ↳ `eventTypeId` | number | Event type ID |
+|   ↳ `location` | string | Location of the booking |
+|   ↳ `metadata` | json | Custom metadata attached to the booking \(dynamic key-value pairs\) |
+|   ↳ `createdAt` | string | When the booking was created |
+|   ↳ `status` | string | Booking status \(should be cancelled/rejected\) |
+
+### `calcom_create_event_type`
+
+Create a new event type in Cal.com
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Yes | Title of the event type |
+| `slug` | string | Yes | Unique slug for the event type URL |
+| `lengthInMinutes` | number | Yes | Duration of the event in minutes |
+| `description` | string | No | Description of the event type |
+| `slotInterval` | number | No | Interval between available booking slots in minutes |
+| `minimumBookingNotice` | number | No | Minimum notice required before booking in minutes |
+| `beforeEventBuffer` | number | No | Buffer time before the event in minutes |
+| `afterEventBuffer` | number | No | Buffer time after the event in minutes |
+| `scheduleId` | number | No | ID of the schedule to use for availability |
+| `disableGuests` | boolean | No | Whether to disable guests from being added to bookings |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Response status |
+| `data` | object | Created event type details |
+|   ↳ `id` | number | Event type ID |
+|   ↳ `title` | string | Event type title |
+|   ↳ `slug` | string | Event type slug |
+|   ↳ `description` | string | Event type description |
+|   ↳ `lengthInMinutes` | number | Duration in minutes |
+|   ↳ `slotInterval` | number | Slot interval in minutes |
+|   ↳ `minimumBookingNotice` | number | Minimum booking notice in minutes |
+|   ↳ `beforeEventBuffer` | number | Buffer before event in minutes |
+|   ↳ `afterEventBuffer` | number | Buffer after event in minutes |
+|   ↳ `scheduleId` | number | Schedule ID |
+|   ↳ `disableGuests` | boolean | Whether guests are disabled |
+|   ↳ `createdAt` | string | ISO timestamp of creation |
+|   ↳ `updatedAt` | string | ISO timestamp of last update |
+
+### `calcom_get_event_type`
+
+Get detailed information about a specific event type
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `eventTypeId` | number | Yes | Event type ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Response status |
+| `data` | object | Event type details |
+|   ↳ `id` | number | Event type ID |
+|   ↳ `title` | string | Event type title |
+|   ↳ `slug` | string | Event type slug |
+|   ↳ `description` | string | Event type description |
+|   ↳ `lengthInMinutes` | number | Duration in minutes |
+|   ↳ `slotInterval` | number | Slot interval in minutes |
+|   ↳ `minimumBookingNotice` | number | Minimum booking notice in minutes |
+|   ↳ `beforeEventBuffer` | number | Buffer before event in minutes |
+|   ↳ `afterEventBuffer` | number | Buffer after event in minutes |
+|   ↳ `scheduleId` | number | Schedule ID |
+|   ↳ `disableGuests` | boolean | Whether guests are disabled |
+|   ↳ `createdAt` | string | ISO timestamp of creation |
+|   ↳ `updatedAt` | string | ISO timestamp of last update |
+
+### `calcom_list_event_types`
+
+Retrieve a list of all event types
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `sortCreatedAt` | string | No | Sort by creation date: "asc" or "desc" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Response status |
+| `data` | array | Array of event types |
+|   ↳ `id` | number | Event type ID |
+|   ↳ `title` | string | Event type title |
+|   ↳ `slug` | string | Event type slug |
+|   ↳ `description` | string | Event type description |
+|   ↳ `lengthInMinutes` | number | Duration in minutes |
+|   ↳ `slotInterval` | number | Slot interval in minutes |
+|   ↳ `minimumBookingNotice` | number | Minimum booking notice in minutes |
+|   ↳ `beforeEventBuffer` | number | Buffer before event in minutes |
+|   ↳ `afterEventBuffer` | number | Buffer after event in minutes |
+|   ↳ `scheduleId` | number | Schedule ID |
+|   ↳ `disableGuests` | boolean | Whether guests are disabled |
+|   ↳ `createdAt` | string | ISO timestamp of creation |
+|   ↳ `updatedAt` | string | ISO timestamp of last update |
+
+### `calcom_update_event_type`
+
+Update an existing event type in Cal.com
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `eventTypeId` | number | Yes | Event type ID to update \(e.g., 12345\) |
+| `title` | string | No | Title of the event type |
+| `slug` | string | No | Unique slug for the event type URL |
+| `lengthInMinutes` | number | No | Duration of the event in minutes |
+| `description` | string | No | Description of the event type |
+| `slotInterval` | number | No | Interval between available booking slots in minutes |
+| `minimumBookingNotice` | number | No | Minimum notice required before booking in minutes |
+| `beforeEventBuffer` | number | No | Buffer time before the event in minutes |
+| `afterEventBuffer` | number | No | Buffer time after the event in minutes |
+| `scheduleId` | number | No | ID of the schedule to use for availability |
+| `disableGuests` | boolean | No | Whether to disable guests from being added to bookings |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Response status |
+| `data` | object | Updated event type details |
+|   ↳ `id` | number | Event type ID |
+|   ↳ `title` | string | Event type title |
+|   ↳ `slug` | string | Event type slug |
+|   ↳ `description` | string | Event type description |
+|   ↳ `lengthInMinutes` | number | Duration in minutes |
+|   ↳ `slotInterval` | number | Slot interval in minutes |
+|   ↳ `minimumBookingNotice` | number | Minimum booking notice in minutes |
+|   ↳ `beforeEventBuffer` | number | Buffer before event in minutes |
+|   ↳ `afterEventBuffer` | number | Buffer after event in minutes |
+|   ↳ `scheduleId` | number | Schedule ID |
+|   ↳ `disableGuests` | boolean | Whether guests are disabled |
+|   ↳ `createdAt` | string | ISO timestamp of creation |
+|   ↳ `updatedAt` | string | ISO timestamp of last update |
+
+### `calcom_delete_event_type`
+
+Delete an event type from Cal.com
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `eventTypeId` | number | Yes | Event type ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Response status |
+| `data` | object | Deleted event type details |
+|   ↳ `id` | number | Event type ID |
+|   ↳ `lengthInMinutes` | number | Duration in minutes |
+|   ↳ `title` | string | Event type title |
+|   ↳ `slug` | string | Event type slug |
+
+### `calcom_create_schedule`
+
+Create a new availability schedule in Cal.com
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Name of the schedule |
+| `timeZone` | string | Yes | Timezone for the schedule \(e.g., America/New_York\) |
+| `isDefault` | boolean | Yes | Whether this schedule should be the default |
+| `availability` | array | No | Availability intervals for the schedule |
+| `items` | object | No | Availability interval |
+| `properties` | array | No | Days of the week \(Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday\) |
+| `days` | array | No | Days of the week \(Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday\) |
+| `startTime` | string | No | Start time in HH:MM format |
+| `endTime` | string | No | End time in HH:MM format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Response status |
+| `data` | object | Created schedule data |
+|   ↳ `id` | number | Schedule ID |
+|   ↳ `ownerId` | number | Owner user ID |
+|   ↳ `name` | string | Schedule name |
+|   ↳ `timeZone` | string | Timezone \(e.g., America/New_York\) |
+|   ↳ `isDefault` | boolean | Whether this is the default schedule |
+|   ↳ `availability` | array | Availability windows |
+|     ↳ `days` | array | Days of the week \(Monday, Tuesday, etc.\) |
+|     ↳ `startTime` | string | Start time in HH:MM format |
+|     ↳ `endTime` | string | End time in HH:MM format |
+|   ↳ `overrides` | array | Date-specific availability overrides |
+|     ↳ `date` | string | Date in YYYY-MM-DD format |
+|     ↳ `startTime` | string | Start time in HH:MM format |
+|     ↳ `endTime` | string | End time in HH:MM format |
+
+### `calcom_get_schedule`
+
+Get a specific schedule by ID from Cal.com
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `scheduleId` | string | Yes | ID of the schedule to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Response status |
+| `data` | object | Schedule data |
+|   ↳ `id` | number | Schedule ID |
+|   ↳ `ownerId` | number | Owner user ID |
+|   ↳ `name` | string | Schedule name |
+|   ↳ `timeZone` | string | Timezone \(e.g., America/New_York\) |
+|   ↳ `isDefault` | boolean | Whether this is the default schedule |
+|   ↳ `availability` | array | Availability windows |
+|     ↳ `days` | array | Days of the week \(Monday, Tuesday, etc.\) |
+|     ↳ `startTime` | string | Start time in HH:MM format |
+|     ↳ `endTime` | string | End time in HH:MM format |
+|   ↳ `overrides` | array | Date-specific availability overrides |
+|     ↳ `date` | string | Date in YYYY-MM-DD format |
+|     ↳ `startTime` | string | Start time in HH:MM format |
+|     ↳ `endTime` | string | End time in HH:MM format |
+
+### `calcom_list_schedules`
+
+List all availability schedules from Cal.com
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Response status |
+| `data` | array | Array of schedule objects |
+|   ↳ `id` | number | Schedule ID |
+|   ↳ `ownerId` | number | Owner user ID |
+|   ↳ `name` | string | Schedule name |
+|   ↳ `timeZone` | string | Timezone \(e.g., America/New_York\) |
+|   ↳ `isDefault` | boolean | Whether this is the default schedule |
+|   ↳ `availability` | array | Availability windows |
+|     ↳ `days` | array | Days of the week \(Monday, Tuesday, etc.\) |
+|     ↳ `startTime` | string | Start time in HH:MM format |
+|     ↳ `endTime` | string | End time in HH:MM format |
+|   ↳ `overrides` | array | Date-specific availability overrides |
+|     ↳ `date` | string | Date in YYYY-MM-DD format |
+|     ↳ `startTime` | string | Start time in HH:MM format |
+|     ↳ `endTime` | string | End time in HH:MM format |
+
+### `calcom_update_schedule`
+
+Update an existing schedule in Cal.com
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `scheduleId` | string | Yes | ID of the schedule to update |
+| `name` | string | No | New name for the schedule |
+| `timeZone` | string | No | New timezone for the schedule \(e.g., America/New_York\) |
+| `isDefault` | boolean | No | Whether this schedule should be the default |
+| `availability` | array | No | New availability intervals for the schedule |
+| `items` | object | No | Availability interval |
+| `properties` | array | No | Days of the week \(Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday\) |
+| `days` | array | No | Days of the week \(Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday\) |
+| `startTime` | string | No | Start time in HH:MM format |
+| `endTime` | string | No | End time in HH:MM format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Response status |
+| `data` | object | Updated schedule data |
+|   ↳ `id` | number | Schedule ID |
+|   ↳ `ownerId` | number | Owner user ID |
+|   ↳ `name` | string | Schedule name |
+|   ↳ `timeZone` | string | Timezone \(e.g., America/New_York\) |
+|   ↳ `isDefault` | boolean | Whether this is the default schedule |
+|   ↳ `availability` | array | Availability windows |
+|     ↳ `days` | array | Days of the week \(Monday, Tuesday, etc.\) |
+|     ↳ `startTime` | string | Start time in HH:MM format |
+|     ↳ `endTime` | string | End time in HH:MM format |
+|   ↳ `overrides` | array | Date-specific availability overrides |
+|     ↳ `date` | string | Date in YYYY-MM-DD format |
+|     ↳ `startTime` | string | Start time in HH:MM format |
+|     ↳ `endTime` | string | End time in HH:MM format |
+
+### `calcom_delete_schedule`
+
+Delete a schedule from Cal.com
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `scheduleId` | string | Yes | ID of the schedule to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Response status \(success or error\) |
+
+### `calcom_get_default_schedule`
+
+Get the default availability schedule from Cal.com
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Response status |
+| `data` | object | Default schedule data |
+|   ↳ `id` | number | Schedule ID |
+|   ↳ `ownerId` | number | Owner user ID |
+|   ↳ `name` | string | Schedule name |
+|   ↳ `timeZone` | string | Timezone \(e.g., America/New_York\) |
+|   ↳ `isDefault` | boolean | Whether this is the default schedule |
+|   ↳ `availability` | array | Availability windows |
+|     ↳ `days` | array | Days of the week \(Monday, Tuesday, etc.\) |
+|     ↳ `startTime` | string | Start time in HH:MM format |
+|     ↳ `endTime` | string | End time in HH:MM format |
+|   ↳ `overrides` | array | Date-specific availability overrides |
+|     ↳ `date` | string | Date in YYYY-MM-DD format |
+|     ↳ `startTime` | string | Start time in HH:MM format |
+|     ↳ `endTime` | string | End time in HH:MM format |
+
+### `calcom_get_slots`
+
+Get available booking slots for a Cal.com event type within a time range
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `start` | string | Yes | Start of time range in UTC ISO 8601 format \(e.g., 2024-01-15T00:00:00Z\) |
+| `end` | string | Yes | End of time range in UTC ISO 8601 format \(e.g., 2024-01-22T00:00:00Z\) |
+| `eventTypeId` | number | No | Event type ID for direct lookup |
+| `eventTypeSlug` | string | No | Event type slug \(requires username to be set\) |
+| `username` | string | No | Username for personal event types \(required when using eventTypeSlug\) |
+| `timeZone` | string | No | Timezone for returned slots \(defaults to UTC\) |
+| `duration` | number | No | Slot length in minutes |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Response status |
+| `data` | json | Available time slots grouped by date \(YYYY-MM-DD keys\). Each date maps to an array of slot objects with start time, optional end time, and seated event info. |
+
+

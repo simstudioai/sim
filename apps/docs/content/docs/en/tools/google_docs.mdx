@@ -1,0 +1,102 @@
+---
+title: Google Docs
+description: Read, write, and create documents
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_docs"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Docs](https://docs.google.com) is Google’s collaborative, cloud-based document service, enabling users to create, edit, and share documents in real time. As an integral part of Google Workspace, Docs offers rich formatting tools, commenting, version history, and seamless integration with other Google productivity tools.
+
+Google Docs empowers individuals and teams to:
+
+- **Create and format documents:** Develop rich text documents with advanced formatting, images, and tables.
+- **Collaborate and comment:** Multiple users can edit and comment with suggestions instantly.
+- **Track changes and version history:** Review, revert, and manage revisions over time.
+- **Access from any device:** Work on documents from web, mobile, or desktop with full cloud synchronization.
+- **Integrate across Google services:** Connect Docs with Drive, Sheets, Slides, and external platforms for powerful workflows.
+
+In Sim, the Google Docs integration allows your agents to read document content, write new content, and create documents programmatically as part of automated workflows. This integration unlocks automation such as document generation, report writing, content extraction, and collaborative editing—bridging the gap between AI-driven workflows and document management in your organization.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Google Docs into the workflow. Can read, write, and create documents.
+
+
+
+## Tools
+
+### `google_docs_read`
+
+Read content from a Google Docs document
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `documentId` | string | Yes | Google Docs document ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Extracted document text content |
+| `metadata` | json | Document metadata including ID, title, and URL |
+|   ↳ `documentId` | string | Google Docs document ID |
+|   ↳ `title` | string | Document title |
+|   ↳ `mimeType` | string | Document MIME type |
+|   ↳ `url` | string | Document URL |
+
+### `google_docs_write`
+
+Write or update content in a Google Docs document
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `documentId` | string | Yes | The ID of the document to write to |
+| `content` | string | Yes | The content to write to the document |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updatedContent` | boolean | Indicates if document content was updated successfully |
+| `metadata` | json | Updated document metadata including ID, title, and URL |
+|   ↳ `documentId` | string | Google Docs document ID |
+|   ↳ `title` | string | Document title |
+|   ↳ `mimeType` | string | Document MIME type |
+|   ↳ `url` | string | Document URL |
+
+### `google_docs_create`
+
+Create a new Google Docs document
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Yes | The title of the document to create |
+| `content` | string | No | The content of the document to create |
+| `folderSelector` | string | No | Google Drive folder ID to create the document in \(e.g., 1ABCxyz...\) |
+| `folderId` | string | No | The ID of the folder to create the document in \(internal use\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `metadata` | json | Created document metadata including ID, title, and URL |
+|   ↳ `documentId` | string | Google Docs document ID |
+|   ↳ `title` | string | Document title |
+|   ↳ `mimeType` | string | Document MIME type |
+|   ↳ `url` | string | Document URL |
+
+

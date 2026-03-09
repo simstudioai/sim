@@ -1,0 +1,87 @@
+---
+title: Microsoft Excel
+description: Read and write data with sheet selection
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="microsoft_excel_v2"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Microsoft Excel](https://www.microsoft.com/en-us/microsoft-365/excel) is the world’s most popular spreadsheet tool for organizing, analyzing, and visualizing data. The Microsoft Excel integration enables you to programmatically read from and write to Excel workbooks as part of your automation workflows, with easy selection of sheets and cell ranges.
+
+With Microsoft Excel integration, you can:
+
+- **Read data from specific sheets:** Extract table data, lists, records, or custom ranges from any sheet in your Excel files for use in downstream workflow steps.
+- **Write and update data:** Programmatically update cells, insert new rows, or modify existing records in chosen sheets, without ever opening the file manually.
+- **Select cell ranges:** Specify exact ranges (e.g., A1:D10) to target for read and write operations, allowing fine-grained data manipulation.
+- **Automate calculations and reporting:** Pull in live data, perform calculations, and produce custom Excel reports automatically.
+- **Centralize spreadsheet tasks:** Remove manual copy-pasting—the workflow can update Excel files, capture new submissions, or sync data between systems.
+- **Integrate seamlessly with Microsoft 365:** Access and modify cloud-hosted spreadsheets, whether for finance, sales, operations, or analytics.
+
+Excel’s integration empowers every type of user—from analysts to managers—to automate their data collection, enrich reporting, trigger actions from sheet updates, and keep important data always up-to-date.
+
+Connect Microsoft Excel to your automations to streamline data management, reporting, and collaboration within your workflows.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Microsoft Excel into the workflow with explicit sheet selection. Can read and write data in specific sheets.
+
+
+
+## Tools
+
+### `microsoft_excel_read`
+
+Read data from a specific sheet in a Microsoft Excel spreadsheet
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet/workbook to read from \(e.g., "01ABC123DEF456"\) |
+| `range` | string | No | The range of cells to read from. Accepts "SheetName!A1:B2" for explicit ranges or just "SheetName" to read the used range of that sheet. If omitted, reads the used range of the first sheet. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sheetName` | string | Name of the sheet that was read |
+| `range` | string | The range that was read |
+| `values` | array | Array of rows containing cell values |
+| `metadata` | json | Spreadsheet metadata including ID and URL |
+|   ↳ `spreadsheetId` | string | Microsoft Excel spreadsheet ID |
+|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+
+### `microsoft_excel_write`
+
+Write data to a specific sheet in a Microsoft Excel spreadsheet
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet/workbook to write to \(e.g., "01ABC123DEF456"\) |
+| `range` | string | No | The range of cells to write to \(e.g., "Sheet1!A1:B2"\) |
+| `values` | array | Yes | The data to write as a 2D array \(e.g., \[\["Name", "Age"\], \["Alice", 30\]\]\) or array of objects |
+| `valueInputOption` | string | No | The format of the data to write |
+| `includeValuesInResponse` | boolean | No | Whether to include the written values in the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updatedRange` | string | Range of cells that were updated |
+| `updatedRows` | number | Number of rows updated |
+| `updatedColumns` | number | Number of columns updated |
+| `updatedCells` | number | Number of cells updated |
+| `metadata` | json | Spreadsheet metadata including ID and URL |
+|   ↳ `spreadsheetId` | string | Microsoft Excel spreadsheet ID |
+|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+
+

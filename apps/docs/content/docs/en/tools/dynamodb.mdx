@@ -1,0 +1,209 @@
+---
+title: Amazon DynamoDB
+description: Connect to Amazon DynamoDB
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="dynamodb"
+  color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon DynamoDB](https://aws.amazon.com/dynamodb/) is a fully managed NoSQL database service offered by AWS that provides fast and predictable performance with seamless scalability. DynamoDB lets you store and retrieve any amount of data and serves any level of request traffic, without the need for you to manage hardware or infrastructure.
+
+With DynamoDB, you can:
+
+- **Get items**: Look up items in your tables using primary keys
+- **Put items**: Add or replace items in your tables
+- **Query items**: Retrieve multiple items using queries across indexes
+- **Scan tables**: Read all or part of the data in a table
+- **Update items**: Modify specific attributes of existing items
+- **Delete items**: Remove records from your tables
+
+In Sim, the DynamoDB integration enables your agents to securely access and manipulate DynamoDB tables using AWS credentials. Supported operations include:
+
+- **Get**: Retrieve an item by its key
+- **Put**: Insert or overwrite items
+- **Query**: Run queries using key conditions and filters
+- **Scan**: Read multiple items by scanning the table or index
+- **Update**: Change specific attributes of one or more items
+- **Delete**: Remove an item from a table
+
+This integration empowers Sim agents to automate data management tasks within your DynamoDB tables programmatically, so you can build workflows that manage, modify, and retrieve scalable NoSQL data without manual effort or server management.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Amazon DynamoDB into workflows. Supports Get, Put, Query, Scan, Update, Delete, and Introspect operations on DynamoDB tables.
+
+
+
+## Tools
+
+### `dynamodb_get`
+
+Get an item from a DynamoDB table by primary key
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
+| `key` | object | Yes | Primary key of the item to retrieve \(e.g., \{"pk": "USER#123"\} or \{"pk": "ORDER#456", "sk": "ITEM#789"\}\) |
+| `consistentRead` | boolean | No | Use strongly consistent read |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `item` | object | Retrieved item |
+
+### `dynamodb_put`
+
+Put an item into a DynamoDB table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
+| `item` | object | Yes | Item to put into the table \(e.g., \{"pk": "USER#123", "name": "John", "email": "john@example.com"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `item` | object | Created item |
+
+### `dynamodb_query`
+
+Query items from a DynamoDB table using key conditions
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
+| `keyConditionExpression` | string | Yes | Key condition expression \(e.g., "pk = :pk" or "pk = :pk AND sk BEGINS_WITH :prefix"\) |
+| `filterExpression` | string | No | Filter expression for results \(e.g., "age &gt; :minAge AND #status = :status"\) |
+| `expressionAttributeNames` | object | No | Attribute name mappings for reserved words \(e.g., \{"#status": "status"\}\) |
+| `expressionAttributeValues` | object | No | Expression attribute values \(e.g., \{":pk": "USER#123", ":minAge": 18\}\) |
+| `indexName` | string | No | Secondary index name to query \(e.g., "GSI1", "email-index"\) |
+| `limit` | number | No | Maximum number of items to return \(e.g., 10, 50, 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `items` | array | Array of items returned |
+| `count` | number | Number of items returned |
+
+### `dynamodb_scan`
+
+Scan all items in a DynamoDB table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
+| `filterExpression` | string | No | Filter expression for results \(e.g., "age &gt; :minAge AND #status = :status"\) |
+| `projectionExpression` | string | No | Attributes to retrieve \(e.g., "pk, sk, #name, email"\) |
+| `expressionAttributeNames` | object | No | Attribute name mappings for reserved words \(e.g., \{"#name": "name", "#status": "status"\}\) |
+| `expressionAttributeValues` | object | No | Expression attribute values \(e.g., \{":minAge": 18, ":status": "active"\}\) |
+| `limit` | number | No | Maximum number of items to return \(e.g., 10, 50, 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `items` | array | Array of items returned |
+| `count` | number | Number of items returned |
+
+### `dynamodb_update`
+
+Update an item in a DynamoDB table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
+| `key` | object | Yes | Primary key of the item to update \(e.g., \{"pk": "USER#123"\} or \{"pk": "ORDER#456", "sk": "ITEM#789"\}\) |
+| `updateExpression` | string | Yes | Update expression \(e.g., "SET #name = :name, age = :age" or "SET #count = #count + :inc"\) |
+| `expressionAttributeNames` | object | No | Attribute name mappings for reserved words \(e.g., \{"#name": "name", "#count": "count"\}\) |
+| `expressionAttributeValues` | object | No | Expression attribute values \(e.g., \{":name": "John", ":age": 30, ":inc": 1\}\) |
+| `conditionExpression` | string | No | Condition that must be met for the update to succeed \(e.g., "attribute_exists\(pk\)" or "version = :expectedVersion"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `item` | object | Updated item |
+
+### `dynamodb_delete`
+
+Delete an item from a DynamoDB table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
+| `key` | object | Yes | Primary key of the item to delete \(e.g., \{"pk": "USER#123"\} or \{"pk": "ORDER#456", "sk": "ITEM#789"\}\) |
+| `conditionExpression` | string | No | Condition that must be met for the delete to succeed \(e.g., "attribute_exists\(pk\)"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `dynamodb_introspect`
+
+Introspect DynamoDB to list tables or get detailed schema information for a specific table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `tableName` | string | No | Optional table name to get detailed schema \(e.g., "Users", "Orders"\). If not provided, lists all tables. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `tables` | array | List of table names in the region |
+| `tableDetails` | object | Detailed schema information for a specific table |
+
+

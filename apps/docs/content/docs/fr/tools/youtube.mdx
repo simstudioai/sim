@@ -1,0 +1,257 @@
+---
+title: YouTube
+description: Interagir avec les vidéos, chaînes et playlists YouTube
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="youtube"
+  color="#FF0000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[YouTube](https://www.youtube.com/) est la plus grande plateforme de partage de vidéos au monde, hébergeant des milliards de vidéos et servant plus de 2 milliards d'utilisateurs connectés mensuellement.
+
+Avec les capacités étendues de l'API YouTube, vous pouvez :
+
+- **Rechercher du contenu** : trouver des vidéos pertinentes dans la vaste bibliothèque de YouTube en utilisant des mots-clés, filtres et paramètres spécifiques
+- **Accéder aux métadonnées** : récupérer des informations détaillées sur les vidéos, y compris les titres, descriptions, nombres de vues et métriques d'engagement
+- **Analyser les tendances** : identifier le contenu populaire et les sujets tendance dans des catégories ou régions spécifiques
+- **Extraire des insights** : recueillir des données sur les préférences du public, la performance du contenu et les modèles d'engagement
+
+Dans Sim, l'intégration YouTube permet à vos agents de rechercher et d'analyser programmatiquement le contenu YouTube dans le cadre de leurs flux de travail. Cela permet des scénarios d'automatisation puissants qui nécessitent des informations vidéo à jour. Vos agents peuvent rechercher des vidéos instructives, étudier les tendances de contenu, recueillir des informations à partir de chaînes éducatives ou surveiller des créateurs spécifiques pour de nouveaux téléchargements. Cette intégration comble le fossé entre vos flux de travail IA et le plus grand référentiel vidéo du monde, permettant des automatisations plus sophistiquées et conscientes du contenu. En connectant Sim avec YouTube, vous pouvez créer des agents qui restent à jour avec les dernières informations, fournissent des réponses plus précises et apportent plus de valeur aux utilisateurs - le tout sans nécessiter d'intervention manuelle ou de code personnalisé.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez YouTube dans le flux de travail. Permet de rechercher des vidéos, obtenir les détails d'une vidéo, obtenir des informations sur une chaîne, récupérer toutes les vidéos d'une chaîne, obtenir les playlists d'une chaîne, récupérer les éléments d'une playlist, trouver des vidéos similaires et obtenir les commentaires d'une vidéo.
+
+## Outils
+
+### `youtube_search`
+
+Recherchez des vidéos sur YouTube en utilisant l'API YouTube Data. Prend en charge le filtrage avancé par chaîne, plage de dates, durée, catégorie, qualité, sous-titres et plus encore.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `query` | chaîne | Oui | Requête de recherche pour les vidéos YouTube |
+| `maxResults` | nombre | Non | Nombre maximum de vidéos à retourner (1-50) |
+| `apiKey` | chaîne | Oui | Clé API YouTube |
+| `channelId` | chaîne | Non | Filtrer les résultats pour un ID de chaîne YouTube spécifique |
+| `publishedAfter` | chaîne | Non | Ne renvoyer que les vidéos publiées après cette date (format RFC 3339 : "2024-01-01T00:00:00Z") |
+| `publishedBefore` | chaîne | Non | Ne renvoyer que les vidéos publiées avant cette date (format RFC 3339 : "2024-01-01T00:00:00Z") |
+| `videoDuration` | chaîne | Non | Filtrer par durée de vidéo : "short" (moins de 4 minutes), "medium" (4-20 minutes), "long" (plus de 20 minutes), "any" |
+| `order` | chaîne | Non | Trier les résultats par : "date", "rating", "relevance" (par défaut), "title", "videoCount", "viewCount" |
+| `videoCategoryId` | chaîne | Non | Filtrer par ID de catégorie YouTube (ex. : "10" pour Musique, "20" pour Jeux vidéo) |
+| `videoDefinition` | chaîne | Non | Filtrer par qualité vidéo : "high" (HD), "standard", "any" |
+| `videoCaption` | chaîne | Non | Filtrer par disponibilité des sous-titres : "closedCaption" (avec sous-titres), "none" (sans sous-titres), "any" |
+| `regionCode` | chaîne | Non | Renvoyer des résultats pertinents pour une région spécifique (code pays ISO 3166-1 alpha-2, ex. : "US", "FR") |
+| `relevanceLanguage` | chaîne | Non | Renvoyer les résultats les plus pertinents pour une langue (code ISO 639-1, ex. : "en", "fr") |
+| `safeSearch` | chaîne | Non | Niveau de filtrage du contenu : "moderate" (par défaut), "none", "strict" |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | tableau | Tableau de vidéos YouTube correspondant à la requête de recherche |
+
+### `youtube_video_details`
+
+Obtenir des informations détaillées sur une vidéo YouTube spécifique.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `videoId` | chaîne | Oui | ID de la vidéo YouTube |
+| `apiKey` | chaîne | Oui | Clé API YouTube |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `videoId` | chaîne | ID de la vidéo YouTube |
+| `title` | chaîne | Titre de la vidéo |
+| `description` | chaîne | Description de la vidéo |
+| `channelId` | chaîne | ID de la chaîne |
+| `channelTitle` | chaîne | Nom de la chaîne |
+| `publishedAt` | chaîne | Date et heure de publication |
+| `duration` | chaîne | Durée de la vidéo au format ISO 8601 |
+| `viewCount` | nombre | Nombre de vues |
+| `likeCount` | nombre | Nombre de j'aime |
+| `commentCount` | nombre | Nombre de commentaires |
+| `thumbnail` | chaîne | URL de la miniature de la vidéo |
+| `tags` | tableau | Tags de la vidéo |
+
+### `youtube_channel_info`
+
+Obtenir des informations détaillées sur une chaîne YouTube.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `channelId` | chaîne | Non | ID de la chaîne YouTube \(utilisez soit channelId soit username\) |
+| `username` | chaîne | Non | Nom d'utilisateur de la chaîne YouTube \(utilisez soit channelId soit username\) |
+| `apiKey` | chaîne | Oui | Clé API YouTube |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `channelId` | chaîne | ID de la chaîne YouTube |
+| `title` | chaîne | Nom de la chaîne |
+| `description` | chaîne | Description de la chaîne |
+| `subscriberCount` | nombre | Nombre d'abonnés |
+| `videoCount` | nombre | Nombre de vidéos |
+| `viewCount` | nombre | Nombre total de vues de la chaîne |
+| `publishedAt` | chaîne | Date de création de la chaîne |
+| `thumbnail` | chaîne | URL de la miniature de la chaîne |
+| `customUrl` | chaîne | URL personnalisée de la chaîne |
+
+### `youtube_channel_videos`
+
+Obtenir toutes les vidéos d'une chaîne YouTube spécifique, avec options de tri.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `channelId` | chaîne | Oui | ID de la chaîne YouTube dont il faut récupérer les vidéos |
+| `maxResults` | nombre | Non | Nombre maximum de vidéos à retourner \(1-50\) |
+| `order` | chaîne | Non | Ordre de tri : "date" \(plus récentes d'abord\), "rating", "relevance", "title", "viewCount" |
+| `pageToken` | chaîne | Non | Jeton de page pour la pagination |
+| `apiKey` | chaîne | Oui | Clé API YouTube |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | tableau | Tableau des vidéos de la chaîne |
+
+### `youtube_channel_playlists`
+
+Obtenir toutes les playlists d'une chaîne YouTube spécifique.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `channelId` | chaîne | Oui | ID de la chaîne YouTube dont il faut récupérer les playlists |
+| `maxResults` | nombre | Non | Nombre maximum de playlists à retourner \(1-50\) |
+| `pageToken` | chaîne | Non | Jeton de page pour la pagination |
+| `apiKey` | chaîne | Oui | Clé API YouTube |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | tableau | Tableau des playlists de la chaîne |
+
+### `youtube_playlist_items`
+
+Obtenir les vidéos d'une playlist YouTube.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `playlistId` | chaîne | Oui | ID de la playlist YouTube |
+| `maxResults` | nombre | Non | Nombre maximum de vidéos à retourner |
+| `pageToken` | chaîne | Non | Jeton de page pour la pagination |
+| `apiKey` | chaîne | Oui | Clé API YouTube |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | tableau | Tableau de vidéos dans la playlist |
+
+### `youtube_comments`
+
+Obtenir les commentaires d'une vidéo YouTube.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `videoId` | chaîne | Oui | ID de la vidéo YouTube |
+| `maxResults` | nombre | Non | Nombre maximum de commentaires à retourner |
+| `order` | chaîne | Non | Ordre des commentaires : time (chronologique) ou relevance (pertinence) |
+| `pageToken` | chaîne | Non | Jeton de page pour la pagination |
+| `apiKey` | chaîne | Oui | Clé API YouTube |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | tableau | Tableau des commentaires de la vidéo |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `youtube`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `regionCode` | chaîne | Non | Code pays ISO 3166-1 alpha-2 pour obtenir les catégories \(ex. : "US", "GB", "FR"\). Par défaut : US. |
+| `hl` | chaîne | Non | Langue pour les titres de catégories \(code ISO 639-1, ex. : "en", "es", "fr"\). Par défaut : anglais. |
+| `apiKey` | chaîne | Oui | Clé API YouTube |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | tableau | Tableau des catégories de vidéos disponibles dans la région spécifiée |
+|   ↳ `categoryId` | chaîne | ID de catégorie à utiliser dans les filtres de recherche/tendances \(ex. : "10" pour Musique\) |
+|   ↳ `title` | chaîne | Nom de catégorie lisible |
+|   ↳ `assignable` | booléen | Indique si les vidéos peuvent être étiquetées avec cette catégorie |
+| `totalResults` | nombre | Nombre total de catégories disponibles |
+
+### `youtube_video_details`
+
+Obtenez des informations détaillées sur une vidéo YouTube spécifique, incluant les statistiques, les détails du contenu, les informations de diffusion en direct et les métadonnées.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `videoId` | chaîne | Oui | ID de la vidéo YouTube \(chaîne de 11 caractères, ex. : "dQw4w9WgXcQ"\) |
+| `apiKey` | chaîne | Oui | Clé API YouTube |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `videoId` | chaîne | ID de la vidéo YouTube |
+| `title` | chaîne | Titre de la vidéo |
+| `description` | chaîne | Description de la vidéo |
+| `channelId` | chaîne | ID de la chaîne |
+| `channelTitle` | chaîne | Nom de la chaîne |
+| `publishedAt` | chaîne | Date et heure de publication |
+| `duration` | chaîne | Durée de la vidéo au format ISO 8601 \(ex. : "PT4M13S" pour 4 min 13 s\) |
+| `viewCount` | nombre | Nombre de vues |
+| `likeCount` | nombre | Nombre de mentions j'aime |
+| `commentCount` | nombre | Nombre de commentaires |
+| `favoriteCount` | nombre | Nombre de fois ajoutée aux favoris |
+| `thumbnail` | chaîne | URL de la miniature de la vidéo |
+| `tags` | tableau | Tags de la vidéo |
+| `categoryId` | chaîne | ID de catégorie de la vidéo YouTube |
+| `definition` | chaîne | Définition de la vidéo : "hd" ou "sd" |
+| `caption` | chaîne | Indique si les sous-titres sont disponibles : "true" ou "false" |
+| `licensedContent` | booléen | Indique si la vidéo est un contenu sous licence |
+| `privacyStatus` | chaîne | Statut de confidentialité de la vidéo : "public", "private" ou "unlisted" |
+| `liveBroadcastContent` | chaîne | Statut de diffusion en direct : "live", "upcoming" ou "none" |
+| `defaultLanguage` | chaîne | Langue par défaut des métadonnées de la vidéo |
+| `defaultAudioLanguage` | chaîne | Langue audio par défaut de la vidéo |
+| `isLiveContent` | booléen | Indique si cette vidéo est ou a été une diffusion en direct |
+| `scheduledStartTime` | chaîne | Heure de début prévue pour les diffusions en direct à venir \(ISO 8601\) |
+| `actualStartTime` | chaîne | Moment où la diffusion en direct a réellement commencé \(ISO 8601\) |
+| `actualEndTime` | chaîne | Moment où la diffusion en direct s'est terminée \(ISO 8601\) |
+| `concurrentViewers` | nombre | Nombre actuel de spectateurs \(uniquement pour les diffusions en direct actives\) |
+| `activeLiveChatId` | chaîne | ID du chat en direct pour la diffusion \(uniquement pour les diffusions en direct actives\) |

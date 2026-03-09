@@ -1,0 +1,76 @@
+---
+title: 函数
+---
+
+import { Image } from '@/components/ui/image'
+
+Function 模块在您的工作流中执行自定义 JavaScript 或 TypeScript 代码。可以用于转换数据、执行计算或实现自定义逻辑。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/function.png"
+    alt="函数块与代码编辑器"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## 输出
+
+- **`<function.result>`**: 您的函数返回的值
+- **`<function.stdout>`**: 您代码中 Console.log() 的输出
+
+## 示例用例
+
+**数据处理管道** - 将 API 响应转换为结构化数据
+
+```
+API (Fetch) → Function (Process & Validate) → Function (Calculate Metrics) → Response
+```
+
+**业务逻辑实现** - 计算忠诚度分数和等级
+
+```
+Agent (Get History) → Function (Calculate Score) → Function (Determine Tier) → Condition (Route)
+```
+
+**数据验证和清理** - 验证并清理用户输入
+
+```
+Input → Function (Validate & Sanitize) → API (Save to Database)
+```
+
+### 示例：忠诚度分数计算器
+
+```javascript title="loyalty-calculator.js"
+// Process customer data and calculate loyalty score
+const { purchaseHistory, accountAge, supportTickets } = <agent>;
+
+// Calculate metrics
+const totalSpent = purchaseHistory.reduce((sum, purchase) => sum + purchase.amount, 0);
+const purchaseFrequency = purchaseHistory.length / (accountAge / 365);
+const ticketRatio = supportTickets.resolved / supportTickets.total;
+
+// Calculate loyalty score (0-100)
+const spendScore = Math.min(totalSpent / 1000 * 30, 30);
+const frequencyScore = Math.min(purchaseFrequency * 20, 40);
+const supportScore = ticketRatio * 30;
+
+const loyaltyScore = Math.round(spendScore + frequencyScore + supportScore);
+
+return {
+  customer: <agent.name>,
+  loyaltyScore,
+  loyaltyTier: loyaltyScore >= 80 ? "Platinum" : loyaltyScore >= 60 ? "Gold" : "Silver",
+  metrics: { spendScore, frequencyScore, supportScore }
+};
+```
+
+## 最佳实践
+
+- **保持函数专注**：编写专注于单一功能的函数，以提高可维护性和调试性
+- **优雅地处理错误**：使用 try/catch 块处理潜在错误并提供有意义的错误信息
+- **测试边界情况**：确保您的代码能够正确处理异常输入、空值和边界条件
+- **优化性能**：注意大数据集的计算复杂性和内存使用
+- **使用 console.log() 进行调试**：利用标准输出调试和监控函数执行

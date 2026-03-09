@@ -1,0 +1,124 @@
+---
+title: Qdrant
+description: Use Qdrant vector database
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="qdrant"
+  color="#1A223F"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Qdrant](https://qdrant.tech) is an open-source vector database designed for efficient storage, management, and retrieval of high-dimensional vector embeddings. Qdrant enables fast and scalable semantic search, making it ideal for AI applications that require similarity search, recommendation systems, and contextual information retrieval.
+
+With Qdrant, you can:
+
+- **Store vector embeddings**: Efficiently manage and persist high-dimensional vectors at scale
+- **Perform semantic similarity search**: Find the most similar vectors to a query vector in real time
+- **Filter and organize data**: Use advanced filtering to narrow down search results based on metadata or payload
+- **Fetch specific points**: Retrieve vectors and their associated payloads by ID
+- **Scale seamlessly**: Handle large collections and high-throughput workloads
+
+In Sim, the Qdrant integration enables your agents to interact with Qdrant programmatically as part of their workflows. Supported operations include:
+
+- **Upsert**: Insert or update points (vectors and payloads) in a Qdrant collection
+- **Search**: Perform similarity search to find vectors most similar to a given query vector, with optional filtering and result customization
+- **Fetch**: Retrieve specific points from a collection by their IDs, with options to include payloads and vectors
+
+This integration allows your agents to leverage powerful vector search and management capabilities, enabling advanced automation scenarios such as semantic search, recommendation, and contextual retrieval. By connecting Sim with Qdrant, you can build agents that understand context, retrieve relevant information from large datasets, and deliver more intelligent and personalized responses—all without managing complex infrastructure.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Qdrant into the workflow. Can upsert, search, and fetch points.
+
+
+
+## Tools
+
+### `qdrant_upsert_points`
+
+Insert or update points in a Qdrant collection
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Qdrant instance URL \(e.g., https://your-cluster.qdrant.io\) |
+| `apiKey` | string | No | Qdrant API key for authentication |
+| `collection` | string | Yes | Collection name for upsert \(e.g., "my_collection"\) |
+| `points` | array | Yes | Array of points to upsert |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Operation status \(ok, error\) |
+| `data` | object | Result data from the upsert operation |
+|   ↳ `operation_id` | number | Operation ID for async tracking |
+|   ↳ `status` | string | Operation status \(acknowledged, completed\) |
+
+### `qdrant_search_vector`
+
+Search for similar vectors in a Qdrant collection
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Qdrant instance URL \(e.g., https://your-cluster.qdrant.io\) |
+| `apiKey` | string | No | Qdrant API key for authentication |
+| `collection` | string | Yes | Collection name to search \(e.g., "my_collection"\) |
+| `vector` | array | Yes | Query vector for similarity search \(e.g., \[0.1, 0.2, 0.3, ...\]\) |
+| `limit` | number | No | Maximum number of results to return \(e.g., 10\) |
+| `filter` | object | No | Qdrant filter object \(e.g., \{"must": \[\{"key": "field", "match": \{"value": "val"\}\}\]\}\) |
+| `search_return_data` | string | No | Data to return from search |
+| `with_payload` | boolean | No | Include payload in response |
+| `with_vector` | boolean | No | Include vector in response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Operation status \(ok, error\) |
+| `data` | array | Vector search results with ID, score, payload, and optional vector data |
+|   ↳ `id` | string | Point ID \(integer or UUID string\) |
+|   ↳ `version` | number | Point version number |
+|   ↳ `score` | number | Similarity score |
+|   ↳ `payload` | json | Point payload data \(key-value pairs\) |
+|   ↳ `vector` | json | Point vector\(s\) - single array or named vectors object |
+|   ↳ `shard_key` | string | Shard key for routing |
+|   ↳ `order_value` | number | Order value for sorting |
+
+### `qdrant_fetch_points`
+
+Fetch points by ID from a Qdrant collection
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Qdrant instance URL \(e.g., https://your-cluster.qdrant.io\) |
+| `apiKey` | string | No | Qdrant API key for authentication |
+| `collection` | string | Yes | Collection name to fetch from \(e.g., "my_collection"\) |
+| `ids` | array | Yes | Array of point IDs to fetch \(e.g., \["id1", "id2"\] or \[1, 2\]\) |
+| `fetch_return_data` | string | No | Data to return from fetch |
+| `with_payload` | boolean | No | Include payload in response |
+| `with_vector` | boolean | No | Include vector in response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Operation status \(ok, error\) |
+| `data` | array | Fetched points with ID, payload, and optional vector data |
+|   ↳ `id` | string | Point ID \(integer or UUID string\) |
+|   ↳ `payload` | json | Point payload data \(key-value pairs\) |
+|   ↳ `vector` | json | Point vector\(s\) - single array or named vectors object |
+|   ↳ `shard_key` | string | Shard key for routing |
+|   ↳ `order_value` | number | Order value for sorting |
+
+

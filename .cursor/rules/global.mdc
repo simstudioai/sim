@@ -1,0 +1,20 @@
+---
+description: Global coding standards that apply to all files
+alwaysApply: true
+---
+
+# Global Standards
+
+You are a professional software engineer. All code must follow best practices: accurate, readable, clean, and efficient.
+
+## Logging
+Import `createLogger` from `@sim/logger`. Use `logger.info`, `logger.warn`, `logger.error` instead of `console.log`.
+
+## Comments
+Use TSDoc for documentation. No `====` separators. No non-TSDoc comments.
+
+## Styling
+Never update global styles. Keep all styling local to components.
+
+## Package Manager
+Use `bun` and `bunx`, not `npm` and `npx`.

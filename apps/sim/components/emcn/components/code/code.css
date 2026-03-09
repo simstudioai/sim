@@ -1,0 +1,151 @@
+/**
+ * Code editor syntax token theme.
+ * Cursor/VS Code base colors with Sim's vibrant saturation.
+ * Colors aligned to Sim brand where applicable.
+ * Applied to elements with .code-editor-theme class.
+ */
+
+/**
+ * Light mode token colors - Cursor style with Sim vibrancy
+ */
+.code-editor-theme .token.comment,
+.code-editor-theme .token.block-comment,
+.code-editor-theme .token.prolog,
+.code-editor-theme .token.doctype,
+.code-editor-theme .token.cdata {
+  color: #16a34a !important;
+}
+
+.code-editor-theme .token.punctuation {
+  color: #383838 !important;
+}
+
+.code-editor-theme .token.property,
+.code-editor-theme .token.attr-name,
+.code-editor-theme .token.variable {
+  color: #0891b2 !important;
+}
+
+.code-editor-theme .token.tag,
+.code-editor-theme .token.boolean,
+.code-editor-theme .token.number,
+.code-editor-theme .token.constant {
+  color: #16a34a !important;
+}
+
+.code-editor-theme .token.string,
+.code-editor-theme .token.char,
+.code-editor-theme .token.builtin,
+.code-editor-theme .token.inserted {
+  color: #b45309 !important;
+}
+
+.code-editor-theme .token.operator,
+.code-editor-theme .token.entity,
+.code-editor-theme .token.url {
+  color: #383838 !important;
+}
+
+.code-editor-theme .token.atrule,
+.code-editor-theme .token.attr-value,
+.code-editor-theme .token.keyword {
+  color: #2f55ff !important;
+}
+
+.code-editor-theme .token.function,
+.code-editor-theme .token.class-name {
+  color: #ca8a04 !important;
+}
+
+.code-editor-theme .token.regex,
+.code-editor-theme .token.important {
+  color: #e11d48 !important;
+}
+
+.code-editor-theme .token.symbol {
+  color: #383838 !important;
+}
+
+.code-editor-theme .token.deleted {
+  color: #dc2626 !important;
+}
+
+/* Blue accents for <var> and {{ENV}} placeholders - light mode */
+.code-editor-theme .text-blue-500 {
+  color: #1d4ed8 !important;
+}
+
+/**
+ * Dark mode token colors - Cursor style with Sim vibrancy
+ */
+.dark .code-editor-theme .token.comment,
+.dark .code-editor-theme .token.block-comment,
+.dark .code-editor-theme .token.prolog,
+.dark .code-editor-theme .token.doctype,
+.dark .code-editor-theme .token.cdata {
+  color: #6ec97d !important;
+}
+
+.dark .code-editor-theme .token.punctuation {
+  color: #d4d4d4 !important;
+}
+
+.dark .code-editor-theme .token.property,
+.dark .code-editor-theme .token.attr-name,
+.dark .code-editor-theme .token.variable {
+  color: #4fc3f7 !important;
+}
+
+.dark .code-editor-theme .token.tag,
+.dark .code-editor-theme .token.boolean,
+.dark .code-editor-theme .token.number,
+.dark .code-editor-theme .token.constant {
+  color: #a5d6a7 !important;
+}
+
+.dark .code-editor-theme .token.string,
+.dark .code-editor-theme .token.char,
+.dark .code-editor-theme .token.builtin,
+.dark .code-editor-theme .token.inserted {
+  color: #f39c6b !important;
+}
+
+.dark .code-editor-theme .token.operator,
+.dark .code-editor-theme .token.entity,
+.dark .code-editor-theme .token.url {
+  color: #d4d4d4 !important;
+}
+
+.dark .code-editor-theme .token.atrule,
+.dark .code-editor-theme .token.attr-value,
+.dark .code-editor-theme .token.keyword {
+  color: #2fa1ff !important;
+}
+
+.dark .code-editor-theme .token.function,
+.dark .code-editor-theme .token.class-name {
+  color: #fbbf24 !important;
+}
+
+.dark .code-editor-theme .token.regex,
+.dark .code-editor-theme .token.important {
+  color: #f87171 !important;
+}
+
+.dark .code-editor-theme .token.symbol {
+  color: #d4d4d4 !important;
+}
+
+.dark .code-editor-theme .token.deleted {
+  color: #f87171 !important;
+}
+
+/* Blue accents for <var> and {{ENV}} placeholders - dark mode */
+.dark .code-editor-theme .text-blue-500 {
+  color: #35b6ff !important;
+}
+
+/* Ensure transparent backgrounds */
+.code-editor-theme .token {
+  background: transparent !important;
+}

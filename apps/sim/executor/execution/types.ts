@@ -1,0 +1,237 @@
+import type { Edge } from 'reactflow'
+import type { NodeMetadata } from '@/executor/dag/types'
+import type {
+  BlockLog,
+  BlockState,
+  NormalizedBlockOutput,
+  StreamingExecution,
+} from '@/executor/types'
+import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
+import type { SubflowType } from '@/stores/workflows/workflow/types'
+
+export interface ExecutionMetadata {
+  requestId: string
+  executionId: string
+  workflowId: string
+  workspaceId: string
+  userId: string
+  sessionUserId?: string
+  workflowUserId?: string
+  triggerType: string
+  triggerBlockId?: string
+  useDraftState: boolean
+  startTime: string
+  isClientSession?: boolean
+  enforceCredentialAccess?: boolean
+  pendingBlocks?: string[]
+  resumeFromSnapshot?: boolean
+  credentialAccountUserId?: string
+  workflowStateOverride?: {
+    blocks: Record<string, any>
+    edges: Edge[]
+    loops?: Record<string, any>
+    parallels?: Record<string, any>
+    deploymentVersionId?: string
+  }
+  callChain?: string[]
+}
+
+export interface SerializableExecutionState {
+  blockStates: Record<string, BlockState>
+  executedBlocks: string[]
+  blockLogs: BlockLog[]
+  decisions: {
+    router: Record<string, string>
+    condition: Record<string, string>
+  }
+  completedLoops: string[]
+  loopExecutions?: Record<string, any>
+  parallelExecutions?: Record<string, any>
+  parallelBlockMapping?: Record<string, any>
+  activeExecutionPath: string[]
+  pendingQueue?: string[]
+  remainingEdges?: Edge[]
+  dagIncomingEdges?: Record<string, string[]>
+  completedPauseContexts?: string[]
+}
+
+/**
+ * Represents the iteration state of an ancestor subflow in a nested chain.
+ * Used to propagate parent iteration context through SSE events for both
+ * loop-in-loop and parallel-in-parallel nesting hierarchies.
+ */
+export interface ParentIteration {
+  iterationCurrent: number
+  iterationTotal?: number
+  iterationType: SubflowType
+  iterationContainerId: string
+}
+
+export interface IterationContext {
+  iterationCurrent: number
+  iterationTotal?: number
+  iterationType: SubflowType
+  /**
+   * Block ID of the loop or parallel container owning this iteration.
+   * Optional because generic `<loop.index>` references may resolve before
+   * the container ID is known (e.g., via `context.loopScope` fallback).
+   * Always present on {@link ParentIteration} entries since those are built
+   * from fully resolved ancestor loops.
+   */
+  iterationContainerId?: string
+  parentIterations?: ParentIteration[]
+}
+
+/**
+ * Metadata passed to block handlers that execute within subflow contexts
+ * (loops, parallels, child workflows). Extends the DAG node metadata with
+ * runtime identifiers needed for execution tracking.
+ */
+export interface WorkflowNodeMetadata
+  extends Pick<
+    NodeMetadata,
+    'loopId' | 'parallelId' | 'branchIndex' | 'branchTotal' | 'originalBlockId' | 'isLoopNode'
+  > {
+  nodeId: string
+  executionOrder?: number
+}
+
+export interface ChildWorkflowContext {
+  /** The workflow block's ID in the parent execution */
+  parentBlockId: string
+  /** Display name of the child workflow */
+  workflowName: string
+  /** Child workflow ID */
+  workflowId: string
+  /** Nesting depth (1 = first level child) */
+  depth: number
+}
+
+export interface ExecutionCallbacks {
+  onStream?: (streamingExec: StreamingExecution) => Promise<void>
+  onBlockStart?: (
+    blockId: string,
+    blockName: string,
+    blockType: string,
+    executionOrder: number,
+    iterationContext?: IterationContext,
+    childWorkflowContext?: ChildWorkflowContext
+  ) => Promise<void>
+  onBlockComplete?: (
+    blockId: string,
+    blockName: string,
+    blockType: string,
+    output: any,
+    iterationContext?: IterationContext,
+    childWorkflowContext?: ChildWorkflowContext
+  ) => Promise<void>
+  /** Fires immediately after instanceId is generated, before child execution begins. */
+  onChildWorkflowInstanceReady?: (
+    blockId: string,
+    childWorkflowInstanceId: string,
+    iterationContext?: IterationContext,
+    executionOrder?: number
+  ) => void
+}
+
+export interface ContextExtensions {
+  workspaceId?: string
+  executionId?: string
+  userId?: string
+  stream?: boolean
+  selectedOutputs?: string[]
+  edges?: Array<{ source: string; target: string }>
+  isDeployedContext?: boolean
+  enforceCredentialAccess?: boolean
+  isChildExecution?: boolean
+  resumeFromSnapshot?: boolean
+  resumePendingQueue?: string[]
+  remainingEdges?: Array<{
+    source: string
+    target: string
+    sourceHandle?: string
+    targetHandle?: string
+  }>
+  dagIncomingEdges?: Record<string, string[]>
+  snapshotState?: SerializableExecutionState
+  metadata?: ExecutionMetadata
+  /**
+   * AbortSignal for cancellation support.
+   * When aborted, the execution should stop gracefully.
+   */
+  abortSignal?: AbortSignal
+  includeFileBase64?: boolean
+  base64MaxBytes?: number
+  onStream?: (streamingExecution: StreamingExecution) => Promise<void>
+  onBlockStart?: (
+    blockId: string,
+    blockName: string,
+    blockType: string,
+    executionOrder: number,
+    iterationContext?: IterationContext,
+    childWorkflowContext?: ChildWorkflowContext
+  ) => Promise<void>
+  onBlockComplete?: (
+    blockId: string,
+    blockName: string,
+    blockType: string,
+    output: {
+      input?: any
+      output: NormalizedBlockOutput
+      executionTime: number
+      startedAt: string
+      executionOrder: number
+      endedAt: string
+      /** Per-invocation unique ID linking this workflow block execution to its child block events. */
+      childWorkflowInstanceId?: string
+    },
+    iterationContext?: IterationContext,
+    childWorkflowContext?: ChildWorkflowContext
+  ) => Promise<void>
+
+  /** Context identifying this execution as a child of a workflow block */
+  childWorkflowContext?: ChildWorkflowContext
+
+  /** Fires immediately after instanceId is generated, before child execution begins. */
+  onChildWorkflowInstanceReady?: (
+    blockId: string,
+    childWorkflowInstanceId: string,
+    iterationContext?: IterationContext,
+    executionOrder?: number
+  ) => void
+
+  /**
+   * Run-from-block configuration. When provided, executor runs in partial
+   * execution mode starting from the specified block.
+   */
+  runFromBlockContext?: RunFromBlockContext
+
+  /**
+   * Stop execution after this block completes. Used for "run until block" feature.
+   */
+  stopAfterBlockId?: string
+
+  /**
+   * Ordered list of workflow IDs in the current call chain, used for cycle detection.
+   * Each hop appends the current workflow ID before making outgoing requests.
+   */
+  callChain?: string[]
+}
+
+export interface WorkflowInput {
+  [key: string]: unknown
+}
+
+export interface BlockStateReader {
+  getBlockOutput(blockId: string, currentNodeId?: string): NormalizedBlockOutput | undefined
+  hasExecuted(blockId: string): boolean
+}
+
+export interface BlockStateWriter {
+  setBlockOutput(blockId: string, output: NormalizedBlockOutput, executionTime?: number): void
+  setBlockState(blockId: string, state: BlockState): void
+  deleteBlockState(blockId: string): void
+  unmarkExecuted(blockId: string): void
+}
+
+export type BlockStateController = BlockStateReader & BlockStateWriter

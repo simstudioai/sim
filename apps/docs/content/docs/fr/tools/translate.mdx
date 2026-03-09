@@ -1,0 +1,60 @@
+---
+title: Traduire
+description: Traduire du texte dans n'importe quelle langue
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="translate"
+  color="#FF4B4B"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Traduire est un outil qui vous permet de traduire du texte entre différentes langues.
+
+Avec Traduire, vous pouvez :
+
+- **Traduire du texte** : traduire du texte entre différentes langues
+- **Traduire des documents** : traduire des documents entre différentes langues
+- **Traduire des sites web** : traduire des sites web entre différentes langues
+- **Traduire des images** : traduire des images entre différentes langues
+- **Traduire de l'audio** : traduire de l'audio entre différentes langues
+- **Traduire des vidéos** : traduire des vidéos entre différentes langues
+- **Traduire de la parole** : traduire de la parole entre différentes langues
+- **Traduire du texte** : traduire du texte entre différentes langues
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Translate dans le flux de travail. Peut traduire du texte dans n'importe quelle langue.
+
+## Outils
+
+### `llm_chat`
+
+Envoyez une requête de complétion de chat à n'importe quel fournisseur de LLM pris en charge
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `model` | string | Oui | Le modèle à utiliser \(par exemple, gpt-4o, claude-sonnet-4-5, gemini-2.0-flash\) |
+| `systemPrompt` | string | Non | Prompt système pour définir le comportement de l'assistant |
+| `context` | string | Oui | Le message utilisateur ou le contexte à envoyer au modèle |
+| `apiKey` | string | Non | Clé API pour le fournisseur \(utilise la clé de la plateforme si non fournie pour les modèles hébergés\) |
+| `temperature` | number | Non | Température pour la génération de réponse \(0-2\) |
+| `maxTokens` | number | Non | Nombre maximum de tokens dans la réponse |
+| `azureEndpoint` | string | Non | URL du point de terminaison Azure OpenAI |
+| `azureApiVersion` | string | Non | Version de l'API Azure OpenAI |
+| `vertexProject` | string | Non | ID du projet Google Cloud pour Vertex AI |
+| `vertexLocation` | string | Non | Emplacement Google Cloud pour Vertex AI \(par défaut us-central1\) |
+| `vertexCredential` | string | Non | ID des identifiants OAuth Google Cloud pour Vertex AI |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | chaîne | Le contenu de la réponse générée |
+| `model` | chaîne | Le modèle utilisé pour la génération |
+| `tokens` | objet | Informations sur l'utilisation des tokens |

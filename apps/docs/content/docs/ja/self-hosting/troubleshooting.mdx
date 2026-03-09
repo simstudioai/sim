@@ -1,0 +1,113 @@
+---
+title: トラブルシューティング
+description: 一般的な問題と解決策
+---
+
+## データベース接続に失敗
+
+```bash
+# Check database is running
+docker compose ps db
+
+# Test connection
+docker compose exec db psql -U postgres -c "SELECT 1"
+```
+
+`DATABASE_URL` 形式を確認してください: `postgresql://user:pass@host:5432/database`
+
+## Ollamaモデルが表示されない
+
+Docker内では、`localhost` = ホストマシンではなく、コンテナを指します。
+
+```bash
+# For host-machine Ollama, use:
+OLLAMA_URL=http://host.docker.internal:11434  # macOS/Windows
+OLLAMA_URL=http://192.168.1.x:11434           # Linux (use actual IP)
+```
+
+## WebSocket/リアルタイム機能が動作しない
+
+1. `NEXT_PUBLIC_SOCKET_URL` がドメインと一致しているか確認する
+2. リアルタイムサービスが実行されているか確認する: `docker compose ps realtime`
+3. リバースプロキシがWebSocketアップグレードを通過させていることを確認する（[Dockerガイド](/self-hosting/docker)を参照）
+
+## 502 Bad Gateway
+
+```bash
+# Check app is running
+docker compose ps simstudio
+docker compose logs simstudio
+
+# Common causes: out of memory, database not ready
+```
+
+## マイグレーションエラー
+
+```bash
+# View migration logs
+docker compose logs migrations
+
+# Run manually
+docker compose exec simstudio bun run db:migrate
+```
+
+## pgvectorが見つからない
+
+正しいPostgreSQLイメージを使用してください：
+
+```yaml
+image: pgvector/pgvector:pg17  # NOT postgres:17
+```
+
+## 証明書エラー（CERT_HAS_EXPIRED）
+
+外部APIを呼び出す際にSSL証明書エラーが表示される場合：
+
+```bash
+# Update CA certificates in container
+docker compose exec simstudio apt-get update && apt-get install -y ca-certificates
+
+# Or set in environment (not recommended for production)
+NODE_TLS_REJECT_UNAUTHORIZED=0
+```
+
+## ログイン後の空白ページ
+
+1. ブラウザコンソールでエラーを確認する
+2. `NEXT_PUBLIC_APP_URL` が実際のドメインと一致しているか確認する
+3. ブラウザのCookieとローカルストレージをクリアする
+4. すべてのサービスが実行されているか確認する: `docker compose ps`
+
+## Windows特有の問題
+
+**WindowsでのTurbopackエラー：**
+
+```bash
+# Use WSL2 for better compatibility
+wsl --install
+
+# Or disable Turbopack in package.json
+# Change "next dev --turbopack" to "next dev"
+```
+
+**改行の問題：**
+
+```bash
+# Configure git to use LF
+git config --global core.autocrlf input
+```
+
+## ログを表示
+
+```bash
+# All services
+docker compose logs -f
+
+# Specific service
+docker compose logs -f simstudio
+```
+
+## ヘルプを得る
+
+- [GitHub Issues](https://github.com/simstudioai/sim/issues)
+- [Discord](https://discord.gg/Hr4UWYEcTT)

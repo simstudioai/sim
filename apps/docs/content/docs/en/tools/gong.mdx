@@ -1,0 +1,774 @@
+---
+title: Gong
+description: Revenue intelligence and conversation analytics
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="gong"
+  color="#8039DF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Gong](https://www.gong.io/) is a revenue intelligence platform that captures and analyzes customer interactions across calls, emails, and meetings. By integrating Gong with Sim, your agents can access conversation data, user analytics, coaching metrics, and more through automated workflows.
+
+The Gong integration in Sim provides tools to:
+
+- **List and retrieve calls:** Fetch calls by date range, get individual call details, or retrieve extensive call data including trackers, topics, interaction stats, and points of interest.
+- **Access call transcripts:** Retrieve full transcripts with speaker turns, topics, and sentence-level timestamps for any recorded call.
+- **Manage users:** List all Gong users in your account or retrieve detailed information for a specific user, including settings, spoken languages, and contact details.
+- **Analyze activity and performance:** Pull aggregated activity statistics, interaction stats (longest monologue, interactivity, patience, question rate), and answered scorecard data for your team.
+- **Work with scorecards and trackers:** List scorecard definitions and keyword tracker configurations to understand how your team's conversations are being evaluated and monitored.
+- **Browse the call library:** List library folders and retrieve their contents, including call snippets and notes curated by your team.
+- **Access coaching metrics:** Retrieve coaching data for managers and their direct reports to track team development.
+- **List Engage flows:** Fetch sales engagement sequences (flows) with visibility and ownership details.
+- **Look up contacts by email or phone:** Find all Gong references to a specific email address or phone number, including related calls, emails, meetings, CRM data, and customer engagement events.
+
+By combining these capabilities, you can automate sales coaching workflows, extract conversation insights, monitor team performance, sync Gong data with other systems, and build intelligent pipelines around your organization's revenue conversations -- all securely using your Gong API credentials.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Gong into your workflow. Access call recordings, transcripts, user data, activity stats, scorecards, trackers, library content, coaching metrics, and more via the Gong API.
+
+
+
+## Tools
+
+### `gong_list_calls`
+
+Retrieve call data by date range from Gong.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `fromDateTime` | string | Yes | Start date/time in ISO-8601 format \(e.g., 2024-01-01T00:00:00Z\) |
+| `toDateTime` | string | No | End date/time in ISO-8601 format \(e.g., 2024-01-31T23:59:59Z\). If omitted, lists calls up to the most recent. |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `workspaceId` | string | No | Gong workspace ID to filter calls |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `calls` | array | List of calls matching the date range |
+|   ↳ `id` | string | Gong's unique numeric identifier for the call |
+|   ↳ `title` | string | Call title |
+|   ↳ `scheduled` | string | Scheduled call time in ISO-8601 format |
+|   ↳ `started` | string | Recording start time in ISO-8601 format |
+|   ↳ `duration` | number | Call duration in seconds |
+|   ↳ `direction` | string | Call direction \(Inbound/Outbound\) |
+|   ↳ `system` | string | Communication platform used \(e.g., Outreach\) |
+|   ↳ `scope` | string | Call scope: 'Internal', 'External', or 'Unknown' |
+|   ↳ `media` | string | Media type \(e.g., Video\) |
+|   ↳ `language` | string | Language code in ISO-639-2B format |
+|   ↳ `url` | string | URL to the call in the Gong web app |
+|   ↳ `primaryUserId` | string | Host team member identifier |
+|   ↳ `workspaceId` | string | Workspace identifier |
+|   ↳ `sdrDisposition` | string | SDR disposition classification |
+|   ↳ `clientUniqueId` | string | Call identifier from the origin recording system |
+|   ↳ `customData` | string | Metadata provided during call creation |
+|   ↳ `purpose` | string | Call purpose |
+|   ↳ `meetingUrl` | string | Web conference provider URL |
+|   ↳ `isPrivate` | boolean | Whether the call is private |
+|   ↳ `calendarEventId` | string | Calendar event identifier |
+| `cursor` | string | Pagination cursor for the next page |
+| `totalRecords` | number | Total number of records matching the filter |
+
+### `gong_get_call`
+
+Retrieve detailed data for a specific call from Gong.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `callId` | string | Yes | The Gong call ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Gong's unique numeric identifier for the call |
+| `title` | string | Call title |
+| `url` | string | URL to the call in the Gong web app |
+| `scheduled` | string | Scheduled call time in ISO-8601 format |
+| `started` | string | Recording start time in ISO-8601 format |
+| `duration` | number | Call duration in seconds |
+| `direction` | string | Call direction \(Inbound/Outbound\) |
+| `system` | string | Communication platform used \(e.g., Outreach\) |
+| `scope` | string | Call scope: 'Internal', 'External', or 'Unknown' |
+| `media` | string | Media type \(e.g., Video\) |
+| `language` | string | Language code in ISO-639-2B format |
+| `primaryUserId` | string | Host team member identifier |
+| `workspaceId` | string | Workspace identifier |
+| `sdrDisposition` | string | SDR disposition classification |
+| `clientUniqueId` | string | Call identifier from the origin recording system |
+| `customData` | string | Metadata provided during call creation |
+| `purpose` | string | Call purpose |
+| `meetingUrl` | string | Web conference provider URL |
+| `isPrivate` | boolean | Whether the call is private |
+| `calendarEventId` | string | Calendar event identifier |
+
+### `gong_get_call_transcript`
+
+Retrieve transcripts of calls from Gong by call IDs or date range.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `callIds` | string | No | Comma-separated list of call IDs to retrieve transcripts for |
+| `fromDateTime` | string | No | Start date/time filter in ISO-8601 format |
+| `toDateTime` | string | No | End date/time filter in ISO-8601 format |
+| `workspaceId` | string | No | Gong workspace ID to filter calls |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `callTranscripts` | array | List of call transcripts with speaker turns and sentences |
+|   ↳ `callId` | string | Gong's unique numeric identifier for the call |
+|   ↳ `transcript` | array | List of monologues in the call |
+|     ↳ `speakerId` | string | Unique ID of the speaker, cross-reference with parties |
+|     ↳ `topic` | string | Name of the topic being discussed |
+|     ↳ `sentences` | array | List of sentences spoken in the monologue |
+|       ↳ `start` | number | Start time of the sentence in milliseconds from call start |
+|       ↳ `end` | number | End time of the sentence in milliseconds from call start |
+|       ↳ `text` | string | The sentence text |
+| `cursor` | string | Pagination cursor for the next page |
+
+### `gong_get_extensive_calls`
+
+Retrieve detailed call data including trackers, topics, and highlights from Gong.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `callIds` | string | No | Comma-separated list of call IDs to retrieve detailed data for |
+| `fromDateTime` | string | No | Start date/time filter in ISO-8601 format |
+| `toDateTime` | string | No | End date/time filter in ISO-8601 format |
+| `workspaceId` | string | No | Gong workspace ID to filter calls |
+| `primaryUserIds` | string | No | Comma-separated list of user IDs to filter calls by host |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `calls` | array | List of detailed call objects with metadata, content, interaction stats, and collaboration data |
+|   ↳ `metaData` | object | Call metadata \(same fields as CallBasicData\) |
+|     ↳ `id` | string | Call ID |
+|     ↳ `title` | string | Call title |
+|     ↳ `scheduled` | string | Scheduled time in ISO-8601 |
+|     ↳ `started` | string | Start time in ISO-8601 |
+|     ↳ `duration` | number | Duration in seconds |
+|     ↳ `direction` | string | Call direction |
+|     ↳ `system` | string | Communication platform |
+|     ↳ `scope` | string | Internal/External/Unknown |
+|     ↳ `media` | string | Media type |
+|     ↳ `language` | string | Language code \(ISO-639-2B\) |
+|     ↳ `url` | string | Gong web app URL |
+|     ↳ `primaryUserId` | string | Host user ID |
+|     ↳ `workspaceId` | string | Workspace ID |
+|     ↳ `sdrDisposition` | string | SDR disposition |
+|     ↳ `clientUniqueId` | string | Origin system call ID |
+|     ↳ `customData` | string | Custom metadata |
+|     ↳ `purpose` | string | Call purpose |
+|     ↳ `meetingUrl` | string | Meeting URL |
+|     ↳ `isPrivate` | boolean | Whether call is private |
+|     ↳ `calendarEventId` | string | Calendar event ID |
+|   ↳ `context` | array | Links to external systems \(CRM, Dialer, etc.\) |
+|     ↳ `system` | string | External system name \(e.g., Salesforce\) |
+|     ↳ `objects` | array | List of objects within the external system |
+|   ↳ `parties` | array | List of call participants |
+|     ↳ `id` | string | Unique participant ID in the call |
+|     ↳ `name` | string | Participant name |
+|     ↳ `emailAddress` | string | Email address |
+|     ↳ `title` | string | Job title |
+|     ↳ `phoneNumber` | string | Phone number |
+|     ↳ `speakerId` | string | Speaker ID for transcript cross-reference |
+|     ↳ `userId` | string | Gong user ID |
+|     ↳ `affiliation` | string | Company or non-company |
+|     ↳ `methods` | array | Whether invited or attended |
+|     ↳ `context` | array | Links to external systems for this party |
+|   ↳ `content` | object | Call content data |
+|     ↳ `structure` | array | Call agenda parts |
+|       ↳ `name` | string | Agenda name |
+|       ↳ `duration` | number | Duration of this part in seconds |
+|     ↳ `topics` | array | Topics and their durations |
+|       ↳ `name` | string | Topic name \(e.g., Pricing\) |
+|       ↳ `duration` | number | Time spent on topic in seconds |
+|     ↳ `trackers` | array | Trackers found in the call |
+|       ↳ `id` | string | Tracker ID |
+|       ↳ `name` | string | Tracker name |
+|       ↳ `count` | number | Number of occurrences |
+|       ↳ `type` | string | Keyword or Smart |
+|       ↳ `occurrences` | array | Details for each occurrence |
+|         ↳ `speakerId` | string | Speaker who said it |
+|         ↳ `startTime` | number | Seconds from call start |
+|       ↳ `phrases` | array | Per-phrase occurrence counts |
+|         ↳ `phrase` | string | Specific phrase |
+|         ↳ `count` | number | Occurrences of this phrase |
+|         ↳ `occurrences` | array | Details per occurrence |
+|     ↳ `highlights` | array | AI-generated highlights including next steps, action items, and key moments |
+|       ↳ `title` | string | Title of the highlight |
+|   ↳ `interaction` | object | Interaction statistics |
+|     ↳ `interactionStats` | array | Interaction stats per user |
+|       ↳ `userId` | string | Gong user ID |
+|       ↳ `userEmailAddress` | string | User email |
+|       ↳ `personInteractionStats` | array | Stats list \(Longest Monologue, Interactivity, Patience, etc.\) |
+|         ↳ `name` | string | Stat name |
+|         ↳ `value` | number | Stat value |
+|     ↳ `speakers` | array | Talk duration per speaker |
+|       ↳ `id` | string | Participant ID |
+|       ↳ `userId` | string | Gong user ID |
+|       ↳ `talkTime` | number | Talk duration in seconds |
+|     ↳ `video` | array | Video statistics |
+|       ↳ `name` | string | Segment type: Browser, Presentation, WebcamPrimaryUser, WebcamNonCompany, Webcam |
+|       ↳ `duration` | number | Total segment duration in seconds |
+|     ↳ `questions` | object | Question counts |
+|       ↳ `companyCount` | number | Questions by company speakers |
+|       ↳ `nonCompanyCount` | number | Questions by non-company speakers |
+|   ↳ `collaboration` | object | Collaboration data |
+|     ↳ `publicComments` | array | Public comments on the call |
+|       ↳ `id` | string | Comment ID |
+|       ↳ `commenterUserId` | string | Commenter user ID |
+|       ↳ `comment` | string | Comment text |
+|       ↳ `posted` | string | Posted time in ISO-8601 |
+|       ↳ `audioStartTime` | number | Seconds from call start the comment refers to |
+|       ↳ `audioEndTime` | number | Seconds from call start the comment end refers to |
+|       ↳ `duringCall` | boolean | Whether the comment was posted during the call |
+|       ↳ `inReplyTo` | string | ID of original comment if this is a reply |
+|   ↳ `media` | object | Media download URLs \(available for 8 hours\) |
+|     ↳ `audioUrl` | string | Audio download URL |
+|     ↳ `videoUrl` | string | Video download URL |
+| `cursor` | string | Pagination cursor for the next page |
+
+### `gong_list_users`
+
+List all users in your Gong account.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `includeAvatars` | string | No | Whether to include avatar URLs \(true/false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | List of Gong users |
+|   ↳ `id` | string | Unique numeric user ID \(up to 20 digits\) |
+|   ↳ `emailAddress` | string | User email address |
+|   ↳ `created` | string | User creation timestamp \(ISO-8601\) |
+|   ↳ `active` | boolean | Whether the user is active |
+|   ↳ `emailAliases` | array | Alternative email addresses for the user |
+|   ↳ `trustedEmailAddress` | string | Trusted email address for the user |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `title` | string | Job title |
+|   ↳ `phoneNumber` | string | Phone number |
+|   ↳ `extension` | string | Phone extension number |
+|   ↳ `personalMeetingUrls` | array | Personal meeting URLs |
+|   ↳ `settings` | object | User settings |
+|     ↳ `webConferencesRecorded` | boolean | Whether web conferences are recorded |
+|     ↳ `preventWebConferenceRecording` | boolean | Whether web conference recording is prevented |
+|     ↳ `telephonyCallsImported` | boolean | Whether telephony calls are imported |
+|     ↳ `emailsImported` | boolean | Whether emails are imported |
+|     ↳ `preventEmailImport` | boolean | Whether email import is prevented |
+|     ↳ `nonRecordedMeetingsImported` | boolean | Whether non-recorded meetings are imported |
+|     ↳ `gongConnectEnabled` | boolean | Whether Gong Connect is enabled |
+|   ↳ `managerId` | string | Manager user ID |
+|   ↳ `meetingConsentPageUrl` | string | Meeting consent page URL |
+|   ↳ `spokenLanguages` | array | Languages spoken by the user |
+|     ↳ `language` | string | Language code |
+|     ↳ `primary` | boolean | Whether this is the primary language |
+| `cursor` | string | Pagination cursor for the next page |
+| `totalRecords` | number | Total number of user records |
+| `currentPageSize` | number | Number of records in the current page |
+| `currentPageNumber` | number | Current page number |
+
+### `gong_get_user`
+
+Retrieve details for a specific user from Gong.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `userId` | string | Yes | The Gong user ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique numeric user ID \(up to 20 digits\) |
+| `emailAddress` | string | User email address |
+| `created` | string | User creation timestamp \(ISO-8601\) |
+| `active` | boolean | Whether the user is active |
+| `emailAliases` | array | Alternative email addresses for the user |
+| `trustedEmailAddress` | string | Trusted email address for the user |
+| `firstName` | string | First name |
+| `lastName` | string | Last name |
+| `title` | string | Job title |
+| `phoneNumber` | string | Phone number |
+| `extension` | string | Phone extension number |
+| `personalMeetingUrls` | array | Personal meeting URLs |
+| `settings` | object | User settings |
+|   ↳ `webConferencesRecorded` | boolean | Whether web conferences are recorded |
+|   ↳ `preventWebConferenceRecording` | boolean | Whether web conference recording is prevented |
+|   ↳ `telephonyCallsImported` | boolean | Whether telephony calls are imported |
+|   ↳ `emailsImported` | boolean | Whether emails are imported |
+|   ↳ `preventEmailImport` | boolean | Whether email import is prevented |
+|   ↳ `nonRecordedMeetingsImported` | boolean | Whether non-recorded meetings are imported |
+|   ↳ `gongConnectEnabled` | boolean | Whether Gong Connect is enabled |
+| `managerId` | string | Manager user ID |
+| `meetingConsentPageUrl` | string | Meeting consent page URL |
+| `spokenLanguages` | array | Languages spoken by the user |
+|   ↳ `language` | string | Language code |
+|   ↳ `primary` | boolean | Whether this is the primary language |
+
+### `gong_aggregate_activity`
+
+Retrieve aggregated activity statistics for users by date range from Gong.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `userIds` | string | No | Comma-separated list of Gong user IDs \(up to 20 digits each\) |
+| `fromDate` | string | Yes | Start date in YYYY-MM-DD format \(inclusive, in company timezone\) |
+| `toDate` | string | Yes | End date in YYYY-MM-DD format \(exclusive, in company timezone, cannot exceed current day\) |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `usersActivity` | array | Aggregated activity statistics per user |
+|   ↳ `userId` | string | Gong's unique numeric identifier for the user |
+|   ↳ `userEmailAddress` | string | Email address of the Gong user |
+|   ↳ `callsAsHost` | number | Number of recorded calls this user hosted |
+|   ↳ `callsAttended` | number | Number of calls where this user was a participant \(not host\) |
+|   ↳ `callsGaveFeedback` | number | Number of recorded calls the user gave feedback on |
+|   ↳ `callsReceivedFeedback` | number | Number of recorded calls the user received feedback on |
+|   ↳ `callsRequestedFeedback` | number | Number of recorded calls the user requested feedback on |
+|   ↳ `callsScorecardsFilled` | number | Number of scorecards the user completed |
+|   ↳ `callsScorecardsReceived` | number | Number of calls where someone filled a scorecard on the user's calls |
+|   ↳ `ownCallsListenedTo` | number | Number of the user's own calls the user listened to |
+|   ↳ `othersCallsListenedTo` | number | Number of other users' calls the user listened to |
+|   ↳ `callsSharedInternally` | number | Number of calls the user shared internally |
+|   ↳ `callsSharedExternally` | number | Number of calls the user shared externally |
+|   ↳ `callsCommentsGiven` | number | Number of calls where the user provided at least one comment |
+|   ↳ `callsCommentsReceived` | number | Number of calls where the user received at least one comment |
+|   ↳ `callsMarkedAsFeedbackGiven` | number | Number of calls where the user selected Mark as reviewed |
+|   ↳ `callsMarkedAsFeedbackReceived` | number | Number of calls where others selected Mark as reviewed on the user's calls |
+| `timeZone` | string | The company's defined timezone in Gong |
+| `fromDateTime` | string | Start of results in ISO-8601 format |
+| `toDateTime` | string | End of results in ISO-8601 format |
+| `cursor` | string | Pagination cursor for the next page |
+
+### `gong_interaction_stats`
+
+Retrieve interaction statistics for users by date range from Gong. Only includes calls with Whisper enabled.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `userIds` | string | No | Comma-separated list of Gong user IDs \(up to 20 digits each\) |
+| `fromDate` | string | Yes | Start date in YYYY-MM-DD format \(inclusive, in company timezone\) |
+| `toDate` | string | Yes | End date in YYYY-MM-DD format \(exclusive, in company timezone, cannot exceed current day\) |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `peopleInteractionStats` | array | Email address of the Gong user |
+|   ↳ `userId` | string | Gong's unique numeric identifier for the user |
+|   ↳ `userEmailAddress` | string | Email address of the Gong user |
+|   ↳ `personInteractionStats` | array | List of interaction stat measurements for this user |
+|     ↳ `name` | string | Stat name \(e.g. Longest Monologue, Interactivity, Patience, Question Rate\) |
+|     ↳ `value` | number | Stat measurement value \(can be double or integer\) |
+| `timeZone` | string | The company's defined timezone in Gong |
+| `fromDateTime` | string | Start of results in ISO-8601 format |
+| `toDateTime` | string | End of results in ISO-8601 format |
+| `cursor` | string | Pagination cursor for the next page |
+
+### `gong_answered_scorecards`
+
+Retrieve answered scorecards for reviewed users or by date range from Gong.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `callFromDate` | string | No | Start date for calls in YYYY-MM-DD format \(inclusive, in company timezone\). Defaults to earliest recorded call. |
+| `callToDate` | string | No | End date for calls in YYYY-MM-DD format \(exclusive, in company timezone\). Defaults to latest recorded call. |
+| `reviewFromDate` | string | No | Start date for reviews in YYYY-MM-DD format \(inclusive, in company timezone\). Defaults to earliest reviewed call. |
+| `reviewToDate` | string | No | End date for reviews in YYYY-MM-DD format \(exclusive, in company timezone\). Defaults to latest reviewed call. |
+| `scorecardIds` | string | No | Comma-separated list of scorecard IDs to filter by |
+| `reviewedUserIds` | string | No | Comma-separated list of reviewed user IDs to filter by |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `answeredScorecards` | array | List of answered scorecards with scores and answers |
+|   ↳ `answeredScorecardId` | number | Identifier of the answered scorecard |
+|   ↳ `scorecardId` | number | Identifier of the scorecard |
+|   ↳ `scorecardName` | string | Scorecard name |
+|   ↳ `callId` | number | Gong's unique numeric identifier for the call |
+|   ↳ `callStartTime` | string | Date/time of the call in ISO-8601 format |
+|   ↳ `reviewedUserId` | number | User ID of the team member being reviewed |
+|   ↳ `reviewerUserId` | number | User ID of the team member who completed the scorecard |
+|   ↳ `reviewTime` | string | Date/time when the review was completed in ISO-8601 format |
+|   ↳ `visibilityType` | string | Visibility type of the scorecard answer |
+|   ↳ `answers` | array | Answers in the answered scorecard |
+|     ↳ `questionId` | number | Identifier of the question |
+|     ↳ `questionRevisionId` | number | Identifier of the revision version of the question |
+|     ↳ `isOverall` | boolean | Whether this is the overall question |
+|     ↳ `score` | number | Score between 1 to 5 if answered, null otherwise |
+|     ↳ `answerText` | string | The answer's text if answered, null otherwise |
+|     ↳ `notApplicable` | boolean | Whether the question is not applicable to this call |
+| `cursor` | string | Pagination cursor for the next page |
+
+### `gong_list_library_folders`
+
+Retrieve library folders from Gong.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `workspaceId` | string | No | Gong workspace ID to filter folders |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folders` | array | List of library folders with id, name, and parent relationships |
+|   ↳ `id` | string | Gong unique numeric identifier for the folder |
+|   ↳ `name` | string | Display name of the folder |
+|   ↳ `parentFolderId` | string | Gong unique numeric identifier for the parent folder \(null for root folder\) |
+|   ↳ `createdBy` | string | Gong unique numeric identifier for the user who added the folder |
+|   ↳ `updated` | string | Folder's last update time in ISO-8601 format |
+
+### `gong_get_folder_content`
+
+Retrieve the list of calls in a specific library folder from Gong.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `folderId` | string | Yes | The library folder ID to retrieve content for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folderId` | string | Gong's unique numeric identifier for the folder |
+| `folderName` | string | Display name of the folder |
+| `createdBy` | string | Gong's unique numeric identifier for the user who added the folder |
+| `updated` | string | Folder's last update time in ISO-8601 format |
+| `calls` | array | List of calls in the library folder |
+|   ↳ `id` | string | Gong unique numeric identifier of the call |
+|   ↳ `title` | string | The title of the call |
+|   ↳ `note` | string | A note attached to the call in the folder |
+|   ↳ `addedBy` | string | Gong unique numeric identifier for the user who added the call |
+|   ↳ `created` | string | Date and time the call was added to folder in ISO-8601 format |
+|   ↳ `url` | string | URL of the call |
+|   ↳ `snippet` | object | Call snippet time range |
+|     ↳ `fromSec` | number | Snippet start in seconds relative to call start |
+|     ↳ `toSec` | number | Snippet end in seconds relative to call start |
+
+### `gong_list_scorecards`
+
+Retrieve scorecard definitions from Gong settings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `scorecards` | array | List of scorecard definitions with questions |
+|   ↳ `scorecardId` | string | Unique identifier for the scorecard |
+|   ↳ `scorecardName` | string | Display name of the scorecard |
+|   ↳ `workspaceId` | string | Workspace identifier associated with this scorecard |
+|   ↳ `enabled` | boolean | Whether the scorecard is active |
+|   ↳ `updaterUserId` | string | ID of the user who last modified the scorecard |
+|   ↳ `created` | string | Creation timestamp in ISO-8601 format |
+|   ↳ `updated` | string | Last update timestamp in ISO-8601 format |
+|   ↳ `questions` | array | List of questions in the scorecard |
+|     ↳ `questionId` | string | Unique identifier for the question |
+|     ↳ `questionText` | string | The text content of the question |
+|     ↳ `questionRevisionId` | string | Identifier for the specific revision of the question |
+|     ↳ `isOverall` | boolean | Whether this is the primary overall question |
+|     ↳ `created` | string | Question creation timestamp in ISO-8601 format |
+|     ↳ `updated` | string | Question last update timestamp in ISO-8601 format |
+|     ↳ `updaterUserId` | string | ID of the user who last modified the question |
+
+### `gong_list_trackers`
+
+Retrieve smart tracker and keyword tracker definitions from Gong settings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `workspaceId` | string | No | The ID of the workspace the keyword trackers are in. When empty, all trackers in all workspaces are returned. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `trackers` | array | List of keyword tracker definitions |
+|   ↳ `trackerId` | string | Unique identifier for the tracker |
+|   ↳ `trackerName` | string | Display name of the tracker |
+|   ↳ `workspaceId` | string | ID of the workspace containing the tracker |
+|   ↳ `languageKeywords` | array | Keywords organized by language |
+|     ↳ `language` | string | ISO 639-2/B language code \("mul" means keywords apply across all languages\) |
+|     ↳ `keywords` | array | Words and phrases in the designated language |
+|     ↳ `includeRelatedForms` | boolean | Whether to include different word forms |
+|   ↳ `affiliation` | string | Speaker affiliation filter: "Anyone", "Company", or "NonCompany" |
+|   ↳ `partOfQuestion` | boolean | Whether to track keywords only within questions |
+|   ↳ `saidAt` | string | Position in call: "Anytime", "First", or "Last" |
+|   ↳ `saidAtInterval` | number | Duration to search \(in minutes or percentage\) |
+|   ↳ `saidAtUnit` | string | Unit for saidAtInterval |
+|   ↳ `saidInTopics` | array | Topics where keywords should be detected |
+|   ↳ `saidInCallParts` | array | Specific call segments to monitor |
+|   ↳ `filterQuery` | string | JSON-formatted call filtering criteria |
+|   ↳ `created` | string | Creation timestamp in ISO-8601 format |
+|   ↳ `creatorUserId` | string | ID of the user who created the tracker \(null for built-in trackers\) |
+|   ↳ `updated` | string | Last modification timestamp in ISO-8601 format |
+|   ↳ `updaterUserId` | string | ID of the user who last modified the tracker |
+
+### `gong_list_workspaces`
+
+List all company workspaces in Gong.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workspaces` | array | List of Gong workspaces |
+|   ↳ `id` | string | Gong unique numeric identifier for the workspace |
+|   ↳ `name` | string | Display name of the workspace |
+|   ↳ `description` | string | Description of the workspace's purpose or content |
+
+### `gong_list_flows`
+
+List Gong Engage flows (sales engagement sequences).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `flowOwnerEmail` | string | Yes | Email of a Gong user. The API will return 'PERSONAL' flows belonging to this user in addition to 'COMPANY' flows. |
+| `workspaceId` | string | No | Optional workspace ID to filter flows to a specific workspace |
+| `cursor` | string | No | Pagination cursor from a previous API call to retrieve the next page of records |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
+| `flows` | array | List of Gong Engage flows |
+|   ↳ `id` | string | The ID of the flow |
+|   ↳ `name` | string | The name of the flow |
+|   ↳ `folderId` | string | The ID of the folder this flow is under |
+|   ↳ `folderName` | string | The name of the folder this flow is under |
+|   ↳ `visibility` | string | The flow visibility type \(COMPANY, PERSONAL, or SHARED\) |
+|   ↳ `creationDate` | string | Creation time of the flow in ISO-8601 format |
+|   ↳ `exclusive` | boolean | Indicates whether a prospect in this flow can be added to other flows |
+| `totalRecords` | number | Total number of flow records available |
+| `currentPageSize` | number | Number of records returned in the current page |
+| `currentPageNumber` | number | Current page number |
+| `cursor` | string | Pagination cursor for retrieving the next page of records |
+
+### `gong_get_coaching`
+
+Retrieve coaching metrics for a manager from Gong.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `managerId` | string | Yes | Gong user ID of the manager |
+| `workspaceId` | string | Yes | Gong workspace ID |
+| `fromDate` | string | Yes | Start date in ISO-8601 format |
+| `toDate` | string | Yes | End date in ISO-8601 format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
+| `coachingData` | array | The manager user information |
+|   ↳ `manager` | object | The manager user information |
+|     ↳ `id` | string | Gong unique numeric identifier for the user |
+|     ↳ `emailAddress` | string | Email address of the Gong user |
+|     ↳ `firstName` | string | First name of the Gong user |
+|     ↳ `lastName` | string | Last name of the Gong user |
+|     ↳ `title` | string | Job title of the Gong user |
+|   ↳ `directReportsMetrics` | array | Coaching metrics for each direct report |
+|     ↳ `report` | object | The direct report user information |
+|       ↳ `id` | string | Gong unique numeric identifier for the user |
+|       ↳ `emailAddress` | string | Email address of the Gong user |
+|       ↳ `firstName` | string | First name of the Gong user |
+|       ↳ `lastName` | string | Last name of the Gong user |
+|       ↳ `title` | string | Job title of the Gong user |
+|     ↳ `metrics` | json | A map of metric names to arrays of string values representing coaching metrics |
+
+### `gong_lookup_email`
+
+Find all references to an email address in Gong (calls, email messages, meetings, CRM data, engagement).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `emailAddress` | string | Yes | Email address to look up |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Gong request reference ID for troubleshooting |
+| `calls` | array | Related calls referencing this email address |
+|   ↳ `id` | string | Gong's unique numeric identifier for the call \(up to 20 digits\) |
+|   ↳ `status` | string | Call status |
+|   ↳ `externalSystems` | array | Links to external systems such as CRM, Telephony System, etc. |
+|     ↳ `system` | string | External system name |
+|     ↳ `objects` | array | List of objects within the external system |
+|       ↳ `objectType` | string | Object type |
+|       ↳ `externalId` | string | External ID |
+| `emails` | array | Related email messages referencing this email address |
+|   ↳ `id` | string | Gong's unique 32 character identifier for the email message |
+|   ↳ `from` | string | The sender's email address |
+|   ↳ `sentTime` | string | Date and time the email was sent in ISO-8601 format |
+|   ↳ `mailbox` | string | The mailbox from which the email was retrieved |
+|   ↳ `messageHash` | string | Hash code of the email message |
+| `meetings` | array | Related meetings referencing this email address |
+|   ↳ `id` | string | Gong's unique identifier for the meeting |
+| `customerData` | array | Links to data from external systems \(CRM, Telephony, etc.\) that reference this email |
+|   ↳ `system` | string | External system name |
+|   ↳ `objects` | array | List of objects in the external system |
+|     ↳ `id` | string | Gong's unique numeric identifier for the Lead or Contact \(up to 20 digits\) |
+|     ↳ `objectType` | string | Object type |
+|     ↳ `externalId` | string | External ID |
+|     ↳ `mirrorId` | string | CRM Mirror ID |
+|     ↳ `fields` | array | Object fields |
+|       ↳ `name` | string | Field name |
+|       ↳ `value` | json | Field value |
+| `customerEngagement` | array | Customer engagement events \(such as viewing external shared calls\) |
+|   ↳ `eventType` | string | Event type |
+|   ↳ `eventName` | string | Event name |
+|   ↳ `timestamp` | string | Date and time the event occurred in ISO-8601 format |
+|   ↳ `contentId` | string | Event content ID |
+|   ↳ `contentUrl` | string | Event content URL |
+|   ↳ `reportingSystem` | string | Event reporting system |
+|   ↳ `sourceEventId` | string | Source event ID |
+
+### `gong_lookup_phone`
+
+Find all references to a phone number in Gong (calls, email messages, meetings, CRM data, and associated contacts).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `phoneNumber` | string | Yes | Phone number to look up \(must start with + followed by country code\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Gong request reference ID for troubleshooting |
+| `suppliedPhoneNumber` | string | The phone number that was supplied in the request |
+| `matchingPhoneNumbers` | array | Phone numbers found in the system that match the supplied number |
+| `emailAddresses` | array | Email addresses associated with the phone number |
+| `calls` | array | Related calls referencing this phone number |
+|   ↳ `id` | string | Gong's unique numeric identifier for the call \(up to 20 digits\) |
+|   ↳ `status` | string | Call status |
+|   ↳ `externalSystems` | array | Links to external systems such as CRM, Telephony System, etc. |
+|     ↳ `system` | string | External system name |
+|     ↳ `objects` | array | List of objects within the external system |
+|       ↳ `objectType` | string | Object type |
+|       ↳ `externalId` | string | External ID |
+| `emails` | array | Related email messages associated with contacts matching this phone number |
+|   ↳ `id` | string | Gong's unique 32 character identifier for the email message |
+|   ↳ `from` | string | The sender's email address |
+|   ↳ `sentTime` | string | Date and time the email was sent in ISO-8601 format |
+|   ↳ `mailbox` | string | The mailbox from which the email was retrieved |
+|   ↳ `messageHash` | string | Hash code of the email message |
+| `meetings` | array | Related meetings associated with this phone number |
+|   ↳ `id` | string | Gong's unique identifier for the meeting |
+| `customerData` | array | Links to data from external systems \(CRM, Telephony, etc.\) that reference this phone number |
+|   ↳ `system` | string | External system name |
+|   ↳ `objects` | array | List of objects in the external system |
+|     ↳ `id` | string | Gong's unique numeric identifier for the Lead or Contact \(up to 20 digits\) |
+|     ↳ `objectType` | string | Object type |
+|     ↳ `externalId` | string | External ID |
+|     ↳ `mirrorId` | string | CRM Mirror ID |
+|     ↳ `fields` | array | Object fields |
+|       ↳ `name` | string | Field name |
+|       ↳ `value` | json | Field value |
+
+

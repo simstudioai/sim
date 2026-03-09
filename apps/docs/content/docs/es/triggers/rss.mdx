@@ -1,0 +1,49 @@
+---
+title: Feed RSS
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+El bloque de Feed RSS monitorea feeds RSS y Atom – cuando se publican nuevos elementos, tu flujo de trabajo se activa automáticamente.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/rss.png"
+    alt="Bloque de Feed RSS"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Configuración
+
+1. **Añadir bloque de Feed RSS** - Arrastra el bloque de Feed RSS para iniciar tu flujo de trabajo
+2. **Introducir URL del feed** - Pega la URL de cualquier feed RSS o Atom
+3. **Implementar** - Implementa tu flujo de trabajo para activar el sondeo
+
+Una vez implementado, el feed se comprueba cada minuto en busca de nuevos elementos.
+
+## Campos de salida
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `title` | string | Título del elemento |
+| `link` | string | Enlace del elemento |
+| `pubDate` | string | Fecha de publicación |
+| `item` | object | Elemento en bruto con todos los campos |
+| `feed` | object | Metadatos en bruto del feed |
+
+Accede a los campos mapeados directamente (`<rss.title>`) o utiliza los objetos en bruto para cualquier campo (`<rss.item.author>`, `<rss.feed.language>`).
+
+## Casos de uso
+
+- **Monitoreo de contenido** - Sigue blogs, sitios de noticias o actualizaciones de competidores
+- **Automatización de podcasts** - Activa flujos de trabajo cuando se publican nuevos episodios
+- **Seguimiento de lanzamientos** - Monitorea lanzamientos de GitHub, registros de cambios o actualizaciones de productos
+- **Agregación social** - Recopila contenido de plataformas que exponen feeds RSS
+
+<Callout>
+Los disparadores RSS solo se activan para elementos publicados después de guardar el disparador. Los elementos existentes en el feed no se procesan.
+</Callout>

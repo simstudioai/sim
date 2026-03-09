@@ -1,0 +1,253 @@
+---
+title: Zep
+description: Long-term memory for AI agents
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="zep"
+  color="#E8E8E8"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Enhance your AI agents with reliable long-term memory using [Zep](https://getzep.com) – the memory solution designed for LLM-based applications. Zep provides seamless storage, retrieval, and management of conversational context, allowing your agents to remember conversations and facts across sessions.
+
+With the Zep integration, you can:
+
+- **Store and retrieve chat history:** Maintain detailed records of entire conversations with robust APIs for adding and retrieving messages.
+- **Summarize conversations:** Access AI-powered summaries of threads, helping agents recall key facts and context efficiently.
+- **Extract and store structured facts:** Automatically pull out and manage important facts from conversations for persistent memory and reference.
+- **Enrich agent responses:** Use stored knowledge to provide contextually aware interactions and decrease repetitive or irrelevant responses.
+- **Centralize memory management:** Sync memory data directly with your workflows and ensure your agents always have access to critical user information.
+- **Scale with privacy and control:** Manage memory for millions of users while maintaining control over data retention and access.
+
+Zep empowers developers to build smarter, more contextual, and helpful AI applications. Focus on building great experiences—leave the memory to Zep.
+
+Unlock richer conversations and more capable agents by integrating Zep into your automated workflows today!
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Zep for long-term memory management. Create threads, add messages, retrieve context with AI-powered summaries and facts extraction.
+
+
+
+## Tools
+
+### `zep_create_thread`
+
+Start a new conversation thread in Zep
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | Yes | Unique identifier for the thread \(e.g., "thread_abc123"\) |
+| `userId` | string | Yes | User ID associated with the thread \(e.g., "user_123"\) |
+| `apiKey` | string | Yes | Your Zep API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `threadId` | string | Thread identifier |
+| `userId` | string | Associated user ID |
+| `uuid` | string | Internal UUID |
+| `createdAt` | string | Creation timestamp \(ISO 8601\) |
+| `projectUuid` | string | Project UUID |
+
+### `zep_get_threads`
+
+List all conversation threads
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | No | Number of threads to retrieve per page \(e.g., 10, 25, 50\) |
+| `pageNumber` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
+| `orderBy` | string | No | Field to order results by \(created_at, updated_at, user_id, thread_id\) |
+| `asc` | boolean | No | Order direction: true for ascending, false for descending |
+| `apiKey` | string | Yes | Your Zep API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `threads` | array | Array of thread objects |
+|   ↳ `threadId` | string | Thread identifier |
+|   ↳ `userId` | string | Associated user ID |
+|   ↳ `uuid` | string | Internal UUID |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `projectUuid` | string | Project UUID |
+|   ↳ `metadata` | object | Custom metadata \(dynamic key-value pairs\) |
+| `responseCount` | number | Number of items in this response |
+| `totalCount` | number | Total number of items available |
+
+### `zep_delete_thread`
+
+Delete a conversation thread from Zep
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | Yes | Thread ID to delete \(e.g., "thread_abc123"\) |
+| `apiKey` | string | Yes | Your Zep API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the thread was deleted |
+
+### `zep_get_context`
+
+Retrieve user context from a thread with summary or basic mode
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | Yes | Thread ID to get context from \(e.g., "thread_abc123"\) |
+| `mode` | string | No | Context mode: "summary" \(natural language\) or "basic" \(raw facts\) |
+| `minRating` | number | No | Minimum rating by which to filter relevant facts |
+| `apiKey` | string | Yes | Your Zep API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `context` | string | The context string \(summary or basic mode\) |
+
+### `zep_get_messages`
+
+Retrieve messages from a thread
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | Yes | Thread ID to get messages from \(e.g., "thread_abc123"\) |
+| `limit` | number | No | Maximum number of messages to return \(e.g., 10, 50, 100\) |
+| `cursor` | string | No | Cursor for pagination |
+| `lastn` | number | No | Number of most recent messages to return \(overrides limit and cursor\) |
+| `apiKey` | string | Yes | Your Zep API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messages` | array | Array of message objects |
+|   ↳ `uuid` | string | Message UUID |
+|   ↳ `role` | string | Message role \(user, assistant, system, tool\) |
+|   ↳ `roleType` | string | Role type \(AI, human, tool\) |
+|   ↳ `content` | string | Message content |
+|   ↳ `name` | string | Sender name |
+|   ↳ `createdAt` | string | Timestamp \(RFC3339 format\) |
+|   ↳ `metadata` | object | Message metadata \(dynamic key-value pairs\) |
+|   ↳ `processed` | boolean | Whether message has been processed |
+| `rowCount` | number | Number of rows returned |
+| `totalCount` | number | Total number of items available |
+
+### `zep_add_messages`
+
+Add messages to an existing thread
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | Yes | Thread ID to add messages to \(e.g., "thread_abc123"\) |
+| `messages` | json | Yes | Array of message objects with role and content \(e.g., \[\{"role": "user", "content": "Hello"\}\]\) |
+| `apiKey` | string | Yes | Your Zep API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `threadId` | string | Thread identifier |
+| `added` | boolean | Whether messages were added successfully |
+| `messageIds` | array | Array of added message UUIDs |
+
+### `zep_add_user`
+
+Create a new user in Zep
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | Unique identifier for the user \(e.g., "user_123"\) |
+| `email` | string | No | User email address |
+| `firstName` | string | No | User first name |
+| `lastName` | string | No | User last name |
+| `metadata` | json | No | Additional metadata as JSON object \(e.g., \{"key": "value"\}\) |
+| `apiKey` | string | Yes | Your Zep API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | User identifier |
+| `email` | string | User email address |
+| `firstName` | string | User first name |
+| `lastName` | string | User last name |
+| `uuid` | string | Internal UUID |
+| `createdAt` | string | Creation timestamp \(ISO 8601\) |
+| `metadata` | object | User metadata \(dynamic key-value pairs\) |
+
+### `zep_get_user`
+
+Retrieve user information from Zep
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | User ID to retrieve \(e.g., "user_123"\) |
+| `apiKey` | string | Yes | Your Zep API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | User identifier |
+| `email` | string | User email address |
+| `firstName` | string | User first name |
+| `lastName` | string | User last name |
+| `uuid` | string | Internal UUID |
+| `createdAt` | string | Creation timestamp \(ISO 8601\) |
+| `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+| `metadata` | object | User metadata \(dynamic key-value pairs\) |
+
+### `zep_get_user_threads`
+
+List all conversation threads for a specific user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | User ID to get threads for \(e.g., "user_123"\) |
+| `limit` | number | No | Maximum number of threads to return \(e.g., 10, 25, 50\) |
+| `apiKey` | string | Yes | Your Zep API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `threads` | array | Array of thread objects |
+|   ↳ `threadId` | string | Thread identifier |
+|   ↳ `userId` | string | Associated user ID |
+|   ↳ `uuid` | string | Internal UUID |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `projectUuid` | string | Project UUID |
+|   ↳ `metadata` | object | Custom metadata \(dynamic key-value pairs\) |
+| `totalCount` | number | Total number of items available |
+
+

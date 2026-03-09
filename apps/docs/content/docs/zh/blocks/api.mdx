@@ -1,0 +1,145 @@
+---
+title: API
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+API 模块通过 HTTP 请求将您的工作流连接到外部服务。支持 GET、POST、PUT、DELETE 和 PATCH 方法与 REST API 交互。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/api.png"
+    alt="API 模块"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## 配置选项
+
+### URL
+
+API 请求的端点 URL。可以是：
+
+- 直接在模块中输入的静态 URL
+- 从另一个模块的输出连接的动态 URL
+- 包含路径参数的 URL
+
+### 方法
+
+选择您的请求所需的 HTTP 方法：
+
+- **GET**：从服务器检索数据
+- **POST**：向服务器发送数据以创建资源
+- **PUT**：更新服务器上的现有资源
+- **DELETE**：从服务器删除资源
+- **PATCH**：部分更新服务器上的现有资源
+
+### 查询参数
+
+定义将作为查询参数附加到 URL 的键值对。例如：
+
+```
+Key: apiKey
+Value: your_api_key_here
+
+Key: limit
+Value: 10
+```
+
+这些将被添加到 URL 中作为 `?apiKey=your_api_key_here&limit=10`。
+
+### 请求头
+
+为您的请求配置 HTTP 请求头。常见的请求头包括：
+
+```
+Key: Content-Type
+Value: application/json
+
+Key: Authorization
+Value: Bearer your_token_here
+```
+
+### 请求体
+
+对于支持请求体的方法（POST、PUT、PATCH），您可以定义要发送的数据。请求体可以是：
+
+- 直接在模块中输入的 JSON 数据
+- 从另一个模块的输出连接的数据
+- 在工作流执行期间动态生成的数据
+
+### 访问结果
+
+API 请求完成后，您可以访问其输出：
+
+- **`<api.data>`**：API 的响应体数据
+- **`<api.status>`**：HTTP 状态码（200、404、500 等）
+- **`<api.headers>`**：服务器的响应头
+- **`<api.error>`**：如果请求失败，包含错误详情
+
+## 高级功能
+
+### 动态 URL 构建
+
+使用前面模块中的变量动态构建 URL：
+
+```javascript
+// In a Function block before the API
+const userId = <start.userId>;
+const apiUrl = `https://api.example.com/users/${userId}/profile`;
+```
+
+### 请求重试
+
+API 模块会自动处理：
+- 带有指数退避的网络超时
+- 速率限制响应（429 状态码）
+- 服务器错误（5xx 状态码）及重试逻辑
+- 连接失败及重新连接尝试
+
+### 响应验证
+
+在处理之前验证 API 响应：
+
+```javascript
+// In a Function block after the API
+if (<api.status> === 200) {
+  const data = <api.data>;
+  // Process successful response
+} else {
+  // Handle error response
+  console.error(`API Error: ${<api.status>}`);
+}
+```
+
+## 输出
+
+- **`<api.data>`**：来自 API 的响应体数据
+- **`<api.status>`**：HTTP 状态码
+- **`<api.headers>`**：响应头
+- **`<api.error>`**：如果请求失败，包含错误详情
+
+## 示例用例
+
+**获取用户资料数据** - 从外部服务检索用户信息
+
+```
+Function (Build ID) → API (GET /users/{id}) → Function (Format) → Response
+```
+
+**支付处理** - 通过 Stripe API 处理支付
+
+```
+Function (Validate) → API (Stripe) → Condition (Success) → Supabase (Update)
+```
+
+## 最佳实践
+
+- **使用环境变量存储敏感数据**：不要硬编码 API 密钥或凭据
+- **优雅地处理错误**：为失败的请求连接错误处理逻辑
+- **验证响应**：在处理数据之前检查状态码和响应格式
+- **遵守速率限制**：注意 API 的速率限制并实施适当的节流

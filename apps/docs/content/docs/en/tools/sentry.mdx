@@ -1,0 +1,642 @@
+---
+title: Sentry
+description: Manage Sentry issues, projects, events, and releases
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sentry"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Supercharge your error monitoring and application reliability with [Sentry](https://sentry.io/) — the industry-leading platform for real-time error tracking, performance monitoring, and release management. Seamlessly integrate Sentry into your automated agent workflows to easily monitor issues, track critical events, manage projects, and orchestrate releases across all your applications and services.
+
+With the Sentry tool, you can:
+
+- **Monitor and triage issues**: Fetch comprehensive lists of issues using the `sentry_issues_list` operation and retrieve detailed information on individual errors and bugs via `sentry_issues_get`. Instantly access metadata, tags, stack traces, and statistics to reduce mean time to resolution.
+- **Track event data**: Analyze specific error and event instances with `sentry_events_list` and `sentry_events_get`, providing deep insight into error occurrences and user impact.
+- **Manage projects and teams**: Use `sentry_projects_list` and `sentry_project_get` to enumerate and review all your Sentry projects, ensuring smooth team collaboration and centralized configuration.
+- **Coordinate releases**: Automate version tracking, deployment health, and change management across your codebase with operations like `sentry_releases_list`, `sentry_release_get`, and more.
+- **Gain powerful application insights**: Leverage advanced filters and queries to find unresolved or high-priority issues, aggregate event statistics over time, and track regressions as your codebase evolves.
+
+Sentry's integration empowers engineering and DevOps teams to detect issues early, prioritize the most impactful bugs, and continuously improve application health across development stacks. Programmatically orchestrate workflow automation for modern observability, incident response, and release lifecycle management—reducing downtime and increasing user satisfaction.
+
+**Key Sentry operations available**:
+- `sentry_issues_list`: List Sentry issues for organizations and projects, with powerful search and filtering.
+- `sentry_issues_get`: Retrieve detailed information for a specific Sentry issue.
+- `sentry_events_list`: Enumerate the events for a particular issue for root-cause analysis.
+- `sentry_events_get`: Get full detail on an individual event, including stack traces, context, and metadata.
+- `sentry_projects_list`: List all Sentry projects within your organization.
+- `sentry_project_get`: Retrieve configuration and details for a specific project.
+- `sentry_releases_list`: List recent releases and their deployment status.
+- `sentry_release_get`: Retrieve detailed release information, including associated commits and issues.
+
+Whether you're proactively managing app health, troubleshooting production errors, or automating release workflows, Sentry equips you with world-class monitoring, actionable alerts, and seamless DevOps integration. Boost your software quality and search visibility by leveraging Sentry for error tracking, observability, and release management—all from your agentic workflows.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Sentry into the workflow. Monitor issues, manage projects, track events, and coordinate releases across your applications.
+
+
+
+## Tools
+
+### `sentry_issues_list`
+
+List issues from Sentry for a specific organization and optionally a specific project. Returns issue details including status, error counts, and last seen timestamps.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sentry API authentication token |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `projectSlug` | string | No | Filter issues by specific project slug \(e.g., "my-project"\) |
+| `query` | string | No | Search query to filter issues. Supports Sentry search syntax \(e.g., "is:unresolved", "level:error"\) |
+| `statsPeriod` | string | No | Time period for stats \(e.g., "24h", "7d", "30d"\). Defaults to 24h if not specified. |
+| `cursor` | string | No | Pagination cursor for retrieving next page of results |
+| `limit` | number | No | Number of issues to return per page \(default: 25, max: 100\) |
+| `status` | string | No | Filter by issue status: unresolved, resolved, ignored, or muted |
+| `sort` | string | No | Sort order: date, new, freq, priority, or user \(default: date\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `issues` | array | List of Sentry issues |
+|   ↳ `id` | string | Unique issue ID |
+|   ↳ `shortId` | string | Short issue identifier |
+|   ↳ `title` | string | Issue title |
+|   ↳ `culprit` | string | Function or location that caused the issue |
+|   ↳ `permalink` | string | Direct link to the issue in Sentry |
+|   ↳ `logger` | string | Logger name that reported the issue |
+|   ↳ `level` | string | Severity level \(error, warning, info, etc.\) |
+|   ↳ `status` | string | Current issue status |
+|   ↳ `statusDetails` | object | Additional details about the status |
+|   ↳ `isPublic` | boolean | Whether the issue is publicly visible |
+|   ↳ `platform` | string | Platform where the issue occurred |
+|   ↳ `project` | object | Project information |
+|     ↳ `id` | string | Project ID |
+|     ↳ `name` | string | Project name |
+|     ↳ `slug` | string | Project slug |
+|     ↳ `platform` | string | Project platform |
+|   ↳ `type` | string | Issue type |
+|   ↳ `metadata` | object | Error metadata |
+|     ↳ `type` | string | Type of error \(e.g., TypeError\) |
+|     ↳ `value` | string | Error message or value |
+|     ↳ `function` | string | Function where the error occurred |
+|   ↳ `numComments` | number | Number of comments on the issue |
+|   ↳ `assignedTo` | object | User assigned to the issue |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
+|   ↳ `isBookmarked` | boolean | Whether the issue is bookmarked |
+|   ↳ `isSubscribed` | boolean | Whether subscribed to updates |
+|   ↳ `hasSeen` | boolean | Whether the user has seen this issue |
+|   ↳ `annotations` | array | Issue annotations |
+|   ↳ `isUnhandled` | boolean | Whether the issue is unhandled |
+|   ↳ `count` | string | Total number of occurrences |
+|   ↳ `userCount` | number | Number of unique users affected |
+|   ↳ `firstSeen` | string | When the issue was first seen \(ISO timestamp\) |
+|   ↳ `lastSeen` | string | When the issue was last seen \(ISO timestamp\) |
+|   ↳ `stats` | object | Statistical information about the issue |
+| `metadata` | object | Pagination metadata |
+|   ↳ `nextCursor` | string | Cursor for the next page of results \(if available\) |
+|   ↳ `hasMore` | boolean | Whether there are more results available |
+
+### `sentry_issues_get`
+
+Retrieve detailed information about a specific Sentry issue by its ID. Returns complete issue details including metadata, tags, and statistics.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sentry API authentication token |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `issueId` | string | Yes | The unique ID of the issue to retrieve \(e.g., "12345"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `issue` | object | Detailed information about the Sentry issue |
+|   ↳ `id` | string | Unique issue ID |
+|   ↳ `shortId` | string | Short issue identifier |
+|   ↳ `title` | string | Issue title |
+|   ↳ `culprit` | string | Function or location that caused the issue |
+|   ↳ `permalink` | string | Direct link to the issue in Sentry |
+|   ↳ `logger` | string | Logger name that reported the issue |
+|   ↳ `level` | string | Severity level \(error, warning, info, etc.\) |
+|   ↳ `status` | string | Current issue status |
+|   ↳ `statusDetails` | object | Additional details about the status |
+|   ↳ `isPublic` | boolean | Whether the issue is publicly visible |
+|   ↳ `platform` | string | Platform where the issue occurred |
+|   ↳ `project` | object | Project information |
+|     ↳ `id` | string | Project ID |
+|     ↳ `name` | string | Project name |
+|     ↳ `slug` | string | Project slug |
+|     ↳ `platform` | string | Project platform |
+|   ↳ `type` | string | Issue type |
+|   ↳ `metadata` | object | Error metadata |
+|     ↳ `type` | string | Type of error \(e.g., TypeError, ValueError\) |
+|     ↳ `value` | string | Error message or value |
+|     ↳ `function` | string | Function where the error occurred |
+|   ↳ `numComments` | number | Number of comments on the issue |
+|   ↳ `assignedTo` | object | User assigned to the issue \(if any\) |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
+|   ↳ `isBookmarked` | boolean | Whether the issue is bookmarked |
+|   ↳ `isSubscribed` | boolean | Whether the user is subscribed to updates |
+|   ↳ `hasSeen` | boolean | Whether the user has seen this issue |
+|   ↳ `annotations` | array | Issue annotations |
+|   ↳ `isUnhandled` | boolean | Whether the issue is unhandled |
+|   ↳ `count` | string | Total number of occurrences |
+|   ↳ `userCount` | number | Number of unique users affected |
+|   ↳ `firstSeen` | string | When the issue was first seen \(ISO timestamp\) |
+|   ↳ `lastSeen` | string | When the issue was last seen \(ISO timestamp\) |
+|   ↳ `stats` | object | Statistical information about the issue |
+
+### `sentry_issues_update`
+
+Update a Sentry issue by changing its status, assignment, bookmark state, or other properties. Returns the updated issue details.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sentry API authentication token |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `issueId` | string | Yes | The unique ID of the issue to update \(e.g., "12345"\) |
+| `status` | string | No | New status for the issue: resolved, unresolved, ignored, or resolvedInNextRelease |
+| `assignedTo` | string | No | User ID or email to assign the issue to. Use empty string to unassign. |
+| `isBookmarked` | boolean | No | Whether to bookmark the issue |
+| `isSubscribed` | boolean | No | Whether to subscribe to issue updates |
+| `isPublic` | boolean | No | Whether the issue should be publicly visible |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `issue` | object | The updated Sentry issue |
+|   ↳ `id` | string | Unique issue ID |
+|   ↳ `shortId` | string | Short issue identifier |
+|   ↳ `title` | string | Issue title |
+|   ↳ `status` | string | Updated issue status |
+|   ↳ `assignedTo` | object | User assigned to the issue \(if any\) |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
+|   ↳ `isBookmarked` | boolean | Whether the issue is bookmarked |
+|   ↳ `isSubscribed` | boolean | Whether the user is subscribed to updates |
+|   ↳ `isPublic` | boolean | Whether the issue is publicly visible |
+|   ↳ `permalink` | string | Direct link to the issue in Sentry |
+
+### `sentry_projects_list`
+
+List all projects in a Sentry organization. Returns project details including name, platform, teams, and configuration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sentry API authentication token |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `cursor` | string | No | Pagination cursor for retrieving next page of results |
+| `limit` | number | No | Number of projects to return per page \(default: 25, max: 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | array | List of Sentry projects |
+|   ↳ `id` | string | Unique project ID |
+|   ↳ `slug` | string | URL-friendly project identifier |
+|   ↳ `name` | string | Project name |
+|   ↳ `platform` | string | Platform/language \(e.g., javascript, python\) |
+|   ↳ `dateCreated` | string | When the project was created \(ISO timestamp\) |
+|   ↳ `isBookmarked` | boolean | Whether the project is bookmarked |
+|   ↳ `isMember` | boolean | Whether the user is a member of the project |
+|   ↳ `features` | array | Enabled features for the project |
+|   ↳ `organization` | object | Organization information |
+|     ↳ `id` | string | Organization ID |
+|     ↳ `slug` | string | Organization slug |
+|     ↳ `name` | string | Organization name |
+|   ↳ `teams` | array | Teams associated with the project |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
+|     ↳ `slug` | string | Team slug |
+|   ↳ `status` | string | Project status |
+|   ↳ `isPublic` | boolean | Whether the project is publicly visible |
+| `metadata` | object | Pagination metadata |
+|   ↳ `nextCursor` | string | Cursor for the next page of results \(if available\) |
+|   ↳ `hasMore` | boolean | Whether there are more results available |
+
+### `sentry_projects_get`
+
+Retrieve detailed information about a specific Sentry project by its slug. Returns complete project details including teams, features, and configuration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sentry API authentication token |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `projectSlug` | string | Yes | The slug of the project to retrieve \(e.g., "my-project"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | object | Detailed information about the Sentry project |
+|   ↳ `id` | string | Unique project ID |
+|   ↳ `slug` | string | URL-friendly project identifier |
+|   ↳ `name` | string | Project name |
+|   ↳ `platform` | string | Platform/language \(e.g., javascript, python\) |
+|   ↳ `dateCreated` | string | When the project was created \(ISO timestamp\) |
+|   ↳ `isBookmarked` | boolean | Whether the project is bookmarked |
+|   ↳ `isMember` | boolean | Whether the user is a member of the project |
+|   ↳ `features` | array | Enabled features for the project |
+|   ↳ `firstEvent` | string | When the first event was received \(ISO timestamp\) |
+|   ↳ `firstTransactionEvent` | string | When the first transaction event was received |
+|   ↳ `access` | array | Access permissions |
+|   ↳ `organization` | object | Organization information |
+|     ↳ `id` | string | Organization ID |
+|     ↳ `slug` | string | Organization slug |
+|     ↳ `name` | string | Organization name |
+|   ↳ `team` | object | Primary team for the project |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
+|     ↳ `slug` | string | Team slug |
+|   ↳ `teams` | array | Teams associated with the project |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
+|     ↳ `slug` | string | Team slug |
+|   ↳ `status` | string | Project status |
+|   ↳ `color` | string | Project color code |
+|   ↳ `isPublic` | boolean | Whether the project is publicly visible |
+|   ↳ `isInternal` | boolean | Whether the project is internal |
+|   ↳ `hasAccess` | boolean | Whether the user has access to this project |
+|   ↳ `hasMinifiedStackTrace` | boolean | Whether minified stack traces are available |
+|   ↳ `hasMonitors` | boolean | Whether the project has monitors configured |
+|   ↳ `hasProfiles` | boolean | Whether the project has profiling enabled |
+|   ↳ `hasReplays` | boolean | Whether the project has session replays enabled |
+|   ↳ `hasSessions` | boolean | Whether the project has sessions enabled |
+
+### `sentry_projects_create`
+
+Create a new Sentry project in an organization. Requires a team to associate the project with. Returns the created project details.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sentry API authentication token |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `name` | string | Yes | The name of the project |
+| `teamSlug` | string | Yes | The slug of the team that will own this project |
+| `slug` | string | No | URL-friendly project identifier \(auto-generated from name if not provided\) |
+| `platform` | string | No | Platform/language for the project \(e.g., javascript, python, node, react-native\). If not specified, defaults to "other" |
+| `defaultRules` | boolean | No | Whether to create default alert rules \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | object | The newly created Sentry project |
+|   ↳ `id` | string | Unique project ID |
+|   ↳ `slug` | string | URL-friendly project identifier |
+|   ↳ `name` | string | Project name |
+|   ↳ `platform` | string | Platform/language |
+|   ↳ `dateCreated` | string | When the project was created \(ISO timestamp\) |
+|   ↳ `isBookmarked` | boolean | Whether the project is bookmarked |
+|   ↳ `isMember` | boolean | Whether the user is a member |
+|   ↳ `hasAccess` | boolean | Whether the user has access |
+|   ↳ `features` | array | Enabled features |
+|   ↳ `firstEvent` | string | First event timestamp |
+|   ↳ `organization` | object | Organization information |
+|     ↳ `id` | string | Organization ID |
+|     ↳ `slug` | string | Organization slug |
+|     ↳ `name` | string | Organization name |
+|   ↳ `team` | object | Primary team for the project |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
+|     ↳ `slug` | string | Team slug |
+|   ↳ `teams` | array | Teams associated with the project |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
+|     ↳ `slug` | string | Team slug |
+|   ↳ `status` | string | Project status |
+|   ↳ `color` | string | Project color code |
+|   ↳ `isPublic` | boolean | Whether the project is public |
+
+### `sentry_projects_update`
+
+Update a Sentry project by changing its name, slug, platform, or other settings. Returns the updated project details.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sentry API authentication token |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `projectSlug` | string | Yes | The slug of the project to update \(e.g., "my-project"\) |
+| `name` | string | No | New name for the project |
+| `slug` | string | No | New URL-friendly project identifier |
+| `platform` | string | No | New platform/language for the project \(e.g., javascript, python, node\) |
+| `isBookmarked` | boolean | No | Whether to bookmark the project |
+| `digestsMinDelay` | number | No | Minimum delay \(in seconds\) for digest notifications |
+| `digestsMaxDelay` | number | No | Maximum delay \(in seconds\) for digest notifications |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | object | The updated Sentry project |
+|   ↳ `id` | string | Unique project ID |
+|   ↳ `slug` | string | URL-friendly project identifier |
+|   ↳ `name` | string | Project name |
+|   ↳ `platform` | string | Platform/language |
+|   ↳ `isBookmarked` | boolean | Whether the project is bookmarked |
+|   ↳ `organization` | object | Organization information |
+|     ↳ `id` | string | Organization ID |
+|     ↳ `slug` | string | Organization slug |
+|     ↳ `name` | string | Organization name |
+|   ↳ `teams` | array | Teams associated with the project |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
+|     ↳ `slug` | string | Team slug |
+
+### `sentry_events_list`
+
+List events from a Sentry project. Can be filtered by issue ID, query, or time period. Returns event details including context, tags, and user information.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sentry API authentication token |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `projectSlug` | string | Yes | The slug of the project to list events from \(e.g., "my-project"\) |
+| `issueId` | string | No | Filter events by a specific issue ID \(e.g., "12345"\) |
+| `query` | string | No | Search query to filter events. Supports Sentry search syntax \(e.g., "user.email:*@example.com"\) |
+| `cursor` | string | No | Pagination cursor for retrieving next page of results |
+| `limit` | number | No | Number of events to return per page \(default: 50, max: 100\) |
+| `statsPeriod` | string | No | Time period to query \(e.g., "24h", "7d", "30d"\). Defaults to 90d if not specified. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | List of Sentry events |
+|   ↳ `id` | string | Unique event ID |
+|   ↳ `eventID` | string | Event identifier |
+|   ↳ `projectID` | string | Project ID |
+|   ↳ `groupID` | string | Issue group ID |
+|   ↳ `message` | string | Event message |
+|   ↳ `title` | string | Event title |
+|   ↳ `location` | string | Location information |
+|   ↳ `culprit` | string | Function or location that caused the event |
+|   ↳ `dateCreated` | string | When the event was created \(ISO timestamp\) |
+|   ↳ `dateReceived` | string | When Sentry received the event \(ISO timestamp\) |
+|   ↳ `user` | object | User information associated with the event |
+|     ↳ `id` | string | User ID |
+|     ↳ `email` | string | User email |
+|     ↳ `username` | string | Username |
+|     ↳ `ipAddress` | string | IP address |
+|     ↳ `name` | string | User display name |
+|   ↳ `tags` | array | Tags associated with the event |
+|     ↳ `key` | string | Tag key |
+|     ↳ `value` | string | Tag value |
+|   ↳ `contexts` | object | Additional context data \(device, OS, etc.\) |
+|   ↳ `platform` | string | Platform where the event occurred |
+|   ↳ `type` | string | Event type |
+|   ↳ `metadata` | object | Error metadata |
+|     ↳ `type` | string | Type of error \(e.g., TypeError\) |
+|     ↳ `value` | string | Error message or value |
+|     ↳ `function` | string | Function where the error occurred |
+|   ↳ `entries` | array | Event entries \(exception, breadcrumbs, etc.\) |
+|   ↳ `errors` | array | Processing errors |
+|   ↳ `dist` | string | Distribution identifier |
+|   ↳ `fingerprints` | array | Fingerprints for grouping |
+|   ↳ `sdk` | object | SDK information |
+|     ↳ `name` | string | SDK name |
+|     ↳ `version` | string | SDK version |
+| `metadata` | object | Pagination metadata |
+|   ↳ `nextCursor` | string | Cursor for the next page of results \(if available\) |
+|   ↳ `hasMore` | boolean | Whether there are more results available |
+
+### `sentry_events_get`
+
+Retrieve detailed information about a specific Sentry event by its ID. Returns complete event details including stack traces, breadcrumbs, context, and user information.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sentry API authentication token |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `projectSlug` | string | Yes | The slug of the project \(e.g., "my-project"\) |
+| `eventId` | string | Yes | The unique ID of the event to retrieve \(e.g., "abc123def456"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | object | Detailed information about the Sentry event |
+|   ↳ `id` | string | Unique event ID |
+|   ↳ `eventID` | string | Event identifier |
+|   ↳ `projectID` | string | Project ID |
+|   ↳ `groupID` | string | Issue group ID this event belongs to |
+|   ↳ `message` | string | Event message |
+|   ↳ `title` | string | Event title |
+|   ↳ `location` | string | Location information |
+|   ↳ `culprit` | string | Function or location that caused the event |
+|   ↳ `dateCreated` | string | When the event was created \(ISO timestamp\) |
+|   ↳ `dateReceived` | string | When Sentry received the event \(ISO timestamp\) |
+|   ↳ `user` | object | User information associated with the event |
+|     ↳ `id` | string | User ID |
+|     ↳ `email` | string | User email |
+|     ↳ `username` | string | Username |
+|     ↳ `ipAddress` | string | IP address |
+|     ↳ `name` | string | User display name |
+|   ↳ `tags` | array | Tags associated with the event |
+|     ↳ `key` | string | Tag key |
+|     ↳ `value` | string | Tag value |
+|   ↳ `contexts` | object | Additional context data \(device, OS, browser, etc.\) |
+|   ↳ `platform` | string | Platform where the event occurred |
+|   ↳ `type` | string | Event type \(error, transaction, etc.\) |
+|   ↳ `metadata` | object | Error metadata |
+|     ↳ `type` | string | Type of error \(e.g., TypeError, ValueError\) |
+|     ↳ `value` | string | Error message or value |
+|     ↳ `function` | string | Function where the error occurred |
+|   ↳ `entries` | array | Event entries including exception, breadcrumbs, and request data |
+|   ↳ `errors` | array | Processing errors that occurred |
+|   ↳ `dist` | string | Distribution identifier |
+|   ↳ `fingerprints` | array | Fingerprints used for grouping events |
+|   ↳ `sdk` | object | SDK information |
+|     ↳ `name` | string | SDK name |
+|     ↳ `version` | string | SDK version |
+
+### `sentry_releases_list`
+
+List releases for a Sentry organization or project. Returns release details including version, commits, deploy information, and associated projects.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sentry API authentication token |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `projectSlug` | string | No | Filter releases by specific project slug \(e.g., "my-project"\) |
+| `query` | string | No | Search query to filter releases \(e.g., "1.0" to match version patterns\) |
+| `cursor` | string | No | Pagination cursor for retrieving next page of results |
+| `limit` | number | No | Number of releases to return per page \(default: 25, max: 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `releases` | array | List of Sentry releases |
+|   ↳ `id` | string | Unique release ID |
+|   ↳ `version` | string | Release version identifier |
+|   ↳ `shortVersion` | string | Shortened version identifier |
+|   ↳ `ref` | string | Git reference \(commit SHA, tag, or branch\) |
+|   ↳ `url` | string | URL to the release \(e.g., GitHub release page\) |
+|   ↳ `dateReleased` | string | When the release was deployed \(ISO timestamp\) |
+|   ↳ `dateCreated` | string | When the release was created \(ISO timestamp\) |
+|   ↳ `dateStarted` | string | When the release started \(ISO timestamp\) |
+|   ↳ `newGroups` | number | Number of new issues introduced in this release |
+|   ↳ `owner` | object | Owner of the release |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
+|   ↳ `commitCount` | number | Number of commits in this release |
+|   ↳ `deployCount` | number | Number of deploys for this release |
+|   ↳ `lastCommit` | object | Last commit in the release |
+|     ↳ `id` | string | Commit SHA |
+|     ↳ `message` | string | Commit message |
+|     ↳ `dateCreated` | string | Commit timestamp |
+|   ↳ `lastDeploy` | object | Last deploy of the release |
+|     ↳ `id` | string | Deploy ID |
+|     ↳ `environment` | string | Deploy environment |
+|     ↳ `dateStarted` | string | Deploy start timestamp |
+|     ↳ `dateFinished` | string | Deploy finish timestamp |
+|   ↳ `authors` | array | Authors of commits in the release |
+|     ↳ `id` | string | Author ID |
+|     ↳ `name` | string | Author name |
+|     ↳ `email` | string | Author email |
+|   ↳ `projects` | array | Projects associated with this release |
+|     ↳ `id` | string | Project ID |
+|     ↳ `name` | string | Project name |
+|     ↳ `slug` | string | Project slug |
+|     ↳ `platform` | string | Project platform |
+|   ↳ `firstEvent` | string | First event timestamp |
+|   ↳ `lastEvent` | string | Last event timestamp |
+|   ↳ `versionInfo` | object | Version metadata |
+|     ↳ `buildHash` | string | Build hash |
+|     ↳ `version` | object | Version details |
+|       ↳ `raw` | string | Raw version string |
+|     ↳ `package` | string | Package name |
+| `metadata` | object | Pagination metadata |
+|   ↳ `nextCursor` | string | Cursor for the next page of results \(if available\) |
+|   ↳ `hasMore` | boolean | Whether there are more results available |
+
+### `sentry_releases_create`
+
+Create a new release in Sentry. A release is a version of your code deployed to an environment. Can include commit information and associated projects. Returns the created release details.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sentry API authentication token |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `version` | string | Yes | Version identifier for the release \(e.g., "2.0.0", "my-app@1.0.0", or a git commit SHA\) |
+| `projects` | string | Yes | Comma-separated list of project slugs to associate with this release |
+| `ref` | string | No | Git reference \(commit SHA, tag, or branch\) for this release |
+| `url` | string | No | URL pointing to the release \(e.g., GitHub release page\) |
+| `dateReleased` | string | No | ISO 8601 timestamp for when the release was deployed \(defaults to current time\) |
+| `commits` | string | No | JSON array of commit objects with id, repository \(optional\), and message \(optional\). Example: \[\{"id":"abc123","message":"Fix bug"\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `release` | object | The newly created Sentry release |
+|   ↳ `id` | string | Unique release ID |
+|   ↳ `version` | string | Release version identifier |
+|   ↳ `shortVersion` | string | Shortened version identifier |
+|   ↳ `ref` | string | Git reference \(commit SHA, tag, or branch\) |
+|   ↳ `url` | string | URL to the release |
+|   ↳ `dateReleased` | string | When the release was deployed \(ISO timestamp\) |
+|   ↳ `dateCreated` | string | When the release was created \(ISO timestamp\) |
+|   ↳ `dateStarted` | string | When the release started \(ISO timestamp\) |
+|   ↳ `newGroups` | number | Number of new issues introduced |
+|   ↳ `commitCount` | number | Number of commits in this release |
+|   ↳ `deployCount` | number | Number of deploys for this release |
+|   ↳ `owner` | object | Release owner |
+|     ↳ `id` | string | Owner ID |
+|     ↳ `name` | string | Owner name |
+|     ↳ `email` | string | Owner email |
+|   ↳ `lastCommit` | object | Last commit in the release |
+|     ↳ `id` | string | Commit SHA |
+|     ↳ `message` | string | Commit message |
+|     ↳ `dateCreated` | string | Commit timestamp |
+|   ↳ `lastDeploy` | object | Last deploy of the release |
+|     ↳ `id` | string | Deploy ID |
+|     ↳ `environment` | string | Deploy environment |
+|     ↳ `dateStarted` | string | Deploy start timestamp |
+|     ↳ `dateFinished` | string | Deploy finish timestamp |
+|   ↳ `authors` | array | Authors of commits in the release |
+|     ↳ `id` | string | Author ID |
+|     ↳ `name` | string | Author name |
+|     ↳ `email` | string | Author email |
+|   ↳ `projects` | array | Projects associated with this release |
+|     ↳ `id` | string | Project ID |
+|     ↳ `name` | string | Project name |
+|     ↳ `slug` | string | Project slug |
+|     ↳ `platform` | string | Project platform |
+|   ↳ `firstEvent` | string | First event timestamp |
+|   ↳ `lastEvent` | string | Last event timestamp |
+|   ↳ `versionInfo` | object | Version metadata |
+|     ↳ `buildHash` | string | Build hash |
+|     ↳ `version` | object | Version details |
+|       ↳ `raw` | string | Raw version string |
+|     ↳ `package` | string | Package name |
+
+### `sentry_releases_deploy`
+
+Create a deploy record for a Sentry release in a specific environment. Deploys track when and where releases are deployed. Returns the created deploy details.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sentry API authentication token |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `version` | string | Yes | Version identifier of the release being deployed \(e.g., "1.0.0" or "abc123"\) |
+| `environment` | string | Yes | Environment name where the release is being deployed \(e.g., "production", "staging"\) |
+| `name` | string | No | Optional name for this deploy \(e.g., "Deploy v2.0 to Production"\) |
+| `url` | string | No | URL pointing to the deploy \(e.g., CI/CD pipeline URL\) |
+| `dateStarted` | string | No | ISO 8601 timestamp for when the deploy started \(defaults to current time\) |
+| `dateFinished` | string | No | ISO 8601 timestamp for when the deploy finished |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deploy` | object | The newly created deploy record |
+|   ↳ `id` | string | Unique deploy ID |
+|   ↳ `environment` | string | Environment name where the release was deployed |
+|   ↳ `name` | string | Name of the deploy |
+|   ↳ `url` | string | URL pointing to the deploy |
+|   ↳ `dateStarted` | string | When the deploy started \(ISO timestamp\) |
+|   ↳ `dateFinished` | string | When the deploy finished \(ISO timestamp\) |
+
+

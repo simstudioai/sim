@@ -1,0 +1,46 @@
+---
+title: 基础
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Video } from '@/components/ui/video'
+
+## 连接如何工作
+
+连接是允许数据在工作流中的模块之间流动的路径。在 Sim 中，连接定义了信息如何从一个模块传递到另一个模块，从而实现整个工作流中的数据流动。
+
+<Callout type="info">
+  每个连接表示一个定向关系，其中数据从源模块的输出流向目标模块的输入。
+</Callout>
+
+### 创建连接
+
+<Steps>
+  <Step>
+    <strong>选择源模块</strong>：点击您想要连接的模块的输出端口
+  </Step>
+  <Step>
+    <strong>绘制连接</strong>：拖动到目标模块的输入端口
+  </Step>
+  <Step>
+    <strong>确认连接</strong>：释放以创建连接
+  </Step>
+</Steps>
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="connections-build.mp4" width={700} height={450} />
+</div>
+
+### 连接流程
+
+通过连接的数据流遵循以下原则：
+
+1. **方向性流动**：数据始终从输出流向输入
+2. **执行顺序**：块根据其连接的顺序执行
+3. **数据转换**：数据在块之间传递时可能会被转换
+4. **条件路径**：某些块（如路由器和条件块）可以将流引导到不同的路径
+
+<Callout type="warning">
+  删除连接将立即停止块之间的数据流。在删除连接之前，请确保这是您想要的操作。
+</Callout>

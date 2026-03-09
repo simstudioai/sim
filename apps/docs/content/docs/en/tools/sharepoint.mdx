@@ -1,0 +1,268 @@
+---
+title: Sharepoint
+description: Work with pages and lists
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sharepoint"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SharePoint](https://www.microsoft.com/en-us/microsoft-365/sharepoint/collaboration) is a collaborative platform from Microsoft that enables users to build and manage internal websites, share documents, and organize team resources. It provides a powerful, flexible solution for creating digital workspaces and streamlining content management across organizations.
+
+With SharePoint, you can:
+
+- **Create team and communication sites**: Set up pages and portals to support collaboration, announcements, and content distribution
+- **Organize and share content**: Store documents, manage files, and enable version control with secure sharing capabilities
+- **Customize pages**: Add text parts to tailor each site to your team's needs
+- **Improve discoverability**: Use metadata, search, and navigation tools to help users quickly find what they need
+- **Collaborate securely**: Control access with robust permission settings and Microsoft 365 integration
+
+In Sim, the SharePoint integration empowers your agents to create and access SharePoint sites and pages as part of their workflows. This enables automated document management, knowledge sharing, and workspace creation without manual effort. Agents can generate new project pages, upload or retrieve files, and organize resources dynamically, based on workflow inputs. By connecting Sim with SharePoint, you bring structured collaboration and content management into your automation flows — giving your agents the ability to coordinate team activities, surface key information, and maintain a single source of truth across your organization.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate SharePoint into the workflow. Read/create pages, list sites, and work with lists (read, create, update items). Requires OAuth.
+
+
+
+## Tools
+
+### `sharepoint_create_page`
+
+Create a new page in a SharePoint site
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
+| `siteSelector` | string | No | Select the SharePoint site |
+| `pageName` | string | Yes | The name of the page to create. Example: My-New-Page.aspx or Report-2024.aspx |
+| `pageTitle` | string | No | The title of the page \(defaults to page name if not provided\) |
+| `pageContent` | string | No | The content of the page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `page` | object | Created SharePoint page information |
+|   ↳ `id` | string | The unique ID of the created page |
+|   ↳ `name` | string | The name of the created page |
+|   ↳ `title` | string | The title of the created page |
+|   ↳ `webUrl` | string | The URL to access the page |
+|   ↳ `pageLayout` | string | The layout type of the page |
+|   ↳ `createdDateTime` | string | When the page was created |
+|   ↳ `lastModifiedDateTime` | string | When the page was last modified |
+
+### `sharepoint_read_page`
+
+Read a specific page from a SharePoint site
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
+| `pageId` | string | No | The ID of the page to read. Example: a GUID like 12345678-1234-1234-1234-123456789012 |
+| `pageName` | string | No | The name of the page to read \(alternative to pageId\). Example: Home.aspx or About-Us.aspx |
+| `maxPages` | number | No | Maximum number of pages to return when listing all pages \(default: 10, max: 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `page` | object | Information about the SharePoint page |
+|   ↳ `id` | string | The unique ID of the page |
+|   ↳ `name` | string | The name of the page |
+|   ↳ `title` | string | The title of the page |
+|   ↳ `webUrl` | string | The URL to access the page |
+|   ↳ `pageLayout` | string | The layout type of the page |
+|   ↳ `createdDateTime` | string | When the page was created |
+|   ↳ `lastModifiedDateTime` | string | When the page was last modified |
+| `pages` | array | List of SharePoint pages |
+|   ↳ `page` | object | The unique ID of the page |
+|     ↳ `id` | string | The unique ID of the page |
+|     ↳ `name` | string | The name of the page |
+|     ↳ `title` | string | The title of the page |
+|     ↳ `webUrl` | string | The URL to access the page |
+|     ↳ `pageLayout` | string | The layout type of the page |
+|     ↳ `createdDateTime` | string | When the page was created |
+|     ↳ `lastModifiedDateTime` | string | When the page was last modified |
+|   ↳ `content` | object | Extracted text content from the page |
+|     ↳ `content` | string | Extracted text content from the page |
+|     ↳ `canvasLayout` | object | Raw SharePoint canvas layout structure |
+| `content` | object | Content of the SharePoint page |
+|   ↳ `content` | string | Extracted text content from the page |
+|   ↳ `canvasLayout` | object | Raw SharePoint canvas layout structure |
+| `totalPages` | number | Total number of pages found |
+
+### `sharepoint_list_sites`
+
+List details of all SharePoint sites
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | No | Select the SharePoint site |
+| `groupId` | string | No | The group ID for accessing a group team site. Example: a GUID like 12345678-1234-1234-1234-123456789012 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `site` | object | Information about the current SharePoint site |
+|   ↳ `id` | string | The unique ID of the site |
+|   ↳ `name` | string | The name of the site |
+|   ↳ `displayName` | string | The display name of the site |
+|   ↳ `webUrl` | string | The URL to access the site |
+|   ↳ `description` | string | The description of the site |
+|   ↳ `createdDateTime` | string | When the site was created |
+|   ↳ `lastModifiedDateTime` | string | When the site was last modified |
+|   ↳ `isPersonalSite` | boolean | Whether this is a personal site |
+|   ↳ `root` | object | Server relative URL |
+|     ↳ `serverRelativeUrl` | string | Server relative URL |
+|   ↳ `siteCollection` | object | Site collection hostname |
+|     ↳ `hostname` | string | Site collection hostname |
+| `sites` | array | List of all accessible SharePoint sites |
+|   ↳ `id` | string | The unique ID of the site |
+|   ↳ `name` | string | The name of the site |
+|   ↳ `displayName` | string | The display name of the site |
+|   ↳ `webUrl` | string | The URL to access the site |
+|   ↳ `description` | string | The description of the site |
+|   ↳ `createdDateTime` | string | When the site was created |
+|   ↳ `lastModifiedDateTime` | string | When the site was last modified |
+
+### `sharepoint_create_list`
+
+Create a new list in a SharePoint site
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
+| `siteSelector` | string | No | Select the SharePoint site |
+| `listDisplayName` | string | Yes | Display name of the list to create. Example: Project Tasks or Customer Contacts |
+| `listDescription` | string | No | Description of the list |
+| `listTemplate` | string | No | List template name \(e.g., 'genericList'\) |
+| `pageContent` | string | No | Optional JSON of columns. Either a top-level array of column definitions or an object with \{ columns: \[...\] \}. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `list` | object | Created SharePoint list information |
+|   ↳ `id` | string | The unique ID of the list |
+|   ↳ `displayName` | string | The display name of the list |
+|   ↳ `name` | string | The internal name of the list |
+|   ↳ `webUrl` | string | The web URL of the list |
+|   ↳ `createdDateTime` | string | When the list was created |
+|   ↳ `lastModifiedDateTime` | string | When the list was last modified |
+|   ↳ `list` | object | List properties \(e.g., template\) |
+
+### `sharepoint_get_list`
+
+Get metadata (and optionally columns/items) for a SharePoint list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
+| `listId` | string | No | The ID of the list to retrieve. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `list` | object | Information about the SharePoint list |
+|   ↳ `id` | string | The unique ID of the list |
+|   ↳ `displayName` | string | The display name of the list |
+|   ↳ `name` | string | The internal name of the list |
+|   ↳ `webUrl` | string | The web URL of the list |
+|   ↳ `createdDateTime` | string | When the list was created |
+|   ↳ `lastModifiedDateTime` | string | When the list was last modified |
+|   ↳ `list` | object | List properties \(e.g., template\) |
+|   ↳ `columns` | array | List column definitions |
+| `lists` | array | All lists in the site when no listId/title provided |
+
+### `sharepoint_update_list`
+
+Update the properties (fields) on a SharePoint list item
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
+| `listId` | string | No | The ID of the list containing the item. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012 |
+| `itemId` | string | Yes | The ID of the list item to update. Example: 1, 42, or 123 |
+| `listItemFields` | object | Yes | Field values to update on the list item |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Updated SharePoint list item |
+|   ↳ `id` | string | Item ID |
+|   ↳ `fields` | object | Updated field values |
+
+### `sharepoint_add_list_items`
+
+Add a new item to a SharePoint list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
+| `listId` | string | Yes | The ID of the list to add the item to. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012 |
+| `listItemFields` | object | Yes | Field values for the new list item |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Created SharePoint list item |
+|   ↳ `id` | string | Item ID |
+|   ↳ `fields` | object | Field values for the new item |
+
+### `sharepoint_upload_file`
+
+Upload files to a SharePoint document library
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | No | The ID of the SharePoint site |
+| `driveId` | string | No | The ID of the document library \(drive\). If not provided, uses default drive. Example: b!abc123def456 |
+| `folderPath` | string | No | Optional folder path within the document library. Example: /Documents/Subfolder or /Shared Documents/Reports |
+| `fileName` | string | No | Optional: override the uploaded file name. Example: report-2024.pdf |
+| `files` | file[] | No | Files to upload to SharePoint |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `uploadedFiles` | array | Array of uploaded file objects |
+|   ↳ `id` | string | The unique ID of the uploaded file |
+|   ↳ `name` | string | The name of the uploaded file |
+|   ↳ `webUrl` | string | The URL to access the file |
+|   ↳ `size` | number | The size of the file in bytes |
+|   ↳ `createdDateTime` | string | When the file was created |
+|   ↳ `lastModifiedDateTime` | string | When the file was last modified |
+| `fileCount` | number | Number of files uploaded |
+
+

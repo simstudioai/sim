@@ -1,0 +1,41 @@
+{
+  "extends": "@sim/tsconfig/nextjs.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"],
+      "@/components/*": ["components/*"],
+      "@/lib/*": ["./lib/*"],
+      "@/stores": ["./stores"],
+      "@/stores/*": ["./stores/*"],
+      "@/hooks/*": ["./hooks/*"],
+      "@/blocks": ["./blocks"],
+      "@/blocks/*": ["./blocks/*"],
+      "@/providers/*": ["./providers/*"],
+      "@/providers": ["./providers"],
+      "@/tools": ["./tools"],
+      "@/tools/*": ["./tools/*"],
+      "@/serializer": ["./serializer"],
+      "@/serializer/*": ["./serializer/*"],
+      "@sim/db": ["../../packages/db"],
+      "@sim/db/*": ["../../packages/db/*"],
+      "@/executor": ["./executor"],
+      "@/executor/*": ["./executor/*"]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "../next-env.d.ts",
+    "telemetry.config.js",
+    "trigger.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "vitest.config.ts",
+    "vitest.setup.ts"
+  ]
+}

@@ -1,0 +1,125 @@
+---
+title: Airtable
+description: Lire, créer et mettre à jour Airtable
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="airtable"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Airtable](https://airtable.com/) est une plateforme puissante basée sur le cloud qui combine les fonctionnalités d'une base de données avec la simplicité d'un tableur. Elle permet aux utilisateurs de créer des bases de données flexibles pour organiser, stocker et collaborer sur des informations.
+
+Avec Airtable, vous pouvez :
+
+- **Créer des bases de données personnalisées** : élaborer des solutions sur mesure pour la gestion de projets, les calendriers de contenu, le suivi des stocks, et plus encore
+- **Visualiser les données** : afficher vos informations sous forme de grille, de tableau kanban, de calendrier ou de galerie
+- **Automatiser les flux de travail** : configurer des déclencheurs et des actions pour automatiser les tâches répétitives
+- **Intégrer d'autres outils** : se connecter à des centaines d'autres applications grâce aux intégrations natives et aux API
+
+Dans Sim, l'intégration Airtable permet à vos agents d'interagir avec vos bases Airtable de manière programmatique. Cela permet des opérations de données fluides comme la récupération d'informations, la création de nouveaux enregistrements et la mise à jour de données existantes - le tout au sein de vos flux de travail d'agents. Utilisez Airtable comme source ou destination dynamique de données pour vos agents, leur permettant d'accéder et de manipuler des informations structurées dans le cadre de leurs processus de prise de décision et d'exécution de tâches.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intègre Airtable dans le flux de travail. Peut créer, obtenir, lister ou mettre à jour des enregistrements Airtable. Nécessite OAuth. Peut être utilisé en mode déclencheur pour lancer un flux de travail lorsqu'une mise à jour est effectuée dans une table Airtable.
+
+## Outils
+
+### `airtable_list_records`
+
+Lire les enregistrements d'une table Airtable
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `baseId` | chaîne | Oui | ID de la base Airtable |
+| `tableId` | chaîne | Oui | ID de la table |
+| `maxRecords` | nombre | Non | Nombre maximum d'enregistrements à retourner |
+| `filterFormula` | chaîne | Non | Formule pour filtrer les enregistrements \(ex. : "\(\{Nom du champ\} = \'Valeur\'\)"\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | json | Tableau des enregistrements Airtable récupérés |
+
+### `airtable_get_record`
+
+Récupérer un seul enregistrement d'une table Airtable par son ID
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `baseId` | chaîne | Oui | ID de la base Airtable |
+| `tableId` | chaîne | Oui | ID ou nom de la table |
+| `recordId` | chaîne | Oui | ID de l'enregistrement à récupérer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Enregistrement Airtable récupéré avec id, createdTime et fields |
+| `metadata` | json | Métadonnées de l'opération incluant le nombre d'enregistrements |
+
+### `airtable_create_records`
+
+Écrire de nouveaux enregistrements dans une table Airtable
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `baseId` | string | Oui | ID de la base Airtable |
+| `tableId` | string | Oui | ID ou nom de la table |
+| `records` | json | Oui | Tableau d'enregistrements à créer, chacun avec un objet `fields` |
+| `fields` | string | Non | Pas de description |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | json | Tableau des enregistrements Airtable créés |
+
+### `airtable_update_record`
+
+Mettre à jour un enregistrement existant dans une table Airtable par ID
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `baseId` | string | Oui | ID de la base Airtable |
+| `tableId` | string | Oui | ID ou nom de la table |
+| `recordId` | string | Oui | ID de l'enregistrement à mettre à jour |
+| `fields` | json | Oui | Un objet contenant les noms des champs et leurs nouvelles valeurs |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Enregistrement Airtable mis à jour avec id, createdTime et fields |
+| `metadata` | json | Métadonnées de l'opération incluant le nombre d'enregistrements et les noms des champs mis à jour |
+
+### `airtable_update_multiple_records`
+
+Mettre à jour plusieurs enregistrements existants dans une table Airtable
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `baseId` | string | Oui | ID de la base Airtable |
+| `tableId` | string | Oui | ID ou nom de la table |
+| `records` | json | Oui | Tableau d'enregistrements à mettre à jour, chacun avec un `id` et un objet `fields` |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | json | Tableau des enregistrements Airtable mis à jour |

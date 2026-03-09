@@ -1,0 +1,139 @@
+---
+title: Workflow-Variablen
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Video } from '@/components/ui/video'
+
+Variablen in Sim fungieren als globaler Speicher für Daten, auf die von jedem Block in Ihrem Workflow zugegriffen und die von jedem Block geändert werden können, sodass Sie Daten über Ihren Workflow hinweg mit globalen Variablen speichern und teilen können. Sie bieten eine leistungsstarke Möglichkeit, Informationen zwischen verschiedenen Teilen Ihres Workflows auszutauschen, den Status beizubehalten und dynamischere Anwendungen zu erstellen.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="variables.mp4" />
+</div>
+
+<Callout type="info">
+  Variablen ermöglichen es Ihnen, Daten über Ihren gesamten Workflow hinweg zu speichern und zu teilen, was es einfach macht,
+  den Status beizubehalten und komplexe, miteinander verbundene Systeme zu erstellen.
+</Callout>
+
+## Überblick
+
+Die Variablen-Funktion dient als zentraler Datenspeicher für Ihren Workflow und ermöglicht Ihnen:
+
+<Steps>
+  <Step>
+    <strong>Globale Daten speichern</strong>: Erstellen Sie Variablen, die während der gesamten Workflow-Ausführung bestehen bleiben
+  </Step>
+  <Step>
+    <strong>Informationen zwischen Blöcken teilen</strong>: Greifen Sie von jedem Block in Ihrem Workflow auf dieselben Daten zu
+  </Step>
+  <Step>
+    <strong>Workflow-Status beibehalten</strong>: Behalten Sie wichtige Werte im Auge, während Ihr Workflow läuft
+  </Step>
+  <Step>
+    <strong>Dynamische Workflows erstellen</strong>: Bauen Sie flexiblere Systeme, die sich basierend auf gespeicherten Werten anpassen können
+  </Step>
+</Steps>
+
+## Variablen erstellen
+
+Sie können Variablen über das Variablen-Panel in der Seitenleiste erstellen und verwalten. Jede Variable hat:
+
+- **Name**: Eine eindeutige Kennung, die zum Referenzieren der Variable verwendet wird
+- **Wert**: Die in der Variable gespeicherten Daten (unterstützt verschiedene Datentypen)
+- **Beschreibung** (optional): Eine Notiz, die den Zweck der Variable erklärt
+
+## Auf Variablen zugreifen
+
+Auf Variablen kann von jedem Block in Ihrem Workflow über das Variablen-Dropdown zugegriffen werden. Einfach:
+
+1. Gib `<` in ein beliebiges Textfeld innerhalb eines Blocks ein
+2. Durchsuche das Dropdown-Menü, um aus verfügbaren Variablen auszuwählen
+3. Wähle die Variable aus, die du verwenden möchtest
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="variables-dropdown.mp4" />
+</div>
+
+<Callout>
+  Du kannst auch das Verbindungs-Tag in ein Feld ziehen, um das Variablen-Dropdown zu öffnen und auf
+  verfügbare Variablen zuzugreifen.
+</Callout>
+
+## Variablentypen
+
+Variablen in Sim können verschiedene Arten von Daten speichern:
+
+<Tabs items={['Text', 'Numbers', 'Boolean', 'Objects', 'Arrays']}>
+  <Tab>
+
+    ```
+    "Hello, World!"
+    ```
+
+    <p className="mt-2">Textvariablen speichern Zeichenketten. Sie sind nützlich für die Speicherung von Nachrichten, Namen und anderen Textdaten.</p>
+  </Tab>
+  <Tab>
+
+    ```
+    42
+    ```
+
+    <p className="mt-2">Zahlenvariablen speichern numerische Werte, die in Berechnungen oder Vergleichen verwendet werden können.</p>
+  </Tab>
+  <Tab>
+
+    ```
+    true
+    ```
+
+    <p className="mt-2">Boolesche Variablen speichern Wahr/Falsch-Werte, perfekt für Flags und Bedingungsprüfungen.</p>
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "name": "John",
+      "age": 30,
+      "city": "New York"
+    }
+    ```
+
+    <p className="mt-2">Objektvariablen speichern strukturierte Daten mit Eigenschaften und Werten.</p>
+  </Tab>
+  <Tab>
+
+    ```json
+    [1, 2, 3, "four", "five"]
+    ```
+
+    <p className="mt-2">Array-Variablen speichern geordnete Sammlungen von Elementen.</p>
+  </Tab>
+</Tabs>
+
+## Verwendung von Variablen in Blöcken
+
+Wenn du auf eine Variable aus einem Block zugreifst, kannst du:
+
+- **Ihren Wert lesen**: Verwende den aktuellen Wert der Variable in der Logik deines Blocks
+- **Sie modifizieren**: Aktualisiere den Wert der Variable basierend auf der Verarbeitung deines Blocks
+- **Sie in Ausdrücken verwenden**: Füge Variablen in Ausdrücke und Berechnungen ein
+
+## Variablenbereich
+
+Variablen in Sim haben einen globalen Geltungsbereich, das bedeutet:
+
+- Sie sind von jedem Block in deinem Workflow aus zugänglich
+- Änderungen an Variablen bleiben während der gesamten Workflow-Ausführung bestehen
+- Variablen behalten ihre Werte zwischen den Durchläufen bei, sofern sie nicht explizit zurückgesetzt werden
+
+## Best Practices
+
+- **Verwende beschreibende Namen**: Wähle Variablennamen, die klar angeben, was die Variable darstellt. Verwende zum Beispiel `userPreferences` anstatt `up`.
+- **Dokumentiere deine Variablen**: Füge deinen Variablen Beschreibungen hinzu, um anderen Teammitgliedern zu helfen, ihren Zweck und ihre Verwendung zu verstehen.
+- **Berücksichtige den Variablenbereich**: Denke daran, dass Variablen global sind und von jedem Block modifiziert werden können. Gestalte deinen Workflow mit diesem Gedanken, um unerwartetes Verhalten zu vermeiden.
+- **Initialisiere Variablen frühzeitig**: Richte deine Variablen am Anfang deines Workflows ein und initialisiere sie, um sicherzustellen, dass sie bei Bedarf verfügbar sind.
+- **Behandle fehlende Variablen**: Berücksichtige immer den Fall, dass eine Variable möglicherweise noch nicht existiert oder einen unerwarteten Wert haben könnte. Füge in deinen Blöcken eine entsprechende Validierung hinzu.
+- **Begrenze die Anzahl der Variablen**: Halte die Anzahl der Variablen überschaubar. Zu viele Variablen können deinen Workflow schwer verständlich und wartbar machen.

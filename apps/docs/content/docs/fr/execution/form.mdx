@@ -1,0 +1,142 @@
+---
+title: Déploiement de formulaire
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+Déployez votre workflow sous forme de formulaire intégrable que les utilisateurs peuvent remplir sur votre site web ou partager via un lien. Les soumissions de formulaire déclenchent votre workflow avec le type de déclencheur `form`.
+
+## Vue d'ensemble
+
+Le déploiement de formulaire transforme le format d'entrée de votre workflow en un formulaire responsive qui peut être :
+- Partagé via un lien direct (par exemple, `https://sim.ai/form/my-survey`)
+- Intégré dans n'importe quel site web à l'aide d'une iframe
+
+Lorsqu'un utilisateur soumet le formulaire, cela déclenche votre workflow avec les données du formulaire.
+
+<Callout type="info">
+Les formulaires dérivent leurs champs du format d'entrée du bloc de démarrage de votre workflow. Chaque champ devient une entrée de formulaire avec le type approprié.
+</Callout>
+
+## Créer un formulaire
+
+1. Ouvrez votre workflow et cliquez sur **Déployer**
+2. Sélectionnez l'onglet **Formulaire**
+3. Configurez :
+   - **URL** : identifiant unique (par exemple, `contact-form` → `sim.ai/form/contact-form`)
+   - **Titre** : en-tête du formulaire
+   - **Description** : sous-titre optionnel
+   - **Champs du formulaire** : personnalisez les libellés et descriptions de chaque champ
+   - **Authentification** : publique, protégée par mot de passe ou liste blanche d'emails
+   - **Message de remerciement** : affiché après la soumission
+4. Cliquez sur **Lancer**
+
+## Correspondance des types de champs
+
+| Type de format d'entrée | Champ de formulaire |
+|------------------|------------|
+| `string` | Champ de texte |
+| `number` | Champ numérique |
+| `boolean` | Interrupteur |
+| `object` | Éditeur JSON |
+| `array` | Éditeur de tableau JSON |
+| `files` | Téléchargement de fichier |
+
+## Contrôle d'accès
+
+| Mode | Description |
+|------|-------------|
+| **Public** | Toute personne disposant du lien peut soumettre |
+| **Mot de passe** | Les utilisateurs doivent saisir un mot de passe |
+| **Liste blanche d'emails** | Seuls les emails/domaines spécifiés peuvent soumettre |
+
+Pour la liste blanche d'e-mails :
+- Exact : `user@example.com`
+- Domaine : `@example.com` (tous les e-mails du domaine)
+
+## Intégration
+
+### Lien direct
+
+```
+https://sim.ai/form/your-identifier
+```
+
+### Iframe
+
+```html
+<iframe
+  src="https://sim.ai/form/your-identifier"
+  width="100%"
+  height="600"
+  frameborder="0"
+  title="Form"
+></iframe>
+```
+
+## Soumission par API
+
+Soumettre des formulaires par programmation :
+
+<Tabs items={['cURL', 'TypeScript']}>
+  <Tab value="cURL">
+
+```bash
+curl -X POST https://sim.ai/api/form/your-identifier \
+  -H "Content-Type: application/json" \
+  -d '{
+    "formData": {
+      "name": "John Doe",
+      "email": "john@example.com"
+    }
+  }'
+```
+
+  </Tab>
+  <Tab value="TypeScript">
+
+```typescript
+const response = await fetch('https://sim.ai/api/form/your-identifier', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    formData: {
+      name: 'John Doe',
+      email: 'john@example.com'
+    }
+  })
+});
+
+const result = await response.json();
+// { success: true, data: { executionId: '...' } }
+```
+
+  </Tab>
+</Tabs>
+
+### Formulaires protégés
+
+Pour les formulaires protégés par mot de passe :
+
+```bash
+curl -X POST https://sim.ai/api/form/your-identifier \
+  -H "Content-Type: application/json" \
+  -d '{ "password": "secret", "formData": { "name": "John" } }'
+```
+
+Pour les formulaires protégés par e-mail :
+
+```bash
+curl -X POST https://sim.ai/api/form/your-identifier \
+  -H "Content-Type: application/json" \
+  -d '{ "email": "allowed@example.com", "formData": { "name": "John" } }'
+```
+
+## Dépannage
+
+**« Aucun champ de saisie configuré »** - Ajoutez des champs de format de saisie à votre bloc de démarrage.
+
+**Le formulaire ne se charge pas dans l'iframe** - Vérifiez que la CSP de votre site autorise les iframes provenant de `sim.ai`.
+
+**Échec des soumissions** - Vérifiez que l'identifiant est correct et que les champs obligatoires sont remplis.

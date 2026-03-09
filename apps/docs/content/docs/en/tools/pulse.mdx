@@ -1,0 +1,61 @@
+---
+title: Pulse
+description: Extract text from documents using Pulse OCR
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="pulse_v2"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+The [Pulse](https://www.runpulse.com) tool enables seamless extraction of text and structured content from a wide variety of documents—including PDFs, images, and Office files—using state-of-the-art OCR (Optical Character Recognition) powered by Pulse. Designed for automated agentic workflows, Pulse Parser makes it easy to unlock valuable information trapped in unstructured documents and integrate the extracted content directly into your workflow.
+
+With Pulse, you can:
+
+- **Extract text from documents**: Quickly convert scanned PDFs, images, and Office documents to usable text, markdown, or JSON.
+- **Process documents by URL or upload**: Simply provide a file URL or use upload to extract text from local documents or remote resources.
+- **Flexible output formats**: Choose between markdown, plain text, or JSON representations of the extracted content for downstream processing.
+- **Selective page processing**: Specify a range of pages to process, reducing processing time and cost when you only need part of a document.
+- **Figure and table extraction**: Optionally extract figures and tables, with automatic caption and description generation for populated context.
+- **Get processing insights**: Receive detailed metadata on each job, including file type, page count, processing time, and more.
+- **Integration-ready responses**: Incorporate extracted content into research, workflow automation, or data analysis pipelines.
+
+Ideal for automating tedious document review, enabling content summarization, research, and more, Pulse Parser brings real-world documents into the digital workflow era.
+
+If you need accurate, scalable, and developer-friendly document parsing capabilities—across formats, languages, and layouts—Pulse empowers your agents to read the world.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Pulse into the workflow. Extract text from PDF documents, images, and Office files via upload or file references.
+
+
+
+## Tools
+
+### `pulse_parser`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filePath` | string | No | URL to a document to be processed |
+| `file` | file | No | Document file to be processed |
+| `fileUpload` | object | No | File upload data from file-upload component |
+| `pages` | string | No | Page range to process \(1-indexed, e.g., "1-2,5"\) |
+| `extractFigure` | boolean | No | Enable figure extraction from the document |
+| `figureDescription` | boolean | No | Generate descriptions/captions for extracted figures |
+| `returnHtml` | boolean | No | Include HTML in the response |
+| `chunking` | string | No | Chunking strategies \(comma-separated: semantic, header, page, recursive\) |
+| `chunkSize` | number | No | Maximum characters per chunk when chunking is enabled |
+| `apiKey` | string | Yes | Pulse API key |
+
+#### Output
+
+This tool does not produce any outputs.
+
+

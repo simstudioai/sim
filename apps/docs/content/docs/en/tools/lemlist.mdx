@@ -1,0 +1,120 @@
+---
+title: Lemlist
+description: Manage outreach activities, leads, and send emails via Lemlist
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="lemlist"
+  color="#316BFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Supercharge your sales outreach and engagement with [Lemlist](https://lemlist.com) – the personalized outreach automation platform trusted by thousands of sales teams. With Lemlist, you can automate multi-channel campaigns, nurture leads, and boost reply rates, all while keeping your communication highly personalized and authentic.
+
+With the Lemlist integration, you can:
+
+- **Automate outreach sequences:** Launch personalized email, LinkedIn, and calling campaigns at scale, tailored to each recipient.
+- **Track campaign activity:** Instantly monitor opens, clicks, replies, bounces, and every lead interaction for granular campaign insights.
+- **Centralize engagement data:** Fetch real-time activity and replies for each campaign or lead, and sync it directly into your workflow automation.
+- **Get lead details automatically:** Retrieve enriched lead information by email or ID to keep your CRM and processes up to date without manual data entry.
+- **Send targeted emails from your inbox:** Trigger bespoke emails to leads directly from the workflow, using up-to-date templates and data.
+- **Boost team collaboration and follow-up:** Assign leads, track outcomes, and ensure no prospect is lost thanks to Lemlist’s built-in tools—all accessible via automation.
+
+Lemlist empowers sales, marketing, and outbound teams to save time, personalize at scale, and convert more prospects. Automate and optimize your campaigns, integrate with your stack, and never miss a valuable opportunity.
+
+Drive more replies, book more meetings, and grow your pipeline by connecting Lemlist to your automated workflows today!
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Lemlist into your workflow. Retrieve campaign activities and replies, get lead information, and send emails through the Lemlist inbox.
+
+
+
+## Tools
+
+### `lemlist_get_activities`
+
+Retrieves campaign activities and steps performed, including email opens, clicks, replies, and other events.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Lemlist API key |
+| `type` | string | No | Filter by activity type \(e.g., emailOpened, emailClicked, emailReplied, paused\) |
+| `campaignId` | string | No | Filter by campaign ID \(e.g., "cam_abc123def456"\) |
+| `leadId` | string | No | Filter by lead ID \(e.g., "lea_abc123def456"\) |
+| `isFirst` | boolean | No | Filter for first activity only |
+| `limit` | number | No | Number of results per request \(e.g., 50\). Max 100, default 100 |
+| `offset` | number | No | Number of records to skip for pagination \(e.g., 0, 100, 200\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `activities` | array | List of activities |
+|   ↳ `_id` | string | Activity ID |
+|   ↳ `type` | string | Activity type |
+|   ↳ `leadId` | string | Associated lead ID |
+|   ↳ `campaignId` | string | Campaign ID |
+|   ↳ `sequenceId` | string | Sequence ID |
+|   ↳ `stepId` | string | Step ID |
+|   ↳ `createdAt` | string | When the activity occurred |
+| `count` | number | Number of activities returned |
+
+### `lemlist_get_lead`
+
+Retrieves lead information by email address or lead ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Lemlist API key |
+| `leadIdentifier` | string | Yes | Lead email address \(e.g., "john@example.com"\) or lead ID \(e.g., "lea_abc123def456"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `_id` | string | Lead ID |
+| `email` | string | Lead email address |
+| `firstName` | string | Lead first name |
+| `lastName` | string | Lead last name |
+| `companyName` | string | Company name |
+| `jobTitle` | string | Job title |
+| `companyDomain` | string | Company domain |
+| `isPaused` | boolean | Whether the lead is paused |
+| `campaignId` | string | Campaign ID the lead belongs to |
+| `contactId` | string | Contact ID |
+| `emailStatus` | string | Email deliverability status |
+
+### `lemlist_send_email`
+
+Sends an email to a contact through the Lemlist inbox.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Lemlist API key |
+| `sendUserId` | string | Yes | Identifier for the user sending the message \(e.g., "usr_abc123def456"\) |
+| `sendUserEmail` | string | Yes | Email address of the sender \(e.g., "sales@company.com"\) |
+| `sendUserMailboxId` | string | Yes | Mailbox identifier for the sender \(e.g., "mbx_abc123def456"\) |
+| `contactId` | string | Yes | Recipient contact identifier \(e.g., "con_abc123def456"\) |
+| `leadId` | string | Yes | Associated lead identifier \(e.g., "lea_abc123def456"\) |
+| `subject` | string | Yes | Email subject line |
+| `message` | string | Yes | Email message body in HTML format |
+| `cc` | json | No | Array of CC email addresses |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether the email was sent successfully |
+
+

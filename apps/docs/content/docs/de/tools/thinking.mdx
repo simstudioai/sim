@@ -1,0 +1,51 @@
+---
+title: Denken
+description: Fordert das Modell auf, seinen Denkprozess darzulegen.
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="thinking"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Das Thinking-Tool ermutigt KI-Modelle, vor dem Beantworten komplexer Anfragen explizit zu argumentieren. Indem es einen speziellen Raum für schrittweise Analysen bietet, hilft dieses Tool den Modellen, Probleme zu zerlegen, mehrere Perspektiven zu berücksichtigen und zu durchdachteren Schlussfolgerungen zu gelangen.
+
+Forschungen haben gezeigt, dass die Aufforderung an Sprachmodelle, "Schritt für Schritt zu denken", ihre Argumentationsfähigkeiten erheblich verbessern kann. Laut [Anthropics Forschung zu Claudes Think-Tool](https://www.anthropic.com/engineering/claude-think-tool) zeigen Modelle, wenn ihnen Raum gegeben wird, ihre Argumentation explizit auszuarbeiten:
+
+- **Verbesserte Problemlösung**: Aufbrechen komplexer Probleme in überschaubare Schritte
+- **Erhöhte Genauigkeit**: Reduzierung von Fehlern durch sorgfältige Bearbeitung jeder Problemkomponente
+- **Größere Transparenz**: Sichtbarmachung und Überprüfbarkeit des Argumentationsprozesses des Modells
+- **Nuanciertere Antworten**: Berücksichtigung mehrerer Blickwinkel vor dem Ziehen von Schlussfolgerungen
+
+In Sim schafft das Thinking-Tool eine strukturierte Möglichkeit für Ihre Agenten, sich an dieser Art des überlegten Denkens zu beteiligen. Durch die Integration von Denkschritten in Ihre Workflows können Sie Ihren Agenten helfen, komplexe Aufgaben effektiver zu bewältigen, häufige Denkfehler zu vermeiden und qualitativ hochwertigere Ergebnisse zu erzielen. Dies ist besonders wertvoll für Aufgaben, die mehrstufiges Denken, komplexe Entscheidungsfindung oder Situationen erfordern, in denen Genauigkeit entscheidend ist.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Fügt einen Schritt hinzu, bei dem das Modell seinen Denkprozess explizit darlegt, bevor es fortfährt. Dies kann die Qualität des Denkens verbessern, indem eine schrittweise Analyse gefördert wird.
+
+## Tools
+
+### `thinking_tool`
+
+Verarbeitet einen bereitgestellten Gedanken/eine Anweisung und macht ihn für nachfolgende Schritte verfügbar.
+
+#### Input
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `thought` | string | Ja | Ihre interne Argumentation, Analyse oder Denkprozess. Nutzen Sie dies, um das Problem Schritt für Schritt zu durchdenken, bevor Sie antworten. |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `acknowledgedThought` | string | Der Gedanke, der verarbeitet und bestätigt wurde |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `thinking`

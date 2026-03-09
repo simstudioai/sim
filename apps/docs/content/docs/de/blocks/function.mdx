@@ -1,0 +1,76 @@
+---
+title: Funktion
+---
+
+import { Image } from '@/components/ui/image'
+
+Der Funktionsblock führt benutzerdefinierten JavaScript- oder TypeScript-Code in Ihren Workflows aus. Transformieren Sie Daten, führen Sie Berechnungen durch oder implementieren Sie benutzerdefinierte Logik.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/function.png"
+    alt="Funktionsblock mit Code-Editor"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Ausgaben
+
+- **`<function.result>`**: Der von Ihrer Funktion zurückgegebene Wert
+- **`<function.stdout>`**: Console.log()-Ausgabe Ihres Codes
+
+## Beispielanwendungsfälle
+
+**Datenverarbeitungspipeline** - Transformation von API-Antworten in strukturierte Daten
+
+```
+API (Fetch) → Function (Process & Validate) → Function (Calculate Metrics) → Response
+```
+
+**Implementierung von Geschäftslogik** - Berechnung von Treuepunkten und Stufen
+
+```
+Agent (Get History) → Function (Calculate Score) → Function (Determine Tier) → Condition (Route)
+```
+
+**Datenvalidierung und -bereinigung** - Validierung und Bereinigung von Benutzereingaben
+
+```
+Input → Function (Validate & Sanitize) → API (Save to Database)
+```
+
+### Beispiel: Treuepunkte-Rechner
+
+```javascript title="loyalty-calculator.js"
+// Process customer data and calculate loyalty score
+const { purchaseHistory, accountAge, supportTickets } = <agent>;
+
+// Calculate metrics
+const totalSpent = purchaseHistory.reduce((sum, purchase) => sum + purchase.amount, 0);
+const purchaseFrequency = purchaseHistory.length / (accountAge / 365);
+const ticketRatio = supportTickets.resolved / supportTickets.total;
+
+// Calculate loyalty score (0-100)
+const spendScore = Math.min(totalSpent / 1000 * 30, 30);
+const frequencyScore = Math.min(purchaseFrequency * 20, 40);
+const supportScore = ticketRatio * 30;
+
+const loyaltyScore = Math.round(spendScore + frequencyScore + supportScore);
+
+return {
+  customer: <agent.name>,
+  loyaltyScore,
+  loyaltyTier: loyaltyScore >= 80 ? "Platinum" : loyaltyScore >= 60 ? "Gold" : "Silver",
+  metrics: { spendScore, frequencyScore, supportScore }
+};
+```
+
+## Best Practices
+
+- **Funktionen fokussiert halten**: Schreiben Sie Funktionen, die eine Sache gut erledigen, um die Wartbarkeit und Fehlersuche zu verbessern
+- **Fehler elegant behandeln**: Verwenden Sie try/catch-Blöcke, um potenzielle Fehler zu behandeln und aussagekräftige Fehlermeldungen bereitzustellen
+- **Grenzfälle testen**: Stellen Sie sicher, dass Ihr Code ungewöhnliche Eingaben, Null-Werte und Grenzbedingungen korrekt behandelt
+- **Für Leistung optimieren**: Achten Sie bei großen Datensätzen auf die Berechnungskomplexität und den Speicherverbrauch
+- **Console.log() zum Debuggen verwenden**: Nutzen Sie die Stdout-Ausgabe zum Debuggen und Überwachen der Funktionsausführung

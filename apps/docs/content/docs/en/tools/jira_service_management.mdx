@@ -1,0 +1,680 @@
+---
+title: Jira Service Management
+description: Interact with Jira Service Management
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="jira_service_management"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Jira Service Management](https://www.atlassian.com/software/jira/service-management) is Atlassian’s modern IT service management (ITSM) solution designed to help teams efficiently manage service requests, incidents, problems, assets, and changes across your organization. Built on the Jira platform, Jira Service Management empowers IT, DevOps, HR, facilities, and other business teams to deliver exceptional, collaborative service.
+
+Jira Service Management (JSM) goes beyond traditional issue tracking by providing features purpose-built for service teams, such as integrated SLAs, customizable request types, automation, robust queues, and seamless customer portals. Through the JSM API and Sim integration, you can automate, monitor, and interact with all aspects of your service management workflows.
+
+Key features of Jira Service Management include:
+
+- **Service Request Management**: Streamline intake, triage, and resolution of IT or business requests via customizable forms, queues, and automated routing.
+- **Incident and Problem Management**: Log, track, escalate, and resolve incidents with tools for root cause analysis, post-incident reviews, and real-time collaboration.
+- **SLA Tracking and Reporting**: Define, monitor, and report on service level agreements to ensure timely service delivery and accountability.
+- **Asset and Configuration Management**: Maintain an up-to-date inventory of assets, configuration items, and their relationships to improve visibility and impact analysis.
+- **Queue Management**: Manage workload and priorities using powerful queues for service agents, including filtering, sorting, and bulk actions.
+- **Customer and Organization Management**: Group customers into organizations, manage user permissions, and improve communication through tailored customer portals.
+
+With Sim’s Jira Service Management integration, you can create, monitor, and update service requests, fetch and manage customer organizations, track active queues, and automate ITSM operations programmatically. Build intelligent service desk agents, automate workflows triggered by service events, and ensure both end-users and service teams benefit from proactive, AI-powered support.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate with Jira Service Management for IT service management. Create and manage service requests, handle customers and organizations, track SLAs, and manage queues.
+
+
+
+## Tools
+
+### `jsm_get_service_desks`
+
+Get all service desks from Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `expand` | string | No | Comma-separated fields to expand in the response |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `serviceDesks` | array | List of service desks |
+|   ↳ `id` | string | Service desk ID |
+|   ↳ `projectId` | string | Associated Jira project ID |
+|   ↳ `projectName` | string | Associated project name |
+|   ↳ `projectKey` | string | Associated project key |
+|   ↳ `name` | string | Service desk name |
+|   ↳ `description` | string | Service desk description |
+|   ↳ `leadDisplayName` | string | Project lead display name |
+| `total` | number | Total number of service desks |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_get_request_types`
+
+Get request types for a service desk in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
+| `searchQuery` | string | No | Filter request types by name |
+| `groupId` | string | No | Filter by request type group ID |
+| `expand` | string | No | Comma-separated fields to expand in the response |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `requestTypes` | array | List of request types |
+|   ↳ `id` | string | Request type ID |
+|   ↳ `name` | string | Request type name |
+|   ↳ `description` | string | Request type description |
+|   ↳ `helpText` | string | Help text for customers |
+|   ↳ `issueTypeId` | string | Associated Jira issue type ID |
+|   ↳ `serviceDeskId` | string | Parent service desk ID |
+|   ↳ `groupIds` | json | Groups this request type belongs to |
+|   ↳ `icon` | json | Request type icon with id and links |
+|   ↳ `restrictionStatus` | string | OPEN or RESTRICTED |
+| `total` | number | Total number of request types |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_create_request`
+
+Create a new service request in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
+| `requestTypeId` | string | Yes | Request Type ID \(e.g., "10", "15"\) |
+| `summary` | string | Yes | Summary/title for the service request |
+| `description` | string | No | Description for the service request |
+| `raiseOnBehalfOf` | string | No | Account ID of customer to raise request on behalf of |
+| `requestFieldValues` | json | No | Request field values as key-value pairs \(overrides summary/description if provided\) |
+| `requestParticipants` | string | No | Comma-separated account IDs to add as request participants |
+| `channel` | string | No | Channel the request originates from \(e.g., portal, email\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueId` | string | Created request issue ID |
+| `issueKey` | string | Created request issue key \(e.g., SD-123\) |
+| `requestTypeId` | string | Request type ID |
+| `serviceDeskId` | string | Service desk ID |
+| `createdDate` | json | Creation date with iso8601, friendly, epochMillis |
+| `currentStatus` | json | Current status with status name and category |
+| `reporter` | json | Reporter user with accountId, displayName, emailAddress |
+| `success` | boolean | Whether the request was created successfully |
+| `url` | string | URL to the created request |
+
+### `jsm_get_request`
+
+Get a single service request from Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
+| `expand` | string | No | Comma-separated fields to expand: participant, status, sla, requestType, serviceDesk, attachment, comment, action |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueId` | string | Jira issue ID |
+| `issueKey` | string | Issue key \(e.g., SD-123\) |
+| `requestTypeId` | string | Request type ID |
+| `serviceDeskId` | string | Service desk ID |
+| `createdDate` | json | Creation date with iso8601, friendly, epochMillis |
+| `currentStatus` | object | Current request status |
+|   ↳ `status` | string | Status name |
+|   ↳ `statusCategory` | string | Status category \(NEW, INDETERMINATE, DONE\) |
+|   ↳ `statusDate` | json | Status change date with iso8601, friendly, epochMillis |
+| `reporter` | object | Reporter user details |
+|   ↳ `accountId` | string | Atlassian account ID |
+|   ↳ `displayName` | string | User display name |
+|   ↳ `emailAddress` | string | User email address |
+|   ↳ `active` | boolean | Whether the account is active |
+| `requestFieldValues` | array | Request field values |
+|   ↳ `fieldId` | string | Field identifier |
+|   ↳ `label` | string | Human-readable field label |
+|   ↳ `value` | json | Field value |
+|   ↳ `renderedValue` | json | HTML-rendered field value |
+| `url` | string | URL to the request |
+| `request` | json | The service request object |
+
+### `jsm_get_requests`
+
+Get multiple service requests from Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `serviceDeskId` | string | No | Filter by service desk ID \(e.g., "1", "2"\) |
+| `requestOwnership` | string | No | Filter by ownership: OWNED_REQUESTS, PARTICIPATED_REQUESTS, APPROVER, ALL_REQUESTS |
+| `requestStatus` | string | No | Filter by status: OPEN_REQUESTS, CLOSED_REQUESTS, ALL_REQUESTS |
+| `requestTypeId` | string | No | Filter by request type ID |
+| `searchTerm` | string | No | Search term to filter requests \(e.g., "password reset", "laptop"\) |
+| `expand` | string | No | Comma-separated fields to expand: participant, status, sla, requestType, serviceDesk, attachment, comment, action |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `requests` | array | List of service requests |
+|   ↳ `issueId` | string | Jira issue ID |
+|   ↳ `issueKey` | string | Issue key \(e.g., SD-123\) |
+|   ↳ `requestTypeId` | string | Request type ID |
+|   ↳ `serviceDeskId` | string | Service desk ID |
+|   ↳ `createdDate` | json | Creation date with iso8601, friendly, epochMillis |
+|   ↳ `currentStatus` | object | Current request status |
+|     ↳ `status` | string | Status name |
+|     ↳ `statusCategory` | string | Status category \(NEW, INDETERMINATE, DONE\) |
+|     ↳ `statusDate` | json | Status change date with iso8601, friendly, epochMillis |
+|   ↳ `reporter` | object | Reporter user details |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | User display name |
+|     ↳ `emailAddress` | string | User email address |
+|     ↳ `active` | boolean | Whether the account is active |
+|   ↳ `requestFieldValues` | array | Request field values |
+|     ↳ `fieldId` | string | Field identifier |
+|     ↳ `label` | string | Human-readable field label |
+|     ↳ `value` | json | Field value |
+|     ↳ `renderedValue` | json | HTML-rendered field value |
+| `total` | number | Total number of requests in current page |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_add_comment`
+
+Add a comment (public or internal) to a service request in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
+| `body` | string | Yes | Comment body text |
+| `isPublic` | boolean | Yes | Whether the comment is public \(visible to customer\) or internal \(true/false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `commentId` | string | Created comment ID |
+| `body` | string | Comment body text |
+| `isPublic` | boolean | Whether the comment is public |
+| `author` | object | Comment author |
+|   ↳ `accountId` | string | Atlassian account ID |
+|   ↳ `displayName` | string | User display name |
+|   ↳ `emailAddress` | string | User email address |
+|   ↳ `active` | boolean | Whether the account is active |
+| `createdDate` | json | Comment creation date with iso8601, friendly, epochMillis |
+| `success` | boolean | Whether the comment was added successfully |
+
+### `jsm_get_comments`
+
+Get comments for a service request in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
+| `isPublic` | boolean | No | Filter to only public comments \(true/false\) |
+| `internal` | boolean | No | Filter to only internal comments \(true/false\) |
+| `expand` | string | No | Comma-separated fields to expand: renderedBody, attachment |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `comments` | array | List of comments |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `body` | string | Comment body text |
+|   ↳ `public` | boolean | Whether the comment is public |
+|   ↳ `author` | object | Comment author |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | User display name |
+|     ↳ `emailAddress` | string | User email address |
+|     ↳ `active` | boolean | Whether the account is active |
+|   ↳ `created` | json | Creation date with iso8601, friendly, epochMillis |
+|   ↳ `renderedBody` | json | HTML-rendered comment body \(when expand=renderedBody\) |
+| `total` | number | Total number of comments |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_get_customers`
+
+Get customers for a service desk in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
+| `query` | string | No | Search query to filter customers \(e.g., "john", "acme"\) |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `customers` | array | List of customers |
+|   ↳ `accountId` | string | Atlassian account ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `emailAddress` | string | Email address |
+|   ↳ `active` | boolean | Whether the account is active |
+|   ↳ `timeZone` | string | User timezone |
+| `total` | number | Total number of customers |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_add_customer`
+
+Add customers to a service desk in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
+| `accountIds` | string | No | Comma-separated Atlassian account IDs to add as customers |
+| `emails` | string | No | Comma-separated email addresses to add as customers |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `serviceDeskId` | string | Service desk ID |
+| `success` | boolean | Whether customers were added successfully |
+
+### `jsm_get_organizations`
+
+Get organizations for a service desk in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `organizations` | array | List of organizations |
+|   ↳ `id` | string | Organization ID |
+|   ↳ `name` | string | Organization name |
+| `total` | number | Total number of organizations |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_create_organization`
+
+Create a new organization in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `name` | string | Yes | Name of the organization to create |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `organizationId` | string | ID of the created organization |
+| `name` | string | Name of the created organization |
+| `success` | boolean | Whether the operation succeeded |
+
+### `jsm_add_organization`
+
+Add an organization to a service desk in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
+| `organizationId` | string | Yes | Organization ID to add to the service desk |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `serviceDeskId` | string | Service Desk ID |
+| `organizationId` | string | Organization ID added |
+| `success` | boolean | Whether the operation succeeded |
+
+### `jsm_get_queues`
+
+Get queues for a service desk in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
+| `includeCount` | boolean | No | Include issue count for each queue \(true/false\) |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `queues` | array | List of queues |
+|   ↳ `id` | string | Queue ID |
+|   ↳ `name` | string | Queue name |
+|   ↳ `jql` | string | JQL filter for the queue |
+|   ↳ `fields` | json | Fields displayed in the queue |
+|   ↳ `issueCount` | number | Number of issues in the queue |
+| `total` | number | Total number of queues |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_get_sla`
+
+Get SLA information for a service request in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `slas` | array | List of SLA metrics |
+|   ↳ `id` | string | SLA metric ID |
+|   ↳ `name` | string | SLA metric name |
+|   ↳ `completedCycles` | json | Completed SLA cycles with startTime, stopTime, breachTime, breached, goalDuration, elapsedTime, remainingTime \(each time as DateDTO, durations as DurationDTO\) |
+|   ↳ `ongoingCycle` | json | Ongoing SLA cycle with startTime, breachTime, breached, paused, withinCalendarHours, goalDuration, elapsedTime, remainingTime |
+| `total` | number | Total number of SLAs |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_get_transitions`
+
+Get available transitions for a service request in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `transitions` | array | List of available transitions |
+|   ↳ `id` | string | Transition ID |
+|   ↳ `name` | string | Transition name |
+| `total` | number | Total number of transitions |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_transition_request`
+
+Transition a service request to a new status in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
+| `transitionId` | string | Yes | Transition ID to apply |
+| `comment` | string | No | Optional comment to add during transition |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `transitionId` | string | Applied transition ID |
+| `success` | boolean | Whether the transition was successful |
+
+### `jsm_get_participants`
+
+Get participants for a request in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `participants` | array | List of participants |
+|   ↳ `accountId` | string | Atlassian account ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `emailAddress` | string | Email address |
+|   ↳ `active` | boolean | Whether the account is active |
+| `total` | number | Total number of participants |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_add_participants`
+
+Add participants to a request in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
+| `accountIds` | string | Yes | Comma-separated account IDs to add as participants |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `participants` | array | List of added participants |
+|   ↳ `accountId` | string | Atlassian account ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `emailAddress` | string | Email address |
+|   ↳ `active` | boolean | Whether the account is active |
+| `success` | boolean | Whether the operation succeeded |
+
+### `jsm_get_approvals`
+
+Get approvals for a request in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `approvals` | array | List of approvals |
+|   ↳ `id` | string | Approval ID |
+|   ↳ `name` | string | Approval description |
+|   ↳ `finalDecision` | string | Final decision: pending, approved, or declined |
+|   ↳ `canAnswerApproval` | boolean | Whether current user can respond |
+|   ↳ `approvers` | array | List of approvers with their decisions |
+|     ↳ `approver` | object | Approver user details |
+|       ↳ `accountId` | string | Atlassian account ID |
+|       ↳ `displayName` | string | User display name |
+|       ↳ `emailAddress` | string | User email address |
+|       ↳ `active` | boolean | Whether the account is active |
+|     ↳ `approverDecision` | string | Decision: pending, approved, or declined |
+|   ↳ `createdDate` | json | Creation date |
+|   ↳ `completedDate` | json | Completion date |
+| `total` | number | Total number of approvals |
+| `isLastPage` | boolean | Whether this is the last page |
+
+### `jsm_answer_approval`
+
+Approve or decline an approval request in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
+| `approvalId` | string | Yes | Approval ID to answer |
+| `decision` | string | Yes | Decision: "approve" or "decline" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `approvalId` | string | Approval ID |
+| `decision` | string | Decision made \(approve/decline\) |
+| `id` | string | Approval ID from response |
+| `name` | string | Approval description |
+| `finalDecision` | string | Final approval decision: pending, approved, or declined |
+| `canAnswerApproval` | boolean | Whether the current user can still respond |
+| `approvers` | array | Updated list of approvers with decisions |
+|   ↳ `approver` | object | Approver user details |
+|     ↳ `accountId` | string | Approver account ID |
+|     ↳ `displayName` | string | Approver display name |
+|     ↳ `emailAddress` | string | Approver email |
+|     ↳ `active` | boolean | Whether the account is active |
+|   ↳ `approverDecision` | string | Individual approver decision |
+| `createdDate` | json | Approval creation date |
+| `completedDate` | json | Approval completion date |
+| `approval` | json | The approval object |
+| `success` | boolean | Whether the operation succeeded |
+
+### `jsm_get_request_type_fields`
+
+Get the fields required to create a request of a specific type in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
+| `requestTypeId` | string | Yes | Request Type ID \(e.g., "10", "15"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `serviceDeskId` | string | Service desk ID |
+| `requestTypeId` | string | Request type ID |
+| `canAddRequestParticipants` | boolean | Whether participants can be added to requests of this type |
+| `canRaiseOnBehalfOf` | boolean | Whether requests can be raised on behalf of another user |
+| `requestTypeFields` | array | List of fields for this request type |
+|   ↳ `fieldId` | string | Field identifier \(e.g., summary, description, customfield_10010\) |
+|   ↳ `name` | string | Human-readable field name |
+|   ↳ `description` | string | Help text for the field |
+|   ↳ `required` | boolean | Whether the field is required |
+|   ↳ `visible` | boolean | Whether the field is visible |
+|   ↳ `validValues` | json | Allowed values for select fields |
+|   ↳ `presetValues` | json | Pre-populated values |
+|   ↳ `defaultValues` | json | Default values for the field |
+|   ↳ `jiraSchema` | json | Jira field schema with type, system, custom, customId |
+
+

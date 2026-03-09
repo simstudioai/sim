@@ -1,0 +1,61 @@
+---
+title: Hugging Face
+description: Use Hugging Face Inference API
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="huggingface"
+  color="#0B0F19"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Hugging Face](https://huggingface.co/) is a leading AI platform that provides access to thousands of pre-trained machine learning models and powerful inference capabilities. With its extensive model hub and robust API, Hugging Face offers comprehensive tools for both research and production AI applications.
+
+With the Hugging Face integration in Sim, you can:
+
+- **Generate completions**: Create text content using state-of-the-art language models through the Hugging Face Inference API, with support for custom prompts and model selection
+
+In Sim, the Hugging Face integration enables your agents to generate AI completions as part of automated workflows. This allows for content generation, text analysis, code completion, and creative writing using models from the Hugging Face model hub.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Hugging Face into the workflow. Can generate completions using the Hugging Face Inference API.
+
+
+
+## Tools
+
+### `huggingface_chat`
+
+Generate completions using Hugging Face Inference API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `systemPrompt` | string | No | System prompt to guide the model behavior |
+| `content` | string | Yes | The user message content to send to the model |
+| `provider` | string | Yes | The provider to use for the API request \(e.g., novita, cerebras, etc.\) |
+| `model` | string | Yes | Model to use for chat completions \(e.g., "deepseek/deepseek-v3-0324", "meta-llama/Llama-3.3-70B-Instruct"\) |
+| `maxTokens` | number | No | Maximum number of tokens to generate |
+| `temperature` | number | No | Sampling temperature \(0-2\). Higher values make output more random |
+| `apiKey` | string | Yes | Hugging Face API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Chat completion results |
+|   ↳ `content` | string | Generated text content |
+|   ↳ `model` | string | Model used for generation |
+|   ↳ `usage` | object | Token usage information |
+|     ↳ `prompt_tokens` | number | Number of tokens in the prompt |
+|     ↳ `completion_tokens` | number | Number of tokens in the completion |
+|     ↳ `total_tokens` | number | Total number of tokens used |
+
+

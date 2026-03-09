@@ -1,0 +1,320 @@
+---
+title: Google Calendar
+description: Manage Google Calendar events
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_calendar_v2"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Calendar](https://calendar.google.com) is Google's widely used online calendar and scheduling service, making it easy to organize meetings, events, reminders, and appointments individually or collaboratively. As a key part of Google Workspace, Google Calendar offers robust tools for managing your schedule, sending invitations, setting event reminders, and sharing calendars with others.
+
+Google Calendar supports feature-rich integrations and automation, allowing users and teams to streamline event management and keep their workflows synchronized. Its API enables programmatic creation, modification, and listing of calendar events, empowering agents and automated workflows to interact with your schedule in real time.
+
+Key features of Google Calendar include:
+
+- **Event Scheduling**: Create one-time or recurring events with rich details like time, location, and guests.
+- **Reminders & Notifications**: Automated email and push reminders to ensure you never miss an important event.
+- **Sharing & Collaboration**: Share calendars with individuals or groups, manage permissions, and coordinate meetings seamlessly.
+- **Integration**: Connect with Gmail, Meet, Docs, and external tools for a unified productivity experience.
+- **Time Zone Support**: Schedule meetings across regions with full time zone awareness.
+- **Mobile & Multi-Device Access**: Access your calendar from web, mobile, and desktop.
+
+In Sim, the Google Calendar integration allows your agents to read, create, update, and list calendar events as part of automated workflows. This enables powerful scenarios such as syncing meeting information, generating reminders, tracking event changes, coordinating team schedules, and much more. By connecting Sim with Google Calendar, your agents can handle scheduling tasks, manage events intelligently, and keep your whole organization on track without manual intervention.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Google Calendar into the workflow. Can create, read, update, and list calendar events.
+
+
+
+## Tools
+
+### `google_calendar_create`
+
+Create a new event in Google Calendar. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Google Calendar ID \(e.g., primary or calendar@group.calendar.google.com\) |
+| `summary` | string | Yes | Event title/summary |
+| `description` | string | No | Event description |
+| `location` | string | No | Event location |
+| `startDateTime` | string | Yes | Start date and time. MUST include timezone offset \(e.g., 2025-06-03T10:00:00-08:00\) OR provide timeZone parameter |
+| `endDateTime` | string | Yes | End date and time. MUST include timezone offset \(e.g., 2025-06-03T11:00:00-08:00\) OR provide timeZone parameter |
+| `timeZone` | string | No | Time zone \(e.g., America/Los_Angeles\). Required if datetime does not include offset. Defaults to America/Los_Angeles if not provided. |
+| `attendees` | array | No | Array of attendee email addresses |
+| `sendUpdates` | string | No | How to send updates to attendees: all, externalOnly, or none |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Event ID |
+| `htmlLink` | string | Event link |
+| `status` | string | Event status |
+| `summary` | string | Event title |
+| `description` | string | Event description |
+| `location` | string | Event location |
+| `start` | json | Event start |
+| `end` | json | Event end |
+| `attendees` | json | Event attendees |
+| `creator` | json | Event creator |
+| `organizer` | json | Event organizer |
+
+### `google_calendar_list`
+
+List events from Google Calendar. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Google Calendar ID \(e.g., primary or calendar@group.calendar.google.com\) |
+| `timeMin` | string | No | Lower bound for events \(RFC3339 timestamp, e.g., 2025-06-03T00:00:00Z\) |
+| `timeMax` | string | No | Upper bound for events \(RFC3339 timestamp, e.g., 2025-06-04T00:00:00Z\) |
+| `orderBy` | string | No | Order of events returned \(startTime or updated\) |
+| `showDeleted` | boolean | No | Include deleted events |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextPageToken` | string | Next page token |
+| `timeZone` | string | Calendar time zone |
+| `events` | json | List of events |
+
+### `google_calendar_get`
+
+Get a specific event from Google Calendar. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Google Calendar ID \(e.g., primary or calendar@group.calendar.google.com\) |
+| `eventId` | string | Yes | Google Calendar event ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Event ID |
+| `htmlLink` | string | Event link |
+| `status` | string | Event status |
+| `summary` | string | Event title |
+| `description` | string | Event description |
+| `location` | string | Event location |
+| `start` | json | Event start |
+| `end` | json | Event end |
+| `attendees` | json | Event attendees |
+| `creator` | json | Event creator |
+| `organizer` | json | Event organizer |
+
+### `google_calendar_update`
+
+Update an existing event in Google Calendar. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Google Calendar ID \(e.g., primary or calendar@group.calendar.google.com\) |
+| `eventId` | string | Yes | Google Calendar event ID to update |
+| `summary` | string | No | New event title/summary |
+| `description` | string | No | New event description |
+| `location` | string | No | New event location |
+| `startDateTime` | string | No | New start date and time. MUST include timezone offset \(e.g., 2025-06-03T10:00:00-08:00\) OR provide timeZone parameter |
+| `endDateTime` | string | No | New end date and time. MUST include timezone offset \(e.g., 2025-06-03T11:00:00-08:00\) OR provide timeZone parameter |
+| `timeZone` | string | No | Time zone \(e.g., America/Los_Angeles\). Required if datetime does not include offset. |
+| `attendees` | array | No | Array of attendee email addresses \(replaces existing attendees\) |
+| `sendUpdates` | string | No | How to send updates to attendees: all, externalOnly, or none |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Event ID |
+| `htmlLink` | string | Event link |
+| `status` | string | Event status |
+| `summary` | string | Event title |
+| `description` | string | Event description |
+| `location` | string | Event location |
+| `start` | json | Event start |
+| `end` | json | Event end |
+| `attendees` | json | Event attendees |
+| `creator` | json | Event creator |
+| `organizer` | json | Event organizer |
+
+### `google_calendar_delete`
+
+Delete an event from Google Calendar. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Google Calendar ID \(e.g., primary or calendar@group.calendar.google.com\) |
+| `eventId` | string | Yes | Google Calendar event ID to delete |
+| `sendUpdates` | string | No | How to send updates to attendees: all, externalOnly, or none |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Deleted event ID |
+| `deleted` | boolean | Whether deletion was successful |
+
+### `google_calendar_move`
+
+Move an event to a different calendar. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Source Google Calendar ID \(e.g., primary or calendar@group.calendar.google.com\) |
+| `eventId` | string | Yes | Google Calendar event ID to move |
+| `destinationCalendarId` | string | Yes | Destination Google Calendar ID |
+| `sendUpdates` | string | No | How to send updates to attendees: all, externalOnly, or none |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Event ID |
+| `htmlLink` | string | Event link |
+| `status` | string | Event status |
+| `summary` | string | Event title |
+| `description` | string | Event description |
+| `location` | string | Event location |
+| `start` | json | Event start |
+| `end` | json | Event end |
+| `attendees` | json | Event attendees |
+| `creator` | json | Event creator |
+| `organizer` | json | Event organizer |
+
+### `google_calendar_instances`
+
+Get instances of a recurring event from Google Calendar. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Google Calendar ID \(e.g., primary or calendar@group.calendar.google.com\) |
+| `eventId` | string | Yes | Recurring event ID to get instances of |
+| `timeMin` | string | No | Lower bound for instances \(RFC3339 timestamp, e.g., 2025-06-03T00:00:00Z\) |
+| `timeMax` | string | No | Upper bound for instances \(RFC3339 timestamp, e.g., 2025-06-04T00:00:00Z\) |
+| `maxResults` | number | No | Maximum number of instances to return \(default 250, max 2500\) |
+| `pageToken` | string | No | Token for retrieving subsequent pages of results |
+| `showDeleted` | boolean | No | Include deleted instances |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextPageToken` | string | Next page token |
+| `timeZone` | string | Calendar time zone |
+| `instances` | json | List of recurring event instances |
+
+### `google_calendar_list_calendars`
+
+List all calendars in the user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `minAccessRole` | string | No | Minimum access role for returned calendars: freeBusyReader, reader, writer, or owner |
+| `maxResults` | number | No | Maximum number of calendars to return \(default 100, max 250\) |
+| `pageToken` | string | No | Token for retrieving subsequent pages of results |
+| `showDeleted` | boolean | No | Include deleted calendars |
+| `showHidden` | boolean | No | Include hidden calendars |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextPageToken` | string | Next page token |
+| `calendars` | array | List of calendars |
+|   ↳ `id` | string | Calendar ID |
+|   ↳ `summary` | string | Calendar title |
+|   ↳ `description` | string | Calendar description |
+|   ↳ `location` | string | Calendar location |
+|   ↳ `timeZone` | string | Calendar time zone |
+|   ↳ `accessRole` | string | Access role for the calendar |
+|   ↳ `backgroundColor` | string | Calendar background color |
+|   ↳ `foregroundColor` | string | Calendar foreground color |
+|   ↳ `primary` | boolean | Whether this is the primary calendar |
+|   ↳ `hidden` | boolean | Whether the calendar is hidden |
+|   ↳ `selected` | boolean | Whether the calendar is selected |
+
+### `google_calendar_quick_add`
+
+Create events from natural language text. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Google Calendar ID \(e.g., primary or calendar@group.calendar.google.com\) |
+| `text` | string | Yes | Natural language text describing the event \(e.g., "Meeting with John tomorrow at 3pm"\) |
+| `attendees` | array | No | Array of attendee email addresses \(comma-separated string also accepted\) |
+| `sendUpdates` | string | No | How to send updates to attendees: all, externalOnly, or none |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Event ID |
+| `htmlLink` | string | Event link |
+| `status` | string | Event status |
+| `summary` | string | Event title |
+| `description` | string | Event description |
+| `location` | string | Event location |
+| `start` | json | Event start |
+| `end` | json | Event end |
+| `attendees` | json | Event attendees |
+| `creator` | json | Event creator |
+| `organizer` | json | Event organizer |
+
+### `google_calendar_invite`
+
+Invite attendees to an existing Google Calendar event. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Google Calendar ID \(e.g., primary or calendar@group.calendar.google.com\) |
+| `eventId` | string | Yes | Google Calendar event ID to invite attendees to |
+| `attendees` | array | Yes | Array of attendee email addresses to invite |
+| `sendUpdates` | string | No | How to send updates to attendees: all, externalOnly, or none |
+| `replaceExisting` | boolean | No | Whether to replace existing attendees or add to them \(defaults to false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Event ID |
+| `htmlLink` | string | Event link |
+| `status` | string | Event status |
+| `summary` | string | Event title |
+| `description` | string | Event description |
+| `location` | string | Event location |
+| `start` | json | Event start |
+| `end` | json | Event end |
+| `attendees` | json | Event attendees |
+| `creator` | json | Event creator |
+| `organizer` | json | Event organizer |
+
+

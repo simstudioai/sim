@@ -1,0 +1,149 @@
+---
+title: Webhooks  
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+Webhooks allow external services to trigger workflow execution by sending HTTP requests to your workflow. Sim supports two approaches for webhook-based triggers.
+
+## Generic Webhook Trigger
+
+The Generic Webhook block creates a flexible endpoint that can receive any payload and trigger your workflow:
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook-trigger.png"
+    alt="Generic Webhook Configuration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+### How It Works
+
+1. **Add Generic Webhook Block** - Drag the Generic Webhook block to start your workflow
+2. **Configure Payload** - Set up the expected payload structure (optional)
+3. **Get Webhook URL** - Copy the automatically generated unique endpoint
+4. **External Integration** - Configure your external service to send POST requests to this URL
+5. **Workflow Execution** - Every request to the webhook URL triggers the workflow
+
+### Features
+
+- **Flexible Payload**: Accepts any JSON payload structure
+- **Automatic Parsing**: Webhook data is automatically parsed and available to subsequent blocks
+- **Authentication**: Optional bearer token or custom header authentication
+- **Rate Limiting**: Built-in protection against abuse
+- **Deduplication**: Prevents duplicate executions from repeated requests
+
+<Callout type="info">
+The Generic Webhook trigger fires every time the webhook URL receives a request, making it perfect for real-time integrations.
+</Callout>
+
+## Trigger Mode for Service Blocks
+
+Alternatively, you can use specific service blocks (like Slack, GitHub, etc.) in "trigger mode" to create more specialized webhook endpoints:
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="slack-trigger.mp4" width={700} height={450} />
+</div>
+
+### Setting Up Trigger Mode
+
+1. **Add Service Block** - Choose a service block (e.g., Slack, GitHub, Airtable)
+2. **Enable Trigger Mode** - Toggle "Use as Trigger" in the block settings
+3. **Configure Service** - Set up authentication and event filters specific to that service
+4. **Webhook Registration** - The service automatically registers the webhook with the external platform
+5. **Event-Based Execution** - Workflow triggers only for specific events from that service
+
+### When to Use Each Approach
+
+**Use Generic Webhook when:**
+- Integrating with custom applications or services
+- You need maximum flexibility in payload structure
+- Working with services that don't have dedicated blocks
+- Building internal integrations
+
+**Use Trigger Mode when:**
+- Working with supported services (Slack, GitHub, etc.)
+- You want service-specific event filtering
+- You need automatic webhook registration
+- You want structured data handling for that service
+
+## Supported Services for Trigger Mode
+
+**Development & Project Management**
+- GitHub - Issues, PRs, pushes, releases, workflow runs
+- Jira - Issue events, worklogs
+- Linear - Issues, comments, projects, cycles, labels
+
+**Communication**
+- Slack - Messages, mentions, reactions
+- Microsoft Teams - Chat messages, channel notifications
+- Telegram - Bot messages, commands
+- WhatsApp - Messaging events
+
+**Email**
+- Gmail - New emails (polling), label changes
+- Outlook - New emails (polling), folder events
+
+**CRM & Sales**
+- HubSpot - Contacts, companies, deals, tickets, conversations
+- Stripe - Payments, subscriptions, customers
+
+**Forms & Surveys**
+- Typeform - Form submissions
+- Google Forms - Form responses
+- Webflow - Collection items, form submissions
+
+**Other**
+- Airtable - Record changes
+- Twilio Voice - Incoming calls, call status
+
+## Security and Best Practices
+
+### Authentication Options
+
+- **Bearer Tokens**: Include `Authorization: Bearer <token>` header
+- **Custom Headers**: Define custom authentication headers
+
+### Payload Handling
+
+- **Validation**: Validate incoming payloads to prevent malformed data
+- **Size Limits**: Webhooks have payload size limits for security
+- **Error Handling**: Configure error responses for invalid requests
+
+### Testing Webhooks
+
+1. Use tools like Postman or curl to test your webhook endpoints
+2. Check workflow execution logs for debugging
+3. Verify payload structure matches your expectations
+4. Test authentication and error scenarios
+
+<Callout type="warning">
+Always validate and sanitize incoming webhook data before processing it in your workflows.
+</Callout>
+
+## Common Use Cases
+
+### Real-time Notifications
+- Slack messages triggering automated responses
+- Email notifications for critical events
+
+### CI/CD Integration  
+- GitHub pushes triggering deployment workflows
+- Build status updates
+- Automated testing pipelines
+
+### Data Synchronization
+- Airtable changes updating other systems
+- Form submissions triggering follow-up actions
+- E-commerce order processing
+
+### Customer Support
+- Support ticket creation workflows
+- Automated escalation processes
+- Multi-channel communication routing

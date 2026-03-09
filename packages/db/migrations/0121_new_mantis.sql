@@ -1,0 +1,3 @@
+ALTER TABLE "workflow_execution_logs" ADD COLUMN "deployment_version_id" text;--> statement-breakpoint
+ALTER TABLE "workflow_execution_logs" ADD CONSTRAINT "workflow_execution_logs_deployment_version_id_workflow_deployment_version_id_fk" FOREIGN KEY ("deployment_version_id") REFERENCES "public"."workflow_deployment_version"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "workflow_execution_logs_deployment_version_id_idx" ON "workflow_execution_logs" USING btree ("deployment_version_id");

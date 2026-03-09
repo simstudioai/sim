@@ -1,0 +1,1 @@
+ALTER TABLE "workspace_invitation" ADD COLUMN "org_invitation_id" text;

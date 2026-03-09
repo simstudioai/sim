@@ -1,0 +1,145 @@
+---
+title: API
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+El bloque API conecta tu flujo de trabajo con servicios externos a través de peticiones HTTP. Admite los métodos GET, POST, PUT, DELETE y PATCH para interactuar con APIs REST.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/api.png"
+    alt="Bloque API"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Opciones de configuración
+
+### URL
+
+La URL del endpoint para la petición API. Puede ser:
+
+- Una URL estática introducida directamente en el bloque
+- Una URL dinámica conectada desde la salida de otro bloque
+- Una URL con parámetros de ruta
+
+### Método
+
+Selecciona el método HTTP para tu petición:
+
+- **GET**: Recuperar datos del servidor
+- **POST**: Enviar datos al servidor para crear un recurso
+- **PUT**: Actualizar un recurso existente en el servidor
+- **DELETE**: Eliminar un recurso del servidor
+- **PATCH**: Actualizar parcialmente un recurso existente
+
+### Parámetros de consulta
+
+Define pares clave-valor que se añadirán a la URL como parámetros de consulta. Por ejemplo:
+
+```
+Key: apiKey
+Value: your_api_key_here
+
+Key: limit
+Value: 10
+```
+
+Estos se añadirían a la URL como `?apiKey=your_api_key_here&limit=10`.
+
+### Cabeceras
+
+Configura las cabeceras HTTP para tu petición. Las cabeceras comunes incluyen:
+
+```
+Key: Content-Type
+Value: application/json
+
+Key: Authorization
+Value: Bearer your_token_here
+```
+
+### Cuerpo de la petición
+
+Para métodos que admiten un cuerpo de petición (POST, PUT, PATCH), puedes definir los datos a enviar. El cuerpo puede ser:
+
+- Datos JSON introducidos directamente en el bloque
+- Datos conectados desde la salida de otro bloque
+- Generados dinámicamente durante la ejecución del flujo de trabajo
+
+### Acceso a los resultados
+
+Después de que se complete una petición API, puedes acceder a sus salidas:
+
+- **`<api.data>`**: Los datos del cuerpo de respuesta de la API
+- **`<api.status>`**: Código de estado HTTP (200, 404, 500, etc.)
+- **`<api.headers>`**: Cabeceras de respuesta del servidor
+- **`<api.error>`**: Detalles del error si la petición falló
+
+## Funciones avanzadas
+
+### Construcción dinámica de URL
+
+Construye URLs dinámicamente usando variables de bloques anteriores:
+
+```javascript
+// In a Function block before the API
+const userId = <start.userId>;
+const apiUrl = `https://api.example.com/users/${userId}/profile`;
+```
+
+### Reintentos de solicitudes
+
+El bloque API maneja automáticamente:
+- Tiempos de espera de red con retroceso exponencial
+- Respuestas de límite de tasa (códigos de estado 429)
+- Errores del servidor (códigos de estado 5xx) con lógica de reintento
+- Fallos de conexión con intentos de reconexión
+
+### Validación de respuestas
+
+Valida las respuestas de la API antes de procesarlas:
+
+```javascript
+// In a Function block after the API
+if (<api.status> === 200) {
+  const data = <api.data>;
+  // Process successful response
+} else {
+  // Handle error response
+  console.error(`API Error: ${<api.status>}`);
+}
+```
+
+## Salidas
+
+- **`<api.data>`**: Datos del cuerpo de respuesta de la API
+- **`<api.status>`**: Código de estado HTTP
+- **`<api.headers>`**: Cabeceras de respuesta
+- **`<api.error>`**: Detalles del error si la solicitud falló
+
+## Ejemplos de casos de uso
+
+**Obtener datos de perfil de usuario** - Recuperar información de usuario de un servicio externo
+
+```
+Function (Build ID) → API (GET /users/{id}) → Function (Format) → Response
+```
+
+**Procesamiento de pagos** - Procesar pagos a través de la API de Stripe
+
+```
+Function (Validate) → API (Stripe) → Condition (Success) → Supabase (Update)
+```
+
+## Mejores prácticas
+
+- **Usar variables de entorno para datos sensibles**: No codificar directamente claves API o credenciales
+- **Manejar errores con elegancia**: Conectar lógica de manejo de errores para solicitudes fallidas
+- **Validar respuestas**: Comprobar códigos de estado y formatos de respuesta antes de procesar datos
+- **Respetar límites de tasa**: Tener en cuenta los límites de tasa de la API e implementar la limitación apropiada

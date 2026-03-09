@@ -1,0 +1,89 @@
+---
+title: Webhook
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+Der Webhook-Block sendet HTTP-POST-Anfragen an externe Webhook-Endpunkte mit automatischen Webhook-Headern und optionaler HMAC-Signierung.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook.png"
+    alt="Webhook-Block"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Konfiguration
+
+### Webhook-URL
+
+Der Ziel-Endpunkt für Ihre Webhook-Anfrage. Unterstützt sowohl statische URLs als auch dynamische Werte aus anderen Blöcken.
+
+### Payload
+
+JSON-Daten, die im Anfrage-Body gesendet werden. Verwenden Sie den KI-Zauberstab, um Payloads zu generieren oder auf Workflow-Variablen zu verweisen:
+
+```json
+{
+  "event": "workflow.completed",
+  "data": {
+    "result": "<agent.content>",
+    "timestamp": "<function.result>"
+  }
+}
+```
+
+### Signierungsgeheimnis
+
+Optionales Geheimnis für die HMAC-SHA256-Payload-Signierung. Wenn angegeben, wird ein `X-Webhook-Signature`Header hinzugefügt:
+
+```
+X-Webhook-Signature: t=1704067200000,v1=5d41402abc4b2a76b9719d911017c592...
+```
+
+Um Signaturen zu verifizieren, berechnen Sie `HMAC-SHA256(secret, "${timestamp}.${body}")` und vergleichen Sie mit dem `v1`Wert.
+
+### Zusätzliche Header
+
+Benutzerdefinierte Schlüssel-Wert-Header, die in die Anfrage aufgenommen werden. Diese überschreiben alle automatischen Header mit demselben Namen.
+
+## Automatische Header
+
+Jede Anfrage enthält automatisch diese Header:
+
+| Header | Beschreibung |
+|--------|-------------|
+| `Content-Type` | `application/json` |
+| `X-Webhook-Timestamp` | Unix-Zeitstempel in Millisekunden |
+| `X-Delivery-ID` | Eindeutige UUID für diese Zustellung |
+| `Idempotency-Key` | Identisch mit `X-Delivery-ID` zur Deduplizierung |
+
+## Ausgaben
+
+| Ausgabe | Typ | Beschreibung |
+|--------|------|-------------|
+| `data` | json | Antwort-Body vom Endpunkt |
+| `status` | number | HTTP-Statuscode |
+| `headers` | object | Antwort-Header |
+
+## Beispiel-Anwendungsfälle
+
+**Externe Dienste benachrichtigen** - Workflow-Ergebnisse an Slack, Discord oder benutzerdefinierte Endpunkte senden
+
+```
+Agent → Function (format) → Webhook (notify)
+```
+
+**Externe Workflows auslösen** - Prozesse in anderen Systemen starten, wenn Bedingungen erfüllt sind
+
+```
+Condition (check) → Webhook (trigger) → Response
+```
+
+<Callout>
+Der Webhook-Block verwendet immer POST. Für andere HTTP-Methoden oder mehr Kontrolle verwenden Sie den [API-Block](/blocks/api).
+</Callout>

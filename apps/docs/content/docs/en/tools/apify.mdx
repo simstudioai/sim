@@ -1,0 +1,90 @@
+---
+title: Apify
+description: Run Apify actors and retrieve results
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="apify"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Apify](https://apify.com/) is a powerful platform for building, deploying, and running web automation and web scraping actors at scale. Apify enables you to extract useful data from any website, automate workflows, and connect your data pipelines seamlessly.
+
+With Apify, you can:
+
+- **Run ready-made or custom actors**: Integrate public actors or develop your own, automating a wide range of web data extraction and browser tasks.
+- **Retrieve datasets**: Access and manage structured datasets collected by actors in real time.
+- **Scale web automation**: Leverage cloud infrastructure to run tasks reliably, asynchronously or synchronously, with robust error handling.
+
+In Sim, the Apify integration allows your agents to perform core Apify operations programmatically:
+
+- **Run Actor (Sync)**: Use `apify_run_actor_sync` to launch an Apify actor and wait for its completion, retrieving the results as soon as the run finishes.
+- **Run Actor (Async)**: Use `apify_run_actor_async` to start an actor in the background and periodically poll for results, suitable for longer or complex jobs.
+
+These operations equip your agents to automate, scrape, and orchestrate data collection or browser automation tasks directly inside workflows — all with flexible configuration and result handling, without the need for manual runs or external tools. Integrate Apify as a dynamic automation and data-extraction engine that programmatically powers your agents' web-scale workflows.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Apify into your workflow. Run any Apify actor with custom input and retrieve results. Supports both synchronous and asynchronous execution with automatic dataset fetching.
+
+
+
+## Tools
+
+### `apify_run_actor_sync`
+
+Run an APIFY actor synchronously and get results (max 5 minutes)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | APIFY API token from console.apify.com/account#/integrations |
+| `actorId` | string | Yes | Actor ID or username/actor-name. Examples: "apify/web-scraper", "janedoe/my-actor", "moJRLRc85AitArpNN" |
+| `input` | string | No | Actor input as JSON string. Example: \{"startUrls": \[\{"url": "https://example.com"\}\], "maxPages": 10\} |
+| `memory` | number | No | Memory in megabytes allocated for the actor run \(128-32768\). Example: 1024 for 1GB, 2048 for 2GB |
+| `timeout` | number | No | Timeout in seconds for the actor run. Example: 300 for 5 minutes, 3600 for 1 hour |
+| `build` | string | No | Actor build to run. Examples: "latest", "beta", "1.2.3", "build-tag-name" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the actor run succeeded |
+| `runId` | string | APIFY run ID |
+| `status` | string | Run status \(SUCCEEDED, FAILED, etc.\) |
+| `items` | array | Dataset items \(if completed\) |
+
+### `apify_run_actor_async`
+
+Run an APIFY actor asynchronously with polling for long-running tasks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | APIFY API token from console.apify.com/account#/integrations |
+| `actorId` | string | Yes | Actor ID or username/actor-name. Examples: "apify/web-scraper", "janedoe/my-actor", "moJRLRc85AitArpNN" |
+| `input` | string | No | Actor input as JSON string. Example: \{"startUrls": \[\{"url": "https://example.com"\}\], "maxPages": 10\} |
+| `waitForFinish` | number | No | Initial wait time in seconds \(0-60\) before polling starts. Example: 30 |
+| `itemLimit` | number | No | Max dataset items to fetch \(1-250000\). Default: 100. Example: 500 |
+| `memory` | number | No | Memory in megabytes allocated for the actor run \(128-32768\). Example: 1024 for 1GB, 2048 for 2GB |
+| `timeout` | number | No | Timeout in seconds for the actor run. Example: 300 for 5 minutes, 3600 for 1 hour |
+| `build` | string | No | Actor build to run. Examples: "latest", "beta", "1.2.3", "build-tag-name" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the actor run succeeded |
+| `runId` | string | APIFY run ID |
+| `status` | string | Run status \(SUCCEEDED, FAILED, etc.\) |
+| `datasetId` | string | Dataset ID containing results |
+| `items` | array | Dataset items \(if completed\) |
+
+

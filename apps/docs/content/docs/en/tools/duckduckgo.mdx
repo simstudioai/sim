@@ -1,0 +1,70 @@
+---
+title: DuckDuckGo
+description: Search with DuckDuckGo
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="duckduckgo"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[DuckDuckGo](https://duckduckgo.com/) is a privacy-focused web search engine that delivers instant answers, abstracts, related topics, and more — without tracking you or your searches. DuckDuckGo makes it easy to find information without any user profiling or targeted ads.
+
+With DuckDuckGo in Sim, you can:
+
+- **Search the web**: Instantly find answers, facts, and overviews for a given search query
+- **Get direct answers**: Retrieve specific responses for calculations, conversions, or factual queries
+- **Access abstracts**: Receive short summaries or descriptions for your search topics
+- **Fetch related topics**: Discover links and references relevant to your search
+- **Filter output**: Optionally remove HTML or skip disambiguation for cleaner results
+
+These features enable your Sim agents to automate access to fresh web knowledge — from surfacing facts in a workflow, to enriching documents and analysis with up-to-date information. Because DuckDuckGo’s Instant Answers API is open and does not require an API key, it’s simple and privacy-safe to integrate into your automated business processes.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Search the web using DuckDuckGo Instant Answers API. Returns instant answers, abstracts, related topics, and more. Free to use without an API key.
+
+
+
+## Tools
+
+### `duckduckgo_search`
+
+Search the web using DuckDuckGo Instant Answers API. Returns instant answers, abstracts, and related topics for your query. Free to use without an API key.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | The search query to execute |
+| `noHtml` | boolean | No | Remove HTML from text in results \(default: true\) |
+| `skipDisambig` | boolean | No | Skip disambiguation results \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `heading` | string | The heading/title of the instant answer |
+| `abstract` | string | A short abstract summary of the topic |
+| `abstractText` | string | Plain text version of the abstract |
+| `abstractSource` | string | The source of the abstract \(e.g., Wikipedia\) |
+| `abstractURL` | string | URL to the source of the abstract |
+| `image` | string | URL to an image related to the topic |
+| `answer` | string | Direct answer if available \(e.g., for calculations\) |
+| `answerType` | string | Type of the answer \(e.g., calc, ip, etc.\) |
+| `type` | string | Response type: A \(article\), D \(disambiguation\), C \(category\), N \(name\), E \(exclusive\) |
+| `relatedTopics` | array | Array of related topics with URLs and descriptions |
+|   ↳ `FirstURL` | string | URL to the related topic |
+|   ↳ `Text` | string | Description of the related topic |
+|   ↳ `Result` | string | HTML result snippet |
+| `results` | array | Array of external link results |
+|   ↳ `FirstURL` | string | URL of the result |
+|   ↳ `Text` | string | Description of the result |
+|   ↳ `Result` | string | HTML result snippet |
+
+

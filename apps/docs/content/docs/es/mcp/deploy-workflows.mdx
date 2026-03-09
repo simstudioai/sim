@@ -1,0 +1,108 @@
+---
+title: Implementar flujos de trabajo como MCP
+description: Expone tus flujos de trabajo como herramientas MCP para asistentes
+  de IA externos y aplicaciones
+---
+
+import { Video } from '@/components/ui/video'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Implementa tus flujos de trabajo como herramientas MCP para hacerlos accesibles a asistentes de IA externos como Claude Desktop, Cursor y otros clientes compatibles con MCP. Esto convierte tus flujos de trabajo en herramientas invocables que pueden ser llamadas desde cualquier lugar.
+
+## Crear y gestionar servidores MCP
+
+Los servidores MCP agrupan tus herramientas de flujo de trabajo. Créalos y gestiόnalos en la configuración del espacio de trabajo:
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp/mcp-server.mp4" width={700} height={450} />
+</div>
+
+1. Navega a **Configuración → Servidores MCP**
+2. Haz clic en **Crear servidor**
+3. Introduce un nombre y una descripción opcional
+4. Copia la URL del servidor para usarla en tus clientes MCP
+5. Visualiza y gestiona todas las herramientas añadidas al servidor
+
+## Añadir un flujo de trabajo como herramienta
+
+Una vez que tu flujo de trabajo esté implementado, puedes exponerlo como una herramienta MCP:
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp/mcp-deploy-tool.mp4" width={700} height={450} />
+</div>
+
+1. Abre tu flujo de trabajo implementado
+2. Haz clic en **Implementar** y ve a la pestaña **MCP**
+3. Configura el nombre y la descripción de la herramienta
+4. Añade descripciones para cada parámetro (ayuda a la IA a entender las entradas)
+5. Selecciona a qué servidores MCP añadirla
+
+<Callout type="info">
+El flujo de trabajo debe estar implementado antes de poder añadirse como herramienta MCP.
+</Callout>
+
+## Configuración de la herramienta
+
+### Nombre de la herramienta
+Usa letras minúsculas, números y guiones bajos. El nombre debe ser descriptivo y seguir las convenciones de nomenclatura de MCP (por ejemplo, `search_documents`, `send_email`).
+
+### Descripción
+Escribe una descripción clara de lo que hace la herramienta. Esto ayuda a los asistentes de IA a entender cuándo usar la herramienta.
+
+### Parámetros
+Los campos de formato de entrada de tu flujo de trabajo se convierten en parámetros de herramienta. Añade descripciones a cada parámetro para ayudar a los asistentes de IA a proporcionar valores correctos.
+
+## Conectar clientes MCP
+
+Usa la URL del servidor desde la configuración para conectar aplicaciones externas:
+
+### Claude Desktop
+Añade a tu configuración de Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "my-sim-workflows": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "YOUR_SERVER_URL"]
+    }
+  }
+}
+```
+
+### Cursor
+Añade la URL del servidor en la configuración MCP de Cursor usando el mismo patrón mcp-remote.
+
+<Callout type="warn">
+Incluye tu encabezado de clave API (`X-API-Key`) para acceso autenticado al usar mcp-remote u otros transportes MCP basados en HTTP.
+</Callout>
+
+## Gestión del servidor
+
+Desde la vista de detalles del servidor en **Configuración → Servidores MCP**, puedes:
+
+- **Ver herramientas**: consulta todos los flujos de trabajo añadidos a un servidor
+- **Copiar URL**: obtén la URL del servidor para clientes MCP
+- **Añadir flujos de trabajo**: añade más flujos de trabajo desplegados como herramientas
+- **Eliminar herramientas**: elimina flujos de trabajo del servidor
+- **Eliminar servidor**: elimina el servidor completo y todas sus herramientas
+
+## Cómo funciona
+
+Cuando un cliente MCP llama a tu herramienta:
+
+1. La solicitud se recibe en la URL de tu servidor MCP
+2. Sim valida la solicitud y mapea los parámetros a las entradas del flujo de trabajo
+3. El flujo de trabajo desplegado se ejecuta con las entradas proporcionadas
+4. Los resultados se devuelven al cliente MCP
+
+Los flujos de trabajo se ejecutan usando la misma versión de despliegue que las llamadas API, garantizando un comportamiento consistente.
+
+## Requisitos de permisos
+
+| Acción | Permiso requerido |
+|--------|-------------------|
+| Crear servidores MCP | **Admin** |
+| Añadir flujos de trabajo a servidores | **Write** o **Admin** |
+| Ver servidores MCP | **Read**, **Write** o **Admin** |
+| Eliminar servidores MCP | **Admin** |

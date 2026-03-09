@@ -1,0 +1,93 @@
+---
+title: Perplexity
+description: Use Perplexity AI for chat and search
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="perplexity"
+  color="#20808D"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Perplexity AI](https://www.perplexity.ai) is an AI-powered search engine and answer engine that combines the capabilities of large language models with real-time web search to provide accurate, up-to-date information and comprehensive answers to complex questions.
+
+With Perplexity AI, you can:
+
+- **Get accurate answers**: Receive comprehensive responses to questions with citations from reliable sources
+- **Access real-time information**: Obtain up-to-date information through Perplexity's web search capabilities
+- **Explore topics in depth**: Dive deeper into subjects with follow-up questions and related information
+- **Verify information**: Check the credibility of answers through provided sources and references
+- **Generate content**: Create summaries, analyses, and creative content based on current information
+- **Research efficiently**: Streamline research processes with comprehensive answers to complex queries
+- **Interact conversationally**: Engage in natural dialogue to refine questions and explore topics
+
+In Sim, the Perplexity integration enables your agents to leverage these powerful AI capabilities programmatically as part of their workflows. This allows for sophisticated automation scenarios that combine natural language understanding, real-time information retrieval, and content generation. Your agents can formulate queries, receive comprehensive answers with citations, and incorporate this information into their decision-making processes or outputs. This integration bridges the gap between your workflow automation and access to current, reliable information, enabling your agents to make more informed decisions and provide more accurate responses. By connecting Sim with Perplexity, you can create agents that stay current with the latest information, provide well-researched answers, and deliver more valuable insights to users - all without requiring manual research or information gathering.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Perplexity into the workflow. Can generate completions using Perplexity AI chat models or perform web searches with advanced filtering.
+
+
+
+## Tools
+
+### `perplexity_chat`
+
+Generate completions using Perplexity AI chat models
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `systemPrompt` | string | No | System prompt to guide the model behavior |
+| `content` | string | Yes | The user message content to send to the model |
+| `model` | string | Yes | Model to use for chat completions \(e.g., "sonar", "sonar-pro", "sonar-reasoning"\) |
+| `max_tokens` | number | No | Maximum number of tokens to generate \(e.g., 1024, 2048, 4096\) |
+| `temperature` | number | No | Sampling temperature between 0 and 1 \(e.g., 0.0 for deterministic, 0.7 for creative\) |
+| `apiKey` | string | Yes | Perplexity API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Generated text content |
+| `model` | string | Model used for generation |
+| `usage` | object | Token usage information |
+|   ↳ `prompt_tokens` | number | Number of tokens in the prompt |
+|   ↳ `completion_tokens` | number | Number of tokens in the completion |
+|   ↳ `total_tokens` | number | Total number of tokens used |
+
+### `perplexity_search`
+
+Get ranked search results from Perplexity
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | A search query or array of queries \(max 5 for multi-query search\) |
+| `max_results` | number | No | Maximum number of search results to return \(1-20, default: 10\) |
+| `search_domain_filter` | array | No | List of domains/URLs to limit search results to \(e.g., \["github.com", "stackoverflow.com"\], max 20\) |
+| `max_tokens_per_page` | number | No | Maximum number of tokens retrieved from each webpage \(default: 1024\) |
+| `country` | string | No | Country code to filter search results \(e.g., US, GB, DE\) |
+| `search_recency_filter` | string | No | Filter results by recency \(e.g., "hour", "day", "week", "month", "year"\) |
+| `search_after_date` | string | No | Include only content published after this date \(format: MM/DD/YYYY\) |
+| `search_before_date` | string | No | Include only content published before this date \(format: MM/DD/YYYY\) |
+| `apiKey` | string | Yes | Perplexity API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Array of search results |
+|   ↳ `title` | string | Title of the search result |
+|   ↳ `url` | string | URL of the search result |
+|   ↳ `snippet` | string | Brief excerpt or summary of the content |
+|   ↳ `date` | string | Date the page was crawled and added to Perplexity's index |
+|   ↳ `last_updated` | string | Date the page was last updated in Perplexity's index |
+
+

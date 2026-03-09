@@ -1,0 +1,254 @@
+# AWS-specific values for Sim
+# Example configuration for Amazon EKS deployment
+
+# Global configuration
+global:
+  imageRegistry: "ghcr.io"
+  storageClass: "gp2"  # Use gp2 (default on EKS) or create gp3 StorageClass for better performance
+
+# Main application
+app:
+  enabled: true
+  replicaCount: 2
+
+  # Node selector for application pods
+  # Uncomment and customize based on your EKS node labels:
+  # nodeSelector:
+  #   node.kubernetes.io/instance-type: "t3.large"
+  
+  resources:
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+  
+  # Production URLs (REQUIRED - update with your actual domain names)
+  env:
+    NEXT_PUBLIC_APP_URL: "https://simstudio.acme.com"
+    BETTER_AUTH_URL: "https://simstudio.acme.com"
+    # SOCKET_SERVER_URL is auto-detected (uses internal service http://sim-realtime:3002)
+    NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"  # Public WebSocket URL for browsers
+    
+    # Security settings (REQUIRED - replace with your own secure secrets)
+    # Generate using: openssl rand -hex 32
+    BETTER_AUTH_SECRET: "your-secure-production-auth-secret-here"
+    ENCRYPTION_KEY: "your-secure-production-encryption-key-here"
+    INTERNAL_API_SECRET: "your-secure-production-internal-api-secret-here"
+    CRON_SECRET: "your-secure-production-cron-secret-here"
+
+    # Optional: API Key Encryption (RECOMMENDED for production)
+    # Generate 64-character hex string using: openssl rand -hex 32
+    API_ENCRYPTION_KEY: "your-64-char-hex-api-encryption-key-here"  # Optional but recommended
+    
+    NODE_ENV: "production"
+    NEXT_TELEMETRY_DISABLED: "1"
+
+    # AWS S3 Cloud Storage Configuration (RECOMMENDED for production)
+    # Create S3 buckets in your AWS account and configure IAM permissions
+    AWS_REGION: "us-west-2"
+    AWS_ACCESS_KEY_ID: ""                               # AWS access key (or use IRSA for EKS)
+    AWS_SECRET_ACCESS_KEY: ""                           # AWS secret key (or use IRSA for EKS)
+    S3_BUCKET_NAME: "workspace-files"         # Workspace files
+    S3_KB_BUCKET_NAME: "knowledge-base"       # Knowledge base documents
+    S3_EXECUTION_FILES_BUCKET_NAME: "execution-files"  # Workflow execution outputs
+    S3_CHAT_BUCKET_NAME: "chat-files"         # Deployed chat assets
+    S3_COPILOT_BUCKET_NAME: "copilot-files"   # Copilot attachments
+    S3_PROFILE_PICTURES_BUCKET_NAME: "profile-pictures"  # User avatars
+    S3_OG_IMAGES_BUCKET_NAME: "og-images"                 # OpenGraph preview images
+
+# Realtime service
+realtime:
+  enabled: true
+  replicaCount: 2
+
+  # Node selector for realtime pods
+  # Uncomment and customize based on your EKS node labels:
+  # nodeSelector:
+  #   node.kubernetes.io/instance-type: "t3.medium"
+  
+  resources:
+    limits:
+      memory: "4Gi"
+      cpu: "1000m"
+    requests:
+      memory: "2Gi"
+      cpu: "500m"
+  
+  env:
+    NEXT_PUBLIC_APP_URL: "https://simstudio.acme.com"
+    BETTER_AUTH_URL: "https://simstudio.acme.com"
+    NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"
+    BETTER_AUTH_SECRET: "your-secure-production-auth-secret-here"
+    ALLOWED_ORIGINS: "https://simstudio.acme.com"
+    NODE_ENV: "production"
+
+# Database migrations
+migrations:
+  enabled: true
+  
+  resources:
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+
+# PostgreSQL database
+postgresql:
+  enabled: true
+
+  # Node selector for database pods
+  # Uncomment and customize (recommended: memory-optimized EC2 instances like r5.large):
+  # nodeSelector:
+  #   node.kubernetes.io/instance-type: "r5.large"
+  
+  # Database authentication (REQUIRED - set secure credentials)
+  auth:
+    username: postgres
+    password: "your-secure-postgres-password"
+    database: simstudio
+  
+  # Resource allocation optimized for AWS EKS
+  resources:
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+  
+  # Persistent storage using AWS EBS volumes
+  persistence:
+    enabled: true
+    storageClass: "gp2"  # Use gp2 (default) or create gp3 StorageClass
+    size: 50Gi
+    accessModes:
+      - ReadWriteOnce
+  
+  # SSL/TLS configuration (requires cert-manager to be installed)
+  tls:
+    enabled: false  # Set to true if cert-manager is installed
+    certificatesSecret: postgres-tls-secret
+  
+  # PostgreSQL performance tuning for AWS infrastructure
+  config:
+    maxConnections: 1000
+    sharedBuffers: "2GB"
+    maxWalSize: "8GB"
+    minWalSize: "160MB"
+
+# Ollama AI models with GPU acceleration (AWS EC2 GPU instances)
+# Set ollama.enabled: false if you don't need local AI models
+ollama:
+  enabled: false
+  replicaCount: 1
+
+  # GPU node targeting - uncomment and customize for GPU instances
+  # Recommended: g4dn.xlarge or p3.2xlarge instances
+  # nodeSelector:
+  #   node.kubernetes.io/instance-type: "g4dn.xlarge"
+  
+  tolerations:
+    - key: "nvidia.com/gpu"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  
+  # GPU resource allocation for AI model serving
+  gpu:
+    enabled: true
+    count: 1
+  
+  resources:
+    limits:
+      memory: "16Gi"
+      cpu: "4000m"
+      nvidia.com/gpu: "1"
+    requests:
+      memory: "8Gi"
+      cpu: "2000m"
+  
+  # High-performance storage for AI models
+  persistence:
+    enabled: true
+    storageClass: "gp2"  # Use gp2 (default) or create gp3 StorageClass
+    size: 100Gi
+    accessModes:
+      - ReadWriteOnce
+  
+  env:
+    NVIDIA_DRIVER_CAPABILITIES: "all"
+    OLLAMA_LOAD_TIMEOUT: "-1"
+    OLLAMA_KEEP_ALIVE: "-1"
+    OLLAMA_DEBUG: "1"
+
+# Ingress using AWS Application Load Balancer (ALB)
+ingress:
+  enabled: true
+  className: alb
+  
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-west-2:123456789012:certificate/your-cert-arn"
+  
+  # Main application
+  app:
+    host: simstudio.acme.com
+    paths:
+      - path: /
+        pathType: Prefix
+  
+  # Realtime service
+  realtime:
+    host: simstudio-ws.acme.com
+    paths:
+      - path: /
+        pathType: Prefix
+  
+  # TLS configuration
+  tls:
+    enabled: true
+    secretName: simstudio-tls-secret
+
+# Pod disruption budget for high availability
+podDisruptionBudget:
+  enabled: true
+  minAvailable: null
+  maxUnavailable: 1  
+  unhealthyPodEvictionPolicy: AlwaysAllow 
+# Network policies
+networkPolicy:
+  enabled: true
+
+# Pod anti-affinity for high availability across AWS Availability Zones
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: ["simstudio"]
+          topologyKey: kubernetes.io/hostname
+      - weight: 50
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: ["simstudio"]
+          topologyKey: topology.kubernetes.io/zone
+
+# Service Account with IAM roles for service account (IRSA) integration
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/SimStudioServiceRole"

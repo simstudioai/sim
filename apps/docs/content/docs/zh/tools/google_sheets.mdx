@@ -1,0 +1,326 @@
+---
+title: Google Sheets
+description: 读取、写入和更新数据
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_sheets"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Sheets](https://sheets.google.com) 是一款功能强大的云端电子表格应用程序，允许用户实时创建、编辑和协作处理电子表格。作为 Google 办公套件的一部分，Google Sheets 提供了一个多功能平台，用于数据组织、分析和可视化，具有强大的格式化、公式和共享功能。
+
+了解如何在 Sim 中集成 Google Sheets 的“读取”工具，从您的电子表格中轻松提取数据并将其集成到您的工作流中。本教程将指导您连接 Google Sheets、设置数据读取以及使用这些信息实时自动化流程。非常适合与您的代理同步实时数据。
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/xxP7MZRuq_0"
+  title="在 Sim 中使用 Google Sheets 读取工具"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+了解如何在 Sim 中使用 Google Sheets 的“写入”工具，将数据从您的工作流自动发送到 Google Sheets。本教程涵盖了集成设置、配置写入操作以及在工作流执行时无缝更新电子表格。非常适合在无需手动输入的情况下维护实时记录。
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/cO86qTj7qeY"
+  title="在 Sim 中使用 Google Sheets 写入工具"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+探索如何利用 Sim 中的 Google Sheets“更新”工具，根据工作流执行修改电子表格中的现有条目。本教程演示了设置更新逻辑、映射数据字段以及即时同步更改的方法。非常适合保持数据的最新和一致性。
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/95by2fL9yn4"
+  title="在 Sim 中使用 Google Sheets 更新工具"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+了解如何在 Sim 中使用 Google Sheets 的“追加”工具，在工作流执行期间轻松向电子表格添加新行数据。本教程将引导您完成集成设置、配置追加操作以及确保数据顺利增长的过程。非常适合无需手动操作即可扩展记录！
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/8DgNvLBCsAo"
+  title="在 Sim 中使用 Google Sheets 追加工具"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+使用 Google Sheets，您可以：
+
+- **创建和编辑电子表格**：开发具有全面格式和计算选项的数据驱动文档
+- **实时协作**：与多位用户同时在同一电子表格上工作
+- **分析数据**：使用公式、函数和数据透视表处理和理解数据
+- **可视化信息**：创建图表、图形和条件格式以直观地表示数据
+- **随时随地访问**：通过自动云同步在各种设备上使用 Google Sheets
+- **离线工作**：在没有互联网连接的情况下继续工作，重新联网时同步更改
+- **与其他服务集成**：连接 Google Drive、Forms 和第三方应用程序
+
+在 Sim 中，Google Sheets 集成使您的代理能够以编程方式直接与电子表格数据交互。这支持强大的自动化场景，例如数据提取、分析、报告和管理。您的代理可以读取现有电子表格以提取信息，写入电子表格以更新数据，并从头创建新电子表格。此集成弥合了您的 AI 工作流与数据管理之间的差距，实现了与结构化数据的无缝交互。通过将 Sim 与 Google Sheets 连接，您可以自动化数据工作流、生成报告、从数据中提取洞察并维护最新信息——所有这些都通过您的智能代理完成。该集成支持多种数据格式和范围规范，使其足够灵活以处理多样化的数据管理需求，同时保持 Google Sheets 的协作性和可访问性。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Google Sheets 集成到工作流程中。可以读取、写入、追加和更新数据。需要 OAuth 授权。
+
+## 工具
+
+### `google_sheets_read`
+
+从 Google Sheets 电子表格中读取数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | 是 | 电子表格的 ID \(可在 URL 中找到：docs.google.com/spreadsheets/d/\{SPREADSHEET_ID\}/edit\)。 |
+| `range` | string | 否 | 要读取的 A1 表示法范围 \(例如 "Sheet1!A1:D10", "A1:B5"\)。如果未指定，默认为第一个工作表 A1:Z1000。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `data` | json | 包括范围和单元格值的表格数据 |
+| `metadata` | json | 包括 ID 和 URL 的电子表格元数据 |
+
+### `google_sheets_write`
+
+向 Google Sheets 电子表格写入数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | 是 | 电子表格的 ID |
+| `range` | string | 否 | 要写入的 A1 表示法范围 \(例如 "Sheet1!A1:D10", "A1:B5"\) |
+| `values` | array | 是 | 要写入的数据，格式为二维数组 \(例如 \[\["Name", "Age"\], \["Alice", 30\], \["Bob", 25\]\]\) 或对象数组。 |
+| `valueInputOption` | string | 否 | 要写入数据的格式 |
+| `includeValuesInResponse` | boolean | 否 | 是否在响应中包含写入的值 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `updatedRange` | string | 更新的单元格范围 |
+| `updatedRows` | number | 更新的行数 |
+| `updatedColumns` | number | 更新的列数 |
+| `updatedCells` | number | 更新的单元格数 |
+| `metadata` | json | 包含 ID 和 URL 的电子表格元数据 |
+
+### `google_sheets_update`
+
+更新 Google Sheets 电子表格中的数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | 是 | 要更新的电子表格的 ID |
+| `range` | string | 否 | 要更新的 A1 表示法范围 \(例如 "Sheet1!A1:D10", "A1:B5"\) |
+| `values` | array | 是 | 要更新的数据，格式为二维数组 \(例如 \[\["Name", "Age"\], \["Alice", 30\]\]\) 或对象数组。 |
+| `valueInputOption` | string | 否 | 要更新数据的格式 |
+| `includeValuesInResponse` | boolean | 否 | 是否在响应中包含更新的值 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `updatedRange` | string | 更新的单元格范围 |
+| `updatedRows` | number | 更新的行数 |
+| `updatedColumns` | number | 更新的列数 |
+| `updatedCells` | number | 更新的单元格数 |
+| `metadata` | json | 包含 ID 和 URL 的电子表格元数据 |
+
+### `google_sheets_append`
+
+将数据追加到 Google Sheets 电子表格的末尾
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | 是 | 要追加数据的电子表格的 ID |
+| `range` | string | 否 | 要追加数据的单元格范围 \(例如："Sheet1", "Sheet1!A:D"\) |
+| `values` | array | 是 | 要追加的数据，格式为二维数组 \(例如：\[\["Alice", 30\], \["Bob", 25\]\]\) 或对象数组。 |
+| `valueInputOption` | string | 否 | 要追加数据的格式 |
+| `insertDataOption` | string | 否 | 数据插入方式 \(OVERWRITE 或 INSERT_ROWS\) |
+| `includeValuesInResponse` | boolean | 否 | 是否在响应中包含追加后的值 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `tableRange` | string | 数据追加的表格范围 |
+| `updatedRange` | string | 更新的单元格范围 |
+| `updatedRows` | number | 更新的行数 |
+| `updatedColumns` | number | 更新的列数 |
+| `updatedCells` | number | 更新的单元格数 |
+| `metadata` | json | 包括 ID 和 URL 的电子表格元数据 |
+
+## 注意事项
+
+- 类别: `tools`
+- 类型: `google_sheets`
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | ---- | ----------- |
+| `spreadsheetId` | string | 是 | Google Sheets 电子表格 ID |
+| `includeGridData` | boolean | 否 | 是否包含网格数据（单元格值）。默认为 false。|
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | 电子表格 ID |
+| `title` | string | 电子表格标题 |
+| `locale` | string | 电子表格的语言区域 |
+| `timeZone` | string | 电子表格的时区 |
+| `spreadsheetUrl` | string | 电子表格的 URL |
+| `sheets` | array | 电子表格中的工作表列表 |
+|   ↳ `sheetId` | number | 工作表 ID |
+|   ↳ `title` | string | 工作表标题/名称 |
+|   ↳ `index` | number | 工作表索引（位置）|
+|   ↳ `rowCount` | number | 工作表的行数 |
+|   ↳ `columnCount` | number | 工作表的列数 |
+|   ↳ `hidden` | boolean | 工作表是否隐藏 |
+
+### `google_sheets_create_spreadsheet`
+
+创建新的 Google Sheets 电子表格
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | ---- | ----------- |
+| `title` | string | 是 | 新电子表格的标题 |
+| `sheetTitles` | json | 否 | 要创建的工作表名称数组（例如， [ "Sheet1" , "Data" , "Summary" ]）。默认为单个 "Sheet1"。|
+| `locale` | string | 否 | 电子表格的语言区域（例如， "en_US" ）|
+| `timeZone` | string | 否 | 电子表格的时区（例如， "America/New_York" ）|
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | 新建电子表格的 ID |
+| `title` | string | 新建电子表格的标题 |
+| `spreadsheetUrl` | string | 新建电子表格的 URL |
+| `sheets` | array | 电子表格中新建的工作表列表 |
+|   ↳ `sheetId` | number | 工作表 ID |
+|   ↳ `title` | string | 工作表标题/名称 |
+|   ↳ `index` | number | 工作表索引（位置） |
+
+### `google_sheets_batch_get`
+
+在一次请求中从 Google Sheets 电子表格读取多个范围
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | 是 | Google Sheets 电子表格 ID |
+| `ranges` | json | 是 | 要读取的范围数组（例如， [ "Sheet1!A1:D10" , "Sheet2!A1:B5" ] ）。每个范围应包含工作表名称。 |
+| `majorDimension` | string | 否 | 值的主维度： "ROWS" （默认）或 "COLUMNS" |
+| `valueRenderOption` | string | 否 | 值的渲染方式： "FORMATTED_VALUE" （默认）、 "UNFORMATTED_VALUE" 或 "FORMULA" |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | 电子表格 ID |
+| `valueRanges` | array | 从电子表格读取的值范围数组 |
+|   ↳ `range` | string | 读取的范围 |
+|   ↳ `majorDimension` | string | 主维度（ ROWS 或 COLUMNS ） |
+|   ↳ `values` | array | 单元格值（二维数组） |
+| `metadata` | json | 包含 ID 和 URL 的电子表格元数据 |
+|   ↳ `spreadsheetId` | string | Google Sheets 电子表格 ID |
+|   ↳ `spreadsheetUrl` | string | 电子表格 URL |
+
+### `google_sheets_batch_update`
+
+在 Google Sheets 电子表格中通过单个请求更新多个范围
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | 是 | Google Sheets 电子表格 ID |
+| `data` | json | 是 | 要更新的数值范围数组。每个项应包含 "range"（如 "Sheet1!A1:D10"）和 "values"（二维数组）。|
+| `valueInputOption` | string | 否 | 输入数据的解释方式："RAW" 或 "USER_ENTERED"（默认）。USER_ENTERED 会解析公式。|
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | 电子表格 ID |
+| `totalUpdatedRows` | number | 更新的总行数 |
+| `totalUpdatedColumns` | number | 更新的总列数 |
+| `totalUpdatedCells` | number | 更新的总单元格数 |
+| `totalUpdatedSheets` | number | 更新的总工作表数 |
+| `responses` | array | 每个范围的更新响应数组 |
+|   ↳ `spreadsheetId` | string | 电子表格 ID |
+|   ↳ `updatedRange` | string | 被更新的范围 |
+|   ↳ `updatedRows` | number | 此范围内更新的行数 |
+|   ↳ `updatedColumns` | number | 此范围内更新的列数 |
+|   ↳ `updatedCells` | number | 此范围内更新的单元格数 |
+| `metadata` | json | 包含 ID 和 URL 的电子表格元数据 |
+|   ↳ `spreadsheetId` | string | Google Sheets 电子表格 ID |
+|   ↳ `spreadsheetUrl` | string | 电子表格 URL |
+
+### `google_sheets_batch_clear`
+
+在一次请求中清除 Google Sheets 电子表格中的多个范围
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | 是 | Google Sheets 电子表格 ID |
+| `ranges` | json | 是 | 要清除的范围数组（例如， ["Sheet1!A1:D10", "Sheet2!A1:B5"] ）。每个范围应包含工作表名称。|
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | 电子表格 ID |
+| `clearedRanges` | array | 已清除的范围数组 |
+| `metadata` | json | 包含 ID 和 URL 的电子表格元数据 |
+|   ↳ `spreadsheetId` | string | Google Sheets 电子表格 ID |
+|   ↳ `spreadsheetUrl` | string | 电子表格 URL |
+
+### `google_sheets_copy_sheet`
+
+将一个工作表从一个电子表格复制到另一个电子表格
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `sourceSpreadsheetId` | string | 是 | 源 Google Sheets 电子表格 ID |
+| `sheetId` | number | 是 | 要复制的工作表 ID（数字 ID，不是工作表名称）。可使用“获取电子表格”查找工作表 ID。|
+| `destinationSpreadsheetId` | string | 是 | 目标电子表格的 ID（将复制工作表到此处）|
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `sheetId` | number | 目标电子表格中新建工作表的 ID |
+| `title` | string | 复制工作表的标题 |
+| `index` | number | 复制工作表的索引（位置）|
+| `sheetType` | string | 工作表类型（GRID、CHART 等）|
+| `destinationSpreadsheetId` | string | 目标电子表格 ID |
+| `destinationSpreadsheetUrl` | string | 目标电子表格的 URL |

@@ -1,0 +1,586 @@
+---
+title: Jira
+description: Interagir avec Jira
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="jira"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Jira](https://www.atlassian.com/jira) est une plateforme leader de gestion de projet et de suivi des problèmes qui aide les équipes à planifier, suivre et gérer efficacement les projets de développement logiciel agile. En tant que partie de la suite Atlassian, Jira est devenu la référence dans l'industrie pour les équipes de développement logiciel et les professionnels de la gestion de projet dans le monde entier.
+
+Jira fournit un ensemble complet d'outils pour gérer des projets complexes grâce à son système de flux de travail flexible et personnalisable. Avec son API robuste et ses capacités d'intégration, Jira permet aux équipes de rationaliser leurs processus de développement et de maintenir une visibilité claire sur l'avancement des projets.
+
+Les fonctionnalités clés de Jira comprennent :
+
+- Gestion de projet agile : prise en charge des méthodologies Scrum et Kanban avec des tableaux et des flux de travail personnalisables
+- Suivi des problèmes : système sophistiqué de suivi des bugs, des récits utilisateurs, des épopées et des tâches avec des rapports détaillés
+- Automatisation des flux de travail : règles d'automatisation puissantes pour rationaliser les tâches et processus répétitifs
+- Recherche avancée : JQL (Jira Query Language) pour le filtrage et la création de rapports complexes
+
+Dans Sim, l'intégration de Jira permet à vos agents d'interagir de manière transparente avec votre flux de travail de gestion de projet. Cela crée des opportunités pour la création, la mise à jour et le suivi automatisés des problèmes dans le cadre de vos flux de travail IA. L'intégration permet aux agents de créer, récupérer et mettre à jour des tickets Jira par programmation, facilitant les tâches de gestion de projet automatisées et garantissant que les informations importantes sont correctement suivies et documentées. En connectant Sim avec Jira, vous pouvez créer des agents intelligents qui maintiennent la visibilité du projet tout en automatisant les tâches routinières de gestion de projet, améliorant la productivité de l'équipe et assurant un suivi cohérent des projets.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Jira dans le flux de travail. Peut lire, écrire et mettre à jour des tickets. Peut également déclencher des flux de travail basés sur des événements webhook Jira.
+
+## Outils
+
+### `jira_retrieve`
+
+Récupérer des informations détaillées sur un ticket Jira spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `projectId` | chaîne | Non | ID du projet Jira \(facultatif ; non requis pour récupérer un seul ticket\). |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira à récupérer \(ex. : PROJ-123\) |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de l'opération |
+| `issueKey` | chaîne | Clé du ticket \(ex. : PROJ-123\) |
+| `summary` | chaîne | Résumé du ticket |
+| `description` | json | Contenu de la description du ticket |
+| `created` | chaîne | Horodatage de création du ticket |
+| `updated` | chaîne | Horodatage de dernière mise à jour du ticket |
+| `issue` | json | Objet complet du ticket avec tous les champs |
+
+### `jira_update`
+
+Mettre à jour un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `projectId` | chaîne | Non | ID du projet Jira pour mettre à jour les tickets. S'il n'est pas fourni, tous les tickets seront récupérés. |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira à mettre à jour |
+| `summary` | chaîne | Non | Nouveau résumé pour le ticket |
+| `description` | chaîne | Non | Nouvelle description pour le ticket |
+| `status` | chaîne | Non | Nouveau statut pour le ticket |
+| `priority` | chaîne | Non | Nouvelle priorité pour le ticket |
+| `assignee` | chaîne | Non | Nouvel assigné pour le ticket |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de l'opération |
+| `issueKey` | chaîne | Clé du ticket mis à jour \(ex. : PROJ-123\) |
+| `summary` | chaîne | Résumé du ticket après mise à jour |
+
+### `jira_write`
+
+Rédiger une demande Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `projectId` | chaîne | Oui | ID du projet pour le ticket |
+| `summary` | chaîne | Oui | Résumé du ticket |
+| `description` | chaîne | Non | Description du ticket |
+| `priority` | chaîne | Non | ID ou nom de la priorité du ticket \(ex. : "10000" ou "Haute"\) |
+| `assignee` | chaîne | Non | ID de compte de l'assigné pour le ticket |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+| `issueType` | chaîne | Oui | Type de ticket à créer \(ex. : tâche, story\) |
+| `labels` | tableau | Non | Étiquettes pour le ticket \(tableau de noms d'étiquettes\) |
+| `duedate` | chaîne | Non | Date d'échéance du ticket \(format : AAAA-MM-JJ\) |
+| `reporter` | chaîne | Non | ID de compte du rapporteur pour le ticket |
+| `environment` | chaîne | Non | Informations d'environnement pour le ticket |
+| `customFieldId` | chaîne | Non | ID du champ personnalisé \(ex. : customfield_10001\) |
+| `customFieldValue` | chaîne | Non | Valeur pour le champ personnalisé |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de l'opération |
+| `issueKey` | chaîne | Clé du ticket créé \(ex. : PROJ-123\) |
+| `summary` | chaîne | Résumé du ticket |
+| `url` | chaîne | URL vers le ticket créé |
+| `assigneeId` | chaîne | ID de compte de l'utilisateur assigné \(si assigné\) |
+
+### `jira_bulk_read`
+
+Récupérer plusieurs demandes Jira en masse
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Oui | Votre domaine Jira (ex. : votreentreprise.atlassian.net) |
+| `projectId` | string | Oui | ID du projet Jira |
+| `cloudId` | string | Non | ID Jira Cloud |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `issues` | tableau | Tableau des tickets Jira avec horodatages ts, résumé, description, création et mise à jour |
+
+### `jira_delete_issue`
+
+Supprimer un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira à supprimer \(ex. : PROJ-123\) |
+| `deleteSubtasks` | booléen | Non | Indique s'il faut supprimer les sous-tâches. Si faux, les tickets parents avec sous-tâches ne peuvent pas être supprimés. |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de l'opération |
+| `issueKey` | chaîne | Clé du ticket supprimé |
+
+### `jira_assign_issue`
+
+Assigner un ticket Jira à un utilisateur
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira à assigner \(ex. : PROJ-123\) |
+| `accountId` | chaîne | Oui | ID de compte de l'utilisateur à qui assigner le ticket. Utilisez "-1" pour l'attribution automatique ou null pour retirer l'assignation. |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de l'opération |
+| `issueKey` | chaîne | Clé du ticket qui a été assigné |
+| `assigneeId` | chaîne | ID de compte de l'assigné |
+
+### `jira_transition_issue`
+
+Déplacer un ticket Jira entre les statuts de workflow (par ex., À faire -> En cours)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira à faire transiter \(ex. : PROJ-123\) |
+| `transitionId` | chaîne | Oui | ID de la transition à exécuter \(ex. : "11" pour "À faire", "21" pour "En cours"\) |
+| `comment` | chaîne | Non | Commentaire optionnel à ajouter lors de la transition du ticket |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Horodatage de l'opération |
+| `issueKey` | string | Clé du ticket qui a été transitionné |
+| `transitionId` | string | ID de la transition appliquée |
+
+### `jira_search_issues`
+
+Rechercher des tickets Jira à l'aide de JQL (Jira Query Language)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `jql` | chaîne | Oui | Chaîne de requête JQL pour rechercher des tickets \(ex. : "project = PROJ AND status = Open"\) |
+| `startAt` | nombre | Non | L'index du premier résultat à renvoyer \(pour la pagination\) |
+| `maxResults` | nombre | Non | Nombre maximum de résultats à renvoyer \(par défaut : 50\) |
+| `fields` | tableau | Non | Tableau des noms de champs à renvoyer \(par défaut : \['summary', 'status', 'assignee', 'created', 'updated'\]\) |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Horodatage de l'opération |
+| `total` | number | Nombre total de tickets correspondants |
+| `startAt` | number | Index de début de pagination |
+| `maxResults` | number | Nombre maximum de résultats par page |
+| `issues` | array | Tableau des tickets correspondants avec clé, résumé, statut, assigné, créé, mis à jour |
+
+### `jira_add_comment`
+
+Ajouter un commentaire à un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira auquel ajouter un commentaire \(ex. : PROJ-123\) |
+| `body` | chaîne | Oui | Texte du corps du commentaire |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Horodatage de l'opération |
+| `issueKey` | string | Clé du ticket auquel le commentaire a été ajouté |
+| `commentId` | string | ID du commentaire créé |
+| `body` | string | Contenu textuel du commentaire |
+
+### `jira_get_comments`
+
+Obtenir tous les commentaires d'un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira dont il faut récupérer les commentaires \(ex. : PROJ-123\) |
+| `startAt` | nombre | Non | Index du premier commentaire à renvoyer \(par défaut : 0\) |
+| `maxResults` | nombre | Non | Nombre maximum de commentaires à renvoyer \(par défaut : 50\) |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Horodatage de l'opération |
+| `issueKey` | string | Clé du ticket |
+| `total` | number | Nombre total de commentaires |
+| `comments` | array | Tableau des commentaires avec id, auteur, corps, créé, mis à jour |
+
+### `jira_update_comment`
+
+Mettre à jour un commentaire existant sur un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira contenant le commentaire \(ex. : PROJ-123\) |
+| `commentId` | chaîne | Oui | ID du commentaire à mettre à jour |
+| `body` | chaîne | Oui | Texte du commentaire mis à jour |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Horodatage de l'opération |
+| `issueKey` | string | Clé du ticket |
+| `commentId` | string | ID du commentaire mis à jour |
+| `body` | string | Texte du commentaire mis à jour |
+
+### `jira_delete_comment`
+
+Supprimer un commentaire d'un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira contenant le commentaire \(ex. : PROJ-123\) |
+| `commentId` | chaîne | Oui | ID du commentaire à supprimer |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Horodatage de l'opération |
+| `issueKey` | string | Clé du ticket |
+| `commentId` | string | ID du commentaire supprimé |
+
+### `jira_get_attachments`
+
+Obtenir toutes les pièces jointes d'un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | string | Oui | Clé du ticket Jira pour obtenir les pièces jointes \(ex. : PROJ-123\) |
+| `cloudId` | string | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Horodatage de l'opération |
+| `issueKey` | string | Clé du ticket |
+| `attachments` | array | Tableau des pièces jointes avec id, nom de fichier, taille, type MIME, date de création, auteur |
+
+### `jira_delete_attachment`
+
+Supprimer une pièce jointe d'un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `attachmentId` | string | Oui | ID de la pièce jointe à supprimer |
+| `cloudId` | string | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Horodatage de l'opération |
+| `attachmentId` | string | ID de la pièce jointe supprimée |
+
+### `jira_add_worklog`
+
+Ajouter une entrée de journal de travail pour le suivi du temps à un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira auquel ajouter le journal de travail \(ex. : PROJ-123\) |
+| `timeSpentSeconds` | nombre | Oui | Temps passé en secondes |
+| `comment` | chaîne | Non | Commentaire optionnel pour l'entrée du journal de travail |
+| `started` | chaîne | Non | Heure de début optionnelle au format ISO \(par défaut : heure actuelle\) |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Horodatage de l'opération |
+| `issueKey` | string | Clé du ticket auquel le journal de travail a été ajouté |
+| `worklogId` | string | ID du journal de travail créé |
+| `timeSpentSeconds` | number | Temps passé en secondes |
+
+### `jira_get_worklogs`
+
+Obtenir toutes les entrées du journal de travail d'un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira dont il faut obtenir les journaux de travail \(ex. : PROJ-123\) |
+| `startAt` | nombre | Non | Index du premier journal de travail à retourner \(par défaut : 0\) |
+| `maxResults` | nombre | Non | Nombre maximum de journaux de travail à retourner \(par défaut : 50\) |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Horodatage de l'opération |
+| `issueKey` | string | Clé du ticket |
+| `total` | number | Nombre total de journaux de travail |
+| `worklogs` | array | Tableau des journaux de travail avec id, auteur, temps passé en secondes, temps passé, commentaire, date de création, mise à jour, démarrage |
+
+### `jira_update_worklog`
+
+Mettre à jour une entrée de journal de travail existante sur un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira contenant le journal de travail \(ex. : PROJ-123\) |
+| `worklogId` | chaîne | Oui | ID de l'entrée du journal de travail à mettre à jour |
+| `timeSpentSeconds` | nombre | Non | Temps passé en secondes |
+| `comment` | chaîne | Non | Commentaire optionnel pour l'entrée du journal de travail |
+| `started` | chaîne | Non | Heure de début optionnelle au format ISO |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Horodatage de l'opération |
+| `issueKey` | string | Clé du ticket |
+| `worklogId` | string | ID du journal de travail mis à jour |
+
+### `jira_delete_worklog`
+
+Supprimer une entrée de journal de travail d'un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira contenant le journal de travail \(ex. : PROJ-123\) |
+| `worklogId` | chaîne | Oui | ID de l'entrée du journal de travail à supprimer |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Horodatage de l'opération |
+| `issueKey` | string | Clé du ticket |
+| `worklogId` | string | ID du journal de travail supprimé |
+
+### `jira_create_issue_link`
+
+Créer une relation de lien entre deux tickets Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `inwardIssueKey` | string | Oui | Clé du ticket Jira pour la demande entrante \(ex. : PROJ-123\) |
+| `outwardIssueKey` | string | Oui | Clé du ticket Jira pour la demande sortante \(ex. : PROJ-456\) |
+| `linkType` | string | Oui | Le type de relation de lien \(ex. : "Bloque", "Est lié à", "Duplique"\) |
+| `comment` | string | Non | Commentaire optionnel à ajouter au lien de la demande |
+| `cloudId` | string | Non | ID Jira Cloud pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Horodatage de l'opération |
+| `inwardIssue` | string | Clé du ticket entrant |
+| `outwardIssue` | string | Clé du ticket sortant |
+| `linkType` | string | Type de lien entre tickets |
+| `linkId` | string | ID du lien créé |
+
+### `jira_delete_issue_link`
+
+Supprimer un lien entre deux tickets Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `linkId` | string | Oui | ID du lien de ticket à supprimer |
+| `cloudId` | string | Non | ID Jira Cloud pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Horodatage de l'opération |
+| `linkId` | string | ID du lien supprimé |
+
+### `jira_add_watcher`
+
+Ajouter un observateur à un ticket Jira pour recevoir des notifications sur les mises à jour
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | string | Oui | Clé du ticket Jira auquel ajouter un observateur \(ex. : PROJ-123\) |
+| `accountId` | string | Oui | ID de compte de l'utilisateur à ajouter comme observateur |
+| `cloudId` | string | Non | ID Jira Cloud pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Horodatage de l'opération |
+| `issueKey` | string | Clé du ticket |
+| `watcherAccountId` | string | ID du compte observateur ajouté |
+
+### `jira_remove_watcher`
+
+Supprimer un observateur d'un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `issueKey` | string | Oui | Clé du ticket Jira duquel supprimer l'observateur \(ex. : PROJ-123\) |
+| `accountId` | string | Oui | ID de compte de l'utilisateur à supprimer comme observateur |
+| `cloudId` | string | Non | ID Jira Cloud pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Horodatage de l'opération |
+| `issueKey` | string | Clé du ticket |
+| `watcherAccountId` | string | ID du compte observateur supprimé |
+
+### `jira_get_users`
+
+Récupère les utilisateurs Jira. Si un ID de compte est fourni, renvoie un seul utilisateur. Sinon, renvoie une liste de tous les utilisateurs.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `accountId` | chaîne | Non | ID de compte optionnel pour obtenir un utilisateur spécifique. S'il n'est pas fourni, renvoie tous les utilisateurs. |
+| `startAt` | nombre | Non | L'index du premier utilisateur à renvoyer \(pour la pagination, par défaut : 0\) |
+| `maxResults` | nombre | Non | Nombre maximum d'utilisateurs à renvoyer \(par défaut : 50\) |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de l'opération |
+| `users` | json | Tableau d'utilisateurs avec accountId, displayName, emailAddress, statut actif et avatarUrls |
+| `total` | nombre | Nombre total d'utilisateurs renvoyés |
+| `startAt` | nombre | Index de début de pagination |
+| `maxResults` | nombre | Nombre maximum de résultats par page |
+
+## Remarques
+
+- Catégorie : `tools`
+- Type : `jira`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `accountId` | chaîne | Non | ID de compte optionnel pour obtenir un utilisateur spécifique. S'il n'est pas fourni, renvoie tous les utilisateurs. |
+| `startAt` | nombre | Non | Index du premier utilisateur à renvoyer \(pour la pagination, par défaut : 0\) |
+| `maxResults` | nombre | Non | Nombre maximum d'utilisateurs à renvoyer \(par défaut : 50\) |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage ISO 8601 de l'opération |
+| `users` | tableau | Tableau des utilisateurs Jira |
+|   ↳ `accountId` | chaîne | ID de compte Atlassian de l'utilisateur |
+|   ↳ `displayName` | chaîne | Nom d'affichage de l'utilisateur |
+|   ↳ `active` | booléen | Indique si le compte utilisateur est actif |
+|   ↳ `emailAddress` | chaîne | Adresse e-mail de l'utilisateur |
+|   ↳ `accountType` | chaîne | Type de compte \(ex. : atlassian, app, customer\) |
+|   ↳ `avatarUrl` | chaîne | URL de l'avatar de l'utilisateur \(48x48\) |
+|   ↳ `timeZone` | chaîne | Fuseau horaire de l'utilisateur |
+|   ↳ `avatarUrls` | json | URL des avatars de l'utilisateur en plusieurs tailles \(16x16, 24x24, 32x32, 48x48\) |
+|   ↳ `self` | chaîne | URL de l'API REST pour cet utilisateur |
+| `total` | nombre | Nombre total d'utilisateurs renvoyés |
+| `startAt` | nombre | Index de début de pagination |
+| `maxResults` | nombre | Nombre maximum de résultats par page |

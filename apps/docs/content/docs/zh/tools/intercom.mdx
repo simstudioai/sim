@@ -1,0 +1,726 @@
+---
+title: Intercom
+description: 在 Intercom 中管理联系人、公司、对话、工单和消息
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="intercom"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Intercom](https://www.intercom.com/) 是一个领先的客户沟通平台，能够让您在一个地方管理和自动化与联系人、公司、对话、工单和消息的互动。Sim 中的 Intercom 集成让您的代理可以通过自动化工作流以编程方式管理客户关系、支持请求和对话。
+
+使用 Intercom 工具，您可以：
+
+- **联系人管理：** 创建、获取、更新、列出、搜索和删除联系人——自动化您的 CRM 流程并保持客户记录的最新。
+- **公司管理：** 创建新公司、检索公司详细信息，并列出与您的用户或业务客户相关的所有公司。
+- **对话处理：** 获取、列出、回复和搜索对话——让代理能够跟踪正在进行的支持线程、提供答案并自动执行后续操作。
+- **工单管理：** 以编程方式创建和检索工单，帮助您自动化客户服务、支持问题跟踪和工作流升级。
+- **发送消息：** 向用户或潜在客户触发消息，用于入职、支持或营销，所有这些都可以在您的工作流自动化中完成。
+
+通过将 Intercom 工具集成到 Sim 中，您可以让工作流直接与用户沟通，自动化客户支持流程，管理潜在客户，并大规模简化沟通。无论您是需要创建新联系人、保持客户数据同步、管理支持工单，还是发送个性化的参与消息，Intercom 工具都提供了一种全面的方式，将客户互动管理作为智能自动化的一部分。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Intercom 集成到工作流中。可以创建、获取、更新、列出、搜索和删除联系人；创建、获取和列出公司；获取、列出、回复和搜索对话；创建和获取工单；以及创建消息。
+
+## 工具
+
+### `intercom_create_contact`
+
+使用 email、external_id 或 role 在 Intercom 中创建一个新联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `role` | string | 否 | 联系人角色。可选 'user' 或 'lead'。如未指定，默认为 'lead'。 |
+| `email` | string | 否 | 联系人邮箱地址 |
+| `external_id` | string | 否 | 客户端为联系人提供的唯一标识符 |
+| `phone` | string | 否 | 联系人电话号码 |
+| `name` | string | 否 | 联系人姓名 |
+| `avatar` | string | 否 | 联系人头像图片 URL |
+| `signed_up_at` | number | 否 | 用户注册时间（Unix 时间戳） |
+| `last_seen_at` | number | 否 | 用户最后一次在线时间（Unix 时间戳） |
+| `owner_id` | string | 否 | 被分配为该联系人账户所有者的管理员 ID |
+| `unsubscribed_from_emails` | boolean | 否 | 联系人是否已退订邮件 |
+| `custom_attributes` | string | 否 | 自定义属性，格式为 JSON 对象（如：\{"attribute_name": "value"\}） |
+| `company_id` | string | 否 | 创建联系人时关联的公司 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `contact` | object | 创建的联系人对象 |
+
+### `intercom_get_contact`
+
+通过 ID 从 Intercom 获取单个联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | 是 | 要检索的联系人 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `contact` | object | 联系人对象 |
+
+### `intercom_update_contact`
+
+更新 Intercom 中的现有联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | 是 | 要更新的联系人 ID |
+| `role` | string | 否 | 联系人角色。可选 'user' 或 'lead'。 |
+| `external_id` | string | 否 | 客户端为联系人提供的唯一标识符 |
+| `email` | string | 否 | 联系人邮箱地址 |
+| `phone` | string | 否 | 联系人电话号码 |
+| `name` | string | 否 | 联系人姓名 |
+| `avatar` | string | 否 | 联系人头像图片 URL |
+| `signed_up_at` | number | 否 | 用户注册时间（Unix 时间戳） |
+| `last_seen_at` | number | 否 | 用户最后一次在线时间（Unix 时间戳） |
+| `owner_id` | string | 否 | 被分配为该联系人账户所有者的管理员 ID |
+| `unsubscribed_from_emails` | boolean | 否 | 联系人是否已退订邮件 |
+| `custom_attributes` | string | 否 | 自定义属性，格式为 JSON 对象（如：\{"attribute_name": "value"\}） |
+| `company_id` | string | 否 | 关联的公司 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `contact` | object | 更新后的联系人对象 |
+
+### `intercom_list_contacts`
+
+列出所有来自 Intercom 的联系人，支持分页
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `per_page` | number | 否 | 每页结果数量 \(最大值: 150\) |
+| `starting_after` | string | 否 | 分页游标 - 起始 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `contacts` | array | 联系人对象数组 |
+
+### `intercom_search_contacts`
+
+使用查询在 Intercom 中搜索联系人
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | 是 | 搜索查询（例如：\{"field":"email", "operator":"=", "value":"user@example.com"\}） |
+| `per_page` | number | 否 | 每页结果数量（最大值：150） |
+| `starting_after` | string | 否 | 用于分页的游标 |
+| `sort_field` | string | 否 | 排序字段（例如："name"，"created_at"，"last_seen_at"） |
+| `sort_order` | string | 否 | 排序方式：“ascending” 或 “descending” |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `contacts` | array | 匹配的联系人对象数组 |
+
+### `intercom_delete_contact`
+
+通过 ID 从 Intercom 中删除联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | 是 | 要删除的联系人 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 已删除联系人的 ID |
+| `deleted` | boolean | 联系人是否已被删除 |
+| `metadata` | object | 操作元数据 |
+
+### `intercom_create_company`
+
+在 Intercom 中创建或更新公司
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `company_id` | string | 是 | 您为公司设置的唯一标识符 |
+| `name` | string | 否 | 公司名称 |
+| `website` | string | 否 | 公司网站 |
+| `plan` | string | 否 | 公司套餐名称 |
+| `size` | number | 否 | 公司员工数量 |
+| `industry` | string | 否 | 公司所属行业 |
+| `monthly_spend` | number | 否 | 公司为您的业务带来的收入。注意：此字段会将浮点数截断为整数（例如：155.98 变为 155） |
+| `custom_attributes` | string | 否 | 自定义属性，格式为 JSON 对象 |
+| `remote_created_at` | number | 否 | 您创建公司时的 Unix 时间戳 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `company` | object | 新建或更新的公司对象 |
+
+### `intercom_get_company`
+
+通过 ID 从 Intercom 检索单个公司
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | 是 | 要检索的公司 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `company` | object | 公司对象 |
+
+### `intercom_list_companies`
+
+列出来自 Intercom 的所有公司，支持分页。注意：此端点限制为通过分页返回最多 10,000 家公司。对于超过 10,000 家公司的数据集，请改用 Scroll API。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `per_page` | number | 否 | 每页结果数量 |
+| `page` | number | 否 | 页码 |
+| `starting_after` | string | 否 | 分页游标（优先于基于页码的分页） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `companies` | array | 公司对象数组 |
+
+### `intercom_get_conversation`
+
+通过 ID 从 Intercom 检索单个会话
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | 是 | 要检索的会话 ID |
+| `display_as` | string | 否 | 设为 "plaintext" 可检索纯文本消息 |
+| `include_translations` | boolean | 否 | 若为 true，会话内容将被翻译为检测到的会话语言 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `conversation` | object | 会话对象 |
+
+### `intercom_list_conversations`
+
+列出 Intercom 中的所有会话，并支持分页
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `per_page` | number | 否 | 每页结果数量（最大值：150） |
+| `starting_after` | string | 否 | 分页游标 |
+| `sort` | string | 否 | 排序字段（例如："waiting_since"、"updated_at"、"created_at"） |
+| `order` | string | 否 | 排序方式："asc"（升序）或 "desc"（降序） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `conversations` | array | 会话对象数组 |
+
+### `intercom_reply_conversation`
+
+以管理员身份在 Intercom 中回复对话
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | 是 | 要回复的会话 ID |
+| `message_type` | string | 是 | 消息类型："comment" 或 "note" |
+| `body` | string | 是 | 回复正文 |
+| `admin_id` | string | 否 | 回复管理员的 ID。如果未提供，将使用默认管理员（Operator/Fin）。 |
+| `attachment_urls` | string | 否 | 以逗号分隔的图片 URL 列表（最多 10 个） |
+| `created_at` | number | 否 | 回复创建时的 Unix 时间戳。如果未提供，则使用当前时间。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `conversation` | object | 更新后的会话对象 |
+
+### `intercom_search_conversations`
+
+使用查询在 Intercom 中搜索对话
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | 是 | 作为 JSON 对象的搜索查询 |
+| `per_page` | number | 否 | 每页结果数量（最大值：150） |
+| `starting_after` | string | 否 | 分页游标 |
+| `sort_field` | string | 否 | 排序字段（例如："created_at"，"updated_at"） |
+| `sort_order` | string | 否 | 排序顺序：“ascending” 或 “descending” |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `conversations` | array | 匹配的会话对象数组 |
+
+### `intercom_create_ticket`
+
+在 Intercom 中创建新工单
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `ticket_type_id` | string | 是 | 工单类型的 ID |
+| `contacts` | string | 是 | 联系人标识符的 JSON 数组（例如：\[\{"id": "contact_id"\}\]） |
+| `ticket_attributes` | string | 是 | 包含 _default_title_ 和 _default_description_ 的工单属性 JSON 对象 |
+| `company_id` | string | 否 | 要关联工单的公司 ID |
+| `created_at` | number | 否 | 工单创建时的 Unix 时间戳。如果未提供，则使用当前时间。 |
+| `conversation_to_link_id` | string | 否 | 要关联到此工单的现有会话 ID |
+| `disable_notifications` | boolean | 否 | 若为 true，创建工单时将不发送通知 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ticket` | object | 创建的工单对象 |
+
+### `intercom_get_ticket`
+
+从 Intercom 按 ID 检索单个工单
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `ticketId` | string | 是 | 要检索的工单 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ticket` | object | 工单对象 |
+
+### `intercom_create_message`
+
+在 Intercom 中创建并发送新的管理员发起的消息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `message_type` | string | 是 | 消息类型：“inapp” 表示应用内消息，“email” 表示电子邮件消息 |
+| `template` | string | 是 | 消息模板样式：“plain” 表示纯文本，“personal” 表示个性化样式 |
+| `subject` | string | 否 | 消息主题（仅适用于 email 类型） |
+| `body` | string | 是 | 消息正文 |
+| `from_type` | string | 是 | 发送方类型：“admin” |
+| `from_id` | string | 是 | 发送消息的管理员 ID |
+| `to_type` | string | 是 | 接收方类型：“contact” |
+| `to_id` | string | 是 | 接收消息的联系人的 ID |
+| `created_at` | number | 否 | 消息创建时的 Unix 时间戳。如果未提供，则使用当前时间。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | object | 创建的消息对象 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`intercom`
+
+在 Intercom 中创建并发送一条新的管理员发起消息。仅返回与 API 对齐的字段。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `message_type` | string | 是 | 消息类型："inapp" 表示应用内消息，"email" 表示邮件消息 |
+| `template` | string | 是 | 消息模板样式："plain" 表示纯文本，"personal" 表示个性化样式 |
+| `subject` | string | 否 | 消息主题（仅适用于邮件类型） |
+| `body` | string | 是 | 消息正文 |
+| `from_type` | string | 是 | 发送者类型："admin" |
+| `from_id` | string | 是 | 发送消息的管理员 ID |
+| `to_type` | string | 是 | 接收者类型："contact" |
+| `to_id` | string | 是 | 接收消息的联系人的 ID |
+| `created_at` | number | 否 | 消息创建时间的 Unix 时间戳。如未提供，则使用当前时间。|
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | object | 创建的消息对象 |
+|   ↳ `id` | string | 消息的唯一标识符 |
+|   ↳ `type` | string | 对象类型（message） |
+|   ↳ `created_at` | number | 消息创建时的 Unix 时间戳 |
+|   ↳ `body` | string | 消息正文 |
+|   ↳ `message_type` | string | 消息类型（in_app 或 email） |
+|   ↳ `conversation_id` | string | 创建的会话 ID |
+|   ↳ `owner` | object | 消息所有者 |
+| `messageId` | string | 创建的消息 ID |
+| `success` | boolean | 操作成功状态 |
+
+获取工作区所有管理员的列表
+
+获取工作区所有管理员的列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `admins` | array | 管理员对象数组 |
+|   ↳ `id` | string | 管理员的唯一标识符 |
+|   ↳ `type` | string | 对象类型（admin） |
+|   ↳ `name` | string | 管理员姓名 |
+|   ↳ `email` | string | 管理员邮箱 |
+|   ↳ `job_title` | string | 管理员职位 |
+|   ↳ `away_mode_enabled` | boolean | 管理员是否处于离开模式 |
+|   ↳ `away_mode_reassign` | boolean | 离开时是否重新分配会话 |
+|   ↳ `has_inbox_seat` | boolean | 管理员是否拥有付费收件箱席位 |
+|   ↳ `team_ids` | array | 管理员所属团队 ID 列表 |
+|   ↳ `avatar` | object | 头像信息 |
+|   ↳ `email_verified` | boolean | 邮箱是否已验证 |
+| `type` | string | 对象类型（admin.list） |
+
+关闭 Intercom 中的会话
+
+关闭 Intercom 中的会话
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | 是 | 要关闭的会话 ID |
+| `admin_id` | string | 是 | 执行操作的管理员 ID |
+| `body` | string | 否 | 可选的关闭消息，将添加到会话中 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `conversation` | object | 已关闭的会话对象 |
+|   ↳ `id` | string | 会话的唯一标识符 |
+|   ↳ `type` | string | 对象类型（conversation） |
+|   ↳ `state` | string | 会话状态（closed） |
+|   ↳ `open` | boolean | 会话是否为开启状态（false） |
+|   ↳ `read` | boolean | 会话是否已读 |
+|   ↳ `created_at` | number | 会话创建时的 Unix 时间戳 |
+|   ↳ `updated_at` | number | 会话最后更新时间的 Unix 时间戳 |
+| `conversationId` | string | 已关闭会话的 ID |
+| `state` | string | 会话状态（closed） |
+
+### `intercom_open_conversation`
+
+在 Intercom 中打开已关闭或已暂停的会话
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | 是 | 要打开的会话 ID |
+| `admin_id` | string | 是 | 执行操作的管理员 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `conversation` | object | 已打开的会话对象 |
+|   ↳ `id` | string | 会话的唯一标识符 |
+|   ↳ `type` | string | 对象类型（conversation） |
+|   ↳ `state` | string | 会话状态（open） |
+|   ↳ `open` | boolean | 会话是否为开启状态（true） |
+|   ↳ `read` | boolean | 会话是否已读 |
+|   ↳ `created_at` | number | 会话创建时的 Unix 时间戳 |
+|   ↳ `updated_at` | number | 会话最后更新时间的 Unix 时间戳 |
+| `conversationId` | string | 已打开会话的 ID |
+| `state` | string | 会话状态（open） |
+
+### `intercom_snooze_conversation`
+
+将对话暂时搁置，稍后自动重新开启
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | ---- | ----------- |
+| `conversationId` | string | 是 | 要搁置的对话 ID |
+| `admin_id` | string | 是 | 执行操作的管理员 ID |
+| `snoozed_until` | number | 是 | 对话应重新开启的 Unix 时间戳 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `conversation` | object | 已搁置的对话对象 |
+|   ↳ `id` | string | 对话的唯一标识符 |
+|   ↳ `type` | string | 对象类型（conversation） |
+|   ↳ `state` | string | 对话状态（已搁置） |
+|   ↳ `open` | boolean | 对话是否处于开启状态 |
+|   ↳ `snoozed_until` | number | 对话将重新开启的 Unix 时间戳 |
+|   ↳ `created_at` | number | 对话创建时的 Unix 时间戳 |
+|   ↳ `updated_at` | number | 对话最后更新时间的 Unix 时间戳 |
+| `conversationId` | string | 已搁置对话的 ID |
+| `state` | string | 对话状态（已搁置） |
+| `snoozed_until` | number | 对话将重新开启的 Unix 时间戳 |
+
+### `intercom_assign_conversation`
+
+将对话分配给 Intercom 中的管理员或团队
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | ---- | ----------- |
+| `conversationId` | string | 是 | 要分配的对话 ID |
+| `admin_id` | string | 是 | 执行分配操作的管理员 ID |
+| `assignee_id` | string | 是 | 要分配给的管理员或团队 ID。设置为 "0" 表示取消分配。|
+| `body` | string | 否 | 分配时可选的附加消息（如："转交给支持团队"） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `conversation` | object | 已分配的会话对象 |
+|   ↳ `id` | string | 会话的唯一标识符 |
+|   ↳ `type` | string | 对象类型（conversation） |
+|   ↳ `state` | string | 会话状态 |
+|   ↳ `open` | boolean | 会话是否为开启状态 |
+|   ↳ `admin_assignee_id` | number | 分配的管理员 ID |
+|   ↳ `team_assignee_id` | string | 分配的团队 ID |
+|   ↳ `created_at` | number | 会话创建时的 Unix 时间戳 |
+|   ↳ `updated_at` | number | 会话最后更新时间的 Unix 时间戳 |
+| `conversationId` | string | 分配的会话 ID |
+| `admin_assignee_id` | number | 分配的管理员 ID |
+| `team_assignee_id` | string | 分配的团队 ID |
+
+### `intercom_list_tags`
+
+获取工作区内所有标签的列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `tags` | array | 标签对象数组 |
+|   ↳ `id` | string | 标签的唯一标识符 |
+|   ↳ `type` | string | 对象类型（tag） |
+|   ↳ `name` | string | 标签名称 |
+| `type` | string | 对象类型（list） |
+
+### `intercom_create_tag`
+
+创建新标签或更新现有标签名称
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | 是 | 标签名称。如果未找到则创建新标签，如果提供了 id 则更新名称。|
+| `id` | string | 否 | 要更新的现有标签 ID。不填写则创建新标签。|
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 标签的唯一标识符 |
+| `name` | string | 标签名称 |
+| `type` | string | 对象类型（tag）|
+
+### `intercom_tag_contact`
+
+为指定联系人添加标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | 是 | 要打标签的联系人 ID |
+| `tagId` | string | 是 | 要应用的标签 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 标签的唯一标识符 |
+| `name` | string | 标签名称 |
+| `type` | string | 对象类型（tag）|
+
+### `intercom_untag_contact`
+
+为指定联系人移除标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | 是 | 要移除标签的联系人 ID |
+| `tagId` | string | 是 | 要移除的标签 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 被移除标签的唯一标识符 |
+| `name` | string | 被移除标签的名称 |
+| `type` | string | 对象类型（tag） |
+
+### `intercom_tag_conversation`
+
+为指定会话添加标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | 是 | 需要打标签的会话 ID |
+| `tagId` | string | 是 | 要应用的标签 ID |
+| `admin_id` | string | 是 | 应用标签的管理员 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 标签的唯一标识符 |
+| `name` | string | 标签名称 |
+| `type` | string | 对象类型（tag） |
+
+### `intercom_create_note`
+
+为指定联系人添加备注
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | 是 | 需要添加备注的联系人 ID |
+| `body` | string | 是 | 备注的文本内容 |
+| `admin_id` | string | 否 | 创建备注的管理员 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 笔记的唯一标识符 |
+| `body` | string | 笔记的文本内容 |
+| `created_at` | number | 笔记创建时的 Unix 时间戳 |
+| `type` | string | 对象类型（note） |
+| `author` | object | 创建该笔记的管理员 |
+|   ↳ `type` | string | 作者类型（admin） |
+|   ↳ `id` | string | 作者 ID |
+|   ↳ `name` | string | 作者姓名 |
+|   ↳ `email` | string | 作者邮箱 |
+| `contact` | object | 笔记所关联的联系人 |
+|   ↳ `type` | string | 联系人类型 |
+|   ↳ `id` | string | 联系人 ID |
+
+### `intercom_create_event`
+
+为 Intercom 中的联系人跟踪自定义事件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `event_name` | string | 是 | 事件名称（例如："order-completed"）。为便于阅读，请使用动词过去式-名词格式。 |
+| `created_at` | number | 否 | 事件发生时的 Unix 时间戳。强烈建议用于保证唯一性。 |
+| `user_id` | string | 否 | 用户的标识符（external_id） |
+| `email` | string | 否 | 用户的邮箱地址。仅当您的应用使用邮箱唯一标识用户时使用。 |
+| `id` | string | 否 | Intercom 联系人 ID |
+| `metadata` | string | 否 | 包含最多 10 个事件元数据键值对的 JSON 对象（例如：\{"order_value": 99.99\}） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | 事件是否被接受（202 Accepted） |
+
+### `intercom_attach_contact_to_company`
+
+在 Intercom 中将联系人关联到公司
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | 是 | 要关联到公司的联系人 ID |
+| `companyId` | string | 是 | 要关联联系人的公司 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `company` | object | 联系人已关联的公司对象 |
+|   ↳ `id` | string | 公司的唯一标识符 |
+|   ↳ `type` | string | 对象类型（company） |
+|   ↳ `company_id` | string | 你定义的 company_id |
+|   ↳ `name` | string | 公司名称 |
+|   ↳ `created_at` | number | 公司创建时的 Unix 时间戳 |
+|   ↳ `updated_at` | number | 公司更新时间的 Unix 时间戳 |
+|   ↳ `user_count` | number | 公司用户数量 |
+|   ↳ `session_count` | number | 会话数量 |
+|   ↳ `monthly_spend` | number | 每月支出金额 |
+|   ↳ `plan` | object | 公司套餐详情 |
+| `companyId` | string | 公司 ID |
+| `name` | string | 公司名称 |
+
+### `intercom_detach_contact_from_company`
+
+在 Intercom 中将联系人从公司中移除
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | 是 | 要从公司中移除的联系人 ID |
+| `companyId` | string | 是 | 要移除联系人的公司 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `company` | object | 联系人被移除的公司对象 |
+|   ↳ `id` | string | 公司的唯一标识符 |
+|   ↳ `type` | string | 对象类型（company） |
+|   ↳ `company_id` | string | 你定义的 company_id |
+|   ↳ `name` | string | 公司名称 |
+| `companyId` | string | 公司 ID |
+| `name` | string | 公司名称 |

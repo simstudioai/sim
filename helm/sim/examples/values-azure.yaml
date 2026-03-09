@@ -1,0 +1,228 @@
+# Azure-specific values for Sim
+# Example configuration for Azure AKS deployment
+
+# Global configuration
+global:
+  imageRegistry: "ghcr.io"
+  # Use "managed-csi-premium" for Premium SSD, "managed-csi" for Standard SSD
+  # IMPORTANT: For production, use a StorageClass with reclaimPolicy: Retain
+  # to protect database volumes from accidental deletion.
+  storageClass: "managed-csi"
+
+# Main application
+app:
+  enabled: true
+  replicaCount: 2
+
+  # Node selector for application pods
+  # Uncomment and customize based on your AKS node labels:
+  # nodeSelector:
+  #   agentpool: "application"
+  
+  resources:
+    limits:
+      memory: "4Gi"
+    requests:
+      memory: "2Gi"
+      cpu: "500m"
+  
+  # Production URLs (REQUIRED - update with your actual domain names)
+  env:
+    NEXT_PUBLIC_APP_URL: "https://simstudio.acme.com"
+    BETTER_AUTH_URL: "https://simstudio.acme.com"
+    # SOCKET_SERVER_URL is auto-detected (uses internal service http://sim-realtime:3002)
+    NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"  # Public WebSocket URL for browsers
+    
+    # Security settings (REQUIRED - replace with your own secure secrets)
+    # Generate using: openssl rand -hex 32
+    BETTER_AUTH_SECRET: "your-secure-production-auth-secret-here"
+    ENCRYPTION_KEY: "your-secure-production-encryption-key-here"
+    INTERNAL_API_SECRET: "your-secure-production-internal-api-secret-here"
+    CRON_SECRET: "your-secure-production-cron-secret-here"
+
+    # Optional: API Key Encryption (RECOMMENDED for production)
+    # Generate 64-character hex string using: openssl rand -hex 32
+    API_ENCRYPTION_KEY: "your-64-char-hex-api-encryption-key-here"  # Optional but recommended
+
+    NODE_ENV: "production"
+    NEXT_TELEMETRY_DISABLED: "1"
+
+    # Azure Blob Storage Configuration (RECOMMENDED for production)
+    # Create a storage account and containers in your Azure subscription
+    AZURE_ACCOUNT_NAME: "simstudiostorageacct"           # Azure storage account name
+    AZURE_ACCOUNT_KEY: ""                                 # Storage account access key
+    # Or use connection string instead of account name/key:
+    # AZURE_CONNECTION_STRING: "DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;EndpointSuffix=core.windows.net"
+    AZURE_STORAGE_CONTAINER_NAME: "workspace-files"       # Workspace files container
+    AZURE_STORAGE_KB_CONTAINER_NAME: "knowledge-base"     # Knowledge base documents container
+    AZURE_STORAGE_EXECUTION_FILES_CONTAINER_NAME: "execution-files"  # Workflow execution outputs
+    AZURE_STORAGE_CHAT_CONTAINER_NAME: "chat-files"       # Deployed chat assets container
+    AZURE_STORAGE_COPILOT_CONTAINER_NAME: "copilot-files" # Copilot attachments container
+    AZURE_STORAGE_PROFILE_PICTURES_CONTAINER_NAME: "profile-pictures"  # User avatars container
+    AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME: "og-images"   # OpenGraph preview images container
+
+# Realtime service
+realtime:
+  enabled: true
+  replicaCount: 2
+
+  # Node selector for realtime pods
+  # Uncomment and customize based on your AKS node labels:
+  # nodeSelector:
+  #   agentpool: "application"
+  
+  resources:
+    limits:
+      memory: "4Gi"
+    requests:
+      memory: "1Gi"
+      cpu: "250m"
+  
+  env:
+    NEXT_PUBLIC_APP_URL: "https://simstudio.acme.com"
+    BETTER_AUTH_URL: "https://simstudio.acme.com"
+    NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"
+    BETTER_AUTH_SECRET: "your-secure-production-auth-secret-here"
+    ALLOWED_ORIGINS: "https://simstudio.acme.com"
+    NODE_ENV: "production"
+
+# Database migrations
+migrations:
+  enabled: true
+
+# PostgreSQL database
+postgresql:
+  enabled: true
+
+  # Node selector for database pods
+  # Uncomment and customize (recommended: memory-optimized VM sizes):
+  # nodeSelector:
+  #   agentpool: "database"
+  
+  # Database authentication (REQUIRED - set secure credentials)
+  auth:
+    username: postgres
+    password: "your-secure-postgres-password"
+    database: simstudio
+  
+  # Resource allocation for production workloads
+  resources:
+    limits:
+      memory: "2Gi"
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+  
+  # Persistent storage using Azure Managed Disk
+  persistence:
+    enabled: true
+    storageClass: "managed-csi"
+    size: 10Gi
+  
+  # SSL/TLS configuration (requires cert-manager to be installed)
+  tls:
+    enabled: false  # Set to true if cert-manager is installed
+    certificatesSecret: postgres-tls-secret
+  
+  # PostgreSQL performance tuning for Azure infrastructure
+  config:
+    maxConnections: 1000
+    sharedBuffers: "1280MB"
+    maxWalSize: "4GB"
+    minWalSize: "80MB"
+
+# Ollama AI models with GPU acceleration (Azure NC-series VMs)
+# Set ollama.enabled: false if you don't need local AI models
+ollama:
+  enabled: false
+  replicaCount: 1
+
+  # GPU node targeting - uncomment and customize for GPU node pools
+  # Recommended: NC6s_v3 or NC12s_v3 VMs
+  # nodeSelector:
+  #   agentpool: "gpu"
+  
+  tolerations:
+    - key: "sku"
+      operator: "Equal"
+      value: "gpu"
+      effect: "NoSchedule"
+  
+  # GPU resource allocation for AI model serving
+  gpu:
+    enabled: true
+    count: 1
+  
+  resources:
+    limits:
+      memory: "8Gi"
+      nvidia.com/gpu: "1"
+    requests:
+      memory: "4Gi"
+      cpu: "1000m"
+  
+  # High-performance storage for AI models (use managed-csi-premium for GPU workloads)
+  persistence:
+    enabled: true
+    storageClass: "managed-csi-premium"
+    size: 100Gi
+  
+  env:
+    NVIDIA_DRIVER_CAPABILITIES: "all"
+    OLLAMA_LOAD_TIMEOUT: "-1"
+    OLLAMA_KEEP_ALIVE: "-1"
+    OLLAMA_DEBUG: "1"
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+
+  annotations:
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+  # Main application
+  app:
+    host: simstudio.acme.com
+    paths:
+      - path: /
+        pathType: Prefix
+
+  # Realtime service
+  realtime:
+    host: simstudio-ws.acme.com
+    paths:
+      - path: /
+        pathType: Prefix
+
+  # TLS configuration
+  tls:
+    enabled: true
+    secretName: simstudio-tls-secret
+
+# Internal Ingress configuration
+ingressInternal:
+  enabled: false
+  className: azure-application-gateway
+
+  annotations:
+    appgw.ingress.kubernetes.io/use-private-ip: "true"
+
+  # Main application
+  app:
+    host: simstudio-internal.acme.local
+    paths:
+      - path: /
+        pathType: Prefix
+
+  # Realtime service
+  realtime:
+    host: simstudio-internal.acme.local
+    paths:
+      - path: /socket.io
+        pathType: Prefix
+
+  # TLS configuration
+  tls:
+    enabled: true
+    secretName: simstudio-internal-tls-secret

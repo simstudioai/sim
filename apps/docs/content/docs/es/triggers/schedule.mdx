@@ -1,0 +1,77 @@
+---
+title: Programación
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+El bloque de Programación activa automáticamente flujos de trabajo de forma recurrente en intervalos o momentos específicos.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/schedule.png"
+    alt="Bloque de programación"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Opciones de programación
+
+Configura cuándo se ejecuta tu flujo de trabajo:
+
+<Tabs items={['Intervalos simples', 'Expresiones cron']}>
+  <Tab>
+    <ul className="list-disc space-y-1 pl-6">
+      <li><strong>Cada X minutos</strong>: ejecutar en intervalos de minutos (1-1440)</li>
+      <li><strong>Cada hora</strong>: ejecutar en un minuto específico cada hora</li>
+      <li><strong>Diariamente</strong>: ejecutar a una hora específica cada día</li>
+      <li><strong>Semanalmente</strong>: ejecutar en un día y hora específicos cada semana</li>
+      <li><strong>Mensualmente</strong>: ejecutar en un día y hora específicos cada mes</li>
+    </ul>
+  </Tab>
+  <Tab>
+    <p>Usa expresiones cron para programación avanzada:</p>
+    <div className="text-sm space-y-1">
+      <div><code>0 9 * * 1-5</code> - Cada día laborable a las 9 AM</div>
+      <div><code>*/15 * * * *</code> - Cada 15 minutos</div>
+      <div><code>0 0 1 * *</code> - Primer día de cada mes</div>
+    </div>
+  </Tab>
+</Tabs>
+
+## Activación
+
+Las programaciones están vinculadas al despliegue del flujo de trabajo:
+
+- **Desplegar flujo de trabajo** → la programación se activa y comienza a ejecutarse
+- **Retirar flujo de trabajo** → la programación se elimina
+- **Redesplegar flujo de trabajo** → la programación se recrea con la configuración actual
+
+<Callout>
+Debes desplegar tu flujo de trabajo para que la programación comience a ejecutarse. Configura el bloque de programación y luego despliega desde la barra de herramientas.
+</Callout>
+
+## Desactivación automática
+
+Las programaciones se desactivan automáticamente después de **100 fallos consecutivos** para evitar errores descontrolados. Cuando están desactivadas:
+
+- Aparece una insignia de advertencia en el bloque de programación
+- La programación deja de ejecutarse
+- Haz clic en la insignia para reactivar la programación
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/schedule-3.png"
+    alt="Programación desactivada"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout>
+Los bloques de programación no pueden recibir conexiones entrantes y sirven únicamente como puntos de entrada del flujo de trabajo.
+</Callout>

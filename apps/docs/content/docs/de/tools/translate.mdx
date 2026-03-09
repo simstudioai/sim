@@ -1,0 +1,60 @@
+---
+title: Übersetzen
+description: Text in jede Sprache übersetzen
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="translate"
+  color="#FF4B4B"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Übersetzen ist ein Tool, mit dem Sie Text zwischen verschiedenen Sprachen übersetzen können.
+
+Mit Übersetzen können Sie:
+
+- **Text übersetzen**: Text zwischen Sprachen übersetzen
+- **Dokumente übersetzen**: Dokumente zwischen Sprachen übersetzen
+- **Webseiten übersetzen**: Webseiten zwischen Sprachen übersetzen
+- **Bilder übersetzen**: Bilder zwischen Sprachen übersetzen
+- **Audio übersetzen**: Audiodateien zwischen Sprachen übersetzen
+- **Videos übersetzen**: Videos zwischen Sprachen übersetzen
+- **Sprache übersetzen**: Gesprochene Sprache zwischen Sprachen übersetzen
+- **Text übersetzen**: Text zwischen Sprachen übersetzen
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integrieren Sie Übersetzen in den Workflow. Kann Text in jede Sprache übersetzen.
+
+## Tools
+
+### `llm_chat`
+
+Senden Sie eine Chat-Completion-Anfrage an jeden unterstützten LLM-Anbieter
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `model` | string | Ja | Das zu verwendende Modell \(z. B. gpt-4o, claude-sonnet-4-5, gemini-2.0-flash\) |
+| `systemPrompt` | string | Nein | System-Prompt zur Festlegung des Verhaltens des Assistenten |
+| `context` | string | Ja | Die Benutzernachricht oder der Kontext, der an das Modell gesendet werden soll |
+| `apiKey` | string | Nein | API-Schlüssel für den Anbieter \(verwendet den Plattformschlüssel, falls nicht für gehostete Modelle angegeben\) |
+| `temperature` | number | Nein | Temperatur für die Antwortgenerierung \(0–2\) |
+| `maxTokens` | number | Nein | Maximale Anzahl von Tokens in der Antwort |
+| `azureEndpoint` | string | Nein | Azure OpenAI-Endpunkt-URL |
+| `azureApiVersion` | string | Nein | Azure OpenAI-API-Version |
+| `vertexProject` | string | Nein | Google Cloud-Projekt-ID für Vertex AI |
+| `vertexLocation` | string | Nein | Google Cloud-Standort für Vertex AI \(Standard: us-central1\) |
+| `vertexCredential` | string | Nein | Google Cloud OAuth-Anmeldeinformations-ID für Vertex AI |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Der generierte Antwortinhalt |
+| `model` | string | Das für die Generierung verwendete Modell |
+| `tokens` | object | Informationen zur Token-Nutzung |

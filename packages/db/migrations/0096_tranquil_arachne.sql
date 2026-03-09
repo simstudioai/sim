@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "copilot_enabled_models" jsonb DEFAULT '{}' NOT NULL;

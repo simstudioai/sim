@@ -1,0 +1,160 @@
+---
+title: Pinecone
+description: Use Pinecone vector database
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="pinecone"
+  color="#0D1117"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Pinecone](https://www.pinecone.io) is a vector database designed for building high-performance vector search applications. It enables efficient storage, management, and similarity search of high-dimensional vector embeddings, making it ideal for AI applications that require semantic search capabilities.
+
+With Pinecone, you can:
+
+- **Store vector embeddings**: Efficiently manage high-dimensional vectors at scale
+- **Perform similarity search**: Find the most similar vectors to a query vector in milliseconds
+- **Build semantic search**: Create search experiences based on meaning rather than keywords
+- **Implement recommendation systems**: Generate personalized recommendations based on content similarity
+- **Deploy machine learning models**: Operationalize ML models that rely on vector similarity
+- **Scale seamlessly**: Handle billions of vectors with consistent performance
+- **Maintain real-time indexes**: Update your vector database in real-time as new data arrives
+
+In Sim, the Pinecone integration enables your agents to leverage vector search capabilities programmatically as part of their workflows. This allows for sophisticated automation scenarios that combine natural language processing with semantic search and retrieval. Your agents can generate embeddings from text, store these vectors in Pinecone indexes, and perform similarity searches to find the most relevant information. This integration bridges the gap between your AI workflows and vector search infrastructure, enabling more intelligent information retrieval based on semantic meaning rather than exact keyword matching. By connecting Sim with Pinecone, you can create agents that understand context, retrieve relevant information from large datasets, and deliver more accurate and personalized responses to users - all without requiring complex infrastructure management or specialized knowledge of vector databases.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Pinecone into the workflow. Can generate embeddings, upsert text, search with text, fetch vectors, and search with vectors.
+
+
+
+## Tools
+
+### `pinecone_generate_embeddings`
+
+Generate embeddings from text using Pinecone
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `model` | string | Yes | Model to use for generating embeddings |
+| `inputs` | array | Yes | Array of text inputs to generate embeddings for |
+| `apiKey` | string | Yes | Pinecone API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | array | Generated embeddings data with values and vector type |
+| `model` | string | Model used for generating embeddings |
+| `vector_type` | string | Type of vector generated \(dense/sparse\) |
+| `usage` | object | Usage statistics for embeddings generation |
+
+### `pinecone_upsert_text`
+
+Insert or update text records in a Pinecone index
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `indexHost` | string | Yes | Full Pinecone index host URL \(e.g., "https://my-index-abc123.svc.pinecone.io"\) |
+| `namespace` | string | Yes | Namespace to upsert records into \(e.g., "documents", "embeddings"\) |
+| `records` | array | Yes | Record or array of records to upsert, each containing _id, text, and optional metadata |
+| `apiKey` | string | Yes | Pinecone API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statusText` | string | Status of the upsert operation |
+
+### `pinecone_search_text`
+
+Search for similar text in a Pinecone index
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `indexHost` | string | Yes | Full Pinecone index host URL \(e.g., "https://my-index-abc123.svc.pinecone.io"\) |
+| `namespace` | string | No | Namespace to search in \(e.g., "documents", "embeddings"\) |
+| `searchQuery` | string | Yes | Text to search for |
+| `topK` | string | No | Number of results to return \(e.g., "10", "25"\) |
+| `fields` | array | No | Fields to return in the results |
+| `filter` | object | No | Filter to apply to the search \(e.g., \{"category": "tech", "year": \{"$gte": 2020\}\}\) |
+| `rerank` | object | No | Reranking parameters |
+| `apiKey` | string | Yes | Pinecone API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matches` | array | Search results with ID, score, and metadata |
+|   ↳ `id` | string | Vector ID |
+|   ↳ `score` | number | Similarity score |
+|   ↳ `metadata` | object | Associated metadata |
+| `usage` | object | Usage statistics including tokens, read units, and rerank units |
+|   ↳ `total_tokens` | number | Total tokens used for embedding |
+|   ↳ `read_units` | number | Read units consumed |
+|   ↳ `rerank_units` | number | Rerank units used |
+
+### `pinecone_search_vector`
+
+Search for similar vectors in a Pinecone index
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `indexHost` | string | Yes | Full Pinecone index host URL \(e.g., "https://my-index-abc123.svc.pinecone.io"\) |
+| `namespace` | string | No | Namespace to search in \(e.g., "documents", "embeddings"\) |
+| `vector` | array | Yes | Vector to search for |
+| `topK` | number | No | Number of results to return \(e.g., 10, 25\) |
+| `filter` | object | No | Filter to apply to the search \(e.g., \{"category": "tech", "year": \{"$gte": 2020\}\}\) |
+| `includeValues` | boolean | No | Include vector values in response |
+| `includeMetadata` | boolean | No | Include metadata in response \(true/false\) |
+| `apiKey` | string | Yes | Pinecone API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matches` | array | Vector search results with ID, score, values, and metadata |
+| `namespace` | string | Namespace where the search was performed |
+
+### `pinecone_fetch`
+
+Fetch vectors by ID from a Pinecone index
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `indexHost` | string | Yes | Full Pinecone index host URL \(e.g., "https://my-index-abc123.svc.pinecone.io"\) |
+| `ids` | array | Yes | Array of vector IDs to fetch \(e.g., \["vec-001", "vec-002"\]\) |
+| `namespace` | string | No | Namespace to fetch vectors from \(e.g., "documents", "embeddings"\) |
+| `apiKey` | string | Yes | Pinecone API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matches` | array | Fetched vectors with ID, values, metadata, and score |
+|   ↳ `id` | string | Vector ID |
+|   ↳ `values` | array | Vector values |
+|   ↳ `metadata` | object | Associated metadata |
+|   ↳ `score` | number | Match score \(1.0 for exact matches\) |
+| `data` | array | Vector data with values and vector type |
+|   ↳ `values` | array | Vector values |
+|   ↳ `vector_type` | string | Vector type \(dense/sparse\) |
+| `usage` | object | Usage statistics including total read units |
+|   ↳ `total_tokens` | number | Read units consumed |
+
+

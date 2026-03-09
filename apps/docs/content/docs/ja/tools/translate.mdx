@@ -1,0 +1,60 @@
+---
+title: 翻訳
+description: テキストをあらゆる言語に翻訳
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="translate"
+  color="#FF4B4B"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+翻訳は言語間でテキストを翻訳できるツールです。
+
+翻訳を使用すると、次のことができます：
+
+- **テキスト翻訳**：言語間でテキストを翻訳
+- **文書翻訳**：言語間で文書を翻訳
+- **ウェブサイト翻訳**：言語間でウェブサイトを翻訳
+- **画像翻訳**：言語間で画像を翻訳
+- **音声翻訳**：言語間で音声を翻訳
+- **動画翻訳**：言語間で動画を翻訳
+- **スピーチ翻訳**：言語間でスピーチを翻訳
+- **テキスト翻訳**：言語間でテキストを翻訳
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+ワークフローに翻訳を統合します。テキストをあらゆる言語に翻訳できます。
+
+## ツール
+
+### `llm_chat`
+
+サポートされている任意のLLMプロバイダーにチャット完了リクエストを送信する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `model` | string | はい | 使用するモデル（例：gpt-4o、claude-sonnet-4-5、gemini-2.0-flash） |
+| `systemPrompt` | string | いいえ | アシスタントの動作を設定するシステムプロンプト |
+| `context` | string | はい | モデルに送信するユーザーメッセージまたはコンテキスト |
+| `apiKey` | string | いいえ | プロバイダーのAPIキー（ホストされたモデルの場合、提供されない場合はプラットフォームキーを使用） |
+| `temperature` | number | いいえ | レスポンス生成の温度（0-2） |
+| `maxTokens` | number | いいえ | レスポンスの最大トークン数 |
+| `azureEndpoint` | string | いいえ | Azure OpenAIエンドポイントURL |
+| `azureApiVersion` | string | いいえ | Azure OpenAI APIバージョン |
+| `vertexProject` | string | いいえ | Vertex AI用のGoogle CloudプロジェクトID |
+| `vertexLocation` | string | いいえ | Vertex AI用のGoogle Cloudロケーション（デフォルトはus-central1） |
+| `vertexCredential` | string | いいえ | Vertex AI用のGoogle Cloud OAuth認証情報ID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `content` | string | 生成されたレスポンスの内容 |
+| `model` | string | 生成に使用されたモデル |
+| `tokens` | object | トークン使用情報 |

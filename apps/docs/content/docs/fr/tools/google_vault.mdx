@@ -1,0 +1,175 @@
+---
+title: Google Vault
+description: Rechercher, exporter et gérer les suspensions/exportations pour les
+  dossiers Vault
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_vault"
+  color="#E8F0FE"
+/>
+
+## Instructions d'utilisation
+
+Connectez Google Vault pour créer des exportations, lister les exportations et gérer les suspensions au sein des dossiers.
+
+## Outils
+
+### `google_vault_create_matters_export`
+
+Créer une exportation dans une affaire
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Oui | Pas de description |
+| `exportName` | string | Oui | Pas de description |
+| `corpus` | string | Oui | Corpus de données à exporter \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
+| `accountEmails` | string | Non | Liste d'emails d'utilisateurs séparés par des virgules pour définir la portée de l'exportation |
+| `orgUnitId` | string | Non | ID de l'unité d'organisation pour définir la portée de l'exportation \(alternative aux emails\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `export` | json | Objet d'exportation créé |
+
+### `google_vault_list_matters_export`
+
+Lister les exportations pour une affaire
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Oui | Pas de description |
+| `pageSize` | number | Non | Pas de description |
+| `pageToken` | string | Non | Pas de description |
+| `exportId` | string | Non | Pas de description |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `exports` | json | Tableau d'objets d'exportation |
+| `export` | json | Objet d'exportation unique \(lorsque exportId est fourni\) |
+| `nextPageToken` | string | Jeton pour récupérer la page suivante de résultats |
+
+### `google_vault_download_export_file`
+
+Télécharger un fichier unique depuis une exportation Google Vault (objet GCS)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `matterId` | chaîne | Oui | Aucune description |
+| `bucketName` | chaîne | Oui | Aucune description |
+| `objectName` | chaîne | Oui | Aucune description |
+| `fileName` | chaîne | Non | Aucune description |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | fichier | Fichier d'exportation Vault téléchargé stocké dans les fichiers d'exécution |
+
+### `google_vault_create_matters_holds`
+
+Créer une suspension dans une affaire
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `matterId` | chaîne | Oui | Aucune description |
+| `holdName` | chaîne | Oui | Aucune description |
+| `corpus` | chaîne | Oui | Corpus de données à suspendre \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
+| `accountEmails` | chaîne | Non | Liste d'emails d'utilisateurs à suspendre, séparés par des virgules |
+| `orgUnitId` | chaîne | Non | ID d'unité d'organisation à suspendre \(alternative aux comptes\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `hold` | json | Objet de suspension créé |
+
+### `google_vault_list_matters_holds`
+
+Lister les suspensions pour une affaire
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `matterId` | chaîne | Oui | Aucune description |
+| `pageSize` | nombre | Non | Aucune description |
+| `pageToken` | chaîne | Non | Aucune description |
+| `holdId` | chaîne | Non | Aucune description |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `holds` | json | Tableau d'objets de suspension |
+| `hold` | json | Objet de suspension unique \(lorsque holdId est fourni\) |
+| `nextPageToken` | string | Jeton pour récupérer la page suivante de résultats |
+
+### `google_vault_create_matters`
+
+Créer une nouvelle affaire dans Google Vault
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `name` | string | Oui | Aucune description |
+| `description` | string | Non | Aucune description |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `matter` | json | Objet d'affaire créé |
+
+### `google_vault_list_matters`
+
+Lister les affaires, ou obtenir une affaire spécifique si matterId est fourni
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `pageSize` | number | Non | Aucune description |
+| `pageToken` | string | Non | Aucune description |
+| `matterId` | string | Non | Aucune description |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `matters` | json | Tableau d'objets d'affaire |
+| `matter` | json | Objet d'affaire unique \(lorsque matterId est fourni\) |
+| `nextPageToken` | string | Jeton pour récupérer la page suivante de résultats |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `google_vault`
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | Non | Nombre d'affaires à retourner par page |
+| `pageToken` | string | Non | Jeton pour la pagination |
+| `matterId` | string | Non | ID d'affaire optionnel pour récupérer une affaire spécifique (par ex., "12345678901234567890") |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `matters` | json | Tableau d'objets affaire |
+| `matter` | json | Objet affaire unique (lorsque matterId est fourni) |
+| `nextPageToken` | string | Jeton pour récupérer la page suivante de résultats |

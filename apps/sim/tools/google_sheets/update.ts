@@ -1,0 +1,363 @@
+import type {
+  GoogleSheetsToolParams,
+  GoogleSheetsUpdateResponse,
+  GoogleSheetsV2ToolParams,
+  GoogleSheetsV2UpdateResponse,
+} from '@/tools/google_sheets/types'
+import type { ToolConfig } from '@/tools/types'
+
+export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateResponse> = {
+  id: 'google_sheets_update',
+  name: 'Update Google Sheets',
+  description: 'Update data in a Google Sheets spreadsheet',
+  version: '1.0',
+
+  oauth: {
+    required: true,
+    provider: 'google-sheets',
+  },
+
+  params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'The access token for the Google Sheets API',
+    },
+    spreadsheetId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The ID of the spreadsheet to update',
+    },
+    range: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'The A1 notation range to update (e.g. "Sheet1!A1:D10", "A1:B5")',
+    },
+    values: {
+      type: 'array',
+      required: true,
+      visibility: 'user-or-llm',
+      description:
+        'The data to update as a 2D array (e.g. [["Name", "Age"], ["Alice", 30]]) or array of objects.',
+    },
+    valueInputOption: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'The format of the data to update',
+    },
+    includeValuesInResponse: {
+      type: 'boolean',
+      required: false,
+      visibility: 'hidden',
+      description: 'Whether to include the updated values in the response',
+    },
+  },
+
+  request: {
+    url: (params) => {
+      // If range is not provided, use a default range for the first sheet, second row to preserve headers
+      const range = params.range || 'Sheet1!A2'
+
+      const url = new URL(
+        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId}/values/${encodeURIComponent(range)}`
+      )
+
+      // Default to USER_ENTERED if not specified
+      const valueInputOption = params.valueInputOption || 'USER_ENTERED'
+      url.searchParams.append('valueInputOption', valueInputOption)
+
+      if (params.includeValuesInResponse) {
+        url.searchParams.append('includeValuesInResponse', 'true')
+      }
+
+      return url.toString()
+    },
+    method: 'PUT',
+    headers: (params) => ({
+      Authorization: `Bearer ${params.accessToken}`,
+      'Content-Type': 'application/json',
+    }),
+    body: (params) => {
+      let processedValues: any = params.values || []
+
+      // Minimal shape enforcement: Google requires a 2D array
+      if (!Array.isArray(processedValues)) {
+        processedValues = [[processedValues]]
+      } else if (!processedValues.every((item: any) => Array.isArray(item))) {
+        processedValues = (processedValues as any[]).map((row: any) =>
+          Array.isArray(row) ? row : [row]
+        )
+      }
+
+      // Handle array of objects (existing behavior)
+      if (
+        Array.isArray(processedValues) &&
+        processedValues.length > 0 &&
+        typeof processedValues[0] === 'object' &&
+        !Array.isArray(processedValues[0])
+      ) {
+        const allKeys = new Set<string>()
+        processedValues.forEach((obj: any) => {
+          if (obj && typeof obj === 'object') {
+            Object.keys(obj).forEach((key) => allKeys.add(key))
+          }
+        })
+        const headers = Array.from(allKeys)
+
+        const rows = processedValues.map((obj: any) => {
+          if (!obj || typeof obj !== 'object') {
+            return Array(headers.length).fill('')
+          }
+          return headers.map((key) => {
+            const value = obj[key]
+            if (value !== null && typeof value === 'object') {
+              return JSON.stringify(value)
+            }
+            return value === undefined ? '' : value
+          })
+        })
+
+        processedValues = [headers, ...rows]
+      }
+
+      const body: Record<string, any> = {
+        majorDimension: params.majorDimension || 'ROWS',
+        values: processedValues,
+      }
+      if (params.range) {
+        body.range = params.range
+      }
+      return body
+    },
+  },
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+
+    // Extract spreadsheet ID from the URL (guard if url is missing)
+    const urlParts = typeof response.url === 'string' ? response.url.split('/spreadsheets/') : []
+    const spreadsheetId = urlParts[1]?.split('/')[0] || ''
+
+    // Create a simple metadata object with just the ID and URL
+    const metadata = {
+      spreadsheetId,
+      properties: {},
+      spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
+    }
+
+    const result = {
+      success: true,
+      output: {
+        updatedRange: data.updatedRange,
+        updatedRows: data.updatedRows,
+        updatedColumns: data.updatedColumns,
+        updatedCells: data.updatedCells,
+        metadata: {
+          spreadsheetId: metadata.spreadsheetId,
+          spreadsheetUrl: metadata.spreadsheetUrl,
+        },
+      },
+    }
+
+    return result
+  },
+
+  outputs: {
+    updatedRange: { type: 'string', description: 'Range of cells that were updated' },
+    updatedRows: { type: 'number', description: 'Number of rows updated' },
+    updatedColumns: { type: 'number', description: 'Number of columns updated' },
+    updatedCells: { type: 'number', description: 'Number of cells updated' },
+    metadata: {
+      type: 'json',
+      description: 'Spreadsheet metadata including ID and URL',
+      properties: {
+        spreadsheetId: { type: 'string', description: 'Google Sheets spreadsheet ID' },
+        spreadsheetUrl: { type: 'string', description: 'Spreadsheet URL' },
+      },
+    },
+  },
+}
+
+export const updateV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2UpdateResponse> = {
+  id: 'google_sheets_update_v2',
+  name: 'Update Google Sheets V2',
+  description: 'Update data in a specific sheet in a Google Sheets spreadsheet',
+  version: '2.0.0',
+
+  oauth: {
+    required: true,
+    provider: 'google-sheets',
+  },
+
+  params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'The access token for the Google Sheets API',
+    },
+    spreadsheetId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Google Sheets spreadsheet ID',
+    },
+    sheetName: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The name of the sheet/tab to update',
+    },
+    cellRange: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'The cell range to update (e.g. "A1:D10", "A1"). Defaults to "A1" if not specified.',
+    },
+    values: {
+      type: 'array',
+      required: true,
+      visibility: 'user-or-llm',
+      description:
+        'The data to update as a 2D array (e.g. [["Name", "Age"], ["Alice", 30]]) or array of objects.',
+    },
+    valueInputOption: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'The format of the data to update',
+    },
+    includeValuesInResponse: {
+      type: 'boolean',
+      required: false,
+      visibility: 'hidden',
+      description: 'Whether to include the updated values in the response',
+    },
+  },
+
+  request: {
+    url: (params) => {
+      const sheetName = params.sheetName?.trim()
+      if (!sheetName) {
+        throw new Error('Sheet name is required')
+      }
+
+      const cellRange = params.cellRange?.trim() || 'A1'
+      const fullRange = `${sheetName}!${cellRange}`
+
+      const url = new URL(
+        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId}/values/${encodeURIComponent(fullRange)}`
+      )
+
+      const valueInputOption = params.valueInputOption || 'USER_ENTERED'
+      url.searchParams.append('valueInputOption', valueInputOption)
+
+      if (params.includeValuesInResponse) {
+        url.searchParams.append('includeValuesInResponse', 'true')
+      }
+
+      return url.toString()
+    },
+    method: 'PUT',
+    headers: (params) => ({
+      Authorization: `Bearer ${params.accessToken}`,
+      'Content-Type': 'application/json',
+    }),
+    body: (params) => {
+      let processedValues: any = params.values || []
+
+      // Minimal shape enforcement: Google requires a 2D array
+      if (!Array.isArray(processedValues)) {
+        processedValues = [[processedValues]]
+      } else if (!processedValues.every((item: any) => Array.isArray(item))) {
+        processedValues = (processedValues as any[]).map((row: any) =>
+          Array.isArray(row) ? row : [row]
+        )
+      }
+
+      // Handle array of objects
+      if (
+        Array.isArray(processedValues) &&
+        processedValues.length > 0 &&
+        typeof processedValues[0] === 'object' &&
+        !Array.isArray(processedValues[0])
+      ) {
+        const allKeys = new Set<string>()
+        processedValues.forEach((obj: any) => {
+          if (obj && typeof obj === 'object') {
+            Object.keys(obj).forEach((key) => allKeys.add(key))
+          }
+        })
+        const headers = Array.from(allKeys)
+
+        const rows = processedValues.map((obj: any) => {
+          if (!obj || typeof obj !== 'object') {
+            return Array(headers.length).fill('')
+          }
+          return headers.map((key) => {
+            const value = obj[key]
+            if (value !== null && typeof value === 'object') {
+              return JSON.stringify(value)
+            }
+            return value === undefined ? '' : value
+          })
+        })
+
+        processedValues = [headers, ...rows]
+      }
+
+      const body: Record<string, any> = {
+        majorDimension: params.majorDimension || 'ROWS',
+        values: processedValues,
+      }
+
+      return body
+    },
+  },
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+
+    const urlParts = typeof response.url === 'string' ? response.url.split('/spreadsheets/') : []
+    const spreadsheetId = urlParts[1]?.split('/')[0] || ''
+
+    const metadata = {
+      spreadsheetId,
+      spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
+    }
+
+    return {
+      success: true,
+      output: {
+        updatedRange: data.updatedRange ?? null,
+        updatedRows: data.updatedRows ?? 0,
+        updatedColumns: data.updatedColumns ?? 0,
+        updatedCells: data.updatedCells ?? 0,
+        metadata: {
+          spreadsheetId: metadata.spreadsheetId,
+          spreadsheetUrl: metadata.spreadsheetUrl,
+        },
+      },
+    }
+  },
+
+  outputs: {
+    updatedRange: { type: 'string', description: 'Range of cells that were updated' },
+    updatedRows: { type: 'number', description: 'Number of rows updated' },
+    updatedColumns: { type: 'number', description: 'Number of columns updated' },
+    updatedCells: { type: 'number', description: 'Number of cells updated' },
+    metadata: {
+      type: 'json',
+      description: 'Spreadsheet metadata including ID and URL',
+      properties: {
+        spreadsheetId: { type: 'string', description: 'Google Sheets spreadsheet ID' },
+        spreadsheetUrl: { type: 'string', description: 'Spreadsheet URL' },
+      },
+    },
+  },
+}

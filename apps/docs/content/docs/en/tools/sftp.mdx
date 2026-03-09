@@ -1,0 +1,184 @@
+---
+title: SFTP
+description: Transfer files via SFTP (SSH File Transfer Protocol)
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sftp"
+  color="#2D3748"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SFTP (SSH File Transfer Protocol)](https://en.wikipedia.org/wiki/SSH_File_Transfer_Protocol) is a secure network protocol that enables you to upload, download, and manage files on remote servers. SFTP operates over SSH, making it ideal for automated, encrypted file transfers and remote file management within modern workflows. 
+
+With SFTP tools integrated into Sim, you can easily automate the movement of files between your AI agents and external systems or servers. This empowers your agents to manage critical data exchanges, backups, document generation, and remote system orchestration—all with robust security.
+
+**Key functionality available via SFTP tools:**
+
+- **Upload Files:** Seamlessly transfer files of any type from your workflow to a remote server, with support for both password and SSH private key authentication.
+- **Download Files:** Retrieve files from remote SFTP servers directly for processing, archiving, or further automation.
+- **List & Manage Files:** Enumerate directories, delete or create files and folders, and manage file system permissions remotely.
+- **Flexible Authentication:** Connect using either traditional passwords or SSH keys, with support for passphrases and permissions control.
+- **Large File Support:** Programmatically manage large file uploads and downloads, with built-in size limits for safety.
+
+By integrating SFTP into Sim, you can automate secure file operations as part of any workflow, whether it’s data collection, reporting, remote system maintenance, or dynamic content exchange between platforms.
+
+The sections below describe the key SFTP tools available:
+
+- **sftp_upload:** Upload one or more files to a remote server.
+- **sftp_download:** Download files from a remote server to your workflow.
+- **sftp_list:** List directory contents on a remote SFTP server.
+- **sftp_delete:** Delete files or directories from a remote server.
+- **sftp_create:** Create new files on a remote SFTP server.
+- **sftp_mkdir:** Create new directories remotely.
+
+See the tool documentation below for detailed input and output parameters for each operation.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Upload, download, list, and manage files on remote servers via SFTP. Supports both password and private key authentication for secure file transfers.
+
+
+
+## Tools
+
+### `sftp_upload`
+
+Upload files to a remote SFTP server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | SFTP server hostname or IP address |
+| `port` | number | Yes | SFTP server port \(default: 22\) |
+| `username` | string | Yes | SFTP username |
+| `password` | string | No | Password for authentication \(if not using private key\) |
+| `privateKey` | string | No | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | No | Passphrase for encrypted private key |
+| `remotePath` | string | Yes | Destination directory on the remote server |
+| `files` | file[] | No | Files to upload |
+| `fileContent` | string | No | Direct file content to upload \(for text files\) |
+| `fileName` | string | No | File name when using direct content |
+| `overwrite` | boolean | No | Whether to overwrite existing files \(default: true\) |
+| `permissions` | string | No | File permissions \(e.g., 0644\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the upload was successful |
+| `uploadedFiles` | json | Array of uploaded file details \(name, remotePath, size\) |
+| `message` | string | Operation status message |
+
+### `sftp_download`
+
+Download a file from a remote SFTP server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | SFTP server hostname or IP address |
+| `port` | number | Yes | SFTP server port \(default: 22\) |
+| `username` | string | Yes | SFTP username |
+| `password` | string | No | Password for authentication \(if not using private key\) |
+| `privateKey` | string | No | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | No | Passphrase for encrypted private key |
+| `remotePath` | string | Yes | Path to the file on the remote server |
+| `encoding` | string | No | Output encoding: utf-8 for text, base64 for binary \(default: utf-8\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the download was successful |
+| `file` | file | Downloaded file stored in execution files |
+| `fileName` | string | Name of the downloaded file |
+| `content` | string | File content \(text or base64 encoded\) |
+| `size` | number | File size in bytes |
+| `encoding` | string | Content encoding \(utf-8 or base64\) |
+| `message` | string | Operation status message |
+
+### `sftp_list`
+
+List files and directories on a remote SFTP server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | SFTP server hostname or IP address |
+| `port` | number | Yes | SFTP server port \(default: 22\) |
+| `username` | string | Yes | SFTP username |
+| `password` | string | No | Password for authentication \(if not using private key\) |
+| `privateKey` | string | No | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | No | Passphrase for encrypted private key |
+| `remotePath` | string | Yes | Directory path on the remote server |
+| `detailed` | boolean | No | Include detailed file information \(size, permissions, modified date\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the operation was successful |
+| `path` | string | Directory path that was listed |
+| `entries` | json | Array of directory entries with name, type, size, permissions, modifiedAt |
+| `count` | number | Number of entries in the directory |
+| `message` | string | Operation status message |
+
+### `sftp_delete`
+
+Delete a file or directory on a remote SFTP server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | SFTP server hostname or IP address |
+| `port` | number | Yes | SFTP server port \(default: 22\) |
+| `username` | string | Yes | SFTP username |
+| `password` | string | No | Password for authentication \(if not using private key\) |
+| `privateKey` | string | No | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | No | Passphrase for encrypted private key |
+| `remotePath` | string | Yes | Path to the file or directory to delete |
+| `recursive` | boolean | No | Delete directories recursively |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deletion was successful |
+| `deletedPath` | string | Path that was deleted |
+| `message` | string | Operation status message |
+
+### `sftp_mkdir`
+
+Create a directory on a remote SFTP server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | SFTP server hostname or IP address |
+| `port` | number | Yes | SFTP server port \(default: 22\) |
+| `username` | string | Yes | SFTP username |
+| `password` | string | No | Password for authentication \(if not using private key\) |
+| `privateKey` | string | No | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | No | Passphrase for encrypted private key |
+| `remotePath` | string | Yes | Path for the new directory |
+| `recursive` | boolean | No | Create parent directories if they do not exist |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the directory was created successfully |
+| `createdPath` | string | Path of the created directory |
+| `message` | string | Operation status message |
+
+

@@ -1,0 +1,1 @@
+export { rssPollingTrigger } from './poller'

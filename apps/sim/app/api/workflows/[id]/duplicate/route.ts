@@ -1,0 +1,110 @@
+import { createLogger } from '@sim/logger'
+import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { PlatformEvents } from '@/lib/core/telemetry'
+import { generateRequestId } from '@/lib/core/utils/request'
+import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
+
+const logger = createLogger('WorkflowDuplicateAPI')
+
+const DuplicateRequestSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  description: z.string().optional(),
+  color: z.string().optional(),
+  workspaceId: z.string().optional(),
+  folderId: z.string().nullable().optional(),
+})
+
+// POST /api/workflows/[id]/duplicate - Duplicate a workflow with all its blocks, edges, and subflows
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id: sourceWorkflowId } = await params
+  const requestId = generateRequestId()
+  const startTime = Date.now()
+
+  const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+  if (!auth.success || !auth.userId) {
+    logger.warn(`[${requestId}] Unauthorized workflow duplication attempt for ${sourceWorkflowId}`)
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  const userId = auth.userId
+
+  try {
+    const body = await req.json()
+    const { name, description, color, workspaceId, folderId } = DuplicateRequestSchema.parse(body)
+
+    logger.info(`[${requestId}] Duplicating workflow ${sourceWorkflowId} for user ${userId}`)
+
+    const result = await duplicateWorkflow({
+      sourceWorkflowId,
+      userId,
+      name,
+      description,
+      color,
+      workspaceId,
+      folderId,
+      requestId,
+    })
+
+    try {
+      PlatformEvents.workflowDuplicated({
+        sourceWorkflowId,
+        newWorkflowId: result.id,
+        workspaceId,
+      })
+    } catch {
+      // Telemetry should not fail the operation
+    }
+
+    const elapsed = Date.now() - startTime
+    logger.info(
+      `[${requestId}] Successfully duplicated workflow ${sourceWorkflowId} to ${result.id} in ${elapsed}ms`
+    )
+
+    recordAudit({
+      workspaceId: workspaceId || null,
+      actorId: userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      action: AuditAction.WORKFLOW_DUPLICATED,
+      resourceType: AuditResourceType.WORKFLOW,
+      resourceId: result.id,
+      resourceName: result.name,
+      description: `Duplicated workflow from ${sourceWorkflowId}`,
+      metadata: { sourceWorkflowId },
+      request: req,
+    })
+
+    return NextResponse.json(result, { status: 201 })
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'Source workflow not found') {
+        logger.warn(`[${requestId}] Source workflow ${sourceWorkflowId} not found`)
+        return NextResponse.json({ error: 'Source workflow not found' }, { status: 404 })
+      }
+
+      if (error.message === 'Source workflow not found or access denied') {
+        logger.warn(
+          `[${requestId}] User ${userId} denied access to source workflow ${sourceWorkflowId}`
+        )
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      }
+    }
+
+    if (error instanceof z.ZodError) {
+      logger.warn(`[${requestId}] Invalid duplication request data`, { errors: error.errors })
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    const elapsed = Date.now() - startTime
+    logger.error(
+      `[${requestId}] Error duplicating workflow ${sourceWorkflowId} after ${elapsed}ms:`,
+      error
+    )
+    return NextResponse.json({ error: 'Failed to duplicate workflow' }, { status: 500 })
+  }
+}

@@ -1,0 +1,586 @@
+---
+title: Jira
+description: Jiraとの連携
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="jira"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Jira](https://www.atlassian.com/jira)は、チームがアジャイルソフトウェア開発プロジェクトを効果的に計画、追跡、管理するのに役立つ、主要なプロジェクト管理および課題追跡プラットフォームです。Atlassianスイートの一部として、Jiraは世界中のソフトウェア開発チームやプロジェクト管理の専門家にとって業界標準となっています。
+
+Jiraは、柔軟でカスタマイズ可能なワークフローシステムを通じて、複雑なプロジェクトを管理するための包括的なツールセットを提供します。強力なAPIと統合機能により、チームは開発プロセスを効率化し、プロジェクトの進捗状況を明確に把握することができます。
+
+Jiraの主な機能には以下が含まれます：
+
+- アジャイルプロジェクト管理：カスタマイズ可能なボードとワークフローによるスクラムとカンバン手法のサポート
+- 課題追跡：バグ、ストーリー、エピック、タスクの詳細なレポート機能を備えた高度な追跡システム
+- ワークフロー自動化：繰り返しのタスクやプロセスを効率化する強力な自動化ルール
+- 高度な検索：複雑な課題のフィルタリングとレポート作成のためのJQL（Jira Query Language）
+
+Simでは、Jira統合によりエージェントがプロジェクト管理ワークフローとシームレスに連携できます。これにより、AIワークフローの一部として課題の自動作成、更新、追跡の機会が生まれます。この統合により、エージェントはプログラムによってJiraの課題を作成、取得、更新することができ、プロジェクト管理タスクの自動化を促進し、重要な情報が適切に追跡・文書化されることを保証します。SimとJiraを連携させることで、プロジェクトの可視性を維持しながら日常的なプロジェクト管理タスクを自動化するインテリジェントなエージェントを構築し、チームの生産性を向上させ、一貫したプロジェクト追跡を確保することができます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用手順
+
+Jiraをワークフローに統合します。課題の読み取り、書き込み、更新が可能です。Jiraのウェブフックイベントに基づいてワークフローをトリガーすることもできます。
+
+## ツール
+
+### `jira_retrieve`
+
+特定のJira課題に関する詳細情報を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `projectId` | string | いいえ | JiraプロジェクトID（オプション；単一の課題を取得する場合は不要） |
+| `issueKey` | string | はい | 取得するJira課題キー（例：PROJ-123） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 課題キー（例：PROJ-123） |
+| `summary` | string | 課題の要約 |
+| `description` | json | 課題の説明内容 |
+| `created` | string | 課題作成タイムスタンプ |
+| `updated` | string | 課題最終更新タイムスタンプ |
+| `issue` | json | すべてのフィールドを含む完全な課題オブジェクト |
+
+### `jira_update`
+
+Jira課題を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `projectId` | string | いいえ | 課題を更新するJiraプロジェクトID。提供されない場合、すべての課題が取得されます。 |
+| `issueKey` | string | はい | 更新するJira課題キー |
+| `summary` | string | いいえ | 課題の新しい要約 |
+| `description` | string | いいえ | 課題の新しい説明 |
+| `status` | string | いいえ | 課題の新しいステータス |
+| `priority` | string | いいえ | 課題の新しい優先度 |
+| `assignee` | string | いいえ | 課題の新しい担当者 |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 更新された課題キー（例：PROJ-123） |
+| `summary` | string | 更新後の課題要約 |
+
+### `jira_write`
+
+Jira課題を作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `projectId` | string | はい | 課題のプロジェクトID |
+| `summary` | string | はい | 課題の要約 |
+| `description` | string | いいえ | 課題の説明 |
+| `priority` | string | いいえ | 課題の優先度IDまたは名前（例：「10000」または「高」） |
+| `assignee` | string | いいえ | 課題の担当者アカウントID |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+| `issueType` | string | はい | 作成する課題のタイプ（例：タスク、ストーリー） |
+| `labels` | array | いいえ | 課題のラベル（ラベル名の配列） |
+| `duedate` | string | いいえ | 課題の期限（形式：YYYY-MM-DD） |
+| `reporter` | string | いいえ | 課題の報告者アカウントID |
+| `environment` | string | いいえ | 課題の環境情報 |
+| `customFieldId` | string | いいえ | カスタムフィールドID（例：customfield_10001） |
+| `customFieldValue` | string | いいえ | カスタムフィールドの値 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 作成された課題キー（例：PROJ-123） |
+| `summary` | string | 課題の要約 |
+| `url` | string | 作成された課題のURL |
+| `assigneeId` | string | 割り当てられたユーザーのアカウントID（割り当てられている場合） |
+
+### `jira_bulk_read`
+
+複数のJira課題を一括で取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `projectId` | string | はい | JiraプロジェクトID |
+| `cloudId` | string | いいえ | Jira cloud ID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `issues` | array | タイムスタンプ、要約、説明、作成日時、更新日時を含むJira課題の配列 |
+
+### `jira_delete_issue`
+
+Jira課題を削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `issueKey` | string | はい | 削除するJira課題キー（例：PROJ-123） |
+| `deleteSubtasks` | boolean | いいえ | サブタスクを削除するかどうか。falseの場合、サブタスクを持つ親課題は削除できません。 |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 削除された課題キー |
+
+### `jira_assign_issue`
+
+Jira課題をユーザーに割り当てる
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `issueKey` | string | はい | 割り当てるJira課題キー（例：PROJ-123） |
+| `accountId` | string | はい | 課題を割り当てるユーザーのアカウントID。自動割り当てには"-1"を使用するか、割り当て解除にはnullを使用します。 |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 割り当てられた課題キー |
+| `assigneeId` | string | 担当者のアカウントID |
+
+### `jira_transition_issue`
+
+Jira課題をワークフローステータス間で移動する（例：To Do → In Progress）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `issueKey` | string | はい | 移行するJira課題キー（例：PROJ-123） |
+| `transitionId` | string | はい | 実行する移行のID（例：「11」は「To Do」、「21」は「In Progress」） |
+| `comment` | string | いいえ | 課題を移行する際に追加するオプションのコメント |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 遷移した課題キー |
+| `transitionId` | string | 適用されたトランジションID |
+
+### `jira_search_issues`
+
+JQL（Jira Query Language）を使用してJira課題を検索する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `jql` | string | はい | 課題を検索するためのJQLクエリ文字列（例：「project = PROJ AND status = Open」） |
+| `startAt` | number | いいえ | 返す最初の結果のインデックス（ページネーション用） |
+| `maxResults` | number | いいえ | 返す結果の最大数（デフォルト：50） |
+| `fields` | array | いいえ | 返すフィールド名の配列（デフォルト：['summary', 'status', 'assignee', 'created', 'updated']） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `total` | number | 一致する課題の総数 |
+| `startAt` | number | ページネーション開始インデックス |
+| `maxResults` | number | ページあたりの最大結果数 |
+| `issues` | array | キー、要約、ステータス、担当者、作成日時、更新日時を含む一致する課題の配列 |
+
+### `jira_add_comment`
+
+Jira課題にコメントを追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `issueKey` | string | はい | コメントを追加するJira課題キー（例：PROJ-123） |
+| `body` | string | はい | コメント本文テキスト |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | コメントが追加された課題キー |
+| `commentId` | string | 作成されたコメントID |
+| `body` | string | コメントのテキスト内容 |
+
+### `jira_get_comments`
+
+Jira課題からすべてのコメントを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `issueKey` | string | はい | コメントを取得するJira課題キー（例：PROJ-123） |
+| `startAt` | number | いいえ | 返す最初のコメントのインデックス（デフォルト：0） |
+| `maxResults` | number | いいえ | 返すコメントの最大数（デフォルト：50） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 課題キー |
+| `total` | number | コメントの総数 |
+| `comments` | array | ID、作成者、本文、作成日時、更新日時を含むコメントの配列 |
+
+### `jira_update_comment`
+
+Jira課題の既存コメントを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `issueKey` | string | はい | コメントを含むJira課題キー（例：PROJ-123） |
+| `commentId` | string | はい | 更新するコメントのID |
+| `body` | string | はい | 更新されたコメントテキスト |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 課題キー |
+| `commentId` | string | 更新されたコメントID |
+| `body` | string | 更新されたコメントテキスト |
+
+### `jira_delete_comment`
+
+Jira課題からコメントを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `issueKey` | string | はい | コメントを含むJira課題キー（例：PROJ-123） |
+| `commentId` | string | はい | 削除するコメントのID |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 課題キー |
+| `commentId` | string | 削除されたコメントID |
+
+### `jira_get_attachments`
+
+Jira課題からすべての添付ファイルを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `issueKey` | string | はい | 添付ファイルを取得するJira課題キー（例：PROJ-123） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 課題キー |
+| `attachments` | array | ID、ファイル名、サイズ、MIMEタイプ、作成日時、作成者を含む添付ファイルの配列 |
+
+### `jira_delete_attachment`
+
+Jira課題から添付ファイルを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `attachmentId` | string | はい | 削除する添付ファイルのID |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `attachmentId` | string | 削除された添付ファイルID |
+
+### `jira_add_worklog`
+
+Jira課題に作業時間記録エントリを追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `issueKey` | string | はい | 作業ログを追加するJira課題キー（例：PROJ-123） |
+| `timeSpentSeconds` | number | はい | 秒単位の作業時間 |
+| `comment` | string | いいえ | 作業ログエントリのオプションコメント |
+| `started` | string | いいえ | ISO形式のオプション開始時間（デフォルトは現在時刻） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 作業ログが追加された課題キー |
+| `worklogId` | string | 作成された作業ログID |
+| `timeSpentSeconds` | number | 秒単位の作業時間 |
+
+### `jira_get_worklogs`
+
+Jira課題からすべての作業ログエントリを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `issueKey` | string | はい | 作業ログを取得するJira課題キー（例：PROJ-123） |
+| `startAt` | number | いいえ | 返す最初の作業ログのインデックス（デフォルト：0） |
+| `maxResults` | number | いいえ | 返す作業ログの最大数（デフォルト：50） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 課題キー |
+| `total` | number | 作業ログの総数 |
+| `worklogs` | array | ID、作成者、秒単位の作業時間、作業時間、コメント、作成日時、更新日時、開始日時を含む作業ログの配列 |
+
+### `jira_update_worklog`
+
+Jira課題の既存の作業ログエントリを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `issueKey` | string | はい | 作業ログを含むJira課題キー（例：PROJ-123） |
+| `worklogId` | string | はい | 更新する作業ログエントリのID |
+| `timeSpentSeconds` | number | いいえ | 秒単位の作業時間 |
+| `comment` | string | いいえ | 作業ログエントリのオプションコメント |
+| `started` | string | いいえ | ISO形式のオプション開始時間 |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 課題キー |
+| `worklogId` | string | 更新された作業ログID |
+
+### `jira_delete_worklog`
+
+Jira課題から作業ログエントリを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `issueKey` | string | はい | 作業ログを含むJira課題キー（例：PROJ-123） |
+| `worklogId` | string | はい | 削除する作業ログエントリのID |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 課題キー |
+| `worklogId` | string | 削除された作業ログID |
+
+### `jira_create_issue_link`
+
+2つのJira課題間のリンク関係を作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `inwardIssueKey` | string | はい | インワード課題のJira課題キー（例：PROJ-123） |
+| `outwardIssueKey` | string | はい | アウトワード課題のJira課題キー（例：PROJ-456） |
+| `linkType` | string | はい | リンク関係のタイプ（例：「ブロック」、「関連」、「重複」） |
+| `comment` | string | いいえ | 課題リンクに追加するオプションのコメント |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `inwardIssue` | string | インワード課題キー |
+| `outwardIssue` | string | アウトワード課題キー |
+| `linkType` | string | 課題リンクのタイプ |
+| `linkId` | string | 作成されたリンクID |
+
+### `jira_delete_issue_link`
+
+2つのJira課題間のリンクを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `linkId` | string | はい | 削除する課題リンクのID |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `linkId` | string | 削除されたリンクID |
+
+### `jira_add_watcher`
+
+更新に関する通知を受け取るためにJira課題にウォッチャーを追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `issueKey` | string | はい | ウォッチャーを追加するJira課題キー（例：PROJ-123） |
+| `accountId` | string | はい | ウォッチャーとして追加するユーザーのアカウントID |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 課題キー |
+| `watcherAccountId` | string | 追加されたウォッチャーのアカウントID |
+
+### `jira_remove_watcher`
+
+Jira課題からウォッチャーを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `issueKey` | string | はい | ウォッチャーを削除するJira課題キー（例：PROJ-123） |
+| `accountId` | string | はい | ウォッチャーとして削除するユーザーのアカウントID |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueKey` | string | 課題キー |
+| `watcherAccountId` | string | 削除されたウォッチャーのアカウントID |
+
+### `jira_get_users`
+
+Jiraユーザーを取得します。アカウントIDが提供された場合、単一のユーザーを返します。それ以外の場合、すべてのユーザーのリストを返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `accountId` | string | いいえ | 特定のユーザーを取得するためのオプションのアカウントID。提供されない場合、すべてのユーザーを返します。 |
+| `startAt` | number | いいえ | 返す最初のユーザーのインデックス（ページネーション用、デフォルト：0） |
+| `maxResults` | number | いいえ | 返すユーザーの最大数（デフォルト：50） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `users` | json | accountId、displayName、emailAddress、activeステータス、avatarUrlsを含むユーザーの配列 |
+| `total` | number | 返されたユーザーの総数 |
+| `startAt` | number | ページネーション開始インデックス |
+| `maxResults` | number | ページあたりの最大結果数 |
+
+## 注記
+
+- カテゴリ：`tools`
+- タイプ：`jira`
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `accountId` | string | いいえ | 特定のユーザーを取得するためのオプションのアカウントID。提供されない場合、すべてのユーザーを返します。 |
+| `startAt` | number | いいえ | 返す最初のユーザーのインデックス（ページネーション用、デフォルト：0） |
+| `maxResults` | number | いいえ | 返すユーザーの最大数（デフォルト：50） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のISO 8601タイムスタンプ |
+| `users` | array | Jiraユーザーの配列 |
+|   ↳ `accountId` | string | ユーザーのAtlassianアカウントID |
+|   ↳ `displayName` | string | ユーザーの表示名 |
+|   ↳ `active` | boolean | ユーザーアカウントがアクティブかどうか |
+|   ↳ `emailAddress` | string | ユーザーのメールアドレス |
+|   ↳ `accountType` | string | アカウントのタイプ（例：atlassian、app、customer） |
+|   ↳ `avatarUrl` | string | ユーザーアバターのURL（48x48） |
+|   ↳ `timeZone` | string | ユーザーのタイムゾーン |
+|   ↳ `avatarUrls` | json | 複数のサイズのユーザーアバターURL（16x16、24x24、32x32、48x48） |
+|   ↳ `self` | string | このユーザーのREST API URL |
+| `total` | number | 返されたユーザーの総数 |
+| `startAt` | number | ページネーション開始インデックス |
+| `maxResults` | number | ページあたりの最大結果数 |

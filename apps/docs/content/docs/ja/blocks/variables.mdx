@@ -1,0 +1,86 @@
+---
+title: 変数
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+変数ブロックは実行中にワークフロー変数を更新します。変数はまずワークフローの変数セクションで初期化する必要があり、その後このブロックを使用してワークフロー実行中に値を更新できます。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/variables.png"
+    alt="変数ブロック"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout>
+  ワークフロー内のどこからでも `<variable.variableName>` 構文を使用して変数にアクセスできます。
+</Callout>
+
+## 変数の使い方
+
+### 1. ワークフロー変数で初期化する
+
+まず、ワークフローの変数セクション（ワークフロー設定からアクセス可能）で変数を作成します：
+
+```
+customerEmail = ""
+retryCount = 0
+currentStatus = "pending"
+```
+
+### 2. 変数ブロックで更新する
+
+実行中に値を更新するには、変数ブロックを使用します：
+
+```
+customerEmail = <api.email>
+retryCount = <variable.retryCount> + 1
+currentStatus = "processing"
+```
+
+### 3. どこからでもアクセスする
+
+任意のブロックで変数を参照できます：
+
+```
+Agent prompt: "Send email to <variable.customerEmail>"
+Condition: <variable.retryCount> < 5
+API body: {"status": "<variable.currentStatus>"}
+```
+
+## 使用例
+
+**ループカウンターと状態** - 繰り返し処理の進行状況を追跡する
+
+```
+Loop → Agent (Process) → Variables (itemsProcessed + 1) → Variables (Store lastResult)
+```
+
+**リトライロジック** - APIリトライ試行回数を追跡する
+
+```
+API (Try) → Variables (retryCount + 1) → Condition (retryCount < 3)
+```
+
+**動的設定** - ワークフロー用のユーザーコンテキストを保存する
+
+```
+API (Fetch Profile) → Variables (userId, userTier) → Agent (Personalize)
+```
+
+## 出力
+
+- **`<variables.assignments>`**: このブロックからのすべての変数割り当てを含むJSONオブジェクト
+
+## ベストプラクティス
+
+- **ワークフロー設定で初期化する**: 変数を使用する前に、必ずワークフローの変数セクションで作成してください
+- **動的に更新する**: ブロック出力や計算に基づいて値を更新するには、変数ブロックを使用してください
+- **ループで使用する**: 繰り返し処理間で状態を追跡するのに最適です
+- **わかりやすい名前を付ける**: `currentIndex`、`totalProcessed`、または`lastError`のような明確な名前を使用してください
