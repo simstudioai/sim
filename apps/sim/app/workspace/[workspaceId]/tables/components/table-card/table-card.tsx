@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Columns, Rows3 } from 'lucide-react'
+import { Columns } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import {
   Badge,
@@ -14,6 +14,7 @@ import {
   ModalHeader,
   Tooltip,
 } from '@/components/emcn'
+import { Rows3 } from '@/components/emcn/icons'
 import type { TableDefinition } from '@/lib/table'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { SchemaModal } from '@/app/workspace/[workspaceId]/tables/[tableId]/components'

@@ -147,7 +147,7 @@ function FormattedInput({
         onChange={onChange}
         onScroll={handleScroll}
         onInput={handleScroll}
-        className='h-9 text-transparent caret-foreground placeholder:text-[var(--text-muted)]'
+        className='h-9 text-transparent caret-[var(--text-primary)] placeholder:text-[var(--text-muted)]'
       />
       <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-[8px] py-[6px] font-medium font-sans text-sm'>
         <div className='whitespace-nowrap' style={{ transform: `translateX(-${scrollLeft}px)` }}>

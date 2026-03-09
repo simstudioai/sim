@@ -1557,7 +1557,7 @@ export function CredentialsManager() {
                               {copyIdSuccess ? (
                                 <Check className='h-3 w-3 text-green-500' />
                               ) : (
-                                <Clipboard className='h-3 w-3 text-muted-foreground' />
+                                <Clipboard className='h-3 w-3 text-[var(--text-icon)]' />
                               )}
                             </button>
                           </Tooltip.Trigger>

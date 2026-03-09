@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { AlertTriangle, ChevronDown, LibraryBig, MoreHorizontal } from 'lucide-react'
+import { AlertTriangle, LibraryBig, MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import {
   Button,
@@ -12,6 +12,7 @@ import {
   PopoverTrigger,
   Tooltip,
 } from '@/components/emcn'
+import { ChevronDown } from '@/components/emcn/icons'
 import { Trash } from '@/components/emcn/icons/trash'
 import { filterButtonClass } from '@/app/workspace/[workspaceId]/knowledge/components/constants'
 import { useUpdateKnowledgeBase } from '@/hooks/queries/kb/knowledge'
@@ -27,10 +28,10 @@ interface BreadcrumbItem {
 const HEADER_STYLES = {
   container: 'flex items-center justify-between px-6 pt-[14px] pb-6',
   breadcrumbs: 'flex items-center gap-2',
-  icon: 'h-[18px] w-[18px] text-muted-foreground transition-colors group-hover:text-muted-foreground/70',
-  link: 'group flex items-center gap-2 font-medium text-sm transition-colors hover:text-muted-foreground',
-  label: 'font-medium text-sm',
-  separator: 'text-muted-foreground',
+  icon: 'h-[18px] w-[18px] text-[var(--text-icon)] transition-colors',
+  link: 'group flex items-center gap-2 font-medium text-sm text-[var(--text-body)] transition-colors hover:text-[var(--text-secondary)]',
+  label: 'font-medium text-sm text-[var(--text-body)]',
+  separator: 'text-[var(--text-icon)]',
   actionsContainer: 'flex items-center gap-2',
 } as const
 
@@ -175,7 +176,7 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
                           ? 'Updating...'
                           : currentWorkspace?.name || 'No workspace'}
                     </span>
-                    <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
+                    <ChevronDown className='ml-2 h-4 w-4 text-[var(--text-icon)]' />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent align='end' side='bottom' sideOffset={4}>
@@ -185,7 +186,7 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
                     showCheck
                     onClick={() => handleWorkspaceChange(null)}
                   >
-                    <span className='text-muted-foreground'>No workspace</span>
+                    <span className='text-[var(--text-secondary)]'>No workspace</span>
                   </PopoverItem>
 
                   {/* Available workspaces */}
@@ -202,7 +203,7 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
 
                   {workspaces.length === 0 && !isLoadingWorkspaces && (
                     <PopoverItem disabled>
-                      <span className='text-muted-foreground text-xs'>
+                      <span className='text-[var(--text-secondary)] text-xs'>
                         No workspaces with write access
                       </span>
                     </PopoverItem>
