@@ -36,6 +36,7 @@ interface ColumnsRouteParams {
 /** POST /api/v1/tables/[tableId]/columns — Add a column to the table schema. */
 export async function POST(request: NextRequest, { params }: ColumnsRouteParams) {
   const requestId = generateRequestId()
+  const { tableId } = await params
 
   try {
     const rateLimit = await checkRateLimit(request, 'table-columns')
@@ -44,7 +45,6 @@ export async function POST(request: NextRequest, { params }: ColumnsRouteParams)
     }
 
     const userId = rateLimit.userId!
-    const { tableId } = await params
 
     let body: unknown
     try {
@@ -112,6 +112,7 @@ export async function POST(request: NextRequest, { params }: ColumnsRouteParams)
 /** PATCH /api/v1/tables/[tableId]/columns — Update a column (rename, type change, constraints). */
 export async function PATCH(request: NextRequest, { params }: ColumnsRouteParams) {
   const requestId = generateRequestId()
+  const { tableId } = await params
 
   try {
     const rateLimit = await checkRateLimit(request, 'table-columns')
@@ -120,7 +121,6 @@ export async function PATCH(request: NextRequest, { params }: ColumnsRouteParams
     }
 
     const userId = rateLimit.userId!
-    const { tableId } = await params
 
     let body: unknown
     try {
@@ -228,6 +228,7 @@ export async function PATCH(request: NextRequest, { params }: ColumnsRouteParams
 /** DELETE /api/v1/tables/[tableId]/columns — Delete a column from the table schema. */
 export async function DELETE(request: NextRequest, { params }: ColumnsRouteParams) {
   const requestId = generateRequestId()
+  const { tableId } = await params
 
   try {
     const rateLimit = await checkRateLimit(request, 'table-columns')
@@ -236,7 +237,6 @@ export async function DELETE(request: NextRequest, { params }: ColumnsRouteParam
     }
 
     const userId = rateLimit.userId!
-    const { tableId } = await params
 
     let body: unknown
     try {

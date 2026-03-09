@@ -128,6 +128,7 @@ function invalidateRowCount(
   tableId: string
 ) {
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+  queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
 }
 
