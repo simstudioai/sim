@@ -516,7 +516,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
 
             {/* Schedule Preview */}
             {computedCron && schedulePreview && (
-              <div className='rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)] px-[12px] py-[10px]'>
+              <div>
                 {'error' in schedulePreview ? (
                   <p className='text-[13px] text-[var(--text-error)]'>{schedulePreview.error}</p>
                 ) : (

@@ -598,7 +598,10 @@ export function Table() {
       setRenamingColumn(null)
       return
     }
-    updateColumnMutation.mutate({ columnName: renamingColumn, updates: { name: renameValue.trim() } })
+    updateColumnMutation.mutate({
+      columnName: renamingColumn,
+      updates: { name: renameValue.trim() },
+    })
     setRenamingColumn(null)
   }, [renamingColumn, renameValue])
 
@@ -606,17 +609,23 @@ export function Table() {
     updateColumnMutation.mutate({ columnName, updates: { type: newType } })
   }, [])
 
-  const handleInsertColumnLeft = useCallback((columnName: string) => {
-    const index = columnsRef.current.findIndex((c) => c.name === columnName)
-    if (index === -1) return
-    addColumnMutation.mutate({ name: generateColumnName(), type: 'string', position: index })
-  }, [generateColumnName])
+  const handleInsertColumnLeft = useCallback(
+    (columnName: string) => {
+      const index = columnsRef.current.findIndex((c) => c.name === columnName)
+      if (index === -1) return
+      addColumnMutation.mutate({ name: generateColumnName(), type: 'string', position: index })
+    },
+    [generateColumnName]
+  )
 
-  const handleInsertColumnRight = useCallback((columnName: string) => {
-    const index = columnsRef.current.findIndex((c) => c.name === columnName)
-    if (index === -1) return
-    addColumnMutation.mutate({ name: generateColumnName(), type: 'string', position: index + 1 })
-  }, [generateColumnName])
+  const handleInsertColumnRight = useCallback(
+    (columnName: string) => {
+      const index = columnsRef.current.findIndex((c) => c.name === columnName)
+      if (index === -1) return
+      addColumnMutation.mutate({ name: generateColumnName(), type: 'string', position: index + 1 })
+    },
+    [generateColumnName]
+  )
 
   const handleToggleUnique = useCallback((columnName: string) => {
     const column = columnsRef.current.find((c) => c.name === columnName)
@@ -682,7 +691,6 @@ export function Table() {
     }),
     [columnOptions, activeSortState, handleSortChange, handleSortClear]
   )
-
 
   if (!isLoadingTable && !tableData) {
     return (
@@ -970,8 +978,8 @@ export function Table() {
           <ModalBody>
             <p className='text-[13px] text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{deletingColumn}</span>?
-              This will remove all data in this column.{' '}
+              <span className='font-medium text-[var(--text-primary)]'>{deletingColumn}</span>? This
+              will remove all data in this column.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
