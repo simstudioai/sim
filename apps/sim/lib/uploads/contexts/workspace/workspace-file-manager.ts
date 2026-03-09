@@ -340,6 +340,14 @@ export async function updateWorkspaceFileContent(
     throw new Error('File not found')
   }
 
+  const sizeDiff = content.length - fileRecord.size
+  if (sizeDiff > 0) {
+    const quotaCheck = await checkStorageQuota(userId, sizeDiff)
+    if (!quotaCheck.allowed) {
+      throw new Error(quotaCheck.error || 'Storage limit exceeded')
+    }
+  }
+
   try {
     const metadata: Record<string, string> = {
       originalName: fileRecord.name,

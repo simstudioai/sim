@@ -1,10 +1,24 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Download, Files as FilesIcon, Upload } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button, Trash2 } from '@/components/emcn'
+import {
+  Button,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverDivider,
+  PopoverItem,
+  Skeleton,
+  Trash2,
+} from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
@@ -19,12 +33,16 @@ import { CreateFileModal } from '@/app/workspace/[workspaceId]/files/components/
 import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import {
   useDeleteWorkspaceFile,
   useUploadWorkspaceFile,
   useWorkspaceFiles,
 } from '@/hooks/queries/workspace-files'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+
+type SaveStatus = 'idle' | 'saving' | 'saved'
 
 const logger = createLogger('Files')
 
@@ -105,6 +123,23 @@ function formatFileType(mimeType: string | null, filename: string): string {
   return mimeType ?? 'File'
 }
 
+async function downloadFile(file: WorkspaceFileRecord) {
+  const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
+  const response = await fetch(serveUrl)
+  if (!response.ok) {
+    throw new Error(`Failed to download file: ${response.statusText}`)
+  }
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = file.name
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 export function Files() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const saveRef = useRef<(() => Promise<void>) | null>(null)
@@ -118,6 +153,14 @@ export function Files() {
   const uploadFile = useUploadWorkspaceFile()
   const deleteFile = useDeleteWorkspaceFile()
 
+  const {
+    isOpen: isContextMenuOpen,
+    position: contextMenuPosition,
+    menuRef: contextMenuRef,
+    handleContextMenu: openContextMenu,
+    closeMenu: closeContextMenu,
+  } = useContextMenu()
+
   if (error) {
     logger.error('Failed to load files:', error)
   }
@@ -128,6 +171,11 @@ export function Files() {
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [contextMenuFile, setContextMenuFile] = useState<WorkspaceFileRecord | null>(null)
+  const [deleteTargetFile, setDeleteTargetFile] = useState<WorkspaceFileRecord | null>(null)
 
   const selectedFile = useMemo(
     () => (selectedFileId ? files.find((f) => f.id === selectedFileId) : null),
@@ -213,77 +261,159 @@ export function Files() {
     }
   }
 
-  const handleDownload = useCallback(async () => {
-    if (!selectedFile) return
-
-    try {
-      const serveUrl = `/api/files/serve/${encodeURIComponent(selectedFile.key)}?context=workspace`
-      const response = await fetch(serveUrl)
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = selectedFile.name
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (err) {
-      logger.error('Failed to download file:', err)
-    }
-  }, [selectedFile])
+  const handleDownload = useCallback(
+    async (file: WorkspaceFileRecord) => {
+      try {
+        await downloadFile(file)
+      } catch (err) {
+        logger.error('Failed to download file:', err)
+      }
+    },
+    []
+  )
 
   const handleDelete = useCallback(async () => {
-    if (!selectedFile) return
+    const target = deleteTargetFile
+    if (!target) return
 
     try {
       await deleteFile.mutateAsync({
         workspaceId,
-        fileId: selectedFile.id,
-        fileSize: selectedFile.size,
+        fileId: target.id,
+        fileSize: target.size,
       })
-      setSelectedFileId(null)
+      setShowDeleteConfirm(false)
+      setDeleteTargetFile(null)
+      if (selectedFileId === target.id) {
+        setSelectedFileId(null)
+      }
     } catch (err) {
       logger.error('Failed to delete file:', err)
     }
-  }, [selectedFile, workspaceId])
+  }, [deleteTargetFile, workspaceId, selectedFileId])
 
   const handleSave = useCallback(async () => {
-    if (saveRef.current) {
+    if (!saveRef.current) return
+
+    setSaveStatus('saving')
+    try {
       await saveRef.current()
+      setSaveStatus('saved')
+    } catch {
+      setSaveStatus('idle')
     }
+  }, [])
+
+  const handleBackAttempt = useCallback(() => {
+    if (isDirty) {
+      setShowUnsavedChangesAlert(true)
+    } else {
+      setSelectedFileId(null)
+    }
+  }, [isDirty])
+
+  const handleDiscardChanges = useCallback(() => {
+    setShowUnsavedChangesAlert(false)
+    setIsDirty(false)
+    setSelectedFileId(null)
   }, [])
 
   const handleFileCreated = useCallback((fileId: string) => {
     setSelectedFileId(fileId)
   }, [])
 
-  if (selectedFile) {
+  const handleRowContextMenu = useCallback(
+    (e: React.MouseEvent, rowId: string) => {
+      const file = files.find((f) => f.id === rowId)
+      if (file) {
+        setContextMenuFile(file)
+        openContextMenu(e)
+      }
+    },
+    [files, openContextMenu]
+  )
+
+  const handleContextMenuOpen = useCallback(() => {
+    if (!contextMenuFile) return
+    setSelectedFileId(contextMenuFile.id)
+    closeContextMenu()
+  }, [contextMenuFile, closeContextMenu])
+
+  const handleContextMenuDownload = useCallback(() => {
+    if (!contextMenuFile) return
+    handleDownload(contextMenuFile)
+    closeContextMenu()
+  }, [contextMenuFile, handleDownload, closeContextMenu])
+
+  const handleContextMenuDelete = useCallback(() => {
+    if (!contextMenuFile) return
+    setDeleteTargetFile(contextMenuFile)
+    setShowDeleteConfirm(true)
+    closeContextMenu()
+  }, [contextMenuFile, closeContextMenu])
+
+  useEffect(() => {
+    if (saveStatus !== 'saved') return
+    const timer = setTimeout(() => setSaveStatus('idle'), 2000)
+    return () => clearTimeout(timer)
+  }, [saveStatus])
+
+  useEffect(() => {
+    if (!isDirty) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isDirty])
+
+  if (selectedFileId && !selectedFile) {
     return (
       <div className='flex h-full flex-1 flex-col overflow-hidden bg-white dark:bg-[var(--bg)]'>
         <ResourceHeader
           icon={FilesIcon}
           breadcrumbs={[
             { label: 'Files', onClick: () => setSelectedFileId(null) },
+            { label: '...' },
+          ]}
+        />
+        <div className='flex flex-1 items-center justify-center'>
+          <Skeleton className='h-[16px] w-[200px]' />
+        </div>
+      </div>
+    )
+  }
+
+  if (selectedFile) {
+    const saveLabel = saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Save'
+
+    return (
+      <div className='flex h-full flex-1 flex-col overflow-hidden bg-white dark:bg-[var(--bg)]'>
+        <ResourceHeader
+          icon={FilesIcon}
+          breadcrumbs={[
+            { label: 'Files', onClick: handleBackAttempt },
             { label: selectedFile.name },
           ]}
         />
         <ResourceOptionsBar
           toolbarActions={
             <div className='flex items-center gap-[6px]'>
-              {isDirty && (
-                <Button
-                  variant='subtle'
-                  className='px-[8px] py-[4px] text-[12px]'
-                  onClick={handleSave}
-                >
-                  Save
-                </Button>
-              )}
+              <Button
+                variant='subtle'
+                className={cn(
+                  'px-[8px] py-[4px] text-[12px]',
+                  !isDirty && saveStatus === 'idle' && 'opacity-50'
+                )}
+                onClick={handleSave}
+                disabled={(!isDirty && saveStatus === 'idle') || saveStatus === 'saving'}
+              >
+                {saveLabel}
+              </Button>
               <Button
                 variant='subtle'
                 className='px-[8px] py-[4px] text-[12px]'
-                onClick={handleDownload}
+                onClick={() => handleDownload(selectedFile)}
               >
                 <Download className='mr-[6px] h-[14px] w-[14px]' />
                 Download
@@ -294,7 +424,10 @@ export function Files() {
                   'px-[8px] py-[4px] text-[12px]',
                   'text-[var(--text-muted)] hover:text-red-500'
                 )}
-                onClick={handleDelete}
+                onClick={() => {
+                  setDeleteTargetFile(selectedFile)
+                  setShowDeleteConfirm(true)
+                }}
                 disabled={userPermissions.canEdit !== true || deleteFile.isPending}
               >
                 <Trash2 className='mr-[6px] h-[14px] w-[14px]' />
@@ -311,6 +444,57 @@ export function Files() {
           onDirtyChange={setIsDirty}
           saveRef={saveRef}
         />
+
+        <Modal open={showUnsavedChangesAlert} onOpenChange={setShowUnsavedChangesAlert}>
+          <ModalContent size='sm'>
+            <ModalHeader>Unsaved Changes</ModalHeader>
+            <ModalBody>
+              <p className='text-[13px] text-[var(--text-secondary)]'>
+                You have unsaved changes. Are you sure you want to discard them?
+              </p>
+            </ModalBody>
+            <ModalFooter>
+              <Button variant='default' onClick={() => setShowUnsavedChangesAlert(false)}>
+                Keep Editing
+              </Button>
+              <Button variant='destructive' onClick={handleDiscardChanges}>
+                Discard Changes
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+
+        <Modal open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+          <ModalContent size='sm'>
+            <ModalHeader>Delete File</ModalHeader>
+            <ModalBody>
+              <p className='text-[13px] text-[var(--text-secondary)]'>
+                Are you sure you want to delete{' '}
+                <span className='font-medium text-[var(--text-primary)]'>
+                  {deleteTargetFile?.name}
+                </span>
+                ?{' '}
+                <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              </p>
+            </ModalBody>
+            <ModalFooter>
+              <Button
+                variant='default'
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleteFile.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant='destructive'
+                onClick={handleDelete}
+                disabled={deleteFile.isPending}
+              >
+                {deleteFile.isPending ? 'Deleting...' : 'Delete'}
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
       </div>
     )
   }
@@ -354,8 +538,70 @@ export function Files() {
         columns={COLUMNS}
         rows={rows}
         onRowClick={(id) => setSelectedFileId(id)}
+        onRowContextMenu={handleRowContextMenu}
         isLoading={isLoading}
       />
+
+      <Popover
+        open={isContextMenuOpen}
+        onOpenChange={(open) => !open && closeContextMenu()}
+        variant='secondary'
+        size='sm'
+      >
+        <PopoverAnchor
+          style={{
+            position: 'fixed',
+            left: `${contextMenuPosition.x}px`,
+            top: `${contextMenuPosition.y}px`,
+            width: '1px',
+            height: '1px',
+          }}
+        />
+        <PopoverContent ref={contextMenuRef} align='start' side='bottom' sideOffset={4}>
+          <PopoverItem onClick={handleContextMenuOpen}>Open</PopoverItem>
+          <PopoverItem onClick={handleContextMenuDownload}>Download</PopoverItem>
+          {userPermissions.canEdit === true && (
+            <>
+              <PopoverDivider />
+              <PopoverItem onClick={handleContextMenuDelete}>Delete</PopoverItem>
+            </>
+          )}
+        </PopoverContent>
+      </Popover>
+
+      {!selectedFile && (
+        <Modal open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+          <ModalContent size='sm'>
+            <ModalHeader>Delete File</ModalHeader>
+            <ModalBody>
+              <p className='text-[13px] text-[var(--text-secondary)]'>
+                Are you sure you want to delete{' '}
+                <span className='font-medium text-[var(--text-primary)]'>
+                  {deleteTargetFile?.name}
+                </span>
+                ?{' '}
+                <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              </p>
+            </ModalBody>
+            <ModalFooter>
+              <Button
+                variant='default'
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleteFile.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant='destructive'
+                onClick={handleDelete}
+                disabled={deleteFile.isPending}
+              >
+                {deleteFile.isPending ? 'Deleting...' : 'Delete'}
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      )}
 
       <input
         ref={fileInputRef}

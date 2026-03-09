@@ -112,7 +112,7 @@ function TextEditor({ file, workspaceId, canEdit, onDirtyChange, saveRef }: Text
     } catch (err) {
       logger.error('Failed to save file content:', err)
     }
-  }, [savedContent, workspaceId, file.id])
+  }, [savedContent, workspaceId, file.id, updateContent])
 
   useEffect(() => {
     if (saveRef) {

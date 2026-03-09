@@ -43,6 +43,15 @@ export async function PUT(
     }
 
     const buffer = Buffer.from(content, 'utf-8')
+
+    const maxFileSizeBytes = 50 * 1024 * 1024
+    if (buffer.length > maxFileSizeBytes) {
+      return NextResponse.json(
+        { error: `File size exceeds ${maxFileSizeBytes / 1024 / 1024}MB limit` },
+        { status: 413 }
+      )
+    }
+
     const updatedFile = await updateWorkspaceFileContent(
       workspaceId,
       fileId,
