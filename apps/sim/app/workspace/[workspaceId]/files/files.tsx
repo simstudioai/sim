@@ -24,6 +24,11 @@ import { cn } from '@/lib/core/utils/cn'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { formatFileSize, getFileExtension } from '@/lib/uploads/utils/file-utils'
+import {
+  SUPPORTED_AUDIO_EXTENSIONS,
+  SUPPORTED_DOCUMENT_EXTENSIONS,
+  SUPPORTED_VIDEO_EXTENSIONS,
+} from '@/lib/uploads/utils/validation'
 import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
 import {
   ownerCell,
@@ -52,33 +57,9 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 const logger = createLogger('Files')
 
 const SUPPORTED_EXTENSIONS = [
-  'pdf',
-  'csv',
-  'doc',
-  'docx',
-  'txt',
-  'md',
-  'xlsx',
-  'xls',
-  'html',
-  'htm',
-  'pptx',
-  'ppt',
-  'json',
-  'yaml',
-  'yml',
-  'mp3',
-  'm4a',
-  'wav',
-  'webm',
-  'ogg',
-  'flac',
-  'aac',
-  'opus',
-  'mp4',
-  'mov',
-  'avi',
-  'mkv',
+  ...SUPPORTED_DOCUMENT_EXTENSIONS,
+  ...SUPPORTED_AUDIO_EXTENSIONS,
+  ...SUPPORTED_VIDEO_EXTENSIONS,
 ] as const
 
 const ACCEPT_ATTR = SUPPORTED_EXTENSIONS.map((ext) => `.${ext}`).join(',')

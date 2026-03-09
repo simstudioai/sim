@@ -234,8 +234,10 @@ export function useDeleteWorkspaceFile() {
       return data
     },
     onMutate: async ({ workspaceId, fileId, fileSize }) => {
-      await queryClient.cancelQueries({ queryKey: workspaceFilesKeys.list(workspaceId) })
-      await queryClient.cancelQueries({ queryKey: workspaceFilesKeys.storageInfo() })
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: workspaceFilesKeys.list(workspaceId) }),
+        queryClient.cancelQueries({ queryKey: workspaceFilesKeys.storageInfo() }),
+      ])
 
       const previousFiles = queryClient.getQueryData<WorkspaceFileRecord[]>(
         workspaceFilesKeys.list(workspaceId)
