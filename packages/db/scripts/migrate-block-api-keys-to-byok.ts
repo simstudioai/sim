@@ -281,29 +281,44 @@ type EnvLookup = {
   personalEnvCache: Map<string, Record<string, string>>
 }
 
+type KeySource = 'plaintext' | 'workspace' | 'personal'
+
+const KEY_SOURCE_PRIORITY: Record<KeySource, number> = {
+  plaintext: 0,
+  workspace: 1,
+  personal: 2,
+}
+
 async function resolveKey(
   ref: RawKeyRef,
   context: string,
   env: EnvLookup
-): Promise<{ key: string | null; envVarFailed: boolean }> {
-  if (!isEnvVarReference(ref.rawValue)) return { key: ref.rawValue, envVarFailed: false }
+): Promise<{ key: string | null; source: KeySource; envVarFailed: boolean }> {
+  if (!isEnvVarReference(ref.rawValue)) {
+    return { key: ref.rawValue, source: 'plaintext', envVarFailed: false }
+  }
 
   const varName = extractEnvVarName(ref.rawValue)
-  if (!varName) return { key: null, envVarFailed: true }
+  if (!varName) return { key: null, source: 'personal', envVarFailed: true }
 
   const personalVars = env.personalEnvCache.get(ref.userId)
-  const encryptedValue = env.wsEnvVars[varName] ?? personalVars?.[varName]
+
+  const wsValue = env.wsEnvVars[varName]
+  const personalValue = personalVars?.[varName]
+  const encryptedValue = wsValue ?? personalValue
+  const source: KeySource = wsValue ? 'workspace' : 'personal'
+
   if (!encryptedValue) {
     console.warn(`  [WARN] Env var "${varName}" not found (${context})`)
-    return { key: null, envVarFailed: true }
+    return { key: null, source, envVarFailed: true }
   }
 
   try {
     const decrypted = await decryptSecret(encryptedValue)
-    return { key: decrypted, envVarFailed: false }
+    return { key: decrypted, source, envVarFailed: false }
   } catch (error) {
     console.warn(`  [WARN] Failed to decrypt env var "${varName}" (${context}): ${error}`)
-    return { key: null, envVarFailed: true }
+    return { key: null, source, envVarFailed: true }
   }
 }
 
@@ -488,31 +503,34 @@ async function run() {
 
       for (const [providerId, refs] of providerKeys) {
         // Resolve all keys for this provider to check for conflicts
-        const resolved: { ref: RawKeyRef; key: string }[] = []
+        const resolved: { ref: RawKeyRef; key: string; source: KeySource }[] = []
         for (const ref of refs) {
           const context = `"${ref.blockName}" in "${ref.workflowName}"`
-          const { key, envVarFailed } = await resolveKey(ref, context, envLookup)
+          const { key, source, envVarFailed } = await resolveKey(ref, context, envLookup)
           if (envVarFailed) stats.envVarFailures++
-          if (key?.trim()) resolved.push({ ref, key })
+          if (key?.trim()) resolved.push({ ref, key: key.trim(), source })
         }
 
         if (resolved.length === 0) continue
+
+        // Sort by priority: plaintext > workspace > personal
+        resolved.sort((a, b) => KEY_SOURCE_PRIORITY[a.source] - KEY_SOURCE_PRIORITY[b.source])
 
         // Detect conflicting values
         const distinctKeys = new Set(resolved.map((r) => r.key))
         if (distinctKeys.size > 1) {
           stats.conflicts++
           console.log(`  [CONFLICT] provider "${providerId}": ${distinctKeys.size} distinct keys`)
-          for (const { ref, key } of resolved) {
+          for (const { ref, key, source } of resolved) {
             const display = isEnvVarReference(ref.rawValue)
               ? `${ref.rawValue} -> ${maskKey(key)}`
               : maskKey(ref.rawValue)
-            console.log(`    "${ref.blockName}" in "${ref.workflowName}": ${display}`)
+            console.log(`    [${source}] "${ref.blockName}" in "${ref.workflowName}": ${display}`)
           }
-          console.log('    Using first resolved key')
+          console.log(`    Using highest-priority key (${resolved[0].source})`)
         }
 
-        // Use the first resolved key
+        // Use the highest-priority resolved key
         const chosen = resolved[0]
 
         if (DRY_RUN) {
