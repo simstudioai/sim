@@ -39,7 +39,13 @@ import type {
   FilterConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options-bar'
-import { useAddTableColumn, useCreateTableRow, useUpdateTableRow } from '@/hooks/queries/tables'
+import {
+  useAddTableColumn,
+  useCreateTableRow,
+  useDeleteColumn,
+  useUpdateColumn,
+  useUpdateTableRow,
+} from '@/hooks/queries/tables'
 import { useContextMenu, useRowSelection, useTableData } from '../../hooks'
 import type { EditingCell, QueryOptions } from '../../types'
 import { cleanCellValue, formatValueForInput } from '../../utils'
@@ -159,6 +165,8 @@ export function Table() {
   const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
   const createRowMutation = useCreateTableRow({ workspaceId, tableId })
   const addColumnMutation = useAddTableColumn({ workspaceId, tableId })
+  const updateColumnMutation = useUpdateColumn({ workspaceId, tableId })
+  const deleteColumnMutation = useDeleteColumn({ workspaceId, tableId })
 
   const columns = useMemo(
     () => tableData?.schema?.columns || EMPTY_COLUMNS,
@@ -551,20 +559,95 @@ export function Table() {
       i++
     }
     addColumnMutation.mutate({ name, type: 'string' })
-  }, [addColumnMutation])
+  }, [])
 
-  const handleRenameColumn = useCallback((_columnName: string) => {}, [])
-  const handleChangeType = useCallback((_columnName: string, _newType: string) => {}, [])
-  const handleInsertColumnLeft = useCallback((_columnName: string) => {}, [])
-  const handleInsertColumnRight = useCallback((_columnName: string) => {}, [])
-  const handleToggleUnique = useCallback((_columnName: string) => {}, [])
-  const handleToggleRequired = useCallback((_columnName: string) => {}, [])
-  const handleDeleteColumn = useCallback((_columnName: string) => {}, [])
+  const handleRenameColumn = useCallback((columnName: string) => {
+    const newName = window.prompt('Enter new column name:', columnName)
+    if (!newName || newName === columnName) return
+    updateColumnMutation.mutate({ columnName, updates: { name: newName } })
+  }, [])
 
-  const handleSortChange = useCallback((_column: string, _direction: SortDirection) => {}, [])
-  const handleSortClear = useCallback(() => {}, [])
-  const handleFilterToggle = useCallback((_column: string, _operator: string) => {}, [])
-  const handleFilterClear = useCallback(() => {}, [])
+  const handleChangeType = useCallback((columnName: string, newType: string) => {
+    updateColumnMutation.mutate({ columnName, updates: { type: newType } })
+  }, [])
+
+  const handleInsertColumnLeft = useCallback((columnName: string) => {
+    const cols = columnsRef.current
+    const index = cols.findIndex((c) => c.name === columnName)
+    if (index === -1) return
+    const existing = cols.map((c) => c.name.toLowerCase())
+    let name = 'untitled'
+    let i = 2
+    while (existing.includes(name.toLowerCase())) {
+      name = `untitled_${i}`
+      i++
+    }
+    addColumnMutation.mutate({ name, type: 'string', position: index })
+  }, [])
+
+  const handleInsertColumnRight = useCallback((columnName: string) => {
+    const cols = columnsRef.current
+    const index = cols.findIndex((c) => c.name === columnName)
+    if (index === -1) return
+    const existing = cols.map((c) => c.name.toLowerCase())
+    let name = 'untitled'
+    let i = 2
+    while (existing.includes(name.toLowerCase())) {
+      name = `untitled_${i}`
+      i++
+    }
+    addColumnMutation.mutate({ name, type: 'string', position: index + 1 })
+  }, [])
+
+  const handleToggleUnique = useCallback((columnName: string) => {
+    const column = columnsRef.current.find((c) => c.name === columnName)
+    if (!column) return
+    updateColumnMutation.mutate({ columnName, updates: { unique: !column.unique } })
+  }, [])
+
+  const handleToggleRequired = useCallback((columnName: string) => {
+    const column = columnsRef.current.find((c) => c.name === columnName)
+    if (!column) return
+    updateColumnMutation.mutate({ columnName, updates: { required: !column.required } })
+  }, [])
+
+  const handleDeleteColumn = useCallback((columnName: string) => {
+    if (!window.confirm(`Delete column "${columnName}"? This will remove all data in this column.`))
+      return
+    deleteColumnMutation.mutate(columnName)
+  }, [])
+
+  const handleSortChange = useCallback((column: string, direction: SortDirection) => {
+    setQueryOptions((prev) => ({ ...prev, sort: { [column]: direction } }))
+    setCurrentPage(0)
+  }, [])
+
+  const handleSortClear = useCallback(() => {
+    setQueryOptions((prev) => ({ ...prev, sort: null }))
+  }, [])
+
+  const handleFilterToggle = useCallback((column: string, operator: string) => {
+    setQueryOptions((prev) => {
+      if (operator === 'empty') {
+        return { ...prev, filter: { [column]: { $eq: null } } }
+      }
+      if (operator === 'not_empty') {
+        return { ...prev, filter: { [column]: { $ne: null } } }
+      }
+      if (operator === 'eq_true') {
+        return { ...prev, filter: { [column]: true } }
+      }
+      if (operator === 'eq_false') {
+        return { ...prev, filter: { [column]: false } }
+      }
+      return prev
+    })
+    setCurrentPage(0)
+  }, [])
+
+  const handleFilterClear = useCallback(() => {
+    setQueryOptions((prev) => ({ ...prev, filter: null }))
+  }, [])
 
   const columnOptions = useMemo<ColumnOption[]>(
     () =>
@@ -577,24 +660,48 @@ export function Table() {
     [columns]
   )
 
+  const activeSortState = useMemo(() => {
+    if (!queryOptions.sort) return null
+    const entries = Object.entries(queryOptions.sort)
+    if (entries.length === 0) return null
+    const [column, direction] = entries[0]
+    return { column, direction }
+  }, [queryOptions.sort])
+
+  const activeFilters = useMemo(() => {
+    if (!queryOptions.filter) return []
+    return Object.entries(queryOptions.filter)
+      .filter(([key]) => key !== '$or' && key !== '$and')
+      .map(([column, condition]) => {
+        if (condition === true) return { column, operator: 'eq_true' }
+        if (condition === false) return { column, operator: 'eq_false' }
+        if (typeof condition === 'object' && condition !== null && !Array.isArray(condition)) {
+          const ops = condition as Record<string, unknown>
+          if ('$eq' in ops && ops.$eq === null) return { column, operator: 'empty' }
+          if ('$ne' in ops && ops.$ne === null) return { column, operator: 'not_empty' }
+        }
+        return { column, operator: 'unknown' }
+      })
+  }, [queryOptions.filter])
+
   const sortConfig = useMemo<SortConfig>(
     () => ({
       options: columnOptions,
-      active: null,
+      active: activeSortState,
       onSort: handleSortChange,
       onClear: handleSortClear,
     }),
-    [columnOptions, handleSortChange, handleSortClear]
+    [columnOptions, activeSortState, handleSortChange, handleSortClear]
   )
 
   const filterConfig = useMemo<FilterConfig>(
     () => ({
       options: columnOptions,
-      active: [],
+      active: activeFilters,
       onToggle: handleFilterToggle,
       onClear: handleFilterClear,
     }),
-    [columnOptions, handleFilterToggle, handleFilterClear]
+    [columnOptions, activeFilters, handleFilterToggle, handleFilterClear]
   )
 
   if (!isLoadingTable && !tableData) {

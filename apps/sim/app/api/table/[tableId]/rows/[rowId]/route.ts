@@ -58,6 +58,7 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
       .select({
         id: userTableRows.id,
         data: userTableRows.data,
+        position: userTableRows.position,
         createdAt: userTableRows.createdAt,
         updatedAt: userTableRows.updatedAt,
       })
@@ -83,6 +84,7 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
         row: {
           id: row.id,
           data: row.data,
+          position: row.position,
           createdAt:
             row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
           updatedAt:

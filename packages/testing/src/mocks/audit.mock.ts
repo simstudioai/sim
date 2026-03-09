@@ -78,6 +78,7 @@ export const auditMock = {
     PERMISSION_GROUP_MEMBER_REMOVED: 'permission_group_member.removed',
     SCHEDULE_UPDATED: 'schedule.updated',
     TABLE_CREATED: 'table.created',
+    TABLE_UPDATED: 'table.updated',
     TABLE_DELETED: 'table.deleted',
     TEMPLATE_CREATED: 'template.created',
     TEMPLATE_UPDATED: 'template.updated',

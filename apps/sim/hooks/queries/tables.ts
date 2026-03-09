@@ -118,12 +118,11 @@ async function fetchTableRows({
   }
 }
 
-function invalidateTableData(
-  queryClient: ReturnType<typeof useQueryClient>,
-  workspaceId: string,
-  tableId: string
-) {
-  queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
+function invalidateRowData(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
+  queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+}
+
+function invalidateTableSchema(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
   queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
 }
@@ -223,7 +222,7 @@ export function useCreateTable(workspaceId: string) {
 
       return res.json()
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
     },
   })
@@ -241,6 +240,7 @@ export function useAddTableColumn({ workspaceId, tableId }: RowMutationContext) 
       type: string
       required?: boolean
       unique?: boolean
+      position?: number
     }) => {
       const res = await fetch(`/api/table/${tableId}/columns`, {
         method: 'POST',
@@ -256,8 +256,7 @@ export function useAddTableColumn({ workspaceId, tableId }: RowMutationContext) 
       return res.json()
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
-      queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
+      invalidateTableSchema(queryClient, tableId)
     },
   })
 }
@@ -284,7 +283,7 @@ export function useDeleteTable(workspaceId: string) {
 
       return res.json()
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
     },
   })
@@ -311,8 +310,8 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
 
       return res.json()
     },
-    onSuccess: () => {
-      invalidateTableData(queryClient, workspaceId, tableId)
+    onSettled: () => {
+      invalidateRowData(queryClient, tableId)
     },
   })
 }
@@ -371,7 +370,7 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
       }
     },
     onSettled: () => {
-      invalidateTableData(queryClient, workspaceId, tableId)
+      invalidateRowData(queryClient, tableId)
     },
   })
 }
@@ -397,8 +396,8 @@ export function useDeleteTableRow({ workspaceId, tableId }: RowMutationContext) 
 
       return res.json()
     },
-    onSuccess: () => {
-      invalidateTableData(queryClient, workspaceId, tableId)
+    onSettled: () => {
+      invalidateRowData(queryClient, tableId)
     },
   })
 }
@@ -445,7 +444,71 @@ export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext)
       return { deletedRowIds }
     },
     onSettled: () => {
-      invalidateTableData(queryClient, workspaceId, tableId)
+      invalidateRowData(queryClient, tableId)
+    },
+  })
+}
+
+interface UpdateColumnParams {
+  columnName: string
+  updates: {
+    name?: string
+    type?: string
+    required?: boolean
+    unique?: boolean
+  }
+}
+
+/**
+ * Update a column (rename, type change, or constraint update).
+ */
+export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ columnName, updates }: UpdateColumnParams) => {
+      const res = await fetch(`/api/table/${tableId}/columns`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId, columnName, updates }),
+      })
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error.error || 'Failed to update column')
+      }
+
+      return res.json()
+    },
+    onSettled: () => {
+      invalidateTableSchema(queryClient, tableId)
+    },
+  })
+}
+
+/**
+ * Delete a column from a table.
+ */
+export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (columnName: string) => {
+      const res = await fetch(`/api/table/${tableId}/columns`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId, columnName }),
+      })
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error.error || 'Failed to delete column')
+      }
+
+      return res.json()
+    },
+    onSettled: () => {
+      invalidateTableSchema(queryClient, tableId)
     },
   })
 }

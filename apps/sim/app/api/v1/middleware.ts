@@ -32,6 +32,7 @@ export async function checkRateLimit(
     | 'table-detail'
     | 'table-rows'
     | 'table-row-detail'
+    | 'table-columns'
     | 'files'
     | 'file-detail'
     | 'knowledge'

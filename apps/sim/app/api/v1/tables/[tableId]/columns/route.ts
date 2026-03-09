@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
   addTableColumn,
@@ -18,29 +18,47 @@ import {
   normalizeColumn,
   UpdateColumnSchema,
 } from '@/app/api/table/utils'
+import {
+  checkRateLimit,
+  checkWorkspaceScope,
+  createRateLimitResponse,
+} from '@/app/api/v1/middleware'
 
-const logger = createLogger('TableColumnsAPI')
+const logger = createLogger('V1TableColumnsAPI')
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 interface ColumnsRouteParams {
   params: Promise<{ tableId: string }>
 }
 
-/** POST /api/table/[tableId]/columns - Adds a column to the table schema. */
+/** POST /api/v1/tables/[tableId]/columns — Add a column to the table schema. */
 export async function POST(request: NextRequest, { params }: ColumnsRouteParams) {
   const requestId = generateRequestId()
-  const { tableId } = await params
 
   try {
-    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-    if (!authResult.success || !authResult.userId) {
-      logger.warn(`[${requestId}] Unauthorized column creation attempt`)
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const rateLimit = await checkRateLimit(request, 'table-columns')
+    if (!rateLimit.allowed) {
+      return createRateLimitResponse(rateLimit)
     }
 
-    const body = await request.json()
+    const userId = rateLimit.userId!
+    const { tableId } = await params
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
+    }
+
     const validated = CreateColumnSchema.parse(body)
 
-    const result = await checkAccess(tableId, authResult.userId, 'write')
+    const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+    if (scopeError) return scopeError
+
+    const result = await checkAccess(tableId, userId, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     const { table } = result
@@ -51,6 +69,18 @@ export async function POST(request: NextRequest, { params }: ColumnsRouteParams)
 
     const updatedTable = await addTableColumn(tableId, validated.column, requestId)
 
+    recordAudit({
+      workspaceId: validated.workspaceId,
+      actorId: userId,
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: tableId,
+      resourceName: table.name,
+      description: `Added column "${validated.column.name}" to table "${table.name}"`,
+      metadata: { column: validated.column },
+      request,
+    })
+
     return NextResponse.json({
       success: true,
       data: {
@@ -60,7 +90,7 @@ export async function POST(request: NextRequest, { params }: ColumnsRouteParams)
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
+        { error: 'Validation error', details: error.errors },
         { status: 400 }
       )
     }
@@ -79,22 +109,32 @@ export async function POST(request: NextRequest, { params }: ColumnsRouteParams)
   }
 }
 
-/** PATCH /api/table/[tableId]/columns - Updates a column (rename, type change, constraints). */
+/** PATCH /api/v1/tables/[tableId]/columns — Update a column (rename, type change, constraints). */
 export async function PATCH(request: NextRequest, { params }: ColumnsRouteParams) {
   const requestId = generateRequestId()
-  const { tableId } = await params
 
   try {
-    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-    if (!authResult.success || !authResult.userId) {
-      logger.warn(`[${requestId}] Unauthorized column update attempt`)
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const rateLimit = await checkRateLimit(request, 'table-columns')
+    if (!rateLimit.allowed) {
+      return createRateLimitResponse(rateLimit)
     }
 
-    const body = await request.json()
+    const userId = rateLimit.userId!
+    const { tableId } = await params
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
+    }
+
     const validated = UpdateColumnSchema.parse(body)
 
-    const result = await checkAccess(tableId, authResult.userId, 'write')
+    const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+    if (scopeError) return scopeError
+
+    const result = await checkAccess(tableId, userId, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     const { table } = result
@@ -136,6 +176,18 @@ export async function PATCH(request: NextRequest, { params }: ColumnsRouteParams
       return NextResponse.json({ error: 'No updates specified' }, { status: 400 })
     }
 
+    recordAudit({
+      workspaceId: validated.workspaceId,
+      actorId: userId,
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: tableId,
+      resourceName: table.name,
+      description: `Updated column "${validated.columnName}" in table "${table.name}"`,
+      metadata: { columnName: validated.columnName, updates },
+      request,
+    })
+
     return NextResponse.json({
       success: true,
       data: {
@@ -145,7 +197,7 @@ export async function PATCH(request: NextRequest, { params }: ColumnsRouteParams
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
+        { error: 'Validation error', details: error.errors },
         { status: 400 }
       )
     }
@@ -172,22 +224,32 @@ export async function PATCH(request: NextRequest, { params }: ColumnsRouteParams
   }
 }
 
-/** DELETE /api/table/[tableId]/columns - Deletes a column from the table schema. */
+/** DELETE /api/v1/tables/[tableId]/columns — Delete a column from the table schema. */
 export async function DELETE(request: NextRequest, { params }: ColumnsRouteParams) {
   const requestId = generateRequestId()
-  const { tableId } = await params
 
   try {
-    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-    if (!authResult.success || !authResult.userId) {
-      logger.warn(`[${requestId}] Unauthorized column deletion attempt`)
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const rateLimit = await checkRateLimit(request, 'table-columns')
+    if (!rateLimit.allowed) {
+      return createRateLimitResponse(rateLimit)
     }
 
-    const body = await request.json()
+    const userId = rateLimit.userId!
+    const { tableId } = await params
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
+    }
+
     const validated = DeleteColumnSchema.parse(body)
 
-    const result = await checkAccess(tableId, authResult.userId, 'write')
+    const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+    if (scopeError) return scopeError
+
+    const result = await checkAccess(tableId, userId, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     const { table } = result
@@ -201,6 +263,18 @@ export async function DELETE(request: NextRequest, { params }: ColumnsRouteParam
       requestId
     )
 
+    recordAudit({
+      workspaceId: validated.workspaceId,
+      actorId: userId,
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: tableId,
+      resourceName: table.name,
+      description: `Deleted column "${validated.columnName}" from table "${table.name}"`,
+      metadata: { columnName: validated.columnName },
+      request,
+    })
+
     return NextResponse.json({
       success: true,
       data: {
@@ -210,7 +284,7 @@ export async function DELETE(request: NextRequest, { params }: ColumnsRouteParam
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
+        { error: 'Validation error', details: error.errors },
         { status: 400 }
       )
     }

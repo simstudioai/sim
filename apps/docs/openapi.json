@@ -1362,6 +1362,288 @@
         }
       }
     },
+    "/api/v1/tables/{tableId}/columns": {
+      "post": {
+        "operationId": "addColumn",
+        "summary": "Add Column",
+        "description": "Add a new column to the table schema. Optionally specify a position to insert the column at a specific index.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "lang": "curl",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/columns\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"column\": {\n      \"name\": \"email\",\n      \"type\": \"string\",\n      \"required\": true,\n      \"unique\": true\n    }\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "The table ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "column"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace ID"
+                  },
+                  "column": {
+                    "type": "object",
+                    "required": ["name", "type"],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Column name (alphanumeric and underscores, must start with letter or underscore)"
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": ["string", "number", "boolean", "date", "json"],
+                        "description": "Column data type"
+                      },
+                      "required": {
+                        "type": "boolean",
+                        "description": "Whether the column requires a value"
+                      },
+                      "unique": {
+                        "type": "boolean",
+                        "description": "Whether column values must be unique"
+                      },
+                      "position": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Position index to insert the column at (0-based). Appends if omitted."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Column added successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "columns": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/ColumnDefinition" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateColumn",
+        "summary": "Update Column",
+        "description": "Update a column's name, type, or constraints. Multiple updates can be applied in a single request. When renaming, subsequent updates (type, constraints) use the new name.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "lang": "curl",
+            "source": "curl -X PATCH \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/columns\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"columnName\": \"old_name\",\n    \"updates\": {\n      \"name\": \"new_name\",\n      \"type\": \"number\"\n    }\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "The table ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "columnName", "updates"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace ID"
+                  },
+                  "columnName": {
+                    "type": "string",
+                    "description": "Current name of the column to update"
+                  },
+                  "updates": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "New column name"
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": ["string", "number", "boolean", "date", "json"],
+                        "description": "New column data type"
+                      },
+                      "required": {
+                        "type": "boolean",
+                        "description": "Whether the column requires a value"
+                      },
+                      "unique": {
+                        "type": "boolean",
+                        "description": "Whether column values must be unique"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Column updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "columns": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/ColumnDefinition" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteColumn",
+        "summary": "Delete Column",
+        "description": "Delete a column from the table schema. This removes the column definition and strips the corresponding key from all existing row data. Cannot delete the last remaining column.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "lang": "curl",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/columns\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"columnName\": \"old_column\"\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "The table ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "columnName"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace ID"
+                  },
+                  "columnName": {
+                    "type": "string",
+                    "description": "Name of the column to delete"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Column deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "columns": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/ColumnDefinition" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
     "/api/v1/tables/{tableId}/rows": {
       "get": {
         "operationId": "listRows",
@@ -3773,6 +4055,10 @@
             "type": "object",
             "additionalProperties": true,
             "description": "Row data as key-value pairs matching the table schema."
+          },
+          "position": {
+            "type": "integer",
+            "description": "Row's position/order in the table."
           },
           "createdAt": {
             "type": "string",
