@@ -86,6 +86,7 @@ export function WorkflowList({
   const workflowId = params.workflowId as string
 
   const { isLoading: foldersLoading } = useFolders(workspaceId)
+  const folders = useFolderStore((state) => state.folders)
   const { getFolderTree, expandedFolders, getFolderPath, setExpanded } = useFolderStore()
 
   const {
@@ -119,7 +120,10 @@ export function WorkflowList({
     }
   }, [scrollContainerRef, setScrollContainer])
 
-  const folderTree = workspaceId ? getFolderTree(workspaceId) : []
+  const folderTree = useMemo(
+    () => (workspaceId ? getFolderTree(workspaceId) : []),
+    [workspaceId, folders, getFolderTree]
+  )
 
   const activeWorkflowFolderId = useMemo(() => {
     if (!workflowId || isLoading || foldersLoading) return null
@@ -225,49 +229,135 @@ export function WorkflowList({
   const orderedFolderIds = useMemo(() => {
     const ids: string[] = []
 
-    const collectFolderIds = (folder: FolderTreeNode) => {
+    const collectFromFolder = (folder: FolderTreeNode) => {
       ids.push(folder.id)
-      for (const childFolder of folder.children) {
-        collectFolderIds(childFolder)
+      const workflowsInFolder = workflowsByFolder[folder.id] || []
+      const childItems: Array<{
+        type: 'folder' | 'workflow'
+        id: string
+        sortOrder: number
+        createdAt?: Date
+        data: FolderTreeNode | WorkflowMetadata
+      }> = []
+      for (const child of folder.children) {
+        childItems.push({
+          type: 'folder',
+          id: child.id,
+          sortOrder: child.sortOrder,
+          createdAt: child.createdAt,
+          data: child,
+        })
+      }
+      for (const wf of workflowsInFolder) {
+        childItems.push({
+          type: 'workflow',
+          id: wf.id,
+          sortOrder: wf.sortOrder,
+          createdAt: wf.createdAt,
+          data: wf,
+        })
+      }
+      childItems.sort(compareByOrder)
+      for (const item of childItems) {
+        if (item.type === 'folder') {
+          collectFromFolder(item.data as FolderTreeNode)
+        }
       }
     }
 
+    const rootLevelItems: Array<{
+      type: 'folder' | 'workflow'
+      id: string
+      sortOrder: number
+      createdAt?: Date
+      data: FolderTreeNode | WorkflowMetadata
+    }> = []
     for (const folder of folderTree) {
-      collectFolderIds(folder)
+      rootLevelItems.push({
+        type: 'folder',
+        id: folder.id,
+        sortOrder: folder.sortOrder,
+        createdAt: folder.createdAt,
+        data: folder,
+      })
+    }
+    const rootWfs = workflowsByFolder.root || []
+    for (const wf of rootWfs) {
+      rootLevelItems.push({
+        type: 'workflow',
+        id: wf.id,
+        sortOrder: wf.sortOrder,
+        createdAt: wf.createdAt,
+        data: wf,
+      })
+    }
+    rootLevelItems.sort(compareByOrder)
+
+    for (const item of rootLevelItems) {
+      if (item.type === 'folder') {
+        collectFromFolder(item.data as FolderTreeNode)
+      }
     }
 
     return ids
-  }, [folderTree])
+  }, [folderTree, workflowsByFolder])
 
-  const workflowFolderMap = useMemo(() => {
-    const map: Record<string, string> = {}
+  const {
+    workflowAncestorFolderIds,
+    folderDescendantWorkflowIds,
+    folderAncestorIds,
+    folderDescendantIds,
+  } = useMemo(() => {
+    const wfAncestors: Record<string, string[]> = {}
+    const fDescWfs: Record<string, string[]> = {}
+    const fAncestors: Record<string, string[]> = {}
+    const fDescendants: Record<string, string[]> = {}
+
+    const buildMaps = (folder: FolderTreeNode, ancestors: string[]) => {
+      fAncestors[folder.id] = ancestors
+      const wfsInFolder = (workflowsByFolder[folder.id] || []).map((w) => w.id)
+      const allDescWfs = [...wfsInFolder]
+      const allDescFolders: string[] = []
+
+      for (const child of folder.children) {
+        buildMaps(child, [...ancestors, folder.id])
+        allDescFolders.push(child.id, ...(fDescendants[child.id] || []))
+        allDescWfs.push(...(fDescWfs[child.id] || []))
+      }
+
+      fDescendants[folder.id] = allDescFolders
+      fDescWfs[folder.id] = allDescWfs
+    }
+
+    for (const folder of folderTree) {
+      buildMaps(folder, [])
+    }
+
     for (const wf of regularWorkflows) {
-      if (wf.folderId) {
-        map[wf.id] = wf.folderId
+      if (wf.folderId && fAncestors[wf.folderId] !== undefined) {
+        wfAncestors[wf.id] = [wf.folderId, ...fAncestors[wf.folderId]]
       }
     }
-    return map
-  }, [regularWorkflows])
 
-  const folderWorkflowIds = useMemo(() => {
-    const map: Record<string, string[]> = {}
-    for (const [folderId, workflows] of Object.entries(workflowsByFolder)) {
-      if (folderId !== 'root') {
-        map[folderId] = workflows.map((w) => w.id)
-      }
+    return {
+      workflowAncestorFolderIds: wfAncestors,
+      folderDescendantWorkflowIds: fDescWfs,
+      folderAncestorIds: fAncestors,
+      folderDescendantIds: fDescendants,
     }
-    return map
-  }, [workflowsByFolder])
+  }, [folderTree, workflowsByFolder, regularWorkflows])
 
   const { handleWorkflowClick } = useWorkflowSelection({
     workflowIds: orderedWorkflowIds,
     activeWorkflowId: workflowId,
-    workflowFolderMap,
+    workflowAncestorFolderIds,
   })
 
   const { handleFolderClick } = useFolderSelection({
     folderIds: orderedFolderIds,
-    folderWorkflowIds,
+    folderDescendantWorkflowIds,
+    folderAncestorIds,
+    folderDescendantIds,
   })
 
   const isWorkflowActive = useCallback(
@@ -472,9 +562,8 @@ export function WorkflowList({
   const handleContainerClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (e.target !== e.currentTarget) return
-      const { selectOnly, clearSelection, clearFolderSelection } = useFolderStore.getState()
-      clearFolderSelection()
-      workflowId ? selectOnly(workflowId) : clearSelection()
+      const { selectOnly, clearAllSelection } = useFolderStore.getState()
+      workflowId ? selectOnly(workflowId) : clearAllSelection()
     },
     [workflowId]
   )

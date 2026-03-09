@@ -11,16 +11,16 @@ interface UseWorkflowSelectionProps {
    */
   activeWorkflowId: string | undefined
   /**
-   * Map from workflow ID to its parent folder ID (only for workflows inside folders)
+   * Map from workflow ID to all its ancestor folder IDs (direct parent first, then up)
    */
-  workflowFolderMap: Record<string, string>
+  workflowAncestorFolderIds: Record<string, string[]>
 }
 
 /**
  * Hook for managing workflow selection with support for single, range, and toggle selection.
  * Handles shift-click for range selection and regular click for single selection.
  * Uses the active workflow ID as the anchor point for range selections.
- * Enforces parent-child constraint: selecting a workflow deselects its parent folder.
+ * Enforces ancestor constraint: selecting a workflow deselects any ancestor folder.
  *
  * @param props - Hook props
  * @returns Selection handlers
@@ -28,25 +28,28 @@ interface UseWorkflowSelectionProps {
 export function useWorkflowSelection({
   workflowIds,
   activeWorkflowId,
-  workflowFolderMap,
+  workflowAncestorFolderIds,
 }: UseWorkflowSelectionProps) {
   const { selectedWorkflows, selectOnly, selectRange, toggleWorkflowSelection } = useFolderStore()
 
   /**
-   * After a workflow selection change, deselect any folders that contain selected workflows
-   * to prevent parent-child co-selection.
+   * After a workflow selection change, deselect any folder that is an ancestor of a selected
+   * workflow to prevent ancestor-descendant co-selection.
    */
   const deselectConflictingFolders = useCallback(() => {
     const { selectedWorkflows: workflows, selectedFolders: folders } = useFolderStore.getState()
     if (folders.size === 0) return
 
     for (const wfId of workflows) {
-      const folderId = workflowFolderMap[wfId]
-      if (folderId && folders.has(folderId)) {
-        useFolderStore.getState().deselectFolder(folderId)
+      const ancestorIds = workflowAncestorFolderIds[wfId]
+      if (!ancestorIds) continue
+      for (const folderId of ancestorIds) {
+        if (folders.has(folderId)) {
+          useFolderStore.getState().deselectFolder(folderId)
+        }
       }
     }
-  }, [workflowFolderMap])
+  }, [workflowAncestorFolderIds])
 
   /**
    * Handle workflow click with support for shift-click range selection and cmd/ctrl-click toggle.
