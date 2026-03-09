@@ -10,6 +10,29 @@ import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('MistralParserTool')
 
+const MISTRAL_OCR_HOSTING = {
+  envKeyPrefix: 'MISTRAL_API_KEY',
+  apiKeyParam: 'apiKey',
+  byokProviderId: 'mistral' as const,
+  pricing: {
+    type: 'custom' as const,
+    getCost: (_params: Record<string, unknown>, output: Record<string, unknown>) => {
+      // Mistral OCR: $1 per 1,000 pages ($0.001/page) — https://mistral.ai/pricing
+      const usageInfo = output.usage_info as { pages_processed?: number } | undefined
+      if (usageInfo?.pages_processed == null) {
+        throw new Error('Mistral OCR response missing pages_processed in usage_info')
+      }
+      const pagesProcessed = usageInfo.pages_processed
+      const cost = pagesProcessed * 0.001
+      return { cost, metadata: { pagesProcessed } }
+    },
+  },
+  rateLimit: {
+    mode: 'per_request' as const,
+    requestsPerMinute: 60,
+  },
+}
+
 export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutput> = {
   id: 'mistral_parser',
   name: 'Mistral PDF Parser',
@@ -492,6 +515,7 @@ export const mistralParserV3Tool: ToolConfig<MistralParserV2Input, MistralParser
   ...mistralParserV2Tool,
   id: 'mistral_parser_v3',
   version: '3.0.0',
+  hosting: MISTRAL_OCR_HOSTING,
   params: {
     file: {
       type: 'file',
