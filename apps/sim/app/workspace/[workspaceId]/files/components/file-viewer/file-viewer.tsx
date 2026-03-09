@@ -155,7 +155,7 @@ function TextEditor({ file, workspaceId, canEdit, onDirtyChange, saveRef }: Text
         onChange={(e) => handleContentChange(e.target.value)}
         readOnly={!canEdit}
         spellCheck={false}
-        className='h-full w-full resize-none border-0 bg-transparent p-[24px] font-mono text-[13px] text-[var(--text-body)] outline-none placeholder:text-[var(--text-subtle)]'
+        className='h-full w-full resize-none border-0 bg-transparent p-[24px] font-mono text-[14px] text-[var(--text-body)] outline-none placeholder:text-[var(--text-subtle)]'
       />
     </div>
   )

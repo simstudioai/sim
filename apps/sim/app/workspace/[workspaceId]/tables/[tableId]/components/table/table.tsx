@@ -32,11 +32,10 @@ import {
   TypeText,
 } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
-import type { ColumnDefinition, SortDirection, TableRow as TableRowType } from '@/lib/table'
+import type { ColumnDefinition, Filter, SortDirection, TableRow as TableRowType } from '@/lib/table'
 import { ResourceHeader, ResourceOptionsBar } from '@/app/workspace/[workspaceId]/components'
 import type {
   ColumnOption,
-  FilterConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options-bar'
 import { useAddTableColumn, useCreateTableRow, useUpdateTableRow } from '@/hooks/queries/tables'
@@ -46,6 +45,7 @@ import { cleanCellValue, formatValueForInput } from '../../utils'
 import { ContextMenu } from '../context-menu'
 import { RowModal } from '../row-modal'
 import { SchemaModal } from '../schema-modal'
+import { TableFilter } from '../table-filter'
 
 interface CellCoord {
   rowIndex: number
@@ -563,9 +563,11 @@ export function Table() {
 
   const handleSortChange = useCallback((_column: string, _direction: SortDirection) => {}, [])
   const handleSortClear = useCallback(() => {}, [])
-  const handleFilterToggle = useCallback((_column: string, _operator: string) => {}, [])
-  const handleFilterClear = useCallback(() => {}, [])
 
+  const handleFilterApply = useCallback((filter: Filter | null) => {
+    setQueryOptions((prev) => ({ ...prev, filter }))
+    setCurrentPage(0)
+  }, [])
   const columnOptions = useMemo<ColumnOption[]>(
     () =>
       columns.map((col) => ({
@@ -587,16 +589,6 @@ export function Table() {
     [columnOptions, handleSortChange, handleSortClear]
   )
 
-  const filterConfig = useMemo<FilterConfig>(
-    () => ({
-      options: columnOptions,
-      active: [],
-      onToggle: handleFilterToggle,
-      onClear: handleFilterClear,
-    }),
-    [columnOptions, handleFilterToggle, handleFilterClear]
-  )
-
   if (!isLoadingTable && !tableData) {
     return (
       <div className='flex h-full items-center justify-center'>
@@ -615,7 +607,10 @@ export function Table() {
         ]}
       />
 
-      <ResourceOptionsBar sort={sortConfig} filter={filterConfig} />
+      <ResourceOptionsBar
+        sort={sortConfig}
+        filter={<TableFilter columns={columns} onApply={handleFilterApply} />}
+      />
 
       <div className='min-h-0 flex-1 overflow-auto overscroll-none' data-table-scroll>
         <table
