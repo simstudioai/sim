@@ -191,7 +191,7 @@ export function Table({
   columnWidthsRef.current = columnWidths
   const [resizingColumn, setResizingColumn] = useState<string | null>(null)
   const metadataSeededRef = useRef(false)
-
+  const containerRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
 
   const { tableData, isLoadingTable, rows, isLoadingRows } = useTableData({
@@ -518,10 +518,7 @@ export function Table({
       const anchor = selectionAnchorRef.current
       if (!anchor || editingCellRef.current || editingEmptyCellRef.current) return
 
-      const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-        return
-      }
+      if (!containerRef.current?.contains(e.target as Node)) return
 
       const cols = columnsRef.current
       const mp = maxPositionRef.current
@@ -957,7 +954,7 @@ export function Table({
   }
 
   return (
-    <div className='flex h-full flex-col'>
+    <div ref={containerRef} className='flex h-full flex-col'>
       {!embedded && (
         <>
           <ResourceHeader
@@ -1725,27 +1722,15 @@ function CellContent({
   const isNull = value === null || value === undefined
 
   if (column.type === 'boolean') {
-    const boolValue = Boolean(value)
-    return (
-      <span className={boolValue ? 'text-green-500' : 'text-[var(--text-tertiary)]'}>
-        {isNull ? '' : boolValue ? 'true' : 'false'}
-      </span>
-    )
+    if (isNull) return null
+    return <span className='text-[var(--text-primary)]'>{value ? 'true' : 'false'}</span>
   }
 
   if (isNull) return null
 
   if (column.type === 'json') {
     return (
-      <span className='block truncate font-mono text-[11px] text-[var(--text-secondary)]'>
-        {JSON.stringify(value)}
-      </span>
-    )
-  }
-
-  if (column.type === 'number') {
-    return (
-      <span className='font-mono text-[12px] text-[var(--text-secondary)]'>{String(value)}</span>
+      <span className='block truncate text-[var(--text-primary)]'>{JSON.stringify(value)}</span>
     )
   }
 
@@ -1759,7 +1744,7 @@ function CellContent({
         hour: '2-digit',
         minute: '2-digit',
       })
-      return <span className='text-[12px] text-[var(--text-secondary)]'>{formatted}</span>
+      return <span className='text-[var(--text-primary)]'>{formatted}</span>
     } catch {
       return <span className='text-[var(--text-primary)]'>{String(value)}</span>
     }
@@ -1846,12 +1831,7 @@ function InlineEditor({
       onKeyDown={handleKeyDown}
       onBlur={() => doSave('blur')}
       className={cn(
-        'w-full min-w-0 select-text border-none bg-transparent p-0 outline-none',
-        column.type === 'number'
-          ? 'font-mono text-[12px] text-[var(--text-secondary)]'
-          : column.type === 'date'
-            ? 'text-[12px] text-[var(--text-secondary)]'
-            : 'text-[13px] text-[var(--text-primary)]'
+        'w-full min-w-0 select-text border-none bg-transparent p-0 text-[13px] text-[var(--text-primary)] outline-none'
       )}
     />
   )
@@ -2074,7 +2054,7 @@ const PlaceholderRows = React.memo(function PlaceholderRows({
               }}
               onMouseEnter={() => onRowMouseEnter(globalRowIndex)}
             >
-              <span className='text-[11px] text-[var(--text-tertiary)] tabular-nums'>
+              <span className='block text-[11px] text-[var(--text-tertiary)] tabular-nums'>
                 {maxPosition + i + 2}
               </span>
             </td>

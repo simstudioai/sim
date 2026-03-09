@@ -155,7 +155,6 @@ export interface CopilotState {
   chatsLoadedForWorkflow: string | null
 
   revertState: { messageId: string; messageContent: string } | null
-  inputValue: string
 
   planTodos: Array<{ id: string; content: string; completed?: boolean; executing?: boolean }>
   showPlanTodos: boolean
@@ -235,7 +234,6 @@ export interface CopilotActions {
   cleanup: () => void
   reset: () => void
 
-  setInputValue: (value: string) => void
   clearRevertState: () => void
 
   setPlanTodos: (

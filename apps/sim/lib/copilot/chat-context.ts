@@ -38,7 +38,8 @@ export async function processFileAttachments(
   for (const { buffer, attachment } of processedAttachments) {
     const fileContent = createFileContent(buffer, attachment.media_type)
     if (fileContent) {
-      processedFileContents.push(fileContent as FileContent)
+      const enriched: FileContent = { ...fileContent, filename: attachment.filename }
+      processedFileContents.push(enriched)
     }
   }
 

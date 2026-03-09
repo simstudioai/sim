@@ -26,6 +26,22 @@ vi.mock('@sim/db/schema', () => ({
   },
 }))
 
+vi.mock('drizzle-orm', () => {
+  const sqlTag = () => {
+    const obj = { as: () => obj }
+    return obj
+  }
+  sqlTag.as = sqlTag
+  return {
+    sql: Object.assign(sqlTag, { raw: sqlTag }),
+    and: vi.fn(),
+    gte: vi.fn(),
+    lt: vi.fn(),
+    inArray: vi.fn(),
+    sum: () => ({ as: () => 'sum' }),
+  }
+})
+
 vi.mock('@sim/logger', () => loggerMock)
 vi.mock('@/lib/billing/constants', () => ({
   DAILY_REFRESH_RATE: 0.01,

@@ -112,11 +112,6 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
       }
 
       for (const file of Array.from(fileList)) {
-        if (!file.type.startsWith('image/')) {
-          logger.warn(`File ${file.name} is not an image. Only image files are allowed.`)
-          continue
-        }
-
         let previewUrl: string | undefined
         if (file.type.startsWith('image/')) {
           previewUrl = URL.createObjectURL(file)

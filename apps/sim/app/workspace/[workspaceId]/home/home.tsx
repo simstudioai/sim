@@ -2,9 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
-import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
+import { useParams, useRouter } from 'next/navigation'
+import { useSession } from '@/lib/auth/auth-client'
+import {
+  LandingPromptStorage,
+  LandingTemplateStorage,
+  type LandingWorkflowSeed,
+  LandingWorkflowSeedStorage,
+} from '@/lib/core/utils/browser-storage'
+import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 import { MessageContent, MothershipView, UserInput } from './components'
+import type { FileAttachmentForApi } from './components/user-input/user-input'
 import { useChat } from './hooks'
 
 const logger = createLogger('Home')
@@ -15,19 +23,81 @@ interface HomeProps {
 
 export function Home({ chatId }: HomeProps = {}) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
+  const router = useRouter()
+  const { data: session } = useSession()
   const [inputValue, setInputValue] = useState('')
-  const hasCheckedLandingPromptRef = useRef(false)
+  const hasCheckedLandingStorageRef = useRef(false)
+
+  const createWorkflowFromLandingSeed = useCallback(
+    async (seed: LandingWorkflowSeed) => {
+      try {
+        const result = await persistImportedWorkflow({
+          content: seed.workflowJson,
+          filename: `${seed.workflowName}.json`,
+          workspaceId,
+          nameOverride: seed.workflowName,
+          descriptionOverride: seed.workflowDescription || 'Imported from landing template',
+          colorOverride: seed.color,
+          createWorkflow: async ({ name, description, color, workspaceId }) => {
+            const response = await fetch('/api/workflows', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name,
+                description,
+                color,
+                workspaceId,
+              }),
+            })
+
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}))
+              throw new Error(errorData.error || 'Failed to create workflow')
+            }
+
+            return response.json()
+          },
+        })
+
+        if (result?.workflowId) {
+          window.location.href = `/workspace/${workspaceId}/w/${result.workflowId}`
+          return
+        }
+
+        logger.warn('Landing workflow seed did not produce a workflow', {
+          templateId: seed.templateId,
+        })
+      } catch (error) {
+        logger.error('Error creating workflow from landing workflow seed:', error)
+      }
+    },
+    [workspaceId]
+  )
 
   useEffect(() => {
-    if (hasCheckedLandingPromptRef.current) return
-    hasCheckedLandingPromptRef.current = true
+    if (hasCheckedLandingStorageRef.current) return
+    hasCheckedLandingStorageRef.current = true
+
+    const workflowSeed = LandingWorkflowSeedStorage.consume()
+    if (workflowSeed) {
+      logger.info('Retrieved landing page workflow seed, creating workflow in workspace')
+      void createWorkflowFromLandingSeed(workflowSeed)
+      return
+    }
+
+    const templateId = LandingTemplateStorage.consume()
+    if (templateId) {
+      logger.info('Retrieved landing page template, redirecting to template detail')
+      router.replace(`/workspace/${workspaceId}/templates/${templateId}?use=true`)
+      return
+    }
 
     const prompt = LandingPromptStorage.consume()
     if (prompt) {
       logger.info('Retrieved landing page prompt, populating home input')
       setInputValue(prompt)
     }
-  }, [])
+  }, [createWorkflowFromLandingSeed, workspaceId, router])
 
   const {
     messages,
@@ -40,12 +110,15 @@ export function Home({ chatId }: HomeProps = {}) {
     setActiveResourceId,
   } = useChat(workspaceId, chatId)
 
-  const handleSubmit = useCallback(() => {
-    const trimmed = inputValue.trim()
-    if (!trimmed) return
-    setInputValue('')
-    sendMessage(trimmed)
-  }, [inputValue, sendMessage])
+  const handleSubmit = useCallback(
+    (fileAttachments?: FileAttachmentForApi[]) => {
+      const trimmed = inputValue.trim()
+      if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
+      setInputValue('')
+      sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments)
+    },
+    [inputValue, sendMessage]
+  )
 
   const hasMessages = messages.length > 0
 
@@ -61,6 +134,7 @@ export function Home({ chatId }: HomeProps = {}) {
           onSubmit={handleSubmit}
           isSending={isSending}
           onStopGeneration={stopGeneration}
+          userId={session?.user?.id}
         />
       </div>
     )
@@ -71,7 +145,7 @@ export function Home({ chatId }: HomeProps = {}) {
       <div className='flex h-full min-w-0 flex-1 flex-col'>
         <div className='min-h-0 flex-1 overflow-y-auto px-[24px] py-[16px]'>
           <div className='mx-auto max-w-[640px] space-y-[16px]'>
-            {messages.map((msg) => {
+            {messages.map((msg, index) => {
               if (msg.role === 'user') {
                 return (
                   <div key={msg.id} className='flex justify-end'>
@@ -85,7 +159,8 @@ export function Home({ chatId }: HomeProps = {}) {
               }
 
               const hasBlocks = msg.contentBlocks && msg.contentBlocks.length > 0
-              const isThisStreaming = isSending && msg === messages[messages.length - 1]
+              const isLastAssistant = msg.role === 'assistant' && index === messages.length - 1
+              const isThisStreaming = isSending && isLastAssistant
 
               if (!hasBlocks && !msg.content && isThisStreaming) {
                 return (
@@ -122,6 +197,7 @@ export function Home({ chatId }: HomeProps = {}) {
             isSending={isSending}
             onStopGeneration={stopGeneration}
             isInitialView={false}
+            userId={session?.user?.id}
           />
         </div>
       </div>

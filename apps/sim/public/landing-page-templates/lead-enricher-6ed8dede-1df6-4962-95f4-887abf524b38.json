@@ -1,0 +1,520 @@
+{
+  "version": "1.0",
+  "exportedAt": "2026-03-09T21:40:19.012Z",
+  "state": {
+    "blocks": {
+      "e146db47-fd1b-4823-8af4-eb3e078465c3": {
+        "id": "e146db47-fd1b-4823-8af4-eb3e078465c3",
+        "type": "start_trigger",
+        "name": "Start",
+        "position": {
+          "x": 220,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 100,
+        "subBlocks": {
+          "inputFormat": {
+            "id": "inputFormat",
+            "type": "input-format",
+            "value": [
+              {
+                "id": "40786453-e79e-4883-8ea2-b403ecbd617d",
+                "name": "Email",
+                "type": "string",
+                "value": "lead@company.com",
+                "collapsed": false
+              }
+            ]
+          }
+        },
+        "outputs": {
+          "files": {
+            "type": "file[]",
+            "description": "User uploaded files"
+          },
+          "input": {
+            "type": "string",
+            "description": "Primary user input or message"
+          },
+          "conversationId": {
+            "type": "string",
+            "description": "Conversation thread identifier"
+          }
+        },
+        "data": {},
+        "locked": false
+      },
+      "7fcbdc64-a811-43dc-a6ef-ff9d3d66fe82": {
+        "id": "7fcbdc64-a811-43dc-a6ef-ff9d3d66fe82",
+        "type": "agent",
+        "name": "Agent",
+        "position": {
+          "x": 180,
+          "y": 100
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 259,
+        "subBlocks": {
+          "model": {
+            "id": "model",
+            "type": "short-input",
+            "value": ""
+          },
+          "tools": {
+            "id": "tools",
+            "type": "short-input",
+            "value": [
+              {
+                "type": "linkedin",
+                "params": {
+                  "manualCredential": ""
+                },
+                "operation": "get_profile",
+                "isExpanded": true,
+                "usageControl": "auto"
+              }
+            ]
+          },
+          "apiKey": {
+            "id": "apiKey",
+            "type": "short-input",
+            "value": null
+          },
+          "skills": {
+            "id": "skills",
+            "type": "skill-input",
+            "value": null
+          },
+          "messages": {
+            "id": "messages",
+            "type": "short-input",
+            "value": [
+              {
+                "role": "system",
+                "content": "Enrich lead data by looking up LinkedIn profile information for the given email address. Return structured data including name, title, company, location, and professional summary."
+              },
+              {
+                "role": "user",
+                "content": "<dataparallel.currentItem>"
+              }
+            ]
+          },
+          "maxTokens": {
+            "id": "maxTokens",
+            "type": "short-input",
+            "value": null
+          },
+          "verbosity": {
+            "id": "verbosity",
+            "type": "dropdown",
+            "value": null
+          },
+          "memoryType": {
+            "id": "memoryType",
+            "type": "short-input",
+            "value": "none"
+          },
+          "temperature": {
+            "id": "temperature",
+            "type": "slider",
+            "value": null
+          },
+          "azureEndpoint": {
+            "id": "azureEndpoint",
+            "type": "short-input",
+            "value": null
+          },
+          "bedrockRegion": {
+            "id": "bedrockRegion",
+            "type": "short-input",
+            "value": null
+          },
+          "thinkingLevel": {
+            "id": "thinkingLevel",
+            "type": "dropdown",
+            "value": null
+          },
+          "vertexProject": {
+            "id": "vertexProject",
+            "type": "short-input",
+            "value": null
+          },
+          "conversationId": {
+            "id": "conversationId",
+            "type": "short-input",
+            "value": null
+          },
+          "responseFormat": {
+            "id": "responseFormat",
+            "type": "code",
+            "value": "{\n  \"name\": \"enriched_lead_row\",\n  \"schema\": {\n    \"additionalProperties\": false,\n    \"properties\": {\n      \"row\": {\n        \"description\": \"A single row of enriched lead data as a 2D array [[email, name, title, company, location]]\",\n        \"items\": {\n          \"items\": {\n            \"type\": \"string\"\n          },\n          \"type\": \"array\"\n        },\n        \"maxItems\": 1,\n        \"minItems\": 1,\n        \"type\": \"array\"\n      }\n    },\n    \"required\": [\n      \"row\"\n    ],\n    \"type\": \"object\"\n  },\n  \"strict\": true\n}"
+          },
+          "vertexLocation": {
+            "id": "vertexLocation",
+            "type": "short-input",
+            "value": null
+          },
+          "azureApiVersion": {
+            "id": "azureApiVersion",
+            "type": "short-input",
+            "value": null
+          },
+          "reasoningEffort": {
+            "id": "reasoningEffort",
+            "type": "dropdown",
+            "value": null
+          },
+          "bedrockSecretKey": {
+            "id": "bedrockSecretKey",
+            "type": "short-input",
+            "value": null
+          },
+          "manualCredential": {
+            "id": "manualCredential",
+            "type": "short-input",
+            "value": null
+          },
+          "vertexCredential": {
+            "id": "vertexCredential",
+            "type": "oauth-input",
+            "value": null
+          },
+          "slidingWindowSize": {
+            "id": "slidingWindowSize",
+            "type": "short-input",
+            "value": null
+          },
+          "bedrockAccessKeyId": {
+            "id": "bedrockAccessKeyId",
+            "type": "short-input",
+            "value": null
+          },
+          "slidingWindowTokens": {
+            "id": "slidingWindowTokens",
+            "type": "short-input",
+            "value": null
+          },
+          "previousInteractionId": {
+            "id": "previousInteractionId",
+            "type": "short-input",
+            "value": null
+          }
+        },
+        "outputs": {
+          "cost": {
+            "type": "json",
+            "description": "Cost of the API call"
+          },
+          "model": {
+            "type": "string",
+            "description": "Model used for generation"
+          },
+          "tokens": {
+            "type": "json",
+            "description": "Token usage statistics"
+          },
+          "content": {
+            "type": "string",
+            "description": "Generated response content"
+          },
+          "toolCalls": {
+            "type": "json",
+            "description": "Tool calls made"
+          },
+          "providerTiming": {
+            "type": "json",
+            "description": "Provider timing information"
+          }
+        },
+        "data": {
+          "extent": "parent",
+          "parentId": "567b9f45-eab6-4f34-8e0b-9342dae37717",
+          "canonicalModes": {
+            "oauthCredential": "basic",
+            "linkedin:oauthCredential": "basic"
+          }
+        },
+        "locked": false
+      },
+      "567b9f45-eab6-4f34-8e0b-9342dae37717": {
+        "id": "567b9f45-eab6-4f34-8e0b-9342dae37717",
+        "type": "parallel",
+        "name": "dataParallel",
+        "position": {
+          "x": 650,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 100,
+        "subBlocks": {
+          "collection": {
+            "id": "collection",
+            "type": "short-input",
+            "value": "<agent.content>"
+          },
+          "parallelType": {
+            "id": "parallelType",
+            "type": "short-input",
+            "value": "collection"
+          }
+        },
+        "outputs": {},
+        "data": {
+          "id": "567b9f45-eab6-4f34-8e0b-9342dae37717",
+          "type": "subflowNode",
+          "count": 5,
+          "nodes": ["7fcbdc64-a811-43dc-a6ef-ff9d3d66fe82", "9fdad60a-56f1-45ba-a1b5-ba4fcdee0988"],
+          "width": 953,
+          "height": 559,
+          "collection": "<start.emails>",
+          "distribution": "<start.emails>",
+          "parallelType": "collection"
+        },
+        "locked": false
+      },
+      "9fdad60a-56f1-45ba-a1b5-ba4fcdee0988": {
+        "id": "9fdad60a-56f1-45ba-a1b5-ba4fcdee0988",
+        "type": "google_sheets_v2",
+        "name": "GoogleSheets",
+        "position": {
+          "x": 583,
+          "y": 100
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 259,
+        "subBlocks": {
+          "title": {
+            "id": "title",
+            "type": "short-input",
+            "value": null
+          },
+          "ranges": {
+            "id": "ranges",
+            "type": "long-input",
+            "value": null
+          },
+          "values": {
+            "id": "values",
+            "type": "short-input",
+            "value": "<agent.row>"
+          },
+          "sheetId": {
+            "id": "sheetId",
+            "type": "short-input",
+            "value": null
+          },
+          "batchData": {
+            "id": "batchData",
+            "type": "long-input",
+            "value": null
+          },
+          "cellRange": {
+            "id": "cellRange",
+            "type": "short-input",
+            "value": null
+          },
+          "operation": {
+            "id": "operation",
+            "type": "short-input",
+            "value": "append"
+          },
+          "sheetName": {
+            "id": "sheetName",
+            "type": "sheet-selector",
+            "value": null
+          },
+          "credential": {
+            "id": "credential",
+            "type": "oauth-input",
+            "value": null
+          },
+          "filterValue": {
+            "id": "filterValue",
+            "type": "short-input",
+            "value": null
+          },
+          "sheetTitles": {
+            "id": "sheetTitles",
+            "type": "short-input",
+            "value": null
+          },
+          "filterColumn": {
+            "id": "filterColumn",
+            "type": "short-input",
+            "value": null
+          },
+          "spreadsheetId": {
+            "id": "spreadsheetId",
+            "type": "file-selector",
+            "value": null
+          },
+          "filterMatchType": {
+            "id": "filterMatchType",
+            "type": "dropdown",
+            "value": null
+          },
+          "manualSheetName": {
+            "id": "manualSheetName",
+            "type": "short-input",
+            "value": ""
+          },
+          "insertDataOption": {
+            "id": "insertDataOption",
+            "type": "short-input",
+            "value": "INSERT_ROWS"
+          },
+          "manualCredential": {
+            "id": "manualCredential",
+            "type": "short-input",
+            "value": ""
+          },
+          "valueInputOption": {
+            "id": "valueInputOption",
+            "type": "dropdown",
+            "value": null
+          },
+          "manualSpreadsheetId": {
+            "id": "manualSpreadsheetId",
+            "type": "short-input",
+            "value": ""
+          },
+          "destinationSpreadsheetId": {
+            "id": "destinationSpreadsheetId",
+            "type": "short-input",
+            "value": null
+          }
+        },
+        "outputs": {
+          "metadata": {
+            "type": "json",
+            "properties": {
+              "spreadsheetId": {
+                "type": "string",
+                "description": "Google Sheets spreadsheet ID"
+              },
+              "spreadsheetUrl": {
+                "type": "string",
+                "description": "Spreadsheet URL"
+              }
+            },
+            "description": "Spreadsheet metadata including ID and URL"
+          },
+          "tableRange": {
+            "type": "string",
+            "description": "Range of the table where data was appended"
+          },
+          "updatedRows": {
+            "type": "number",
+            "description": "Number of rows updated"
+          },
+          "updatedCells": {
+            "type": "number",
+            "description": "Number of cells updated"
+          },
+          "updatedRange": {
+            "type": "string",
+            "description": "Range of cells that were updated"
+          },
+          "updatedColumns": {
+            "type": "number",
+            "description": "Number of columns updated"
+          }
+        },
+        "data": {
+          "extent": "parent",
+          "parentId": "567b9f45-eab6-4f34-8e0b-9342dae37717",
+          "canonicalModes": {
+            "sheetName": "advanced",
+            "spreadsheetId": "basic",
+            "oauthCredential": "basic"
+          }
+        },
+        "locked": false
+      },
+      "96abf661-31f3-4fd3-9e7c-6cf5ac178fc0": {
+        "id": "96abf661-31f3-4fd3-9e7c-6cf5ac178fc0",
+        "type": "note",
+        "name": "Agent Setup",
+        "position": {
+          "x": 982.9212280313601,
+          "y": -20.17741919706892
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 114,
+        "subBlocks": {
+          "content": {
+            "id": "content",
+            "type": "long-input",
+            "value": "- Select a Model of your Choice \n- Connect Linkedin Account \n- Connect Google Sheets Account"
+          }
+        },
+        "outputs": {},
+        "data": {},
+        "locked": false
+      }
+    },
+    "edges": [
+      {
+        "id": "42aba092-b19a-49a8-b8d0-7e03ad70c2d4",
+        "source": "567b9f45-eab6-4f34-8e0b-9342dae37717",
+        "target": "7fcbdc64-a811-43dc-a6ef-ff9d3d66fe82",
+        "sourceHandle": "parallel-start-source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      },
+      {
+        "id": "e67a21d1-93b5-4bb7-993d-06160802abc8",
+        "source": "7fcbdc64-a811-43dc-a6ef-ff9d3d66fe82",
+        "target": "9fdad60a-56f1-45ba-a1b5-ba4fcdee0988",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      },
+      {
+        "id": "780e83b8-65ad-4561-950c-06b89d2a82f1",
+        "source": "e146db47-fd1b-4823-8af4-eb3e078465c3",
+        "target": "567b9f45-eab6-4f34-8e0b-9342dae37717",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      }
+    ],
+    "loops": {},
+    "parallels": {
+      "567b9f45-eab6-4f34-8e0b-9342dae37717": {
+        "id": "567b9f45-eab6-4f34-8e0b-9342dae37717",
+        "nodes": ["7fcbdc64-a811-43dc-a6ef-ff9d3d66fe82", "9fdad60a-56f1-45ba-a1b5-ba4fcdee0988"],
+        "distribution": "<start.emails>",
+        "count": 5,
+        "parallelType": "collection",
+        "enabled": true
+      }
+    },
+    "metadata": {
+      "name": "lead-enricher",
+      "description": "New workflow",
+      "color": "#1486d1",
+      "exportedAt": "2026-03-09T21:40:19.011Z"
+    },
+    "variables": {}
+  }
+}

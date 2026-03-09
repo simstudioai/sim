@@ -144,7 +144,6 @@ export const UserTableArgsSchema = z.object({
         .object({
           name: z.string(),
           type: z.string(),
-          required: z.boolean().optional(),
           unique: z.boolean().optional(),
           position: z.number().optional(),
         })
@@ -152,7 +151,6 @@ export const UserTableArgsSchema = z.object({
       columnName: z.string().optional(),
       newName: z.string().optional(),
       newType: z.string().optional(),
-      required: z.boolean().optional(),
       unique: z.boolean().optional(),
     })
     .optional(),

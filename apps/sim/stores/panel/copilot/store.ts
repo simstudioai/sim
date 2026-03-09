@@ -462,7 +462,7 @@ function prepareSendContext(
   if (revertState) {
     const currentMessages = get().messages
     newMessages = [...currentMessages, userMessage, streamingMessage]
-    set({ revertState: null, inputValue: '' })
+    set({ revertState: null })
   } else {
     const currentMessages = get().messages
     const existingIndex = messageId ? currentMessages.findIndex((m) => m.id === messageId) : -1
@@ -1037,7 +1037,6 @@ const initialState = {
   chatsLastLoadedAt: null as Date | null,
   chatsLoadedForWorkflow: null as string | null,
   revertState: null as { messageId: string; messageContent: string } | null,
-  inputValue: '',
   planTodos: [] as Array<{ id: string; content: string; completed?: boolean; executing?: boolean }>,
   showPlanTodos: false,
   streamingPlanContent: '',
@@ -2222,8 +2221,6 @@ export const useCopilotStore = create<CopilotStore>()(
       set(initialState)
     },
 
-    // Input controls
-    setInputValue: (value: string) => set({ inputValue: value }),
     clearRevertState: () => set({ revertState: null }),
 
     // Todo list (UI only)

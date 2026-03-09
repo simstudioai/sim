@@ -1,12 +1,16 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { type MotionValue, motion, useScroll, useTransform } from 'framer-motion'
 import dynamic from 'next/dynamic'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Badge, ChevronDown } from '@/components/emcn'
+import { LandingWorkflowSeedStorage } from '@/lib/core/utils/browser-storage'
 import { cn } from '@/lib/core/utils/cn'
 import { TEMPLATE_WORKFLOWS } from '@/app/(home)/components/templates/template-workflows'
+
+const logger = createLogger('LandingTemplates')
 
 const LandingPreviewWorkflow = dynamic(
   () =>
@@ -344,6 +348,8 @@ const TEMPLATES_PANEL_ID = 'templates-panel'
 export default function Templates() {
   const sectionRef = useRef<HTMLDivElement>(null)
   const [activeIndex, setActiveIndex] = useState(0)
+  const [isPreparingTemplate, setIsPreparingTemplate] = useState(false)
+  const router = useRouter()
 
   const { scrollYProgress } = useScroll({
     target: sectionRef,
@@ -352,6 +358,45 @@ export default function Templates() {
 
   const activeWorkflow = TEMPLATE_WORKFLOWS[activeIndex]
   const activeDepth = DEPTH_CONFIGS[activeWorkflow.id]
+
+  const handleUseTemplate = useCallback(async () => {
+    if (isPreparingTemplate) return
+
+    setIsPreparingTemplate(true)
+
+    try {
+      if (activeWorkflow.seedPath) {
+        const response = await fetch(activeWorkflow.seedPath)
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch template seed: ${response.status}`)
+        }
+
+        const workflowJson = await response.text()
+        LandingWorkflowSeedStorage.store({
+          templateId: activeWorkflow.id,
+          workflowName: activeWorkflow.name,
+          color: activeWorkflow.color,
+          workflowJson,
+        })
+      }
+    } catch (error) {
+      logger.error('Failed to prepare landing template workflow seed', {
+        templateId: activeWorkflow.id,
+        error,
+      })
+    } finally {
+      setIsPreparingTemplate(false)
+      router.push('/signup')
+    }
+  }, [
+    activeWorkflow.color,
+    activeWorkflow.id,
+    activeWorkflow.name,
+    activeWorkflow.seedPath,
+    isPreparingTemplate,
+    router,
+  ])
 
   return (
     <section
@@ -508,11 +553,13 @@ export default function Templates() {
                     fitViewOptions={{ padding: 0.15, maxZoom: 1.3 }}
                   />
                 </div>
-                <Link
-                  href='/signup'
-                  className='group/cta absolute top-[16px] right-[16px] z-10 inline-flex h-[32px] items-center gap-[6px] rounded-[5px] border border-[#33C482] bg-[#33C482] px-[10px] font-[430] font-season text-[14px] text-black transition-[filter] hover:brightness-110'
+                <button
+                  type='button'
+                  onClick={handleUseTemplate}
+                  disabled={isPreparingTemplate}
+                  className='group/cta absolute top-[16px] right-[16px] z-10 inline-flex h-[32px] cursor-pointer items-center gap-[6px] rounded-[5px] border border-[#33C482] bg-[#33C482] px-[10px] font-[430] font-season text-[14px] text-black transition-[filter] hover:brightness-110'
                 >
-                  Use template
+                  {isPreparingTemplate ? 'Preparing...' : 'Use template'}
                   <span className='relative h-[10px] w-[10px] shrink-0'>
                     <ChevronDown className='-rotate-90 absolute inset-0 h-[10px] w-[10px] transition-opacity duration-150 group-hover/cta:opacity-0' />
                     <svg
@@ -531,7 +578,7 @@ export default function Templates() {
                       />
                     </svg>
                   </span>
-                </Link>
+                </button>
               </div>
             </div>
 

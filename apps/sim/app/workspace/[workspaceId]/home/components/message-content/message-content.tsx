@@ -3,6 +3,7 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/core/utils/cn'
+import { useThrottledValue } from '@/hooks/use-throttled-value'
 import type { ContentBlock, ToolCallStatus } from '../../types'
 
 const REMARK_PLUGINS = [remarkGfm]
@@ -96,6 +97,15 @@ function parseBlocks(blocks: ContentBlock[], isStreaming: boolean): MessageSegme
   return segments
 }
 
+function ThrottledTextSegment({ content }: { content: string }) {
+  const throttled = useThrottledValue(content)
+  return (
+    <div className={PROSE_CLASSES}>
+      <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{throttled}</ReactMarkdown>
+    </div>
+  )
+}
+
 interface MessageContentProps {
   blocks: ContentBlock[]
   fallbackContent: string
@@ -118,11 +128,7 @@ export function MessageContent({ blocks, fallbackContent, isStreaming }: Message
     <div className='space-y-[10px]'>
       {segments.map((segment, i) => {
         if (segment.type === 'text') {
-          return (
-            <div key={`text-${i}`} className={PROSE_CLASSES}>
-              <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{segment.content}</ReactMarkdown>
-            </div>
-          )
+          return <ThrottledTextSegment key={`text-${i}`} content={segment.content} />
         }
 
         return (
