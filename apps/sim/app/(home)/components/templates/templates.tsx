@@ -440,6 +440,7 @@ export default function Templates() {
               >
                 {TEMPLATE_WORKFLOWS.map((workflow, index) => {
                   const isActive = index === activeIndex
+                  const depth = DEPTH_CONFIGS[workflow.id]
                   return (
                     <button
                       key={workflow.id}
@@ -453,42 +454,63 @@ export default function Templates() {
                         'relative text-left',
                         isActive
                           ? 'z-10'
-                          : 'flex items-center px-[12px] py-[10px] shadow-[inset_0_-1px_0_0_#2A2A2A] last:shadow-none hover:bg-[#232323]/50'
+                          : 'shadow-[inset_0_-1px_0_0_#2A2A2A] last:shadow-none hover:bg-[#232323]/50'
                       )}
                     >
-                      {isActive ? (
-                        (() => {
-                          const depth = DEPTH_CONFIGS[workflow.id]
-                          return (
-                            <>
-                              <div
-                                className='absolute top-[-8px] bottom-0 left-0 w-2'
-                                style={{
-                                  clipPath: LEFT_WALL_CLIP,
-                                  backgroundColor: hexToRgba(depth.color, 0.63),
-                                }}
-                              />
-                              <div
-                                className='absolute right-[-8px] bottom-0 left-2 h-2'
-                                style={buildBottomWallStyle(depth)}
-                              />
-                              <div className='-translate-y-2 relative flex translate-x-2 items-center bg-[#242424] px-[12px] py-[10px] shadow-[inset_0_0_0_1.5px_#3E3E3E]'>
-                                <span className='flex-1 font-[430] font-season text-[16px] text-white'>
-                                  {workflow.name}
-                                </span>
-                                <ChevronDown
-                                  className='-rotate-90 h-[11px] w-[11px] shrink-0'
-                                  style={{ color: depth.color }}
-                                />
-                              </div>
-                            </>
-                          )
-                        })()
-                      ) : (
-                        <span className='font-[430] font-season text-[#F6F6F0]/50 text-[16px]'>
+                      <div
+                        className='pointer-events-none absolute top-[-8px] bottom-0 left-0 w-2'
+                        style={{
+                          clipPath: LEFT_WALL_CLIP,
+                          backgroundColor: hexToRgba(depth.color, 0.63),
+                          opacity: isActive ? 1 : 0,
+                          transition: isActive
+                            ? 'opacity 250ms cubic-bezier(0.2, 0, 0, 1) 50ms'
+                            : 'opacity 200ms cubic-bezier(0.4, 0, 1, 1)',
+                        }}
+                      />
+                      <div
+                        className='pointer-events-none absolute right-[-8px] bottom-0 left-2 h-2'
+                        style={{
+                          ...buildBottomWallStyle(depth),
+                          opacity: isActive ? 1 : 0,
+                          transition: isActive
+                            ? 'opacity 250ms cubic-bezier(0.2, 0, 0, 1) 50ms'
+                            : 'opacity 200ms cubic-bezier(0.4, 0, 1, 1)',
+                        }}
+                      />
+                      <div
+                        className='relative flex items-center px-[12px] py-[10px]'
+                        style={{
+                          transform: isActive ? 'translate(8px, -8px)' : 'translate(0px, 0px)',
+                          backgroundColor: isActive ? '#242424' : 'transparent',
+                          boxShadow: isActive
+                            ? 'inset 0 0 0 1.5px #3E3E3E'
+                            : 'inset 0 0 0 1.5px transparent',
+                          transition: isActive
+                            ? 'transform 350ms cubic-bezier(0.34, 1.4, 0.64, 1), background-color 250ms ease 30ms, box-shadow 250ms ease 30ms'
+                            : 'transform 300ms cubic-bezier(0.4, 0, 0.2, 1), background-color 200ms ease, box-shadow 200ms ease',
+                        }}
+                      >
+                        <span
+                          className='flex-1 font-[430] font-season text-[16px]'
+                          style={{
+                            color: isActive ? '#FFFFFF' : 'rgba(246, 246, 240, 0.5)',
+                            transition: 'color 250ms ease',
+                          }}
+                        >
                           {workflow.name}
                         </span>
-                      )}
+                        <ChevronDown
+                          className='-rotate-90 h-[11px] w-[11px] shrink-0'
+                          style={{
+                            color: depth.color,
+                            opacity: isActive ? 1 : 0,
+                            transition: isActive
+                              ? 'opacity 200ms ease 150ms'
+                              : 'opacity 150ms ease',
+                          }}
+                        />
+                      </div>
                     </button>
                   )
                 })}
