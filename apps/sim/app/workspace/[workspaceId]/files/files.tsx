@@ -281,6 +281,8 @@ export function Files() {
       setShowDeleteConfirm(false)
       setDeleteTargetFile(null)
       if (selectedFileId === target.id) {
+        setIsDirty(false)
+        setSaveStatus('idle')
         setSelectedFileId(null)
       }
     } catch (err) {
@@ -311,6 +313,7 @@ export function Files() {
   const handleDiscardChanges = useCallback(() => {
     setShowUnsavedChangesAlert(false)
     setIsDirty(false)
+    setSaveStatus('idle')
     setSelectedFileId(null)
   }, [])
 

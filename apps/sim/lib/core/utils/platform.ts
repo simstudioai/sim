@@ -4,8 +4,5 @@
  */
 export function isMacPlatform(): boolean {
   if (typeof window === 'undefined') return false
-  return (
-    /Mac|iPhone|iPod|iPad/i.test(navigator.platform) ||
-    /Mac|iPhone|iPod|iPad/i.test(navigator.userAgent)
-  )
+  return /Mac|iPhone|iPod|iPad/i.test(navigator.userAgent)
 }
