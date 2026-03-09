@@ -8,6 +8,7 @@ import {
   createOptimisticMutationHandlers,
   generateTempId,
 } from '@/hooks/queries/utils/optimistic-mutation'
+import { fetchAllPages } from '@/hooks/queries/utils/paginated-fetch'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -74,13 +75,9 @@ function mapWorkflow(workflow: any): WorkflowMetadata {
 }
 
 async function fetchWorkflows(workspaceId: string): Promise<WorkflowMetadata[]> {
-  const response = await fetch(`/api/workflows?workspaceId=${workspaceId}`)
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch workflows')
-  }
-
-  const { data }: { data: any[] } = await response.json()
+  const data = await fetchAllPages<Record<string, unknown>>(
+    `/api/workflows?workspaceId=${workspaceId}`
+  )
   return data.map(mapWorkflow)
 }
 

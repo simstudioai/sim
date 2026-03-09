@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { permissions, workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, inArray, isNull, min } from 'drizzle-orm'
+import { and, asc, count, eq, inArray, isNull, min } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
@@ -11,6 +11,9 @@ import { getUserEntityPermissions, workspaceExists } from '@/lib/workspaces/perm
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
 const logger = createLogger('WorkflowAPI')
+
+const DEFAULT_PAGE_LIMIT = 200
+const MAX_PAGE_LIMIT = 500
 
 const CreateWorkflowSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -27,6 +30,14 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now()
   const url = new URL(request.url)
   const workspaceId = url.searchParams.get('workspaceId')
+
+  const rawLimit = url.searchParams.get('limit')
+  const rawOffset = url.searchParams.get('offset')
+  const limit = Math.min(
+    Math.max(1, rawLimit ? Number(rawLimit) : DEFAULT_PAGE_LIMIT),
+    MAX_PAGE_LIMIT
+  )
+  const offset = Math.max(0, rawOffset ? Number(rawOffset) : 0)
 
   try {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -63,15 +74,26 @@ export async function GET(request: NextRequest) {
     }
 
     let workflows
+    let total: number
 
     const orderByClause = [asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id)]
 
     if (workspaceId) {
-      workflows = await db
-        .select()
-        .from(workflow)
-        .where(eq(workflow.workspaceId, workspaceId))
-        .orderBy(...orderByClause)
+      const whereCondition = eq(workflow.workspaceId, workspaceId)
+
+      const [countResult, workflowRows] = await Promise.all([
+        db.select({ count: count() }).from(workflow).where(whereCondition),
+        db
+          .select()
+          .from(workflow)
+          .where(whereCondition)
+          .orderBy(...orderByClause)
+          .limit(limit)
+          .offset(offset),
+      ])
+
+      total = countResult[0]?.count ?? 0
+      workflows = workflowRows
     } else {
       const workspacePermissionRows = await db
         .select({ workspaceId: permissions.entityId })
@@ -79,16 +101,41 @@ export async function GET(request: NextRequest) {
         .where(and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace')))
       const workspaceIds = workspacePermissionRows.map((row) => row.workspaceId)
       if (workspaceIds.length === 0) {
-        return NextResponse.json({ data: [] }, { status: 200 })
+        return NextResponse.json(
+          { data: [], pagination: { total: 0, limit, offset, hasMore: false } },
+          { status: 200 }
+        )
       }
-      workflows = await db
-        .select()
-        .from(workflow)
-        .where(inArray(workflow.workspaceId, workspaceIds))
-        .orderBy(...orderByClause)
+
+      const whereCondition = inArray(workflow.workspaceId, workspaceIds)
+
+      const [countResult, workflowRows] = await Promise.all([
+        db.select({ count: count() }).from(workflow).where(whereCondition),
+        db
+          .select()
+          .from(workflow)
+          .where(whereCondition)
+          .orderBy(...orderByClause)
+          .limit(limit)
+          .offset(offset),
+      ])
+
+      total = countResult[0]?.count ?? 0
+      workflows = workflowRows
     }
 
-    return NextResponse.json({ data: workflows }, { status: 200 })
+    return NextResponse.json(
+      {
+        data: workflows,
+        pagination: {
+          total,
+          limit,
+          offset,
+          hasMore: offset + workflows.length < total,
+        },
+      },
+      { status: 200 }
+    )
   } catch (error: any) {
     const elapsed = Date.now() - startTime
     logger.error(`[${requestId}] Workflow fetch error after ${elapsed}ms`, error)
