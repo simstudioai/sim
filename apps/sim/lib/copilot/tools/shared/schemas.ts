@@ -113,6 +113,10 @@ export const UserTableArgsSchema = z.object({
     'delete_row',
     'update_rows_by_filter',
     'delete_rows_by_filter',
+    'add_column',
+    'rename_column',
+    'delete_column',
+    'update_column',
   ]),
   args: z
     .object({
@@ -128,6 +132,20 @@ export const UserTableArgsSchema = z.object({
       limit: z.number().optional(),
       offset: z.number().optional(),
       filePath: z.string().optional(),
+      column: z
+        .object({
+          name: z.string(),
+          type: z.string(),
+          required: z.boolean().optional(),
+          unique: z.boolean().optional(),
+          position: z.number().optional(),
+        })
+        .optional(),
+      columnName: z.string().optional(),
+      newName: z.string().optional(),
+      newType: z.string().optional(),
+      required: z.boolean().optional(),
+      unique: z.boolean().optional(),
     })
     .optional(),
 })

@@ -2,8 +2,10 @@ import { createLogger } from '@sim/logger'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import type { UserTableArgs, UserTableResult } from '@/lib/copilot/tools/shared/schemas'
 import {
+  addTableColumn,
   batchInsertRows,
   createTable,
+  deleteColumn,
   deleteRow,
   deleteRowsByFilter,
   deleteTable,
@@ -11,6 +13,9 @@ import {
   getTableById,
   insertRow,
   queryRows,
+  renameColumn,
+  updateColumnConstraints,
+  updateColumnType,
   updateRow,
   updateRowsByFilter,
 } from '@/lib/table/service'
@@ -634,6 +639,113 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               rowCount: inserted,
               sourceFile: file.name,
             },
+          }
+        }
+
+        case 'add_column': {
+          if (!args.tableId) {
+            return { success: false, message: 'Table ID is required' }
+          }
+          const col = (args as Record<string, unknown>).column as
+            | {
+                name: string
+                type: string
+                required?: boolean
+                unique?: boolean
+                position?: number
+              }
+            | undefined
+          if (!col?.name || !col?.type) {
+            return {
+              success: false,
+              message: 'column with name and type is required for add_column',
+            }
+          }
+          const requestId = crypto.randomUUID().slice(0, 8)
+          const updated = await addTableColumn(args.tableId, col, requestId)
+          return {
+            success: true,
+            message: `Added column "${col.name}" (${col.type}) to table`,
+            data: { schema: updated.schema },
+          }
+        }
+
+        case 'rename_column': {
+          if (!args.tableId) {
+            return { success: false, message: 'Table ID is required' }
+          }
+          const colName = (args as Record<string, unknown>).columnName as string | undefined
+          const newColName = (args as Record<string, unknown>).newName as string | undefined
+          if (!colName || !newColName) {
+            return { success: false, message: 'columnName and newName are required' }
+          }
+          const requestId = crypto.randomUUID().slice(0, 8)
+          const updated = await renameColumn(
+            { tableId: args.tableId, columnName: colName, newName: newColName },
+            requestId
+          )
+          return {
+            success: true,
+            message: `Renamed column "${colName}" to "${newColName}"`,
+            data: { schema: updated.schema },
+          }
+        }
+
+        case 'delete_column': {
+          if (!args.tableId) {
+            return { success: false, message: 'Table ID is required' }
+          }
+          const colName = (args as Record<string, unknown>).columnName as string | undefined
+          if (!colName) {
+            return { success: false, message: 'columnName is required' }
+          }
+          const requestId = crypto.randomUUID().slice(0, 8)
+          const updated = await deleteColumn(
+            { tableId: args.tableId, columnName: colName },
+            requestId
+          )
+          return {
+            success: true,
+            message: `Deleted column "${colName}"`,
+            data: { schema: updated.schema },
+          }
+        }
+
+        case 'update_column': {
+          if (!args.tableId) {
+            return { success: false, message: 'Table ID is required' }
+          }
+          const colName = (args as Record<string, unknown>).columnName as string | undefined
+          if (!colName) {
+            return { success: false, message: 'columnName is required' }
+          }
+          const newType = (args as Record<string, unknown>).newType as string | undefined
+          const reqFlag = (args as Record<string, unknown>).required as boolean | undefined
+          const uniqFlag = (args as Record<string, unknown>).unique as boolean | undefined
+          if (newType === undefined && reqFlag === undefined && uniqFlag === undefined) {
+            return {
+              success: false,
+              message: 'At least one of newType, required, or unique must be provided',
+            }
+          }
+          const requestId = crypto.randomUUID().slice(0, 8)
+          let result: TableDefinition | undefined
+          if (newType !== undefined) {
+            result = await updateColumnType(
+              { tableId: args.tableId, columnName: colName, newType },
+              requestId
+            )
+          }
+          if (reqFlag !== undefined || uniqFlag !== undefined) {
+            result = await updateColumnConstraints(
+              { tableId: args.tableId, columnName: colName, required: reqFlag, unique: uniqFlag },
+              requestId
+            )
+          }
+          return {
+            success: true,
+            message: `Updated column "${colName}"`,
+            data: { schema: result?.schema },
           }
         }
 
