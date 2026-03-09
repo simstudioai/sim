@@ -5,6 +5,27 @@ import { normalizeFileInput } from '@/blocks/utils'
 import type { TelegramResponse } from '@/tools/telegram/types'
 import { getTrigger } from '@/triggers'
 
+/**
+ * Resolves a Telegram media parameter to a value suitable for the Telegram API.
+ * Telegram accepts plain URL strings and file_id strings directly, but
+ * normalizeFileInput drops plain strings that aren't valid JSON. This helper
+ * passes plain strings through and delegates to normalizeFileInput only when
+ * the value looks like a serialized file object (JSON) or is already an object.
+ */
+function resolveTelegramMedia(param: unknown): string | object | undefined {
+  if (typeof param === 'string') {
+    const trimmed = param.trim()
+    if (!trimmed) return undefined
+    // If the string looks like serialized JSON (object or array), let normalizeFileInput parse it
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      return normalizeFileInput(param, { single: true })
+    }
+    // Plain URL or file_id — pass through directly
+    return trimmed
+  }
+  return normalizeFileInput(param, { single: true })
+}
+
 export const TelegramBlock: BlockConfig<TelegramResponse> = {
   type: 'telegram',
   name: 'Telegram',
@@ -269,10 +290,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
               messageId: params.messageId,
             }
           case 'telegram_send_photo': {
-            // photo is the canonical param for both basic (photoFile) and advanced modes
-            const photoSource = normalizeFileInput(params.photo, {
-              single: true,
-            })
+            const photoSource = resolveTelegramMedia(params.photo)
             if (!photoSource) {
               throw new Error('Photo is required.')
             }
@@ -283,10 +301,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
             }
           }
           case 'telegram_send_video': {
-            // video is the canonical param for both basic (videoFile) and advanced modes
-            const videoSource = normalizeFileInput(params.video, {
-              single: true,
-            })
+            const videoSource = resolveTelegramMedia(params.video)
             if (!videoSource) {
               throw new Error('Video is required.')
             }
@@ -297,10 +312,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
             }
           }
           case 'telegram_send_audio': {
-            // audio is the canonical param for both basic (audioFile) and advanced modes
-            const audioSource = normalizeFileInput(params.audio, {
-              single: true,
-            })
+            const audioSource = resolveTelegramMedia(params.audio)
             if (!audioSource) {
               throw new Error('Audio is required.')
             }
@@ -311,10 +323,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
             }
           }
           case 'telegram_send_animation': {
-            // animation is the canonical param for both basic (animationFile) and advanced modes
-            const animationSource = normalizeFileInput(params.animation, {
-              single: true,
-            })
+            const animationSource = resolveTelegramMedia(params.animation)
             if (!animationSource) {
               throw new Error('Animation is required.')
             }
