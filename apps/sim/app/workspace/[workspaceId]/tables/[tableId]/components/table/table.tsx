@@ -731,6 +731,7 @@ export function Table({
   const handleEmptyRowClick = useCallback((rowIndex: number, columnName: string) => {
     const current = editingEmptyCellRef.current
     if (current && current.rowIndex === rowIndex && current.columnName === columnName) return
+    setEditingCell(null)
     setEditingEmptyCell(null)
     setInitialCharacter(null)
   }, [])

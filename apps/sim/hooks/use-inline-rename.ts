@@ -11,7 +11,11 @@ export function useInlineRename({ onSave }: UseInlineRenameProps) {
   const originalNameRef = useRef('')
   const doneRef = useRef(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const editingIdRef = useRef(editingId)
+  editingIdRef.current = editingId
   const [editValue, setEditValue] = useState('')
+  const editValueRef = useRef(editValue)
+  editValueRef.current = editValue
 
   const startRename = useCallback((id: string, currentName: string) => {
     doneRef.current = false
@@ -23,12 +27,12 @@ export function useInlineRename({ onSave }: UseInlineRenameProps) {
   const submitRename = useCallback(() => {
     if (doneRef.current) return
     doneRef.current = true
-    const id = editingId
-    const trimmed = editValue.trim()
+    const id = editingIdRef.current
+    const trimmed = editValueRef.current.trim()
     setEditingId(null)
     if (!id || !trimmed || trimmed === originalNameRef.current) return
     onSaveRef.current(id, trimmed)
-  }, [editingId, editValue])
+  }, [])
 
   const cancelRename = useCallback(() => {
     doneRef.current = true
