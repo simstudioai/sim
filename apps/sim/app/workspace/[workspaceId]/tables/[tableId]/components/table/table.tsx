@@ -13,6 +13,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+  Input,
   Modal,
   ModalBody,
   ModalContent,
@@ -151,6 +152,9 @@ export function Table() {
     columnName: string
   } | null>(null)
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
+  const [renamingColumn, setRenamingColumn] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [deletingColumn, setDeletingColumn] = useState<string | null>(null)
 
   const isDraggingRef = useRef(false)
 
@@ -585,10 +589,18 @@ export function Table() {
   }, [generateColumnName])
 
   const handleRenameColumn = useCallback((columnName: string) => {
-    const newName = window.prompt('Enter new column name:', columnName)
-    if (!newName || newName === columnName) return
-    updateColumnMutation.mutate({ columnName, updates: { name: newName } })
+    setRenamingColumn(columnName)
+    setRenameValue(columnName)
   }, [])
+
+  const handleRenameSubmit = useCallback(() => {
+    if (!renamingColumn || !renameValue.trim() || renameValue === renamingColumn) {
+      setRenamingColumn(null)
+      return
+    }
+    updateColumnMutation.mutate({ columnName: renamingColumn, updates: { name: renameValue.trim() } })
+    setRenamingColumn(null)
+  }, [renamingColumn, renameValue])
 
   const handleChangeType = useCallback((columnName: string, newType: string) => {
     updateColumnMutation.mutate({ columnName, updates: { type: newType } })
@@ -619,10 +631,14 @@ export function Table() {
   }, [])
 
   const handleDeleteColumn = useCallback((columnName: string) => {
-    if (!window.confirm(`Delete column "${columnName}"? This will remove all data in this column.`))
-      return
-    deleteColumnMutation.mutate(columnName)
+    setDeletingColumn(columnName)
   }, [])
+
+  const handleDeleteColumnConfirm = useCallback(() => {
+    if (!deletingColumn) return
+    deleteColumnMutation.mutate(deletingColumn)
+    setDeletingColumn(null)
+  }, [deletingColumn])
 
   const handleSortChange = useCallback((column: string, direction: SortDirection) => {
     setQueryOptions((prev) => ({ ...prev, sort: { [column]: direction } }))
@@ -904,6 +920,67 @@ export function Table() {
               disabled={deleteTableMutation.isPending}
             >
               {deleteTableMutation.isPending ? 'Deleting...' : 'Delete'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal
+        open={renamingColumn !== null}
+        onOpenChange={(open) => {
+          if (!open) setRenamingColumn(null)
+        }}
+      >
+        <ModalContent size='sm'>
+          <ModalHeader>Rename Column</ModalHeader>
+          <ModalBody>
+            <Input
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleRenameSubmit()
+              }}
+              placeholder='Column name'
+              autoFocus
+            />
+          </ModalBody>
+          <ModalFooter>
+            <Button variant='default' onClick={() => setRenamingColumn(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant='default'
+              onClick={handleRenameSubmit}
+              disabled={!renameValue.trim() || renameValue === renamingColumn}
+            >
+              Rename
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal
+        open={deletingColumn !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingColumn(null)
+        }}
+      >
+        <ModalContent size='sm'>
+          <ModalHeader>Delete Column</ModalHeader>
+          <ModalBody>
+            <p className='text-[13px] text-[var(--text-secondary)]'>
+              Are you sure you want to delete{' '}
+              <span className='font-medium text-[var(--text-primary)]'>{deletingColumn}</span>?
+              This will remove all data in this column.{' '}
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant='default' onClick={() => setDeletingColumn(null)}>
+              Cancel
+            </Button>
+            <Button variant='destructive' onClick={handleDeleteColumnConfirm}>
+              Delete
             </Button>
           </ModalFooter>
         </ModalContent>
