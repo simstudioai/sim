@@ -5,6 +5,7 @@ import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { validateCronExpression } from '@/lib/workflows/schedules/utils'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
@@ -176,4 +177,108 @@ async function handleWorkspaceSchedules(requestId: string, userId: string, works
   ]
 
   return NextResponse.json({ schedules }, { headers })
+}
+
+/**
+ * Create a standalone scheduled job.
+ *
+ * Body: { workspaceId, title, prompt, cronExpression, timezone, lifecycle?, maxRuns?, startDate? }
+ */
+export async function POST(req: NextRequest) {
+  const requestId = generateRequestId()
+
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      logger.warn(`[${requestId}] Unauthorized schedule creation attempt`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await req.json()
+    const {
+      workspaceId,
+      title,
+      prompt,
+      cronExpression,
+      timezone = 'UTC',
+      lifecycle = 'persistent',
+      maxRuns,
+      startDate,
+    } = body as {
+      workspaceId: string
+      title: string
+      prompt: string
+      cronExpression: string
+      timezone?: string
+      lifecycle?: 'persistent' | 'until_complete'
+      maxRuns?: number
+      startDate?: string
+    }
+
+    if (!workspaceId || !title?.trim() || !prompt?.trim() || !cronExpression?.trim()) {
+      return NextResponse.json(
+        { error: 'Missing required fields: workspaceId, title, prompt, cronExpression' },
+        { status: 400 }
+      )
+    }
+
+    const hasPermission = await verifyWorkspaceMembership(session.user.id, workspaceId)
+    if (!hasPermission) {
+      return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+    }
+
+    const validation = validateCronExpression(cronExpression, timezone)
+    if (!validation.isValid) {
+      return NextResponse.json(
+        { error: validation.error || 'Invalid cron expression' },
+        { status: 400 }
+      )
+    }
+
+    let nextRunAt = validation.nextRun!
+    if (startDate) {
+      const start = new Date(startDate)
+      if (start > new Date()) {
+        nextRunAt = start
+      }
+    }
+
+    const now = new Date()
+    const id = crypto.randomUUID()
+
+    await db.insert(workflowSchedule).values({
+      id,
+      cronExpression,
+      triggerType: 'schedule',
+      sourceType: 'job',
+      status: 'active',
+      timezone,
+      nextRunAt,
+      createdAt: now,
+      updatedAt: now,
+      failedCount: 0,
+      jobTitle: title.trim(),
+      prompt: prompt.trim(),
+      lifecycle,
+      maxRuns: maxRuns ?? null,
+      runCount: 0,
+      sourceWorkspaceId: workspaceId,
+      sourceUserId: session.user.id,
+    })
+
+    logger.info(`[${requestId}] Created job schedule ${id}`, {
+      title,
+      cronExpression,
+      timezone,
+      lifecycle,
+    })
+
+    return NextResponse.json(
+      { schedule: { id, status: 'active', cronExpression, nextRunAt } },
+      { status: 201 }
+    )
+  } catch (error) {
+    logger.error(`[${requestId}] Error creating schedule`, error)
+    return NextResponse.json({ error: 'Failed to create schedule' }, { status: 500 })
+  }
 }

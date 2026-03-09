@@ -276,6 +276,63 @@ export function useDeleteSchedule() {
 }
 
 /**
+ * Mutation to create a standalone scheduled job
+ */
+export function useCreateSchedule() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      workspaceId,
+      title,
+      prompt,
+      cronExpression,
+      timezone,
+      lifecycle,
+      maxRuns,
+      startDate,
+    }: {
+      workspaceId: string
+      title: string
+      prompt: string
+      cronExpression: string
+      timezone: string
+      lifecycle: 'persistent' | 'until_complete'
+      maxRuns?: number
+      startDate?: string
+    }) => {
+      const response = await fetch('/api/schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId,
+          title,
+          prompt,
+          cronExpression,
+          timezone,
+          lifecycle,
+          maxRuns,
+          startDate,
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to create schedule')
+      }
+
+      return response.json()
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: scheduleKeys.list(variables.workspaceId) })
+    },
+    onError: (error) => {
+      logger.error('Failed to create schedule', { error })
+    },
+  })
+}
+
+/**
  * Mutation to redeploy a workflow (which recreates the schedule)
  */
 export function useRedeployWorkflowSchedule() {

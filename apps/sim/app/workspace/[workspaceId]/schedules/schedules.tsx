@@ -8,6 +8,7 @@ import { formatAbsoluteDate } from '@/lib/core/utils/formatting'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
 import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
 import { Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
+import { CreateScheduleModal } from '@/app/workspace/[workspaceId]/schedules/components/create-schedule-modal'
 import type { WorkspaceScheduleData } from '@/hooks/queries/schedules'
 import { useWorkspaceSchedules } from '@/hooks/queries/schedules'
 import { useDebounce } from '@/hooks/use-debounce'
@@ -40,6 +41,7 @@ export function Schedules() {
     logger.error('Failed to load schedules:', error)
   }
 
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
 
@@ -99,25 +101,32 @@ export function Schedules() {
   )
 
   return (
-    <Resource
-      icon={Calendar}
-      title='Schedules'
-      create={{
-        label: 'New schedule',
-        onClick: () => {},
-      }}
-      search={{
-        value: searchQuery,
-        onChange: setSearchQuery,
-        placeholder: 'Search schedules...',
-      }}
-      defaultSort='nextRun'
-      onSort={() => {}}
-      onFilter={() => {}}
-      columns={COLUMNS}
-      rows={rows}
-      onRowClick={handleRowClick}
-      isLoading={isLoading}
-    />
+    <>
+      <Resource
+        icon={Calendar}
+        title='Schedules'
+        create={{
+          label: 'New schedule',
+          onClick: () => setIsCreateModalOpen(true),
+        }}
+        search={{
+          value: searchQuery,
+          onChange: setSearchQuery,
+          placeholder: 'Search schedules...',
+        }}
+        defaultSort='nextRun'
+        onSort={() => {}}
+        onFilter={() => {}}
+        columns={COLUMNS}
+        rows={rows}
+        onRowClick={handleRowClick}
+        isLoading={isLoading}
+      />
+      <CreateScheduleModal
+        open={isCreateModalOpen}
+        onOpenChange={setIsCreateModalOpen}
+        workspaceId={workspaceId}
+      />
+    </>
   )
 }
