@@ -48,7 +48,7 @@ import {
 } from '@/app/workspace/[workspaceId]/components'
 import {
   FileViewer,
-  TEXT_EDITABLE_EXTENSIONS,
+  isTextEditable,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -443,7 +443,7 @@ export function Files() {
   }
 
   if (selectedFile) {
-    const isTextEditable = TEXT_EDITABLE_EXTENSIONS.has(getFileExtension(selectedFile.name))
+    const canEditText = isTextEditable(selectedFile)
     const saveLabel =
       saveStatus === 'saving'
         ? 'Saving...'
@@ -454,7 +454,7 @@ export function Files() {
             : 'Save'
 
     const fileActions: HeaderAction[] = [
-      ...(isTextEditable
+      ...(canEditText
         ? [
             {
               label: saveLabel,

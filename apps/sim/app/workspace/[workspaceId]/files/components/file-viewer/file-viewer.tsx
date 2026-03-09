@@ -12,18 +12,36 @@ import {
 
 const logger = createLogger('FileViewer')
 
-export const TEXT_EDITABLE_EXTENSIONS = new Set([
-  'md',
-  'txt',
-  'json',
-  'yaml',
-  'yml',
-  'csv',
-  'html',
-  'htm',
+const TEXT_EDITABLE_MIME_TYPES = new Set([
+  'text/markdown',
+  'text/plain',
+  'application/json',
+  'application/x-yaml',
+  'text/csv',
+  'text/html',
 ])
 
+const TEXT_EDITABLE_EXTENSIONS = new Set(['md', 'txt', 'json', 'yaml', 'yml', 'csv', 'html', 'htm'])
+
+const IFRAME_PREVIEWABLE_MIME_TYPES = new Set(['application/pdf'])
 const IFRAME_PREVIEWABLE_EXTENSIONS = new Set(['pdf'])
+
+type FileCategory = 'text-editable' | 'iframe-previewable' | 'unsupported'
+
+function resolveFileCategory(mimeType: string | null, filename: string): FileCategory {
+  if (mimeType && TEXT_EDITABLE_MIME_TYPES.has(mimeType)) return 'text-editable'
+  if (mimeType && IFRAME_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'iframe-previewable'
+
+  const ext = getFileExtension(filename)
+  if (TEXT_EDITABLE_EXTENSIONS.has(ext)) return 'text-editable'
+  if (IFRAME_PREVIEWABLE_EXTENSIONS.has(ext)) return 'iframe-previewable'
+
+  return 'unsupported'
+}
+
+export function isTextEditable(file: { type: string; name: string }): boolean {
+  return resolveFileCategory(file.type, file.name) === 'text-editable'
+}
 
 interface FileViewerProps {
   file: WorkspaceFileRecord
@@ -40,11 +58,9 @@ export function FileViewer({
   onDirtyChange,
   saveRef,
 }: FileViewerProps) {
-  const ext = getFileExtension(file.name)
-  const isTextEditable = TEXT_EDITABLE_EXTENSIONS.has(ext)
-  const isIframePreviewable = IFRAME_PREVIEWABLE_EXTENSIONS.has(ext)
+  const category = resolveFileCategory(file.type, file.name)
 
-  if (isTextEditable) {
+  if (category === 'text-editable') {
     return (
       <TextEditor
         file={file}
@@ -56,7 +72,7 @@ export function FileViewer({
     )
   }
 
-  if (isIframePreviewable) {
+  if (category === 'iframe-previewable') {
     return <IframePreview file={file} />
   }
 
@@ -184,7 +200,7 @@ function UnsupportedPreview({ file }: { file: WorkspaceFileRecord }) {
   return (
     <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
       <p className='font-medium text-[14px] text-[var(--text-body)]'>
-        Preview not available for .{ext} files
+        Preview not available{ext ? ` for .${ext} files` : ' for this file'}
       </p>
       <p className='text-[13px] text-[var(--text-muted)]'>
         Use the download button to view this file
