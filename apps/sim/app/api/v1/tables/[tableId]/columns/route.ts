@@ -209,7 +209,8 @@ export async function PATCH(request: NextRequest, { params }: ColumnsRouteParams
       }
       if (
         msg.includes('already exists') ||
-        msg.includes('Cannot') ||
+        msg.includes('Cannot delete the last column') ||
+        msg.includes('Cannot set column') ||
         msg.includes('Invalid column') ||
         msg.includes('exceeds maximum') ||
         msg.includes('incompatible') ||
