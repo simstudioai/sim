@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, Button, Plus, Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import type { CreateAction, HeaderAction } from './components/resource-header'
 import { ResourceHeader } from './components/resource-header'
 import type { SortConfig } from './components/resource-options-bar'
 import { ResourceOptionsBar } from './components/resource-options-bar'
@@ -27,18 +28,14 @@ export interface ResourceRow {
 interface ResourceProps {
   icon: React.ElementType
   title: string
-  create?: {
-    label: string
-    onClick: () => void
-    disabled?: boolean
-  }
+  create?: CreateAction
   search?: {
     value: string
     onChange: (value: string) => void
     placeholder?: string
   }
   defaultSort: string
-  toolbarActions?: ReactNode
+  headerActions?: HeaderAction[]
   columns: ResourceColumn[]
   rows: ResourceRow[]
   onRowClick?: (rowId: string) => void
@@ -60,7 +57,7 @@ export function Resource({
   create,
   search,
   defaultSort,
-  toolbarActions,
+  headerActions,
   columns,
   rows,
   onRowClick,
@@ -112,8 +109,8 @@ export function Resource({
       className='flex h-full flex-1 flex-col overflow-hidden bg-white dark:bg-[var(--bg)]'
       onContextMenu={onContextMenu}
     >
-      <ResourceHeader icon={icon} title={title} create={create} />
-      <ResourceOptionsBar search={search} sort={sortConfig} toolbarActions={toolbarActions} />
+      <ResourceHeader icon={icon} title={title} create={create} actions={headerActions} />
+      <ResourceOptionsBar search={search} sort={sortConfig} />
 
       {isLoading ? (
         <DataTableSkeleton columns={columns} rowCount={loadingRows} />

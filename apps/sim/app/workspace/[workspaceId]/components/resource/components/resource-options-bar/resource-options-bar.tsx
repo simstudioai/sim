@@ -1,17 +1,14 @@
 import type { ReactNode } from 'react'
+import * as PopoverPrimitive from '@radix-ui/react-popover'
 import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
   Button,
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   ListFilter,
   Search,
@@ -34,28 +31,6 @@ export interface SortConfig {
   onClear?: () => void
 }
 
-export interface ActiveFilter {
-  column: string
-  operator: string
-}
-
-export interface FilterConfig {
-  options: ColumnOption[]
-  active: ActiveFilter[]
-  onToggle: (column: string, operator: string) => void
-  onClear?: () => void
-}
-
-const DEFAULT_FILTER_OPERATORS = [
-  { id: 'empty', label: 'Is empty' },
-  { id: 'not_empty', label: 'Is not empty' },
-] as const
-
-const BOOLEAN_FILTER_OPERATORS = [
-  { id: 'eq_true', label: 'Is true' },
-  { id: 'eq_false', label: 'Is false' },
-] as const
-
 interface ResourceOptionsBarProps {
   search?: {
     value: string
@@ -63,17 +38,11 @@ interface ResourceOptionsBarProps {
     placeholder?: string
   }
   sort?: SortConfig
-  filter?: FilterConfig
-  toolbarActions?: ReactNode
+  filter?: ReactNode
 }
 
-export function ResourceOptionsBar({
-  search,
-  sort,
-  filter,
-  toolbarActions,
-}: ResourceOptionsBarProps) {
-  const hasContent = search || sort || filter || toolbarActions
+export function ResourceOptionsBar({ search, sort, filter }: ResourceOptionsBarProps) {
+  const hasContent = search || sort || filter
   if (!hasContent) return null
 
   return (
@@ -97,9 +66,28 @@ export function ResourceOptionsBar({
           </div>
         )}
         <div className='flex items-center gap-[6px]'>
-          {filter && <FilterDropdown config={filter} />}
+          {filter && (
+            <PopoverPrimitive.Root>
+              <PopoverPrimitive.Trigger asChild>
+                <Button variant='subtle' className='px-[8px] py-[4px] text-[12px]'>
+                  <ListFilter className='mr-[6px] h-[14px] w-[14px] text-[var(--text-icon)]' />
+                  Filter
+                </Button>
+              </PopoverPrimitive.Trigger>
+              <PopoverPrimitive.Portal>
+                <PopoverPrimitive.Content
+                  align='start'
+                  sideOffset={6}
+                  className={cn(
+                    'z-50 rounded-[8px] border border-[var(--border)] bg-white shadow-sm dark:bg-[var(--bg)]'
+                  )}
+                >
+                  {filter}
+                </PopoverPrimitive.Content>
+              </PopoverPrimitive.Portal>
+            </PopoverPrimitive.Root>
+          )}
           {sort && <SortDropdown config={sort} />}
-          {toolbarActions}
         </div>
       </div>
     </div>
@@ -147,60 +135,6 @@ function SortDropdown({ config }: { config: SortConfig }) {
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={onClear} className='text-[var(--text-tertiary)]'>
               Clear sort
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-
-function FilterDropdown({ config }: { config: FilterConfig }) {
-  const { options, active, onToggle, onClear } = config
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant='subtle' className='px-[8px] py-[4px] text-[12px]'>
-          <ListFilter className='mr-[6px] h-[14px] w-[14px] text-[var(--text-icon)]' />
-          Filter
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='end'>
-        {options.map((option) => {
-          const operators =
-            option.type === 'boolean' ? BOOLEAN_FILTER_OPERATORS : DEFAULT_FILTER_OPERATORS
-          const activeFilter = active.find((f) => f.column === option.id)
-          const Icon = option.icon
-
-          return (
-            <DropdownMenuSub key={option.id}>
-              <DropdownMenuSubTrigger>
-                {Icon && <Icon />}
-                {option.label}
-                {activeFilter && (
-                  <span className='ml-auto h-[6px] w-[6px] rounded-full bg-[var(--text-tertiary)]' />
-                )}
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {operators.map((op) => (
-                  <DropdownMenuCheckboxItem
-                    key={op.id}
-                    checked={activeFilter?.operator === op.id}
-                    onCheckedChange={() => onToggle(option.id, op.id)}
-                  >
-                    {op.label}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          )
-        })}
-        {active.length > 0 && onClear && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={onClear} className='text-[var(--text-tertiary)]'>
-              Clear all filters
             </DropdownMenuItem>
           </>
         )}

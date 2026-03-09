@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Download, Files as FilesIcon, Upload } from 'lucide-react'
+import { Files as FilesIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
+  Download,
   Modal,
   ModalBody,
   ModalContent,
@@ -17,28 +18,32 @@ import {
   PopoverDivider,
   PopoverItem,
   Skeleton,
-  Tooltip,
   Trash2,
+  Upload,
 } from '@/components/emcn'
 import { getDocumentIcon } from '@/components/icons/document-icons'
-import { cn } from '@/lib/core/utils/cn'
-import { isMacPlatform } from '@/lib/core/utils/platform'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { formatFileSize, getFileExtension } from '@/lib/uploads/utils/file-utils'
+import {
+  formatFileSize,
+  getFileExtension,
+  getMimeTypeFromExtension,
+} from '@/lib/uploads/utils/file-utils'
 import {
   SUPPORTED_AUDIO_EXTENSIONS,
   SUPPORTED_DOCUMENT_EXTENSIONS,
   SUPPORTED_VIDEO_EXTENSIONS,
 } from '@/lib/uploads/utils/validation'
-import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
+import type {
+  HeaderAction,
+  ResourceColumn,
+  ResourceRow,
+} from '@/app/workspace/[workspaceId]/components'
 import {
   ownerCell,
   Resource,
   ResourceHeader,
-  ResourceOptionsBar,
   timeCell,
 } from '@/app/workspace/[workspaceId]/components'
-import { CreateFileModal } from '@/app/workspace/[workspaceId]/files/components/create-file-modal'
 import {
   FileViewer,
   TEXT_EDITABLE_EXTENSIONS,
@@ -149,7 +154,7 @@ export function Files() {
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
-  const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [creatingFile, setCreatingFile] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
@@ -301,9 +306,33 @@ export function Files() {
     setSelectedFileId(null)
   }, [])
 
-  const handleFileCreated = useCallback((fileId: string) => {
-    setSelectedFileId(fileId)
-  }, [])
+  const handleCreateFile = useCallback(async () => {
+    if (creatingFile) return
+    setCreatingFile(true)
+
+    try {
+      const existingNames = new Set(files.map((f) => f.name))
+      let name = 'untitled.md'
+      let counter = 1
+      while (existingNames.has(name)) {
+        name = `untitled (${counter}).md`
+        counter++
+      }
+
+      const mimeType = getMimeTypeFromExtension('md')
+      const blob = new Blob([''], { type: mimeType })
+      const file = new File([blob], name, { type: mimeType })
+      const result = await uploadFile.mutateAsync({ workspaceId, file })
+      const fileId = result.file?.id
+      if (fileId) {
+        setSelectedFileId(fileId)
+      }
+    } catch (err) {
+      logger.error('Failed to create file:', err)
+    } finally {
+      setCreatingFile(false)
+    }
+  }, [creatingFile, files, workspaceId])
 
   const handleRowContextMenu = useCallback(
     (e: React.MouseEvent, rowId: string) => {
@@ -390,6 +419,30 @@ export function Files() {
             ? 'Save failed'
             : 'Save'
 
+    const fileActions: HeaderAction[] = [
+      ...(isTextEditable
+        ? [
+            {
+              label: saveLabel,
+              onClick: handleSave,
+            },
+          ]
+        : []),
+      {
+        label: 'Download',
+        icon: Download,
+        onClick: () => handleDownload(selectedFile),
+      },
+      {
+        label: 'Delete',
+        icon: Trash2,
+        onClick: () => {
+          setDeleteTargetFile(selectedFile)
+          setShowDeleteConfirm(true)
+        },
+      },
+    ]
+
     return (
       <>
         <div className='flex h-full flex-1 flex-col overflow-hidden bg-white dark:bg-[var(--bg)]'>
@@ -399,56 +452,7 @@ export function Files() {
               { label: 'Files', onClick: handleBackAttempt },
               { label: selectedFile.name },
             ]}
-          />
-          <ResourceOptionsBar
-            toolbarActions={
-              <div className='flex items-center gap-[6px]'>
-                {isTextEditable && (
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <Button
-                        variant='subtle'
-                        className={cn(
-                          'px-[8px] py-[4px] text-[12px]',
-                          saveStatus === 'error' && 'text-red-500',
-                          !isDirty && saveStatus === 'idle' && 'opacity-50'
-                        )}
-                        onClick={handleSave}
-                        disabled={(!isDirty && saveStatus === 'idle') || saveStatus === 'saving'}
-                      >
-                        {saveLabel}
-                      </Button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='bottom'>
-                      {isMacPlatform() ? '\u2318S' : 'Ctrl+S'}
-                    </Tooltip.Content>
-                  </Tooltip.Root>
-                )}
-                <Button
-                  variant='subtle'
-                  className='px-[8px] py-[4px] text-[12px]'
-                  onClick={() => handleDownload(selectedFile)}
-                >
-                  <Download className='mr-[6px] h-[14px] w-[14px]' />
-                  Download
-                </Button>
-                <Button
-                  variant='subtle'
-                  className={cn(
-                    'px-[8px] py-[4px] text-[12px]',
-                    'text-[var(--text-muted)] hover:text-red-500'
-                  )}
-                  onClick={() => {
-                    setDeleteTargetFile(selectedFile)
-                    setShowDeleteConfirm(true)
-                  }}
-                  disabled={userPermissions.canEdit !== true || deleteFile.isPending}
-                >
-                  <Trash2 className='mr-[6px] h-[14px] w-[14px]' />
-                  Delete
-                </Button>
-              </div>
-            }
+            actions={fileActions}
           />
           <FileViewer
             key={selectedFile.id}
@@ -504,8 +508,8 @@ export function Files() {
         title='Files'
         create={{
           label: 'New file',
-          onClick: () => setCreateModalOpen(true),
-          disabled: uploading || userPermissions.canEdit !== true,
+          onClick: handleCreateFile,
+          disabled: uploading || creatingFile || userPermissions.canEdit !== true,
         }}
         search={{
           value: searchTerm,
@@ -513,17 +517,13 @@ export function Files() {
           placeholder: 'Search files...',
         }}
         defaultSort='created'
-        toolbarActions={
-          <Button
-            variant='subtle'
-            className='px-[8px] py-[4px] text-[12px]'
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading || userPermissions.canEdit !== true}
-          >
-            <Upload className='mr-[6px] h-[14px] w-[14px]' />
-            {uploadButtonLabel}
-          </Button>
-        }
+        headerActions={[
+          {
+            label: uploadButtonLabel,
+            icon: Upload,
+            onClick: () => fileInputRef.current?.click(),
+          },
+        ]}
         columns={COLUMNS}
         rows={rows}
         onRowClick={(id) => setSelectedFileId(id)}
@@ -574,13 +574,6 @@ export function Files() {
         disabled={uploading}
         accept={ACCEPT_ATTR}
         multiple
-      />
-
-      <CreateFileModal
-        open={createModalOpen}
-        onOpenChange={setCreateModalOpen}
-        onCreated={handleFileCreated}
-        workspaceId={workspaceId}
       />
     </>
   )

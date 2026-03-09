@@ -7,18 +7,33 @@ export interface BreadcrumbItem {
   onClick?: () => void
 }
 
+export interface HeaderAction {
+  label: string
+  icon?: React.ElementType
+  onClick: () => void
+}
+
+export interface CreateAction {
+  label: string
+  onClick: () => void
+  disabled?: boolean
+}
+
 interface ResourceHeaderProps {
   icon?: React.ElementType
   title?: string
   breadcrumbs?: BreadcrumbItem[]
-  create?: {
-    label: string
-    onClick: () => void
-    disabled?: boolean
-  }
+  create?: CreateAction
+  actions?: HeaderAction[]
 }
 
-export function ResourceHeader({ icon: Icon, title, breadcrumbs, create }: ResourceHeaderProps) {
+export function ResourceHeader({
+  icon: Icon,
+  title,
+  breadcrumbs,
+  create,
+  actions,
+}: ResourceHeaderProps) {
   const hasBreadcrumbs = breadcrumbs && breadcrumbs.length > 0
 
   return (
@@ -52,17 +67,33 @@ export function ResourceHeader({ icon: Icon, title, breadcrumbs, create }: Resou
             </>
           )}
         </div>
-        {create && (
-          <Button
-            onClick={create.onClick}
-            disabled={create.disabled}
-            variant='subtle'
-            className='px-[8px] py-[4px] text-[12px]'
-          >
-            <Plus className='mr-[6px] h-[14px] w-[14px]' />
-            {create.label}
-          </Button>
-        )}
+        <div className='flex items-center gap-[6px]'>
+          {actions?.map((action) => {
+            const ActionIcon = action.icon
+            return (
+              <Button
+                key={action.label}
+                onClick={action.onClick}
+                variant='subtle'
+                className='px-[8px] py-[4px] text-[12px]'
+              >
+                {ActionIcon && <ActionIcon className='mr-[6px] h-[14px] w-[14px]' />}
+                {action.label}
+              </Button>
+            )
+          })}
+          {create && (
+            <Button
+              onClick={create.onClick}
+              disabled={create.disabled}
+              variant='subtle'
+              className='px-[8px] py-[4px] text-[12px]'
+            >
+              <Plus className='mr-[6px] h-[14px] w-[14px]' />
+              {create.label}
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   )
