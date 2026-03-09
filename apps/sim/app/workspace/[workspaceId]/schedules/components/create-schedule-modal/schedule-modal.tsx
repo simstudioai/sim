@@ -17,13 +17,13 @@ import {
   Textarea,
   TimePicker,
 } from '@/components/emcn'
+import type { ScheduleType } from '@/lib/workflows/schedules/utils'
 import {
   DAY_MAP,
   parseCronToHumanReadable,
   parseCronToScheduleType,
   validateCronExpression,
 } from '@/lib/workflows/schedules/utils'
-import type { ScheduleType } from '@/lib/workflows/schedules/utils'
 import type { WorkspaceScheduleData } from '@/hooks/queries/schedules'
 import { useCreateSchedule, useUpdateSchedule } from '@/hooks/queries/schedules'
 
@@ -116,32 +116,32 @@ function buildCronExpression(
 ): string | null {
   switch (scheduleType) {
     case 'minutes': {
-      const interval = parseInt(options.minutesInterval, 10)
+      const interval = Number.parseInt(options.minutesInterval, 10)
       if (!interval || interval < 1 || interval > 1440) return null
       return `*/${interval} * * * *`
     }
     case 'hourly': {
-      const minute = parseInt(options.hourlyMinute, 10)
-      if (isNaN(minute) || minute < 0 || minute > 59) return null
+      const minute = Number.parseInt(options.hourlyMinute, 10)
+      if (Number.isNaN(minute) || minute < 0 || minute > 59) return null
       return `${minute} * * * *`
     }
     case 'daily': {
       if (!options.dailyTime) return null
       const [hours, minutes] = options.dailyTime.split(':')
-      return `${parseInt(minutes, 10)} ${parseInt(hours, 10)} * * *`
+      return `${Number.parseInt(minutes, 10)} ${Number.parseInt(hours, 10)} * * *`
     }
     case 'weekly': {
       if (!options.weeklyDay || !options.weeklyDayTime) return null
       const day = DAY_MAP[options.weeklyDay]
       if (day === undefined) return null
       const [hours, minutes] = options.weeklyDayTime.split(':')
-      return `${parseInt(minutes, 10)} ${parseInt(hours, 10)} * * ${day}`
+      return `${Number.parseInt(minutes, 10)} ${Number.parseInt(hours, 10)} * * ${day}`
     }
     case 'monthly': {
-      const dayOfMonth = parseInt(options.monthlyDay, 10)
+      const dayOfMonth = Number.parseInt(options.monthlyDay, 10)
       if (!dayOfMonth || dayOfMonth < 1 || dayOfMonth > 31 || !options.monthlyTime) return null
       const [hours, minutes] = options.monthlyTime.split(':')
-      return `${parseInt(minutes, 10)} ${parseInt(hours, 10)} ${dayOfMonth} * *`
+      return `${Number.parseInt(minutes, 10)} ${Number.parseInt(hours, 10)} ${dayOfMonth} * *`
     }
     case 'custom': {
       return options.cronExpression.trim() || null
@@ -151,12 +151,7 @@ function buildCronExpression(
   }
 }
 
-export function ScheduleModal({
-  open,
-  onOpenChange,
-  workspaceId,
-  schedule,
-}: ScheduleModalProps) {
+export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: ScheduleModalProps) {
   const createScheduleMutation = useCreateSchedule()
   const updateScheduleMutation = useUpdateSchedule()
 
@@ -245,7 +240,12 @@ export function ScheduleModal({
   }, [computedCron, resolvedTimezone])
 
   const isFormValid = useMemo(
-    () => title.trim() && prompt.trim() && computedCron && schedulePreview && !('error' in schedulePreview),
+    () =>
+      title.trim() &&
+      prompt.trim() &&
+      computedCron &&
+      schedulePreview &&
+      !('error' in schedulePreview),
     [title, prompt, computedCron, schedulePreview]
   )
 
@@ -287,7 +287,7 @@ export function ScheduleModal({
           cronExpression: computedCron,
           timezone: resolvedTimezone,
           lifecycle,
-          maxRuns: lifecycle === 'until_complete' && maxRuns ? parseInt(maxRuns, 10) : null,
+          maxRuns: lifecycle === 'until_complete' && maxRuns ? Number.parseInt(maxRuns, 10) : null,
         })
       } else {
         await createScheduleMutation.mutateAsync({
@@ -297,7 +297,8 @@ export function ScheduleModal({
           cronExpression: computedCron,
           timezone: resolvedTimezone,
           lifecycle,
-          maxRuns: lifecycle === 'until_complete' && maxRuns ? parseInt(maxRuns, 10) : undefined,
+          maxRuns:
+            lifecycle === 'until_complete' && maxRuns ? Number.parseInt(maxRuns, 10) : undefined,
           startDate: startDate || undefined,
         })
       }
@@ -350,9 +351,7 @@ export function ScheduleModal({
 
             {/* Schedule Type */}
             <div className='flex flex-col gap-[8px]'>
-              <p className='font-medium text-[14px] text-[var(--text-secondary)]'>
-                Run frequency
-              </p>
+              <p className='font-medium text-[14px] text-[var(--text-secondary)]'>Run frequency</p>
               <Combobox
                 options={SCHEDULE_TYPE_OPTIONS}
                 value={scheduleType}
@@ -409,11 +408,7 @@ export function ScheduleModal({
                   <p className='font-medium text-[14px] text-[var(--text-secondary)]'>
                     Day of week
                   </p>
-                  <Combobox
-                    options={WEEKDAY_OPTIONS}
-                    value={weeklyDay}
-                    onChange={setWeeklyDay}
-                  />
+                  <Combobox options={WEEKDAY_OPTIONS} value={weeklyDay} onChange={setWeeklyDay} />
                 </div>
                 <div className='flex flex-1 flex-col gap-[8px]'>
                   <p className='font-medium text-[14px] text-[var(--text-secondary)]'>Time</p>
@@ -557,11 +552,17 @@ export function ScheduleModal({
           <Button
             variant='tertiary'
             onClick={handleSubmit}
-            disabled={!isFormValid || createScheduleMutation.isPending || updateScheduleMutation.isPending}
+            disabled={
+              !isFormValid || createScheduleMutation.isPending || updateScheduleMutation.isPending
+            }
           >
             {isEditing
-              ? updateScheduleMutation.isPending ? 'Saving...' : 'Save changes'
-              : createScheduleMutation.isPending ? 'Creating...' : 'Create'}
+              ? updateScheduleMutation.isPending
+                ? 'Saving...'
+                : 'Save changes'
+              : createScheduleMutation.isPending
+                ? 'Creating...'
+                : 'Create'}
           </Button>
         </ModalFooter>
       </ModalContent>

@@ -538,26 +538,50 @@ export function parseCronToScheduleType(cronExpression: string | null | undefine
   const [minute, hour, dayOfMonth, month, dayOfWeek] = parts
   const pad = (n: number) => String(n).padStart(2, '0')
 
-  if (minute.startsWith('*/') && hour === '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
-    const interval = parseInt(minute.slice(2), 10)
-    if (!isNaN(interval) && interval > 0) {
+  if (
+    minute.startsWith('*/') &&
+    hour === '*' &&
+    dayOfMonth === '*' &&
+    month === '*' &&
+    dayOfWeek === '*'
+  ) {
+    const interval = Number.parseInt(minute.slice(2), 10)
+    if (!Number.isNaN(interval) && interval > 0) {
       return { ...CRON_FORM_DEFAULTS, scheduleType: 'minutes', minutesInterval: String(interval) }
     }
   }
 
-  const m = parseInt(minute, 10)
-  const h = parseInt(hour, 10)
+  const m = Number.parseInt(minute, 10)
+  const h = Number.parseInt(hour, 10)
 
-  if (!isNaN(m) && hour === '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
+  if (
+    !Number.isNaN(m) &&
+    hour === '*' &&
+    dayOfMonth === '*' &&
+    month === '*' &&
+    dayOfWeek === '*'
+  ) {
     return { ...CRON_FORM_DEFAULTS, scheduleType: 'hourly', hourlyMinute: String(m) }
   }
 
-  if (!isNaN(m) && !isNaN(h) && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
+  if (
+    !Number.isNaN(m) &&
+    !Number.isNaN(h) &&
+    dayOfMonth === '*' &&
+    month === '*' &&
+    dayOfWeek === '*'
+  ) {
     return { ...CRON_FORM_DEFAULTS, scheduleType: 'daily', dailyTime: `${pad(h)}:${pad(m)}` }
   }
 
-  if (!isNaN(m) && !isNaN(h) && dayOfMonth === '*' && month === '*' && dayOfWeek !== '*') {
-    const dow = parseInt(dayOfWeek, 10)
+  if (
+    !Number.isNaN(m) &&
+    !Number.isNaN(h) &&
+    dayOfMonth === '*' &&
+    month === '*' &&
+    dayOfWeek !== '*'
+  ) {
+    const dow = Number.parseInt(dayOfWeek, 10)
     const dayName = REVERSE_DAY_MAP[dow]
     if (dayName) {
       return {
@@ -569,9 +593,15 @@ export function parseCronToScheduleType(cronExpression: string | null | undefine
     }
   }
 
-  if (!isNaN(m) && !isNaN(h) && dayOfMonth !== '*' && month === '*' && dayOfWeek === '*') {
-    const dom = parseInt(dayOfMonth, 10)
-    if (!isNaN(dom) && dom >= 1 && dom <= 31) {
+  if (
+    !Number.isNaN(m) &&
+    !Number.isNaN(h) &&
+    dayOfMonth !== '*' &&
+    month === '*' &&
+    dayOfWeek === '*'
+  ) {
+    const dom = Number.parseInt(dayOfMonth, 10)
+    if (!Number.isNaN(dom) && dom >= 1 && dom <= 31) {
       return {
         ...CRON_FORM_DEFAULTS,
         scheduleType: 'monthly',

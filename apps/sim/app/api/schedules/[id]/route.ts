@@ -187,10 +187,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         }
       }
 
-      await db
-        .update(workflowSchedule)
-        .set(setFields)
-        .where(eq(workflowSchedule.id, scheduleId))
+      await db.update(workflowSchedule).set(setFields).where(eq(workflowSchedule.id, scheduleId))
 
       logger.info(`[${requestId}] Updated job schedule: ${scheduleId}`)
 

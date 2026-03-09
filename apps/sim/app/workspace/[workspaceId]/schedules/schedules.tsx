@@ -112,10 +112,7 @@ export function Schedules() {
     [filteredItems]
   )
 
-  const itemById = useMemo(
-    () => new Map(filteredItems.map((i) => [i.id, i])),
-    [filteredItems]
-  )
+  const itemById = useMemo(() => new Map(filteredItems.map((i) => [i.id, i])), [filteredItems])
 
   const handleRowClick = useCallback(
     (rowId: string) => {
@@ -239,8 +236,7 @@ export function Schedules() {
               <span className='font-medium text-[var(--text-primary)]'>
                 {activeSchedule?.jobTitle || activeSchedule?.workflowName || 'this schedule'}
               </span>
-              ?{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>
