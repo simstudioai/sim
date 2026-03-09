@@ -180,14 +180,22 @@ export async function runStreamLoop(
  * Build a ToolCallSummary array from the streaming context.
  */
 export function buildToolCallSummaries(context: StreamingContext): ToolCallSummary[] {
-  return Array.from(context.toolCalls.values()).map((toolCall) => ({
-    id: toolCall.id,
-    name: toolCall.name,
-    status: toolCall.status,
-    params: toolCall.params,
-    result: toolCall.result?.output,
-    error: toolCall.error,
-    durationMs:
-      toolCall.endTime && toolCall.startTime ? toolCall.endTime - toolCall.startTime : undefined,
-  }))
+  return Array.from(context.toolCalls.values()).map((toolCall) => {
+    let status = toolCall.status
+    if (toolCall.result && toolCall.result.success !== undefined) {
+      status = toolCall.result.success ? 'success' : 'error'
+    } else if (status === 'pending' || status === 'executing') {
+      status = toolCall.error ? 'error' : 'success'
+    }
+    return {
+      id: toolCall.id,
+      name: toolCall.name,
+      status,
+      params: toolCall.params,
+      result: toolCall.result?.output,
+      error: toolCall.error,
+      durationMs:
+        toolCall.endTime && toolCall.startTime ? toolCall.endTime - toolCall.startTime : undefined,
+    }
+  })
 }
