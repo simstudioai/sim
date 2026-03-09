@@ -3,6 +3,7 @@ export { ownerCell } from './resource/components/owner-cell/owner-cell'
 export type {
   BreadcrumbItem,
   CreateAction,
+  DropdownOption,
   HeaderAction,
 } from './resource/components/resource-header'
 export { ResourceHeader } from './resource/components/resource-header'

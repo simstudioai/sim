@@ -12,13 +12,14 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Pencil,
   Popover,
   PopoverAnchor,
   PopoverContent,
   PopoverDivider,
   PopoverItem,
   Skeleton,
-  Trash2,
+  Trash,
   Upload,
 } from '@/components/emcn'
 import { getDocumentIcon } from '@/components/icons/document-icons'
@@ -425,6 +426,10 @@ export function Files() {
             {
               label: saveLabel,
               onClick: handleSave,
+              disabled:
+                (!isDirty && saveStatus === 'idle') ||
+                saveStatus === 'saving' ||
+                saveStatus === 'saved',
             },
           ]
         : []),
@@ -435,7 +440,7 @@ export function Files() {
       },
       {
         label: 'Delete',
-        icon: Trash2,
+        icon: Trash,
         onClick: () => {
           setDeleteTargetFile(selectedFile)
           setShowDeleteConfirm(true)
@@ -450,7 +455,25 @@ export function Files() {
             icon={FilesIcon}
             breadcrumbs={[
               { label: 'Files', onClick: handleBackAttempt },
-              { label: selectedFile.name },
+              {
+                label: selectedFile.name,
+                dropdownItems: [
+                  { label: 'Rename', icon: Pencil, onClick: () => {} },
+                  {
+                    label: 'Download',
+                    icon: Download,
+                    onClick: () => handleDownload(selectedFile),
+                  },
+                  {
+                    label: 'Delete',
+                    icon: Trash,
+                    onClick: () => {
+                      setDeleteTargetFile(selectedFile)
+                      setShowDeleteConfirm(true)
+                    },
+                  },
+                ],
+              },
             ]}
             actions={fileActions}
           />
