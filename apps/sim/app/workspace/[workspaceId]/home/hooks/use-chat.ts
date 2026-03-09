@@ -8,6 +8,7 @@ import {
   type TaskChatHistory,
   type TaskStoredContentBlock,
   type TaskStoredMessage,
+  type TaskStoredToolCall,
   taskKeys,
   useChatHistory,
 } from '@/hooks/queries/tasks'
@@ -59,10 +60,26 @@ function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
       name: block.toolCall.name ?? 'unknown',
       status: STATE_TO_STATUS[block.toolCall.state ?? ''] ?? 'success',
       displayTitle: block.toolCall.display?.text,
+      result: block.toolCall.result,
     }
   }
 
   return mapped
+}
+
+function mapStoredToolCall(tc: TaskStoredToolCall): ContentBlock {
+  return {
+    type: 'tool_call',
+    toolCall: {
+      id: tc.id,
+      name: tc.name,
+      status: (STATE_TO_STATUS[tc.status] ?? 'success') as ToolCallStatus,
+      result:
+        tc.result != null
+          ? { success: tc.status === 'success', output: tc.result, error: tc.error }
+          : undefined,
+    },
+  }
 }
 
 function mapStoredMessage(msg: TaskStoredMessage): ChatMessage {
@@ -72,7 +89,9 @@ function mapStoredMessage(msg: TaskStoredMessage): ChatMessage {
     content: msg.content,
   }
 
-  if (Array.isArray(msg.contentBlocks) && msg.contentBlocks.length > 0) {
+  if (Array.isArray(msg.toolCalls) && msg.toolCalls.length > 0) {
+    mapped.contentBlocks = msg.toolCalls.map(mapStoredToolCall)
+  } else if (Array.isArray(msg.contentBlocks) && msg.contentBlocks.length > 0) {
     mapped.contentBlocks = msg.contentBlocks.map(mapStoredBlock)
   }
 
@@ -277,7 +296,13 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
               if (!id) break
               const idx = toolMap.get(id)
               if (idx !== undefined && blocks[idx].toolCall) {
-                blocks[idx].toolCall!.status = parsed.success ? 'success' : 'error'
+                const tc = blocks[idx].toolCall!
+                tc.status = parsed.success ? 'success' : 'error'
+                tc.result = {
+                  success: !!parsed.success,
+                  output: parsed.result ?? getPayloadData(parsed)?.result,
+                  error: (parsed.error ?? getPayloadData(parsed)?.error) as string | undefined,
+                }
                 flush()
               }
 

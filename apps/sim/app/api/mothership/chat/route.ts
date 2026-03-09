@@ -184,11 +184,14 @@ export async function POST(req: NextRequest) {
             timestamp: new Date().toISOString(),
           }
 
-          const assistantMessage = {
+          const assistantMessage: Record<string, unknown> = {
             id: crypto.randomUUID(),
             role: 'assistant' as const,
             content: result.content,
             timestamp: new Date().toISOString(),
+          }
+          if (result.toolCalls.length > 0) {
+            assistantMessage.toolCalls = result.toolCalls
           }
 
           const updatedMessages = [...conversationHistory, userMessage, assistantMessage]
