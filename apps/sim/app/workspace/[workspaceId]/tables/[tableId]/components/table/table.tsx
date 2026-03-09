@@ -86,14 +86,16 @@ const CHECKBOX_COL_WIDTH = 40
 const ADD_COL_WIDTH = 120
 const SKELETON_COL_COUNT = 4
 const SKELETON_ROW_COUNT = 10
+const ROW_HEIGHT_ESTIMATE = 35
+const PLACEHOLDER_OVERSCAN = 20
 
 const CELL = 'border-[var(--border)] border-r border-b px-[8px] py-[7px] align-middle select-none'
 const CELL_CHECKBOX =
-  'border-[var(--border)] border-r border-b px-[12px] py-[7px] align-middle select-none'
+  'border-[var(--border)] border-r border-b px-[4px] py-[7px] align-middle select-none'
 const CELL_HEADER =
   'border-[var(--border)] border-r border-b bg-white px-[8px] py-[7px] text-left align-middle dark:bg-[var(--bg)]'
 const CELL_HEADER_CHECKBOX =
-  'border-[var(--border)] border-r border-b bg-white px-[12px] py-[7px] text-left align-middle dark:bg-[var(--bg)]'
+  'border-[var(--border)] border-r border-b bg-white px-[4px] py-[7px] text-center align-middle dark:bg-[var(--bg)]'
 const CELL_CONTENT =
   'relative min-h-[20px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[13px]'
 const SELECTION_OVERLAY =
@@ -201,37 +203,28 @@ export function Table() {
 
   const displayColCount = isLoadingTable ? SKELETON_COL_COUNT : columns.length
   const tableWidth = CHECKBOX_COL_WIDTH + displayColCount * COL_WIDTH + ADD_COL_WIDTH
-  const selectedCount = selectedRows.size
-  const hasSelection = selectedCount > 0
-  const isAllSelected = visibleRows.length > 0 && selectedCount === visibleRows.length
+
+  const isAllRowsSelected =
+    normalizedSelection !== null &&
+    visibleRows.length > 0 &&
+    normalizedSelection.startRow === 0 &&
+    normalizedSelection.endRow === visibleRows.length - 1 &&
+    normalizedSelection.startCol === 0 &&
+    normalizedSelection.endCol === columns.length - 1
 
   const columnsRef = useRef(columns)
   const rowsRef = useRef(rows)
   const visibleRowsRef = useRef(visibleRows)
   const pendingPlaceholdersRef = useRef(pendingPlaceholders)
-
-  useEffect(() => {
-    columnsRef.current = columns
-  }, [columns])
-  useEffect(() => {
-    rowsRef.current = rows
-  }, [rows])
-  useEffect(() => {
-    visibleRowsRef.current = visibleRows
-  }, [visibleRows])
-  useEffect(() => {
-    pendingPlaceholdersRef.current = pendingPlaceholders
-  }, [pendingPlaceholders])
-
   const selectionAnchorRef = useRef(selectionAnchor)
   const selectionFocusRef = useRef(selectionFocus)
 
-  useEffect(() => {
-    selectionAnchorRef.current = selectionAnchor
-  }, [selectionAnchor])
-  useEffect(() => {
-    selectionFocusRef.current = selectionFocus
-  }, [selectionFocus])
+  columnsRef.current = columns
+  rowsRef.current = rows
+  visibleRowsRef.current = visibleRows
+  pendingPlaceholdersRef.current = pendingPlaceholders
+  selectionAnchorRef.current = selectionAnchor
+  selectionFocusRef.current = selectionFocus
 
   const deleteTableMutation = useDeleteTable(workspaceId)
 
@@ -297,6 +290,54 @@ export function Table() {
     setSelectionFocus({ rowIndex, colIndex })
   }, [])
 
+  const handleRowMouseDown = useCallback((rowIndex: number, shiftKey: boolean) => {
+    const lastCol = columnsRef.current.length - 1
+    if (lastCol < 0) return
+
+    setEditingCell(null)
+    setEditingEmptyCell(null)
+
+    if (shiftKey && selectionAnchorRef.current) {
+      setSelectionAnchor((prev) => (prev ? { rowIndex: prev.rowIndex, colIndex: 0 } : prev))
+      setSelectionFocus({ rowIndex, colIndex: lastCol })
+    } else {
+      setSelectionAnchor({ rowIndex, colIndex: 0 })
+      setSelectionFocus({ rowIndex, colIndex: lastCol })
+    }
+    isDraggingRef.current = true
+  }, [])
+
+  const handleRowMouseEnter = useCallback((rowIndex: number) => {
+    if (!isDraggingRef.current) return
+    const lastCol = columnsRef.current.length - 1
+    if (lastCol < 0) return
+    setSelectionFocus({ rowIndex, colIndex: lastCol })
+  }, [])
+
+  const handleRowSelect = useCallback((rowIndex: number) => {
+    const lastCol = columnsRef.current.length - 1
+    if (lastCol < 0) return
+    setEditingCell(null)
+    setEditingEmptyCell(null)
+    setSelectionAnchor({ rowIndex, colIndex: 0 })
+    setSelectionFocus({ rowIndex, colIndex: lastCol })
+  }, [])
+
+  const handleClearSelection = useCallback(() => {
+    setSelectionAnchor(null)
+    setSelectionFocus(null)
+  }, [])
+
+  const handleSelectAllRows = useCallback(() => {
+    const lastRow = visibleRowsRef.current.length - 1
+    const lastCol = columnsRef.current.length - 1
+    if (lastRow < 0 || lastCol < 0) return
+    setEditingCell(null)
+    setEditingEmptyCell(null)
+    setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
+    setSelectionFocus({ rowIndex: lastRow, colIndex: lastCol })
+  }, [])
+
   useEffect(() => {
     const handleMouseUp = () => {
       isDraggingRef.current = false
@@ -329,19 +370,13 @@ export function Table() {
   }, [])
 
   const mutateRef = useRef(updateRowMutation.mutate)
-  useEffect(() => {
-    mutateRef.current = updateRowMutation.mutate
-  }, [updateRowMutation.mutate])
+  mutateRef.current = updateRowMutation.mutate
 
   const editingCellRef = useRef(editingCell)
-  useEffect(() => {
-    editingCellRef.current = editingCell
-  }, [editingCell])
+  editingCellRef.current = editingCell
 
   const editingEmptyCellRef = useRef(editingEmptyCell)
-  useEffect(() => {
-    editingEmptyCellRef.current = editingEmptyCell
-  }, [editingEmptyCell])
+  editingEmptyCellRef.current = editingEmptyCell
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -518,9 +553,7 @@ export function Table() {
   }, [])
 
   const createRef = useRef(createRowMutation.mutate)
-  useEffect(() => {
-    createRef.current = createRowMutation.mutate
-  }, [createRowMutation.mutate])
+  createRef.current = createRowMutation.mutate
 
   const handleEmptyRowSave = useCallback((rowIndex: number, columnName: string, value: unknown) => {
     setEditingEmptyCell(null)
@@ -748,7 +781,9 @@ export function Table() {
             {isLoadingTable ? (
               <tr>
                 <th className={CELL_HEADER_CHECKBOX}>
-                  <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+                  <div className='flex items-center justify-center'>
+                    <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+                  </div>
                 </th>
                 {Array.from({ length: SKELETON_COL_COUNT }).map((_, i) => (
                   <th key={i} className={CELL_HEADER}>
@@ -768,7 +803,19 @@ export function Table() {
             ) : (
               <tr>
                 <th className={CELL_HEADER_CHECKBOX}>
-                  <Checkbox size='sm' checked={isAllSelected} onCheckedChange={handleSelectAll} />
+                  <div className='flex items-center justify-center'>
+                    <Checkbox
+                      size='sm'
+                      checked={isAllRowsSelected}
+                      onCheckedChange={() => {
+                        if (isAllRowsSelected) {
+                          handleClearSelection()
+                        } else {
+                          handleSelectAllRows()
+                        }
+                      }}
+                    />
+                  </div>
                 </th>
                 {columns.map((column) => (
                   <ColumnHeaderMenu
@@ -811,7 +858,6 @@ export function Table() {
                     columns={columns}
                     rowIndex={index}
                     isFirstRow={index === 0}
-                    isSelected={selectedRows.has(row.id)}
                     editingColumnName={
                       editingCell?.rowId === row.id ? editingCell.columnName : null
                     }
@@ -820,9 +866,12 @@ export function Table() {
                     onSave={handleInlineSave}
                     onCancel={handleInlineCancel}
                     onContextMenu={handleRowContextMenu}
-                    onSelectRow={handleSelectRow}
                     onCellMouseDown={handleCellMouseDown}
                     onCellMouseEnter={handleCellMouseEnter}
+                    onRowMouseDown={handleRowMouseDown}
+                    onRowMouseEnter={handleRowMouseEnter}
+                    onRowSelect={handleRowSelect}
+                    onClearSelection={handleClearSelection}
                   />
                 ))}
                 <PlaceholderRows
@@ -837,6 +886,8 @@ export function Table() {
                   onCancel={handleEmptyRowCancel}
                   onCellMouseDown={handleCellMouseDown}
                   onCellMouseEnter={handleCellMouseEnter}
+                  onRowMouseDown={handleRowMouseDown}
+                  onRowMouseEnter={handleRowMouseEnter}
                 />
               </>
             )}
@@ -988,7 +1039,11 @@ export function Table() {
   )
 }
 
-function TableColGroup({ columns }: { columns: ColumnDefinition[] }) {
+const TableColGroup = React.memo(function TableColGroup({
+  columns,
+}: {
+  columns: ColumnDefinition[]
+}) {
   return (
     <colgroup>
       <col style={{ width: CHECKBOX_COL_WIDTH }} />
@@ -998,6 +1053,85 @@ function TableColGroup({ columns }: { columns: ColumnDefinition[] }) {
       <col style={{ width: ADD_COL_WIDTH }} />
     </colgroup>
   )
+})
+
+interface DataRowProps {
+  row: TableRowType
+  columns: ColumnDefinition[]
+  rowIndex: number
+  isFirstRow: boolean
+  editingColumnName: string | null
+  normalizedSelection: NormalizedSelection | null
+  onClick: (rowId: string, columnName: string) => void
+  onSave: (rowId: string, columnName: string, value: unknown) => void
+  onCancel: () => void
+  onContextMenu: (e: React.MouseEvent, row: TableRowType) => void
+  onCellMouseDown: (rowIndex: number, colIndex: number, shiftKey: boolean) => void
+  onCellMouseEnter: (rowIndex: number, colIndex: number) => void
+  onRowMouseDown: (rowIndex: number, shiftKey: boolean) => void
+  onRowMouseEnter: (rowIndex: number) => void
+  onRowSelect: (rowIndex: number) => void
+  onClearSelection: () => void
+}
+
+function rowSelectionChanged(
+  rowIndex: number,
+  colCount: number,
+  prev: NormalizedSelection | null,
+  next: NormalizedSelection | null
+): boolean {
+  const pIn = prev !== null && rowIndex >= prev.startRow && rowIndex <= prev.endRow
+  const nIn = next !== null && rowIndex >= next.startRow && rowIndex <= next.endRow
+  const pAnchor = prev !== null && rowIndex === prev.anchorRow
+  const nAnchor = next !== null && rowIndex === next.anchorRow
+
+  if (!pIn && !nIn && !pAnchor && !nAnchor) return false
+  if (pIn !== nIn || pAnchor !== nAnchor) return true
+
+  if (pIn && nIn) {
+    if (prev!.startCol !== next!.startCol || prev!.endCol !== next!.endCol) return true
+    if ((rowIndex === prev!.startRow) !== (rowIndex === next!.startRow)) return true
+    if ((rowIndex === prev!.endRow) !== (rowIndex === next!.endRow)) return true
+    const pMulti = prev!.startRow !== prev!.endRow || prev!.startCol !== prev!.endCol
+    const nMulti = next!.startRow !== next!.endRow || next!.startCol !== next!.endCol
+    if (pMulti !== nMulti) return true
+    const pFull = prev!.startCol === 0 && prev!.endCol === colCount - 1
+    const nFull = next!.startCol === 0 && next!.endCol === colCount - 1
+    if (pFull !== nFull) return true
+  }
+
+  if (pAnchor && nAnchor && prev!.anchorCol !== next!.anchorCol) return true
+
+  return false
+}
+
+function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
+  if (
+    prev.row !== next.row ||
+    prev.columns !== next.columns ||
+    prev.rowIndex !== next.rowIndex ||
+    prev.isFirstRow !== next.isFirstRow ||
+    prev.editingColumnName !== next.editingColumnName ||
+    prev.onClick !== next.onClick ||
+    prev.onSave !== next.onSave ||
+    prev.onCancel !== next.onCancel ||
+    prev.onContextMenu !== next.onContextMenu ||
+    prev.onCellMouseDown !== next.onCellMouseDown ||
+    prev.onCellMouseEnter !== next.onCellMouseEnter ||
+    prev.onRowMouseDown !== next.onRowMouseDown ||
+    prev.onRowMouseEnter !== next.onRowMouseEnter ||
+    prev.onRowSelect !== next.onRowSelect ||
+    prev.onClearSelection !== next.onClearSelection
+  ) {
+    return false
+  }
+
+  return !rowSelectionChanged(
+    prev.rowIndex,
+    prev.columns.length,
+    prev.normalizedSelection,
+    next.normalizedSelection
+  )
 }
 
 const DataRow = React.memo(function DataRow({
@@ -1005,42 +1139,65 @@ const DataRow = React.memo(function DataRow({
   columns,
   rowIndex,
   isFirstRow,
-  isSelected,
   editingColumnName,
   normalizedSelection,
   onClick,
   onSave,
   onCancel,
   onContextMenu,
-  onSelectRow,
   onCellMouseDown,
   onCellMouseEnter,
-}: {
-  row: TableRowType
-  columns: ColumnDefinition[]
-  rowIndex: number
-  isFirstRow: boolean
-  isSelected: boolean
-  editingColumnName: string | null
-  normalizedSelection: NormalizedSelection | null
-  onClick: (rowId: string, columnName: string) => void
-  onSave: (rowId: string, columnName: string, value: unknown) => void
-  onCancel: () => void
-  onContextMenu: (e: React.MouseEvent, row: TableRowType) => void
-  onSelectRow: (rowId: string) => void
-  onCellMouseDown: (rowIndex: number, colIndex: number, shiftKey: boolean) => void
-  onCellMouseEnter: (rowIndex: number, colIndex: number) => void
-}) {
+  onRowMouseDown,
+  onRowMouseEnter,
+  onRowSelect,
+  onClearSelection,
+}: DataRowProps) {
   const sel = normalizedSelection
   const isMultiCell = sel !== null && (sel.startRow !== sel.endRow || sel.startCol !== sel.endCol)
+  const isRowSelected =
+    sel !== null &&
+    rowIndex >= sel.startRow &&
+    rowIndex <= sel.endRow &&
+    sel.startCol === 0 &&
+    sel.endCol === columns.length - 1
 
   return (
-    <tr
-      className={cn('group', isSelected && 'bg-[var(--surface-5)]')}
-      onContextMenu={(e) => onContextMenu(e, row)}
-    >
-      <td className={CELL_CHECKBOX}>
-        <Checkbox size='sm' checked={isSelected} onCheckedChange={() => onSelectRow(row.id)} />
+    <tr onContextMenu={(e) => onContextMenu(e, row)}>
+      <td
+        className={cn(CELL_CHECKBOX, 'group/checkbox cursor-pointer text-center')}
+        onMouseDown={(e) => {
+          if (e.button !== 0 || isRowSelected) return
+          onRowMouseDown(rowIndex, e.shiftKey)
+        }}
+        onMouseEnter={() => onRowMouseEnter(rowIndex)}
+      >
+        <span
+          className={cn(
+            'text-[11px] text-[var(--text-tertiary)] tabular-nums',
+            isRowSelected ? 'hidden' : 'block group-hover/checkbox:hidden'
+          )}
+        >
+          {rowIndex + 1}
+        </span>
+        <div
+          className={cn(
+            'items-center justify-center',
+            isRowSelected ? 'flex' : 'hidden group-hover/checkbox:flex'
+          )}
+          onMouseDown={(e) => {
+            e.stopPropagation()
+            if (e.button !== 0) return
+            if (e.shiftKey) {
+              onRowMouseDown(rowIndex, true)
+            } else if (isRowSelected) {
+              onClearSelection()
+            } else {
+              onRowSelect(rowIndex)
+            }
+          }}
+        >
+          <Checkbox size='sm' checked={isRowSelected} className='pointer-events-none' />
+        </div>
       </td>
       {columns.map((column, colIndex) => {
         const inRange =
@@ -1095,7 +1252,7 @@ const DataRow = React.memo(function DataRow({
       })}
     </tr>
   )
-})
+}, dataRowPropsAreEqual)
 
 function CellContent({
   value,
@@ -1237,13 +1394,21 @@ function InlineEditor({
   )
 }
 
-function TableBodySkeleton({ colCount }: { colCount: number }) {
+const TableBodySkeleton = React.memo(function TableBodySkeleton({
+  colCount,
+}: {
+  colCount: number
+}) {
   return (
     <>
       {Array.from({ length: SKELETON_ROW_COUNT }).map((_, rowIndex) => (
         <tr key={rowIndex}>
-          <td className={CELL_CHECKBOX}>
-            <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+          <td className={cn(CELL_CHECKBOX, 'text-center')}>
+            <div className='flex min-h-[20px] items-center justify-center'>
+              <span className='text-[11px] text-[var(--text-tertiary)] tabular-nums'>
+                {rowIndex + 1}
+              </span>
+            </div>
           </td>
           {Array.from({ length: colCount }).map((_, colIndex) => {
             const width = 72 + ((rowIndex + colIndex) % 4) * 24
@@ -1259,21 +1424,9 @@ function TableBodySkeleton({ colCount }: { colCount: number }) {
       ))}
     </>
   )
-}
+})
 
-function PlaceholderRows({
-  columns,
-  dataRowCount,
-  editingEmptyCell,
-  pendingPlaceholders,
-  normalizedSelection,
-  firstRowUnderHeader,
-  onClick,
-  onSave,
-  onCancel,
-  onCellMouseDown,
-  onCellMouseEnter,
-}: {
+interface PlaceholderRowsProps {
   columns: ColumnDefinition[]
   dataRowCount: number
   editingEmptyCell: { rowIndex: number; columnName: string } | null
@@ -1285,18 +1438,163 @@ function PlaceholderRows({
   onCancel: () => void
   onCellMouseDown: (rowIndex: number, colIndex: number, shiftKey: boolean) => void
   onCellMouseEnter: (rowIndex: number, colIndex: number) => void
-}) {
+  onRowMouseDown: (rowIndex: number, shiftKey: boolean) => void
+  onRowMouseEnter: (rowIndex: number) => void
+}
+
+function placeholderPropsAreEqual(prev: PlaceholderRowsProps, next: PlaceholderRowsProps): boolean {
+  if (
+    prev.columns !== next.columns ||
+    prev.dataRowCount !== next.dataRowCount ||
+    prev.editingEmptyCell !== next.editingEmptyCell ||
+    prev.pendingPlaceholders !== next.pendingPlaceholders ||
+    prev.firstRowUnderHeader !== next.firstRowUnderHeader ||
+    prev.onClick !== next.onClick ||
+    prev.onSave !== next.onSave ||
+    prev.onCancel !== next.onCancel ||
+    prev.onCellMouseDown !== next.onCellMouseDown ||
+    prev.onCellMouseEnter !== next.onCellMouseEnter ||
+    prev.onRowMouseDown !== next.onRowMouseDown ||
+    prev.onRowMouseEnter !== next.onRowMouseEnter
+  ) {
+    return false
+  }
+
+  const prevSel = prev.normalizedSelection
+  const nextSel = next.normalizedSelection
+  const dc = prev.dataRowCount
+  const maxGlobal = dc + PLACEHOLDER_ROW_COUNT - 1
+  const prevOverlaps = prevSel !== null && prevSel.endRow >= dc && prevSel.startRow <= maxGlobal
+  const nextOverlaps = nextSel !== null && nextSel.endRow >= dc && nextSel.startRow <= maxGlobal
+
+  if (!prevOverlaps && !nextOverlaps) return true
+  if (prevOverlaps !== nextOverlaps) return false
+
+  return (
+    prevSel!.startRow === nextSel!.startRow &&
+    prevSel!.endRow === nextSel!.endRow &&
+    prevSel!.startCol === nextSel!.startCol &&
+    prevSel!.endCol === nextSel!.endCol &&
+    prevSel!.anchorRow === nextSel!.anchorRow &&
+    prevSel!.anchorCol === nextSel!.anchorCol
+  )
+}
+
+const PlaceholderRows = React.memo(function PlaceholderRows({
+  columns,
+  dataRowCount,
+  editingEmptyCell,
+  pendingPlaceholders,
+  normalizedSelection,
+  firstRowUnderHeader,
+  onClick,
+  onSave,
+  onCancel,
+  onCellMouseDown,
+  onCellMouseEnter,
+  onRowMouseDown,
+  onRowMouseEnter,
+}: PlaceholderRowsProps) {
   const sel = normalizedSelection
   const isMultiCell = sel !== null && (sel.startRow !== sel.endRow || sel.startCol !== sel.endCol)
 
+  const [visibleRange, setVisibleRange] = useState({ start: 0, end: 50 })
+
+  useEffect(() => {
+    const container = document.querySelector('[data-table-scroll]') as HTMLElement | null
+    if (!container) return
+
+    let rafId: number | null = null
+    const update = () => {
+      rafId = null
+      const scrollTop = container.scrollTop
+      const viewportHeight = container.clientHeight
+      const placeholderOffset = (dataRowCount + 1) * ROW_HEIGHT_ESTIMATE
+      const relTop = Math.max(0, scrollTop - placeholderOffset)
+      const start = Math.max(0, Math.floor(relTop / ROW_HEIGHT_ESTIMATE) - PLACEHOLDER_OVERSCAN)
+      const end = Math.min(
+        PLACEHOLDER_ROW_COUNT,
+        Math.ceil((relTop + viewportHeight) / ROW_HEIGHT_ESTIMATE) + PLACEHOLDER_OVERSCAN
+      )
+      setVisibleRange((prev) => (prev.start === start && prev.end === end ? prev : { start, end }))
+    }
+    const onScroll = () => {
+      if (rafId === null) rafId = requestAnimationFrame(update)
+    }
+
+    container.addEventListener('scroll', onScroll, { passive: true })
+    update()
+    return () => {
+      container.removeEventListener('scroll', onScroll)
+      if (rafId !== null) cancelAnimationFrame(rafId)
+    }
+  }, [dataRowCount])
+
+  let renderStart = visibleRange.start
+  let renderEnd = visibleRange.end
+
+  if (sel) {
+    const sStart = Math.max(0, sel.startRow - dataRowCount)
+    const sEnd = sel.endRow - dataRowCount + 1
+    if (sEnd > 0 && sStart < PLACEHOLDER_ROW_COUNT) {
+      renderStart = Math.min(renderStart, Math.max(0, sStart))
+      renderEnd = Math.max(renderEnd, Math.min(PLACEHOLDER_ROW_COUNT, sEnd))
+    }
+    if (sel.anchorRow >= dataRowCount) {
+      const ai = sel.anchorRow - dataRowCount
+      if (ai >= 0 && ai < PLACEHOLDER_ROW_COUNT) {
+        renderStart = Math.min(renderStart, ai)
+        renderEnd = Math.max(renderEnd, ai + 1)
+      }
+    }
+  }
+
+  if (editingEmptyCell) {
+    renderStart = Math.min(renderStart, editingEmptyCell.rowIndex)
+    renderEnd = Math.max(renderEnd, editingEmptyCell.rowIndex + 1)
+  }
+
+  for (const key of Object.keys(pendingPlaceholders)) {
+    const idx = Number(key)
+    renderStart = Math.min(renderStart, idx)
+    renderEnd = Math.max(renderEnd, idx + 1)
+  }
+
+  renderStart = Math.max(0, renderStart)
+  renderEnd = Math.min(PLACEHOLDER_ROW_COUNT, renderEnd)
+
+  const topHeight = renderStart * ROW_HEIGHT_ESTIMATE
+  const bottomHeight = (PLACEHOLDER_ROW_COUNT - renderEnd) * ROW_HEIGHT_ESTIMATE
+  const spacerColSpan = columns.length + 2
+
   return (
     <>
-      {Array.from({ length: PLACEHOLDER_ROW_COUNT }).map((_, i) => {
+      {topHeight > 0 && (
+        <tr aria-hidden>
+          <td
+            colSpan={spacerColSpan}
+            style={{ height: `${topHeight}px`, padding: 0, border: 'none' }}
+          />
+        </tr>
+      )}
+      {Array.from({ length: renderEnd - renderStart }).map((_, offset) => {
+        const i = renderStart + offset
         const globalRowIndex = dataRowCount + i
         const pending = pendingPlaceholders[i]
         return (
           <tr key={`placeholder-${i}`}>
-            <td className={CELL_CHECKBOX} />
+            <td
+              className={cn(CELL_CHECKBOX, 'cursor-pointer text-center')}
+              onMouseDown={(e) => {
+                if (e.button !== 0) return
+                onRowMouseDown(globalRowIndex, e.shiftKey)
+              }}
+              onMouseEnter={() => onRowMouseEnter(globalRowIndex)}
+            >
+              <span className='text-[11px] text-[var(--text-tertiary)] tabular-nums'>
+                {dataRowCount + i + 1}
+              </span>
+            </td>
             {columns.map((col, colIndex) => {
               const isEditing =
                 editingEmptyCell?.rowIndex === i && editingEmptyCell.columnName === col.name
@@ -1369,9 +1667,17 @@ function PlaceholderRows({
           </tr>
         )
       })}
+      {bottomHeight > 0 && (
+        <tr aria-hidden>
+          <td
+            colSpan={spacerColSpan}
+            style={{ height: `${bottomHeight}px`, padding: 0, border: 'none' }}
+          />
+        </tr>
+      )}
     </>
   )
-}
+}, placeholderPropsAreEqual)
 
 const COLUMN_TYPE_OPTIONS: { type: string; label: string; icon: React.ElementType }[] = [
   { type: 'string', label: 'Text', icon: TypeText },
@@ -1381,7 +1687,7 @@ const COLUMN_TYPE_OPTIONS: { type: string; label: string; icon: React.ElementTyp
   { type: 'json', label: 'JSON', icon: TypeJson },
 ]
 
-function ColumnHeaderMenu({
+const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   column,
   onRenameColumn,
   onChangeType,
@@ -1468,7 +1774,7 @@ function ColumnHeaderMenu({
       </DropdownMenu>
     </th>
   )
-}
+})
 
 function ColumnTypeIcon({ type }: { type: string }) {
   const Icon = COLUMN_TYPE_ICONS[type] ?? TypeText

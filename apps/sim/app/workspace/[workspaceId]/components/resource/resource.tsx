@@ -173,7 +173,7 @@ export function Resource({
                       return (
                         <th
                           key={col.id}
-                          className='h-10 px-[24px] py-[6px] text-left align-middle font-base text-[var(--text-muted)]'
+                          className='h-10 px-[24px] py-[6px] text-left align-middle font-base text-[12px] text-[var(--text-muted)]'
                         >
                           {col.header}
                         </th>
