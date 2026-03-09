@@ -22,6 +22,7 @@ import {
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { isMacPlatform } from '@/lib/core/utils/platform'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { formatFileSize, getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
 import {
@@ -45,7 +46,6 @@ import {
   useUploadWorkspaceFile,
   useWorkspaceFiles,
 } from '@/hooks/queries/workspace-files'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -260,16 +260,13 @@ export function Files() {
     }
   }
 
-  const handleDownload = useCallback(
-    async (file: WorkspaceFileRecord) => {
-      try {
-        await downloadFile(file)
-      } catch (err) {
-        logger.error('Failed to download file:', err)
-      }
-    },
-    []
-  )
+  const handleDownload = useCallback(async (file: WorkspaceFileRecord) => {
+    try {
+      await downloadFile(file)
+    } catch (err) {
+      logger.error('Failed to download file:', err)
+    }
+  }, [])
 
   const handleDelete = useCallback(async () => {
     const target = deleteTargetFile
@@ -292,7 +289,7 @@ export function Files() {
   }, [deleteTargetFile, workspaceId, selectedFileId])
 
   const handleSave = useCallback(async () => {
-    if (!saveRef.current) return
+    if (!saveRef.current || !isDirty) return
 
     setSaveStatus('saving')
     try {
@@ -301,7 +298,7 @@ export function Files() {
     } catch {
       setSaveStatus('error')
     }
-  }, [])
+  }, [isDirty])
 
   const handleBackAttempt = useCallback(() => {
     if (isDirty) {

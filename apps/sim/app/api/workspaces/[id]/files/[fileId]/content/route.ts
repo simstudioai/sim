@@ -78,13 +78,17 @@ export async function PUT(
       file: updatedFile,
     })
   } catch (error) {
-    logger.error(`[${requestId}] Error updating file content:`, error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to update file content',
-      },
-      { status: 500 }
-    )
+    const errorMessage = error instanceof Error ? error.message : 'Failed to update file content'
+    const isNotFound = errorMessage.includes('File not found')
+    const isQuotaExceeded = errorMessage.includes('Storage limit exceeded')
+    const status = isNotFound ? 404 : isQuotaExceeded ? 402 : 500
+
+    if (status === 500) {
+      logger.error(`[${requestId}] Error updating file content:`, error)
+    } else {
+      logger.warn(`[${requestId}] ${errorMessage}`)
+    }
+
+    return NextResponse.json({ success: false, error: errorMessage }, { status })
   }
 }
