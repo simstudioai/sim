@@ -153,6 +153,18 @@ export default function Hero() {
   const intervalRef = React.useRef<NodeJS.Timeout | null>(null)
 
   /**
+   * Refs for smooth sliding pill highlight
+   */
+  const iconContainerRef = React.useRef<HTMLDivElement>(null)
+  const iconRefs = React.useRef<(HTMLButtonElement | null)[]>([])
+  const [pillStyle, setPillStyle] = React.useState<React.CSSProperties>({
+    opacity: 0,
+    width: 0,
+    height: 0,
+    transform: 'translateX(0px)',
+  })
+
+  /**
    * Handle service icon click to populate textarea with template
    */
   const handleServiceClick = (service: keyof typeof SERVICE_TEMPLATES) => {
@@ -224,6 +236,40 @@ export default function Hero() {
       }
     }
   }, [isUserHovering, visibleIconCount])
+
+  /**
+   * Compute the active icon index and update the pill position
+   */
+  const activeIndex = isUserHovering ? lastHoveredIndex : autoHoverIndex
+
+  const updatePillPosition = React.useCallback(() => {
+    if (activeIndex == null) {
+      setPillStyle((prev) => ({ ...prev, opacity: 0 }))
+      return
+    }
+
+    const button = iconRefs.current[activeIndex]
+    const container = iconContainerRef.current
+    if (!button || !container) return
+
+    const containerRect = container.getBoundingClientRect()
+    const buttonRect = button.getBoundingClientRect()
+    const offsetX = buttonRect.left - containerRect.left
+
+    setPillStyle({
+      width: buttonRect.width,
+      height: buttonRect.height,
+      transform: `translateX(${offsetX}px)`,
+      opacity: 1,
+    })
+  }, [activeIndex])
+
+  React.useEffect(() => {
+    updatePillPosition()
+
+    window.addEventListener('resize', updatePillPosition)
+    return () => window.removeEventListener('resize', updatePillPosition)
+  }, [updatePillPosition])
 
   /**
    * Handle mouse enter on icon container
@@ -377,21 +423,30 @@ export default function Hero() {
         Build and deploy AI agent workflows
       </p>
       <div
-        className='flex items-center justify-center gap-[2px] pt-[18px] sm:pt-[32px]'
+        ref={iconContainerRef}
+        className='relative flex items-center justify-center gap-[2px] pt-[18px] sm:pt-[32px]'
         onMouseEnter={handleIconContainerMouseEnter}
         onMouseLeave={handleIconContainerMouseLeave}
       >
+        {/* Sliding highlight pill */}
+        <div
+          className='pointer-events-none absolute top-[18px] left-0 rounded-xl border border-[#E5E5E5] shadow-[0_2px_4px_0_rgba(0,0,0,0.08)] transition-all duration-300 ease-in-out sm:top-[32px]'
+          style={pillStyle}
+          aria-hidden='true'
+        />
         {/* Service integration buttons */}
         {serviceIcons.slice(0, visibleIconCount).map((service, index) => {
           const Icon = service.icon
           return (
             <IconButton
               key={service.key}
+              ref={(el) => {
+                iconRefs.current[index] = el
+              }}
               aria-label={service.label}
               onClick={() => handleServiceClick(service.key as keyof typeof SERVICE_TEMPLATES)}
               onMouseEnter={() => setLastHoveredIndex(index)}
               style={service.style}
-              isAutoHovered={!isUserHovering && index === autoHoverIndex}
             >
               <Icon className='h-5 w-5 sm:h-6 sm:w-6' />
             </IconButton>
