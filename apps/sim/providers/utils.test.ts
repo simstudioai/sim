@@ -1401,6 +1401,7 @@ describe('prepareToolExecution', () => {
         workspaceId: 'ws-456',
         chatId: 'chat-789',
         userId: 'user-abc',
+        skipFixedUsageLog: true,
       })
     })
 

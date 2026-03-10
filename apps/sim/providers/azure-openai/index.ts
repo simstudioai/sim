@@ -35,6 +35,7 @@ import {
   calculateCost,
   prepareToolExecution,
   prepareToolsWithUsageControl,
+  sumToolCosts,
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
 
@@ -499,10 +500,12 @@ async function executeChatCompletionsRequest(
             usage.prompt_tokens,
             usage.completion_tokens
           )
+          const tc = sumToolCosts(toolResults)
           streamingResult.execution.output.cost = {
             input: accumulatedCost.input + streamCost.input,
             output: accumulatedCost.output + streamCost.output,
-            total: accumulatedCost.total + streamCost.total,
+            toolCost: tc || undefined,
+            total: accumulatedCost.total + streamCost.total + tc,
           }
 
           const streamEndTime = Date.now()
