@@ -112,7 +112,7 @@ const PROVIDERS: {
     placeholder: 'Enter your Linkup API key',
   },
   {
-    id: 'parallel',
+    id: 'parallel_ai',
     name: 'Parallel AI',
     icon: ParallelIcon,
     description: 'Web search, extraction, and deep research',

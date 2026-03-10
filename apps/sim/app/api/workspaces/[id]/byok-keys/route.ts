@@ -27,7 +27,7 @@ const VALID_PROVIDERS = [
   'jina',
   'google_cloud',
   'elevenlabs',
-  'parallel',
+  'parallel_ai',
   'brandfetch',
 ] as const
 

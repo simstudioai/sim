@@ -14,7 +14,7 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
   hosting: {
     envKeyPrefix: 'PARALLEL_API_KEY',
     apiKeyParam: 'apiKey',
-    byokProviderId: 'parallel',
+    byokProviderId: 'parallel_ai',
     pricing: {
       type: 'custom',
       getCost: (params, _output) => {

@@ -11,7 +11,7 @@ export const extractTool: ToolConfig<ParallelExtractParams, ToolResponse> = {
   hosting: {
     envKeyPrefix: 'PARALLEL_API_KEY',
     apiKeyParam: 'apiKey',
-    byokProviderId: 'parallel',
+    byokProviderId: 'parallel_ai',
     pricing: {
       type: 'custom',
       getCost: (_params, output) => {

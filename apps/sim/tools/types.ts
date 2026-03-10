@@ -16,7 +16,7 @@ export type BYOKProviderId =
   | 'google_cloud'
   | 'linkup'
   | 'brandfetch'
-  | 'parallel'
+  | 'parallel_ai'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 
