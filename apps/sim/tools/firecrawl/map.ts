@@ -66,27 +66,6 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
     },
   },
 
-  hosting: {
-    envKeyPrefix: 'FIRECRAWL_API_KEY',
-    apiKeyParam: 'apiKey',
-    byokProviderId: 'firecrawl',
-    pricing: {
-      type: 'custom',
-      getCost: (_params, output) => {
-        if (output.creditsUsed == null) {
-          throw new Error('Firecrawl map response missing creditsUsed field')
-        }
-        const creditsUsed = output.creditsUsed as number
-        const cost = creditsUsed * 0.001
-        return { cost, metadata: { creditsUsed } }
-      },
-    },
-    rateLimit: {
-      mode: 'per_request',
-      requestsPerMinute: 100,
-    },
-  },
-
   request: {
     method: 'POST',
     url: 'https://api.firecrawl.dev/v2/map',
@@ -121,7 +100,6 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
       output: {
         success: data.success,
         links: data.links || [],
-        creditsUsed: data.creditsUsed,
       },
     }
   },
@@ -138,6 +116,5 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
         type: 'string',
       },
     },
-    creditsUsed: { type: 'number', description: 'Number of Firecrawl credits consumed' },
   },
 }

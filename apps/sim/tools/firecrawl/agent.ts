@@ -55,27 +55,6 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
     },
   },
 
-  hosting: {
-    envKeyPrefix: 'FIRECRAWL_API_KEY',
-    apiKeyParam: 'apiKey',
-    byokProviderId: 'firecrawl',
-    pricing: {
-      type: 'custom',
-      getCost: (_params, output) => {
-        if (output.creditsUsed == null) {
-          throw new Error('Firecrawl agent response missing creditsUsed field')
-        }
-        const creditsUsed = output.creditsUsed as number
-        const cost = creditsUsed * 0.001
-        return { cost, metadata: { creditsUsed } }
-      },
-    },
-    rateLimit: {
-      mode: 'per_request',
-      requestsPerMinute: 100,
-    },
-  },
-
   request: {
     method: 'POST',
     url: 'https://api.firecrawl.dev/v2/agent',
@@ -156,7 +135,6 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
             success: true,
             status: 'completed',
             data: agentData.data || {},
-            creditsUsed: agentData.creditsUsed,
             expiresAt: agentData.expiresAt,
             sources: agentData.sources,
           }
@@ -209,10 +187,6 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
     data: {
       type: 'object',
       description: 'Extracted data from the agent',
-    },
-    creditsUsed: {
-      type: 'number',
-      description: 'Number of credits consumed by this agent task',
     },
     expiresAt: {
       type: 'string',

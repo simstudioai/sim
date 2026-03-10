@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
-import { PlatformEvents } from '@/lib/core/telemetry'
 import type { BrowserUseRunTaskParams, BrowserUseRunTaskResponse } from '@/tools/browser_use/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -254,62 +253,6 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
       required: false,
       visibility: 'user-only',
       description: 'Browser profile ID for persistent sessions (cookies, login state)',
-    },
-  },
-
-  hosting: {
-    envKeyPrefix: 'BROWSER_USE_API_KEY',
-    apiKeyParam: 'apiKey',
-    byokProviderId: 'browser_use',
-    pricing: {
-      type: 'custom',
-      getCost: (params, output) => {
-        if (!Array.isArray(output.steps)) {
-          throw new Error('Browser Use response missing steps array, cannot determine cost')
-        }
-        const INIT_COST = 0.01
-        const STEP_COSTS: Record<string, number> = {
-          'browser-use-llm': 0.002,
-          'browser-use-2.0': 0.006,
-          o3: 0.03,
-          'o4-mini': 0.03,
-          'gemini-3-pro-preview': 0.03,
-          'gemini-3-flash-preview': 0.015,
-          'gemini-flash-latest': 0.0075,
-          'gemini-flash-lite-latest': 0.005,
-          'gemini-2.5-flash': 0.0075,
-          'gemini-2.5-pro': 0.03,
-          'claude-sonnet-4-5-20250929': 0.05,
-          'claude-opus-4-5-20251101': 0.05,
-          'claude-3-7-sonnet-20250219': 0.05,
-          'gpt-4o': 0.006,
-          'gpt-4o-mini': 0.006,
-          'gpt-4.1': 0.006,
-          'gpt-4.1-mini': 0.006,
-          'llama-4-maverick-17b-128e-instruct': 0.006,
-        }
-        const DEFAULT_STEP_COST = 0.006
-        const model = (params.model as string) || 'browser-use-2.0'
-        const knownCost = STEP_COSTS[model]
-        if (!knownCost) {
-          logger.warn(
-            `Unknown Browser Use model "${model}", using default step cost $${DEFAULT_STEP_COST}`
-          )
-          PlatformEvents.hostedKeyUnknownModelCost({
-            toolId: 'browser_use_run_task',
-            modelName: model,
-            defaultCost: DEFAULT_STEP_COST,
-          })
-        }
-        const stepCost = knownCost ?? DEFAULT_STEP_COST
-        const stepCount = output.steps.length
-        const total = INIT_COST + stepCount * stepCost
-        return { cost: total, metadata: { model, stepCount, stepCost, initCost: INIT_COST } }
-      },
-    },
-    rateLimit: {
-      mode: 'per_request',
-      requestsPerMinute: 100,
     },
   },
 

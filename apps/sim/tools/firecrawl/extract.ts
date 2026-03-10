@@ -79,27 +79,6 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
     },
   },
 
-  hosting: {
-    envKeyPrefix: 'FIRECRAWL_API_KEY',
-    apiKeyParam: 'apiKey',
-    byokProviderId: 'firecrawl',
-    pricing: {
-      type: 'custom',
-      getCost: (_params, output) => {
-        if (output.creditsUsed == null) {
-          throw new Error('Firecrawl extract response missing creditsUsed field')
-        }
-        const creditsUsed = output.creditsUsed as number
-        const cost = creditsUsed * 0.001
-        return { cost, metadata: { creditsUsed } }
-      },
-    },
-    rateLimit: {
-      mode: 'per_request',
-      requestsPerMinute: 100,
-    },
-  },
-
   request: {
     method: 'POST',
     url: 'https://api.firecrawl.dev/v2/extract',
@@ -185,7 +164,6 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
             jobId,
             success: true,
             data: extractData.data || {},
-            creditsUsed: extractData.creditsUsed,
           }
           return result
         }
@@ -232,10 +210,6 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
     data: {
       type: 'object',
       description: 'Extracted structured data according to the schema or prompt',
-    },
-    creditsUsed: {
-      type: 'number',
-      description: 'Number of Firecrawl credits consumed by the extraction',
     },
   },
 }

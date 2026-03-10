@@ -69,27 +69,6 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
     },
   },
 
-  hosting: {
-    envKeyPrefix: 'FIRECRAWL_API_KEY',
-    apiKeyParam: 'apiKey',
-    byokProviderId: 'firecrawl',
-    pricing: {
-      type: 'custom',
-      getCost: (_params, output) => {
-        if (output.creditsUsed == null) {
-          throw new Error('Firecrawl crawl response missing creditsUsed field')
-        }
-        const creditsUsed = output.creditsUsed as number
-        const cost = creditsUsed * 0.001
-        return { cost, metadata: { creditsUsed } }
-      },
-    },
-    rateLimit: {
-      mode: 'per_request',
-      requestsPerMinute: 100,
-    },
-  },
-
   request: {
     url: 'https://api.firecrawl.dev/v2/crawl',
     method: 'POST',
@@ -138,7 +117,6 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
         jobId: data.jobId || data.id,
         pages: [],
         total: 0,
-        creditsUsed: 0,
       },
     }
   },
@@ -173,7 +151,6 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
           result.output = {
             pages: crawlData.data || [],
             total: crawlData.total || 0,
-            creditsUsed: crawlData.creditsUsed || 0,
           }
           return result
         }
@@ -222,9 +199,5 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       },
     },
     total: { type: 'number', description: 'Total number of pages found during crawl' },
-    creditsUsed: {
-      type: 'number',
-      description: 'Number of credits consumed by the crawl operation',
-    },
   },
 }

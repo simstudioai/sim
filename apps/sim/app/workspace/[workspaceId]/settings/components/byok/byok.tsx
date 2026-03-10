@@ -16,10 +16,7 @@ import {
 import {
   AnthropicIcon,
   BrandfetchIcon,
-  BrowserUseIcon,
-  ElevenLabsIcon,
   ExaAIIcon,
-  FirecrawlIcon,
   GeminiIcon,
   GoogleIcon,
   JinaAIIcon,
@@ -85,25 +82,11 @@ const PROVIDERS: {
     placeholder: 'Enter your Exa API key',
   },
   {
-    id: 'browser_use',
-    name: 'Browser Use',
-    icon: BrowserUseIcon,
-    description: 'Browser automation tasks',
-    placeholder: 'Enter your Browser Use API key',
-  },
-  {
     id: 'serper',
     name: 'Serper',
     icon: SerperIcon,
     description: 'Google search API',
     placeholder: 'Enter your Serper API key',
-  },
-  {
-    id: 'firecrawl',
-    name: 'Firecrawl',
-    icon: FirecrawlIcon,
-    description: 'Web scraping, crawling, and data extraction',
-    placeholder: 'Enter your Firecrawl API key',
   },
   {
     id: 'linkup',
@@ -132,13 +115,6 @@ const PROVIDERS: {
     icon: JinaAIIcon,
     description: 'Web reading and search',
     placeholder: 'jina_...',
-  },
-  {
-    id: 'elevenlabs',
-    name: 'ElevenLabs',
-    icon: ElevenLabsIcon,
-    description: 'Text-to-speech generation',
-    placeholder: 'Enter your ElevenLabs API key',
   },
   {
     id: 'google_cloud',
