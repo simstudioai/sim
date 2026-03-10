@@ -93,7 +93,7 @@ export function ChunkEditor({
           setEditedContent(serverContent)
         }
       } catch (err) {
-        if ((err as Error).name !== 'AbortError') return
+        if ((err as Error).name === 'AbortError') return
       }
     }
     document.addEventListener('visibilitychange', handleVisibility)

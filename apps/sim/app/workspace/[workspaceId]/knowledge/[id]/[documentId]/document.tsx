@@ -346,6 +346,7 @@ export function Document({
         setSaveStatus('saved')
       } catch {
         setSaveStatus('error')
+        setTimeout(() => setSaveStatus('idle'), 2000)
       }
     } else {
       await saveRef.current()
