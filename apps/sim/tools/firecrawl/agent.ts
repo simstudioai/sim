@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
-import { createFirecrawlHosting } from '@/tools/firecrawl/hosting'
 import type { AgentParams, AgentResponse } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -55,8 +54,6 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
       description: 'Firecrawl API key',
     },
   },
-
-  hosting: createFirecrawlHosting<AgentParams>(),
 
   request: {
     method: 'POST',

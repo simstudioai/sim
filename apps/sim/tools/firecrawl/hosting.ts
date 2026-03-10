@@ -15,11 +15,17 @@ export function createFirecrawlHosting<P extends { apiKey: string }>(): ToolHost
     pricing: {
       type: 'custom',
       getCost: (_params, output) => {
-        if (output.creditsUsed == null) {
+        const metadata =
+          typeof output.metadata === 'object' && output.metadata !== null
+            ? (output.metadata as Record<string, unknown>)
+            : null
+        const rawCreditsUsed = output.creditsUsed ?? metadata?.creditsUsed
+
+        if (rawCreditsUsed == null) {
           throw new Error('Firecrawl response missing creditsUsed field')
         }
 
-        const creditsUsed = Number(output.creditsUsed)
+        const creditsUsed = Number(rawCreditsUsed)
         if (Number.isNaN(creditsUsed)) {
           throw new Error('Firecrawl response returned a non-numeric creditsUsed field')
         }

@@ -249,6 +249,23 @@ Example 2 - Product Data:
       password: true,
       required: true,
       hideWhenHosted: true,
+      condition: {
+        field: 'operation',
+        value: 'agent',
+        not: true,
+      },
+    },
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      placeholder: 'Enter your Firecrawl API key',
+      password: true,
+      required: true,
+      condition: {
+        field: 'operation',
+        value: 'agent',
+      },
     },
   ],
   tools: {
