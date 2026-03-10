@@ -1,29 +1,134 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
-import {
-  ApiKeys,
-  BYOK,
-  Copilot,
-  CredentialSets,
-  Credentials,
-  CustomTools,
-  Debug,
-  General,
-  MCP,
-  Skills,
-  Subscription,
-  TeamManagement,
-  TemplateProfile,
-  WorkflowMcpServers,
-} from '@/app/workspace/[workspaceId]/settings/components'
+import { Skeleton } from '@/components/emcn'
+import { ApiKeysSkeleton } from '@/app/workspace/[workspaceId]/settings/components/api-keys/api-key-skeleton'
+import { BYOKSkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
+import { CopilotSkeleton } from '@/app/workspace/[workspaceId]/settings/components/copilot/copilot-skeleton'
+import { CredentialSetsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/credential-sets/credential-sets-skeleton'
+import { CredentialsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/credentials/credential-skeleton'
+import { CustomToolsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tool-skeleton'
+import { DebugSkeleton } from '@/app/workspace/[workspaceId]/settings/components/debug/debug-skeleton'
+import { GeneralSkeleton } from '@/app/workspace/[workspaceId]/settings/components/general/general-skeleton'
+import { McpSkeleton } from '@/app/workspace/[workspaceId]/settings/components/mcp/mcp-skeleton'
+import { SkillsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/skills/skill-skeleton'
+import { WorkflowMcpServersSkeleton } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/workflow-mcp-servers-skeleton'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
   allNavigationItems,
   isBillingEnabled,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
-import { AccessControl } from '@/ee/access-control/components/access-control'
-import { SSO } from '@/ee/sso/components/sso-settings'
+
+/**
+ * Generic skeleton fallback for sections without a dedicated skeleton.
+ */
+function SettingsSectionSkeleton() {
+  return (
+    <div className='flex flex-col gap-[16px]'>
+      <Skeleton className='h-[20px] w-[200px] rounded-[4px]' />
+      <Skeleton className='h-[40px] w-full rounded-[8px]' />
+      <Skeleton className='h-[40px] w-full rounded-[8px]' />
+      <Skeleton className='h-[40px] w-full rounded-[8px]' />
+    </div>
+  )
+}
+
+const General = dynamic(
+  () =>
+    import('@/app/workspace/[workspaceId]/settings/components/general/general').then(
+      (m) => m.General
+    ),
+  { loading: () => <GeneralSkeleton /> }
+)
+const Credentials = dynamic(
+  () =>
+    import('@/app/workspace/[workspaceId]/settings/components/credentials/credentials').then(
+      (m) => m.Credentials
+    ),
+  { loading: () => <CredentialsSkeleton /> }
+)
+const TemplateProfile = dynamic(
+  () =>
+    import(
+      '@/app/workspace/[workspaceId]/settings/components/template-profile/template-profile'
+    ).then((m) => m.TemplateProfile),
+  { loading: () => <SettingsSectionSkeleton /> }
+)
+const CredentialSets = dynamic(
+  () =>
+    import(
+      '@/app/workspace/[workspaceId]/settings/components/credential-sets/credential-sets'
+    ).then((m) => m.CredentialSets),
+  { loading: () => <CredentialSetsSkeleton /> }
+)
+const ApiKeys = dynamic(
+  () =>
+    import('@/app/workspace/[workspaceId]/settings/components/api-keys/api-keys').then(
+      (m) => m.ApiKeys
+    ),
+  { loading: () => <ApiKeysSkeleton /> }
+)
+const Subscription = dynamic(
+  () =>
+    import('@/app/workspace/[workspaceId]/settings/components/subscription/subscription').then(
+      (m) => m.Subscription
+    ),
+  { loading: () => <SettingsSectionSkeleton /> }
+)
+const TeamManagement = dynamic(
+  () =>
+    import(
+      '@/app/workspace/[workspaceId]/settings/components/team-management/team-management'
+    ).then((m) => m.TeamManagement),
+  { loading: () => <SettingsSectionSkeleton /> }
+)
+const BYOK = dynamic(
+  () => import('@/app/workspace/[workspaceId]/settings/components/byok/byok').then((m) => m.BYOK),
+  { loading: () => <BYOKSkeleton /> }
+)
+const Copilot = dynamic(
+  () =>
+    import('@/app/workspace/[workspaceId]/settings/components/copilot/copilot').then(
+      (m) => m.Copilot
+    ),
+  { loading: () => <CopilotSkeleton /> }
+)
+const MCP = dynamic(
+  () => import('@/app/workspace/[workspaceId]/settings/components/mcp/mcp').then((m) => m.MCP),
+  { loading: () => <McpSkeleton /> }
+)
+const CustomTools = dynamic(
+  () =>
+    import('@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tools').then(
+      (m) => m.CustomTools
+    ),
+  { loading: () => <CustomToolsSkeleton /> }
+)
+const Skills = dynamic(
+  () =>
+    import('@/app/workspace/[workspaceId]/settings/components/skills/skills').then((m) => m.Skills),
+  { loading: () => <SkillsSkeleton /> }
+)
+const WorkflowMcpServers = dynamic(
+  () =>
+    import(
+      '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/workflow-mcp-servers'
+    ).then((m) => m.WorkflowMcpServers),
+  { loading: () => <WorkflowMcpServersSkeleton /> }
+)
+const Debug = dynamic(
+  () =>
+    import('@/app/workspace/[workspaceId]/settings/components/debug/debug').then((m) => m.Debug),
+  { loading: () => <DebugSkeleton /> }
+)
+const AccessControl = dynamic(
+  () => import('@/ee/access-control/components/access-control').then((m) => m.AccessControl),
+  { loading: () => <SettingsSectionSkeleton /> }
+)
+const SSO = dynamic(() => import('@/ee/sso/components/sso-settings').then((m) => m.SSO), {
+  loading: () => <SettingsSectionSkeleton />,
+})
 
 interface SettingsPageProps {
   section: SettingsSection

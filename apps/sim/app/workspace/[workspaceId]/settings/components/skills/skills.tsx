@@ -5,27 +5,13 @@ import { createLogger } from '@sim/logger'
 import { Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
-import { Input, Skeleton } from '@/components/ui'
+import { Input } from '@/components/ui'
 import { SkillModal } from '@/app/workspace/[workspaceId]/settings/components/skills/components/skill-modal'
+import { SkillSkeleton } from '@/app/workspace/[workspaceId]/settings/components/skills/skill-skeleton'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useDeleteSkill, useSkills } from '@/hooks/queries/skills'
 
 const logger = createLogger('SkillsSettings')
-
-function SkillSkeleton() {
-  return (
-    <div className='flex items-center justify-between gap-[12px]'>
-      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-        <Skeleton className='h-[14px] w-[100px]' />
-        <Skeleton className='h-[13px] w-[200px]' />
-      </div>
-      <div className='flex flex-shrink-0 items-center gap-[8px]'>
-        <Skeleton className='h-[30px] w-[40px] rounded-[4px]' />
-        <Skeleton className='h-[30px] w-[54px] rounded-[4px]' />
-      </div>
-    </div>
-  )
-}
 
 export function Skills() {
   const params = useParams()

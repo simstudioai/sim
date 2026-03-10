@@ -14,8 +14,10 @@ import {
   ModalHeader,
   // Switch,
 } from '@/components/emcn'
-import { Input, Skeleton } from '@/components/ui'
+import { Input } from '@/components/ui'
 import { formatDate } from '@/lib/core/utils/formatting'
+// import { useMcpServers, useUpdateMcpServer } from '@/hooks/queries/mcp'
+import { CopilotKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/copilot/copilot-skeleton'
 import {
   type CopilotKey,
   useCopilotKeys,
@@ -23,27 +25,7 @@ import {
   useGenerateCopilotKey,
 } from '@/hooks/queries/copilot-keys'
 
-// import { useMcpServers, useUpdateMcpServer } from '@/hooks/queries/mcp'
-
 const logger = createLogger('CopilotSettings')
-
-/**
- * Skeleton component for loading state of copilot key items
- */
-function CopilotKeySkeleton() {
-  return (
-    <div className='flex items-center justify-between gap-[12px]'>
-      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-        <div className='flex items-center gap-[6px]'>
-          <Skeleton className='h-5 w-[80px]' />
-          <Skeleton className='h-5 w-[140px]' />
-        </div>
-        <Skeleton className='h-5 w-[100px]' />
-      </div>
-      <Skeleton className='h-[26px] w-[48px] rounded-[6px]' />
-    </div>
-  )
-}
 
 /**
  * Copilot Keys management component for handling API keys used with the Copilot feature.
