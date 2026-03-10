@@ -15,6 +15,7 @@ import {
 } from '@/components/emcn'
 import {
   AnthropicIcon,
+  BrandfetchIcon,
   BrowserUseIcon,
   ElevenLabsIcon,
   ExaAIIcon,
@@ -25,6 +26,7 @@ import {
   LinkupIcon,
   MistralIcon,
   OpenAIIcon,
+  ParallelIcon,
   PerplexityIcon,
   SerperIcon,
 } from '@/components/icons'
@@ -110,6 +112,13 @@ const PROVIDERS: {
     placeholder: 'Enter your Linkup API key',
   },
   {
+    id: 'parallel',
+    name: 'Parallel AI',
+    icon: ParallelIcon,
+    description: 'Web search, extraction, and deep research',
+    placeholder: 'Enter your Parallel AI API key',
+  },
+  {
     id: 'perplexity',
     name: 'Perplexity',
     icon: PerplexityIcon,
@@ -136,6 +145,13 @@ const PROVIDERS: {
     icon: GoogleIcon,
     description: 'Translate, Maps, PageSpeed, and Books APIs',
     placeholder: 'Enter your Google Cloud API key',
+  },
+  {
+    id: 'brandfetch',
+    name: 'Brandfetch',
+    icon: BrandfetchIcon,
+    description: 'Brand assets, logos, colors, and company info',
+    placeholder: 'Enter your Brandfetch API key',
   },
 ]
 

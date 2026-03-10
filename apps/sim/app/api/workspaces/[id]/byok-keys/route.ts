@@ -27,6 +27,8 @@ const VALID_PROVIDERS = [
   'jina',
   'google_cloud',
   'elevenlabs',
+  'parallel',
+  'brandfetch',
 ] as const
 
 const UpsertKeySchema = z.object({

@@ -11,6 +11,40 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
     'Conduct comprehensive deep research across the web using Parallel AI. Synthesizes information from multiple sources with citations. Can take up to 15 minutes to complete.',
   version: '1.0.0',
 
+  hosting: {
+    envKeyPrefix: 'PARALLEL_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'parallel',
+    pricing: {
+      type: 'custom',
+      getCost: (params, _output) => {
+        // Parallel Task API: cost varies by processor
+        // https://docs.parallel.ai/resources/pricing
+        const processorCosts: Record<string, number> = {
+          lite: 0.005,
+          base: 0.01,
+          core: 0.025,
+          core2x: 0.05,
+          pro: 0.1,
+          ultra: 0.3,
+          ultra2x: 0.6,
+          ultra4x: 1.2,
+          ultra8x: 2.4,
+        }
+        const processor = (params.processor as string) || 'base'
+        const cost = processorCosts[processor]
+        if (cost == null) {
+          throw new Error(`Unknown Parallel processor "${processor}", cannot determine cost`)
+        }
+        return { cost, metadata: { processor } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 10,
+    },
+  },
+
   params: {
     input: {
       type: 'string',
