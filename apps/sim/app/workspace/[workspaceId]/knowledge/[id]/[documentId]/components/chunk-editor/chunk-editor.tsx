@@ -5,6 +5,7 @@ import { Label, Switch } from '@/components/emcn'
 import type { ChunkData, DocumentData } from '@/lib/knowledge/types'
 import { getAccurateTokenCount, getTokenStrings } from '@/lib/tokenization/estimators'
 import { useCreateChunk, useUpdateChunk } from '@/hooks/queries/kb/knowledge'
+import { useAutosave } from '@/hooks/use-autosave'
 
 const TOKEN_BG_COLORS = [
   'rgba(239, 68, 68, 0.55)',
@@ -27,6 +28,7 @@ interface ChunkEditorProps {
   canEdit: boolean
   maxChunkSize?: number
   onDirtyChange: (isDirty: boolean) => void
+  onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef: React.MutableRefObject<(() => Promise<void>) | null>
   onCreated?: (chunkId: string) => void
 }
@@ -39,6 +41,7 @@ export function ChunkEditor({
   canEdit,
   maxChunkSize,
   onDirtyChange,
+  onSaveStatusChange,
   saveRef,
   onCreated,
 }: ChunkEditorProps) {
@@ -50,29 +53,63 @@ export function ChunkEditor({
   const chunkContent = chunk?.content ?? ''
 
   const [editedContent, setEditedContent] = useState(isCreateMode ? '' : chunkContent)
+  const [savedContent, setSavedContent] = useState(chunkContent)
   const [tokenizerOn, setTokenizerOn] = useState(false)
   const [hoveredTokenIndex, setHoveredTokenIndex] = useState<number | null>(null)
+  const prevChunkIdRef = useRef(chunk?.id)
+  const savedContentRef = useRef(chunkContent)
 
   const editedContentRef = useRef(editedContent)
   editedContentRef.current = editedContent
 
-  const isDirty = isCreateMode ? editedContent.trim().length > 0 : editedContent !== chunkContent
-
   useEffect(() => {
-    if (!isCreateMode) {
+    if (isCreateMode) return
+    if (chunk?.id !== prevChunkIdRef.current) {
+      prevChunkIdRef.current = chunk?.id
+      savedContentRef.current = chunkContent
+      setSavedContent(chunkContent)
       setEditedContent(chunkContent)
     }
   }, [isCreateMode, chunk?.id, chunkContent])
 
   useEffect(() => {
-    onDirtyChange(isDirty)
-  }, [isDirty, onDirtyChange])
+    if (isCreateMode || !chunk?.id) return
+    const controller = new AbortController()
+    const handleVisibility = async () => {
+      if (document.visibilityState !== 'visible') return
+      try {
+        const res = await fetch(
+          `/api/knowledge/${knowledgeBaseId}/documents/${documentData.id}/chunks/${chunk.id}`,
+          { signal: controller.signal }
+        )
+        if (!res.ok) return
+        const json = await res.json()
+        const serverContent: string = json.data?.content ?? ''
+        if (serverContent === savedContentRef.current) return
+        const isClean = editedContentRef.current === savedContentRef.current
+        savedContentRef.current = serverContent
+        setSavedContent(serverContent)
+        if (isClean) {
+          setEditedContent(serverContent)
+        }
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      controller.abort()
+    }
+  }, [isCreateMode, chunk?.id, knowledgeBaseId, documentData.id])
 
   useEffect(() => {
     if (isCreateMode && textareaRef.current) {
       textareaRef.current.focus()
     }
   }, [isCreateMode])
+
+  const isConnectorDocument = Boolean(documentData.connectorId)
 
   const handleSave = useCallback(async () => {
     const content = editedContentRef.current
@@ -89,26 +126,59 @@ export function ChunkEditor({
       })
       onCreated?.(created.id)
     } else {
-      if (!chunk || trimmed === chunk.content) return
+      if (!chunk?.id) return
       await updateChunk({
         knowledgeBaseId,
         documentId: documentData.id,
         chunkId: chunk.id,
         content: trimmed,
       })
+      savedContentRef.current = content
+      setSavedContent(content)
     }
-  }, [isCreateMode, chunk, knowledgeBaseId, documentData.id, updateChunk, createChunk, onCreated])
+  }, [
+    isCreateMode,
+    chunk?.id,
+    knowledgeBaseId,
+    documentData.id,
+    updateChunk,
+    createChunk,
+    onCreated,
+  ])
+
+  const {
+    saveStatus,
+    saveImmediately,
+    isDirty: autosaveDirty,
+  } = useAutosave({
+    content: editedContent,
+    savedContent,
+    onSave: handleSave,
+    enabled: canEdit && !isCreateMode && !isConnectorDocument,
+  })
+
+  const isDirty = isCreateMode ? editedContent.trim().length > 0 : autosaveDirty
+
+  useEffect(() => {
+    onDirtyChange(isDirty)
+  }, [isDirty, onDirtyChange])
+
+  useEffect(() => {
+    onSaveStatusChange?.(saveStatus)
+  }, [saveStatus, onSaveStatusChange])
+
+  const saveFunction = isCreateMode ? handleSave : saveImmediately
 
   useEffect(() => {
     if (saveRef) {
-      saveRef.current = handleSave
+      saveRef.current = saveFunction
     }
     return () => {
       if (saveRef) {
         saveRef.current = null
       }
     }
-  }, [saveRef, handleSave])
+  }, [saveRef, saveFunction])
 
   const tokenStrings = useMemo(() => {
     if (!tokenizerOn || !editedContent) return []
@@ -120,8 +190,6 @@ export function ChunkEditor({
     if (tokenizerOn) return tokenStrings.length
     return getAccurateTokenCount(editedContent)
   }, [editedContent, tokenizerOn, tokenStrings])
-
-  const isConnectorDocument = Boolean(documentData.connectorId)
 
   return (
     <div className='flex flex-1 flex-col overflow-hidden'>
