@@ -548,8 +548,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           } else {
             return {
               success: false,
-              message:
-                'Provide either "updates" array or "columnName" + "values" map',
+              message: 'Provide either "updates" array or "columnName" + "values" map',
             }
           }
 

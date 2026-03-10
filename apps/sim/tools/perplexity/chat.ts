@@ -109,7 +109,7 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
         const inputTokens = usage.prompt_tokens
         const outputTokens = usage.completion_tokens
 
-        let tokenCost =
+        const tokenCost =
           (inputTokens * pricing.inputPerM) / 1_000_000 +
           (outputTokens * pricing.outputPerM) / 1_000_000
         const requestFee = pricing.requestPer1K / 1000

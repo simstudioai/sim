@@ -1173,9 +1173,7 @@ export async function batchUpdateRows(
     }
   })
 
-  logger.info(
-    `[${requestId}] Batch updated ${mergedUpdates.length} rows in table ${data.tableId}`
-  )
+  logger.info(`[${requestId}] Batch updated ${mergedUpdates.length} rows in table ${data.tableId}`)
 
   return {
     affectedCount: mergedUpdates.length,
