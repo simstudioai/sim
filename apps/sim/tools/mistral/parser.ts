@@ -16,15 +16,21 @@ const MISTRAL_OCR_HOSTING = {
   byokProviderId: 'mistral' as const,
   pricing: {
     type: 'custom' as const,
-    getCost: (_params: Record<string, unknown>, output: Record<string, unknown>) => {
-      // Mistral OCR: $2 per 1,000 pages ($0.002/page) for real-time API
-      // Batch inference is $1/1K pages but we call the real-time endpoint
-      // https://mistral.ai/pricing#api
-      const usageInfo = output.usage_info as { pages_processed?: number } | undefined
-      if (usageInfo?.pages_processed == null) {
-        throw new Error('Mistral OCR response missing pages_processed in usage_info')
+    getCost: (_params: unknown, output: Record<string, unknown>) => {
+      // Mistral OCR 3 standard pricing: $2 per 1,000 pages ($0.002/page).
+      // Annotated pages are priced separately at $3 per 1,000 annotated pages, but this tool does
+      // not submit annotation requests. Source: https://docs.mistral.ai/models/ocr-3-25-12
+      const rawUsageInfo = output.usage_info as { pages_processed?: number } | undefined
+      const transformedUsageInfo = (
+        output.metadata as { usageInfo?: { pagesProcessed?: number } } | undefined
+      )?.usageInfo
+      const pagesProcessed = rawUsageInfo?.pages_processed ?? transformedUsageInfo?.pagesProcessed
+
+      if (pagesProcessed == null) {
+        throw new Error(
+          'Mistral OCR response missing pages_processed in usage_info or metadata.usageInfo.pagesProcessed'
+        )
       }
-      const pagesProcessed = usageInfo.pages_processed
       const cost = pagesProcessed * 0.002
       return { cost, metadata: { pagesProcessed } }
     },
@@ -40,6 +46,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
   name: 'Mistral PDF Parser',
   description: 'Parse PDF documents using Mistral OCR API',
   version: '1.0.0',
+  hosting: MISTRAL_OCR_HOSTING,
 
   params: {
     filePath: {
@@ -379,6 +386,7 @@ export const mistralParserV2Tool: ToolConfig<MistralParserInput, MistralParserV2
   name: 'Mistral PDF Parser',
   description: 'Parse PDF documents using Mistral OCR API',
   version: '2.0.0',
+  hosting: MISTRAL_OCR_HOSTING,
 
   params: mistralParserTool.params,
   request: mistralParserTool.request,
