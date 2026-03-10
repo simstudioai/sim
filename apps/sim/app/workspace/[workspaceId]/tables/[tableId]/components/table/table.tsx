@@ -896,15 +896,22 @@ export function Table({
           {
             onSuccess: (response) => {
               const createdRows = response?.data?.rows ?? []
+              const undoRows: Array<{
+                rowId: string
+                position: number
+                data: Record<string, unknown>
+              }> = []
               for (let i = 0; i < createdRows.length; i++) {
                 if (createdRows[i]?.id) {
-                  pushUndoRef.current({
-                    type: 'create-row',
+                  undoRows.push({
                     rowId: createdRows[i].id,
                     position: createBatchPositions[i],
                     data: createBatchRows[i],
                   })
                 }
+              }
+              if (undoRows.length > 0) {
+                pushUndoRef.current({ type: 'create-rows', rows: undoRows })
               }
             },
           }

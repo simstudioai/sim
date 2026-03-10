@@ -26,6 +26,10 @@ export type TableUndoAction =
       }>
     }
   | { type: 'create-row'; rowId: string; position: number; data?: Record<string, unknown> }
+  | {
+      type: 'create-rows'
+      rows: Array<{ rowId: string; position: number; data: Record<string, unknown> }>
+    }
   | { type: 'delete-rows'; rows: DeletedRowSnapshot[] }
   | { type: 'create-column'; columnName: string; position: number }
   | { type: 'rename-column'; oldName: string; newName: string }
