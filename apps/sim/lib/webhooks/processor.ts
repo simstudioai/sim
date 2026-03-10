@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { checkEnterprisePlan, checkTeamPlan } from '@/lib/billing/subscriptions/utils'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { isProd } from '@/lib/core/config/feature-flags'
+import { safeCompare } from '@/lib/core/security/encryption'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { convertSquareBracketsToTwiML } from '@/lib/webhooks/utils'
@@ -800,14 +801,14 @@ export async function verifyProviderAuth(
 
         if (secretHeaderName) {
           const headerValue = request.headers.get(secretHeaderName.toLowerCase())
-          if (headerValue === configToken) {
+          if (headerValue && safeCompare(headerValue, configToken)) {
             isTokenValid = true
           }
         } else {
           const authHeader = request.headers.get('authorization')
           if (authHeader?.toLowerCase().startsWith('bearer ')) {
             const token = authHeader.substring(7)
-            if (token === configToken) {
+            if (safeCompare(token, configToken)) {
               isTokenValid = true
             }
           }

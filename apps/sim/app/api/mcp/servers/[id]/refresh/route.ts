@@ -192,7 +192,8 @@ export const POST = withMcpAuth<{ id: string }>('read')(
         )
       } catch (error) {
         connectionStatus = 'error'
-        lastError = error instanceof Error ? error.message : 'Connection test failed'
+        lastError =
+          error instanceof Error ? error.message.split('\n')[0].slice(0, 200) : 'Connection failed'
         logger.warn(`[${requestId}] Failed to connect to server ${serverId}:`, error)
       }
 

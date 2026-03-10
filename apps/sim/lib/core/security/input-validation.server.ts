@@ -118,6 +118,70 @@ export async function validateUrlWithDNS(
   }
 }
 
+/**
+ * Validates a database hostname by resolving DNS and checking the resolved IP
+ * against private/reserved ranges to prevent SSRF via database connections.
+ *
+ * Unlike validateHostname (which enforces strict RFC hostname format), this
+ * function is permissive about hostname format to avoid breaking legitimate
+ * database hostnames (e.g. underscores in Docker/K8s service names). It only
+ * blocks localhost and private/reserved IPs.
+ *
+ * @param host - The database hostname to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns AsyncValidationResult with resolved IP
+ */
+export async function validateDatabaseHost(
+  host: string | null | undefined,
+  paramName = 'host'
+): Promise<AsyncValidationResult> {
+  if (!host) {
+    return { isValid: false, error: `${paramName} is required` }
+  }
+
+  const lowerHost = host.toLowerCase()
+
+  if (lowerHost === 'localhost') {
+    return { isValid: false, error: `${paramName} cannot be localhost` }
+  }
+
+  if (ipaddr.isValid(lowerHost) && isPrivateOrReservedIP(lowerHost)) {
+    return { isValid: false, error: `${paramName} cannot be a private IP address` }
+  }
+
+  try {
+    const { address } = await dns.lookup(host, { verbatim: true })
+
+    if (isPrivateOrReservedIP(address)) {
+      logger.warn('Database host resolves to blocked IP address', {
+        paramName,
+        hostname: host,
+        resolvedIP: address,
+      })
+      return {
+        isValid: false,
+        error: `${paramName} resolves to a blocked IP address`,
+      }
+    }
+
+    return {
+      isValid: true,
+      resolvedIP: address,
+      originalHostname: host,
+    }
+  } catch (error) {
+    logger.warn('DNS lookup failed for database host', {
+      paramName,
+      hostname: host,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} hostname could not be resolved`,
+    }
+  }
+}
+
 export interface SecureFetchOptions {
   method?: string
   headers?: Record<string, string>

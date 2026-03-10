@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { jwtVerify, SignJWT } from 'jose'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -81,7 +82,14 @@ export function verifyCronAuth(request: NextRequest, context?: string): NextResp
 
   const authHeader = request.headers.get('authorization')
   const expectedAuth = `Bearer ${env.CRON_SECRET}`
-  if (authHeader !== expectedAuth) {
+  const key = 'verifyCronAuth'
+  const isValid =
+    authHeader !== null &&
+    timingSafeEqual(
+      createHmac('sha256', key).update(authHeader).digest(),
+      createHmac('sha256', key).update(expectedAuth).digest()
+    )
+  if (!isValid) {
     const contextInfo = context ? ` for ${context}` : ''
     logger.warn(`Unauthorized CRON access attempt${contextInfo}`, {
       providedAuth: authHeader,

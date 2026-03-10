@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const sql = createPostgresConnection({
+    const sql = await createPostgresConnection({
       host: params.host,
       port: params.port,
       database: params.database,

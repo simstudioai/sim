@@ -7,6 +7,7 @@ import {
   ClientFactoryOptions,
 } from '@a2a-js/sdk/client'
 import { createLogger } from '@sim/logger'
+import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { A2A_TERMINAL_STATES } from './constants'
 
@@ -43,6 +44,11 @@ class ApiKeyInterceptor implements CallInterceptor {
  * Tries standard path first, falls back to root URL for compatibility.
  */
 export async function createA2AClient(agentUrl: string, apiKey?: string): Promise<Client> {
+  const validation = await validateUrlWithDNS(agentUrl, 'agentUrl')
+  if (!validation.isValid) {
+    throw new Error(validation.error || 'Agent URL validation failed')
+  }
+
   const factoryOptions = apiKey
     ? ClientFactoryOptions.createFrom(ClientFactoryOptions.default, {
         clientConfig: {
