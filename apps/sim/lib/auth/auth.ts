@@ -33,6 +33,7 @@ import {
 } from '@/lib/auth/cimd'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
+import { writeBillingInterval } from '@/lib/billing/core/subscription'
 import { handleNewUser } from '@/lib/billing/core/usage'
 import {
   ensureOrganizationForTeamSubscription,
@@ -2755,7 +2756,7 @@ export const auth = betterAuth({
                 stripeSubscription: Stripe.Subscription
                 subscription: any
               }) => {
-                const { priceId, planFromStripe, isTeamPlan, isAnnual } =
+                const { priceId, planFromStripe, isAnnual } =
                   resolvePlanFromStripeSubscription(stripeSubscription)
 
                 logger.info('[onSubscriptionComplete] Subscription created', {
@@ -2801,6 +2802,8 @@ export const auth = betterAuth({
                 await handleSubscriptionCreated(resolvedSubscription)
 
                 await syncSubscriptionUsageLimits(resolvedSubscription)
+
+                await writeBillingInterval(resolvedSubscription.id, isAnnual ? 'year' : 'month')
 
                 await sendPlanWelcomeEmail(resolvedSubscription)
               },
@@ -2922,6 +2925,8 @@ export const auth = betterAuth({
                     })
                   }
                 }
+
+                await writeBillingInterval(resolvedSubscription.id, isAnnual ? 'year' : 'month')
               },
               onSubscriptionDeleted: async ({
                 subscription,

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { member, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getUserUsageLimit } from '@/lib/billing/core/usage'
 import { isOrgPlan, isPro as isPlanPro, isTeam as isPlanTeam } from '@/lib/billing/plan-helpers'
@@ -25,6 +25,36 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 const logger = createLogger('SubscriptionCore')
 
 export { getHighestPrioritySubscription }
+
+export interface SubscriptionMetadata {
+  billingInterval?: 'month' | 'year'
+  [key: string]: unknown
+}
+
+/**
+ * Extract the billing interval from subscription metadata, defaulting to 'month'.
+ */
+export function getBillingInterval(
+  metadata: SubscriptionMetadata | null | undefined
+): 'month' | 'year' {
+  return metadata?.billingInterval === 'year' ? 'year' : 'month'
+}
+
+/**
+ * Merge a `billingInterval` value into a subscription's metadata JSON column.
+ */
+export async function writeBillingInterval(
+  subscriptionId: string,
+  interval: 'month' | 'year'
+): Promise<void> {
+  const patch = JSON.stringify({ billingInterval: interval })
+  await db
+    .update(subscription)
+    .set({
+      metadata: sql`(COALESCE(metadata::jsonb, '{}'::jsonb) || ${patch}::jsonb)::json`,
+    })
+    .where(eq(subscription.id, subscriptionId))
+}
 
 /**
  * Check if a referenceId (user ID or org ID) has an active subscription
