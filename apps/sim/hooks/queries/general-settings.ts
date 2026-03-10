@@ -29,6 +29,24 @@ export interface GeneralSettings {
 }
 
 /**
+ * Map raw API response data to GeneralSettings with defaults.
+ * Shared by both client fetch and server prefetch to prevent shape drift.
+ */
+export function mapGeneralSettingsResponse(data: Record<string, unknown>): GeneralSettings {
+  return {
+    autoConnect: (data.autoConnect as boolean) ?? true,
+    showTrainingControls: (data.showTrainingControls as boolean) ?? false,
+    superUserModeEnabled: (data.superUserModeEnabled as boolean) ?? true,
+    theme: (data.theme as GeneralSettings['theme']) || 'system',
+    telemetryEnabled: (data.telemetryEnabled as boolean) ?? true,
+    billingUsageNotificationsEnabled: (data.billingUsageNotificationsEnabled as boolean) ?? true,
+    errorNotificationsEnabled: (data.errorNotificationsEnabled as boolean) ?? true,
+    snapToGridSize: (data.snapToGridSize as number) ?? 0,
+    showActionBar: (data.showActionBar as boolean) ?? true,
+  }
+}
+
+/**
  * Fetch general settings from API
  */
 async function fetchGeneralSettings(signal?: AbortSignal): Promise<GeneralSettings> {
@@ -39,18 +57,7 @@ async function fetchGeneralSettings(signal?: AbortSignal): Promise<GeneralSettin
   }
 
   const { data } = await response.json()
-
-  return {
-    autoConnect: data.autoConnect ?? true,
-    showTrainingControls: data.showTrainingControls ?? false,
-    superUserModeEnabled: data.superUserModeEnabled ?? true,
-    theme: data.theme || 'system',
-    telemetryEnabled: data.telemetryEnabled ?? true,
-    billingUsageNotificationsEnabled: data.billingUsageNotificationsEnabled ?? true,
-    errorNotificationsEnabled: data.errorNotificationsEnabled ?? true,
-    snapToGridSize: data.snapToGridSize ?? 0,
-    showActionBar: data.showActionBar ?? true,
-  }
+  return mapGeneralSettingsResponse(data)
 }
 
 /**

@@ -25,6 +25,21 @@ export interface UserProfile {
 }
 
 /**
+ * Map raw API response user object to UserProfile.
+ * Shared by both client fetch and server prefetch to prevent shape drift.
+ */
+export function mapUserProfileResponse(user: Record<string, unknown>): UserProfile {
+  return {
+    id: user.id as string,
+    name: (user.name as string) || '',
+    email: (user.email as string) || '',
+    image: (user.image as string) || null,
+    createdAt: user.createdAt as string,
+    updatedAt: user.updatedAt as string,
+  }
+}
+
+/**
  * Fetch user profile from API
  */
 async function fetchUserProfile(signal?: AbortSignal): Promise<UserProfile> {
@@ -35,15 +50,7 @@ async function fetchUserProfile(signal?: AbortSignal): Promise<UserProfile> {
   }
 
   const { user } = await response.json()
-
-  return {
-    id: user.id,
-    name: user.name || '',
-    email: user.email || '',
-    image: user.image || null,
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt,
-  }
+  return mapUserProfileResponse(user)
 }
 
 /**

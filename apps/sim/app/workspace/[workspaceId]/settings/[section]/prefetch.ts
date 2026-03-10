@@ -1,8 +1,8 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { headers } from 'next/headers'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { generalSettingsKeys } from '@/hooks/queries/general-settings'
-import { userProfileKeys } from '@/hooks/queries/user-profile'
+import { generalSettingsKeys, mapGeneralSettingsResponse } from '@/hooks/queries/general-settings'
+import { mapUserProfileResponse, userProfileKeys } from '@/hooks/queries/user-profile'
 
 /**
  * Forwards incoming request cookies so server-side API fetches authenticate correctly.
@@ -29,17 +29,7 @@ export function prefetchGeneralSettings(queryClient: QueryClient) {
       })
       if (!response.ok) throw new Error(`Settings prefetch failed: ${response.status}`)
       const { data } = await response.json()
-      return {
-        autoConnect: data.autoConnect ?? true,
-        showTrainingControls: data.showTrainingControls ?? false,
-        superUserModeEnabled: data.superUserModeEnabled ?? true,
-        theme: data.theme || 'system',
-        telemetryEnabled: data.telemetryEnabled ?? true,
-        billingUsageNotificationsEnabled: data.billingUsageNotificationsEnabled ?? true,
-        errorNotificationsEnabled: data.errorNotificationsEnabled ?? true,
-        snapToGridSize: data.snapToGridSize ?? 0,
-        showActionBar: data.showActionBar ?? true,
-      }
+      return mapGeneralSettingsResponse(data)
     },
     staleTime: 60 * 60 * 1000,
   })
@@ -61,14 +51,7 @@ export function prefetchUserProfile(queryClient: QueryClient) {
       })
       if (!response.ok) throw new Error(`Profile prefetch failed: ${response.status}`)
       const { user } = await response.json()
-      return {
-        id: user.id,
-        name: user.name || '',
-        email: user.email || '',
-        image: user.image || null,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-      }
+      return mapUserProfileResponse(user)
     },
     staleTime: 5 * 60 * 1000,
   })
