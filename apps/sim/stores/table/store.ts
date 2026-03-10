@@ -105,6 +105,26 @@ export const useTableUndoStore = create<TableUndoState>()(
         }))
       },
 
+      patchUndoRowId: (tableId: string, oldRowId: string, newRowId: string) => {
+        const stacks = get().stacks[tableId]
+        if (!stacks) return
+
+        const patchedUndo = stacks.undo.map((entry) => {
+          const { action } = entry
+          if (action.type === 'create-row' && action.rowId === oldRowId) {
+            return { ...entry, action: { ...action, rowId: newRowId } }
+          }
+          return entry
+        })
+
+        set((state) => ({
+          stacks: {
+            ...state.stacks,
+            [tableId]: { ...stacks, undo: patchedUndo },
+          },
+        }))
+      },
+
       clear: (tableId: string) => {
         set((state) => {
           const { [tableId]: _, ...rest } = state.stacks

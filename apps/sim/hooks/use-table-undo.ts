@@ -40,6 +40,7 @@ export function useTableUndo({ workspaceId, tableId }: UseTableUndoProps) {
   const popUndo = useTableUndoStore((s) => s.popUndo)
   const popRedo = useTableUndoStore((s) => s.popRedo)
   const patchRedoRowId = useTableUndoStore((s) => s.patchRedoRowId)
+  const patchUndoRowId = useTableUndoStore((s) => s.patchUndoRowId)
   const clear = useTableUndoStore((s) => s.clear)
   const canUndo = useTableUndoStore((s) => (s.stacks[tableId]?.undo.length ?? 0) > 0)
   const canRedo = useTableUndoStore((s) => (s.stacks[tableId]?.redo.length ?? 0) > 0)
@@ -95,7 +96,17 @@ export function useTableUndo({ workspaceId, tableId }: UseTableUndoProps) {
             if (direction === 'undo') {
               deleteRowMutation.mutate(action.rowId)
             } else {
-              createRowMutation.mutate({ data: {}, position: action.position })
+              createRowMutation.mutate(
+                { data: {}, position: action.position },
+                {
+                  onSuccess: (response) => {
+                    const newRowId = extractCreatedRowId(response as Record<string, unknown>)
+                    if (newRowId && newRowId !== action.rowId) {
+                      patchUndoRowId(tableId, action.rowId, newRowId)
+                    }
+                  },
+                }
+              )
             }
             break
           }
@@ -185,7 +196,7 @@ export function useTableUndo({ workspaceId, tableId }: UseTableUndoProps) {
         logger.error('Failed to execute undo/redo action', { action, direction, err })
       }
     },
-    [tableId, patchRedoRowId]
+    [tableId, patchRedoRowId, patchUndoRowId]
   )
 
   const undo = useCallback(() => {

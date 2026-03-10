@@ -379,8 +379,8 @@ function Pagination({
                 type='button'
                 onClick={() => onPageChange(page)}
                 className={cn(
-                  'font-medium text-sm transition-colors hover:text-foreground',
-                  page === currentPage ? 'text-foreground' : 'text-muted-foreground'
+                  'font-medium text-sm transition-colors hover:text-[var(--text-body)]',
+                  page === currentPage ? 'text-[var(--text-body)]' : 'text-[var(--text-secondary)]'
                 )}
               >
                 {page}

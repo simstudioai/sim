@@ -48,5 +48,6 @@ export interface TableUndoState {
   popUndo: (tableId: string) => UndoEntry | null
   popRedo: (tableId: string) => UndoEntry | null
   patchRedoRowId: (tableId: string, oldRowId: string, newRowId: string) => void
+  patchUndoRowId: (tableId: string, oldRowId: string, newRowId: string) => void
   clear: (tableId: string) => void
 }
