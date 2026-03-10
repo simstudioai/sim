@@ -639,6 +639,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'im:history',
           'im:read',
           'users:read',
+          'users:read.email',
           'files:write',
           'files:read',
           'canvases:write',
