@@ -30,6 +30,7 @@ import {
   PerplexityIcon,
   SerperIcon,
 } from '@/components/icons'
+import { Input } from '@/components/ui'
 import { BYOKKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
 import {
   type BYOKKey,
@@ -238,7 +239,7 @@ export function BYOK() {
               className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
             />
-            <EmcnInput
+            <Input
               placeholder='Search providers...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
