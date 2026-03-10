@@ -223,6 +223,7 @@ export function useCreateTable(workspaceId: string) {
       name: string
       description?: string
       schema: { columns: Array<{ name: string; type: string; required?: boolean }> }
+      initialRowCount?: number
     }) => {
       const res = await fetch('/api/table', {
         method: 'POST',
@@ -364,7 +365,10 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
         (old) => {
           if (!old) return old
           if (old.rows.some((r) => r.id === row.id)) return old
-          const rows: TableRow[] = [...old.rows, row].sort((a, b) => a.position - b.position)
+          const shifted = old.rows.map((r) =>
+            r.position >= row.position ? { ...r, position: r.position + 1 } : r
+          )
+          const rows: TableRow[] = [...shifted, row].sort((a, b) => a.position - b.position)
           return { ...old, rows, totalCount: old.totalCount + 1 }
         }
       )

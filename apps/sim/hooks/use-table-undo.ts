@@ -92,17 +92,55 @@ export function useTableUndo({ workspaceId, tableId }: UseTableUndoProps) {
             break
           }
 
+          case 'update-cells': {
+            const updates = action.cells.map((cell) => ({
+              rowId: cell.rowId,
+              data: direction === 'undo' ? cell.oldData : cell.newData,
+            }))
+            batchUpdateRowsMutation.mutate({ updates })
+            break
+          }
+
           case 'create-row': {
             if (direction === 'undo') {
               deleteRowMutation.mutate(action.rowId)
             } else {
               createRowMutation.mutate(
-                { data: {}, position: action.position },
+                { data: action.data ?? {}, position: action.position },
                 {
                   onSuccess: (response) => {
                     const newRowId = extractCreatedRowId(response as Record<string, unknown>)
                     if (newRowId && newRowId !== action.rowId) {
                       patchUndoRowId(tableId, action.rowId, newRowId)
+                    }
+                  },
+                }
+              )
+            }
+            break
+          }
+
+          case 'create-rows': {
+            if (direction === 'undo') {
+              const rowIds = action.rows.map((r) => r.rowId)
+              if (rowIds.length === 1) {
+                deleteRowMutation.mutate(rowIds[0])
+              } else {
+                deleteRowsMutation.mutate(rowIds)
+              }
+            } else {
+              batchCreateRowsMutation.mutate(
+                {
+                  rows: action.rows.map((r) => r.data),
+                  positions: action.rows.map((r) => r.position),
+                },
+                {
+                  onSuccess: (response) => {
+                    const createdRows = response?.data?.rows ?? []
+                    for (let i = 0; i < createdRows.length && i < action.rows.length; i++) {
+                      if (createdRows[i].id && createdRows[i].id !== action.rows[i].rowId) {
+                        patchUndoRowId(tableId, action.rows[i].rowId, createdRows[i].id)
+                      }
                     }
                   },
                 }

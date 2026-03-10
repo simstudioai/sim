@@ -5,8 +5,10 @@ import {
   PopoverDivider,
   PopoverItem,
 } from '@/components/emcn'
-import { ArrowDown, ArrowUp, Pencil, Trash } from '@/components/emcn/icons'
+import { ArrowDown, ArrowUp, Duplicate, Pencil, Trash } from '@/components/emcn/icons'
 import type { ContextMenuState } from '../../types'
+
+const ICON = 'h-3.5 w-3.5'
 
 interface ContextMenuProps {
   contextMenu: ContextMenuState
@@ -15,6 +17,7 @@ interface ContextMenuProps {
   onDelete: () => void
   onInsertAbove: () => void
   onInsertBelow: () => void
+  onDuplicate: () => void
   selectedRowCount?: number
   disableEdit?: boolean
   disableInsert?: boolean
@@ -28,6 +31,7 @@ export function ContextMenu({
   onDelete,
   onInsertAbove,
   onInsertBelow,
+  onDuplicate,
   selectedRowCount = 1,
   disableEdit = false,
   disableInsert = false,
@@ -61,7 +65,7 @@ export function ContextMenu({
               onClose()
             }}
           >
-            <Pencil />
+            <Pencil className={ICON} />
             Edit cell
           </PopoverItem>
         )}
@@ -72,7 +76,7 @@ export function ContextMenu({
             onClose()
           }}
         >
-          <ArrowUp />
+          <ArrowUp className={ICON} />
           Insert row above
         </PopoverItem>
         <PopoverItem
@@ -82,8 +86,18 @@ export function ContextMenu({
             onClose()
           }}
         >
-          <ArrowDown />
+          <ArrowDown className={ICON} />
           Insert row below
+        </PopoverItem>
+        <PopoverItem
+          disabled={disableInsert || selectedRowCount > 1}
+          onClick={() => {
+            onDuplicate()
+            onClose()
+          }}
+        >
+          <Duplicate className={ICON} />
+          Duplicate row
         </PopoverItem>
         <PopoverDivider />
         <PopoverItem
@@ -92,9 +106,9 @@ export function ContextMenu({
             onDelete()
             onClose()
           }}
-          className='text-[var(--text-error)] focus:text-[var(--text-error)]'
+          className='!text-[var(--text-error)] [&_svg]:!text-[var(--text-error)]'
         >
-          <Trash />
+          <Trash className={ICON} />
           {deleteLabel}
         </PopoverItem>
       </PopoverContent>

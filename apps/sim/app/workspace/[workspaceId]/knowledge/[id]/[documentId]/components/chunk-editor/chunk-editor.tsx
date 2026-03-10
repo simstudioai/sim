@@ -125,9 +125,14 @@ export function ChunkEditor({
 
   return (
     <div className='flex flex-1 flex-col overflow-hidden'>
-      <div className='flex flex-1 overflow-hidden'>
+      <div
+        className='flex min-h-0 flex-1 cursor-text overflow-hidden'
+        onClick={(e) => {
+          if (e.target === e.currentTarget) textareaRef.current?.focus()
+        }}
+      >
         {tokenizerOn ? (
-          <div className='h-full w-full overflow-y-auto whitespace-pre-wrap break-words p-[24px] font-sans text-[14px] text-[var(--text-body)]'>
+          <div className='h-full w-full cursor-default overflow-y-auto whitespace-pre-wrap break-words p-[24px] font-sans text-[14px] text-[var(--text-body)]'>
             {tokenStrings.map((token, index) => (
               <span
                 key={index}
@@ -153,7 +158,7 @@ export function ChunkEditor({
                     ? 'This chunk is synced from a connector and cannot be edited'
                     : 'Read-only view'
             }
-            className='h-full w-full resize-none border-0 bg-transparent p-[24px] font-sans text-[14px] text-[var(--text-body)] outline-none placeholder:text-[var(--text-subtle)]'
+            className='min-h-0 flex-1 resize-none border-0 bg-transparent p-[24px] font-sans text-[14px] text-[var(--text-body)] outline-none placeholder:text-[var(--text-subtle)]'
             disabled={!canEdit}
             readOnly={!canEdit}
             spellCheck={false}
