@@ -204,6 +204,20 @@ export async function createTable(
     }
 
     await trx.insert(userTableDefinitions).values(newTable)
+
+    const initialRowCount = data.initialRowCount ?? 0
+    if (initialRowCount > 0) {
+      const rowsToInsert = Array.from({ length: initialRowCount }, (_, i) => ({
+        id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
+        tableId,
+        data: {},
+        position: i,
+        workspaceId: data.workspaceId,
+        createdAt: now,
+        updatedAt: now,
+      }))
+      await trx.insert(userTableRows).values(rowsToInsert)
+    }
   })
 
   logger.info(`[${requestId}] Created table ${tableId} in workspace ${data.workspaceId}`)
@@ -214,7 +228,7 @@ export async function createTable(
     description: newTable.description,
     schema: newTable.schema as TableSchema,
     metadata: null,
-    rowCount: 0,
+    rowCount: data.initialRowCount ?? 0,
     maxRows: newTable.maxRows,
     workspaceId: newTable.workspaceId,
     createdBy: newTable.createdBy,

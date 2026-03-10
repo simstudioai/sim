@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import {
   Button,
   Checkbox,
+  DatePicker,
   Input,
   Label,
   Modal,
@@ -292,10 +293,17 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
           className='font-mono text-[12px]'
           required={column.required}
         />
+      ) : column.type === 'date' ? (
+        <DatePicker
+          mode='single'
+          value={formatValueForInput(value, column.type) || undefined}
+          onChange={(dateStr) => onChange(dateStr)}
+          placeholder='Select date'
+        />
       ) : (
         <Input
           id={column.name}
-          type={column.type === 'number' ? 'number' : column.type === 'date' ? 'date' : 'text'}
+          type={column.type === 'number' ? 'number' : 'text'}
           value={formatValueForInput(value, column.type)}
           onChange={(e) => onChange(e.target.value)}
           placeholder={`Enter ${column.name}`}

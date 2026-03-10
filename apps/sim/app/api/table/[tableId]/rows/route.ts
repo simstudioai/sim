@@ -690,6 +690,10 @@ export async function PATCH(request: NextRequest, { params }: TableRowsRoutePara
     if (
       errorMessage.includes('Row size exceeds') ||
       errorMessage.includes('Schema validation') ||
+      errorMessage.includes('must be valid') ||
+      errorMessage.includes('must be string') ||
+      errorMessage.includes('must be number') ||
+      errorMessage.includes('must be boolean') ||
       errorMessage.includes('must be unique') ||
       errorMessage.includes('Unique constraint violation') ||
       errorMessage.includes('Cannot set unique column') ||
