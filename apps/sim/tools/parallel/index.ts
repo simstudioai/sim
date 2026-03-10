@@ -5,3 +5,5 @@ import { searchTool } from '@/tools/parallel/search'
 export const parallelSearchTool = searchTool
 export const parallelExtractTool = extractTool
 export const parallelDeepResearchTool = deepResearchTool
+
+export * from './types'
