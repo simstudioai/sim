@@ -216,6 +216,7 @@ async function deliverWebhook(
         headers,
         body,
         timeout: 30000,
+        allowHttp: true,
       },
       'webhookUrl'
     )

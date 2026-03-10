@@ -54,9 +54,10 @@ function isPrivateOrReservedIP(ip: string): boolean {
  */
 export async function validateUrlWithDNS(
   url: string | null | undefined,
-  paramName = 'url'
+  paramName = 'url',
+  options: { allowHttp?: boolean } = {}
 ): Promise<AsyncValidationResult> {
-  const basicValidation = validateExternalUrl(url, paramName)
+  const basicValidation = validateExternalUrl(url, paramName, options)
   if (!basicValidation.isValid) {
     return basicValidation
   }
@@ -404,10 +405,12 @@ export async function secureFetchWithPinnedIP(
  */
 export async function secureFetchWithValidation(
   url: string,
-  options: SecureFetchOptions = {},
+  options: SecureFetchOptions & { allowHttp?: boolean } = {},
   paramName = 'url'
 ): Promise<SecureFetchResponse> {
-  const validation = await validateUrlWithDNS(url, paramName)
+  const validation = await validateUrlWithDNS(url, paramName, {
+    allowHttp: options.allowHttp,
+  })
   if (!validation.isValid) {
     throw new Error(validation.error)
   }

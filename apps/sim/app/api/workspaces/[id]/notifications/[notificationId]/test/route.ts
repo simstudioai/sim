@@ -144,6 +144,7 @@ async function testWebhook(subscription: typeof workspaceNotificationSubscriptio
         headers,
         body,
         timeout: 10000,
+        allowHttp: true,
       },
       'webhookUrl'
     )

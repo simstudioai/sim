@@ -51,10 +51,10 @@ export const MCP_CLIENT_CONSTANTS = {
 /**
  * Create standardized MCP error response.
  * Always returns the defaultMessage to clients to prevent leaking internal error details.
- * The original error is logged server-side for debugging.
+ * Callers are responsible for logging the original error before calling this function.
  */
 export function createMcpErrorResponse(
-  error: unknown,
+  _error: unknown,
   defaultMessage: string,
   status = 500
 ): NextResponse {
