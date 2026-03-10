@@ -83,7 +83,11 @@ export function useGeneralSettings() {
 export function prefetchGeneralSettings(queryClient: QueryClient) {
   queryClient.prefetchQuery({
     queryKey: generalSettingsKeys.settings(),
-    queryFn: () => fetchGeneralSettings(),
+    queryFn: async () => {
+      const settings = await fetchGeneralSettings()
+      syncThemeToNextThemes(settings.theme)
+      return settings
+    },
     staleTime: 60 * 60 * 1000,
   })
 }
