@@ -1947,7 +1947,8 @@ function InlineDateEditor({
       if (doneRef.current) return
       doneRef.current = true
       clearTimeout(blurTimeoutRef.current)
-      const val = storageVal ?? displayToStorage(draft) ?? (draft || null)
+      const raw = storageVal ?? displayToStorage(draft)
+      const val = raw && !Number.isNaN(Date.parse(raw)) ? raw : null
       onSave(val, reason)
     },
     [draft, onSave]

@@ -87,10 +87,16 @@ export function storageToDisplay(stored: string): string {
 export function displayToStorage(display: string): string | null {
   const full = display.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
   if (full) {
+    const month = Number(full[1])
+    const day = Number(full[2])
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null
     return `${full[3]}-${full[1].padStart(2, '0')}-${full[2].padStart(2, '0')}`
   }
   const partial = display.match(/^(\d{1,2})\/(\d{1,2})$/)
   if (partial) {
+    const month = Number(partial[1])
+    const day = Number(partial[2])
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null
     return `${new Date().getFullYear()}-${partial[1].padStart(2, '0')}-${partial[2].padStart(2, '0')}`
   }
   return null
