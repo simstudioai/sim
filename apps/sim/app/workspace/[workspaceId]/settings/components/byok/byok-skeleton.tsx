@@ -1,4 +1,4 @@
-import { Skeleton } from '@/components/ui'
+import { Skeleton } from '@/components/emcn'
 
 /**
  * Skeleton component for BYOK provider key items.

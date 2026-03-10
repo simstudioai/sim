@@ -1,4 +1,4 @@
-import { Skeleton } from '@/components/ui'
+import { Skeleton } from '@/components/emcn'
 
 /**
  * Skeleton for the Debug section shown during dynamic import loading.

@@ -1,4 +1,4 @@
-import { Skeleton } from '@/components/ui'
+import { Skeleton } from '@/components/emcn'
 
 /**
  * Skeleton for the Credential Sets (Email Polling) section shown during dynamic import loading.
