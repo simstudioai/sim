@@ -554,6 +554,36 @@ export async function batchInsertRows(
       )
     }
 
+    const buildRow = (rowData: RowData, position: number) => ({
+      id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
+      tableId: data.tableId,
+      workspaceId: data.workspaceId,
+      data: rowData,
+      position,
+      createdAt: now,
+      updatedAt: now,
+      ...(data.userId ? { createdBy: data.userId } : {}),
+    })
+
+    if (data.positions && data.positions.length > 0) {
+      // Position-aware insert: shift existing rows to create gaps, then insert.
+      // Process positions ascending so each shift preserves gaps created by prior shifts.
+      // (Descending would cause lower shifts to push higher gaps out of position.)
+      const sortedPositions = [...data.positions].sort((a, b) => a - b)
+
+      for (const pos of sortedPositions) {
+        await trx
+          .update(userTableRows)
+          .set({ position: sql`position + 1` })
+          .where(and(eq(userTableRows.tableId, data.tableId), gte(userTableRows.position, pos)))
+      }
+
+      // Build rows in original input order so RETURNING preserves caller's index correlation
+      const rowsToInsert = data.rows.map((rowData, i) => buildRow(rowData, data.positions![i]))
+
+      return trx.insert(userTableRows).values(rowsToInsert).returning()
+    }
+
     const [{ maxPos }] = await trx
       .select({
         maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
@@ -561,16 +591,7 @@ export async function batchInsertRows(
       .from(userTableRows)
       .where(eq(userTableRows.tableId, data.tableId))
 
-    const rowsToInsert = data.rows.map((rowData, i) => ({
-      id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
-      tableId: data.tableId,
-      workspaceId: data.workspaceId,
-      data: rowData,
-      position: maxPos + 1 + i,
-      createdAt: now,
-      updatedAt: now,
-      ...(data.userId ? { createdBy: data.userId } : {}),
-    }))
+    const rowsToInsert = data.rows.map((rowData, i) => buildRow(rowData, maxPos + 1 + i))
 
     return trx.insert(userTableRows).values(rowsToInsert).returning()
   })
@@ -1387,7 +1408,7 @@ export async function renameColumn(
       .where(eq(userTableDefinitions.id, data.tableId))
 
     await trx.execute(
-      sql`UPDATE user_table_rows SET data = data - ${actualOldName} || jsonb_build_object(${data.newName}, data->${sql.raw(`'${actualOldName.replace(/'/g, "''")}'`)}) WHERE table_id = ${data.tableId} AND data ? ${actualOldName}`
+      sql`UPDATE user_table_rows SET data = data - ${actualOldName}::text || jsonb_build_object(${data.newName}::text, data->${sql.raw(`'${actualOldName.replace(/'/g, "''")}'`)}) WHERE table_id = ${data.tableId} AND data ? ${actualOldName}::text`
     )
   })
 
@@ -1448,7 +1469,7 @@ export async function deleteColumn(
       .where(eq(userTableDefinitions.id, data.tableId))
 
     await trx.execute(
-      sql`UPDATE user_table_rows SET data = data - ${actualName} WHERE table_id = ${data.tableId} AND data ? ${actualName}`
+      sql`UPDATE user_table_rows SET data = data - ${actualName}::text WHERE table_id = ${data.tableId} AND data ? ${actualName}::text`
     )
   })
 
@@ -1512,7 +1533,7 @@ export async function deleteColumns(
 
     for (const name of namesToDelete) {
       await trx.execute(
-        sql`UPDATE user_table_rows SET data = data - ${name} WHERE table_id = ${data.tableId} AND data ? ${name}`
+        sql`UPDATE user_table_rows SET data = data - ${name}::text WHERE table_id = ${data.tableId} AND data ? ${name}::text`
       )
     }
   })

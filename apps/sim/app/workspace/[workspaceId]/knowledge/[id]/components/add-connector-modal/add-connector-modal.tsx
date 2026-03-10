@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowLeft, Loader2, Plus } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -56,6 +56,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
   const [showOAuthModal, setShowOAuthModal] = useState(false)
 
   const [apiKeyValue, setApiKeyValue] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
 
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
@@ -85,6 +86,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
     setApiKeyValue('')
     setDisabledTagIds(new Set())
     setError(null)
+    setSearchTerm('')
     setStep('configure')
   }
 
@@ -131,6 +133,15 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
 
   const connectorEntries = Object.entries(CONNECTOR_REGISTRY)
 
+  const filteredEntries = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim()
+    if (!term) return connectorEntries
+    return connectorEntries.filter(
+      ([, config]) =>
+        config.name.toLowerCase().includes(term) || config.description.toLowerCase().includes(term)
+    )
+  }, [connectorEntries, searchTerm])
+
   return (
     <>
       <Modal open={open} onOpenChange={(val) => !isCreating && onOpenChange(val)}>
@@ -151,16 +162,36 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
           <ModalBody>
             {step === 'select-type' ? (
               <div className='flex flex-col gap-[8px]'>
-                {connectorEntries.map(([type, config]) => (
-                  <ConnectorTypeCard
-                    key={type}
-                    config={config}
-                    onClick={() => handleSelectType(type)}
+                <div className='flex items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
+                  <Search
+                    className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+                    strokeWidth={2}
                   />
-                ))}
-                {connectorEntries.length === 0 && (
-                  <p className='text-[13px] text-[var(--text-muted)]'>No connectors available.</p>
-                )}
+                  <Input
+                    placeholder='Search sources...'
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                  />
+                </div>
+                <div className='max-h-[400px] min-h-0 overflow-y-auto'>
+                  <div className='flex flex-col gap-[2px]'>
+                    {filteredEntries.map(([type, config]) => (
+                      <ConnectorTypeCard
+                        key={type}
+                        config={config}
+                        onClick={() => handleSelectType(type)}
+                      />
+                    ))}
+                    {filteredEntries.length === 0 && (
+                      <div className='py-[16px] text-center text-[14px] text-[var(--text-muted)]'>
+                        {connectorEntries.length === 0
+                          ? 'No connectors available.'
+                          : `No sources found matching "${searchTerm}"`}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             ) : connectorConfig ? (
               <div className='flex flex-col gap-[12px]'>
@@ -370,13 +401,15 @@ function ConnectorTypeCard({ config, onClick }: ConnectorTypeCardProps) {
   return (
     <button
       type='button'
-      className='flex items-center gap-[12px] rounded-[8px] border border-[var(--border-1)] px-[14px] py-[12px] text-left transition-colors hover:bg-[var(--surface-2)]'
+      className='flex items-center gap-[10px] rounded-[6px] px-[10px] py-[8px] text-left transition-colors hover:bg-[var(--surface-3)]'
       onClick={onClick}
     >
-      <Icon className='h-6 w-6 flex-shrink-0' />
-      <div className='flex flex-col gap-[2px]'>
-        <span className='font-medium text-[14px] text-[var(--text-primary)]'>{config.name}</span>
-        <span className='text-[12px] text-[var(--text-muted)]'>{config.description}</span>
+      <Icon className='h-[18px] w-[18px] flex-shrink-0' />
+      <div className='flex min-w-0 flex-col gap-[1px]'>
+        <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
+          {config.name}
+        </span>
+        <span className='truncate text-[11px] text-[var(--text-muted)]'>{config.description}</span>
       </div>
     </button>
   )

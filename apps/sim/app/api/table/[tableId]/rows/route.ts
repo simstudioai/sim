@@ -9,6 +9,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import type { Filter, RowData, Sort, TableSchema } from '@/lib/table'
 import {
   batchInsertRows,
+  batchUpdateRows,
   deleteRowsByFilter,
   deleteRowsByIds,
   insertRow,
@@ -30,13 +31,21 @@ const InsertRowSchema = z.object({
   position: z.number().int().min(0).optional(),
 })
 
-const BatchInsertRowsSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  rows: z
-    .array(z.record(z.unknown()), { required_error: 'Rows array is required' })
-    .min(1, 'At least one row is required')
-    .max(1000, 'Cannot insert more than 1000 rows per batch'),
-})
+const BatchInsertRowsSchema = z
+  .object({
+    workspaceId: z.string().min(1, 'Workspace ID is required'),
+    rows: z
+      .array(z.record(z.unknown()), { required_error: 'Rows array is required' })
+      .min(1, 'At least one row is required')
+      .max(1000, 'Cannot insert more than 1000 rows per batch'),
+    positions: z.array(z.number().int().min(0)).max(1000).optional(),
+  })
+  .refine((d) => !d.positions || d.positions.length === d.rows.length, {
+    message: 'positions array length must match rows array length',
+  })
+  .refine((d) => !d.positions || new Set(d.positions).size === d.positions.length, {
+    message: 'positions must not contain duplicates',
+  })
 
 const QueryRowsSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
@@ -95,6 +104,22 @@ const DeleteRowsByIdsSchema = z.object({
 
 const DeleteRowsRequestSchema = z.union([DeleteRowsByFilterSchema, DeleteRowsByIdsSchema])
 
+const BatchUpdateByIdsSchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  updates: z
+    .array(
+      z.object({
+        rowId: z.string().min(1),
+        data: z.record(z.unknown()),
+      })
+    )
+    .min(1, 'At least one update is required')
+    .max(1000, 'Cannot update more than 1000 rows per batch')
+    .refine((d) => new Set(d.map((u) => u.rowId)).size === d.length, {
+      message: 'updates must not contain duplicate rowId values',
+    }),
+})
+
 interface TableRowsRouteParams {
   params: Promise<{ tableId: string }>
 }
@@ -135,6 +160,7 @@ async function handleBatchInsert(
         rows: validated.rows as RowData[],
         workspaceId: validated.workspaceId,
         userId,
+        positions: validated.positions,
       },
       table,
       requestId
@@ -598,5 +624,81 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
 
     logger.error(`[${requestId}] Error deleting rows:`, error)
     return NextResponse.json({ error: 'Failed to delete rows' }, { status: 500 })
+  }
+}
+
+/** PATCH /api/table/[tableId]/rows - Batch updates rows by ID. */
+export async function PATCH(request: NextRequest, { params }: TableRowsRouteParams) {
+  const requestId = generateRequestId()
+  const { tableId } = await params
+
+  try {
+    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+    if (!authResult.success || !authResult.userId) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
+    }
+
+    const validated = BatchUpdateByIdsSchema.parse(body)
+
+    const accessResult = await checkAccess(tableId, authResult.userId, 'write')
+    if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
+
+    const { table } = accessResult
+
+    if (validated.workspaceId !== table.workspaceId) {
+      logger.warn(
+        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
+      )
+      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
+    }
+
+    const result = await batchUpdateRows(
+      {
+        tableId,
+        updates: validated.updates as Array<{ rowId: string; data: RowData }>,
+        workspaceId: validated.workspaceId,
+      },
+      table,
+      requestId
+    )
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        message: 'Rows updated successfully',
+        updatedCount: result.affectedCount,
+        updatedRowIds: result.affectedRowIds,
+      },
+    })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Validation error', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    const errorMessage = error instanceof Error ? error.message : String(error)
+
+    if (
+      errorMessage.includes('Row size exceeds') ||
+      errorMessage.includes('Schema validation') ||
+      errorMessage.includes('must be unique') ||
+      errorMessage.includes('Unique constraint violation') ||
+      errorMessage.includes('Cannot set unique column') ||
+      errorMessage.includes('Rows not found')
+    ) {
+      return NextResponse.json({ error: errorMessage }, { status: 400 })
+    }
+
+    logger.error(`[${requestId}] Error batch updating rows:`, error)
+    return NextResponse.json({ error: 'Failed to update rows' }, { status: 500 })
   }
 }

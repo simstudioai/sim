@@ -15,7 +15,11 @@ interface TableContextMenuProps {
   onClose: () => void
   onCopyId?: () => void
   onDelete?: () => void
+  onViewSchema?: () => void
+  onRename?: () => void
   disableDelete?: boolean
+  disableRename?: boolean
+  menuRef?: React.RefObject<HTMLDivElement | null>
 }
 
 export function TableContextMenu({
@@ -24,7 +28,10 @@ export function TableContextMenu({
   onClose,
   onCopyId,
   onDelete,
+  onViewSchema,
+  onRename,
   disableDelete = false,
+  disableRename = false,
 }: TableContextMenuProps) {
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -43,6 +50,13 @@ export function TableContextMenu({
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent align='start' side='bottom' sideOffset={4}>
+        {onViewSchema && <DropdownMenuItem onSelect={onViewSchema}>View Schema</DropdownMenuItem>}
+        {onRename && (
+          <DropdownMenuItem disabled={disableRename} onSelect={onRename}>
+            Rename
+          </DropdownMenuItem>
+        )}
+        {(onViewSchema || onRename) && (onCopyId || onDelete) && <DropdownMenuSeparator />}
         {onCopyId && (
           <DropdownMenuItem onSelect={onCopyId}>
             <Copy />

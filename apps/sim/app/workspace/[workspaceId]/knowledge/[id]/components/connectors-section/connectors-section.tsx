@@ -13,7 +13,6 @@ import {
   RefreshCw,
   Settings,
   Trash,
-  Unplug,
   XCircle,
 } from 'lucide-react'
 import {
@@ -54,7 +53,6 @@ interface ConnectorsSectionProps {
   connectors: ConnectorData[]
   isLoading: boolean
   canEdit: boolean
-  onAddConnector: () => void
 }
 
 /** 5-minute cooldown after a manual sync trigger */
@@ -73,7 +71,6 @@ export function ConnectorsSection({
   connectors,
   isLoading,
   canEdit,
-  onAddConnector,
 }: ConnectorsSectionProps) {
   const { mutate: triggerSync, isPending: isSyncing } = useTriggerSync()
   const { mutate: updateConnector, isPending: isUpdating } = useUpdateConnector()
@@ -133,19 +130,7 @@ export function ConnectorsSection({
 
   return (
     <div className='mt-[16px]'>
-      <div className='flex items-center justify-between'>
-        <h2 className='font-medium text-[14px] text-[var(--text-secondary)]'>Connected Sources</h2>
-        {canEdit && (
-          <Button
-            variant='default'
-            className='h-[28px] rounded-[6px] text-[12px]'
-            onClick={onAddConnector}
-          >
-            <Unplug className='mr-1 h-3.5 w-3.5' />
-            Connect Source
-          </Button>
-        )}
-      </div>
+      <h2 className='font-medium text-[14px] text-[var(--text-secondary)]'>Connected Sources</h2>
 
       {error && (
         <p className='mt-[8px] text-[12px] text-[var(--text-error)] leading-tight'>{error}</p>

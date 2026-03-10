@@ -62,10 +62,17 @@ interface ResourceOptionsBarProps {
   sort?: SortConfig
   filter?: ReactNode
   filterTags?: FilterTag[]
+  extras?: ReactNode
 }
 
-export function ResourceOptionsBar({ search, sort, filter, filterTags }: ResourceOptionsBarProps) {
-  const hasContent = search || sort || filter || (filterTags && filterTags.length > 0)
+export function ResourceOptionsBar({
+  search,
+  sort,
+  filter,
+  filterTags,
+  extras,
+}: ResourceOptionsBarProps) {
+  const hasContent = search || sort || filter || extras || (filterTags && filterTags.length > 0)
   if (!hasContent) return null
 
   return (
@@ -127,6 +134,7 @@ export function ResourceOptionsBar({ search, sort, filter, filterTags }: Resourc
           </div>
         )}
         <div className='flex items-center gap-[6px]'>
+          {extras}
           {filterTags?.map((tag) => (
             <Button
               key={tag.label}

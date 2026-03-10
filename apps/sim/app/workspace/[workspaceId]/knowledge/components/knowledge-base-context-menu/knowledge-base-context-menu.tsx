@@ -98,6 +98,11 @@ export function KnowledgeBaseContextMenu({
   disableEdit = false,
   disableDelete = false,
 }: KnowledgeBaseContextMenuProps) {
+  const hasNavigationSection = showOpenInNewTab && !!onOpenInNewTab
+  const hasInfoSection = (showViewTags && !!onViewTags) || !!onCopyId
+  const hasEditSection = showEdit && !!onEdit
+  const hasDestructiveSection = showDelete && !!onDelete
+
   return (
     <Popover
       open={isOpen}
@@ -116,17 +121,19 @@ export function KnowledgeBaseContextMenu({
       />
       <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
         {/* Navigation */}
-        {showOpenInNewTab && onOpenInNewTab && (
+        {hasNavigationSection && (
           <PopoverItem
             onClick={() => {
-              onOpenInNewTab()
+              onOpenInNewTab!()
               onClose()
             }}
           >
             Open in new tab
           </PopoverItem>
         )}
-        {showOpenInNewTab && onOpenInNewTab && <PopoverDivider />}
+        {hasNavigationSection && (hasInfoSection || hasEditSection || hasDestructiveSection) && (
+          <PopoverDivider />
+        )}
 
         {/* View and copy actions */}
         {showViewTags && onViewTags && (
@@ -149,7 +156,7 @@ export function KnowledgeBaseContextMenu({
             Copy ID
           </PopoverItem>
         )}
-        {((showViewTags && onViewTags) || onCopyId) && <PopoverDivider />}
+        {hasInfoSection && (hasEditSection || hasDestructiveSection) && <PopoverDivider />}
 
         {/* Edit action */}
         {showEdit && onEdit && (
@@ -165,12 +172,7 @@ export function KnowledgeBaseContextMenu({
         )}
 
         {/* Destructive action */}
-        {showDelete &&
-          onDelete &&
-          ((showOpenInNewTab && onOpenInNewTab) ||
-            (showViewTags && onViewTags) ||
-            onCopyId ||
-            (showEdit && onEdit)) && <PopoverDivider />}
+        {hasEditSection && hasDestructiveSection && <PopoverDivider />}
         {showDelete && onDelete && (
           <PopoverItem
             disabled={disableDelete}

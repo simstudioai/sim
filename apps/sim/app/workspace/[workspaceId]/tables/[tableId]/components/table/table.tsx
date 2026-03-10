@@ -42,6 +42,7 @@ import type {
   ColumnOption,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options-bar'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   useAddTableColumn,
   useCreateTableRow,
@@ -53,6 +54,8 @@ import {
   useUpdateTableRow,
 } from '@/hooks/queries/tables'
 import { useInlineRename } from '@/hooks/use-inline-rename'
+import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
+import type { DeletedRowSnapshot } from '@/stores/table/types'
 import { useContextMenu, useTableData } from '../../hooks'
 import type { EditingCell, QueryOptions, SaveReason } from '../../types'
 import { cleanCellValue, formatValueForInput } from '../../utils'
@@ -166,7 +169,7 @@ export function Table({
     sort: null,
   })
   const [editingRow, setEditingRow] = useState<TableRowType | null>(null)
-  const [deletingRows, setDeletingRows] = useState<string[]>([])
+  const [deletingRows, setDeletingRows] = useState<DeletedRowSnapshot[]>([])
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null)
   const [initialCharacter, setInitialCharacter] = useState<string | null>(null)
   const [selectionAnchor, setSelectionAnchor] = useState<CellCoord | null>(null)
@@ -196,6 +199,7 @@ export function Table({
     queryOptions,
   })
 
+  const userPermissions = useUserPermissionsContext()
   const {
     contextMenu,
     handleRowContextMenu: baseHandleRowContextMenu,
@@ -209,6 +213,14 @@ export function Table({
   const updateColumnMutation = useUpdateColumn({ workspaceId, tableId })
   const deleteColumnMutation = useDeleteColumn({ workspaceId, tableId })
   const updateMetadataMutation = useUpdateTableMetadata({ workspaceId, tableId })
+
+  const { pushUndo, undo, redo } = useTableUndo({ workspaceId, tableId })
+  const undoRef = useRef(undo)
+  undoRef.current = undo
+  const redoRef = useRef(redo)
+  redoRef.current = redo
+  const pushUndoRef = useRef(pushUndo)
+  pushUndoRef.current = pushUndo
 
   const columns = useMemo(
     () => tableData?.schema?.columns || EMPTY_COLUMNS,
@@ -292,11 +304,26 @@ export function Table({
   const renameTableMutation = useRenameTable(workspaceId)
 
   const tableHeaderRename = useInlineRename({
-    onSave: (_id, name) => renameTableMutation.mutate({ tableId, name }),
+    onSave: (_id, name) => {
+      if (tableData) {
+        pushUndoRef.current({
+          type: 'rename-table',
+          tableId,
+          previousName: tableData.name,
+          newName: name,
+        })
+      }
+      renameTableMutation.mutate({ tableId, name })
+    },
   })
 
   const columnRename = useInlineRename({
     onSave: (columnName, newName) => {
+      pushUndoRef.current({ type: 'rename-column', oldName: columnName, newName })
+      setColumnWidths((prev) => {
+        if (!(columnName in prev)) return prev
+        return { ...prev, [newName]: prev[columnName] }
+      })
       updateColumnMutation.mutate({ columnName, updates: { name: newName } })
     },
   })
@@ -315,14 +342,30 @@ export function Table({
     }
   }, [deleteTableMutation, tableId, router, workspaceId])
 
+  const toggleBooleanCell = useCallback(
+    (rowId: string, columnName: string, currentValue: unknown) => {
+      const newValue = !currentValue
+      pushUndoRef.current({
+        type: 'update-cell',
+        rowId,
+        columnName,
+        previousValue: currentValue ?? null,
+        newValue,
+      })
+      mutateRef.current({ rowId, data: { [columnName]: newValue } })
+    },
+    []
+  )
+
   const handleContextMenuEditCell = useCallback(() => {
     if (contextMenu.row && contextMenu.columnName) {
       const column = columnsRef.current.find((c) => c.name === contextMenu.columnName)
       if (column?.type === 'boolean') {
-        mutateRef.current({
-          rowId: contextMenu.row.id,
-          data: { [contextMenu.columnName]: !contextMenu.row.data[contextMenu.columnName] },
-        })
+        toggleBooleanCell(
+          contextMenu.row.id,
+          contextMenu.columnName,
+          contextMenu.row.data[contextMenu.columnName]
+        )
       } else if (column) {
         setEditingCell({ rowId: contextMenu.row.id, columnName: contextMenu.columnName })
         setInitialCharacter(null)
@@ -345,52 +388,51 @@ export function Table({
 
     if (isInSelection && sel) {
       const pMap = positionMapRef.current
-      const rowIds: string[] = []
+      const snapshots: DeletedRowSnapshot[] = []
       for (let r = sel.startRow; r <= sel.endRow; r++) {
         const row = pMap.get(r)
-        if (row) rowIds.push(row.id)
+        if (row) {
+          snapshots.push({ rowId: row.id, data: { ...row.data }, position: row.position })
+        }
       }
-      if (rowIds.length > 0) {
-        setDeletingRows(rowIds)
+      if (snapshots.length > 0) {
+        setDeletingRows(snapshots)
       }
     } else {
-      setDeletingRows([contextMenu.row.id])
+      setDeletingRows([
+        {
+          rowId: contextMenu.row.id,
+          data: { ...contextMenu.row.data },
+          position: contextMenu.row.position,
+        },
+      ])
     }
 
     closeContextMenu()
   }, [contextMenu.row, closeContextMenu])
 
-  const handleInsertRowAbove = useCallback(() => {
-    if (!contextMenu.row) return
-    createRef.current({ data: {}, position: contextMenu.row.position })
-    closeContextMenu()
-  }, [contextMenu.row, closeContextMenu])
-
-  const handleInsertRowBelow = useCallback(() => {
-    if (!contextMenu.row) return
-    createRef.current({ data: {}, position: contextMenu.row.position + 1 })
-    closeContextMenu()
-  }, [contextMenu.row, closeContextMenu])
-
-  const handleAddData = useCallback(() => {
-    if (contextMenu.rowIndex === null || !contextMenu.columnName) {
+  const handleInsertRow = useCallback(
+    (offset: 0 | 1) => {
+      if (!contextMenu.row) return
+      const position = contextMenu.row.position + offset
+      createRef.current(
+        { data: {}, position },
+        {
+          onSuccess: (response: Record<string, unknown>) => {
+            const newRowId = extractCreatedRowId(response)
+            if (newRowId) {
+              pushUndoRef.current({ type: 'create-row', rowId: newRowId, position })
+            }
+          },
+        }
+      )
       closeContextMenu()
-      return
-    }
-    const column = columnsRef.current.find((c) => c.name === contextMenu.columnName)
-    if (!column || column.type === 'boolean') {
-      closeContextMenu()
-      return
-    }
-    setSelectionAnchor({
-      rowIndex: contextMenu.rowIndex,
-      colIndex: columnsRef.current.findIndex((c) => c.name === contextMenu.columnName),
-    })
-    setSelectionFocus(null)
-    setEditingEmptyCell({ rowIndex: contextMenu.rowIndex, columnName: contextMenu.columnName })
-    setInitialCharacter(null)
-    closeContextMenu()
-  }, [contextMenu.rowIndex, contextMenu.columnName, closeContextMenu])
+    },
+    [contextMenu.row, closeContextMenu]
+  )
+
+  const handleInsertRowAbove = useCallback(() => handleInsertRow(0), [handleInsertRow])
+  const handleInsertRowBelow = useCallback(() => handleInsertRow(1), [handleInsertRow])
 
   const resolveColumnFromEvent = useCallback((e: React.MouseEvent) => {
     const td = (e.target as HTMLElement).closest('td[data-col]') as HTMLElement | null
@@ -531,7 +573,7 @@ export function Table({
     if (column?.type === 'boolean') {
       const row = rowsRef.current.find((r) => r.id === rowId)
       if (row) {
-        mutateRef.current({ rowId, data: { [columnName]: !row.data[columnName] } })
+        toggleBooleanCell(rowId, columnName, row.data[columnName])
       }
       return
     }
@@ -561,6 +603,9 @@ export function Table({
   const updateMetadataRef = useRef(updateMetadataMutation.mutate)
   updateMetadataRef.current = updateMetadataMutation.mutate
 
+  const toggleBooleanCellRef = useRef(toggleBooleanCell)
+  toggleBooleanCellRef.current = toggleBooleanCell
+
   const editingCellRef = useRef(editingCell)
   editingCellRef.current = editingCell
 
@@ -574,6 +619,16 @@ export function Table({
     const handleKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) {
+          redoRef.current()
+        } else {
+          undoRef.current()
+        }
+        return
+      }
 
       const anchor = selectionAnchorRef.current
       if (!anchor || editingCellRef.current || editingEmptyCellRef.current) return
@@ -603,7 +658,7 @@ export function Table({
         }
 
         if (col.type === 'boolean') {
-          mutateRef.current({ rowId: row.id, data: { [col.name]: !row.data[col.name] } })
+          toggleBooleanCellRef.current(row.id, col.name, row.data[col.name])
           return
         }
         setEditingCell({ rowId: row.id, columnName: col.name })
@@ -664,14 +719,24 @@ export function Table({
         if (!sel) return
 
         const pMap = positionMapRef.current
+        const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
         for (let r = sel.startRow; r <= sel.endRow; r++) {
           const row = pMap.get(r)
           if (!row) continue
           const updates: Record<string, unknown> = {}
+          const previousData: Record<string, unknown> = {}
           for (let c = sel.startCol; c <= sel.endCol; c++) {
-            if (c < cols.length) updates[cols[c].name] = null
+            if (c < cols.length) {
+              const colName = cols[c].name
+              previousData[colName] = row.data[colName] ?? null
+              updates[colName] = null
+            }
           }
+          undoCells.push({ rowId: row.id, data: previousData })
           mutateRef.current({ rowId: row.id, data: updates })
+        }
+        if (undoCells.length > 0) {
+          pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
         }
         return
       }
@@ -810,6 +875,13 @@ export function Table({
 
       const oldValue = row.data[columnName]
       if (!(oldValue === value) && !(oldValue === null && value === null)) {
+        pushUndoRef.current({
+          type: 'update-cell',
+          rowId,
+          columnName,
+          previousValue: oldValue ?? null,
+          newValue: value,
+        })
         mutateRef.current({ rowId, data: { [columnName]: value } })
       }
 
@@ -916,10 +988,28 @@ export function Table({
   }, [])
 
   const handleAddColumn = useCallback(() => {
-    addColumnMutation.mutate({ name: generateColumnName(), type: 'string' })
+    const name = generateColumnName()
+    const position = columnsRef.current.length
+    addColumnMutation.mutate(
+      { name, type: 'string' },
+      {
+        onSuccess: () => {
+          pushUndoRef.current({ type: 'create-column', columnName: name, position })
+        },
+      }
+    )
   }, [generateColumnName])
 
   const handleChangeType = useCallback((columnName: string, newType: string) => {
+    const column = columnsRef.current.find((c) => c.name === columnName)
+    if (column) {
+      pushUndoRef.current({
+        type: 'update-column-type',
+        columnName,
+        previousType: column.type,
+        newType,
+      })
+    }
     updateColumnMutation.mutate({ columnName, updates: { type: newType } })
   }, [])
 
@@ -927,7 +1017,15 @@ export function Table({
     (columnName: string) => {
       const index = columnsRef.current.findIndex((c) => c.name === columnName)
       if (index === -1) return
-      addColumnMutation.mutate({ name: generateColumnName(), type: 'string', position: index })
+      const name = generateColumnName()
+      addColumnMutation.mutate(
+        { name, type: 'string', position: index },
+        {
+          onSuccess: () => {
+            pushUndoRef.current({ type: 'create-column', columnName: name, position: index })
+          },
+        }
+      )
     },
     [generateColumnName]
   )
@@ -936,7 +1034,16 @@ export function Table({
     (columnName: string) => {
       const index = columnsRef.current.findIndex((c) => c.name === columnName)
       if (index === -1) return
-      addColumnMutation.mutate({ name: generateColumnName(), type: 'string', position: index + 1 })
+      const name = generateColumnName()
+      const position = index + 1
+      addColumnMutation.mutate(
+        { name, type: 'string', position },
+        {
+          onSuccess: () => {
+            pushUndoRef.current({ type: 'create-column', columnName: name, position })
+          },
+        }
+      )
     },
     [generateColumnName]
   )
@@ -944,7 +1051,15 @@ export function Table({
   const handleToggleUnique = useCallback((columnName: string) => {
     const column = columnsRef.current.find((c) => c.name === columnName)
     if (!column) return
-    updateColumnMutation.mutate({ columnName, updates: { unique: !column.unique } })
+    const previousValue = !!column.unique
+    pushUndoRef.current({
+      type: 'toggle-column-constraint',
+      columnName,
+      constraint: 'unique',
+      previousValue,
+      newValue: !previousValue,
+    })
+    updateColumnMutation.mutate({ columnName, updates: { unique: !previousValue } })
   }, [])
 
   const handleDeleteColumn = useCallback((columnName: string) => {
@@ -1281,8 +1396,9 @@ export function Table({
           isOpen={true}
           onClose={() => setDeletingRows([])}
           table={tableData}
-          rowIds={deletingRows}
+          rowIds={deletingRows.map((r) => r.rowId)}
           onSuccess={() => {
+            pushUndo({ type: 'delete-rows', rows: deletingRows })
             setDeletingRows([])
             handleClearSelection()
           }}
@@ -1293,11 +1409,13 @@ export function Table({
         contextMenu={contextMenu}
         onClose={closeContextMenu}
         onEditCell={handleContextMenuEditCell}
-        onAddData={handleAddData}
         onDelete={handleContextMenuDelete}
         onInsertAbove={handleInsertRowAbove}
         onInsertBelow={handleInsertRowBelow}
         selectedRowCount={selectedRowCount}
+        disableEdit={!userPermissions.canEdit}
+        disableInsert={!userPermissions.canEdit}
+        disableDelete={!userPermissions.canEdit}
       />
 
       {!embedded && (

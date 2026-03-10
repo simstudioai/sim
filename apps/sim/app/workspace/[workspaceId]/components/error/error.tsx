@@ -36,7 +36,7 @@ export function ErrorState({
   }, [error, logger, loggerName])
 
   return (
-    <div className='flex flex-1 items-center justify-center'>
+    <div className='flex h-full flex-1 items-center justify-center'>
       <div className='flex flex-col items-center gap-[16px] text-center'>
         <div className='flex flex-col gap-[8px]'>
           <h2 className='font-semibold text-[16px] text-[var(--text-primary)]'>{title}</h2>
