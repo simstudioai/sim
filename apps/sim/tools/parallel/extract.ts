@@ -78,8 +78,8 @@ export const extractTool: ToolConfig<ParallelExtractParams, ToolResponse> = {
     if (!data.results) {
       return {
         success: false,
+        error: 'No results returned from extraction',
         output: {
-          error: 'No results returned from extraction',
           results: [],
           extract_id: data.extract_id ?? null,
         },

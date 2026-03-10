@@ -122,8 +122,8 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
     if (!data.results) {
       return {
         success: false,
+        error: 'No results returned from search',
         output: {
-          error: 'No results returned from search',
           results: [],
           search_id: data.search_id ?? null,
         },
