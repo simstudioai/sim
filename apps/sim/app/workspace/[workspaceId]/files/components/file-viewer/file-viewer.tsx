@@ -236,7 +236,8 @@ function TextEditor({
         style={showPreview ? { width: `${splitPct}%`, flexShrink: 0 } : undefined}
         className={cn(
           'h-full resize-none border-0 bg-transparent p-[24px] font-mono text-[14px] text-[var(--text-body)] outline-none placeholder:text-[var(--text-subtle)]',
-          !showPreview && 'w-full'
+          !showPreview && 'w-full',
+          isResizing && 'pointer-events-none'
         )}
       />
       {showPreview && (
@@ -254,7 +255,9 @@ function TextEditor({
               <div className='-translate-x-[0.5px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]' />
             )}
           </div>
-          <div className='min-w-0 flex-1 overflow-hidden'>
+          <div
+            className={cn('min-w-0 flex-1 overflow-hidden', isResizing && 'pointer-events-none')}
+          >
             <PreviewPanel content={content} mimeType={file.type} filename={file.name} />
           </div>
         </>

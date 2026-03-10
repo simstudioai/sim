@@ -139,6 +139,65 @@ export function VideoIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function HtmlIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='1.5'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      {...props}
+    >
+      <path d='M8 8l-4 4 4 4' />
+      <path d='M16 8l4 4-4 4' />
+      <line x1='14' y1='4' x2='10' y2='20' />
+    </svg>
+  )
+}
+
+export function JsonIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='1.5'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      {...props}
+    >
+      <path d='M8 3H7a2 2 0 0 0-2 2v4c0 1.1-.9 2-2 2 1.1 0 2 .9 2 2v4a2 2 0 0 0 2 2h1' />
+      <path d='M16 3h1a2 2 0 0 1 2 2v4c0 1.1.9 2 2 2-1.1 0-2 .9-2 2v4a2 2 0 0 1-2 2h-1' />
+    </svg>
+  )
+}
+
+export function MarkdownIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' {...props}>
+      <rect x='2' y='4' width='20' height='16' rx='3' stroke='currentColor' strokeWidth='1.5' />
+      <path
+        d='M6 15V9l3 3.5L12 9v6'
+        stroke='currentColor'
+        strokeWidth='1.5'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <path
+        d='M17 9v6m-2-2l2 2 2-2'
+        stroke='currentColor'
+        strokeWidth='1.5'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+    </svg>
+  )
+}
+
 export function DefaultFileIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -216,6 +275,18 @@ export function getDocumentIcon(
     extension === 'ppt'
   ) {
     return PptxIcon
+  }
+
+  if (mimeType === 'text/html' || extension === 'html' || extension === 'htm') {
+    return HtmlIcon
+  }
+
+  if (mimeType === 'application/json' || extension === 'json') {
+    return JsonIcon
+  }
+
+  if (mimeType === 'text/markdown' || extension === 'md' || extension === 'mdx') {
+    return MarkdownIcon
   }
 
   return DefaultFileIcon
