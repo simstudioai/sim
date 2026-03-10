@@ -3,7 +3,16 @@
   "info": {
     "title": "Sim API",
     "description": "API for executing workflows, querying logs, and managing resources in Sim.",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "contact": {
+      "name": "Sim Support",
+      "email": "help@sim.ai",
+      "url": "https://www.sim.ai"
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
+    }
   },
   "servers": [
     {
@@ -101,6 +110,11 @@
                     "description": "List of specific block IDs whose outputs to include in the response. When omitted, all block outputs are returned."
                   }
                 }
+              },
+              "example": {
+                "input": {
+                  "query": "What is the weather in Tokyo?"
+                }
               }
             }
           }
@@ -112,6 +126,19 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExecutionResult"
+                },
+                "example": {
+                  "success": true,
+                  "executionId": "exec_abc123",
+                  "output": {
+                    "content": "The weather in Tokyo is sunny, 22\u00b0C."
+                  },
+                  "error": null,
+                  "metadata": {
+                    "startTime": "2026-01-15T10:30:00Z",
+                    "endTime": "2026-01-15T10:30:01Z",
+                    "duration": 1250
+                  }
                 }
               }
             }
@@ -191,6 +218,10 @@
                       "description": "The ID of the cancelled execution."
                     }
                   }
+                },
+                "example": {
+                  "success": true,
+                  "executionId": "exec_abc123"
                 }
               }
             }
@@ -282,6 +313,18 @@
                       "description": "Rate limit and usage information for the current API key."
                     }
                   }
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": "wf_abc123",
+                      "name": "Weather Bot",
+                      "isDeployed": true,
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-15T10:30:00Z"
+                    }
+                  ],
+                  "nextCursor": null
                 }
               }
             }
@@ -341,6 +384,16 @@
                       "description": "Rate limit and usage information for the current API key."
                     }
                   }
+                },
+                "example": {
+                  "data": {
+                    "id": "wf_abc123",
+                    "name": "Weather Bot",
+                    "description": "A workflow that fetches weather data",
+                    "isDeployed": true,
+                    "createdAt": "2026-01-15T10:30:00Z",
+                    "updatedAt": "2026-01-15T10:30:00Z"
+                  }
                 }
               }
             }
@@ -390,6 +443,17 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JobStatus"
+                },
+                "example": {
+                  "success": true,
+                  "taskId": "job_abc123",
+                  "status": "completed",
+                  "output": {
+                    "content": "Done"
+                  },
+                  "metadata": {
+                    "startTime": "2026-01-15T10:30:00Z"
+                  }
                 }
               }
             }
@@ -595,6 +659,18 @@
                       "$ref": "#/components/schemas/Limits"
                     }
                   }
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": "log_abc123",
+                      "workflowId": "wf_abc123",
+                      "level": "info",
+                      "trigger": "api",
+                      "createdAt": "2026-01-15T10:30:00Z"
+                    }
+                  ],
+                  "nextCursor": null
                 }
               }
             }
@@ -652,6 +728,19 @@
                     "limits": {
                       "$ref": "#/components/schemas/Limits"
                     }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "id": "log_abc123",
+                    "workflowId": "wf_abc123",
+                    "executionId": "exec_abc123",
+                    "level": "info",
+                    "trigger": "api",
+                    "totalDurationMs": 1250,
+                    "startedAt": "2026-01-15T10:30:00Z",
+                    "endedAt": "2026-01-15T10:30:01Z",
+                    "createdAt": "2026-01-15T10:30:00Z"
                   }
                 }
               }
@@ -768,6 +857,12 @@
                       "$ref": "#/components/schemas/Limits"
                     }
                   }
+                },
+                "example": {
+                  "executionId": "exec_abc123",
+                  "workflowId": "wf_abc123",
+                  "workflowState": {},
+                  "executionMetadata": {}
                 }
               }
             }
@@ -903,6 +998,20 @@
                       "$ref": "#/components/schemas/Limits"
                     }
                   }
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": "audit_abc123",
+                      "action": "workflow.execute",
+                      "actorId": "user_abc123",
+                      "actorName": "Jane Doe",
+                      "actorEmail": "jane@example.com",
+                      "resourceType": "workflow",
+                      "createdAt": "2026-01-15T10:30:00Z"
+                    }
+                  ],
+                  "nextCursor": null
                 }
               }
             }
@@ -964,6 +1073,19 @@
                       "$ref": "#/components/schemas/Limits"
                     }
                   }
+                },
+                "example": {
+                  "data": {
+                    "id": "audit_abc123",
+                    "action": "workflow.execute",
+                    "actorId": "user_abc123",
+                    "actorName": "Jane Doe",
+                    "actorEmail": "jane@example.com",
+                    "resourceType": "workflow",
+                    "resourceId": "wf_abc123",
+                    "metadata": {},
+                    "createdAt": "2026-01-15T10:30:00Z"
+                  }
                 }
               }
             }
@@ -1004,6 +1126,31 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UsageLimits"
+                },
+                "example": {
+                  "success": true,
+                  "rateLimit": {
+                    "sync": {
+                      "limit": 100,
+                      "remaining": 95,
+                      "reset": "2026-01-15T11:00:00Z"
+                    },
+                    "async": {
+                      "limit": 50,
+                      "remaining": 48,
+                      "reset": "2026-01-15T11:00:00Z"
+                    }
+                  },
+                  "usage": {
+                    "currentPeriodCost": 12.5,
+                    "limit": 100.0,
+                    "plan": "pro"
+                  },
+                  "storage": {
+                    "usedBytes": 5242880,
+                    "limitBytes": 1073741824,
+                    "percentUsed": 0.49
+                  }
                 }
               }
             }
@@ -1063,6 +1210,33 @@
                       },
                       "description": "Response payload."
                     }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "tables": [
+                      {
+                        "id": "tbl_abc123",
+                        "name": "contacts",
+                        "description": "Customer contacts",
+                        "schema": {
+                          "columns": [
+                            {
+                              "name": "email",
+                              "type": "string",
+                              "required": true,
+                              "unique": true
+                            }
+                          ]
+                        },
+                        "rowCount": 150,
+                        "maxRows": 10000,
+                        "createdAt": "2026-01-15T10:30:00Z",
+                        "updatedAt": "2026-01-15T10:30:00Z"
+                      }
+                    ],
+                    "totalCount": 1
                   }
                 }
               }
@@ -1132,6 +1306,30 @@
                     "description": "Table schema definition containing column definitions."
                   }
                 }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "name": "contacts",
+                "description": "Customer contacts",
+                "schema": {
+                  "columns": [
+                    {
+                      "name": "email",
+                      "type": "string",
+                      "required": true,
+                      "unique": true
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "required": true
+                    },
+                    {
+                      "name": "age",
+                      "type": "number"
+                    }
+                  ]
+                }
               }
             }
           }
@@ -1162,6 +1360,31 @@
                       },
                       "description": "Response payload."
                     }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "table": {
+                      "id": "tbl_abc123",
+                      "name": "contacts",
+                      "description": "Customer contacts",
+                      "schema": {
+                        "columns": [
+                          {
+                            "name": "email",
+                            "type": "string",
+                            "required": true,
+                            "unique": true
+                          }
+                        ]
+                      },
+                      "rowCount": 0,
+                      "maxRows": 10000,
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-15T10:30:00Z"
+                    },
+                    "message": "Table created successfully"
                   }
                 }
               }
@@ -1228,6 +1451,30 @@
                       "description": "Response payload."
                     }
                   }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "table": {
+                      "id": "tbl_abc123",
+                      "name": "contacts",
+                      "description": "Customer contacts",
+                      "schema": {
+                        "columns": [
+                          {
+                            "name": "email",
+                            "type": "string",
+                            "required": true,
+                            "unique": true
+                          }
+                        ]
+                      },
+                      "rowCount": 150,
+                      "maxRows": 10000,
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-15T10:30:00Z"
+                    }
+                  }
                 }
               }
             }
@@ -1292,6 +1539,12 @@
                       },
                       "description": "Response payload."
                     }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "message": "Table deleted successfully"
                   }
                 }
               }
@@ -1373,6 +1626,15 @@
                     }
                   }
                 }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "column": {
+                  "name": "phone",
+                  "type": "string",
+                  "required": false,
+                  "unique": false
+                }
               }
             }
           }
@@ -1399,6 +1661,25 @@
                         }
                       }
                     }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "columns": [
+                      {
+                        "name": "email",
+                        "type": "string",
+                        "required": true,
+                        "unique": true
+                      },
+                      {
+                        "name": "phone",
+                        "type": "string",
+                        "required": false,
+                        "unique": false
+                      }
+                    ]
                   }
                 }
               }
@@ -1473,6 +1754,15 @@
                     }
                   }
                 }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "columnName": "phone",
+                "updates": {
+                  "name": "phone_number",
+                  "type": "string",
+                  "required": true
+                }
               }
             }
           }
@@ -1499,6 +1789,25 @@
                         }
                       }
                     }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "columns": [
+                      {
+                        "name": "email",
+                        "type": "string",
+                        "required": true,
+                        "unique": true
+                      },
+                      {
+                        "name": "phone_number",
+                        "type": "string",
+                        "required": true,
+                        "unique": false
+                      }
+                    ]
                   }
                 }
               }
@@ -1551,6 +1860,10 @@
                     "description": "Name of the column to delete"
                   }
                 }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "columnName": "phone_number"
               }
             }
           }
@@ -1577,6 +1890,19 @@
                         }
                       }
                     }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "columns": [
+                      {
+                        "name": "email",
+                        "type": "string",
+                        "required": true,
+                        "unique": true
+                      }
+                    ]
                   }
                 }
               }
@@ -1702,6 +2028,27 @@
                       "description": "Response payload."
                     }
                   }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "rows": [
+                      {
+                        "id": "row_abc123",
+                        "data": {
+                          "email": "jane@example.com",
+                          "name": "Jane Doe"
+                        },
+                        "position": 0,
+                        "createdAt": "2026-01-15T10:30:00Z",
+                        "updatedAt": "2026-01-15T10:30:00Z"
+                      }
+                    ],
+                    "rowCount": 1,
+                    "totalCount": 1,
+                    "limit": 100,
+                    "offset": 0
+                  }
                 }
               }
             }
@@ -1800,6 +2147,14 @@
                     }
                   }
                 ]
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "data": {
+                  "email": "jane@example.com",
+                  "name": "Jane Doe",
+                  "age": 30
+                }
               }
             }
           }
@@ -1841,6 +2196,23 @@
                       },
                       "description": "Response payload."
                     }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "row": {
+                      "id": "row_abc123",
+                      "data": {
+                        "email": "jane@example.com",
+                        "name": "Jane Doe",
+                        "age": 30
+                      },
+                      "position": 0,
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-15T10:30:00Z"
+                    },
+                    "message": "Row inserted successfully"
                   }
                 }
               }
@@ -1909,6 +2281,15 @@
                     "maximum": 1000,
                     "description": "Maximum number of rows to update."
                   }
+                }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "filter": {
+                  "status": "pending"
+                },
+                "data": {
+                  "status": "active"
                 }
               }
             }
@@ -2001,6 +2382,10 @@
                     }
                   }
                 ]
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "rowIds": ["row_abc123", "row_def456"]
               }
             }
           }
@@ -2049,6 +2434,14 @@
                       },
                       "description": "Response payload."
                     }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "message": "Rows deleted successfully",
+                    "deletedCount": 2,
+                    "deletedRowIds": ["row_abc123", "row_def456"]
                   }
                 }
               }
@@ -2123,6 +2516,23 @@
                     "description": "Array of update objects. Each object specifies a row ID and the fields to update. Duplicate row IDs are not allowed."
                   }
                 }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "updates": [
+                  {
+                    "rowId": "row_abc123",
+                    "data": {
+                      "status": "active"
+                    }
+                  },
+                  {
+                    "rowId": "row_def456",
+                    "data": {
+                      "status": "archived"
+                    }
+                  }
+                ]
               }
             }
           }
@@ -2197,6 +2607,21 @@
                       "description": "Response payload."
                     }
                   }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "row": {
+                      "id": "row_abc123",
+                      "data": {
+                        "email": "jane@example.com",
+                        "name": "Jane Doe"
+                      },
+                      "position": 0,
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-15T10:30:00Z"
+                    }
+                  }
                 }
               }
             }
@@ -2257,6 +2682,12 @@
                     "description": "Fields to update. Only specified fields are changed."
                   }
                 }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "data": {
+                  "name": "Updated Name"
+                }
               }
             }
           }
@@ -2287,6 +2718,22 @@
                       },
                       "description": "Response payload."
                     }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "row": {
+                      "id": "row_abc123",
+                      "data": {
+                        "email": "jane@example.com",
+                        "name": "Updated Name"
+                      },
+                      "position": 0,
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-16T08:00:00Z"
+                    },
+                    "message": "Row updated successfully"
                   }
                 }
               }
@@ -2319,7 +2766,7 @@
             "id": "curl",
             "label": "cURL",
             "lang": "bash",
-            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/rows/{rowId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/rows/{rowId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\"\n  }'"
           }
         ],
         "parameters": [
@@ -2328,9 +2775,6 @@
           },
           {
             "$ref": "#/components/parameters/RowId"
-          },
-          {
-            "$ref": "#/components/parameters/WorkspaceId"
           }
         ],
         "responses": {
@@ -2360,6 +2804,13 @@
                       "description": "Response payload."
                     }
                   }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "message": "Row deleted successfully",
+                    "deletedCount": 1
+                  }
                 }
               }
             }
@@ -2378,6 +2829,26 @@
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace that owns the table."
+                  }
+                }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123"
+              }
+            }
           }
         }
       }
@@ -2423,6 +2894,13 @@
                     "description": "Name of the unique column to match on. Required when the table has multiple unique columns. If the table has exactly one unique column, this can be omitted."
                   }
                 }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "data": {
+                  "email": "user@example.com",
+                  "name": "John Doe"
+                }
               }
             }
           }
@@ -2458,6 +2936,22 @@
                       },
                       "description": "Response payload."
                     }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "row": {
+                      "id": "row_abc123",
+                      "data": {
+                        "email": "user@example.com",
+                        "name": "John Doe"
+                      },
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-15T10:30:00Z"
+                    },
+                    "operation": "insert",
+                    "message": "Row inserted successfully"
                   }
                 }
               }
@@ -2529,6 +3023,23 @@
                       },
                       "description": "Response payload containing the files list and count."
                     }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "files": [
+                      {
+                        "id": "file_abc123",
+                        "name": "data.csv",
+                        "size": 1024,
+                        "type": "text/csv",
+                        "key": "files/wsp_abc123/data.csv",
+                        "uploadedBy": "user_abc123",
+                        "uploadedAt": "2026-01-15T10:30:00Z"
+                      }
+                    ],
+                    "totalCount": 1
                   }
                 }
               }
@@ -2609,6 +3120,21 @@
                       },
                       "description": "Response payload containing the uploaded file metadata."
                     }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "file": {
+                      "id": "file_abc123",
+                      "name": "data.csv",
+                      "size": 1024,
+                      "type": "text/csv",
+                      "key": "files/wsp_abc123/data.csv",
+                      "uploadedBy": "user_abc123",
+                      "uploadedAt": "2026-01-15T10:30:00Z"
+                    },
+                    "message": "File uploaded successfully"
                   }
                 }
               }
@@ -2797,6 +3323,12 @@
                       "description": "Response payload containing the deletion confirmation."
                     }
                   }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "message": "File deleted successfully"
+                  }
                 }
               }
             }
@@ -2868,6 +3400,24 @@
                       "description": "Response payload containing the list of knowledge bases."
                     }
                   }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "knowledgeBases": [
+                      {
+                        "id": "kb_abc123",
+                        "name": "Product Docs",
+                        "description": "Product documentation and FAQs",
+                        "docCount": 5,
+                        "tokenCount": 25000,
+                        "embeddingModel": "text-embedding-3-small",
+                        "createdAt": "2026-01-15T10:30:00Z",
+                        "updatedAt": "2026-01-15T10:30:00Z"
+                      }
+                    ],
+                    "totalCount": 1
+                  }
                 }
               }
             }
@@ -2926,6 +3476,11 @@
                     "description": "Optional chunking configuration for document processing. Defaults to maxSize=1024, minSize=100, overlap=200 if omitted."
                   }
                 }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "name": "Product Docs",
+                "description": "Product documentation and FAQs"
               }
             }
           }
@@ -2956,6 +3511,22 @@
                       },
                       "description": "Response payload containing the created knowledge base."
                     }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "knowledgeBase": {
+                      "id": "kb_abc123",
+                      "name": "Product Docs",
+                      "description": "Product documentation and FAQs",
+                      "docCount": 0,
+                      "tokenCount": 0,
+                      "embeddingModel": "text-embedding-3-small",
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-15T10:30:00Z"
+                    },
+                    "message": "Knowledge base created successfully"
                   }
                 }
               }
@@ -3026,6 +3597,21 @@
                         }
                       },
                       "description": "Response payload containing the knowledge base details."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "knowledgeBase": {
+                      "id": "kb_abc123",
+                      "name": "Product Docs",
+                      "description": "Product documentation and FAQs",
+                      "docCount": 5,
+                      "tokenCount": 25000,
+                      "embeddingModel": "text-embedding-3-small",
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-15T10:30:00Z"
                     }
                   }
                 }
@@ -3100,6 +3686,11 @@
                     "description": "Updated chunking configuration. All three fields (maxSize, minSize, overlap) must be provided if included."
                   }
                 }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "name": "Updated Product Docs",
+                "description": "Updated product documentation"
               }
             }
           }
@@ -3130,6 +3721,22 @@
                       },
                       "description": "Response payload containing the updated knowledge base."
                     }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "knowledgeBase": {
+                      "id": "kb_abc123",
+                      "name": "Updated Product Docs",
+                      "description": "Updated product documentation",
+                      "docCount": 5,
+                      "tokenCount": 25000,
+                      "embeddingModel": "text-embedding-3-small",
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-16T08:00:00Z"
+                    },
+                    "message": "Knowledge base updated successfully"
                   }
                 }
               }
@@ -3201,6 +3808,12 @@
                       },
                       "description": "Response payload."
                     }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "message": "Knowledge base deleted successfully"
                   }
                 }
               }
@@ -3364,6 +3977,31 @@
                       "description": "Response payload containing the documents and pagination info."
                     }
                   }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "documents": [
+                      {
+                        "id": "doc_abc123",
+                        "knowledgeBaseId": "kb_abc123",
+                        "filename": "Getting Started.pdf",
+                        "fileSize": 204800,
+                        "mimeType": "application/pdf",
+                        "processingStatus": "completed",
+                        "chunkCount": 12,
+                        "tokenCount": 3500,
+                        "enabled": true,
+                        "createdAt": "2026-01-15T10:30:00Z"
+                      }
+                    ],
+                    "pagination": {
+                      "total": 1,
+                      "limit": 50,
+                      "offset": 0,
+                      "hasMore": false
+                    }
+                  }
                 }
               }
             }
@@ -3457,6 +4095,24 @@
                       },
                       "description": "Response payload containing the uploaded document."
                     }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "document": {
+                      "id": "doc_abc123",
+                      "knowledgeBaseId": "kb_abc123",
+                      "filename": "Getting Started.pdf",
+                      "fileSize": 204800,
+                      "mimeType": "application/pdf",
+                      "processingStatus": "pending",
+                      "chunkCount": 0,
+                      "tokenCount": 0,
+                      "enabled": true,
+                      "createdAt": "2026-01-15T10:30:00Z"
+                    },
+                    "message": "Document uploaded successfully. Processing will begin shortly."
                   }
                 }
               }
@@ -3588,6 +4244,24 @@
                       "description": "Response payload containing the document details."
                     }
                   }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "document": {
+                      "id": "doc_abc123",
+                      "knowledgeBaseId": "kb_abc123",
+                      "filename": "Getting Started.pdf",
+                      "fileSize": 204800,
+                      "mimeType": "application/pdf",
+                      "processingStatus": "completed",
+                      "chunkCount": 12,
+                      "tokenCount": 3500,
+                      "characterCount": 18000,
+                      "enabled": true,
+                      "createdAt": "2026-01-15T10:30:00Z"
+                    }
+                  }
                 }
               }
             }
@@ -3664,6 +4338,12 @@
                       },
                       "description": "Response payload."
                     }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "message": "Document deleted successfully"
                   }
                 }
               }
@@ -3745,6 +4425,12 @@
                     }
                   }
                 }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "knowledgeBaseIds": ["kb_abc123"],
+                "query": "How do I reset my password?",
+                "topK": 5
               }
             }
           }
@@ -3793,6 +4479,25 @@
                       },
                       "description": "Response payload containing the search results and metadata."
                     }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "results": [
+                      {
+                        "documentId": "doc_abc123",
+                        "documentName": "Getting Started.pdf",
+                        "content": "To reset your password, go to Settings > Security.",
+                        "chunkIndex": 3,
+                        "similarity": 0.95,
+                        "metadata": {}
+                      }
+                    ],
+                    "query": "How do I reset my password?",
+                    "knowledgeBaseIds": ["kb_abc123"],
+                    "topK": 5,
+                    "totalResults": 1
                   }
                 }
               }
@@ -5213,6 +5918,14 @@
                   },
                   "description": "Response payload."
                 }
+              }
+            },
+            "example": {
+              "success": true,
+              "data": {
+                "message": "Rows updated successfully",
+                "updatedCount": 2,
+                "updatedRowIds": ["row_abc123", "row_def456"]
               }
             }
           }
