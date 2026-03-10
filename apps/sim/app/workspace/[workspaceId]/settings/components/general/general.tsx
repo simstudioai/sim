@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import {
   Button,
   Combobox,
+  Input,
   Label,
   Modal,
   ModalBody,
@@ -16,7 +17,6 @@ import {
   ModalHeader,
   Switch,
 } from '@/components/emcn'
-import { Input } from '@/components/ui'
 import { signOut, useSession } from '@/lib/auth/auth-client'
 import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
