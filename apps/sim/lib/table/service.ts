@@ -1691,11 +1691,11 @@ export async function updateColumnConstraints(
   }
 
   if (data.unique === true && !column.unique) {
-    const duplicates = await db.execute(
+    const duplicates = (await db.execute(
       sql`SELECT ${userTableRows.data}->>${sql.raw(`'${escapedName}'`)} AS val, count(*) AS cnt FROM ${userTableRows} WHERE table_id = ${data.tableId} AND ${userTableRows.data} ? ${column.name} AND ${userTableRows.data}->>${sql.raw(`'${escapedName}'`)} IS NOT NULL GROUP BY val HAVING count(*) > 1 LIMIT 1`
-    )
+    )) as { val: string; cnt: number }[]
 
-    if (duplicates.rows.length > 0) {
+    if (duplicates.length > 0) {
       throw new Error(`Cannot set column "${column.name}" as unique: duplicate values exist`)
     }
   }
