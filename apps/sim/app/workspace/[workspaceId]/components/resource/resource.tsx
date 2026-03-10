@@ -351,7 +351,7 @@ function Pagination({
   onPageChange: (page: number) => void
 }) {
   return (
-    <div className='flex items-center justify-center border-[var(--border)] border-t bg-background px-4 py-[10px]'>
+    <div className='flex items-center justify-center border-[var(--border)] border-t bg-[var(--bg)] px-4 py-[10px]'>
       <div className='flex items-center gap-1'>
         <Button
           variant='ghost'

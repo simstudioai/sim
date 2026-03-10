@@ -115,7 +115,10 @@ const BatchUpdateByIdsSchema = z
         })
       )
       .min(1, 'At least one update is required')
-      .max(1000, 'Cannot update more than 1000 rows per batch'),
+      .max(1000, 'Cannot update more than 1000 rows per batch')
+      .refine((d) => new Set(d.map((u) => u.rowId)).size === d.length, {
+        message: 'updates must not contain duplicate rowId values',
+      }),
   })
   .refine((d) => new Set(d.updates.map((u) => u.rowId)).size === d.updates.length, {
     message: 'updates must not contain duplicate rowIds',

@@ -1198,7 +1198,7 @@ export function Document({
         onAddChunk={handleNewChunk}
         disableToggleEnabled={!userPermissions.canEdit || isConnectorDocument}
         disableDelete={!userPermissions.canEdit || isConnectorDocument}
-        disableEdit={!userPermissions.canEdit && !isConnectorDocument}
+        disableEdit={!userPermissions.canEdit || isConnectorDocument}
         disableAddChunk={
           !userPermissions.canEdit ||
           documentData?.processingStatus === 'failed' ||
