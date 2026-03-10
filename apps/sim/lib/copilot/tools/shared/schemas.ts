@@ -149,6 +149,7 @@ export const UserTableArgsSchema = z.object({
         })
         .optional(),
       columnName: z.string().optional(),
+      columnNames: z.array(z.string()).optional(),
       newName: z.string().optional(),
       newType: z.string().optional(),
       unique: z.boolean().optional(),

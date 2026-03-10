@@ -1369,6 +1369,73 @@ export async function deleteColumn(
 }
 
 /**
+ * Deletes multiple columns from a table in a single transaction.
+ * Avoids the race condition of calling deleteColumn multiple times in parallel.
+ */
+export async function deleteColumns(
+  data: { tableId: string; columnNames: string[] },
+  requestId: string
+): Promise<TableDefinition> {
+  const table = await getTableById(data.tableId)
+  if (!table) {
+    throw new Error('Table not found')
+  }
+
+  const schema = table.schema
+  const namesToDelete = new Set<string>()
+  const notFound: string[] = []
+
+  for (const name of data.columnNames) {
+    const col = schema.columns.find((c) => c.name.toLowerCase() === name.toLowerCase())
+    if (!col) {
+      notFound.push(name)
+    } else {
+      namesToDelete.add(col.name)
+    }
+  }
+
+  if (notFound.length > 0) {
+    throw new Error(`Columns not found: ${notFound.join(', ')}`)
+  }
+
+  const remaining = schema.columns.filter((c) => !namesToDelete.has(c.name))
+  if (remaining.length === 0) {
+    throw new Error('Cannot delete all columns from a table')
+  }
+
+  const updatedSchema: TableSchema = { columns: remaining }
+
+  const metadata = table.metadata as TableMetadata | null
+  let updatedMetadata = metadata
+  if (metadata?.columnWidths) {
+    const widths = { ...metadata.columnWidths }
+    for (const n of namesToDelete) delete widths[n]
+    updatedMetadata = { ...metadata, columnWidths: widths }
+  }
+
+  const now = new Date()
+
+  await db.transaction(async (trx) => {
+    await trx
+      .update(userTableDefinitions)
+      .set({ schema: updatedSchema, metadata: updatedMetadata, updatedAt: now })
+      .where(eq(userTableDefinitions.id, data.tableId))
+
+    for (const name of namesToDelete) {
+      await trx.execute(
+        sql`UPDATE user_table_rows SET data = data - ${name} WHERE table_id = ${data.tableId} AND data ? ${name}`
+      )
+    }
+  })
+
+  logger.info(
+    `[${requestId}] Deleted columns [${[...namesToDelete].join(', ')}] from table ${data.tableId}`
+  )
+
+  return { ...table, schema: updatedSchema, metadata: updatedMetadata, updatedAt: now }
+}
+
+/**
  * Changes the type of a column. Validates that existing data is compatible.
  *
  * @param data - Update column type data

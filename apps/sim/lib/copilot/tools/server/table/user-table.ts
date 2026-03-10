@@ -6,6 +6,7 @@ import {
   batchInsertRows,
   createTable,
   deleteColumn,
+  deleteColumns,
   deleteRow,
   deleteRowsByFilter,
   deleteTable,
@@ -695,17 +696,30 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Table ID is required' }
           }
           const colName = (args as Record<string, unknown>).columnName as string | undefined
-          if (!colName) {
-            return { success: false, message: 'columnName is required' }
+          const colNames = (args as Record<string, unknown>).columnNames as string[] | undefined
+          const names = colNames ?? (colName ? [colName] : null)
+          if (!names || names.length === 0) {
+            return { success: false, message: 'columnName or columnNames is required' }
           }
           const requestId = crypto.randomUUID().slice(0, 8)
-          const updated = await deleteColumn(
-            { tableId: args.tableId, columnName: colName },
+          if (names.length === 1) {
+            const updated = await deleteColumn(
+              { tableId: args.tableId, columnName: names[0] },
+              requestId
+            )
+            return {
+              success: true,
+              message: `Deleted column "${names[0]}"`,
+              data: { schema: updated.schema },
+            }
+          }
+          const updated = await deleteColumns(
+            { tableId: args.tableId, columnNames: names },
             requestId
           )
           return {
             success: true,
-            message: `Deleted column "${colName}"`,
+            message: `Deleted ${names.length} columns: ${names.join(', ')}`,
             data: { schema: updated.schema },
           }
         }
