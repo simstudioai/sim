@@ -4,22 +4,21 @@ import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { MoreHorizontal } from 'lucide-react'
 import {
-  ArrowDown,
   Button,
   ChevronDown,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
   Plus,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverSection,
-  PopoverTrigger,
-  Tooltip,
+  UserPlus,
 } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
@@ -300,9 +299,8 @@ export function WorkspaceHeader({
     <div className='min-w-0'>
       {/* Workspace Name with Switcher */}
       <div className='min-w-0'>
-        {/* Workspace Switcher Popover - only render after mount to avoid Radix ID hydration mismatch */}
         {isMounted ? (
-          <Popover
+          <DropdownMenu
             open={isWorkspaceMenuOpen}
             onOpenChange={(open) => {
               if (
@@ -314,7 +312,7 @@ export function WorkspaceHeader({
               setIsWorkspaceMenuOpen(open)
             }}
           >
-            <PopoverTrigger asChild>
+            <DropdownMenuTrigger asChild>
               <button
                 type='button'
                 aria-label='Switch workspace'
@@ -338,79 +336,63 @@ export function WorkspaceHeader({
                   }`}
                 />
               </button>
-            </PopoverTrigger>
-            <PopoverContent
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
               align='start'
               side='bottom'
               sideOffset={8}
               style={{
-                width: 'var(--radix-popover-trigger-width)',
-                minWidth: 'var(--radix-popover-trigger-width)',
-                maxWidth: 'var(--radix-popover-trigger-width)',
+                width: 'var(--radix-dropdown-menu-trigger-width)',
+                minWidth: 'var(--radix-dropdown-menu-trigger-width)',
+                maxWidth: 'var(--radix-dropdown-menu-trigger-width)',
               }}
-              onOpenAutoFocus={(e) => e.preventDefault()}
+              onCloseAutoFocus={(e) => e.preventDefault()}
             >
               {isWorkspacesLoading ? (
-                <PopoverItem disabled>
-                  <span>Loading workspaces...</span>
-                </PopoverItem>
+                <div className='px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-secondary)]'>
+                  Loading workspaces...
+                </div>
               ) : (
                 <>
-                  <div className='relative flex items-center justify-between'>
-                    <PopoverSection>Workspaces</PopoverSection>
-                    <div className='flex translate-y-[-2px] items-center gap-[6px]'>
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <Button
-                            variant='ghost'
-                            type='button'
-                            aria-label='Import workspace'
-                            className='!p-[3px]'
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onImportWorkspace()
-                            }}
-                            disabled={isImportingWorkspace}
-                          >
-                            <ArrowDown className='h-[14px] w-[14px]' />
-                          </Button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content>
-                          <p>
-                            {isImportingWorkspace ? 'Importing workspace...' : 'Import workspace'}
-                          </p>
-                        </Tooltip.Content>
-                      </Tooltip.Root>
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <Button
-                            variant='ghost'
-                            type='button'
-                            aria-label='Create workspace'
-                            className='!p-[3px]'
-                            onClick={async (e) => {
-                              e.stopPropagation()
-                              await onCreateWorkspace()
-                              setIsWorkspaceMenuOpen(false)
-                            }}
-                            disabled={isCreatingWorkspace}
-                          >
-                            <Plus className='h-[14px] w-[14px]' />
-                          </Button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content>
-                          <p>
-                            {isCreatingWorkspace ? 'Creating workspace...' : 'Create workspace'}
-                          </p>
-                        </Tooltip.Content>
-                      </Tooltip.Root>
+                  <div className='flex items-center gap-[8px] px-[2px] py-[2px]'>
+                    <div className='flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-7)] font-medium text-[12px] text-[var(--text-secondary)]'>
+                      {workspaceInitial}
+                    </div>
+                    <div className='flex min-w-0 flex-col'>
+                      <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
+                        {activeWorkspace?.name || 'Loading...'}
+                      </span>
+                      <span className='text-[11px] text-[var(--text-tertiary)]'>Free Plan</span>
                     </div>
                   </div>
-                  <div className='max-h-[200px] overflow-y-auto'>
-                    {workspaces.map((workspace, index) => (
-                      <div key={workspace.id} className={index > 0 ? 'mt-[2px]' : ''}>
+
+                  <DropdownMenuSeparator />
+
+                  {!isInvitationsDisabled && (
+                    <>
+                      <button
+                        type='button'
+                        className='flex w-full cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover:bg-[var(--surface-active)]'
+                        onClick={() => {
+                          setIsInviteModalOpen(true)
+                          setIsWorkspaceMenuOpen(false)
+                        }}
+                      >
+                        <UserPlus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+                        Invite members
+                      </button>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+
+                  <div className='px-[8px] py-[5px] font-medium text-[11px] text-[var(--text-icon)]'>
+                    All workspaces
+                  </div>
+                  <div className='flex max-h-[130px] flex-col gap-[2px] overflow-y-auto'>
+                    {workspaces.map((workspace) => (
+                      <div key={workspace.id}>
                         {editingWorkspaceId === workspace.id ? (
-                          <div className='flex h-[26px] items-center gap-[8px] rounded-[8px] bg-[var(--surface-6)] px-[6px]'>
+                          <div className='flex items-center gap-[8px] rounded-[5px] bg-[var(--surface-active)] px-[8px] py-[5px]'>
                             <input
                               ref={(el) => {
                                 if (el && !hasInputFocusedRef.current) {
@@ -450,7 +432,7 @@ export function WorkspaceHeader({
                                 }
                                 setEditingWorkspaceId(null)
                               }}
-                              className='w-full border-0 bg-transparent p-0 font-base text-[13px] text-[var(--text-primary)] outline-none selection:bg-[#add6ff] selection:text-[#1b1b1b] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:selection:bg-[#264f78] dark:selection:text-white'
+                              className='w-full border-0 bg-transparent p-0 font-medium text-[12px] text-[var(--text-primary)] outline-none selection:bg-[#add6ff] selection:text-[#1b1b1b] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:selection:bg-[#264f78] dark:selection:text-white'
                               maxLength={100}
                               autoComplete='off'
                               autoCorrect='off'
@@ -463,9 +445,11 @@ export function WorkspaceHeader({
                             />
                           </div>
                         ) : (
-                          <PopoverItem
-                            className='group'
-                            active={workspace.id === workspaceId}
+                          <div
+                            className={cn(
+                              'group flex cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover:bg-[var(--surface-active)]',
+                              workspace.id === workspaceId && 'bg-[var(--surface-active)]'
+                            )}
                             onClick={() => onWorkspaceSwitch(workspace)}
                             onContextMenu={(e) => handleContextMenu(e, workspace)}
                           >
@@ -483,15 +467,31 @@ export function WorkspaceHeader({
                             >
                               <MoreHorizontal className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
                             </button>
-                          </PopoverItem>
+                          </div>
                         )}
                       </div>
                     ))}
                   </div>
+
+                  <DropdownMenuSeparator />
+
+                  <button
+                    type='button'
+                    className='flex w-full cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover:bg-[var(--surface-active)] disabled:pointer-events-none disabled:opacity-50'
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      await onCreateWorkspace()
+                      setIsWorkspaceMenuOpen(false)
+                    }}
+                    disabled={isCreatingWorkspace}
+                  >
+                    <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+                    {isCreatingWorkspace ? 'Creating workspace...' : 'Create new workspace'}
+                  </button>
                 </>
               )}
-            </PopoverContent>
-          </Popover>
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : (
           <button
             type='button'

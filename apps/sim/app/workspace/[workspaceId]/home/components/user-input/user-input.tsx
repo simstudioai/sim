@@ -7,8 +7,8 @@ import { cn } from '@/lib/core/utils/cn'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { useAnimatedPlaceholder } from '../../hooks'
 
-const TEXTAREA_CLASSES = cn(
-  'm-0 box-border h-auto max-h-[30vh] min-h-[24px] w-full resize-none',
+const TEXTAREA_BASE_CLASSES = cn(
+  'm-0 box-border h-auto min-h-[24px] w-full resize-none',
   'overflow-y-auto overflow-x-hidden break-words border-0 bg-transparent',
   'px-[4px] py-[4px] font-body text-[15px] leading-[24px] tracking-[-0.015em]',
   'text-[var(--text-primary)] outline-none',
@@ -22,10 +22,12 @@ const SEND_BUTTON_ACTIVE =
   'bg-[var(--c-383838)] hover:bg-[var(--c-575757)] dark:bg-[var(--c-E0E0E0)] dark:hover:bg-[var(--c-CFCFCF)]'
 const SEND_BUTTON_DISABLED = 'bg-[var(--c-808080)] dark:bg-[var(--c-808080)]'
 
-function autoResizeTextarea(e: React.FormEvent<HTMLTextAreaElement>) {
+const MAX_CHAT_TEXTAREA_HEIGHT = 104 // 4 lines × 24px line-height + 8px padding
+
+function autoResizeTextarea(e: React.FormEvent<HTMLTextAreaElement>, maxHeight: number) {
   const target = e.target as HTMLTextAreaElement
   target.style.height = 'auto'
-  target.style.height = `${Math.min(target.scrollHeight, window.innerHeight * 0.3)}px`
+  target.style.height = `${Math.min(target.scrollHeight, maxHeight)}px`
 }
 
 export interface FileAttachmentForApi {
@@ -107,6 +109,14 @@ export function UserInput({
     [handleSubmit, isSending]
   )
 
+  const handleInput = useCallback(
+    (e: React.FormEvent<HTMLTextAreaElement>) => {
+      const maxHeight = isInitialView ? window.innerHeight * 0.3 : MAX_CHAT_TEXTAREA_HEIGHT
+      autoResizeTextarea(e, maxHeight)
+    },
+    [isInitialView]
+  )
+
   const toggleListening = useCallback(() => {
     if (isListening) {
       recognitionRef.current?.stop()
@@ -164,7 +174,7 @@ export function UserInput({
     <div
       onClick={handleContainerClick}
       className={cn(
-        'mx-auto w-full max-w-[640px] cursor-text rounded-[20px] border border-[var(--border-1)] bg-[var(--white)] px-[10px] py-[8px] dark:bg-[var(--surface-4)]',
+        'mx-auto w-full max-w-[42rem] cursor-text rounded-[20px] border border-[var(--border-1)] bg-[var(--white)] px-[10px] py-[8px] dark:bg-[var(--surface-4)]',
         isInitialView && 'shadow-sm',
         files.isDragging && 'ring-[1.75px] ring-[var(--brand-secondary)]'
       )}
@@ -231,10 +241,10 @@ export function UserInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
-        onInput={autoResizeTextarea}
+        onInput={handleInput}
         placeholder={files.isDragging ? 'Drop files here...' : placeholder}
         rows={1}
-        className={TEXTAREA_CLASSES}
+        className={cn(TEXTAREA_BASE_CLASSES, isInitialView ? 'max-h-[30vh]' : 'max-h-[104px]')}
       />
       <div className='flex items-center justify-between'>
         <button

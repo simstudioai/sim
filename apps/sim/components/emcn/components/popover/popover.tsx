@@ -66,7 +66,7 @@ type PopoverVariant = 'default' | 'secondary'
 const STYLES = {
   /** Base classes shared by all interactive items */
   itemBase:
-    'flex min-w-0 cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-base disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed',
+    'flex min-w-0 cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-medium disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed',
 
   /** Content container */
   content: 'px-[6px] py-[6px] rounded-[6px]',
@@ -75,9 +75,9 @@ const STYLES = {
   size: {
     sm: { item: 'h-[22px] text-[11px]', icon: 'h-3 w-3', section: 'px-[6px] py-[4px] text-[11px]' },
     md: {
-      item: 'h-[26px] text-[13px]',
+      item: 'h-[26px] text-[12px]',
       icon: 'h-3.5 w-3.5',
-      section: 'px-[6px] py-[4px] text-[13px]',
+      section: 'px-[6px] py-[4px] text-[11px]',
     },
   } satisfies Record<PopoverSize, { item: string; icon: string; section: string }>,
 
@@ -773,7 +773,7 @@ const PopoverSection = React.forwardRef<HTMLDivElement, PopoverSectionProps>(
     return (
       <div
         className={cn(
-          'mt-[6px] min-w-0 font-base first:mt-0 first:pt-0',
+          'mt-[6px] min-w-0 font-medium first:mt-0 first:pt-0',
           STYLES.colorScheme[colorScheme].section,
           STYLES.size[size].section,
           className
@@ -1035,7 +1035,7 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
         {folderTitle && !onFolderSelect && (
           <div
             className={cn(
-              'font-base',
+              'font-medium',
               STYLES.colorScheme[colorScheme].section,
               STYLES.size[size].section
             )}
@@ -1092,9 +1092,9 @@ const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
         <input
           ref={inputRef}
           className={cn(
-            'w-full bg-transparent font-base focus:outline-none',
+            'w-full bg-transparent font-medium focus:outline-none',
             STYLES.colorScheme[colorScheme].searchInput,
-            size === 'sm' ? 'text-[11px]' : 'text-[13px]'
+            size === 'sm' ? 'text-[11px]' : 'text-[12px]'
           )}
           placeholder={placeholder}
           value={searchQuery}

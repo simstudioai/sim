@@ -23,7 +23,6 @@ import type {
   SSEPayloadData,
   ToolCallStatus,
 } from '../types'
-import { SUBAGENT_LABELS } from '../types'
 import {
   extractFileResource,
   extractFunctionExecuteResource,
@@ -308,11 +307,12 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
               const ui = parsed.ui || data?.ui
               if (ui?.hidden) break
               const displayTitle = ui?.title || ui?.phaseLabel
+              const phaseLabel = ui?.phaseLabel
               if (!toolMap.has(id)) {
                 toolMap.set(id, blocks.length)
                 blocks.push({
                   type: 'tool_call',
-                  toolCall: { id, name, status: 'executing', displayTitle },
+                  toolCall: { id, name, status: 'executing', displayTitle, phaseLabel },
                 })
               } else {
                 const idx = toolMap.get(id)!
@@ -320,6 +320,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                 if (tc) {
                   tc.name = name
                   if (displayTitle) tc.displayTitle = displayTitle
+                  if (phaseLabel) tc.phaseLabel = phaseLabel
                 }
               }
               flush()
@@ -423,7 +424,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
             case 'subagent_start': {
               const name = parsed.subagent || getPayloadData(parsed)?.agent
               if (name) {
-                blocks.push({ type: 'subagent', content: SUBAGENT_LABELS[name] || name })
+                blocks.push({ type: 'subagent', content: name })
                 flush()
               }
               break

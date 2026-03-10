@@ -1,28 +1,37 @@
 'use client'
 
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { cn } from '@/lib/core/utils/cn'
-import { useThrottledValue } from '@/hooks/use-throttled-value'
-import type { ContentBlock, ToolCallStatus } from '../../types'
+import type { ContentBlock, OptionItem, SubagentName, ToolCallStatus } from '../../types'
+import { SUBAGENT_LABELS } from '../../types'
+import { ChatContent, Options, Subagent, ToolCall } from './components'
 
-const REMARK_PLUGINS = [remarkGfm]
+interface TextSegment {
+  type: 'text'
+  content: string
+}
 
-const PROSE_CLASSES = cn(
-  'prose prose-base dark:prose-invert max-w-none font-body font-[380]',
-  'prose-headings:font-semibold prose-headings:tracking-[-0.01em] prose-headings:text-[var(--text-primary)]',
-  'prose-headings:mb-[12px] prose-headings:mt-[20px]',
-  'prose-p:text-[16px] prose-p:leading-[1.75] prose-p:tracking-[-0.015em] prose-p:text-[var(--text-primary)]',
-  'prose-p:mb-[8px]',
-  'prose-li:text-[16px] prose-li:leading-[1.75] prose-li:tracking-[-0.015em] prose-li:text-[var(--text-primary)]',
-  'prose-li:my-[4px]',
-  'prose-ul:my-[12px] prose-ol:my-[12px]',
-  'prose-strong:font-semibold prose-strong:text-[var(--text-primary)]',
-  'prose-a:text-[var(--brand-secondary)]',
-  'prose-code:rounded-[4px] prose-code:bg-[var(--surface-5)] prose-code:px-[5px] prose-code:py-[2px] prose-code:text-[13px] prose-code:font-mono prose-code:font-normal prose-code:text-[var(--text-primary)]',
-  'prose-pre:my-[14px] prose-pre:rounded-[8px] prose-pre:bg-[var(--surface-5)] prose-pre:text-[13px]',
-  'prose-hr:border-[var(--divider)]'
-)
+interface ToolCallSegment {
+  type: 'tool_call'
+  id: string
+  toolName: string
+  displayTitle?: string
+  status: ToolCallStatus
+  phaseLabel?: string
+}
+
+interface SubagentSegment {
+  type: 'subagent'
+  id: string
+  name: string
+  label: string
+  status: ToolCallStatus
+}
+
+interface OptionsSegment {
+  type: 'options'
+  items: OptionItem[]
+}
+
+type MessageSegment = TextSegment | ToolCallSegment | SubagentSegment | OptionsSegment
 
 function formatToolName(name: string): string {
   return name
@@ -32,27 +41,19 @@ function formatToolName(name: string): string {
     .join(' ')
 }
 
-interface TextSegment {
-  type: 'text'
-  content: string
-}
-
-interface ActionSegment {
-  type: 'action'
-  id: string
-  label: string
-  status: ToolCallStatus
-}
-
-type MessageSegment = TextSegment | ActionSegment
-
 /**
- * Flattens raw content blocks into a uniform list of text and action segments.
- * Tool calls and subagents are treated identically as action items.
+ * Flattens raw content blocks into typed segments for rendering.
+ * Each content type maps to its own segment with all available data preserved.
  */
 function parseBlocks(blocks: ContentBlock[], isStreaming: boolean): MessageSegment[] {
   const segments: MessageSegment[] = []
-  const lastSubagentIdx = blocks.findLastIndex((b) => b.type === 'subagent')
+  let lastSubagentIdx = -1
+  for (let j = blocks.length - 1; j >= 0; j--) {
+    if (blocks[j].type === 'subagent') {
+      lastSubagentIdx = j
+      break
+    }
+  }
 
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]
@@ -71,10 +72,12 @@ function parseBlocks(blocks: ContentBlock[], isStreaming: boolean): MessageSegme
       }
       case 'subagent': {
         if (block.content) {
+          const key = block.content
           segments.push({
-            type: 'action',
+            type: 'subagent',
             id: `subagent-${i}`,
-            label: block.content,
+            name: key,
+            label: SUBAGENT_LABELS[key as SubagentName] ?? key,
             status: isStreaming && i === lastSubagentIdx ? 'executing' : 'success',
           })
         }
@@ -83,11 +86,19 @@ function parseBlocks(blocks: ContentBlock[], isStreaming: boolean): MessageSegme
       case 'tool_call': {
         if (block.toolCall) {
           segments.push({
-            type: 'action',
+            type: 'tool_call',
             id: block.toolCall.id,
-            label: block.toolCall.displayTitle || formatToolName(block.toolCall.name),
+            toolName: block.toolCall.name,
+            displayTitle: block.toolCall.displayTitle || formatToolName(block.toolCall.name),
             status: block.toolCall.status,
+            phaseLabel: block.toolCall.phaseLabel,
           })
+        }
+        break
+      }
+      case 'options': {
+        if (block.options?.length) {
+          segments.push({ type: 'options', items: block.options })
         }
         break
       }
@@ -97,22 +108,19 @@ function parseBlocks(blocks: ContentBlock[], isStreaming: boolean): MessageSegme
   return segments
 }
 
-function ThrottledTextSegment({ content }: { content: string }) {
-  const throttled = useThrottledValue(content)
-  return (
-    <div className={PROSE_CLASSES}>
-      <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{throttled}</ReactMarkdown>
-    </div>
-  )
-}
-
 interface MessageContentProps {
   blocks: ContentBlock[]
   fallbackContent: string
   isStreaming: boolean
+  onOptionSelect?: (id: string) => void
 }
 
-export function MessageContent({ blocks, fallbackContent, isStreaming }: MessageContentProps) {
+export function MessageContent({
+  blocks,
+  fallbackContent,
+  isStreaming,
+  onOptionSelect,
+}: MessageContentProps) {
   const parsed = blocks.length > 0 ? parseBlocks(blocks, isStreaming) : []
 
   const segments: MessageSegment[] =
@@ -127,15 +135,33 @@ export function MessageContent({ blocks, fallbackContent, isStreaming }: Message
   return (
     <div className='space-y-[10px]'>
       {segments.map((segment, i) => {
-        if (segment.type === 'text') {
-          return <ThrottledTextSegment key={`text-${i}`} content={segment.content} />
+        switch (segment.type) {
+          case 'text':
+            return <ChatContent key={`text-${i}`} content={segment.content} />
+          case 'tool_call':
+            return (
+              <ToolCall
+                key={segment.id}
+                id={segment.id}
+                toolName={segment.toolName}
+                displayTitle={segment.displayTitle}
+                status={segment.status}
+                phaseLabel={segment.phaseLabel}
+              />
+            )
+          case 'subagent':
+            return (
+              <Subagent
+                key={segment.id}
+                id={segment.id}
+                name={segment.name}
+                label={segment.label}
+                status={segment.status}
+              />
+            )
+          case 'options':
+            return <Options key={`options-${i}`} items={segment.items} onSelect={onOptionSelect} />
         }
-
-        return (
-          <div key={segment.id} className='font-base text-[13px] text-[var(--text-tertiary)]'>
-            {segment.label}
-          </div>
-        )
       })}
     </div>
   )

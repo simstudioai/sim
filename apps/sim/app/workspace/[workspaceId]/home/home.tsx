@@ -143,14 +143,14 @@ export function Home({ chatId }: HomeProps = {}) {
   return (
     <div className='flex h-full bg-[var(--bg)]'>
       <div className='flex h-full min-w-0 flex-1 flex-col'>
-        <div className='min-h-0 flex-1 overflow-y-auto px-[24px] py-[16px]'>
-          <div className='mx-auto max-w-[640px] space-y-[16px]'>
+        <div className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 py-4'>
+          <div className='mx-auto max-w-[42rem] space-y-6'>
             {messages.map((msg, index) => {
               if (msg.role === 'user') {
                 return (
-                  <div key={msg.id} className='flex justify-end'>
-                    <div className='max-w-[80%] rounded-[16px] bg-[var(--surface-5)] px-[14px] py-[4px]'>
-                      <p className='whitespace-pre-wrap font-[380] font-body text-[16px] text-[var(--text-primary)] leading-[1.75] tracking-[-0.015em]'>
+                  <div key={msg.id} className='flex justify-end pt-3'>
+                    <div className='max-w-[70%] rounded-[22px] bg-[var(--surface-5)] px-4 py-2.5'>
+                      <p className='whitespace-pre-wrap font-[420] font-[family-name:var(--font-inter)] text-[16px] text-[var(--text-primary)] leading-6 tracking-[0] antialiased'>
                         {msg.content}
                       </p>
                     </div>
@@ -176,7 +176,7 @@ export function Home({ chatId }: HomeProps = {}) {
               if (!hasBlocks && !msg.content) return null
 
               return (
-                <div key={msg.id}>
+                <div key={msg.id} className='pb-4'>
                   <MessageContent
                     blocks={msg.contentBlocks || []}
                     fallbackContent={msg.content}
