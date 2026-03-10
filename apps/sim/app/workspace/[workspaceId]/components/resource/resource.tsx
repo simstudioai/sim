@@ -142,7 +142,7 @@ export function Resource({
 
   return (
     <div
-      className='flex h-full flex-1 flex-col overflow-hidden bg-white dark:bg-[var(--bg)]'
+      className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'
       onContextMenu={onContextMenu}
     >
       <ResourceHeader icon={icon} title={title} create={create} actions={headerActions} />
@@ -162,7 +162,7 @@ export function Resource({
           <span className='text-[13px] text-[var(--text-secondary)]'>{emptyMessage}</span>
         </div>
       ) : (
-        <div className='relative min-h-0 flex-1 overflow-hidden'>
+        <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
           <div ref={headerRef} className='overflow-hidden'>
             <table className='w-full table-fixed text-[13px]'>
               <ResourceColGroup columns={columns} />

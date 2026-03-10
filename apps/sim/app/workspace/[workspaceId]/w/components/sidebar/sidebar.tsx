@@ -437,6 +437,7 @@ export const Sidebar = memo(function Sidebar() {
     [handleSaveTaskRename, handleCancelTaskRename]
   )
 
+  const [hasOverflowTop, setHasOverflowTop] = useState(false)
   const [hasOverflowBottom, setHasOverflowBottom] = useState(false)
 
   useEffect(() => {
@@ -444,6 +445,7 @@ export const Sidebar = memo(function Sidebar() {
     if (!container) return
 
     const updateScrollState = () => {
+      setHasOverflowTop(container.scrollTop > 1)
       setHasOverflowBottom(
         container.scrollHeight > container.scrollTop + container.clientHeight + 1
       )
@@ -736,7 +738,7 @@ export const Sidebar = memo(function Sidebar() {
               </div>
 
               {/* Workspace */}
-              <div className='mt-[14px] flex flex-shrink-0 flex-col pb-[5px]'>
+              <div className='mt-[14px] flex flex-shrink-0 flex-col pb-[8px]'>
                 <div className='px-[16px] pb-[6px]'>
                   <div className='font-base text-[var(--text-icon)] text-small'>Workspace</div>
                 </div>
@@ -769,7 +771,10 @@ export const Sidebar = memo(function Sidebar() {
               {/* Scrollable Tasks + Workflows */}
               <div
                 ref={scrollContainerRef}
-                className='mt-[9px] flex flex-1 flex-col overflow-y-auto overflow-x-hidden'
+                className={cn(
+                  'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pt-[9px] transition-colors duration-150',
+                  !hasOverflowTop && 'border-transparent'
+                )}
               >
                 {/* Tasks */}
                 <div className='flex flex-shrink-0 flex-col'>

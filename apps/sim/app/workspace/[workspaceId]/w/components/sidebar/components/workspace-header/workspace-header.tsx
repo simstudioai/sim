@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowDown, MoreHorizontal, Plus } from 'lucide-react'
+import { MoreHorizontal } from 'lucide-react'
 import {
+  ArrowDown,
   Button,
   ChevronDown,
   Modal,
@@ -11,6 +12,7 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Plus,
   Popover,
   PopoverContent,
   PopoverItem,
@@ -316,7 +318,7 @@ export function WorkspaceHeader({
               <button
                 type='button'
                 aria-label='Switch workspace'
-                className='group flex h-[32px] w-full min-w-0 cursor-pointer items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-[#FCFCFC] px-[8px] transition-colors hover:bg-[var(--surface-5)] dark:bg-[var(--surface-2)] dark:hover:bg-[var(--surface-3)]'
+                className='group flex h-[32px] w-full min-w-0 cursor-pointer items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] px-[8px] transition-colors hover:bg-[var(--surface-5)]'
                 title={activeWorkspace?.name || 'Loading...'}
                 onContextMenu={(e) => {
                   if (activeWorkspaceFull) {
@@ -490,7 +492,7 @@ export function WorkspaceHeader({
           <button
             type='button'
             aria-label='Switch workspace'
-            className='flex h-[32px] w-full min-w-0 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-[#FCFCFC] px-[8px] dark:bg-[var(--surface-2)]'
+            className='flex h-[32px] w-full min-w-0 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] px-[8px]'
             title={activeWorkspace?.name || 'Loading...'}
             disabled
           >

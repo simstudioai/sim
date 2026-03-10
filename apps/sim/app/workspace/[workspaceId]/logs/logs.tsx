@@ -662,59 +662,25 @@ export default function Logs() {
         return {
           id: log.id,
           cells: {
-            date: {
-              content: (
-                <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
-                  {formattedDate.compactDate}
-                </span>
-              ),
-            },
-            time: {
-              content: (
-                <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
-                  {formattedDate.compactTime}
-                </span>
-              ),
-            },
-            status: {
-              content: <StatusBadge status={displayStatus} />,
-            },
+            date: { label: formattedDate.compactDate },
+            time: { label: formattedDate.compactTime },
+            status: { content: <StatusBadge status={displayStatus} /> },
             workflow: {
-              content: (
-                <span className='flex items-center gap-[8px] truncate'>
-                  {workflowColor && (
-                    <div
-                      className='h-[8px] w-[8px] flex-shrink-0 rounded-[2px] border-[1.5px]'
-                      style={{
-                        backgroundColor: workflowColor,
-                        borderColor: `${workflowColor}60`,
-                        backgroundClip: 'padding-box',
-                      }}
-                    />
-                  )}
-                  <span className='truncate font-medium text-[12px] text-[var(--text-secondary)]'>
-                    {workflowName}
-                  </span>
-                </span>
-              ),
+              icon: workflowColor ? (
+                <div
+                  className='h-[10px] w-[10px] rounded-[3px] border-[1.5px]'
+                  style={{
+                    backgroundColor: workflowColor,
+                    borderColor: `${workflowColor}60`,
+                    backgroundClip: 'padding-box',
+                  }}
+                />
+              ) : undefined,
+              label: workflowName,
             },
-            cost: {
-              content: (
-                <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
-                  {costText}
-                </span>
-              ),
-            },
-            trigger: {
-              content: <TriggerBadge trigger={log.trigger || 'manual'} />,
-            },
-            duration: {
-              content: (
-                <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
-                  {durationText}
-                </span>
-              ),
-            },
+            cost: { label: costText },
+            trigger: { content: <TriggerBadge trigger={log.trigger || 'manual'} /> },
+            duration: { label: durationText },
           },
         }
       }),

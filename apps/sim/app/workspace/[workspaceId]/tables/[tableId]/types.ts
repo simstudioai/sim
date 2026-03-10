@@ -14,15 +14,6 @@ export interface QueryOptions {
 }
 
 /**
- * Data for viewing a cell's full content in a modal
- */
-export interface CellViewerData {
-  columnName: string
-  value: unknown
-  type: 'json' | 'text' | 'date' | 'boolean' | 'number'
-}
-
-/**
  * State for the row context menu (right-click)
  */
 export interface ContextMenuState {

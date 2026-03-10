@@ -1,8 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Layout, Search } from 'lucide-react'
 import { Button } from '@/components/emcn'
+import { Layout, Search } from '@/components/emcn/icons'
 import { Input } from '@/components/ui/input'
 import type { CreatorProfileDetails } from '@/app/_types/creator-profile'
 import {
@@ -154,7 +154,7 @@ export default function Templates({
   return (
     <div className='flex h-full flex-1 flex-col'>
       <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto bg-white px-[24px] pt-[28px] pb-[24px] dark:bg-[var(--bg)]'>
+        <div className='flex flex-1 flex-col overflow-auto bg-[var(--bg)] px-[24px] pt-[28px] pb-[24px]'>
           <div>
             <div className='flex items-start gap-[12px]'>
               <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#5BA8D9] bg-[#E8F4FB] dark:border-[#1A5070] dark:bg-[#153347]'>

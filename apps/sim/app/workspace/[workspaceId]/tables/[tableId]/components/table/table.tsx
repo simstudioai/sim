@@ -54,12 +54,11 @@ import {
   useUpdateTableRow,
 } from '@/hooks/queries/tables'
 import { useInlineRename } from '@/hooks/use-inline-rename'
-import { useContextMenu, useRowSelection, useTableData } from '../../hooks'
+import { useContextMenu, useTableData } from '../../hooks'
 import type { EditingCell, QueryOptions, SaveReason } from '../../types'
 import { cleanCellValue, formatValueForInput } from '../../utils'
 import { ContextMenu } from '../context-menu'
 import { RowModal } from '../row-modal'
-import { SchemaModal } from '../schema-modal'
 import { TableFilter } from '../table-filter'
 
 interface CellCoord {
@@ -96,9 +95,9 @@ const CELL = 'border-[var(--border)] border-r border-b px-[8px] py-[7px] align-m
 const CELL_CHECKBOX =
   'border-[var(--border)] border-r border-b px-[4px] py-[7px] align-middle select-none'
 const CELL_HEADER =
-  'border-[var(--border)] border-r border-b bg-white px-[8px] py-[7px] text-left align-middle dark:bg-[var(--bg)]'
+  'border-[var(--border)] border-r border-b bg-[var(--bg)] px-[8px] py-[7px] text-left align-middle'
 const CELL_HEADER_CHECKBOX =
-  'border-[var(--border)] border-r border-b bg-white px-[4px] py-[7px] text-center align-middle dark:bg-[var(--bg)]'
+  'border-[var(--border)] border-r border-b bg-[var(--bg)] px-[4px] py-[7px] text-center align-middle'
 const CELL_CONTENT =
   'relative min-h-[20px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[13px]'
 const SELECTION_OVERLAY =
@@ -167,10 +166,8 @@ export function Table({
     filter: null,
     sort: null,
   })
-  const [showAddModal, setShowAddModal] = useState(false)
   const [editingRow, setEditingRow] = useState<TableRowType | null>(null)
   const [deletingRows, setDeletingRows] = useState<string[]>([])
-  const [showSchemaModal, setShowSchemaModal] = useState(false)
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null)
   const [initialCharacter, setInitialCharacter] = useState<string | null>(null)
   const [selectionAnchor, setSelectionAnchor] = useState<CellCoord | null>(null)
@@ -199,8 +196,6 @@ export function Table({
     tableId,
     queryOptions,
   })
-
-  const { selectedRows, handleSelectAll, handleSelectRow, clearSelection } = useRowSelection(rows)
 
   const {
     contextMenu,
@@ -283,14 +278,12 @@ export function Table({
 
   const columnsRef = useRef(columns)
   const rowsRef = useRef(rows)
-  const visibleRowsRef = useRef(visibleRows)
   const pendingPlaceholdersRef = useRef(pendingPlaceholders)
   const selectionAnchorRef = useRef(selectionAnchor)
   const selectionFocusRef = useRef(selectionFocus)
 
   columnsRef.current = columns
   rowsRef.current = rows
-  visibleRowsRef.current = visibleRows
   pendingPlaceholdersRef.current = pendingPlaceholders
   selectionAnchorRef.current = selectionAnchor
   selectionFocusRef.current = selectionFocus
@@ -321,14 +314,6 @@ export function Table({
       setShowDeleteTableConfirm(false)
     }
   }, [deleteTableMutation, tableId, router, workspaceId])
-
-  const handleAddRow = useCallback(() => {
-    setShowAddModal(true)
-  }, [])
-
-  const handleDeleteSelected = useCallback(() => {
-    setDeletingRows(Array.from(selectedRows))
-  }, [selectedRows])
 
   const handleContextMenuEdit = useCallback(() => {
     if (contextMenu.row) {
@@ -474,6 +459,15 @@ export function Table({
   }, [selectionAnchor])
 
   const handleCellClick = useCallback((rowId: string, columnName: string) => {
+    const column = columnsRef.current.find((c) => c.name === columnName)
+    if (column?.type === 'boolean') {
+      const row = rowsRef.current.find((r) => r.id === rowId)
+      if (row) {
+        mutateRef.current({ rowId, data: { [columnName]: !row.data[columnName] } })
+      }
+      return
+    }
+
     const current = editingCellRef.current
     if (current && current.rowId === rowId && current.columnName === columnName) return
     setEditingCell(null)
@@ -483,30 +477,18 @@ export function Table({
 
   const handleCellDoubleClick = useCallback((rowId: string, columnName: string) => {
     const column = columnsRef.current.find((c) => c.name === columnName)
-    if (!column) return
+    if (!column || column.type === 'boolean') return
 
     setSelectionFocus(null)
-
-    if (column.type === 'json') {
-      const row = rowsRef.current.find((r) => r.id === rowId)
-      if (row) setEditingRow(row)
-      return
-    }
-
-    if (column.type === 'boolean') {
-      const row = rowsRef.current.find((r) => r.id === rowId)
-      if (row) {
-        mutateRef.current({ rowId, data: { [columnName]: !row.data[columnName] } })
-      }
-      return
-    }
-
     setEditingCell({ rowId, columnName })
     setInitialCharacter(null)
   }, [])
 
   const mutateRef = useRef(updateRowMutation.mutate)
   mutateRef.current = updateRowMutation.mutate
+
+  const createRef = useRef(createRowMutation.mutate)
+  createRef.current = createRowMutation.mutate
 
   const updateMetadataRef = useRef(updateMetadataMutation.mutate)
   updateMetadataRef.current = updateMetadataMutation.mutate
@@ -543,16 +525,12 @@ export function Table({
 
         const row = positionMapRef.current.get(anchor.rowIndex)
         if (!row) {
-          if (col.type !== 'json' && col.type !== 'boolean') {
+          if (col.type !== 'boolean') {
             setEditingEmptyCell({ rowIndex: anchor.rowIndex, columnName: col.name })
           }
           return
         }
 
-        if (col.type === 'json') {
-          setEditingRow(row)
-          return
-        }
         if (col.type === 'boolean') {
           mutateRef.current({ rowId: row.id, data: { [col.name]: !row.data[col.name] } })
           return
@@ -711,7 +689,7 @@ export function Table({
 
       if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
         const col = cols[anchor.colIndex]
-        if (!col || col.type === 'json' || col.type === 'boolean') return
+        if (!col || col.type === 'boolean') return
         if (col.type === 'number' && !/[\d.-]/.test(e.key)) return
         if (col.type === 'date' && !/[\d\-/]/.test(e.key)) return
         e.preventDefault()
@@ -775,24 +753,75 @@ export function Table({
     containerRef.current?.focus({ preventScroll: true })
   }, [])
 
-  const handleEmptyRowClick = useCallback((rowIndex: number, columnName: string) => {
-    const current = editingEmptyCellRef.current
-    if (current && current.rowIndex === rowIndex && current.columnName === columnName) return
-    setEditingCell(null)
-    setEditingEmptyCell(null)
-    setInitialCharacter(null)
-  }, [])
+  const upsertPlaceholderRow = useCallback(
+    (rowIndex: number, changedData: Record<string, unknown>) => {
+      const existing = pendingPlaceholdersRef.current[rowIndex]
+      const mergedData = { ...(existing?.data || {}), ...changedData }
+
+      if (existing?.rowId) {
+        setPendingPlaceholders((prev) => ({
+          ...prev,
+          [rowIndex]: { ...prev[rowIndex], data: mergedData },
+        }))
+        mutateRef.current({ rowId: existing.rowId, data: changedData })
+      } else {
+        setPendingPlaceholders((prev) => ({
+          ...prev,
+          [rowIndex]: { rowId: null, data: mergedData },
+        }))
+        createRef.current(
+          { data: mergedData, position: rowIndex },
+          {
+            onSuccess: (response: Record<string, unknown>) => {
+              const data = response?.data as Record<string, unknown> | undefined
+              const row = data?.row as Record<string, unknown> | undefined
+              const newRowId = row?.id as string | undefined
+              if (newRowId) {
+                setPendingPlaceholders((prev) => {
+                  if (!prev[rowIndex]) return prev
+                  return { ...prev, [rowIndex]: { ...prev[rowIndex], rowId: newRowId } }
+                })
+              }
+            },
+            onError: () => {
+              setPendingPlaceholders((prev) => {
+                const next = { ...prev }
+                delete next[rowIndex]
+                return next
+              })
+            },
+          }
+        )
+      }
+    },
+    []
+  )
+
+  const handleEmptyRowClick = useCallback(
+    (rowIndex: number, columnName: string) => {
+      const column = columnsRef.current.find((c) => c.name === columnName)
+      if (column?.type === 'boolean') {
+        const existing = pendingPlaceholdersRef.current[rowIndex]
+        upsertPlaceholderRow(rowIndex, { [columnName]: !existing?.data[columnName] })
+        return
+      }
+
+      const current = editingEmptyCellRef.current
+      if (current && current.rowIndex === rowIndex && current.columnName === columnName) return
+      setEditingCell(null)
+      setEditingEmptyCell(null)
+      setInitialCharacter(null)
+    },
+    [upsertPlaceholderRow]
+  )
 
   const handleEmptyRowDoubleClick = useCallback((rowIndex: number, columnName: string) => {
     const column = columnsRef.current.find((c) => c.name === columnName)
-    if (!column || column.type === 'json' || column.type === 'boolean') return
+    if (!column || column.type === 'boolean') return
     setSelectionFocus(null)
     setEditingEmptyCell({ rowIndex, columnName })
     setInitialCharacter(null)
   }, [])
-
-  const createRef = useRef(createRowMutation.mutate)
-  createRef.current = createRowMutation.mutate
 
   const handleEmptyRowSave = useCallback(
     (rowIndex: number, columnName: string, value: unknown, reason: SaveReason) => {
@@ -800,52 +829,12 @@ export function Table({
       setInitialCharacter(null)
 
       if (value !== null && value !== undefined && value !== '') {
-        const existing = pendingPlaceholdersRef.current[rowIndex]
-        const updatedData = { ...(existing?.data || {}), [columnName]: value }
-
-        if (existing?.rowId) {
-          setPendingPlaceholders((prev) => ({
-            ...prev,
-            [rowIndex]: { ...prev[rowIndex], data: updatedData },
-          }))
-          mutateRef.current({ rowId: existing.rowId, data: { [columnName]: value } })
-        } else {
-          setPendingPlaceholders((prev) => ({
-            ...prev,
-            [rowIndex]: { rowId: null, data: updatedData },
-          }))
-          createRef.current(
-            { data: updatedData, position: rowIndex },
-            {
-              onSuccess: (response: Record<string, unknown>) => {
-                const data = response?.data as Record<string, unknown> | undefined
-                const row = data?.row as Record<string, unknown> | undefined
-                const newRowId = row?.id as string | undefined
-                if (newRowId) {
-                  setPendingPlaceholders((prev) => {
-                    if (!prev[rowIndex]) return prev
-                    return {
-                      ...prev,
-                      [rowIndex]: { ...prev[rowIndex], rowId: newRowId },
-                    }
-                  })
-                }
-              },
-              onError: () => {
-                setPendingPlaceholders((prev) => {
-                  const next = { ...prev }
-                  delete next[rowIndex]
-                  return next
-                })
-              },
-            }
-          )
-        }
+        upsertPlaceholderRow(rowIndex, { [columnName]: value })
       }
 
       navigateAfterSave(reason)
     },
-    [navigateAfterSave]
+    [upsertPlaceholderRow, navigateAfterSave]
   )
 
   const handleEmptyRowCancel = useCallback(() => {
@@ -1107,8 +1096,8 @@ export function Table({
                       onClick={handleAddColumn}
                       disabled={addColumnMutation.isPending}
                     >
-                      <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-muted)]' />
-                      <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                      <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+                      <span className='font-medium text-[13px] text-[var(--text-body)]'>
                         New column
                       </span>
                     </button>
@@ -1202,16 +1191,6 @@ export function Table({
         </div>
       </div>
 
-      {showAddModal && tableData && (
-        <RowModal
-          mode='add'
-          isOpen={true}
-          onClose={() => setShowAddModal(false)}
-          table={tableData}
-          onSuccess={() => setShowAddModal(false)}
-        />
-      )}
-
       {editingRow && tableData && (
         <RowModal
           mode='edit'
@@ -1232,17 +1211,8 @@ export function Table({
           rowIds={deletingRows}
           onSuccess={() => {
             setDeletingRows([])
-            clearSelection()
+            handleClearSelection()
           }}
-        />
-      )}
-
-      {tableData && (
-        <SchemaModal
-          isOpen={showSchemaModal}
-          onClose={() => setShowSchemaModal(false)}
-          columns={columns}
-          tableName={tableData.name}
         />
       )}
 
@@ -1317,7 +1287,7 @@ export function Table({
 }
 
 const GAP_ROW_LIMIT = 200
-const GAP_CHECKBOX_CLASS = cn(CELL_CHECKBOX, 'cursor-pointer text-center')
+const GAP_CHECKBOX_CLASS = cn(CELL_CHECKBOX, 'group/checkbox cursor-pointer text-center')
 
 interface PositionGapRowsProps {
   count: number
@@ -1374,9 +1344,12 @@ const PositionGapRows = React.memo(function PositionGapRows({
               }}
               onMouseEnter={() => onRowMouseEnter(position)}
             >
-              <span className='text-[11px] text-[var(--text-tertiary)] tabular-nums'>
+              <span className='block text-[11px] text-[var(--text-tertiary)] tabular-nums group-hover/checkbox:hidden'>
                 {position + 1}
               </span>
+              <div className='hidden items-center justify-center group-hover/checkbox:flex'>
+                <Checkbox size='sm' checked={false} className='pointer-events-none' />
+              </div>
             </td>
             {columns.map((col, colIndex) => {
               const isEditing =
@@ -1445,6 +1418,10 @@ const PositionGapRows = React.memo(function PositionGapRows({
                         onSave={() => {}}
                         onCancel={() => {}}
                       />
+                    </div>
+                  ) : col.type === 'boolean' ? (
+                    <div className='flex min-h-[20px] items-center justify-center'>
+                      <Checkbox size='sm' checked={false} className='pointer-events-none' />
                     </div>
                   ) : (
                     <div className='min-h-[20px]' />
@@ -1730,8 +1707,11 @@ function CellContent({
   const isNull = value === null || value === undefined
 
   if (column.type === 'boolean') {
-    if (isNull) return null
-    return <span className='text-[var(--text-primary)]'>{value ? 'true' : 'false'}</span>
+    return (
+      <div className='flex min-h-[20px] items-center justify-center'>
+        <Checkbox size='sm' checked={Boolean(value)} className='pointer-events-none' />
+      </div>
+    )
   }
 
   if (isNull) return null
@@ -1828,7 +1808,7 @@ function InlineEditor({
     }
   }
 
-  const inputType = column.type === 'number' ? 'number' : column.type === 'date' ? 'date' : 'text'
+  const inputType = column.type === 'date' ? 'date' : 'text'
 
   return (
     <input
@@ -2055,16 +2035,19 @@ const PlaceholderRows = React.memo(function PlaceholderRows({
         return (
           <tr key={`placeholder-${i}`}>
             <td
-              className={cn(CELL_CHECKBOX, 'cursor-pointer text-center')}
+              className={cn(CELL_CHECKBOX, 'group/checkbox cursor-pointer text-center')}
               onMouseDown={(e) => {
                 if (e.button !== 0) return
                 onRowMouseDown(globalRowIndex, e.shiftKey)
               }}
               onMouseEnter={() => onRowMouseEnter(globalRowIndex)}
             >
-              <span className='block text-[11px] text-[var(--text-tertiary)] tabular-nums'>
+              <span className='block text-[11px] text-[var(--text-tertiary)] tabular-nums group-hover/checkbox:hidden'>
                 {maxPosition + i + 2}
               </span>
+              <div className='hidden items-center justify-center group-hover/checkbox:flex'>
+                <Checkbox size='sm' checked={false} className='pointer-events-none' />
+              </div>
             </td>
             {columns.map((col, colIndex) => {
               const isEditing =
@@ -2133,6 +2116,10 @@ const PlaceholderRows = React.memo(function PlaceholderRows({
                         onSave={() => {}}
                         onCancel={() => {}}
                       />
+                    </div>
+                  ) : col.type === 'boolean' ? (
+                    <div className='flex min-h-[20px] items-center justify-center'>
+                      <Checkbox size='sm' checked={false} className='pointer-events-none' />
                     </div>
                   ) : (
                     <div className='min-h-[20px]' />
@@ -2239,7 +2226,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   )
 
   return (
-    <th className='relative border-[var(--border)] border-r border-b bg-white p-0 text-left align-middle dark:bg-[var(--bg)]'>
+    <th className='relative border-[var(--border)] border-r border-b bg-[var(--bg)] p-0 text-left align-middle'>
       {isRenaming ? (
         <div className='flex h-full w-full min-w-0 items-center px-[8px] py-[7px]'>
           <ColumnTypeIcon type={column.type} />

@@ -2,8 +2,8 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Database } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { Database } from '@/components/emcn/icons'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
 import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'

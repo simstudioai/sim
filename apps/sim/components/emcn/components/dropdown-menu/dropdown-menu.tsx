@@ -69,7 +69,7 @@ const DropdownMenuSubContent = React.forwardRef<
     ref={ref}
     className={cn(
       ANIMATION_CLASSES,
-      'z-50 min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-hidden rounded-[8px] border border-[var(--border)] bg-white p-[6px] text-[var(--text-secondary)] shadow-sm dark:bg-[var(--bg)]',
+      'z-50 min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] p-[6px] text-[var(--text-secondary)] shadow-sm',
       className
     )}
     {...props}
@@ -87,7 +87,7 @@ const DropdownMenuContent = React.forwardRef<
       sideOffset={sideOffset}
       className={cn(
         ANIMATION_CLASSES,
-        'z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-[8px] border border-[var(--border)] bg-white p-[6px] text-[var(--text-secondary)] shadow-sm dark:bg-[var(--bg)]',
+        'z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] p-[6px] text-[var(--text-secondary)] shadow-sm',
         className
       )}
       {...props}

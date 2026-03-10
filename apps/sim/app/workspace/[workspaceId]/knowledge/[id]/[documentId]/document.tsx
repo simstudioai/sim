@@ -193,7 +193,7 @@ function DocumentLoading({
   return (
     <div className='flex h-full flex-1 flex-col'>
       <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto bg-white px-[24px] pt-[24px] pb-[24px] dark:bg-[var(--bg)]'>
+        <div className='flex flex-1 flex-col overflow-auto bg-[var(--bg)] px-[24px] pt-[24px] pb-[24px]'>
           <Breadcrumb items={breadcrumbItems} />
 
           <div className='mt-[14px] flex items-center justify-between'>
@@ -635,7 +635,7 @@ export function Document({
   return (
     <div className='flex h-full flex-1 flex-col'>
       <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto bg-white px-[24px] pt-[24px] pb-[24px] dark:bg-[var(--bg)]'>
+        <div className='flex flex-1 flex-col overflow-auto bg-[var(--bg)] px-[24px] pt-[24px] pb-[24px]'>
           <Breadcrumb items={breadcrumbItems} />
 
           <div className='mt-[14px] flex items-center justify-between'>
