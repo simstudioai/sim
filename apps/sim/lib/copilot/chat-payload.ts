@@ -18,7 +18,6 @@ export interface BuildPayloadParams {
   mode: string
   model: string
   provider?: string
-  conversationHistory?: unknown[]
   contexts?: Array<{ type: string; content: string }>
   fileAttachments?: Array<{ id: string; key: string; size: number; [key: string]: unknown }>
   commands?: string[]
@@ -102,7 +101,6 @@ export async function buildCopilotRequestPayload(
     commands,
     chatId,
     prefetch,
-    conversationHistory,
     implicitFeedback,
   } = params
 
@@ -157,9 +155,6 @@ export async function buildCopilotRequestPayload(
     messageId: userMessageId,
     ...(contexts && contexts.length > 0 ? { context: contexts } : {}),
     ...(chatId ? { chatId } : {}),
-    ...(Array.isArray(conversationHistory) && conversationHistory.length > 0
-      ? { conversationHistory }
-      : {}),
     ...(typeof prefetch === 'boolean' ? { prefetch } : {}),
     ...(implicitFeedback ? { implicitFeedback } : {}),
     ...(processedFileContents.length > 0 ? { fileAttachments: processedFileContents } : {}),

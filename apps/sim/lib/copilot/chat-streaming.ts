@@ -68,7 +68,7 @@ export interface StreamingOrchestrationParams {
   streamId: string
   chatId?: string
   currentChat: any
-  conversationHistory: unknown[]
+  isNewChat: boolean
   message: string
   titleModel: string
   titleProvider?: string
@@ -83,7 +83,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
     streamId,
     chatId,
     currentChat,
-    conversationHistory,
+    isNewChat,
     message,
     titleModel,
     titleProvider,
@@ -93,6 +93,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
 
   let eventWriter: ReturnType<typeof createStreamEventWriter> | null = null
   let clientDisconnected = false
+  const abortController = new AbortController()
 
   return new ReadableStream({
     async start(controller) {
@@ -137,7 +138,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         await pushEvent({ type: 'chat_id', chatId })
       }
 
-      if (chatId && !currentChat?.title && conversationHistory.length === 0) {
+      if (chatId && !currentChat?.title && isNewChat) {
         requestChatTitle({ message, model: titleModel, provider: titleProvider })
           .then(async (title) => {
             if (title) {
@@ -153,6 +154,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
       try {
         await orchestrateCopilotStream(requestPayload, {
           ...orchestrateOptions,
+          abortSignal: abortController.signal,
           onEvent: async (event) => {
             await pushEvent(event)
           },
@@ -161,6 +163,12 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         await eventWriter.close()
         await setStreamMeta(streamId, { status: 'complete', userId })
       } catch (error) {
+        if (clientDisconnected || abortController.signal.aborted) {
+          logger.info(`[${requestId}] Stream aborted by client disconnect`)
+          await eventWriter.close().catch(() => {})
+          await setStreamMeta(streamId, { status: 'complete', userId })
+          return
+        }
         logger.error(`[${requestId}] Orchestration error:`, error)
         await eventWriter.close()
         await setStreamMeta(streamId, {
@@ -180,6 +188,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
     },
     async cancel() {
       clientDisconnected = true
+      abortController.abort()
       if (eventWriter) {
         await eventWriter.flush()
       }
