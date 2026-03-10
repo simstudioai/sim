@@ -1984,15 +1984,12 @@ function InlineDateEditor({
     [doSave]
   )
 
-  const handlePickerOpenChange = useCallback(
-    (open: boolean) => {
-      if (!open && !doneRef.current) {
-        clearTimeout(blurTimeoutRef.current)
-        doSave('blur')
-      }
-    },
-    [doSave]
-  )
+  const handlePickerOpenChange = useCallback((open: boolean) => {
+    if (!open && !doneRef.current) {
+      clearTimeout(blurTimeoutRef.current)
+      inputRef.current?.focus()
+    }
+  }, [])
 
   return (
     <>

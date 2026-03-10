@@ -85,6 +85,13 @@ export function storageToDisplay(stored: string): string {
  * Convert a MM/DD/YYYY (or MM/DD) display string back to YYYY-MM-DD storage format.
  */
 export function displayToStorage(display: string): string | null {
+  const iso = display.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (iso) {
+    const month = Number(iso[2])
+    const day = Number(iso[3])
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null
+    return display
+  }
   const full = display.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
   if (full) {
     const month = Number(full[1])
