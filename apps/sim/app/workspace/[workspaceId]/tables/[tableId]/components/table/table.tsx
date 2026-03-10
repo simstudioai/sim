@@ -836,8 +836,6 @@ export function Table({
 
       const currentCols = columnsRef.current
       const pMap = positionMapRef.current
-      const currentMax = maxPositionRef.current
-      const totalR = currentMax + 1 + pasteRows.length
 
       const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const updateBatch: Array<{ rowId: string; data: Record<string, unknown> }> = []
@@ -846,7 +844,6 @@ export function Table({
 
       for (let r = 0; r < pasteRows.length; r++) {
         const targetRow = currentAnchor.rowIndex + r
-        if (targetRow >= totalR) break
 
         const rowData: Record<string, unknown> = {}
         for (let c = 0; c < pasteRows[r].length; c++) {
@@ -920,7 +917,7 @@ export function Table({
 
       const maxPasteCols = Math.max(...pasteRows.map((pr) => pr.length))
       setSelectionFocus({
-        rowIndex: Math.min(currentAnchor.rowIndex + pasteRows.length - 1, totalR - 1),
+        rowIndex: currentAnchor.rowIndex + pasteRows.length - 1,
         colIndex: Math.min(currentAnchor.colIndex + maxPasteCols - 1, currentCols.length - 1),
       })
     }
