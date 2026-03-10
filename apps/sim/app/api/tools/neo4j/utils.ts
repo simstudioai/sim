@@ -1,7 +1,13 @@
 import neo4j from 'neo4j-driver'
+import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 import type { Neo4jConnectionConfig } from '@/tools/neo4j/types'
 
 export async function createNeo4jDriver(config: Neo4jConnectionConfig) {
+  const hostValidation = await validateDatabaseHost(config.host, 'host')
+  if (!hostValidation.isValid) {
+    throw new Error(hostValidation.error)
+  }
+
   const isAuraHost =
     config.host === 'databases.neo4j.io' || config.host.endsWith('.databases.neo4j.io')
 

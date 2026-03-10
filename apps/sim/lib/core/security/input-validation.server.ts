@@ -54,9 +54,10 @@ function isPrivateOrReservedIP(ip: string): boolean {
  */
 export async function validateUrlWithDNS(
   url: string | null | undefined,
-  paramName = 'url'
+  paramName = 'url',
+  options: { allowHttp?: boolean } = {}
 ): Promise<AsyncValidationResult> {
-  const basicValidation = validateExternalUrl(url, paramName)
+  const basicValidation = validateExternalUrl(url, paramName, options)
   if (!basicValidation.isValid) {
     return basicValidation
   }
@@ -88,7 +89,10 @@ export async function validateUrlWithDNS(
         return ip === '127.0.0.1' || ip === '::1'
       })()
 
-    if (isPrivateOrReservedIP(address) && !(isLocalhost && resolvedIsLoopback)) {
+    if (
+      isPrivateOrReservedIP(address) &&
+      !(isLocalhost && resolvedIsLoopback && !options.allowHttp)
+    ) {
       logger.warn('URL resolves to blocked IP address', {
         paramName,
         hostname,
@@ -109,6 +113,70 @@ export async function validateUrlWithDNS(
     logger.warn('DNS lookup failed for URL', {
       paramName,
       hostname,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} hostname could not be resolved`,
+    }
+  }
+}
+
+/**
+ * Validates a database hostname by resolving DNS and checking the resolved IP
+ * against private/reserved ranges to prevent SSRF via database connections.
+ *
+ * Unlike validateHostname (which enforces strict RFC hostname format), this
+ * function is permissive about hostname format to avoid breaking legitimate
+ * database hostnames (e.g. underscores in Docker/K8s service names). It only
+ * blocks localhost and private/reserved IPs.
+ *
+ * @param host - The database hostname to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns AsyncValidationResult with resolved IP
+ */
+export async function validateDatabaseHost(
+  host: string | null | undefined,
+  paramName = 'host'
+): Promise<AsyncValidationResult> {
+  if (!host) {
+    return { isValid: false, error: `${paramName} is required` }
+  }
+
+  const lowerHost = host.toLowerCase()
+
+  if (lowerHost === 'localhost') {
+    return { isValid: false, error: `${paramName} cannot be localhost` }
+  }
+
+  if (ipaddr.isValid(lowerHost) && isPrivateOrReservedIP(lowerHost)) {
+    return { isValid: false, error: `${paramName} cannot be a private IP address` }
+  }
+
+  try {
+    const { address } = await dns.lookup(host, { verbatim: true })
+
+    if (isPrivateOrReservedIP(address)) {
+      logger.warn('Database host resolves to blocked IP address', {
+        paramName,
+        hostname: host,
+        resolvedIP: address,
+      })
+      return {
+        isValid: false,
+        error: `${paramName} resolves to a blocked IP address`,
+      }
+    }
+
+    return {
+      isValid: true,
+      resolvedIP: address,
+      originalHostname: host,
+    }
+  } catch (error) {
+    logger.warn('DNS lookup failed for database host', {
+      paramName,
+      hostname: host,
       error: error instanceof Error ? error.message : String(error),
     })
     return {
@@ -183,7 +251,7 @@ function resolveRedirectUrl(baseUrl: string, location: string): string {
 export async function secureFetchWithPinnedIP(
   url: string,
   resolvedIP: string,
-  options: SecureFetchOptions = {},
+  options: SecureFetchOptions & { allowHttp?: boolean } = {},
   redirectCount = 0
 ): Promise<SecureFetchResponse> {
   const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS
@@ -231,7 +299,7 @@ export async function secureFetchWithPinnedIP(
         res.resume()
         const redirectUrl = resolveRedirectUrl(url, location)
 
-        validateUrlWithDNS(redirectUrl, 'redirectUrl')
+        validateUrlWithDNS(redirectUrl, 'redirectUrl', { allowHttp: options.allowHttp })
           .then((validation) => {
             if (!validation.isValid) {
               reject(new Error(`Redirect blocked: ${validation.error}`))
@@ -340,10 +408,12 @@ export async function secureFetchWithPinnedIP(
  */
 export async function secureFetchWithValidation(
   url: string,
-  options: SecureFetchOptions = {},
+  options: SecureFetchOptions & { allowHttp?: boolean } = {},
   paramName = 'url'
 ): Promise<SecureFetchResponse> {
-  const validation = await validateUrlWithDNS(url, paramName)
+  const validation = await validateUrlWithDNS(url, paramName, {
+    allowHttp: options.allowHttp,
+  })
   if (!validation.isValid) {
     throw new Error(validation.error)
   }

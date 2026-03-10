@@ -8,6 +8,7 @@ import {
   isLegacyApiKeyFormat,
 } from '@/lib/api-key/crypto'
 import { env } from '@/lib/core/config/env'
+import { safeCompare } from '@/lib/core/security/encryption'
 
 const logger = createLogger('ApiKeyAuth')
 
@@ -39,7 +40,7 @@ export async function authenticateApiKey(inputKey: string, storedKey: string): P
       if (isEncryptedKey(storedKey)) {
         try {
           const { decrypted } = await decryptApiKey(storedKey)
-          return inputKey === decrypted
+          return safeCompare(inputKey, decrypted)
         } catch (decryptError) {
           logger.error('Failed to decrypt stored API key:', { error: decryptError })
           return false
@@ -54,27 +55,27 @@ export async function authenticateApiKey(inputKey: string, storedKey: string): P
       if (isEncryptedKey(storedKey)) {
         try {
           const { decrypted } = await decryptApiKey(storedKey)
-          return inputKey === decrypted
+          return safeCompare(inputKey, decrypted)
         } catch (decryptError) {
           logger.error('Failed to decrypt stored API key:', { error: decryptError })
           // Fall through to plain text comparison if decryption fails
         }
       }
       // Legacy format can match against plain text storage
-      return inputKey === storedKey
+      return safeCompare(inputKey, storedKey)
     }
 
     // If no recognized prefix, fall back to original behavior
     if (isEncryptedKey(storedKey)) {
       try {
         const { decrypted } = await decryptApiKey(storedKey)
-        return inputKey === decrypted
+        return safeCompare(inputKey, decrypted)
       } catch (decryptError) {
         logger.error('Failed to decrypt stored API key:', { error: decryptError })
       }
     }
 
-    return inputKey === storedKey
+    return safeCompare(inputKey, storedKey)
   } catch (error) {
     logger.error('API key authentication error:', { error })
     return false

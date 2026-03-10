@@ -81,7 +81,9 @@ export function setDeploymentAuthCookie(
 }
 
 /**
- * Adds CORS headers to allow cross-origin requests for embedded deployments
+ * Adds CORS headers to allow cross-origin requests for embedded deployments.
+ * Embedded chat widgets and forms are designed to run on any customer domain,
+ * so we reflect the requesting origin rather than restricting to an allowlist.
  */
 export function addCorsHeaders(response: NextResponse, request: NextRequest): NextResponse {
   const origin = request.headers.get('origin') || ''

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { jwtVerify, SignJWT } from 'jose'
 import { type NextRequest, NextResponse } from 'next/server'
 import { env } from '@/lib/core/config/env'
+import { safeCompare } from '@/lib/core/security/encryption'
 
 const logger = createLogger('CronAuth')
 
@@ -81,7 +82,8 @@ export function verifyCronAuth(request: NextRequest, context?: string): NextResp
 
   const authHeader = request.headers.get('authorization')
   const expectedAuth = `Bearer ${env.CRON_SECRET}`
-  if (authHeader !== expectedAuth) {
+  const isValid = authHeader !== null && safeCompare(authHeader, expectedAuth)
+  if (!isValid) {
     const contextInfo = context ? ` for ${context}` : ''
     logger.warn(`Unauthorized CRON access attempt${contextInfo}`, {
       providedAuth: authHeader,

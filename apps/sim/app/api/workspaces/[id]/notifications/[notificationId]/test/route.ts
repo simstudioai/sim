@@ -12,6 +12,7 @@ import {
 } from '@/components/emails'
 import { getSession } from '@/lib/auth'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -135,18 +136,18 @@ async function testWebhook(subscription: typeof workspaceNotificationSubscriptio
     headers['sim-signature'] = `t=${timestamp},v1=${signature}`
   }
 
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 10000)
-
   try {
-    const response = await fetch(webhookConfig.url, {
-      method: 'POST',
-      headers,
-      body,
-      signal: controller.signal,
-    })
-
-    clearTimeout(timeoutId)
+    const response = await secureFetchWithValidation(
+      webhookConfig.url,
+      {
+        method: 'POST',
+        headers,
+        body,
+        timeout: 10000,
+        allowHttp: true,
+      },
+      'webhookUrl'
+    )
     const responseBody = await response.text().catch(() => '')
 
     return {
@@ -157,12 +158,10 @@ async function testWebhook(subscription: typeof workspaceNotificationSubscriptio
       timestamp: new Date().toISOString(),
     }
   } catch (error: unknown) {
-    clearTimeout(timeoutId)
-    const err = error as Error & { name?: string }
-    if (err.name === 'AbortError') {
-      return { success: false, error: 'Request timeout after 10 seconds' }
-    }
-    return { success: false, error: err.message }
+    logger.warn('Webhook test failed', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return { success: false, error: 'Failed to deliver webhook' }
   }
 }
 
@@ -268,13 +267,15 @@ async function testSlack(
 
     return {
       success: result.ok,
-      error: result.error,
+      error: result.ok ? undefined : `Slack error: ${result.error || 'unknown'}`,
       channel: result.channel,
       timestamp: new Date().toISOString(),
     }
   } catch (error: unknown) {
-    const err = error as Error
-    return { success: false, error: err.message }
+    logger.warn('Slack test notification failed', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return { success: false, error: 'Failed to send Slack notification' }
   }
 }
 

@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       `[${requestId}] Deleting data from ${params.table} on ${params.host}:${params.port}/${params.database}`
     )
 
-    const sql = createPostgresConnection({
+    const sql = await createPostgresConnection({
       host: params.host,
       port: params.port,
       database: params.database,

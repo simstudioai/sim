@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
       `[${requestId}] Introspecting PostgreSQL schema on ${params.host}:${params.port}/${params.database}`
     )
 
-    const sql = createPostgresConnection({
+    const sql = await createPostgresConnection({
       host: params.host,
       port: params.port,
       database: params.database,

@@ -42,6 +42,20 @@ interface TestConnectionResult {
 }
 
 /**
+ * Extracts a user-friendly error message from connection errors.
+ * Keeps diagnostic info (timeout, DNS, HTTP status) but strips
+ * verbose internals (Zod details, full response bodies, stack traces).
+ */
+function sanitizeConnectionError(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return 'Unknown connection error'
+  }
+
+  const firstLine = error.message.split('\n')[0]
+  return firstLine.length > 200 ? `${firstLine.slice(0, 200)}...` : firstLine
+}
+
+/**
  * POST - Test connection to an MCP server before registering it
  */
 export const POST = withMcpAuth('write')(
@@ -137,8 +151,7 @@ export const POST = withMcpAuth('write')(
         } catch (toolError) {
           logger.warn(`[${requestId}] Connection established but could not list tools:`, toolError)
           result.success = false
-          const errorMessage = toolError instanceof Error ? toolError.message : 'Unknown error'
-          result.error = `Connection established but could not list tools: ${errorMessage}`
+          result.error = 'Connection established but could not list tools'
           result.warnings = result.warnings || []
           result.warnings.push(
             'Server connected but tool listing failed - connection may be incomplete'
@@ -163,11 +176,7 @@ export const POST = withMcpAuth('write')(
         logger.warn(`[${requestId}] MCP server test failed:`, error)
 
         result.success = false
-        if (error instanceof Error) {
-          result.error = error.message
-        } else {
-          result.error = 'Unknown connection error'
-        }
+        result.error = sanitizeConnectionError(error)
       } finally {
         if (client) {
           try {
