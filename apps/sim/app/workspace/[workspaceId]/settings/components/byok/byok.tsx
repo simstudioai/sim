@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -30,6 +30,7 @@ import {
   PerplexityIcon,
   SerperIcon,
 } from '@/components/icons'
+import { Input } from '@/components/ui'
 import { BYOKKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
 import {
   type BYOKKey,
@@ -164,12 +165,25 @@ export function BYOK() {
   const upsertKey = useUpsertBYOKKey()
   const deleteKey = useDeleteBYOKKey()
 
+  const [searchTerm, setSearchTerm] = useState('')
   const [editingProvider, setEditingProvider] = useState<BYOKProviderId | null>(null)
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [showApiKey, setShowApiKey] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [deleteConfirmProvider, setDeleteConfirmProvider] = useState<BYOKProviderId | null>(null)
+
+  const filteredProviders = useMemo(() => {
+    if (!searchTerm.trim()) return PROVIDERS
+    const searchLower = searchTerm.toLowerCase()
+    return PROVIDERS.filter(
+      (p) =>
+        p.name.toLowerCase().includes(searchLower) ||
+        p.description.toLowerCase().includes(searchLower)
+    )
+  }, [searchTerm])
+
+  const showNoResults = searchTerm.trim() && filteredProviders.length === 0
 
   const getKeyForProvider = (providerId: BYOKProviderId): BYOKKey | undefined => {
     return keys.find((k) => k.providerId === providerId)
@@ -219,6 +233,22 @@ export function BYOK() {
   return (
     <>
       <div className='flex h-full flex-col gap-[18px]'>
+        <div className='flex items-center gap-[8px]'>
+          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
+            <Search
+              className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+              strokeWidth={2}
+            />
+            <Input
+              placeholder='Search providers...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              disabled={isLoading}
+              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+            />
+          </div>
+        </div>
+
         <p className='text-[14px] text-[var(--text-secondary)]'>
           Use your own API keys for hosted model providers.
         </p>
@@ -232,7 +262,7 @@ export function BYOK() {
             </div>
           ) : (
             <div className='flex flex-col gap-[8px]'>
-              {PROVIDERS.map((provider) => {
+              {filteredProviders.map((provider) => {
                 const existingKey = getKeyForProvider(provider.id)
                 const Icon = provider.icon
 
@@ -274,6 +304,11 @@ export function BYOK() {
                   </div>
                 )
               })}
+              {showNoResults && (
+                <div className='py-[16px] text-center text-[14px] text-[var(--text-muted)]'>
+                  No providers found matching "{searchTerm}"
+                </div>
+              )}
             </div>
           )}
         </div>
