@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ArrowUp, Lock, Square, Unlock } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
@@ -55,6 +55,7 @@ import { useVariablesStore } from '@/stores/variables/store'
 import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { validateWorkflowBlocks } from '@/lib/workflows/validation'
 
 const logger = createLogger('Panel')
 /**
@@ -356,7 +357,12 @@ export const Panel = memo(function Panel() {
   // Compute run button state
   const canRun = userPermissions.canRead // Running only requires read permissions
   const isLoadingPermissions = userPermissions.isLoading
-  const hasValidationErrors = false // TODO: Add validation logic if needed
+
+  const blocks = useWorkflowStore((state) => state.blocks)
+  const edges = useWorkflowStore((state) => state.edges)
+  const validationErrors = useMemo(() => validateWorkflowBlocks(blocks, edges), [blocks, edges])
+  const hasValidationErrors = validationErrors.length > 0
+
   const isWorkflowBlocked = isExecuting || hasValidationErrors
   const isButtonDisabled = !isExecuting && (isWorkflowBlocked || (!canRun && !isLoadingPermissions))
 
