@@ -39,11 +39,18 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
       type: 'custom',
       getCost: (_params, output) => {
         if (output.creditsUsed == null) {
-          throw new Error('Firecrawl scrape response missing creditsUsed field')
+          throw new Error('Firecrawl response missing creditsUsed field')
         }
-        const creditsUsed = output.creditsUsed as number
-        const cost = creditsUsed * 0.001
-        return { cost, metadata: { creditsUsed } }
+
+        const creditsUsed = Number(output.creditsUsed)
+        if (Number.isNaN(creditsUsed)) {
+          throw new Error('Firecrawl response returned a non-numeric creditsUsed field')
+        }
+
+        return {
+          cost: creditsUsed * 0.001,
+          metadata: { creditsUsed },
+        }
       },
     },
     rateLimit: {
@@ -116,6 +123,5 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
       description: 'Page metadata including SEO and Open Graph information',
       properties: PAGE_METADATA_OUTPUT_PROPERTIES,
     },
-    creditsUsed: { type: 'number', description: 'Number of Firecrawl credits consumed' },
   },
 }

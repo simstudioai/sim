@@ -74,11 +74,18 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
       type: 'custom',
       getCost: (_params, output) => {
         if (output.creditsUsed == null) {
-          throw new Error('Firecrawl map response missing creditsUsed field')
+          throw new Error('Firecrawl response missing creditsUsed field')
         }
-        const creditsUsed = output.creditsUsed as number
-        const cost = creditsUsed * 0.001
-        return { cost, metadata: { creditsUsed } }
+
+        const creditsUsed = Number(output.creditsUsed)
+        if (Number.isNaN(creditsUsed)) {
+          throw new Error('Firecrawl response returned a non-numeric creditsUsed field')
+        }
+
+        return {
+          cost: creditsUsed * 0.001,
+          metadata: { creditsUsed },
+        }
       },
     },
     rateLimit: {
@@ -121,7 +128,7 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
       output: {
         success: data.success,
         links: data.links || [],
-        creditsUsed: data.creditsUsed,
+        creditsUsed: 1,
       },
     }
   },
@@ -138,6 +145,5 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
         type: 'string',
       },
     },
-    creditsUsed: { type: 'number', description: 'Number of Firecrawl credits consumed' },
   },
 }

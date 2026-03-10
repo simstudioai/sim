@@ -87,11 +87,18 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
       type: 'custom',
       getCost: (_params, output) => {
         if (output.creditsUsed == null) {
-          throw new Error('Firecrawl extract response missing creditsUsed field')
+          throw new Error('Firecrawl response missing creditsUsed field')
         }
-        const creditsUsed = output.creditsUsed as number
-        const cost = creditsUsed * 0.001
-        return { cost, metadata: { creditsUsed } }
+
+        const creditsUsed = Number(output.creditsUsed)
+        if (Number.isNaN(creditsUsed)) {
+          throw new Error('Firecrawl response returned a non-numeric creditsUsed field')
+        }
+
+        return {
+          cost: creditsUsed * 0.001,
+          metadata: { creditsUsed },
+        }
       },
     },
     rateLimit: {
@@ -232,10 +239,6 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
     data: {
       type: 'object',
       description: 'Extracted structured data according to the schema or prompt',
-    },
-    creditsUsed: {
-      type: 'number',
-      description: 'Number of Firecrawl credits consumed by the extraction',
     },
   },
 }

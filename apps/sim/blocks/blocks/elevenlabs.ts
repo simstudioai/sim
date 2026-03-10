@@ -48,7 +48,6 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
       placeholder: 'Enter your ElevenLabs API key',
       password: true,
       required: true,
-      hideWhenHosted: true,
     },
   ],
 

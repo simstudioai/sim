@@ -249,6 +249,23 @@ Example 2 - Product Data:
       password: true,
       required: true,
       hideWhenHosted: true,
+      condition: {
+        field: 'operation',
+        value: 'agent',
+        not: true,
+      },
+    },
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      placeholder: 'Enter your Firecrawl API key',
+      password: true,
+      required: true,
+      condition: {
+        field: 'operation',
+        value: 'agent',
+      },
     },
   ],
   tools: {
@@ -444,7 +461,6 @@ Example 2 - Product Data:
     // Crawl output
     pages: { type: 'json', description: 'Crawled pages data' },
     total: { type: 'number', description: 'Total pages found' },
-    creditsUsed: { type: 'number', description: 'Credits consumed' },
     // Map output
     success: { type: 'boolean', description: 'Operation success status' },
     links: { type: 'json', description: 'Discovered URLs array' },
