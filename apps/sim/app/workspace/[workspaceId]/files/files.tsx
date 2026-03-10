@@ -315,14 +315,7 @@ export function Files() {
 
   const handleSave = useCallback(async () => {
     if (!saveRef.current || !isDirty || saveStatus === 'saving') return
-
-    setSaveStatus('saving')
-    try {
-      await saveRef.current()
-      setSaveStatus('saved')
-    } catch {
-      setSaveStatus('error')
-    }
+    await saveRef.current()
   }, [isDirty, saveStatus])
 
   const handleBackAttempt = useCallback(() => {
@@ -412,12 +405,6 @@ export function Files() {
     }
     setShowPreview(true)
   }, [selectedFileId])
-
-  useEffect(() => {
-    if (saveStatus !== 'saved' && saveStatus !== 'error') return
-    const timer = setTimeout(() => setSaveStatus('idle'), 2000)
-    return () => clearTimeout(timer)
-  }, [saveStatus])
 
   useEffect(() => {
     if (!selectedFile) return
@@ -557,6 +544,7 @@ export function Files() {
             showPreview={showPreview && canPreview}
             autoFocus={justCreatedFileIdRef.current === selectedFile.id}
             onDirtyChange={setIsDirty}
+            onSaveStatusChange={setSaveStatus}
             saveRef={saveRef}
           />
 

@@ -10,6 +10,7 @@ import {
   useUpdateWorkspaceFileContent,
   useWorkspaceFileContent,
 } from '@/hooks/queries/workspace-files'
+import { useAutosave } from '@/hooks/use-autosave'
 import { PreviewPanel, resolvePreviewType } from './preview-panel'
 
 const logger = createLogger('FileViewer')
@@ -60,6 +61,7 @@ interface FileViewerProps {
   showPreview?: boolean
   autoFocus?: boolean
   onDirtyChange?: (isDirty: boolean) => void
+  onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
 }
 
@@ -70,6 +72,7 @@ export function FileViewer({
   showPreview,
   autoFocus,
   onDirtyChange,
+  onSaveStatusChange,
   saveRef,
 }: FileViewerProps) {
   const category = resolveFileCategory(file.type, file.name)
@@ -83,6 +86,7 @@ export function FileViewer({
         showPreview={showPreview}
         autoFocus={autoFocus}
         onDirtyChange={onDirtyChange}
+        onSaveStatusChange={onSaveStatusChange}
         saveRef={saveRef}
       />
     )
@@ -102,6 +106,7 @@ interface TextEditorProps {
   showPreview?: boolean
   autoFocus?: boolean
   onDirtyChange?: (isDirty: boolean) => void
+  onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
 }
 
@@ -112,6 +117,7 @@ function TextEditor({
   showPreview,
   autoFocus,
   onDirtyChange,
+  onSaveStatusChange,
   saveRef,
 }: TextEditorProps) {
   const initializedRef = useRef(false)
@@ -126,40 +132,49 @@ function TextEditor({
     data: fetchedContent,
     isLoading,
     error,
+    dataUpdatedAt,
   } = useWorkspaceFileContent(workspaceId, file.id, file.key)
 
   const updateContent = useUpdateWorkspaceFileContent()
 
   const [content, setContent] = useState('')
   const [savedContent, setSavedContent] = useState('')
+  const savedContentRef = useRef('')
 
   useEffect(() => {
-    if (fetchedContent !== undefined && !initializedRef.current) {
+    if (fetchedContent === undefined) return
+
+    if (!initializedRef.current) {
       setContent(fetchedContent)
       setSavedContent(fetchedContent)
+      savedContentRef.current = fetchedContent
       contentRef.current = fetchedContent
       initializedRef.current = true
 
       if (autoFocus) {
         requestAnimationFrame(() => textareaRef.current?.focus())
       }
+      return
     }
-  }, [fetchedContent, autoFocus])
+
+    if (fetchedContent === savedContentRef.current) return
+    const isClean = contentRef.current === savedContentRef.current
+    if (isClean) {
+      setContent(fetchedContent)
+      setSavedContent(fetchedContent)
+      savedContentRef.current = fetchedContent
+      contentRef.current = fetchedContent
+    }
+  }, [fetchedContent, dataUpdatedAt, autoFocus])
 
   const handleContentChange = useCallback((value: string) => {
     setContent(value)
     contentRef.current = value
   }, [])
 
-  const isDirty = initializedRef.current && content !== savedContent
-
-  useEffect(() => {
-    onDirtyChange?.(isDirty)
-  }, [isDirty, onDirtyChange])
-
-  const handleSave = useCallback(async () => {
+  const onSave = useCallback(async () => {
     const currentContent = contentRef.current
-    if (currentContent === savedContent) return
+    if (currentContent === savedContentRef.current) return
 
     await updateContent.mutateAsync({
       workspaceId,
@@ -167,18 +182,34 @@ function TextEditor({
       content: currentContent,
     })
     setSavedContent(currentContent)
-  }, [savedContent, workspaceId, file.id])
+    savedContentRef.current = currentContent
+  }, [workspaceId, file.id, updateContent])
+
+  const { saveStatus, saveImmediately, isDirty } = useAutosave({
+    content,
+    savedContent,
+    onSave,
+    enabled: canEdit && initializedRef.current,
+  })
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty)
+  }, [isDirty, onDirtyChange])
+
+  useEffect(() => {
+    onSaveStatusChange?.(saveStatus)
+  }, [saveStatus, onSaveStatusChange])
 
   useEffect(() => {
     if (saveRef) {
-      saveRef.current = handleSave
+      saveRef.current = saveImmediately
     }
     return () => {
       if (saveRef) {
         saveRef.current = null
       }
     }
-  }, [saveRef, handleSave])
+  }, [saveRef, saveImmediately])
 
   useEffect(() => {
     if (!isResizing) return

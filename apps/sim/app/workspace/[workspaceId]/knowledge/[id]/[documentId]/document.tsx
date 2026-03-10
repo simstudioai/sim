@@ -339,14 +339,7 @@ export function Document({
 
   const handleSave = useCallback(async () => {
     if (!saveRef.current || !isDirty || saveStatusRef.current === 'saving') return
-
-    setSaveStatus('saving')
-    try {
-      await saveRef.current()
-      setSaveStatus('saved')
-    } catch {
-      setSaveStatus('error')
-    }
+    await saveRef.current()
   }, [isDirty])
 
   const handleDiscardChanges = useCallback(() => {
@@ -360,14 +353,6 @@ export function Document({
       closeEditor()
     }
   }, [pendingAction, closeEditor])
-
-  // Auto-clear save status after 2 seconds
-  useEffect(() => {
-    if (saveStatus === 'saved' || saveStatus === 'error') {
-      const timer = setTimeout(() => setSaveStatus('idle'), 2000)
-      return () => clearTimeout(timer)
-    }
-  }, [saveStatus])
 
   // Cmd+S keyboard shortcut
   useEffect(() => {
@@ -967,6 +952,7 @@ export function Document({
             canEdit
             maxChunkSize={knowledgeBase?.chunkingConfig?.maxSize}
             onDirtyChange={setIsDirty}
+            onSaveStatusChange={setSaveStatus}
             saveRef={saveRef}
             onCreated={handleChunkCreated}
           />
@@ -1055,6 +1041,7 @@ export function Document({
             canEdit={canEdit && !isConnectorDocument}
             maxChunkSize={knowledgeBase?.chunkingConfig?.maxSize}
             onDirtyChange={setIsDirty}
+            onSaveStatusChange={setSaveStatus}
             saveRef={saveRef}
           />
         </div>
