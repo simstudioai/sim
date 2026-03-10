@@ -23,9 +23,15 @@ export function ApiKeySkeleton() {
  */
 export function ApiKeysSkeleton() {
   return (
-    <div className='flex flex-col gap-[12px]'>
-      <ApiKeySkeleton />
-      <ApiKeySkeleton />
+    <div className='flex h-full flex-col gap-[18px]'>
+      <div className='flex items-center gap-[8px]'>
+        <Skeleton className='h-[30px] flex-1 rounded-[8px]' />
+        <Skeleton className='h-[30px] w-[80px] rounded-[6px]' />
+      </div>
+      <div className='flex flex-col gap-[12px]'>
+        <ApiKeySkeleton />
+        <ApiKeySkeleton />
+      </div>
     </div>
   )
 }

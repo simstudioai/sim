@@ -23,10 +23,16 @@ export function CustomToolSkeleton() {
  */
 export function CustomToolsSkeleton() {
   return (
-    <div className='flex flex-col gap-[12px]'>
-      <CustomToolSkeleton />
-      <CustomToolSkeleton />
-      <CustomToolSkeleton />
+    <div className='flex h-full flex-col gap-[18px]'>
+      <div className='flex items-center gap-[8px]'>
+        <Skeleton className='h-[30px] flex-1 rounded-[8px]' />
+        <Skeleton className='h-[30px] w-[64px] rounded-[6px]' />
+      </div>
+      <div className='flex flex-col gap-[12px]'>
+        <CustomToolSkeleton />
+        <CustomToolSkeleton />
+        <CustomToolSkeleton />
+      </div>
     </div>
   )
 }
