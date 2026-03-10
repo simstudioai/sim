@@ -20,7 +20,7 @@
 //     --map jina=jina --user user_abc123 --user user_def456
 
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
-import { readFileSync, writeFileSync } from 'fs'
+import { appendFileSync, readFileSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
 import { eq, sql } from 'drizzle-orm'
 import { index, json, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
@@ -155,6 +155,11 @@ async function decryptSecret(encryptedValue: string): Promise<string> {
 }
 
 // ---------- Schema ----------
+const workspaceTable = pgTable('workspace', {
+  id: text('id').primaryKey(),
+  ownerId: text('owner_id').notNull(),
+})
+
 const workflow = pgTable('workflow', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull(),
@@ -272,6 +277,7 @@ function parseToolInputValue(value: unknown): any[] {
 type RawKeyRef = {
   rawValue: string
   blockName: string
+  workflowId: string
   workflowName: string
   userId: string
 }
@@ -289,10 +295,15 @@ const KEY_SOURCE_PRIORITY: Record<KeySource, number> = {
   personal: 2,
 }
 
+interface ResolveKeyContext {
+  workspaceId: string
+  workspaceOwnerId: string | null
+}
+
 async function resolveKey(
   ref: RawKeyRef,
-  context: string,
-  env: EnvLookup
+  env: EnvLookup,
+  ctx: ResolveKeyContext
 ): Promise<{ key: string | null; source: KeySource; envVarFailed: boolean }> {
   if (!isEnvVarReference(ref.rawValue)) {
     return { key: ref.rawValue, source: 'plaintext', envVarFailed: false }
@@ -308,8 +319,14 @@ async function resolveKey(
   const encryptedValue = wsValue ?? personalValue
   const source: KeySource = wsValue ? 'workspace' : 'personal'
 
+  const logPrefix =
+    `workspace=${ctx.workspaceId} owner=${ctx.workspaceOwnerId ?? 'unknown'}` +
+    ` workflow=${ref.workflowId} user=${ref.userId}`
+
   if (!encryptedValue) {
-    console.warn(`  [WARN] Env var "${varName}" not found (${context})`)
+    console.warn(
+      `  [WARN] Env var "${varName}" not found — ${logPrefix} "${ref.blockName}" in "${ref.workflowName}"`
+    )
     return { key: null, source, envVarFailed: true }
   }
 
@@ -317,7 +334,9 @@ async function resolveKey(
     const decrypted = await decryptSecret(encryptedValue)
     return { key: decrypted, source, envVarFailed: false }
   } catch (error) {
-    console.warn(`  [WARN] Failed to decrypt env var "${varName}" (${context}): ${error}`)
+    console.warn(
+      `  [WARN] Failed to decrypt env var "${varName}" — ${logPrefix} "${ref.blockName}" in "${ref.workflowName}": ${error}`
+    )
     return { key: null, source, envVarFailed: true }
   }
 }
@@ -379,8 +398,8 @@ async function run() {
       console.log(`Found ${workspaceIds.length} workspaces with candidate blocks\n`)
 
       const outPath = resolve('migrate-byok-workspace-ids.txt')
-      writeFileSync(outPath, `${workspaceIds.join('\n')}\n`)
-      console.log(`[DRY RUN] Wrote ${workspaceIds.length} workspace IDs to ${outPath}\n`)
+      writeFileSync(outPath, '')
+      console.log(`[DRY RUN] Will write workspace IDs with keys to ${outPath}\n`)
     } else {
       const raw = readFileSync(resolve(FROM_FILE!), 'utf-8')
       workspaceIds = raw
@@ -411,7 +430,16 @@ async function run() {
           )})${userFilter}`
         )
 
-      console.log(`[Workspace ${workspaceId}] ${blocks.length} blocks`)
+      const wsRows = await db
+        .select({ ownerId: workspaceTable.ownerId })
+        .from(workspaceTable)
+        .where(eq(workspaceTable.id, workspaceId))
+        .limit(1)
+      const workspaceOwnerId = wsRows[0]?.ownerId ?? null
+
+      console.log(
+        `[Workspace ${workspaceId}] ${blocks.length} blocks, owner=${workspaceOwnerId ?? 'unknown'}`
+      )
 
       // 2a. Extract all raw key references grouped by provider
       const providerKeys = new Map<string, RawKeyRef[]>()
@@ -427,6 +455,7 @@ async function run() {
             refs.push({
               rawValue: val,
               blockName: block.blockName,
+              workflowId: block.workflowId,
               workflowName: block.workflowName,
               userId: block.userId,
             })
@@ -447,6 +476,7 @@ async function run() {
             refs.push({
               rawValue: toolApiKey,
               blockName: `${block.blockName} > tool "${tool.title || toolType}"`,
+              workflowId: block.workflowId,
               workflowName: block.workflowName,
               userId: block.userId,
             })
@@ -459,6 +489,10 @@ async function run() {
         console.log('  No API keys found, skipping\n')
         stats.workspacesSkipped++
         continue
+      }
+
+      if (DRY_RUN) {
+        appendFileSync(resolve('migrate-byok-workspace-ids.txt'), `${workspaceId}\n`)
       }
 
       // 2b. Load env vars only if this workspace has env var references
@@ -504,11 +538,21 @@ async function run() {
       for (const [providerId, refs] of providerKeys) {
         // Resolve all keys for this provider to check for conflicts
         const resolved: { ref: RawKeyRef; key: string; source: KeySource }[] = []
+        const resolveCtx: ResolveKeyContext = { workspaceId, workspaceOwnerId }
         for (const ref of refs) {
-          const context = `"${ref.blockName}" in "${ref.workflowName}"`
-          const { key, source, envVarFailed } = await resolveKey(ref, context, envLookup)
+          const { key, source, envVarFailed } = await resolveKey(ref, envLookup, resolveCtx)
           if (envVarFailed) stats.envVarFailures++
-          if (key?.trim()) resolved.push({ ref, key: key.trim(), source })
+          if (!key?.trim()) continue
+
+          // For personal env vars, only use the workspace owner's — never another user's
+          if (source === 'personal' && ref.userId !== workspaceOwnerId) {
+            console.log(
+              `  [SKIP-PERSONAL] Ignoring non-owner personal key from user=${ref.userId} workflow=${ref.workflowId} "${ref.blockName}" in "${ref.workflowName}"`
+            )
+            continue
+          }
+
+          resolved.push({ ref, key: key.trim(), source })
         }
 
         if (resolved.length === 0) continue
@@ -522,12 +566,18 @@ async function run() {
           stats.conflicts++
           console.log(`  [CONFLICT] provider "${providerId}": ${distinctKeys.size} distinct keys`)
           for (const { ref, key, source } of resolved) {
+            const isOwner = ref.userId === workspaceOwnerId ? ' (owner)' : ''
             const display = isEnvVarReference(ref.rawValue)
               ? `${ref.rawValue} -> ${maskKey(key)}`
               : maskKey(ref.rawValue)
-            console.log(`    [${source}] "${ref.blockName}" in "${ref.workflowName}": ${display}`)
+            console.log(
+              `    [${source}] user=${ref.userId}${isOwner} workflow=${ref.workflowId} "${ref.blockName}" in "${ref.workflowName}": ${display}`
+            )
           }
-          console.log(`    Using highest-priority key (${resolved[0].source})`)
+          const chosenIsOwner = resolved[0].ref.userId === workspaceOwnerId ? ', owner' : ''
+          console.log(
+            `    Using highest-priority key (${resolved[0].source}${chosenIsOwner}, user=${resolved[0].ref.userId})`
+          )
         }
 
         // Use the highest-priority resolved key
@@ -586,7 +636,10 @@ async function run() {
     console.log(`  Env var resolution failures: ${stats.envVarFailures}`)
 
     if (DRY_RUN) {
-      console.log('\n[DRY RUN] No changes were made to the database.')
+      console.log(
+        `\n[DRY RUN] Wrote ${stats.workspacesProcessed} workspace IDs (with keys) to migrate-byok-workspace-ids.txt`
+      )
+      console.log('[DRY RUN] No changes were made to the database.')
       console.log('Run without --dry-run to apply changes.')
     } else {
       console.log('\nMigration completed successfully!')
