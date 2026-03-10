@@ -107,6 +107,9 @@ async function fetchOAuthConnections(signal?: AbortSignal): Promise<ServiceInfo[
 
     return updatedServices
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return defineServices()
+    }
     logger.error('Error fetching OAuth connections:', error)
     return defineServices()
   }
