@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import type { QueryClient } from '@tanstack/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { syncThemeToNextThemes } from '@/lib/core/utils/theme'
 
@@ -64,6 +65,18 @@ export function useGeneralSettings() {
       syncThemeToNextThemes(settings.theme)
       return settings
     },
+    staleTime: 60 * 60 * 1000,
+  })
+}
+
+/**
+ * Prefetch general settings into a QueryClient cache.
+ * Use on hover to warm data before navigation.
+ */
+export function prefetchGeneralSettings(queryClient: QueryClient) {
+  queryClient.prefetchQuery({
+    queryKey: generalSettingsKeys.settings(),
+    queryFn: () => fetchGeneralSettings(),
     staleTime: 60 * 60 * 1000,
   })
 }

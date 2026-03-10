@@ -1,3 +1,4 @@
+import type { QueryClient } from '@tanstack/react-query'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { organizationKeys } from '@/hooks/queries/organization'
 
@@ -114,6 +115,8 @@ interface UseSubscriptionDataOptions {
   includeOrg?: boolean
   /** Whether to enable the query (defaults to true) */
   enabled?: boolean
+  /** Override default staleTime (defaults to 30s) */
+  staleTime?: number
 }
 
 /**
@@ -121,14 +124,26 @@ interface UseSubscriptionDataOptions {
  * @param options - Optional configuration
  */
 export function useSubscriptionData(options: UseSubscriptionDataOptions = {}) {
-  const { includeOrg = false, enabled = true } = options
+  const { includeOrg = false, enabled = true, staleTime = 30 * 1000 } = options
 
   return useQuery({
     queryKey: subscriptionKeys.user(includeOrg),
     queryFn: ({ signal }) => fetchSubscriptionData(includeOrg, signal),
-    staleTime: 30 * 1000,
+    staleTime,
     placeholderData: keepPreviousData,
     enabled,
+  })
+}
+
+/**
+ * Prefetch subscription data into a QueryClient cache.
+ * Use on hover to warm data before navigation.
+ */
+export function prefetchSubscriptionData(queryClient: QueryClient) {
+  queryClient.prefetchQuery({
+    queryKey: subscriptionKeys.user(false),
+    queryFn: () => fetchSubscriptionData(false),
+    staleTime: 30 * 1000,
   })
 }
 

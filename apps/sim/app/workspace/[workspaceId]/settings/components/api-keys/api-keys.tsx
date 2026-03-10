@@ -18,6 +18,7 @@ import { Input, Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { formatDate } from '@/lib/core/utils/formatting'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { ApiKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/api-keys/api-key-skeleton'
 import {
   type ApiKey,
   useApiKeys,
@@ -405,21 +406,6 @@ export function ApiKeys() {
           </ModalFooter>
         </ModalContent>
       </Modal>
-    </div>
-  )
-}
-
-function ApiKeySkeleton() {
-  return (
-    <div className='flex items-center justify-between gap-[12px]'>
-      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-        <div className='flex items-center gap-[6px]'>
-          <Skeleton className='h-5 w-[80px]' />
-          <Skeleton className='h-5 w-[140px]' />
-        </div>
-        <Skeleton className='h-5 w-[100px]' />
-      </div>
-      <Skeleton className='h-[26px] w-[48px] rounded-[6px]' />
     </div>
   )
 }

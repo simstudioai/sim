@@ -33,6 +33,7 @@ import {
   getServiceConfigByProviderId,
   type OAuthProvider,
 } from '@/lib/oauth'
+import { CredentialSkeleton } from '@/app/workspace/[workspaceId]/settings/components/credentials/credential-skeleton'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
 import { isValidEnvVarName } from '@/executor/constants'
 import {
@@ -157,21 +158,6 @@ function normalizeEnvKeyInput(raw: string): string {
   const trimmed = raw.trim()
   const wrappedMatch = /^\{\{\s*([A-Za-z0-9_]+)\s*\}\}$/.exec(trimmed)
   return wrappedMatch ? wrappedMatch[1] : trimmed
-}
-
-function CredentialSkeleton() {
-  return (
-    <div className='flex items-center justify-between gap-[12px]'>
-      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-        <Skeleton className='h-[14px] w-[100px]' />
-        <Skeleton className='h-[13px] w-[200px]' />
-      </div>
-      <div className='flex flex-shrink-0 items-center gap-[8px]'>
-        <Skeleton className='h-[30px] w-[54px] rounded-[4px]' />
-        <Skeleton className='h-[30px] w-[50px] rounded-[4px]' />
-      </div>
-    </div>
-  )
 }
 
 export function CredentialsManager() {

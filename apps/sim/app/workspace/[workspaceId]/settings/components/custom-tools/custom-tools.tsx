@@ -5,26 +5,12 @@ import { createLogger } from '@sim/logger'
 import { Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
-import { Input, Skeleton } from '@/components/ui'
+import { Input } from '@/components/ui'
+import { CustomToolSkeleton } from '@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tool-skeleton'
 import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { useCustomTools, useDeleteCustomTool } from '@/hooks/queries/custom-tools'
 
 const logger = createLogger('CustomToolsSettings')
-
-function CustomToolSkeleton() {
-  return (
-    <div className='flex items-center justify-between gap-[12px]'>
-      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-        <Skeleton className='h-[14px] w-[100px]' />
-        <Skeleton className='h-[13px] w-[200px]' />
-      </div>
-      <div className='flex flex-shrink-0 items-center gap-[8px]'>
-        <Skeleton className='h-[30px] w-[40px] rounded-[4px]' />
-        <Skeleton className='h-[30px] w-[54px] rounded-[4px]' />
-      </div>
-    </div>
-  )
-}
 
 export function CustomTools() {
   const params = useParams()

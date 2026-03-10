@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Button, Input as EmcnInput } from '@/components/emcn'
-import { Skeleton } from '@/components/ui'
+import { DebugSkeleton } from '@/app/workspace/[workspaceId]/settings/components/debug/debug-skeleton'
 import { useImportWorkflow } from '@/hooks/queries/workflows'
 
 /**
@@ -70,18 +70,6 @@ export function Debug() {
           {importWorkflow.data.copilotChatsImported ?? 0} copilot chats imported)
         </p>
       )}
-    </div>
-  )
-}
-
-/**
- * Loading skeleton displayed during workflow import.
- */
-function DebugSkeleton() {
-  return (
-    <div className='flex flex-col gap-[8px]'>
-      <Skeleton className='h-5 w-[200px]' />
-      <Skeleton className='h-5 w-[140px]' />
     </div>
   )
 }

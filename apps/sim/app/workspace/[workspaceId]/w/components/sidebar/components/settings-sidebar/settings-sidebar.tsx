@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { ChevronDown, Skeleton } from '@/components/emcn'
@@ -16,9 +17,10 @@ import {
   sectionConfig,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { useSSOProviders } from '@/ee/sso/hooks/sso'
-import { useGeneralSettings } from '@/hooks/queries/general-settings'
+import { prefetchWorkspaceCredentials } from '@/hooks/queries/credentials'
+import { prefetchGeneralSettings, useGeneralSettings } from '@/hooks/queries/general-settings'
 import { useOrganizations } from '@/hooks/queries/organization'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
+import { prefetchSubscriptionData, useSubscriptionData } from '@/hooks/queries/subscription'
 import { useSuperUserStatus } from '@/hooks/queries/user-profile'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
@@ -28,10 +30,14 @@ export function SettingsSidebar() {
   const pathname = usePathname()
   const router = useRouter()
 
+  const queryClient = useQueryClient()
   const { data: session, isPending: sessionLoading } = useSession()
   const { data: organizationsData, isLoading: orgsLoading } = useOrganizations()
   const { data: generalSettings } = useGeneralSettings()
-  const { data: subscriptionData } = useSubscriptionData({ enabled: isBillingEnabled })
+  const { data: subscriptionData } = useSubscriptionData({
+    enabled: isBillingEnabled,
+    staleTime: 5 * 60 * 1000,
+  })
   const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders()
   const { data: superUserData } = useSuperUserStatus(session?.user?.id)
 
@@ -129,6 +135,26 @@ export function SettingsSidebar() {
     return 'general'
   }, [pathname])
 
+  const handlePrefetch = useCallback(
+    (itemId: string) => {
+      switch (itemId) {
+        case 'general':
+          prefetchGeneralSettings(queryClient)
+          void import('@/app/workspace/[workspaceId]/settings/components/general/general')
+          break
+        case 'credentials':
+          prefetchWorkspaceCredentials(queryClient, workspaceId)
+          void import('@/app/workspace/[workspaceId]/settings/components/credentials/credentials')
+          break
+        case 'subscription':
+          prefetchSubscriptionData(queryClient)
+          void import('@/app/workspace/[workspaceId]/settings/components/subscription/subscription')
+          break
+      }
+    },
+    [queryClient, workspaceId]
+  )
+
   const handleBack = () => {
     router.push(`/workspace/${workspaceId}/home`)
   }
@@ -213,6 +239,8 @@ export function SettingsSidebar() {
                           key={item.id}
                           href={`/workspace/${workspaceId}/settings/${item.id}`}
                           className={className}
+                          onMouseEnter={() => handlePrefetch(item.id)}
+                          onFocus={() => handlePrefetch(item.id)}
                         >
                           {content}
                         </Link>

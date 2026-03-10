@@ -1,5 +1,6 @@
 'use client'
 
+import type { QueryClient } from '@tanstack/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { environmentKeys } from '@/hooks/queries/environment'
 import { fetchJson } from '@/hooks/selectors/helpers'
@@ -66,6 +67,33 @@ export const workspaceCredentialKeys = {
     [...workspaceCredentialKeys.details(), credentialId ?? 'none'] as const,
   members: (credentialId?: string) =>
     [...workspaceCredentialKeys.detail(credentialId), 'members'] as const,
+}
+
+/**
+ * Fetch workspace credential list from API.
+ * Used by the prefetch function for hover-based cache warming.
+ */
+async function fetchWorkspaceCredentialList(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<WorkspaceCredential[]> {
+  const data = await fetchJson<CredentialListResponse>('/api/credentials', {
+    searchParams: { workspaceId },
+    signal,
+  })
+  return data.credentials ?? []
+}
+
+/**
+ * Prefetch workspace credentials into a QueryClient cache.
+ * Use on hover to warm data before navigation.
+ */
+export function prefetchWorkspaceCredentials(queryClient: QueryClient, workspaceId: string) {
+  queryClient.prefetchQuery({
+    queryKey: workspaceCredentialKeys.list(workspaceId),
+    queryFn: ({ signal }) => fetchWorkspaceCredentialList(workspaceId, signal),
+    staleTime: 60 * 1000,
+  })
 }
 
 export function useWorkspaceCredentials(params: {
