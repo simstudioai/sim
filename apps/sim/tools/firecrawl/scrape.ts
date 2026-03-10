@@ -1,4 +1,5 @@
 import type { ScrapeParams, ScrapeResponse } from '@/tools/firecrawl/types'
+import { createFirecrawlHosting } from '@/tools/firecrawl/hosting'
 import { PAGE_METADATA_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
 import { safeAssign } from '@/tools/safe-assign'
 import type { ToolConfig } from '@/tools/types'
@@ -30,6 +31,8 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
       description: 'Firecrawl API key',
     },
   },
+
+  hosting: createFirecrawlHosting<ScrapeParams>(),
 
   request: {
     method: 'POST',
@@ -82,6 +85,7 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
         markdown: data.data.markdown,
         html: data.data.html,
         metadata: data.data.metadata,
+        creditsUsed: data.creditsUsed,
       },
     }
   },

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { createFirecrawlHosting } from '@/tools/firecrawl/hosting'
 import type { FirecrawlCrawlParams, FirecrawlCrawlResponse } from '@/tools/firecrawl/types'
 import { CRAWLED_PAGE_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
@@ -69,6 +70,8 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
     },
   },
 
+  hosting: createFirecrawlHosting<FirecrawlCrawlParams>(),
+
   request: {
     url: 'https://api.firecrawl.dev/v2/crawl',
     method: 'POST',
@@ -117,6 +120,7 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
         jobId: data.jobId || data.id,
         pages: [],
         total: 0,
+        creditsUsed: 0,
       },
     }
   },
@@ -151,6 +155,7 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
           result.output = {
             pages: crawlData.data || [],
             total: crawlData.total || 0,
+            creditsUsed: crawlData.creditsUsed || 0,
           }
           return result
         }

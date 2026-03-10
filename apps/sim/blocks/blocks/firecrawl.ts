@@ -248,6 +248,7 @@ Example 2 - Product Data:
       placeholder: 'Enter your Firecrawl API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
     },
   ],
   tools: {

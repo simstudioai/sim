@@ -1,5 +1,6 @@
 import type { SearchParams, SearchResponse } from '@/tools/firecrawl/types'
 import { SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
+import { createFirecrawlHosting } from '@/tools/firecrawl/hosting'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
@@ -22,6 +23,8 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       description: 'Firecrawl API key',
     },
   },
+
+  hosting: createFirecrawlHosting<SearchParams>(),
 
   request: {
     method: 'POST',
@@ -58,6 +61,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       success: true,
       output: {
         data: data.data,
+        creditsUsed: data.creditsUsed,
       },
     }
   },

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { createFirecrawlHosting } from '@/tools/firecrawl/hosting'
 import type { ExtractParams, ExtractResponse } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -78,6 +79,8 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
       description: 'Firecrawl API key',
     },
   },
+
+  hosting: createFirecrawlHosting<ExtractParams>(),
 
   request: {
     method: 'POST',
@@ -164,6 +167,7 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
             jobId,
             success: true,
             data: extractData.data || {},
+            creditsUsed: extractData.creditsUsed,
           }
           return result
         }

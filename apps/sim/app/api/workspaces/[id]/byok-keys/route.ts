@@ -18,6 +18,7 @@ const VALID_PROVIDERS = [
   'anthropic',
   'google',
   'mistral',
+  'firecrawl',
   'exa',
   'serper',
   'linkup',

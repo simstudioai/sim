@@ -1,4 +1,5 @@
 import type { MapParams, MapResponse } from '@/tools/firecrawl/types'
+import { createFirecrawlHosting } from '@/tools/firecrawl/hosting'
 import type { ToolConfig } from '@/tools/types'
 
 export const mapTool: ToolConfig<MapParams, MapResponse> = {
@@ -66,6 +67,8 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
     },
   },
 
+  hosting: createFirecrawlHosting<MapParams>(),
+
   request: {
     method: 'POST',
     url: 'https://api.firecrawl.dev/v2/map',
@@ -100,6 +103,7 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
       output: {
         success: data.success,
         links: data.links || [],
+        creditsUsed: data.creditsUsed,
       },
     }
   },

@@ -17,6 +17,7 @@ import {
   AnthropicIcon,
   BrandfetchIcon,
   ExaAIIcon,
+  FirecrawlIcon,
   GeminiIcon,
   GoogleIcon,
   JinaAIIcon,
@@ -73,6 +74,13 @@ const PROVIDERS: {
     icon: MistralIcon,
     description: 'LLM calls and Knowledge Base OCR',
     placeholder: 'Enter your API key',
+  },
+  {
+    id: 'firecrawl',
+    name: 'Firecrawl',
+    icon: FirecrawlIcon,
+    description: 'Web scraping, crawling, search, and extraction',
+    placeholder: 'Enter your Firecrawl API key',
   },
   {
     id: 'exa',
