@@ -74,11 +74,13 @@ export function ChunkEditor({
 
   useEffect(() => {
     if (isCreateMode || !chunk?.id) return
+    const controller = new AbortController()
     const handleVisibility = async () => {
       if (document.visibilityState !== 'visible') return
       try {
         const res = await fetch(
-          `/api/knowledge/${knowledgeBaseId}/documents/${documentData.id}/chunks/${chunk.id}`
+          `/api/knowledge/${knowledgeBaseId}/documents/${documentData.id}/chunks/${chunk.id}`,
+          { signal: controller.signal }
         )
         if (!res.ok) return
         const json = await res.json()
@@ -90,12 +92,15 @@ export function ChunkEditor({
         if (isClean) {
           setEditedContent(serverContent)
         }
-      } catch {
-        // Ignore network errors on refocus
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') return
       }
     }
     document.addEventListener('visibilitychange', handleVisibility)
-    return () => document.removeEventListener('visibilitychange', handleVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      controller.abort()
+    }
   }, [isCreateMode, chunk?.id, knowledgeBaseId, documentData.id])
 
   useEffect(() => {

@@ -339,8 +339,18 @@ export function Document({
 
   const handleSave = useCallback(async () => {
     if (!saveRef.current || !isDirty || saveStatusRef.current === 'saving') return
-    await saveRef.current()
-  }, [isDirty])
+    if (isCreatingNewChunk) {
+      setSaveStatus('saving')
+      try {
+        await saveRef.current()
+        setSaveStatus('saved')
+      } catch {
+        setSaveStatus('error')
+      }
+    } else {
+      await saveRef.current()
+    }
+  }, [isDirty, isCreatingNewChunk])
 
   const handleDiscardChanges = useCallback(() => {
     setShowUnsavedChangesAlert(false)

@@ -60,6 +60,9 @@ export function useAutosave({
       setTimeout(() => {
         setSaveStatus(nextStatus)
         savingRef.current = false
+        if (contentRef.current !== savedContentRef.current) {
+          save()
+        }
       }, remaining)
     }
   }, [])
