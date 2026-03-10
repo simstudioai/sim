@@ -15,7 +15,7 @@ export function CredentialSetsSkeleton() {
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-[12px]'>
             <Skeleton className='h-9 w-9 rounded-[6px]' />
-            <div className='flex flex-col gap-[4px]'>
+            <div className='flex flex-col'>
               <Skeleton className='h-[14px] w-[120px]' />
               <Skeleton className='h-[12px] w-[80px]' />
             </div>
@@ -28,7 +28,7 @@ export function CredentialSetsSkeleton() {
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-[12px]'>
             <Skeleton className='h-9 w-9 rounded-[6px]' />
-            <div className='flex flex-col gap-[4px]'>
+            <div className='flex flex-col'>
               <Skeleton className='h-[14px] w-[140px]' />
               <Skeleton className='h-[12px] w-[100px]' />
             </div>

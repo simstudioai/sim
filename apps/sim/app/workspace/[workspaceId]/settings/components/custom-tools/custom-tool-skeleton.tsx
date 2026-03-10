@@ -28,7 +28,7 @@ export function CustomToolsSkeleton() {
         <Skeleton className='h-[30px] flex-1 rounded-[8px]' />
         <Skeleton className='h-[30px] w-[64px] rounded-[6px]' />
       </div>
-      <div className='flex flex-col gap-[12px]'>
+      <div className='flex flex-col gap-[8px]'>
         <CustomToolSkeleton />
         <CustomToolSkeleton />
         <CustomToolSkeleton />

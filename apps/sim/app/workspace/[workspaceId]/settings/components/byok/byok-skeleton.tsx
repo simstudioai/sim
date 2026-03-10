@@ -28,10 +28,14 @@ export function BYOKSkeleton() {
         <Skeleton className='h-[30px] flex-1 rounded-[8px]' />
       </div>
       <Skeleton className='h-[14px] w-[280px]' />
-      <div className='flex flex-col gap-[8px]'>
-        <BYOKKeySkeleton />
-        <BYOKKeySkeleton />
-        <BYOKKeySkeleton />
+      <div className='min-h-0 flex-1 overflow-y-auto'>
+        <div className='flex flex-col gap-[8px]'>
+          <BYOKKeySkeleton />
+          <BYOKKeySkeleton />
+          <BYOKKeySkeleton />
+          <BYOKKeySkeleton />
+          <BYOKKeySkeleton />
+        </div>
       </div>
     </div>
   )
