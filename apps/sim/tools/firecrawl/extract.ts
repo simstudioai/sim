@@ -86,17 +86,11 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
     pricing: {
       type: 'custom',
       getCost: (_params, output) => {
-        const metadata =
-          typeof output.metadata === 'object' && output.metadata !== null
-            ? (output.metadata as Record<string, unknown>)
-            : null
-        const rawCreditsUsed = output.creditsUsed ?? metadata?.creditsUsed
-
-        if (rawCreditsUsed == null) {
+        if (output.creditsUsed == null) {
           throw new Error('Firecrawl response missing creditsUsed field')
         }
 
-        const creditsUsed = Number(rawCreditsUsed)
+        const creditsUsed = Number(output.creditsUsed)
         if (Number.isNaN(creditsUsed)) {
           throw new Error('Firecrawl response returned a non-numeric creditsUsed field')
         }
