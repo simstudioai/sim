@@ -12,8 +12,11 @@ export function dollarsToCredits(dollars: number): number {
 
 /**
  * Format a dollar amount as a comma-separated credit string.
+ * Values at or above the on-demand unlimited threshold display as ∞.
  * @example formatCredits(20) => "2,000"
+ * @example formatCredits(999999) => "∞"
  */
 export function formatCredits(dollars: number): string {
+  if (dollars >= 999999) return '∞'
   return dollarsToCredits(dollars).toLocaleString()
 }

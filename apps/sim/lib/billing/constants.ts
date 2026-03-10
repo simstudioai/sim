@@ -57,3 +57,9 @@ export const DAILY_REFRESH_RATE = 0.01
  * `monthlyDollars * 12 * (1 - ANNUAL_DISCOUNT_RATE)`.
  */
 export const ANNUAL_DISCOUNT_RATE = 0.15
+
+/**
+ * Dollar value used as the usage limit when on-demand billing is enabled.
+ * Effectively unlimited — any limit >= this threshold is treated as uncapped.
+ */
+export const ON_DEMAND_UNLIMITED = 999999

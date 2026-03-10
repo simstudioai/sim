@@ -4,6 +4,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { createLogger } from '@sim/logger'
 import { Check, X } from 'lucide-react'
 import { Badge, Button } from '@/components/emcn'
+import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { formatCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
 import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
@@ -222,7 +223,9 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
         ) : (
           <>
             <span className='font-medium text-[15px] text-[var(--text-primary)] tabular-nums'>
-              {formatCredits(pendingLimit !== null ? pendingLimit : currentLimit)} credits
+              {formatCredits(pendingLimit !== null ? pendingLimit : currentLimit)}
+              {(pendingLimit !== null ? pendingLimit : currentLimit) < ON_DEMAND_UNLIMITED &&
+                ' credits'}
             </span>
             {canEdit && (
               <Badge

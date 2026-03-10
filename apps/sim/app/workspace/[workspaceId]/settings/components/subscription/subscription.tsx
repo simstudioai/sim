@@ -21,7 +21,12 @@ import { Skeleton } from '@/components/ui'
 import { useSession, useSubscription } from '@/lib/auth/auth-client'
 import { USAGE_THRESHOLDS } from '@/lib/billing/client/consts'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
-import { ANNUAL_DISCOUNT_RATE, CREDIT_TIERS, DAILY_REFRESH_RATE } from '@/lib/billing/constants'
+import {
+  ANNUAL_DISCOUNT_RATE,
+  CREDIT_TIERS,
+  DAILY_REFRESH_RATE,
+  ON_DEMAND_UNLIMITED,
+} from '@/lib/billing/constants'
 import { CREDIT_MULTIPLIER } from '@/lib/billing/credits/conversion'
 import {
   getDisplayPlanName,
@@ -63,10 +68,15 @@ import {
   useBillingUsageNotifications,
   useUpdateGeneralSetting,
 } from '@/hooks/queries/general-settings'
-import { useOrganizationBilling, useOrganizations } from '@/hooks/queries/organization'
+import {
+  useOrganizationBilling,
+  useOrganizations,
+  useUpdateOrganizationUsageLimit,
+} from '@/hooks/queries/organization'
 import {
   useOpenBillingPortal,
   useSubscriptionData,
+  useUpdateUsageLimit,
   useUsageLimitData,
 } from '@/hooks/queries/subscription'
 import { useUpdateWorkspaceSettings, useWorkspaceSettings } from '@/hooks/queries/workspace'
@@ -275,6 +285,8 @@ export function Subscription() {
   )
 
   const openBillingPortal = useOpenBillingPortal()
+  const updateUserLimit = useUpdateUsageLimit()
+  const updateOrgLimit = useUpdateOrganizationUsageLimit()
   const [isAnnual, setIsAnnual] = useState(false)
   const [teamModalOpen, setTeamModalOpen] = useState(false)
   const [managePlanModalOpen, setManagePlanModalOpen] = useState(false)
@@ -348,6 +360,71 @@ export function Subscription() {
   const userRole = getUserRole(activeOrganization, session?.user?.email)
   const isTeamAdmin = ['owner', 'admin'].includes(userRole)
 
+  const planIncludedAmount =
+    (subscription.isTeam || subscription.isEnterprise) &&
+    isTeamAdmin &&
+    organizationBillingData?.data
+      ? organizationBillingData.data.minimumBillingAmount
+      : getPlanTierDollars(subscription.plan)
+
+  const effectiveUsageLimit =
+    (subscription.isTeam || subscription.isEnterprise) &&
+    isTeamAdmin &&
+    organizationBillingData?.data
+      ? organizationBillingData.data.totalUsageLimit
+      : usageLimitData.currentLimit || usage.limit
+
+  const isOnDemandActive =
+    subscription.isPaid && planIncludedAmount > 0 && effectiveUsageLimit > planIncludedAmount
+
+  const effectiveCurrentUsage =
+    (subscription.isTeam || subscription.isEnterprise) &&
+    organizationBillingData?.data?.totalCurrentUsage != null
+      ? organizationBillingData.data.totalCurrentUsage
+      : usage.current
+
+  const canDisableOnDemand = isOnDemandActive && effectiveCurrentUsage <= planIncludedAmount
+
+  const handleToggleOnDemand = useCallback(async () => {
+    try {
+      const isOrgContext =
+        (subscription.isTeam || subscription.isEnterprise) && isTeamAdmin && activeOrgId
+
+      if (isOnDemandActive) {
+        if (!canDisableOnDemand) return
+        if (isOrgContext) {
+          await updateOrgLimit.mutateAsync({
+            organizationId: activeOrgId!,
+            limit: planIncludedAmount,
+          })
+        } else {
+          await updateUserLimit.mutateAsync({ limit: planIncludedAmount })
+        }
+      } else {
+        if (isOrgContext) {
+          await updateOrgLimit.mutateAsync({
+            organizationId: activeOrgId!,
+            limit: ON_DEMAND_UNLIMITED,
+          })
+        } else {
+          await updateUserLimit.mutateAsync({ limit: ON_DEMAND_UNLIMITED })
+        }
+      }
+    } catch (error) {
+      logger.error('Failed to toggle on-demand billing', { error })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutateAsync is stable in TanStack Query v5
+  }, [
+    isOnDemandActive,
+    canDisableOnDemand,
+    subscription.isTeam,
+    subscription.isEnterprise,
+    isTeamAdmin,
+    activeOrgId,
+    planIncludedAmount,
+    logger,
+  ])
+
   const permissions = getSubscriptionPermissions(
     {
       isFree: subscription.isFree,
@@ -376,10 +453,10 @@ export function Subscription() {
 
   const showBadge =
     !permissions.isEnterpriseMember &&
-    ((permissions.canEditUsageLimit && !permissions.showTeamMemberView) ||
-      permissions.showTeamMemberView ||
+    (permissions.showTeamMemberView ||
       subscription.isEnterprise ||
-      isBlocked)
+      isBlocked ||
+      subscription.isFree)
 
   const getBadgeConfig = (): { text: string; variant: 'blue-secondary' | 'red' } => {
     if (permissions.isEnterpriseMember) return { text: '', variant: 'blue-secondary' }
@@ -388,11 +465,14 @@ export function Subscription() {
     if (isDispute) return { text: 'Get Help', variant: 'red' }
     if (isBlocked) return { text: 'Fix Now', variant: 'red' }
     if (subscription.isFree) return { text: 'Upgrade', variant: 'blue-secondary' }
-    if (isCritical && permissions.canEditUsageLimit)
-      return { text: 'Increase Limit', variant: 'red' }
-    return { text: 'Increase Limit', variant: 'blue-secondary' }
+    return { text: '', variant: 'blue-secondary' }
   }
   const badgeConfig = getBadgeConfig()
+
+  const onDemandState: 'hidden' | 'enable' | 'disable' = (() => {
+    if (!subscription.isPaid || !permissions.canEditUsageLimit) return 'hidden'
+    return isOnDemandActive ? 'disable' : 'enable'
+  })()
 
   const doUpgrade = useCallback(
     async (targetPlan: TargetPlan, creditTier: number, seats?: number) => {
@@ -436,10 +516,6 @@ export function Subscription() {
     }
     if (subscription.isFree) {
       doUpgrade('pro', PRO_TIER.credits)
-      return
-    }
-    if (permissions.canEditUsageLimit && usageLimitRef.current) {
-      usageLimitRef.current.startEdit()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- openBillingPortal.mutate is stable in TanStack Query v5
   }, [
@@ -449,7 +525,6 @@ export function Subscription() {
     subscription.isTeam,
     subscription.isEnterprise,
     activeOrgId,
-    permissions.canEditUsageLimit,
     doUpgrade,
     logger,
   ])
@@ -497,8 +572,16 @@ export function Subscription() {
           onBadgeClick={permissions.showTeamMemberView ? undefined : handleBadgeClick}
           seatsText={
             permissions.canManageTeam || subscription.isEnterprise
-              ? `${subscription.seats} seats`
+              ? `${subscription.seats} Seats`
               : undefined
+          }
+          onDemandState={onDemandState}
+          onToggleOnDemand={
+            onDemandState === 'enable'
+              ? handleToggleOnDemand
+              : onDemandState === 'disable' && canDisableOnDemand
+                ? handleToggleOnDemand
+                : undefined
           }
           current={
             (subscription.isTeam || subscription.isEnterprise) &&
