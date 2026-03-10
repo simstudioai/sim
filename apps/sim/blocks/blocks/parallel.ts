@@ -139,7 +139,7 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
       mode: 'advanced',
     },
     {
-      id: 'research_processor',
+      id: 'processor',
       title: 'Research Processor',
       type: 'dropdown',
       options: [
@@ -225,7 +225,7 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
 
         if (operation === 'deep_research') {
           result.input = params.research_input
-          if (params.research_processor) result.processor = params.research_processor
+          if (params.processor) result.processor = params.processor
         }
 
         return result
@@ -246,7 +246,7 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
     search_include_domains: { type: 'string', description: 'Domains to include (search)' },
     search_exclude_domains: { type: 'string', description: 'Domains to exclude (search)' },
     search_mode: { type: 'string', description: 'Search mode (one-shot, agentic, fast)' },
-    research_processor: { type: 'string', description: 'Research processing tier' },
+    processor: { type: 'string', description: 'Research processing tier' },
     max_results: { type: 'number', description: 'Maximum number of results' },
     max_chars_per_result: { type: 'number', description: 'Maximum characters per result' },
     apiKey: { type: 'string', description: 'Parallel AI API key' },
