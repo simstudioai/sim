@@ -7,7 +7,6 @@ import {
   PopoverDivider,
   PopoverItem,
 } from '@/components/emcn'
-import { Copy, Trash } from '@/components/emcn/icons'
 
 interface TableContextMenuProps {
   isOpen: boolean
@@ -80,7 +79,6 @@ export function TableContextMenu({
               onClose()
             }}
           >
-            <Copy />
             Copy ID
           </PopoverItem>
         )}
@@ -93,7 +91,6 @@ export function TableContextMenu({
               onClose()
             }}
           >
-            <Trash />
             Delete
           </PopoverItem>
         )}
