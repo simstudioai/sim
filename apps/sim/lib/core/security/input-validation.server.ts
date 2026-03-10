@@ -248,7 +248,7 @@ function resolveRedirectUrl(baseUrl: string, location: string): string {
 export async function secureFetchWithPinnedIP(
   url: string,
   resolvedIP: string,
-  options: SecureFetchOptions = {},
+  options: SecureFetchOptions & { allowHttp?: boolean } = {},
   redirectCount = 0
 ): Promise<SecureFetchResponse> {
   const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS
@@ -296,7 +296,7 @@ export async function secureFetchWithPinnedIP(
         res.resume()
         const redirectUrl = resolveRedirectUrl(url, location)
 
-        validateUrlWithDNS(redirectUrl, 'redirectUrl')
+        validateUrlWithDNS(redirectUrl, 'redirectUrl', { allowHttp: options.allowHttp })
           .then((validation) => {
             if (!validation.isValid) {
               reject(new Error(`Redirect blocked: ${validation.error}`))
