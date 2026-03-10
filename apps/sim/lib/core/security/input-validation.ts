@@ -717,6 +717,12 @@ export function validateExternalUrl(
         error: `${paramName} must use http:// or https:// protocol`,
       }
     }
+    if (isLocalhost) {
+      return {
+        isValid: false,
+        error: `${paramName} cannot point to localhost`,
+      }
+    }
   } else if (protocol !== 'https:' && !(protocol === 'http:' && isLocalhost)) {
     return {
       isValid: false,

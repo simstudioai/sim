@@ -89,7 +89,10 @@ export async function validateUrlWithDNS(
         return ip === '127.0.0.1' || ip === '::1'
       })()
 
-    if (isPrivateOrReservedIP(address) && !(isLocalhost && resolvedIsLoopback)) {
+    if (
+      isPrivateOrReservedIP(address) &&
+      !(isLocalhost && resolvedIsLoopback && !options.allowHttp)
+    ) {
       logger.warn('URL resolves to blocked IP address', {
         paramName,
         hostname,
