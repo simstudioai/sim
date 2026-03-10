@@ -4,12 +4,27 @@ import type { ToolConfig } from '@/tools/types'
 /**
  * Per-token rates by model from https://docs.perplexity.ai/guides/pricing
  * Per-request fees assume Low context size (the API default).
+ * Deep Research has additional billing dimensions: citation tokens, search queries, reasoning tokens.
  */
 const MODEL_PRICING: Record<
   string,
-  { inputPerM: number; outputPerM: number; requestPer1K: number }
+  {
+    inputPerM: number
+    outputPerM: number
+    requestPer1K: number
+    citationPerM?: number
+    searchQueriesPer1K?: number
+    reasoningPerM?: number
+  }
 > = {
-  'sonar-deep-research': { inputPerM: 2, outputPerM: 8, requestPer1K: 0 },
+  'sonar-deep-research': {
+    inputPerM: 2,
+    outputPerM: 8,
+    requestPer1K: 0,
+    citationPerM: 2,
+    searchQueriesPer1K: 5,
+    reasoningPerM: 3,
+  },
   'sonar-reasoning-pro': { inputPerM: 2, outputPerM: 8, requestPer1K: 6 },
   'sonar-pro': { inputPerM: 3, outputPerM: 15, requestPer1K: 6 },
   sonar: { inputPerM: 1, outputPerM: 1, requestPer1K: 5 },
@@ -77,7 +92,13 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
       type: 'custom',
       getCost: (params, output) => {
         const usage = output.usage as
-          | { prompt_tokens?: number; completion_tokens?: number }
+          | {
+              prompt_tokens?: number
+              completion_tokens?: number
+              citation_tokens?: number
+              num_search_queries?: number
+              reasoning_tokens?: number
+            }
           | undefined
         if (!usage || usage.prompt_tokens == null || usage.completion_tokens == null) {
           throw new Error('Perplexity chat response missing token usage data')
@@ -88,13 +109,43 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
         const inputTokens = usage.prompt_tokens
         const outputTokens = usage.completion_tokens
 
-        const tokenCost =
+        let tokenCost =
           (inputTokens * pricing.inputPerM) / 1_000_000 +
           (outputTokens * pricing.outputPerM) / 1_000_000
         const requestFee = pricing.requestPer1K / 1000
-        const cost = tokenCost + requestFee
 
-        return { cost, metadata: { model, inputTokens, outputTokens, tokenCost, requestFee } }
+        let citationCost = 0
+        let searchQueryCost = 0
+        let reasoningCost = 0
+
+        if (pricing.citationPerM && usage.citation_tokens) {
+          citationCost = (usage.citation_tokens * pricing.citationPerM) / 1_000_000
+        }
+        if (pricing.searchQueriesPer1K && usage.num_search_queries) {
+          searchQueryCost = (usage.num_search_queries * pricing.searchQueriesPer1K) / 1000
+        }
+        if (pricing.reasoningPerM && usage.reasoning_tokens) {
+          reasoningCost = (usage.reasoning_tokens * pricing.reasoningPerM) / 1_000_000
+        }
+
+        const cost = tokenCost + requestFee + citationCost + searchQueryCost + reasoningCost
+
+        return {
+          cost,
+          metadata: {
+            model,
+            inputTokens,
+            outputTokens,
+            tokenCost,
+            requestFee,
+            citationTokens: usage.citation_tokens,
+            citationCost,
+            searchQueries: usage.num_search_queries,
+            searchQueryCost,
+            reasoningTokens: usage.reasoning_tokens,
+            reasoningCost,
+          },
+        }
       },
     },
     rateLimit: {
@@ -157,6 +208,15 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
           prompt_tokens: data.usage.prompt_tokens,
           completion_tokens: data.usage.completion_tokens,
           total_tokens: data.usage.total_tokens,
+          ...(data.usage.citation_tokens != null && {
+            citation_tokens: data.usage.citation_tokens,
+          }),
+          ...(data.usage.num_search_queries != null && {
+            num_search_queries: data.usage.num_search_queries,
+          }),
+          ...(data.usage.reasoning_tokens != null && {
+            reasoning_tokens: data.usage.reasoning_tokens,
+          }),
         },
       },
     }
