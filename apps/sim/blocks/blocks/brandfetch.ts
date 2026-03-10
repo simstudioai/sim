@@ -49,6 +49,7 @@ export const BrandfetchBlock: BlockConfig<BrandfetchGetBrandResponse | Brandfetc
       placeholder: 'Enter your Brandfetch API key',
       required: true,
       password: true,
+      hideWhenHosted: true,
     },
   ],
 
