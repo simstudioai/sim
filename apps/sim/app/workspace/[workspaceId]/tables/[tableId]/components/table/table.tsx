@@ -453,14 +453,6 @@ export function Table({
     )
   }, [])
 
-  const resolveColumnFromEvent = useCallback((e: React.MouseEvent) => {
-    const td = (e.target as HTMLElement).closest('td[data-col]') as HTMLElement | null
-    const colIndex = td ? Number.parseInt(td.getAttribute('data-col') || '-1', 10) : -1
-    return colIndex >= 0 && colIndex < columnsRef.current.length
-      ? columnsRef.current[colIndex].name
-      : null
-  }, [])
-
   const handleRowContextMenu = useCallback(
     (e: React.MouseEvent, row: TableRowType) => {
       setEditingCell(null)
