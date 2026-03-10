@@ -963,7 +963,7 @@ export interface SlackUser {
   title?: string
   phone?: string
   skype?: string
-  email?: string | null
+  email: string
   is_bot: boolean
   is_admin: boolean
   is_owner: boolean
