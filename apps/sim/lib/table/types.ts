@@ -209,6 +209,12 @@ export interface BulkUpdateData {
   workspaceId: string
 }
 
+export interface BatchUpdateByIdData {
+  tableId: string
+  updates: Array<{ rowId: string; data: RowData }>
+  workspaceId: string
+}
+
 export interface BulkDeleteData {
   tableId: string
   filter: Filter

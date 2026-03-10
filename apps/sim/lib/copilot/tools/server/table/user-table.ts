@@ -4,11 +4,13 @@ import type { UserTableArgs, UserTableResult } from '@/lib/copilot/tools/shared/
 import {
   addTableColumn,
   batchInsertRows,
+  batchUpdateRows,
   createTable,
   deleteColumn,
   deleteColumns,
   deleteRow,
   deleteRowsByFilter,
+  deleteRowsByIds,
   deleteTable,
   getRowById,
   getTableById,
@@ -515,6 +517,105 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             success: true,
             message: `Deleted ${result.affectedCount} rows`,
             data: { affectedCount: result.affectedCount, affectedRowIds: result.affectedRowIds },
+          }
+        }
+
+        case 'batch_update_rows': {
+          if (!args.tableId) {
+            return { success: false, message: 'Table ID is required' }
+          }
+          if (!workspaceId) {
+            return { success: false, message: 'Workspace ID is required' }
+          }
+
+          const rawUpdates = (args as Record<string, unknown>).updates as
+            | Array<{ rowId: string; data: Record<string, unknown> }>
+            | undefined
+          const columnName = (args as Record<string, unknown>).columnName as string | undefined
+          const valuesMap = (args as Record<string, unknown>).values as
+            | Record<string, unknown>
+            | undefined
+
+          let updates: Array<{ rowId: string; data: Record<string, unknown> }>
+
+          if (rawUpdates && rawUpdates.length > 0) {
+            updates = rawUpdates
+          } else if (columnName && valuesMap) {
+            updates = Object.entries(valuesMap).map(([rowId, value]) => ({
+              rowId,
+              data: { [columnName]: value },
+            }))
+          } else {
+            return {
+              success: false,
+              message:
+                'Provide either "updates" array or "columnName" + "values" map',
+            }
+          }
+
+          if (updates.length > MAX_BATCH_SIZE) {
+            return {
+              success: false,
+              message: `Too many updates (${updates.length}). Maximum is ${MAX_BATCH_SIZE}.`,
+            }
+          }
+
+          const table = await getTableById(args.tableId)
+          if (!table) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
+
+          const requestId = crypto.randomUUID().slice(0, 8)
+          const result = await batchUpdateRows(
+            {
+              tableId: args.tableId,
+              updates: updates as Array<{ rowId: string; data: RowData }>,
+              workspaceId,
+            },
+            table,
+            requestId
+          )
+
+          return {
+            success: true,
+            message: `Updated ${result.affectedCount} rows`,
+            data: { affectedCount: result.affectedCount, affectedRowIds: result.affectedRowIds },
+          }
+        }
+
+        case 'batch_delete_rows': {
+          if (!args.tableId) {
+            return { success: false, message: 'Table ID is required' }
+          }
+          if (!workspaceId) {
+            return { success: false, message: 'Workspace ID is required' }
+          }
+
+          const rowIds = (args as Record<string, unknown>).rowIds as string[] | undefined
+          if (!rowIds || rowIds.length === 0) {
+            return { success: false, message: 'rowIds array is required' }
+          }
+
+          if (rowIds.length > MAX_BATCH_SIZE) {
+            return {
+              success: false,
+              message: `Too many row IDs (${rowIds.length}). Maximum is ${MAX_BATCH_SIZE}.`,
+            }
+          }
+
+          const requestId = crypto.randomUUID().slice(0, 8)
+          const result = await deleteRowsByIds(
+            { tableId: args.tableId, rowIds, workspaceId },
+            requestId
+          )
+
+          return {
+            success: true,
+            message: `Deleted ${result.deletedCount} rows`,
+            data: {
+              deletedCount: result.deletedCount,
+              deletedRowIds: result.deletedRowIds,
+            },
           }
         }
 
