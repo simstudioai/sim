@@ -21,6 +21,7 @@ export interface FileResponse {
   buffer: Buffer
   contentType: string
   filename: string
+  cacheControl?: string
 }
 
 export class FileNotFoundError extends Error {
@@ -256,7 +257,7 @@ export function createFileResponse(file: FileResponse): NextResponse {
     headers: {
       'Content-Type': contentType,
       'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(file.filename)}`,
-      'Cache-Control': 'public, max-age=31536000',
+      'Cache-Control': file.cacheControl || 'public, max-age=31536000',
       'X-Content-Type-Options': 'nosniff',
       'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox;",
     },

@@ -540,6 +540,9 @@ export function Table({
     if (!el) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
       const anchor = selectionAnchorRef.current
       if (!anchor || editingCellRef.current || editingEmptyCellRef.current) return
 

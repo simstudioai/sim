@@ -111,6 +111,7 @@ async function handleLocalFile(filename: string, userId: string): Promise<NextRe
       buffer: fileBuffer,
       contentType,
       filename,
+      cacheControl: contextParam === 'workspace' ? 'private, no-cache, must-revalidate' : undefined,
     })
   } catch (error) {
     logger.error('Error reading local file:', error)
@@ -172,6 +173,7 @@ async function handleCloudProxy(
       buffer: fileBuffer,
       contentType,
       filename: originalFilename,
+      cacheControl: context === 'workspace' ? 'private, no-cache, must-revalidate' : undefined,
     })
   } catch (error) {
     logger.error('Error downloading from cloud storage:', error)
