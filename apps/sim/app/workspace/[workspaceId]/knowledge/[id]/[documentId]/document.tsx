@@ -545,7 +545,7 @@ export function Document({
           onClick={() => {
             setEnabledFilter('all')
             setSelectedChunks(new Set())
-            goToPage(1)
+            void goToPage(1)
           }}
         >
           All
@@ -555,7 +555,7 @@ export function Document({
           onClick={() => {
             setEnabledFilter('enabled')
             setSelectedChunks(new Set())
-            goToPage(1)
+            void goToPage(1)
           }}
         >
           Enabled
@@ -565,7 +565,7 @@ export function Document({
           onClick={() => {
             setEnabledFilter('disabled')
             setSelectedChunks(new Set())
-            goToPage(1)
+            void goToPage(1)
           }}
         >
           Disabled
@@ -582,7 +582,7 @@ export function Document({
             onRemove: () => {
               setEnabledFilter('all')
               setSelectedChunks(new Set())
-              goToPage(1)
+              void goToPage(1)
             },
           },
         ]

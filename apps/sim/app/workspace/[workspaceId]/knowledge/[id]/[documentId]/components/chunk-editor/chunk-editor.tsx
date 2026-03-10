@@ -76,23 +76,25 @@ export function ChunkEditor({
 
   const handleSave = useCallback(async () => {
     const content = editedContentRef.current
-    if (content.trim().length === 0 || content.trim().length > 10000) return
+    const trimmed = content.trim()
+    if (trimmed.length === 0) throw new Error('Content cannot be empty')
+    if (trimmed.length > 10000) throw new Error('Content exceeds maximum length')
 
     if (isCreateMode) {
       const created = await createChunk({
         knowledgeBaseId,
         documentId: documentData.id,
-        content: content.trim(),
+        content: trimmed,
         enabled: true,
       })
       onCreated?.(created.id)
     } else {
-      if (!chunk || content === chunk.content) return
+      if (!chunk || trimmed === chunk.content) return
       await updateChunk({
         knowledgeBaseId,
         documentId: documentData.id,
         chunkId: chunk.id,
-        content,
+        content: trimmed,
       })
     }
   }, [isCreateMode, chunk, knowledgeBaseId, documentData.id, updateChunk, createChunk, onCreated])
