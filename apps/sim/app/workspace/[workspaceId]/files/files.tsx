@@ -115,8 +115,8 @@ function formatFileType(mimeType: string | null, filename: string): string {
 }
 
 async function downloadFile(file: WorkspaceFileRecord) {
-  const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
-  const response = await fetch(serveUrl)
+  const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace&t=${Date.now()}`
+  const response = await fetch(serveUrl, { cache: 'no-store' })
   if (!response.ok) {
     throw new Error(`Failed to download file: ${response.statusText}`)
   }
