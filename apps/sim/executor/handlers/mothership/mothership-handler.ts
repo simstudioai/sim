@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/constants'
-import { resolveMessages } from '@/executor/handlers/shared/response-format'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
 import type { SerializedBlock } from '@/serializer/types'
@@ -25,7 +24,11 @@ export class MothershipBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<BlockOutput> {
-    const messages = resolveMessages(inputs.messages)
+    const prompt = inputs.prompt
+    if (!prompt || typeof prompt !== 'string') {
+      throw new Error('Prompt input is required')
+    }
+    const messages = [{ role: 'user' as const, content: prompt }]
     const chatId = crypto.randomUUID()
 
     const url = buildAPIUrl('/api/mothership/execute')
@@ -40,7 +43,6 @@ export class MothershipBlockHandler implements BlockHandler {
 
     logger.info('Executing Mothership block', {
       blockId: block.id,
-      messageCount: messages.length,
     })
 
     const response = await fetch(url.toString(), {

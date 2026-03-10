@@ -22,27 +22,26 @@ export const MothershipBlock: BlockConfig<MothershipResponse> = {
     'The Mothership block sends messages to the Mothership AI agent, which has access to subagents, integration tools, memory, and workspace context. Use it to perform complex multi-step reasoning, cross-service queries, or any task that benefits from the full Mothership intelligence within a workflow.',
   bestPractices: `
   - Use for tasks that require multi-step reasoning, tool use, or cross-service coordination.
-  - The Mothership picks its own model and tools internally — you only provide messages.
+  - The Mothership picks its own model and tools internally — you only provide a prompt.
   `,
   category: 'blocks',
   bgColor: '#802FDE',
   icon: Blimp,
   subBlocks: [
     {
-      id: 'messages',
-      title: 'Messages',
-      type: 'messages-input',
-      placeholder: 'Enter messages...',
+      id: 'prompt',
+      title: 'Prompt',
+      type: 'long-input',
+      placeholder: 'Enter your prompt for the Mothership...',
     },
   ],
   tools: {
     access: [],
   },
   inputs: {
-    messages: {
-      type: 'json',
-      description:
-        'Array of message objects with role and content: [{ role: "system", content: "..." }, { role: "user", content: "..." }]',
+    prompt: {
+      type: 'string',
+      description: 'The prompt to send to the Mothership AI agent',
     },
   },
   outputs: {
