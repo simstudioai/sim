@@ -1,4 +1,3 @@
-export * from './cell-viewer-modal'
 export * from './context-menu'
 export * from './row-modal'
 export * from './schema-modal'

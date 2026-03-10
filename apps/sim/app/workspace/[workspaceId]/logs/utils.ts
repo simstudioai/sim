@@ -87,7 +87,11 @@ interface StatusBadgeProps {
  */
 export const StatusBadge = React.memo(({ status }: StatusBadgeProps) => {
   const config = STATUS_CONFIG[status]
-  return React.createElement(Badge, { variant: config.variant, dot: true }, config.label)
+  return React.createElement(
+    Badge,
+    { variant: config.variant, dot: true, size: 'sm' },
+    config.label
+  )
 })
 
 StatusBadge.displayName = 'StatusBadge'
@@ -110,18 +114,18 @@ export const TriggerBadge = React.memo(({ trigger }: TriggerBadgeProps) => {
 
   const coreVariant = TRIGGER_VARIANT_MAP[trigger]
   if (coreVariant) {
-    return React.createElement(Badge, { variant: coreVariant }, metadata.label)
+    return React.createElement(Badge, { variant: coreVariant, size: 'sm' }, metadata.label)
   }
 
   if (IconComponent) {
     return React.createElement(
       Badge,
-      { variant: 'gray-secondary', icon: IconComponent },
+      { variant: 'gray-secondary', size: 'sm', icon: IconComponent },
       metadata.label
     )
   }
 
-  return React.createElement(Badge, { variant: 'gray-secondary' }, metadata.label)
+  return React.createElement(Badge, { variant: 'gray-secondary', size: 'sm' }, metadata.label)
 })
 
 TriggerBadge.displayName = 'TriggerBadge'

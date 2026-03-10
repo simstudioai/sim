@@ -28,7 +28,9 @@ export function getTypeBadgeVariant(type: string): BadgeVariant {
  */
 export function cleanCellValue(value: unknown, column: ColumnDefinition): unknown {
   if (column.type === 'number') {
-    return value === '' ? null : Number(value)
+    if (value === '') return null
+    const num = Number(value)
+    return Number.isNaN(num) ? 0 : num
   }
   if (column.type === 'json') {
     if (typeof value === 'string') {
