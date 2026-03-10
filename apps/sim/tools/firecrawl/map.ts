@@ -1,5 +1,4 @@
 import type { MapParams, MapResponse } from '@/tools/firecrawl/types'
-import { createFirecrawlHosting } from '@/tools/firecrawl/hosting'
 import type { ToolConfig } from '@/tools/types'
 
 export const mapTool: ToolConfig<MapParams, MapResponse> = {
@@ -67,7 +66,39 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
     },
   },
 
-  hosting: createFirecrawlHosting<MapParams>(),
+  hosting: {
+    envKeyPrefix: 'FIRECRAWL_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'firecrawl',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, output) => {
+        const metadata =
+          typeof output.metadata === 'object' && output.metadata !== null
+            ? (output.metadata as Record<string, unknown>)
+            : null
+        const rawCreditsUsed = output.creditsUsed ?? metadata?.creditsUsed
+
+        if (rawCreditsUsed == null) {
+          throw new Error('Firecrawl response missing creditsUsed field')
+        }
+
+        const creditsUsed = Number(rawCreditsUsed)
+        if (Number.isNaN(creditsUsed)) {
+          throw new Error('Firecrawl response returned a non-numeric creditsUsed field')
+        }
+
+        return {
+          cost: creditsUsed * 0.001,
+          metadata: { creditsUsed },
+        }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 100,
+    },
+  },
 
   request: {
     method: 'POST',

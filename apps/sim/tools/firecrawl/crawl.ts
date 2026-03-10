@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
-import { createFirecrawlHosting } from '@/tools/firecrawl/hosting'
 import type { FirecrawlCrawlParams, FirecrawlCrawlResponse } from '@/tools/firecrawl/types'
 import { CRAWLED_PAGE_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
@@ -70,7 +69,39 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
     },
   },
 
-  hosting: createFirecrawlHosting<FirecrawlCrawlParams>(),
+  hosting: {
+    envKeyPrefix: 'FIRECRAWL_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'firecrawl',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, output) => {
+        const metadata =
+          typeof output.metadata === 'object' && output.metadata !== null
+            ? (output.metadata as Record<string, unknown>)
+            : null
+        const rawCreditsUsed = output.creditsUsed ?? metadata?.creditsUsed
+
+        if (rawCreditsUsed == null) {
+          throw new Error('Firecrawl response missing creditsUsed field')
+        }
+
+        const creditsUsed = Number(rawCreditsUsed)
+        if (Number.isNaN(creditsUsed)) {
+          throw new Error('Firecrawl response returned a non-numeric creditsUsed field')
+        }
+
+        return {
+          cost: creditsUsed * 0.001,
+          metadata: { creditsUsed },
+        }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 100,
+    },
+  },
 
   request: {
     url: 'https://api.firecrawl.dev/v2/crawl',
