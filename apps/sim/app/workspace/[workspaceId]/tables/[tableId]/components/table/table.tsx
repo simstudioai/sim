@@ -199,6 +199,7 @@ export function Table({
   const {
     contextMenu,
     handleRowContextMenu: baseHandleRowContextMenu,
+    handleEmptyCellContextMenu: baseHandleEmptyCellContextMenu,
     closeContextMenu,
   } = useContextMenu()
 
@@ -371,18 +372,49 @@ export function Table({
     closeContextMenu()
   }, [contextMenu.row, closeContextMenu])
 
+  const handleAddData = useCallback(() => {
+    if (contextMenu.rowIndex === null || !contextMenu.columnName) {
+      closeContextMenu()
+      return
+    }
+    const column = columnsRef.current.find((c) => c.name === contextMenu.columnName)
+    if (!column || column.type === 'boolean') {
+      closeContextMenu()
+      return
+    }
+    setSelectionAnchor({
+      rowIndex: contextMenu.rowIndex,
+      colIndex: columnsRef.current.findIndex((c) => c.name === contextMenu.columnName),
+    })
+    setSelectionFocus(null)
+    setEditingEmptyCell({ rowIndex: contextMenu.rowIndex, columnName: contextMenu.columnName })
+    setInitialCharacter(null)
+    closeContextMenu()
+  }, [contextMenu.rowIndex, contextMenu.columnName, closeContextMenu])
+
+  const resolveColumnFromEvent = useCallback((e: React.MouseEvent) => {
+    const td = (e.target as HTMLElement).closest('td[data-col]') as HTMLElement | null
+    const colIndex = td ? Number.parseInt(td.getAttribute('data-col') || '-1', 10) : -1
+    return colIndex >= 0 && colIndex < columnsRef.current.length
+      ? columnsRef.current[colIndex].name
+      : null
+  }, [])
+
   const handleRowContextMenu = useCallback(
     (e: React.MouseEvent, row: TableRowType) => {
       setEditingCell(null)
-      const td = (e.target as HTMLElement).closest('td[data-col]') as HTMLElement | null
-      const colIndex = td ? Number.parseInt(td.getAttribute('data-col') || '-1', 10) : -1
-      const columnName =
-        colIndex >= 0 && colIndex < columnsRef.current.length
-          ? columnsRef.current[colIndex].name
-          : null
-      baseHandleRowContextMenu(e, row, columnName)
+      baseHandleRowContextMenu(e, row, resolveColumnFromEvent(e))
     },
-    [baseHandleRowContextMenu]
+    [baseHandleRowContextMenu, resolveColumnFromEvent]
+  )
+
+  const handleEmptyCellRightClick = useCallback(
+    (e: React.MouseEvent, rowIndex: number) => {
+      setEditingCell(null)
+      setEditingEmptyCell(null)
+      baseHandleEmptyCellContextMenu(e, rowIndex, resolveColumnFromEvent(e))
+    },
+    [baseHandleEmptyCellContextMenu, resolveColumnFromEvent]
   )
 
   const handleCellMouseDown = useCallback(
@@ -811,19 +843,9 @@ export function Table({
         createRef.current(
           { data: mergedData, position: rowIndex },
           {
-            onSuccess: (response: Record<string, unknown>) => {
-              const data = response?.data as Record<string, unknown> | undefined
-              const row = data?.row as Record<string, unknown> | undefined
-              const newRowId = row?.id as string | undefined
-              if (newRowId) {
-                setPendingPlaceholders((prev) => {
-                  if (!prev[rowIndex]) return prev
-                  return { ...prev, [rowIndex]: { ...prev[rowIndex], rowId: newRowId } }
-                })
-              }
-            },
-            onError: () => {
+            onSettled: () => {
               setPendingPlaceholders((prev) => {
+                if (!prev[rowIndex]) return prev
                 const next = { ...prev }
                 delete next[rowIndex]
                 return next
@@ -1178,6 +1200,7 @@ export function Table({
                             onDoubleClick={handleEmptyRowDoubleClick}
                             onSave={handleEmptyRowSave}
                             onCancel={handleEmptyRowCancel}
+                            onContextMenu={handleEmptyCellRightClick}
                             onCellMouseDown={handleCellMouseDown}
                             onCellMouseEnter={handleCellMouseEnter}
                             onRowMouseDown={handleRowMouseDown}
@@ -1222,6 +1245,7 @@ export function Table({
                     onDoubleClick={handleEmptyRowDoubleClick}
                     onSave={handleEmptyRowSave}
                     onCancel={handleEmptyRowCancel}
+                    onContextMenu={handleEmptyCellRightClick}
                     onCellMouseDown={handleCellMouseDown}
                     onCellMouseEnter={handleCellMouseEnter}
                     onRowMouseDown={handleRowMouseDown}
@@ -1269,6 +1293,7 @@ export function Table({
         contextMenu={contextMenu}
         onClose={closeContextMenu}
         onEditCell={handleContextMenuEditCell}
+        onAddData={handleAddData}
         onDelete={handleContextMenuDelete}
         onInsertAbove={handleInsertRowAbove}
         onInsertBelow={handleInsertRowBelow}
@@ -1352,6 +1377,7 @@ interface PositionGapRowsProps {
   onDoubleClick: (rowIndex: number, columnName: string) => void
   onSave: (rowIndex: number, columnName: string, value: unknown, reason: SaveReason) => void
   onCancel: () => void
+  onContextMenu: (e: React.MouseEvent, rowIndex: number) => void
   onCellMouseDown: (rowIndex: number, colIndex: number, shiftKey: boolean) => void
   onCellMouseEnter: (rowIndex: number, colIndex: number) => void
   onRowMouseDown: (rowIndex: number, shiftKey: boolean) => void
@@ -1371,6 +1397,7 @@ const PositionGapRows = React.memo(function PositionGapRows({
   onDoubleClick,
   onSave,
   onCancel,
+  onContextMenu,
   onCellMouseDown,
   onCellMouseEnter,
   onRowMouseDown,
@@ -1385,7 +1412,7 @@ const PositionGapRows = React.memo(function PositionGapRows({
       {Array.from({ length: capped }).map((_, i) => {
         const position = startPosition + i
         return (
-          <tr key={`gap-${position}`}>
+          <tr key={`gap-${position}`} onContextMenu={(e) => onContextMenu(e, position)}>
             <td
               className={GAP_CHECKBOX_CLASS}
               onMouseDown={(e) => {
@@ -1920,6 +1947,7 @@ interface PlaceholderRowsProps {
   onDoubleClick: (rowIndex: number, columnName: string) => void
   onSave: (rowIndex: number, columnName: string, value: unknown, reason: SaveReason) => void
   onCancel: () => void
+  onContextMenu: (e: React.MouseEvent, rowIndex: number) => void
   onCellMouseDown: (rowIndex: number, colIndex: number, shiftKey: boolean) => void
   onCellMouseEnter: (rowIndex: number, colIndex: number) => void
   onRowMouseDown: (rowIndex: number, shiftKey: boolean) => void
@@ -1938,6 +1966,7 @@ function placeholderPropsAreEqual(prev: PlaceholderRowsProps, next: PlaceholderR
     prev.onDoubleClick !== next.onDoubleClick ||
     prev.onSave !== next.onSave ||
     prev.onCancel !== next.onCancel ||
+    prev.onContextMenu !== next.onContextMenu ||
     prev.onCellMouseDown !== next.onCellMouseDown ||
     prev.onCellMouseEnter !== next.onCellMouseEnter ||
     prev.onRowMouseDown !== next.onRowMouseDown ||
@@ -1985,6 +2014,7 @@ const PlaceholderRows = React.memo(function PlaceholderRows({
   onDoubleClick,
   onSave,
   onCancel,
+  onContextMenu,
   onCellMouseDown,
   onCellMouseEnter,
   onRowMouseDown,
@@ -2083,7 +2113,7 @@ const PlaceholderRows = React.memo(function PlaceholderRows({
         const globalRowIndex = dataRowCount + i
         const pending = pendingPlaceholders[globalRowIndex]
         return (
-          <tr key={`placeholder-${i}`}>
+          <tr key={`placeholder-${i}`} onContextMenu={(e) => onContextMenu(e, globalRowIndex)}>
             <td
               className={cn(CELL_CHECKBOX, 'group/checkbox cursor-pointer text-center')}
               onMouseDown={(e) => {

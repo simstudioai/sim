@@ -8,25 +8,13 @@ import { Columns3, Rows3, Table as TableIcon } from '@/components/emcn/icons'
 import type { TableDefinition } from '@/lib/table'
 import { generateUniqueTableName } from '@/lib/table/constants'
 import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
-import {
-  InlineRenameInput,
-  ownerCell,
-  Resource,
-  timeCell,
-} from '@/app/workspace/[workspaceId]/components'
+import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { SchemaModal } from '@/app/workspace/[workspaceId]/tables/[tableId]/components'
 import { TablesListContextMenu } from '@/app/workspace/[workspaceId]/tables/components'
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import {
-  useCreateTable,
-  useDeleteTable,
-  useRenameTable,
-  useTablesList,
-} from '@/hooks/queries/tables'
+import { useCreateTable, useDeleteTable, useTablesList } from '@/hooks/queries/tables'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
-import { useInlineRename } from '@/hooks/use-inline-rename'
 
 const logger = createLogger('Tables')
 
@@ -53,21 +41,14 @@ export function Tables() {
   }
   const deleteTable = useDeleteTable(workspaceId)
   const createTable = useCreateTable(workspaceId)
-  const renameTable = useRenameTable(workspaceId)
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [isSchemaModalOpen, setIsSchemaModalOpen] = useState(false)
   const [activeTable, setActiveTable] = useState<TableDefinition | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-
-  const tableRename = useInlineRename({
-    onSave: (tableId, name) => renameTable.mutate({ tableId, name }),
-  })
 
   const {
     isOpen: isListContextMenuOpen,
     position: listContextMenuPosition,
-    menuRef: listMenuRef,
     handleContextMenu: handleListContextMenu,
     closeMenu: closeListContextMenu,
   } = useContextMenu()
@@ -75,7 +56,6 @@ export function Tables() {
   const {
     isOpen: isRowContextMenuOpen,
     position: rowContextMenuPosition,
-    menuRef: rowMenuRef,
     handleContextMenu: handleRowCtxMenu,
     closeMenu: closeRowContextMenu,
   } = useContextMenu()
@@ -94,20 +74,6 @@ export function Tables() {
           name: {
             icon: <TableIcon className='h-[14px] w-[14px]' />,
             label: table.name,
-            content:
-              tableRename.editingId === table.id ? (
-                <span className='flex min-w-0 items-center gap-[12px] font-medium text-[14px] text-[var(--text-body)]'>
-                  <span className='flex-shrink-0 text-[var(--text-icon)]'>
-                    <TableIcon className='h-[14px] w-[14px]' />
-                  </span>
-                  <InlineRenameInput
-                    value={tableRename.editValue}
-                    onChange={tableRename.setEditValue}
-                    onSubmit={tableRename.submitRename}
-                    onCancel={tableRename.cancelRename}
-                  />
-                </span>
-              ) : undefined,
           },
           columns: {
             icon: <Columns3 className='h-[14px] w-[14px]' />,
@@ -128,7 +94,7 @@ export function Tables() {
           updated: -new Date(table.updatedAt).getTime(),
         },
       })),
-    [filteredTables, members, tableRename.editingId, tableRename.editValue]
+    [filteredTables, members]
   )
 
   const handleContentContextMenu = useCallback(
@@ -147,11 +113,11 @@ export function Tables() {
 
   const handleRowClick = useCallback(
     (rowId: string) => {
-      if (!isRowContextMenuOpen && tableRename.editingId !== rowId) {
+      if (!isRowContextMenuOpen) {
         router.push(`/workspace/${workspaceId}/tables/${rowId}`)
       }
     },
-    [isRowContextMenuOpen, tableRename.editingId, router, workspaceId]
+    [isRowContextMenuOpen, router, workspaceId]
   )
 
   const handleRowContextMenu = useCallback(
@@ -218,7 +184,6 @@ export function Tables() {
       <TablesListContextMenu
         isOpen={isListContextMenuOpen}
         position={listContextMenuPosition}
-        menuRef={listMenuRef}
         onClose={closeListContextMenu}
         onCreateTable={handleCreateTable}
         disableCreate={userPermissions.canEdit !== true || createTable.isPending}
@@ -227,12 +192,7 @@ export function Tables() {
       <TableContextMenu
         isOpen={isRowContextMenuOpen}
         position={rowContextMenuPosition}
-        menuRef={rowMenuRef}
         onClose={closeRowContextMenu}
-        onRename={() => {
-          if (activeTable) tableRename.startRename(activeTable.id, activeTable.name)
-        }}
-        onViewSchema={() => setIsSchemaModalOpen(true)}
         onCopyId={() => {
           if (activeTable) navigator.clipboard.writeText(activeTable.id)
         }}
@@ -262,24 +222,12 @@ export function Tables() {
             >
               Cancel
             </Button>
-            <Button variant='default' onClick={handleDelete} disabled={deleteTable.isPending}>
+            <Button variant='destructive' onClick={handleDelete} disabled={deleteTable.isPending}>
               {deleteTable.isPending ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
-
-      {activeTable && (
-        <SchemaModal
-          isOpen={isSchemaModalOpen}
-          onClose={() => {
-            setIsSchemaModalOpen(false)
-            setActiveTable(null)
-          }}
-          columns={activeTable.schema.columns}
-          tableName={activeTable.name}
-        />
-      )}
     </>
   )
 }

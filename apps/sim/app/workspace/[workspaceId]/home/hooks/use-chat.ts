@@ -46,7 +46,7 @@ export interface UseChatReturn {
       size: number
     }>
   ) => Promise<void>
-  stopGeneration: () => void
+  stopGeneration: () => Promise<void>
   chatBottomRef: React.RefObject<HTMLDivElement | null>
   resources: MothershipResource[]
   activeResourceId: string | null
@@ -140,6 +140,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   const sendingRef = useRef(false)
   const toolArgsMapRef = useRef<Map<string, Record<string, unknown>>>(new Map())
   const streamGenRef = useRef(0)
+  const streamingContentRef = useRef('')
 
   const isHomePage = pathname.endsWith('/home')
 
@@ -212,6 +213,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       let lastWorkflowId: string | null = null
       let runningText = ''
 
+      streamingContentRef.current = ''
       toolArgsMapRef.current.clear()
 
       const ensureTextBlock = (): ContentBlock => {
@@ -283,6 +285,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                 const tb = ensureTextBlock()
                 tb.content = (tb.content ?? '') + chunk
                 runningText += chunk
+                streamingContentRef.current = runningText
                 flush()
               }
               break
@@ -427,6 +430,24 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     [workspaceId, queryClient, addResource]
   )
 
+  const persistPartialResponse = useCallback(async () => {
+    const chatId = chatIdRef.current
+    const streamId = streamIdRef.current
+    if (!chatId || !streamId) return
+
+    const content = streamingContentRef.current
+    try {
+      const res = await fetch('/api/mothership/chat/stop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId, streamId, content }),
+      })
+      if (res.ok) streamingContentRef.current = ''
+    } catch (err) {
+      logger.warn('Failed to persist partial response', err)
+    }
+  }, [])
+
   const invalidateChatQueries = useCallback(() => {
     const activeChatId = chatIdRef.current
     if (activeChatId) {
@@ -495,6 +516,9 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     ) => {
       if (!message.trim() || !workspaceId) return
 
+      if (sendingRef.current) {
+        await persistPartialResponse()
+      }
       abortControllerRef.current?.abort()
 
       const gen = ++streamGenRef.current
@@ -566,17 +590,20 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
         }
       }
     },
-    [workspaceId, queryClient, processSSEStream, finalize]
+    [workspaceId, queryClient, processSSEStream, finalize, persistPartialResponse]
   )
 
-  const stopGeneration = useCallback(() => {
+  const stopGeneration = useCallback(async () => {
+    if (sendingRef.current) {
+      await persistPartialResponse()
+    }
     streamGenRef.current++
     abortControllerRef.current?.abort()
     abortControllerRef.current = null
     sendingRef.current = false
     setIsSending(false)
     invalidateChatQueries()
-  }, [invalidateChatQueries])
+  }, [invalidateChatQueries, persistPartialResponse])
 
   useEffect(() => {
     return () => {

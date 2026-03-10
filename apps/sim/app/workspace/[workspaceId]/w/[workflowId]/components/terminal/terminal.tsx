@@ -1279,7 +1279,7 @@ export const Terminal = memo(function Terminal() {
       <aside
         ref={terminalRef}
         className={clsx(
-          'terminal-container relative shrink-0 overflow-hidden border-[var(--border)] border-t bg-[var(--surface-1)]',
+          'terminal-container relative shrink-0 overflow-hidden border-[var(--border)] border-t bg-[var(--bg)]',
           isToggling && 'transition-[height] duration-100 ease-out'
         )}
         onTransitionEnd={handleTransitionEnd}
@@ -1305,7 +1305,7 @@ export const Terminal = memo(function Terminal() {
           >
             {/* Header */}
             <div
-              className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--surface-1)] pr-[16px] pl-[16px]'
+              className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-[16px] pl-[16px]'
               onClick={handleHeaderClick}
             >
               {/* Left side - Logs label */}

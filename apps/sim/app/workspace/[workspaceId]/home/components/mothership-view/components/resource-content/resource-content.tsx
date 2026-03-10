@@ -2,7 +2,10 @@
 
 import { lazy, Suspense, useMemo } from 'react'
 import { Skeleton } from '@/components/emcn'
-import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import {
+  FileViewer,
+  isPreviewable,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/components'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
@@ -68,7 +71,13 @@ function EmbeddedFile({ workspaceId, fileId }: EmbeddedFileProps) {
 
   return (
     <div className='flex h-full flex-col overflow-hidden'>
-      <FileViewer key={file.id} file={file} workspaceId={workspaceId} canEdit={true} />
+      <FileViewer
+        key={file.id}
+        file={file}
+        workspaceId={workspaceId}
+        canEdit={true}
+        showPreview={isPreviewable(file)}
+      />
     </div>
   )
 }

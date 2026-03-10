@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -123,14 +123,20 @@ export async function POST(req: NextRequest) {
         timestamp: new Date().toISOString(),
       }
 
-      await db
+      const [updated] = await db
         .update(copilotChats)
         .set({
-          messages: [...conversationHistory, userMsg],
+          messages: sql`${copilotChats.messages} || ${JSON.stringify([userMsg])}::jsonb`,
           conversationId: userMessageId,
           updatedAt: new Date(),
         })
         .where(eq(copilotChats.id, actualChatId))
+        .returning({ messages: copilotChats.messages })
+
+      if (updated) {
+        const freshMessages: any[] = Array.isArray(updated.messages) ? updated.messages : []
+        conversationHistory = freshMessages.filter((m: any) => m.id !== userMessageId)
+      }
     }
 
     const [workspaceContext, userPermission] = await Promise.all([
@@ -177,13 +183,6 @@ export async function POST(req: NextRequest) {
         onComplete: async (result: OrchestratorResult) => {
           if (!actualChatId) return
 
-          const userMessage = {
-            id: userMessageId,
-            role: 'user' as const,
-            content: message,
-            timestamp: new Date().toISOString(),
-          }
-
           const assistantMessage: Record<string, unknown> = {
             id: crypto.randomUUID(),
             role: 'assistant' as const,
@@ -194,16 +193,29 @@ export async function POST(req: NextRequest) {
             assistantMessage.toolCalls = result.toolCalls
           }
 
-          const updatedMessages = [...conversationHistory, userMessage, assistantMessage]
-
           try {
-            await db
-              .update(copilotChats)
-              .set({
-                messages: updatedMessages,
-                conversationId: null,
-              })
+            const [row] = await db
+              .select({ messages: copilotChats.messages })
+              .from(copilotChats)
               .where(eq(copilotChats.id, actualChatId))
+              .limit(1)
+
+            const msgs: any[] = Array.isArray(row?.messages) ? row.messages : []
+            const userIdx = msgs.findIndex((m: any) => m.id === userMessageId)
+            const alreadyHasResponse =
+              userIdx >= 0 &&
+              userIdx + 1 < msgs.length &&
+              (msgs[userIdx + 1] as any)?.role === 'assistant'
+
+            if (!alreadyHasResponse) {
+              await db
+                .update(copilotChats)
+                .set({
+                  messages: sql`${copilotChats.messages} || ${JSON.stringify([assistantMessage])}::jsonb`,
+                  conversationId: sql`CASE WHEN ${copilotChats.conversationId} = ${userMessageId} THEN NULL ELSE ${copilotChats.conversationId} END`,
+                })
+                .where(eq(copilotChats.id, actualChatId))
+            }
           } catch (error) {
             logger.error(`[${tracker.requestId}] Failed to persist chat messages`, {
               chatId: actualChatId,

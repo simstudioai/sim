@@ -334,6 +334,8 @@ export function useDeleteTable(workspaceId: string) {
 
 /**
  * Create a row in a table.
+ * Populates the cache on success so the new row is immediately available
+ * without waiting for the background refetch triggered by invalidation.
  */
 export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
@@ -352,6 +354,20 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       }
 
       return res.json()
+    },
+    onSuccess: (response) => {
+      const row = (response as { data?: { row?: TableRow } })?.data?.row as TableRow | undefined
+      if (!row) return
+
+      queryClient.setQueriesData<TableRowsResponse>(
+        { queryKey: tableKeys.rowsRoot(tableId) },
+        (old) => {
+          if (!old) return old
+          if (old.rows.some((r) => r.id === row.id)) return old
+          const rows: TableRow[] = [...old.rows, row].sort((a, b) => a.position - b.position)
+          return { ...old, rows, totalCount: old.totalCount + 1 }
+        }
+      )
     },
     onSettled: () => {
       invalidateRowCount(queryClient, workspaceId, tableId)

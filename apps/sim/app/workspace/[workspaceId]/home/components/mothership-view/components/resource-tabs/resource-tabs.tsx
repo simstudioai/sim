@@ -1,7 +1,15 @@
 'use client'
 
+import type { ElementType } from 'react'
+import { Button } from '@/components/emcn'
+import { Table as TableIcon } from '@/components/emcn/icons'
+import { WorkflowIcon } from '@/components/icons'
+import { getDocumentIcon } from '@/components/icons/document-icons'
 import { cn } from '@/lib/core/utils/cn'
-import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import type {
+  MothershipResource,
+  MothershipResourceType,
+} from '@/app/workspace/[workspaceId]/home/types'
 
 interface ResourceTabsProps {
   resources: MothershipResource[]
@@ -9,28 +17,44 @@ interface ResourceTabsProps {
   onSelect: (id: string) => void
 }
 
+const RESOURCE_ICONS: Record<Exclude<MothershipResourceType, 'file'>, ElementType> = {
+  table: TableIcon,
+  workflow: WorkflowIcon,
+}
+
+function getResourceIcon(resource: MothershipResource): ElementType {
+  if (resource.type === 'file') {
+    return getDocumentIcon('', resource.title)
+  }
+  return RESOURCE_ICONS[resource.type]
+}
+
 /**
  * Horizontal tab bar for switching between mothership resources.
- * Mirrors the role of ResourceHeader in the Resource abstraction.
+ * Renders each resource as a subtle Button matching ResourceHeader actions.
  */
 export function ResourceTabs({ resources, activeId, onSelect }: ResourceTabsProps) {
   return (
-    <div className='flex shrink-0 gap-[2px] overflow-x-auto border-[var(--border)] border-b px-[12px]'>
-      {resources.map((resource) => (
-        <button
-          key={resource.id}
-          type='button'
-          onClick={() => onSelect(resource.id)}
-          className={cn(
-            'shrink-0 cursor-pointer border-b-[2px] px-[12px] py-[10px] text-[13px] transition-colors',
-            activeId === resource.id
-              ? 'border-[var(--text-primary)] font-medium text-[var(--text-primary)]'
-              : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-          )}
-        >
-          {resource.title}
-        </button>
-      ))}
+    <div className='flex shrink-0 items-center gap-[6px] overflow-x-auto border-[var(--border)] border-b px-[16px] py-[8.5px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+      {resources.map((resource) => {
+        const Icon = getResourceIcon(resource)
+        const isActive = activeId === resource.id
+
+        return (
+          <Button
+            key={resource.id}
+            variant='subtle'
+            onClick={() => onSelect(resource.id)}
+            className={cn(
+              'shrink-0 border border-transparent bg-transparent px-[8px] py-[4px] text-[12px]',
+              isActive && 'border-[var(--border)] bg-[var(--surface-4)]'
+            )}
+          >
+            <Icon className={cn('mr-[6px] h-[14px] w-[14px] text-[var(--text-icon)]')} />
+            {resource.title}
+          </Button>
+        )
+      })}
     </div>
   )
 }
