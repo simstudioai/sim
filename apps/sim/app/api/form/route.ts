@@ -118,20 +118,15 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const existingIdentifier = await db
-        .select()
-        .from(form)
-        .where(eq(form.identifier, identifier))
-        .limit(1)
+      // Check identifier availability and workflow access in parallel
+      const [existingIdentifier, { hasAccess, workflow: workflowRecord }] = await Promise.all([
+        db.select().from(form).where(eq(form.identifier, identifier)).limit(1),
+        checkWorkflowAccessForFormCreation(workflowId, session.user.id),
+      ])
 
       if (existingIdentifier.length > 0) {
         return createErrorResponse('Identifier already in use', 400)
       }
-
-      const { hasAccess, workflow: workflowRecord } = await checkWorkflowAccessForFormCreation(
-        workflowId,
-        session.user.id
-      )
 
       if (!hasAccess || !workflowRecord) {
         return createErrorResponse('Workflow not found or access denied', 404)

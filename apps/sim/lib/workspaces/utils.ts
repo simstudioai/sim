@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
-import { workspace as workspaceTable } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
+import { permissions, workspace as workspaceTable } from '@sim/db/schema'
+import { and, desc, eq } from 'drizzle-orm'
 
 interface WorkspaceBillingSettings {
   billedAccountUserId: string | null
@@ -36,4 +36,24 @@ export async function getWorkspaceBillingSettings(
 export async function getWorkspaceBilledAccountUserId(workspaceId: string): Promise<string | null> {
   const settings = await getWorkspaceBillingSettings(workspaceId)
   return settings?.billedAccountUserId ?? null
+}
+
+export async function listUserWorkspaces(userId: string) {
+  const workspaces = await db
+    .select({
+      workspaceId: workspaceTable.id,
+      workspaceName: workspaceTable.name,
+      ownerId: workspaceTable.ownerId,
+      permissionType: permissions.permissionType,
+    })
+    .from(permissions)
+    .innerJoin(workspaceTable, eq(permissions.entityId, workspaceTable.id))
+    .where(and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace')))
+    .orderBy(desc(workspaceTable.createdAt))
+
+  return workspaces.map((row) => ({
+    workspaceId: row.workspaceId,
+    workspaceName: row.workspaceName,
+    role: row.ownerId === userId ? 'owner' : row.permissionType,
+  }))
 }

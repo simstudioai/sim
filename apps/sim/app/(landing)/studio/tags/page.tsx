@@ -1,5 +1,10 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getAllTags } from '@/lib/blog/registry'
+
+export const metadata: Metadata = {
+  title: 'Tags',
+}
 
 export default async function TagsIndex() {
   const tags = await getAllTags()

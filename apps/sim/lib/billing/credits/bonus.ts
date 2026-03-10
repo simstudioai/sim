@@ -3,6 +3,7 @@ import { organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('BonusCredits')
@@ -27,7 +28,7 @@ export async function applyBonusCredits(
 ): Promise<void> {
   const dbCtx = tx ?? db
   const subscription = await getHighestPrioritySubscription(userId)
-  const isTeamOrEnterprise = subscription?.plan === 'team' || subscription?.plan === 'enterprise'
+  const isTeamOrEnterprise = isOrgPlan(subscription?.plan)
 
   if (isTeamOrEnterprise && subscription?.referenceId) {
     const orgId = subscription.referenceId

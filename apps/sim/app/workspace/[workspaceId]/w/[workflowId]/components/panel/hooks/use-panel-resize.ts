@@ -2,6 +2,9 @@ import { useCallback, useEffect } from 'react'
 import { PANEL_WIDTH } from '@/stores/constants'
 import { usePanelStore } from '@/stores/panel'
 
+/** Inset gap between the viewport edge and the content window */
+const CONTENT_WINDOW_GAP = 8
+
 /**
  * Custom hook to handle panel resize functionality.
  * Manages mouse events for resizing and enforces min/max width constraints.
@@ -27,8 +30,7 @@ export function usePanelResize() {
     if (!isResizing) return
 
     const handleMouseMove = (e: MouseEvent) => {
-      // Calculate width from the right edge of the viewport
-      const newWidth = window.innerWidth - e.clientX
+      const newWidth = window.innerWidth - CONTENT_WINDOW_GAP - e.clientX
       const maxWidth = window.innerWidth * PANEL_WIDTH.MAX_PERCENTAGE
 
       if (newWidth >= PANEL_WIDTH.MIN && newWidth <= maxWidth) {

@@ -312,6 +312,8 @@ async function executeWebhookJobInternal(
           await PauseResumeManager.processQueuedResumes(executionId)
         }
 
+        await loggingSession.waitForPostExecution()
+
         logger.info(`[${requestId}] Airtable webhook execution completed`, {
           success: executionResult.success,
           workflowId: payload.workflowId,
@@ -584,6 +586,8 @@ async function executeWebhookJobInternal(
     } else {
       await PauseResumeManager.processQueuedResumes(executionId)
     }
+
+    await loggingSession.waitForPostExecution()
 
     logger.info(`[${requestId}] Webhook execution completed`, {
       success: executionResult.success,

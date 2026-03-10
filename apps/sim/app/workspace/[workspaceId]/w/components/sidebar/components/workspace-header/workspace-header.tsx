@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ArrowDown, MoreHorizontal, Plus } from 'lucide-react'
 import {
-  Badge,
   Button,
   ChevronDown,
   Modal,
@@ -12,7 +11,6 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  PanelLeft,
   Popover,
   PopoverContent,
   PopoverItem,
@@ -36,91 +34,44 @@ interface Workspace {
 }
 
 interface WorkspaceHeaderProps {
-  /**
-   * The active workspace object
-   */
+  /** The active workspace object */
   activeWorkspace?: { name: string } | null
-  /**
-   * Current workspace ID
-   */
+  /** Current workspace ID */
   workspaceId: string
-  /**
-   * List of available workspaces
-   */
+  /** List of available workspaces */
   workspaces: Workspace[]
-  /**
-   * Whether workspaces are loading
-   */
+  /** Whether workspaces are loading */
   isWorkspacesLoading: boolean
-  /**
-   * Whether workspace creation is in progress
-   */
+  /** Whether workspace creation is in progress */
   isCreatingWorkspace: boolean
-  /**
-   * Whether the workspace menu popover is open
-   */
+  /** Whether the workspace menu popover is open */
   isWorkspaceMenuOpen: boolean
-  /**
-   * Callback to set workspace menu open state
-   */
+  /** Callback to set workspace menu open state */
   setIsWorkspaceMenuOpen: (isOpen: boolean) => void
-  /**
-   * Callback when workspace is switched
-   */
+  /** Callback when workspace is switched */
   onWorkspaceSwitch: (workspace: Workspace) => void
-  /**
-   * Callback when create workspace is clicked
-   */
+  /** Callback when create workspace is clicked */
   onCreateWorkspace: () => Promise<void>
-  /**
-   * Callback when toggle collapse is clicked
-   */
-  onToggleCollapse: () => void
-  /**
-   * Whether the sidebar is collapsed
-   */
-  isCollapsed: boolean
-  /**
-   * Callback to rename the workspace
-   */
+  /** Callback to rename the workspace */
   onRenameWorkspace: (workspaceId: string, newName: string) => Promise<void>
-  /**
-   * Callback to delete the workspace
-   */
+  /** Callback to delete the workspace */
   onDeleteWorkspace: (workspaceId: string) => Promise<void>
-  /**
-   * Callback to duplicate the workspace
-   */
+  /** Callback to duplicate the workspace */
   onDuplicateWorkspace: (workspaceId: string, workspaceName: string) => Promise<void>
-  /**
-   * Callback to export the workspace
-   */
+  /** Callback to export the workspace */
   onExportWorkspace: (workspaceId: string, workspaceName: string) => Promise<void>
-  /**
-   * Callback to import workspace
-   */
+  /** Callback to import workspace */
   onImportWorkspace: () => void
-  /**
-   * Whether workspace import is in progress
-   */
+  /** Whether workspace import is in progress */
   isImportingWorkspace: boolean
-  /**
-   * Whether to show the collapse button
-   */
-  showCollapseButton?: boolean
-  /**
-   * Callback to leave the workspace
-   */
+  /** Callback to leave the workspace */
   onLeaveWorkspace?: (workspaceId: string) => Promise<void>
-  /**
-   * Current user's session ID for owner check
-   */
+  /** Current user's session ID for owner check */
   sessionUserId?: string
 }
 
 /**
- * Workspace header component that displays workspace name, switcher, and collapse toggle.
- * Used in both the full sidebar and floating collapsed state.
+ * Workspace header component that displays workspace name and switcher.
  */
 export function WorkspaceHeader({
   activeWorkspace,
@@ -132,15 +83,12 @@ export function WorkspaceHeader({
   setIsWorkspaceMenuOpen,
   onWorkspaceSwitch,
   onCreateWorkspace,
-  onToggleCollapse,
-  isCollapsed,
   onRenameWorkspace,
   onDeleteWorkspace,
   onDuplicateWorkspace,
   onExportWorkspace,
   onImportWorkspace,
   isImportingWorkspace,
-  showCollapseButton = true,
   onLeaveWorkspace,
   sessionUserId,
 }: WorkspaceHeaderProps) {
@@ -200,6 +148,12 @@ export function WorkspaceHeader({
   }, [isWorkspaceMenuOpen, editingWorkspaceId, editingName, workspaces, onRenameWorkspace])
 
   const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
+
+  const workspaceInitial = (() => {
+    const name = activeWorkspace?.name || ''
+    const stripped = name.replace(/workspace/gi, '').trim()
+    return (stripped[0] || name[0] || 'W').toUpperCase()
+  })()
 
   /**
    * Opens the context menu for a workspace at the specified position
@@ -341,9 +295,9 @@ export function WorkspaceHeader({
   }
 
   return (
-    <div className={`flex items-center gap-[8px] ${isCollapsed ? '' : 'min-w-0 justify-between'}`}>
+    <div className='min-w-0'>
       {/* Workspace Name with Switcher */}
-      <div className={isCollapsed ? '' : 'min-w-0 flex-1'}>
+      <div className='min-w-0'>
         {/* Workspace Switcher Popover - only render after mount to avoid Radix ID hydration mismatch */}
         {isMounted ? (
           <Popover
@@ -362,9 +316,7 @@ export function WorkspaceHeader({
               <button
                 type='button'
                 aria-label='Switch workspace'
-                className={`group flex cursor-pointer items-center gap-[8px] rounded-[6px] bg-transparent px-[6px] py-[4px] transition-colors hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)] ${
-                  isCollapsed ? '' : '-mx-[6px] min-w-0 max-w-full'
-                }`}
+                className='group flex h-[32px] w-full min-w-0 cursor-pointer items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-[#FCFCFC] px-[8px] transition-colors hover:bg-[var(--surface-5)] dark:bg-[var(--surface-2)] dark:hover:bg-[var(--surface-3)]'
                 title={activeWorkspace?.name || 'Loading...'}
                 onContextMenu={(e) => {
                   if (activeWorkspaceFull) {
@@ -372,11 +324,10 @@ export function WorkspaceHeader({
                   }
                 }}
               >
-                <span
-                  className={`font-base text-[14px] text-[var(--text-primary)] ${
-                    isCollapsed ? 'max-w-[120px] truncate' : 'truncate'
-                  }`}
-                >
+                <div className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[var(--surface-7)] font-medium text-[12px] text-[var(--text-secondary)] leading-none'>
+                  {workspaceInitial}
+                </div>
+                <span className='min-w-0 flex-1 truncate text-left font-base text-[14px] text-[var(--text-primary)]'>
                   {activeWorkspace?.name || 'Loading...'}
                 </span>
                 <ChevronDown
@@ -453,7 +404,7 @@ export function WorkspaceHeader({
                     {workspaces.map((workspace, index) => (
                       <div key={workspace.id} className={index > 0 ? 'mt-[2px]' : ''}>
                         {editingWorkspaceId === workspace.id ? (
-                          <div className='flex h-[26px] items-center gap-[8px] rounded-[8px] bg-[var(--surface-5)] px-[6px]'>
+                          <div className='flex h-[26px] items-center gap-[8px] rounded-[8px] bg-[var(--surface-6)] px-[6px]'>
                             <input
                               ref={(el) => {
                                 if (el && !hasInputFocusedRef.current) {
@@ -539,42 +490,18 @@ export function WorkspaceHeader({
           <button
             type='button'
             aria-label='Switch workspace'
-            className={`flex cursor-pointer items-center gap-[8px] rounded-[6px] bg-transparent px-[6px] py-[4px] transition-colors hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)] ${
-              isCollapsed ? '' : '-mx-[6px] min-w-0 max-w-full'
-            }`}
+            className='flex h-[32px] w-full min-w-0 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-[#FCFCFC] px-[8px] dark:bg-[var(--surface-2)]'
             title={activeWorkspace?.name || 'Loading...'}
             disabled
           >
-            <span
-              className={`font-base text-[14px] text-[var(--text-primary)] dark:text-[var(--white)] ${
-                isCollapsed ? 'max-w-[120px] truncate' : 'truncate'
-              }`}
-            >
+            <div className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[var(--surface-7)] font-medium text-[12px] text-[var(--text-secondary)] leading-none'>
+              {workspaceInitial}
+            </div>
+            <span className='min-w-0 flex-1 truncate text-left font-base text-[14px] text-[var(--text-primary)]'>
               {activeWorkspace?.name || 'Loading...'}
             </span>
             <ChevronDown className='h-[8px] w-[10px] flex-shrink-0 text-[var(--text-muted)]' />
           </button>
-        )}
-      </div>
-      {/* Workspace Actions */}
-      <div className='flex flex-shrink-0 items-center gap-[10px]'>
-        {/* Invite - hidden in collapsed mode or when invitations are disabled */}
-        {!isCollapsed && !isInvitationsDisabled && (
-          <Badge className='cursor-pointer' onClick={() => setIsInviteModalOpen(true)}>
-            Invite
-          </Badge>
-        )}
-        {/* Sidebar Collapse Toggle */}
-        {showCollapseButton && (
-          <Button
-            variant='ghost-secondary'
-            type='button'
-            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className='group !p-[3px] -m-[3px]'
-            onClick={onToggleCollapse}
-          >
-            <PanelLeft className='h-[17.5px] w-[17.5px]' />
-          </Button>
         )}
       </div>
 
@@ -631,8 +558,8 @@ export function WorkspaceHeader({
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to leave{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{leaveTarget?.name}</span>?
-              You will lose access to all workflows and data in this workspace.{' '}
+              <span className='font-base text-[var(--text-primary)]'>{leaveTarget?.name}</span>? You
+              will lose access to all workflows and data in this workspace.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>

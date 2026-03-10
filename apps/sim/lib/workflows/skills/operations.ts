@@ -8,6 +8,41 @@ import { generateRequestId } from '@/lib/core/utils/request'
 const logger = createLogger('SkillsOperations')
 
 /**
+ * List all skills for a workspace, ordered by createdAt desc.
+ */
+export async function listSkills(params: { workspaceId: string }) {
+  return db
+    .select()
+    .from(skill)
+    .where(eq(skill.workspaceId, params.workspaceId))
+    .orderBy(desc(skill.createdAt))
+}
+
+/**
+ * Delete a skill by ID within a workspace.
+ * Returns true if the skill was found and deleted, false otherwise.
+ */
+export async function deleteSkill(params: {
+  skillId: string
+  workspaceId: string
+}): Promise<boolean> {
+  const existing = await db
+    .select({ id: skill.id })
+    .from(skill)
+    .where(and(eq(skill.id, params.skillId), eq(skill.workspaceId, params.workspaceId)))
+    .limit(1)
+
+  if (existing.length === 0) return false
+
+  await db
+    .delete(skill)
+    .where(and(eq(skill.id, params.skillId), eq(skill.workspaceId, params.workspaceId)))
+
+  logger.info(`Deleted skill ${params.skillId}`)
+  return true
+}
+
+/**
  * Internal function to create/update skills.
  * Can be called from API routes or internal services.
  */

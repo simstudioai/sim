@@ -277,7 +277,7 @@ function ConnectionsSection({
   onResizeMouseDown,
   onToggleCollapsed,
 }: ConnectionsSectionProps) {
-  const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set())
+  const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(() => new Set())
   const [expandedVariables, setExpandedVariables] = useState(true)
   const [expandedEnvVars, setExpandedEnvVars] = useState(true)
 

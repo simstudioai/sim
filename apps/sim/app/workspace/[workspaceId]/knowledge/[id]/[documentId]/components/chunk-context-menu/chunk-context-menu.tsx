@@ -46,6 +46,10 @@ interface ChunkContextMenuProps {
    */
   disableAddChunk?: boolean
   /**
+   * Whether the document is synced from a connector (chunks are read-only)
+   */
+  isConnectorDocument?: boolean
+  /**
    * Number of selected chunks (for batch operations)
    */
   selectedCount?: number
@@ -80,6 +84,7 @@ export function ChunkContextMenu({
   disableToggleEnabled = false,
   disableDelete = false,
   disableAddChunk = false,
+  isConnectorDocument = false,
   selectedCount = 1,
   enabledCount = 0,
   disabledCount = 0,
@@ -134,7 +139,7 @@ export function ChunkContextMenu({
                   onClose()
                 }}
               >
-                Edit
+                {isConnectorDocument ? 'View' : 'Edit'}
               </PopoverItem>
             )}
             {!isMultiSelect && onCopyContent && (

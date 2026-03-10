@@ -24,6 +24,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { applyBonusCredits } from '@/lib/billing/credits/bonus'
+import { isEnterprise, isTeam } from '@/lib/billing/plan-helpers'
 
 const logger = createLogger('ReferralCodeRedemption')
 
@@ -43,15 +44,15 @@ export async function POST(request: Request) {
 
     const subscription = await getHighestPrioritySubscription(session.user.id)
 
-    if (subscription?.plan === 'enterprise') {
+    if (isEnterprise(subscription?.plan)) {
       return NextResponse.json({
         redeemed: false,
         error: 'Enterprise accounts cannot redeem referral codes',
       })
     }
 
-    const isTeam = subscription?.plan === 'team'
-    const orgId = isTeam ? subscription.referenceId : null
+    const isTeamSub = isTeam(subscription?.plan)
+    const orgId = isTeamSub ? subscription!.referenceId : null
 
     const normalizedCode = code.trim().toUpperCase()
 

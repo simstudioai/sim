@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { client, useSession, useSubscription } from '@/lib/auth/auth-client'
+import { buildPlanName, isOrgPlan } from '@/lib/billing/plan-helpers'
 import { organizationKeys } from '@/hooks/queries/organization'
 
 const logger = createLogger('SubscriptionUpgrade')
@@ -10,7 +11,14 @@ type TargetPlan = 'pro' | 'team'
 
 const CONSTANTS = {
   INITIAL_TEAM_SEATS: 1,
+  DEFAULT_CREDIT_TIER: 6000,
 } as const
+
+interface UpgradeOptions {
+  creditTier?: number
+  annual?: boolean
+  seats?: number
+}
 
 export function useSubscriptionUpgrade() {
   const { data: session } = useSession()
@@ -18,7 +26,10 @@ export function useSubscriptionUpgrade() {
   const queryClient = useQueryClient()
 
   const handleUpgrade = useCallback(
-    async (targetPlan: TargetPlan) => {
+    async (targetPlan: TargetPlan, options?: UpgradeOptions) => {
+      const creditTier = options?.creditTier ?? CONSTANTS.DEFAULT_CREDIT_TIER
+      const annual = options?.annual ?? false
+      const planName = buildPlanName(targetPlan, creditTier)
       const userId = session?.user?.id
       if (!userId) {
         throw new Error('User not authenticated')
@@ -56,9 +67,7 @@ export function useSubscriptionUpgrade() {
             // Check if this org already has an active team subscription
             const existingTeamSub = allSubscriptions.find(
               (sub: any) =>
-                sub.status === 'active' &&
-                sub.referenceId === existingOrg.id &&
-                (sub.plan === 'team' || sub.plan === 'enterprise')
+                sub.status === 'active' && sub.referenceId === existingOrg.id && isOrgPlan(sub.plan)
             )
 
             if (existingTeamSub) {
@@ -109,11 +118,12 @@ export function useSubscriptionUpgrade() {
 
       try {
         const upgradeParams = {
-          plan: targetPlan,
+          plan: planName,
           referenceId,
           successUrl,
           cancelUrl: currentUrl,
-          ...(targetPlan === 'team' && { seats: CONSTANTS.INITIAL_TEAM_SEATS }),
+          ...(targetPlan === 'team' && { seats: options?.seats ?? CONSTANTS.INITIAL_TEAM_SEATS }),
+          ...(annual && { annual: true }),
         } as const
 
         const finalParams = currentSubscriptionId
@@ -122,7 +132,7 @@ export function useSubscriptionUpgrade() {
 
         logger.info(
           currentSubscriptionId ? 'Upgrading existing subscription' : 'Creating new subscription',
-          { targetPlan, currentSubscriptionId, referenceId }
+          { targetPlan, planName, annual, currentSubscriptionId, referenceId }
         )
 
         await betterAuthSubscription.upgrade(finalParams)

@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { syncThemeToNextThemes } from '@/lib/core/utils/theme'
 
 const logger = createLogger('GeneralSettingsQuery')
@@ -30,8 +30,8 @@ export interface GeneralSettings {
 /**
  * Fetch general settings from API
  */
-async function fetchGeneralSettings(): Promise<GeneralSettings> {
-  const response = await fetch('/api/users/me/settings')
+async function fetchGeneralSettings(signal?: AbortSignal): Promise<GeneralSettings> {
+  const response = await fetch('/api/users/me/settings', { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch general settings')
@@ -43,7 +43,7 @@ async function fetchGeneralSettings(): Promise<GeneralSettings> {
     autoConnect: data.autoConnect ?? true,
     showTrainingControls: data.showTrainingControls ?? false,
     superUserModeEnabled: data.superUserModeEnabled ?? true,
-    theme: data.theme || 'dark',
+    theme: data.theme || 'system',
     telemetryEnabled: data.telemetryEnabled ?? true,
     billingUsageNotificationsEnabled: data.billingUsageNotificationsEnabled ?? true,
     errorNotificationsEnabled: data.errorNotificationsEnabled ?? true,
@@ -59,13 +59,12 @@ async function fetchGeneralSettings(): Promise<GeneralSettings> {
 export function useGeneralSettings() {
   return useQuery({
     queryKey: generalSettingsKeys.settings(),
-    queryFn: async () => {
-      const settings = await fetchGeneralSettings()
+    queryFn: async ({ signal }) => {
+      const settings = await fetchGeneralSettings(signal)
       syncThemeToNextThemes(settings.theme)
       return settings
     },
     staleTime: 60 * 60 * 1000,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -109,7 +108,7 @@ export function useErrorNotificationsEnabled(): boolean {
  */
 interface UpdateSettingParams {
   key: keyof GeneralSettings
-  value: any
+  value: GeneralSettings[keyof GeneralSettings]
 }
 
 export function useUpdateGeneralSetting() {
@@ -157,6 +156,9 @@ export function useUpdateGeneralSetting() {
         syncThemeToNextThemes(context.previousSettings.theme)
       }
       logger.error('Failed to update setting:', err)
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: generalSettingsKeys.settings() })
     },
   })
 }

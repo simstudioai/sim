@@ -4,6 +4,7 @@ export type SSEEventType =
   | 'content'
   | 'reasoning'
   | 'tool_call'
+  | 'tool_call_delta'
   | 'tool_generating'
   | 'tool_result'
   | 'tool_error'
@@ -17,6 +18,8 @@ export type SSEEventType =
 
 export interface SSEEvent {
   type: SSEEventType
+  /** Authoritative tool call state set by the Go backend */
+  state?: string
   data?: Record<string, unknown>
   subagent?: string
   toolCallId?: string
@@ -33,8 +36,8 @@ export interface SSEEvent {
   content?: string
   /** Set on reasoning events */
   phase?: string
-  /** Set on tool_result events */
-  failedDependency?: boolean
+  /** UI metadata from copilot (title, icon, phaseLabel) */
+  ui?: Record<string, unknown>
 }
 
 export type ToolCallStatus = 'pending' | 'executing' | 'success' | 'error' | 'skipped' | 'rejected'
@@ -67,7 +70,6 @@ export interface ContentBlock {
 
 export interface StreamingContext {
   chatId?: string
-  conversationId?: string
   messageId: string
   accumulatedContent: string
   contentBlocks: ContentBlock[]
@@ -75,12 +77,15 @@ export interface StreamingContext {
   currentThinkingBlock: ContentBlock | null
   isInThinkingBlock: boolean
   subAgentParentToolCallId?: string
+  subAgentParentStack: string[]
   subAgentContent: Record<string, string>
   subAgentToolCalls: Record<string, ToolCallState[]>
   pendingContent: string
   streamComplete: boolean
   wasAborted: boolean
   errors: string[]
+  usage?: { prompt: number; completion: number }
+  cost?: { input: number; output: number; total: number }
 }
 
 export interface FileAttachment {
@@ -98,7 +103,6 @@ export interface OrchestratorRequest {
   chatId?: string
   mode?: 'agent' | 'ask' | 'plan'
   model?: string
-  conversationId?: string
   contexts?: Array<{ type: string; content: string }>
   fileAttachments?: FileAttachment[]
   commands?: string[]
@@ -125,9 +129,10 @@ export interface OrchestratorResult {
   contentBlocks: ContentBlock[]
   toolCalls: ToolCallSummary[]
   chatId?: string
-  conversationId?: string
   error?: string
   errors?: string[]
+  usage?: { prompt: number; completion: number }
+  cost?: { input: number; output: number; total: number }
 }
 
 export interface ToolCallSummary {
@@ -144,5 +149,8 @@ export interface ExecutionContext {
   userId: string
   workflowId: string
   workspaceId?: string
+  chatId?: string
+  userTimezone?: string
+  userPermission?: string
   decryptedEnvVars?: Record<string, string>
 }

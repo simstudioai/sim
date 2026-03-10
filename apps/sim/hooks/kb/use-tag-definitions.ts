@@ -9,7 +9,7 @@ import {
   useDeleteDocumentTagDefinitions,
   useDocumentTagDefinitionsQuery,
   useSaveDocumentTagDefinitions,
-} from '@/hooks/queries/knowledge'
+} from '@/hooks/queries/kb/knowledge'
 
 export interface TagDefinition {
   id: string

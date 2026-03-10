@@ -117,7 +117,12 @@ export const useFolderStore = create<FolderState>()(
 
       clearSelection: () => set({ selectedWorkflows: new Set() }),
 
-      selectOnly: (workflowId) => set({ selectedWorkflows: new Set([workflowId]) }),
+      selectOnly: (workflowId) =>
+        set({
+          selectedWorkflows: new Set([workflowId]),
+          selectedFolders: new Set(),
+          lastSelectedFolderId: null,
+        }),
 
       selectRange: (workflowIds, fromId, toId) => {
         const fromIndex = workflowIds.indexOf(fromId)
@@ -215,7 +220,7 @@ export const useFolderStore = create<FolderState>()(
         const buildTree = (parentId: string | null, level = 0): FolderTreeNode[] => {
           return folders
             .filter((folder) => folder.parentId === parentId)
-            .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+            .toSorted((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
             .map((folder) => ({
               ...folder,
               children: buildTree(folder.id, level + 1),
@@ -231,7 +236,7 @@ export const useFolderStore = create<FolderState>()(
       getChildFolders: (parentId) =>
         Object.values(get().folders)
           .filter((folder) => folder.parentId === parentId)
-          .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
+          .toSorted((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
 
       getFolderPath: (folderId) => {
         const folders = get().folders

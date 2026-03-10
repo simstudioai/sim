@@ -522,10 +522,46 @@ export function Chat() {
       let accumulatedContent = ''
       let buffer = ''
 
+      const BATCH_MAX_MS = 50
+      let pendingChunks = ''
+      let batchRAF: number | null = null
+      let batchTimer: ReturnType<typeof setTimeout> | null = null
+      let lastFlush = 0
+
+      const flushChunks = () => {
+        if (batchRAF !== null) {
+          cancelAnimationFrame(batchRAF)
+          batchRAF = null
+        }
+        if (batchTimer !== null) {
+          clearTimeout(batchTimer)
+          batchTimer = null
+        }
+        if (pendingChunks) {
+          appendMessageContent(responseMessageId, pendingChunks)
+          pendingChunks = ''
+        }
+        lastFlush = performance.now()
+      }
+
+      const scheduleFlush = () => {
+        if (batchRAF !== null) return
+        const elapsed = performance.now() - lastFlush
+        if (elapsed >= BATCH_MAX_MS) {
+          flushChunks()
+          return
+        }
+        batchRAF = requestAnimationFrame(flushChunks)
+        if (batchTimer === null) {
+          batchTimer = setTimeout(flushChunks, Math.max(0, BATCH_MAX_MS - elapsed))
+        }
+      }
+
       try {
         while (true) {
           const { done, value } = await reader.read()
           if (done) {
+            flushChunks()
             finalizeMessageStream(responseMessageId)
             break
           }
@@ -558,6 +594,7 @@ export function Chat() {
 
                 if ('success' in result && !result.success) {
                   const errorMessage = result.error || 'Workflow execution failed'
+                  flushChunks()
                   appendMessageContent(
                     responseMessageId,
                     `${accumulatedContent ? '\n\n' : ''}Error: ${errorMessage}`
@@ -566,10 +603,12 @@ export function Chat() {
                   return
                 }
 
+                flushChunks()
                 finalizeMessageStream(responseMessageId)
               } else if (contentChunk) {
                 accumulatedContent += contentChunk
-                appendMessageContent(responseMessageId, contentChunk)
+                pendingChunks += contentChunk
+                scheduleFlush()
               }
             } catch (e) {
               logger.error('Error parsing stream data:', e)
@@ -580,8 +619,11 @@ export function Chat() {
         if ((error as Error)?.name !== 'AbortError') {
           logger.error('Error processing stream:', error)
         }
+        flushChunks()
         finalizeMessageStream(responseMessageId)
       } finally {
+        if (batchRAF !== null) cancelAnimationFrame(batchRAF)
+        if (batchTimer !== null) clearTimeout(batchTimer)
         if (streamReaderRef.current === reader) {
           streamReaderRef.current = null
         }

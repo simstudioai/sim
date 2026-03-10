@@ -1,6 +1,7 @@
 import { Link, Section, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailLayout } from '@/components/emails/components'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 /**
@@ -130,7 +131,8 @@ export function WorkflowNotificationEmail({
           <Section style={baseStyles.infoBox}>
             <Text style={baseStyles.infoBoxTitle}>Usage</Text>
             <Text style={baseStyles.infoBoxList}>
-              ${usageData.currentPeriodCost.toFixed(2)} of ${usageData.limit.toFixed(2)} used (
+              {dollarsToCredits(usageData.currentPeriodCost).toLocaleString()} of{' '}
+              {dollarsToCredits(usageData.limit).toLocaleString()} credits used (
               {usageData.percentUsed.toFixed(1)}%)
             </Text>
           </Section>

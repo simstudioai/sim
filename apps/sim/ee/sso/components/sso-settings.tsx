@@ -97,7 +97,7 @@ export function SSO() {
   if (isBillingEnabled) {
     if (!activeOrganization) {
       return (
-        <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
+        <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
           You must be part of an organization to configure Single Sign-On.
         </div>
       )
@@ -105,7 +105,7 @@ export function SSO() {
 
     if (!hasEnterprisePlan) {
       return (
-        <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
+        <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
           Single Sign-On is available on Enterprise plans only.
         </div>
       )
@@ -113,7 +113,7 @@ export function SSO() {
 
     if (!canManageSSO) {
       return (
-        <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
+        <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
           Only organization owners and admins can configure Single Sign-On settings.
         </div>
       )
@@ -121,7 +121,7 @@ export function SSO() {
   } else {
     if (!isLoadingProviders && isSSOProviderOwner === false && providers.length > 0) {
       return (
-        <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
+        <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
           Only the user who configured SSO can manage these settings.
         </div>
       )
@@ -379,39 +379,39 @@ export function SSO() {
     const providerCallbackUrl = `${getBaseUrl()}/api/auth/sso/callback/${existingProvider.providerId}`
 
     return (
-      <div className='flex h-full flex-col gap-[16px]'>
+      <div className='flex h-full flex-col gap-[18px]'>
         {/* Scrollable Content */}
         <div className='min-h-0 flex-1 overflow-y-auto'>
-          <div className='flex flex-col gap-[16px]'>
+          <div className='flex flex-col gap-[18px]'>
             {/* Provider Info */}
             <div className='flex flex-col gap-[8px]'>
-              <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+              <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
                 Provider ID
               </span>
-              <p className='text-[14px] text-[var(--text-primary)]'>
+              <p className='text-[15px] text-[var(--text-primary)]'>
                 {existingProvider.providerId}
               </p>
             </div>
 
             <div className='flex flex-col gap-[8px]'>
-              <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+              <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
                 Provider Type
               </span>
-              <p className='text-[14px] text-[var(--text-primary)]'>
+              <p className='text-[15px] text-[var(--text-primary)]'>
                 {existingProvider.providerType.toUpperCase()}
               </p>
             </div>
 
             <div className='flex flex-col gap-[8px]'>
-              <span className='font-medium text-[13px] text-[var(--text-secondary)]'>Domain</span>
-              <p className='text-[14px] text-[var(--text-primary)]'>{existingProvider.domain}</p>
+              <span className='font-medium text-[14px] text-[var(--text-secondary)]'>Domain</span>
+              <p className='text-[15px] text-[var(--text-primary)]'>{existingProvider.domain}</p>
             </div>
 
             <div className='flex flex-col gap-[8px]'>
-              <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+              <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
                 Issuer URL
               </span>
-              <p className='break-all font-mono text-[13px] text-[var(--text-primary)]'>
+              <p className='break-all font-mono text-[14px] text-[var(--text-primary)]'>
                 {existingProvider.issuer}
               </p>
             </div>
@@ -419,7 +419,7 @@ export function SSO() {
             {/* Callback URL */}
             <div className='flex flex-col gap-[8px]'>
               <div className='flex items-center justify-between'>
-                <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
                   Callback URL
                 </span>
                 <Button
@@ -436,12 +436,8 @@ export function SSO() {
                   <span className='sr-only'>Copy callback URL</span>
                 </Button>
               </div>
-              <div className='flex h-9 items-center rounded-[6px] border bg-[var(--surface-1)] px-[10px]'>
-                <code className='flex-1 truncate font-mono text-[13px] text-[var(--text-primary)]'>
-                  {providerCallbackUrl}
-                </code>
-              </div>
-              <p className='text-[13px] text-[var(--text-muted)]'>
+              <Input value={providerCallbackUrl} readOnly className='h-9' />
+              <p className='text-[14px] text-[var(--text-muted)]'>
                 Configure this in your identity provider
               </p>
             </div>
@@ -459,7 +455,7 @@ export function SSO() {
   }
 
   return (
-    <form onSubmit={handleSubmit} autoComplete='off' className='flex h-full flex-col gap-[16px]'>
+    <form onSubmit={handleSubmit} autoComplete='off' className='flex h-full flex-col gap-[18px]'>
       {/* Hidden dummy inputs to prevent browser password manager autofill */}
       <input
         type='text'
@@ -489,10 +485,10 @@ export function SSO() {
 
       {/* Scrollable Content */}
       <div className='min-h-0 flex-1 overflow-y-auto'>
-        <div className='flex flex-col gap-[16px]'>
+        <div className='flex flex-col gap-[18px]'>
           {/* Provider Type Selection */}
           <div className='flex flex-col gap-[8px]'>
-            <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+            <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
               Provider Type
             </span>
             <Combobox
@@ -508,7 +504,7 @@ export function SSO() {
               editable={false}
               className='h-9'
             />
-            <p className='text-[13px] text-[var(--text-muted)]'>
+            <p className='text-[14px] text-[var(--text-muted)]'>
               {formData.providerType === 'oidc'
                 ? 'OpenID Connect (Okta, Azure AD, Auth0, etc.)'
                 : 'Security Assertion Markup Language (ADFS, Shibboleth, etc.)'}
@@ -517,7 +513,7 @@ export function SSO() {
 
           {/* Provider ID */}
           <div className='flex flex-col gap-[8px]'>
-            <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+            <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
               Provider ID
             </span>
             <Combobox
@@ -545,7 +541,7 @@ export function SSO() {
 
           {/* Issuer URL */}
           <div className='flex flex-col gap-[8px]'>
-            <span className='font-medium text-[13px] text-[var(--text-secondary)]'>Issuer URL</span>
+            <span className='font-medium text-[14px] text-[var(--text-secondary)]'>Issuer URL</span>
             <Input
               type='url'
               placeholder='https://your-identity-provider.com/oauth2/default'
@@ -573,7 +569,7 @@ export function SSO() {
 
           {/* Domain */}
           <div className='flex flex-col gap-[8px]'>
-            <span className='font-medium text-[13px] text-[var(--text-secondary)]'>Domain</span>
+            <span className='font-medium text-[14px] text-[var(--text-secondary)]'>Domain</span>
             <Input
               type='text'
               placeholder='your-domain.identityprovider.com'
@@ -603,7 +599,7 @@ export function SSO() {
           {formData.providerType === 'oidc' ? (
             <>
               <div className='flex flex-col gap-[8px]'>
-                <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
                   Client ID
                 </span>
                 <Input
@@ -632,7 +628,7 @@ export function SSO() {
               </div>
 
               <div className='flex flex-col gap-[8px]'>
-                <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
                   Client Secret
                 </span>
                 <div className='relative'>
@@ -685,7 +681,7 @@ export function SSO() {
               </div>
 
               <div className='flex flex-col gap-[8px]'>
-                <span className='font-medium text-[13px] text-[var(--text-secondary)]'>Scopes</span>
+                <span className='font-medium text-[14px] text-[var(--text-secondary)]'>Scopes</span>
                 <Input
                   type='text'
                   placeholder='openid,profile,email'
@@ -706,7 +702,7 @@ export function SSO() {
                     {errors.scopes.join(' ')}
                   </p>
                 )}
-                <p className='text-[13px] text-[var(--text-muted)]'>
+                <p className='text-[14px] text-[var(--text-muted)]'>
                   Comma-separated list of OIDC scopes to request
                 </p>
               </div>
@@ -714,7 +710,7 @@ export function SSO() {
           ) : (
             <>
               <div className='flex flex-col gap-[8px]'>
-                <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
                   Entry Point URL
                 </span>
                 <Input
@@ -740,7 +736,7 @@ export function SSO() {
               </div>
 
               <div className='flex flex-col gap-[8px]'>
-                <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
                   Identity Provider Certificate
                 </span>
                 <Textarea
@@ -772,7 +768,7 @@ export function SSO() {
                   onClick={() =>
                     handleInputChange('showAdvanced', formData.showAdvanced ? 'false' : 'true')
                   }
-                  className='flex w-fit items-center gap-[6px] text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  className='flex w-fit items-center gap-[6px] text-[14px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 >
                   <ChevronDown
                     className={cn(
@@ -784,9 +780,9 @@ export function SSO() {
                 </button>
 
                 {formData.showAdvanced && (
-                  <div className='flex flex-col gap-[16px] pt-[8px]'>
+                  <div className='flex flex-col gap-[18px] pt-[8px]'>
                     <div className='flex flex-col gap-[8px]'>
-                      <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                      <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
                         Audience (Entity ID)
                       </span>
                       <Input
@@ -802,7 +798,7 @@ export function SSO() {
                     </div>
 
                     <div className='flex flex-col gap-[8px]'>
-                      <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                      <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
                         Callback URL Override
                       </span>
                       <Input
@@ -818,7 +814,7 @@ export function SSO() {
                     </div>
 
                     <div className='flex flex-col gap-[8px]'>
-                      <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                      <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
                         Require signed SAML assertions
                       </span>
                       <Switch
@@ -830,7 +826,7 @@ export function SSO() {
                     </div>
 
                     <div className='flex flex-col gap-[8px]'>
-                      <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                      <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
                         IDP Metadata XML
                       </span>
                       <Textarea
@@ -853,7 +849,7 @@ export function SSO() {
           {/* Callback URL display */}
           <div className='flex flex-col gap-[8px]'>
             <div className='flex items-center justify-between'>
-              <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+              <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
                 Callback URL
               </span>
               <Button
@@ -870,12 +866,8 @@ export function SSO() {
                 <span className='sr-only'>Copy callback URL</span>
               </Button>
             </div>
-            <div className='flex h-9 items-center rounded-[6px] border bg-[var(--surface-1)] px-[10px]'>
-              <code className='flex-1 truncate font-mono text-[13px] text-[var(--text-primary)]'>
-                {callbackUrl}
-              </code>
-            </div>
-            <p className='text-[13px] text-[var(--text-muted)]'>
+            <Input value={callbackUrl} readOnly className='h-9' />
+            <p className='text-[14px] text-[var(--text-muted)]'>
               Configure this in your identity provider
             </p>
           </div>
@@ -884,7 +876,7 @@ export function SSO() {
 
       {/* Footer */}
       <div className='mt-auto flex items-center justify-end gap-[8px]'>
-        {error && <p className='mr-auto text-[12px] text-[var(--text-error)]'>{error}</p>}
+        {error && <p className='mr-auto text-[13px] text-[var(--text-error)]'>{error}</p>}
         <Button
           type='submit'
           variant='tertiary'
@@ -905,10 +897,10 @@ export function SSO() {
 
 function SsoSkeleton() {
   return (
-    <div className='flex h-full flex-col gap-[16px]'>
+    <div className='flex h-full flex-col gap-[18px]'>
       {/* Form fields skeleton */}
       <div className='min-h-0 flex-1 overflow-y-auto'>
-        <div className='flex flex-col gap-[16px]'>
+        <div className='flex flex-col gap-[18px]'>
           <div className='flex flex-col gap-[8px]'>
             <Skeleton className='h-[13px] w-[80px]' />
             <Skeleton className='h-9 w-full' />

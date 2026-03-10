@@ -78,7 +78,7 @@ export function useWorkspaceManagement({
       logger.warn(`Workspace ${currentWorkspaceId} not found in user's workspaces`)
       const fallbackWorkspace = workspaces[0]
       logger.info(`Redirecting to fallback workspace: ${fallbackWorkspace.id}`)
-      routerRef.current?.push(`/workspace/${fallbackWorkspace.id}/w`)
+      routerRef.current?.push(`/workspace/${fallbackWorkspace.id}/home`)
     }
 
     hasValidatedRef.current = true
@@ -123,7 +123,7 @@ export function useWorkspaceManagement({
         } else if (/^\/workspace\/[^/]+\/templates$/.test(currentPath)) {
           routerRef.current?.push(`/workspace/${workspace.id}/templates`)
         } else {
-          routerRef.current?.push(`/workspace/${workspace.id}/w`)
+          routerRef.current?.push(`/workspace/${workspace.id}/home`)
         }
         logger.info(`Switched to workspace: ${workspace.name} (${workspace.id})`)
       } catch (error) {
@@ -141,7 +141,7 @@ export function useWorkspaceManagement({
 
     try {
       logger.info('Creating new workspace')
-      const workspaceName = await generateWorkspaceName()
+      const workspaceName = generateWorkspaceName()
       logger.info(`Generated workspace name: ${workspaceName}`)
 
       const newWorkspace = await createWorkspaceMutation.mutateAsync({ name: workspaceName })

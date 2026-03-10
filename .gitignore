@@ -26,6 +26,9 @@ bun-debug.log*
 **/standalone/
 sim-standalone.tar.gz
 
+# redis
+dump.rdb
+
 # misc
 .DS_Store
 *.pem

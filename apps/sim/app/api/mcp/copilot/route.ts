@@ -18,11 +18,7 @@ import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { validateOAuthAccessToken } from '@/lib/auth/oauth-token'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import {
-  ORCHESTRATION_TIMEOUT_MS,
-  SIM_AGENT_API_URL,
-  SIM_AGENT_VERSION,
-} from '@/lib/copilot/constants'
+import { ORCHESTRATION_TIMEOUT_MS, SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { orchestrateSubagentStream } from '@/lib/copilot/orchestrator/subagent'
 import {
@@ -724,16 +720,14 @@ async function handleBuildToolCall(
       mode: 'agent',
       commands: ['fast'],
       messageId: randomUUID(),
-      version: SIM_AGENT_VERSION,
-      headless: true,
       chatId,
-      source: 'mcp',
     }
 
     const result = await orchestrateCopilotStream(requestPayload, {
       userId,
       workflowId: resolved.workflowId,
       chatId,
+      goRoute: '/api/mcp',
       autoExecuteTools: true,
       timeout: 300000,
       interactive: false,

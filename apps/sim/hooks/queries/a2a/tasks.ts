@@ -152,9 +152,10 @@ export interface GetA2ATaskParams {
 /**
  * Fetch a task from an A2A agent
  */
-async function fetchA2ATask(params: GetA2ATaskParams): Promise<A2ATask> {
+async function fetchA2ATask(params: GetA2ATaskParams, signal?: AbortSignal): Promise<A2ATask> {
   const response = await fetch(params.agentUrl, {
     method: 'POST',
+    signal,
     headers: {
       'Content-Type': 'application/json',
       ...(params.apiKey ? { Authorization: `Bearer ${params.apiKey}` } : {}),
@@ -189,7 +190,7 @@ async function fetchA2ATask(params: GetA2ATaskParams): Promise<A2ATask> {
 export function useA2ATask(params: GetA2ATaskParams | null) {
   return useQuery({
     queryKey: params ? a2aTaskKeys.detail(params.agentUrl, params.taskId) : ['disabled'],
-    queryFn: () => fetchA2ATask(params!),
+    queryFn: ({ signal }) => fetchA2ATask(params!, signal),
     enabled: Boolean(params?.agentUrl && params?.taskId),
     staleTime: 5 * 1000, // 5 seconds - tasks can change quickly
     refetchInterval: (query) => {

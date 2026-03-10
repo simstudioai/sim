@@ -88,9 +88,11 @@ function WorkflowsListInner({
                   {/* Workflow name with color */}
                   <div className='flex w-[160px] flex-shrink-0 items-center gap-[8px] pr-[8px]'>
                     <div
-                      className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px]'
+                      className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
                       style={{
                         backgroundColor: workflowColor,
+                        borderColor: `${workflowColor}60`,
+                        backgroundClip: 'padding-box',
                       }}
                     />
                     <span className='min-w-0 truncate font-medium text-[12px] text-[var(--text-primary)]'>

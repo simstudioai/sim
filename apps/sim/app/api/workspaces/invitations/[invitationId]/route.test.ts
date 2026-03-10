@@ -240,7 +240,9 @@ describe('Workspace Invitation [invitationId] API Route', () => {
       const response = await GET(request, { params })
 
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe('https://test.sim.ai/workspace/workspace-456/w')
+      expect(response.headers.get('location')).toBe(
+        'https://test.sim.ai/workspace/workspace-456/home'
+      )
     })
 
     it('should redirect to error page with token preserved when invitation expired', async () => {
@@ -495,7 +497,7 @@ describe('Workspace Invitation [invitationId] API Route', () => {
 
       expect(response2.status).toBe(307)
       expect(response2.headers.get('location')).toBe(
-        'https://test.sim.ai/workspace/workspace-456/w'
+        'https://test.sim.ai/workspace/workspace-456/home'
       )
     })
   })

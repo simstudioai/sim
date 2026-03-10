@@ -8,6 +8,9 @@ interface UseFloatBoundarySyncProps {
   onPositionChange: (position: { x: number; y: number }) => void
 }
 
+/** Inset gap between the viewport edge and the content window */
+const CONTENT_WINDOW_GAP = 8
+
 /**
  * Hook to synchronize floats position with layout boundary changes.
  * Keeps the float within bounds when sidebar, panel, or terminal resize.
@@ -49,9 +52,9 @@ export function useFloatBoundarySync({
     previousDimensionsRef.current = { sidebarWidth, panelWidth, terminalHeight }
 
     const minX = sidebarWidth
-    const maxX = window.innerWidth - panelWidth - width
-    const minY = 0
-    const maxY = window.innerHeight - terminalHeight - height
+    const maxX = window.innerWidth - CONTENT_WINDOW_GAP - panelWidth - width
+    const minY = CONTENT_WINDOW_GAP
+    const maxY = window.innerHeight - CONTENT_WINDOW_GAP - terminalHeight - height
 
     const currentPos = positionRef.current
 

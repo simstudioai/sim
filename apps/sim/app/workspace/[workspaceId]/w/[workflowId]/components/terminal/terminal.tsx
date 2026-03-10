@@ -620,7 +620,7 @@ export const Terminal = memo(function Terminal() {
   const exportConsoleCSV = useTerminalConsoleStore((state) => state.exportConsoleCSV)
 
   const [selectedEntry, setSelectedEntry] = useState<ConsoleEntry | null>(null)
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set())
   const [isToggling, setIsToggling] = useState(false)
   const [showCopySuccess, setShowCopySuccess] = useState(false)
   const [showInput, setShowInput] = useState(false)
@@ -1276,19 +1276,10 @@ export const Terminal = memo(function Terminal() {
 
   return (
     <>
-      {/* Resize Handle */}
-      <div
-        className='fixed right-[var(--panel-width)] bottom-[calc(var(--terminal-height)-4px)] left-[var(--sidebar-width)] z-20 h-[8px] cursor-ns-resize'
-        onMouseDown={handleMouseDown}
-        role='separator'
-        aria-label='Resize terminal'
-        aria-orientation='horizontal'
-      />
-
       <aside
         ref={terminalRef}
         className={clsx(
-          'terminal-container fixed right-[var(--panel-width)] bottom-0 left-[var(--sidebar-width)] z-10 overflow-hidden border-[var(--border)] border-t bg-[var(--surface-1)]',
+          'terminal-container relative shrink-0 overflow-hidden border-[var(--border)] border-t bg-[var(--surface-1)]',
           isToggling && 'transition-[height] duration-100 ease-out'
         )}
         onTransitionEnd={handleTransitionEnd}
@@ -1297,6 +1288,15 @@ export const Terminal = memo(function Terminal() {
         tabIndex={-1}
         aria-label='Terminal'
       >
+        {/* Resize Handle */}
+        <div
+          className='absolute top-[-4px] right-0 left-0 z-20 h-[8px] cursor-ns-resize'
+          onMouseDown={handleMouseDown}
+          role='separator'
+          aria-orientation='horizontal'
+          aria-label='Resize terminal'
+        />
+
         <div className='relative flex h-full'>
           {/* Left Section - Logs */}
           <div

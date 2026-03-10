@@ -1,9 +1,12 @@
+import crypto from 'crypto'
 import { db } from '@sim/db'
-import { permissions, userStats, workflow as workflowTable } from '@sim/db/schema'
+import { permissions, userStats, workflowFolder, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, max } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
+import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import type { ExecutionResult } from '@/executor/types'
@@ -14,6 +17,14 @@ export async function getWorkflowById(id: string) {
   const rows = await db.select().from(workflowTable).where(eq(workflowTable.id, id)).limit(1)
 
   return rows[0]
+}
+
+export async function listWorkflows(workspaceId: string) {
+  return db
+    .select()
+    .from(workflowTable)
+    .where(eq(workflowTable.workspaceId, workspaceId))
+    .orderBy(asc(workflowTable.sortOrder), asc(workflowTable.createdAt))
 }
 
 export async function resolveWorkflowIdForUser(
@@ -30,7 +41,8 @@ export async function resolveWorkflowIdForUser(
     if (!authorization.allowed) {
       return null
     }
-    return { workflowId }
+    const wf = await getWorkflowById(workflowId)
+    return { workflowId, workflowName: wf?.name || undefined }
   }
 
   const workspaceIds = await db
@@ -315,4 +327,170 @@ export async function authorizeWorkflowByWorkspacePermission(params: {
     workflow,
     workspacePermission,
   }
+}
+
+// ── Workflow CRUD ──
+
+export interface CreateWorkflowInput {
+  userId: string
+  workspaceId: string
+  name: string
+  description?: string | null
+  color?: string
+  folderId?: string | null
+}
+
+export async function createWorkflowRecord(params: CreateWorkflowInput) {
+  const {
+    userId,
+    workspaceId,
+    name,
+    description = null,
+    color = '#3972F6',
+    folderId = null,
+  } = params
+  const workflowId = crypto.randomUUID()
+  const now = new Date()
+
+  const folderCondition = folderId
+    ? eq(workflowTable.folderId, folderId)
+    : isNull(workflowTable.folderId)
+  const [maxResult] = await db
+    .select({ maxOrder: max(workflowTable.sortOrder) })
+    .from(workflowTable)
+    .where(and(eq(workflowTable.workspaceId, workspaceId), folderCondition))
+  const sortOrder = (maxResult?.maxOrder ?? 0) + 1
+
+  await db.insert(workflowTable).values({
+    id: workflowId,
+    userId,
+    workspaceId,
+    folderId,
+    sortOrder,
+    name,
+    description,
+    color,
+    lastSynced: now,
+    createdAt: now,
+    updatedAt: now,
+    isDeployed: false,
+    runCount: 0,
+    variables: {},
+  })
+
+  const { workflowState } = buildDefaultWorkflowArtifacts()
+  const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState)
+  if (!saveResult.success) {
+    throw new Error(saveResult.error || 'Failed to save workflow state')
+  }
+
+  return { workflowId, name, workspaceId, folderId, sortOrder, createdAt: now, updatedAt: now }
+}
+
+export async function updateWorkflowRecord(
+  workflowId: string,
+  updates: { name?: string; description?: string; color?: string; folderId?: string | null }
+) {
+  const setData: Record<string, unknown> = { updatedAt: new Date() }
+  if (updates.name !== undefined) setData.name = updates.name
+  if (updates.description !== undefined) setData.description = updates.description
+  if (updates.color !== undefined) setData.color = updates.color
+  if (updates.folderId !== undefined) setData.folderId = updates.folderId
+  await db.update(workflowTable).set(setData).where(eq(workflowTable.id, workflowId))
+}
+
+export async function deleteWorkflowRecord(workflowId: string) {
+  await db.delete(workflowTable).where(eq(workflowTable.id, workflowId))
+}
+
+export async function setWorkflowVariables(workflowId: string, variables: Record<string, unknown>) {
+  await db
+    .update(workflowTable)
+    .set({ variables, updatedAt: new Date() })
+    .where(eq(workflowTable.id, workflowId))
+}
+
+// ── Folder CRUD ──
+
+export interface CreateFolderInput {
+  userId: string
+  workspaceId: string
+  name: string
+  parentId?: string | null
+}
+
+export async function createFolderRecord(params: CreateFolderInput) {
+  const { userId, workspaceId, name, parentId = null } = params
+
+  const [maxResult] = await db
+    .select({ maxOrder: max(workflowFolder.sortOrder) })
+    .from(workflowFolder)
+    .where(
+      and(
+        eq(workflowFolder.workspaceId, workspaceId),
+        parentId ? eq(workflowFolder.parentId, parentId) : isNull(workflowFolder.parentId)
+      )
+    )
+  const sortOrder = (maxResult?.maxOrder ?? 0) + 1
+
+  const folderId = crypto.randomUUID()
+  await db.insert(workflowFolder).values({
+    id: folderId,
+    userId,
+    workspaceId,
+    parentId,
+    name,
+    sortOrder,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  })
+
+  return { folderId, name, workspaceId, parentId }
+}
+
+export async function updateFolderRecord(
+  folderId: string,
+  updates: { name?: string; parentId?: string | null }
+) {
+  const setData: Record<string, unknown> = { updatedAt: new Date() }
+  if (updates.name !== undefined) setData.name = updates.name
+  if (updates.parentId !== undefined) setData.parentId = updates.parentId
+  await db.update(workflowFolder).set(setData).where(eq(workflowFolder.id, folderId))
+}
+
+export async function deleteFolderRecord(folderId: string): Promise<boolean> {
+  const [folder] = await db
+    .select({ parentId: workflowFolder.parentId })
+    .from(workflowFolder)
+    .where(eq(workflowFolder.id, folderId))
+    .limit(1)
+
+  if (!folder) return false
+
+  await db
+    .update(workflowTable)
+    .set({ folderId: folder.parentId, updatedAt: new Date() })
+    .where(eq(workflowTable.folderId, folderId))
+
+  await db
+    .update(workflowFolder)
+    .set({ parentId: folder.parentId, updatedAt: new Date() })
+    .where(eq(workflowFolder.parentId, folderId))
+
+  await db.delete(workflowFolder).where(eq(workflowFolder.id, folderId))
+
+  return true
+}
+
+export async function listFolders(workspaceId: string) {
+  return db
+    .select({
+      folderId: workflowFolder.id,
+      folderName: workflowFolder.name,
+      parentId: workflowFolder.parentId,
+      sortOrder: workflowFolder.sortOrder,
+    })
+    .from(workflowFolder)
+    .where(eq(workflowFolder.workspaceId, workspaceId))
+    .orderBy(asc(workflowFolder.sortOrder), asc(workflowFolder.createdAt))
 }

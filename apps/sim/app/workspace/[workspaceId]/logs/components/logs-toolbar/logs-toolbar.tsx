@@ -104,20 +104,33 @@ const colorIconCache = new Map<string, React.ComponentType<{ className?: string 
  * Uses a cache to ensure the same color always returns the same component reference,
  * which prevents unnecessary React reconciliation.
  * @param color - CSS color value for the icon background
+ * @param withRing - Whether to render the semi-transparent outer ring
  * @returns A React component that renders a colored square icon
  */
-function getColorIcon(color: string): React.ComponentType<{ className?: string }> {
-  const cached = colorIconCache.get(color)
+function getColorIcon(
+  color: string,
+  withRing = false
+): React.ComponentType<{ className?: string }> {
+  const cacheKey = withRing ? `${color}-ring` : color
+  const cached = colorIconCache.get(cacheKey)
   if (cached) return cached
 
   const ColorIcon = ({ className }: { className?: string }) => (
     <div
-      className={cn(className, 'flex-shrink-0 rounded-[3px]')}
-      style={{ backgroundColor: color, width: 10, height: 10 }}
+      className={cn(className, 'flex-shrink-0 rounded-[3px]', withRing && 'border-[1.5px]')}
+      style={{
+        backgroundColor: color,
+        width: 10,
+        height: 10,
+        ...(withRing && {
+          borderColor: `${color}60`,
+          backgroundClip: 'padding-box' as const,
+        }),
+      }}
     />
   )
-  ColorIcon.displayName = `ColorIcon(${color})`
-  colorIconCache.set(color, ColorIcon)
+  ColorIcon.displayName = `ColorIcon(${color}${withRing ? '-ring' : ''})`
+  colorIconCache.set(cacheKey, ColorIcon)
   return ColorIcon
 }
 
@@ -248,7 +261,7 @@ export const LogsToolbar = memo(function LogsToolbar({
   }, [selectedStatuses])
 
   const workflowOptions: ComboboxOption[] = useMemo(
-    () => workflows.map((w) => ({ value: w.id, label: w.name, icon: getColorIcon(w.color) })),
+    () => workflows.map((w) => ({ value: w.id, label: w.name, icon: getColorIcon(w.color, true) })),
     [workflows]
   )
 
@@ -526,8 +539,12 @@ export const LogsToolbar = memo(function LogsToolbar({
                       <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
                         {selectedWorkflow && (
                           <div
-                            className='h-[8px] w-[8px] flex-shrink-0 rounded-[2px]'
-                            style={{ backgroundColor: selectedWorkflow.color }}
+                            className='h-[8px] w-[8px] flex-shrink-0 rounded-[2px] border-[1.5px]'
+                            style={{
+                              backgroundColor: selectedWorkflow.color,
+                              borderColor: `${selectedWorkflow.color}60`,
+                              backgroundClip: 'padding-box',
+                            }}
                           />
                         )}
                         <span className='truncate'>{workflowDisplayLabel}</span>
@@ -653,8 +670,12 @@ export const LogsToolbar = memo(function LogsToolbar({
                 <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
                   {selectedWorkflow && (
                     <div
-                      className='h-[8px] w-[8px] flex-shrink-0 rounded-[2px]'
-                      style={{ backgroundColor: selectedWorkflow.color }}
+                      className='h-[8px] w-[8px] flex-shrink-0 rounded-[2px] border-[1.5px]'
+                      style={{
+                        backgroundColor: selectedWorkflow.color,
+                        borderColor: `${selectedWorkflow.color}60`,
+                        backgroundClip: 'padding-box',
+                      }}
                     />
                   )}
                   <span className='truncate'>{workflowDisplayLabel}</span>

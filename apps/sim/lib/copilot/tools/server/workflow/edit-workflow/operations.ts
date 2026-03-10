@@ -8,8 +8,8 @@ import {
   addConnectionsAsEdges,
   applyTriggerConfigToBlockSubblocks,
   createBlockFromParams,
-  createValidatedEdge,
   filterDisallowedTools,
+  JSON_STRING_SUBBLOCK_KEYS,
   normalizeArrayWithIds,
   normalizeResponseFormat,
   normalizeTools,
@@ -78,7 +78,8 @@ export function handleDeleteOperation(op: EditWorkflowOperation, ctx: OperationC
 }
 
 export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationContext): void {
-  const { modifiedState, skippedItems, validationErrors, permissionConfig } = ctx
+  const { modifiedState, skippedItems, validationErrors, permissionConfig, deferredConnections } =
+    ctx
   const { block_id, params } = op
 
   if (!modifiedState.blocks[block_id]) {
@@ -146,6 +147,9 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       // Normalize array subblocks with id fields (inputFormat, table rows, etc.)
       if (shouldNormalizeArrayIds(key)) {
         sanitizedValue = normalizeArrayWithIds(value)
+        if (JSON_STRING_SUBBLOCK_KEYS.has(key)) {
+          sanitizedValue = JSON.stringify(sanitizedValue)
+        }
       }
 
       // Special handling for tools - normalize and filter disallowed
@@ -164,9 +168,10 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       }
 
       if (!block.subBlocks[key]) {
+        const subBlockDef = getBlock(block.type)?.subBlocks.find((sb) => sb.id === key)
         block.subBlocks[key] = {
           id: key,
-          type: 'short-input',
+          type: subBlockDef?.type || 'short-input',
           value: sanitizedValue,
         }
       } else {
@@ -446,47 +451,13 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     }
   }
 
-  // Handle connections update (convert to edges)
+  // Defer connections to pass 2 so all blocks exist before edges are created
   if (params?.connections) {
     modifiedState.edges = modifiedState.edges.filter((edge: any) => edge.source !== block_id)
 
-    Object.entries(params.connections).forEach(([connectionType, targets]) => {
-      if (targets === null) return
-
-      const mapConnectionTypeToHandle = (type: string): string => {
-        if (type === 'success') return 'source'
-        if (type === 'error') return 'error'
-        return type
-      }
-
-      const sourceHandle = mapConnectionTypeToHandle(connectionType)
-
-      const addEdgeForTarget = (targetBlock: string, targetHandle?: string) => {
-        createValidatedEdge(
-          modifiedState,
-          block_id,
-          targetBlock,
-          sourceHandle,
-          targetHandle || 'target',
-          'edit',
-          logger,
-          skippedItems
-        )
-      }
-
-      if (typeof targets === 'string') {
-        addEdgeForTarget(targets)
-      } else if (Array.isArray(targets)) {
-        targets.forEach((target: any) => {
-          if (typeof target === 'string') {
-            addEdgeForTarget(target)
-          } else if (target?.block) {
-            addEdgeForTarget(target.block, target.handle)
-          }
-        })
-      } else if (typeof targets === 'object' && (targets as any)?.block) {
-        addEdgeForTarget((targets as any).block, (targets as any).handle)
-      }
+    deferredConnections.push({
+      blockId: block_id,
+      connections: params.connections,
     })
   }
 
@@ -851,6 +822,9 @@ export function handleInsertIntoSubflowOperation(
         // Normalize array subblocks with id fields (inputFormat, table rows, etc.)
         if (shouldNormalizeArrayIds(key)) {
           sanitizedValue = normalizeArrayWithIds(value)
+          if (JSON_STRING_SUBBLOCK_KEYS.has(key)) {
+            sanitizedValue = JSON.stringify(sanitizedValue)
+          }
         }
 
         // Special handling for tools - normalize and filter disallowed
@@ -869,9 +843,10 @@ export function handleInsertIntoSubflowOperation(
         }
 
         if (!existingBlock.subBlocks[key]) {
+          const subBlockDef = getBlock(existingBlock.type)?.subBlocks.find((sb) => sb.id === key)
           existingBlock.subBlocks[key] = {
             id: key,
-            type: 'short-input',
+            type: subBlockDef?.type || 'short-input',
             value: sanitizedValue,
           }
         } else {

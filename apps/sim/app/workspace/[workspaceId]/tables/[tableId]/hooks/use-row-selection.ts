@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TableRow } from '@/lib/table'
 
 interface UseRowSelectionReturn {
@@ -15,6 +15,16 @@ export function useRowSelection(rows: TableRow[]): UseRowSelectionReturn {
   const currentRowIds = useMemo(() => new Set(rows.map((r) => r.id)), [rows])
   const rowsSignature = useMemo(() => rows.map((r) => r.id).join('|'), [rows])
 
+  const currentRowIdsRef = useRef(currentRowIds)
+  const rowsRef = useRef(rows)
+
+  useEffect(() => {
+    currentRowIdsRef.current = currentRowIds
+  }, [currentRowIds])
+  useEffect(() => {
+    rowsRef.current = rows
+  }, [rows])
+
   if (rowsSignature !== prevRowsSignature) {
     setPrevRowsSignature(rowsSignature)
     setSelectedRows((prev) => {
@@ -30,27 +40,28 @@ export function useRowSelection(rows: TableRow[]): UseRowSelectionReturn {
   )
 
   const handleSelectAll = useCallback(() => {
-    if (visibleSelectedRows.size === rows.length) {
+    const currentRows = rowsRef.current
+    const visible = currentRowIdsRef.current
+    const selectedCount = [...selectedRows].filter((id) => visible.has(id)).length
+    if (selectedCount === currentRows.length) {
       setSelectedRows(new Set())
     } else {
-      setSelectedRows(new Set(rows.map((r) => r.id)))
+      setSelectedRows(new Set(currentRows.map((r) => r.id)))
     }
-  }, [rows, visibleSelectedRows.size])
+  }, [selectedRows])
 
-  const handleSelectRow = useCallback(
-    (rowId: string) => {
-      setSelectedRows((prev) => {
-        const newSet = new Set([...prev].filter((id) => currentRowIds.has(id)))
-        if (newSet.has(rowId)) {
-          newSet.delete(rowId)
-        } else {
-          newSet.add(rowId)
-        }
-        return newSet
-      })
-    },
-    [currentRowIds]
-  )
+  const handleSelectRow = useCallback((rowId: string) => {
+    setSelectedRows((prev) => {
+      const validIds = currentRowIdsRef.current
+      const newSet = new Set([...prev].filter((id) => validIds.has(id)))
+      if (newSet.has(rowId)) {
+        newSet.delete(rowId)
+      } else {
+        newSet.add(rowId)
+      }
+      return newSet
+    })
+  }, [])
 
   const clearSelection = useCallback(() => {
     setSelectedRows(new Set())

@@ -38,6 +38,7 @@ import {
   ensureOrganizationForTeamSubscription,
   syncSubscriptionUsageLimits,
 } from '@/lib/billing/organization'
+import { isOrgPlan, isTeam } from '@/lib/billing/plan-helpers'
 import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -2717,11 +2718,11 @@ export const auth = betterAuth({
             subscription: {
               enabled: true,
               plans: getPlans(),
-              authorizeReference: async ({ user, referenceId }) => {
-                return await authorizeSubscriptionReference(user.id, referenceId)
+              authorizeReference: async ({ user, referenceId, action }) => {
+                return await authorizeSubscriptionReference(user.id, referenceId, action)
               },
               getCheckoutSessionParams: async ({ plan, subscription }) => {
-                if (plan.name === 'team') {
+                if (isTeam(plan.name)) {
                   return {
                     params: {
                       allow_promotion_codes: true,
@@ -2754,7 +2755,7 @@ export const auth = betterAuth({
                 stripeSubscription: Stripe.Subscription
                 subscription: any
               }) => {
-                const { priceId, planFromStripe, isTeamPlan } =
+                const { priceId, planFromStripe, isTeamPlan, isAnnual } =
                   resolvePlanFromStripeSubscription(stripeSubscription)
 
                 logger.info('[onSubscriptionComplete] Subscription created', {
@@ -2763,18 +2764,25 @@ export const auth = betterAuth({
                   dbPlan: subscription.plan,
                   planFromStripe,
                   priceId,
+                  isAnnual,
                   status: subscription.status,
                 })
 
-                const subscriptionForOrgCreation = isTeamPlan
-                  ? { ...subscription, plan: 'team' }
-                  : subscription
+                if (!planFromStripe) {
+                  logger.error(
+                    '[onSubscriptionComplete] Could not resolve plan from Stripe price — check env var configuration',
+                    { subscriptionId: subscription.id, dbPlan: subscription.plan, priceId }
+                  )
+                }
+                const subscriptionForOrg = {
+                  ...subscription,
+                  plan: planFromStripe ?? subscription.plan,
+                }
 
                 let resolvedSubscription = subscription
                 try {
-                  resolvedSubscription = await ensureOrganizationForTeamSubscription(
-                    subscriptionForOrgCreation
-                  )
+                  resolvedSubscription =
+                    await ensureOrganizationForTeamSubscription(subscriptionForOrg)
                 } catch (orgError) {
                   logger.error(
                     '[onSubscriptionComplete] Failed to ensure organization for team subscription',
@@ -2804,7 +2812,7 @@ export const auth = betterAuth({
                 subscription: any
               }) => {
                 const stripeSubscription = event.data.object as Stripe.Subscription
-                const { priceId, planFromStripe, isTeamPlan } =
+                const { priceId, planFromStripe, isTeamPlan, isAnnual } =
                   resolvePlanFromStripeSubscription(stripeSubscription)
 
                 if (priceId && !planFromStripe) {
@@ -2820,7 +2828,7 @@ export const auth = betterAuth({
 
                 const isUpgradeToTeam =
                   isTeamPlan &&
-                  subscription.plan !== 'team' &&
+                  !isTeam(subscription.plan) &&
                   !subscription.referenceId.startsWith('org_')
 
                 const effectivePlanForTeamFeatures = planFromStripe ?? subscription.plan
@@ -2831,18 +2839,25 @@ export const auth = betterAuth({
                   dbPlan: subscription.plan,
                   planFromStripe,
                   isUpgradeToTeam,
+                  isAnnual,
                   referenceId: subscription.referenceId,
                 })
 
-                const subscriptionForOrgCreation = isUpgradeToTeam
-                  ? { ...subscription, plan: 'team' }
-                  : subscription
+                if (!planFromStripe) {
+                  logger.error(
+                    '[onSubscriptionUpdate] Could not resolve plan from Stripe price — org creation may be skipped for team upgrades',
+                    { subscriptionId: subscription.id, dbPlan: subscription.plan }
+                  )
+                }
+                const subscriptionForOrg = {
+                  ...subscription,
+                  plan: planFromStripe ?? subscription.plan,
+                }
 
                 let resolvedSubscription = subscription
                 try {
-                  resolvedSubscription = await ensureOrganizationForTeamSubscription(
-                    subscriptionForOrgCreation
-                  )
+                  resolvedSubscription =
+                    await ensureOrganizationForTeamSubscription(subscriptionForOrg)
 
                   if (isUpgradeToTeam) {
                     logger.info(
@@ -2881,7 +2896,7 @@ export const auth = betterAuth({
                   })
                 }
 
-                if (effectivePlanForTeamFeatures === 'team') {
+                if (isTeam(effectivePlanForTeamFeatures)) {
                   try {
                     const quantity = stripeSubscription.items?.data?.[0]?.quantity || 1
 
@@ -3000,8 +3015,7 @@ export const auth = betterAuth({
                 .where(eq(schema.subscription.referenceId, user.id))
 
               const hasTeamPlan = dbSubscriptions.some(
-                (sub) =>
-                  sub.status === 'active' && (sub.plan === 'team' || sub.plan === 'enterprise')
+                (sub) => sub.status === 'active' && isOrgPlan(sub.plan)
               )
 
               return hasTeamPlan

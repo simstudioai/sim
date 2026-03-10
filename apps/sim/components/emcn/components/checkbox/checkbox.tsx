@@ -24,7 +24,7 @@ import { cn } from '@/lib/core/utils/cn'
  */
 const checkboxVariants = cva(
   [
-    'peer shrink-0 cursor-pointer rounded-[4px] border transition-colors',
+    'peer flex shrink-0 cursor-pointer items-center justify-center rounded-[4px] border transition-colors',
     'border-[var(--border-1)] bg-transparent',
     'focus-visible:outline-none',
     'data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50',
@@ -89,7 +89,7 @@ const Checkbox = React.forwardRef<React.ElementRef<typeof CheckboxPrimitive.Root
       className={cn(checkboxVariants({ size }), className)}
       {...props}
     >
-      <CheckboxPrimitive.Indicator className='flex items-center justify-center text-[var(--white)]'>
+      <CheckboxPrimitive.Indicator className='flex items-center justify-center text-[var(--surface-2)]'>
         <Check className={cn(checkboxIconVariants({ size }))} />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>

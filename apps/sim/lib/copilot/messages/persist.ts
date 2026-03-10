@@ -12,7 +12,6 @@ export async function persistMessages(params: {
   planArtifact?: string | null
   mode?: string
   model?: string
-  conversationId?: string
 }): Promise<boolean> {
   try {
     const dbMessages = serializeMessagesForDB(
@@ -29,7 +28,6 @@ export async function persistMessages(params: {
         ...(params.mode || params.model
           ? { config: { mode: params.mode, model: params.model } }
           : {}),
-        ...(params.conversationId ? { conversationId: params.conversationId } : {}),
       }),
     })
     return response.ok

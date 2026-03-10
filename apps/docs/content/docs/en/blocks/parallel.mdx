@@ -148,11 +148,8 @@ Each parallel instance runs independently:
 
 ### Limitations
 
-<Callout type="warning">
-  Container blocks (Loops and Parallels) cannot be nested inside each other. This means:
-  - You cannot place a Loop block inside a Parallel block
-  - You cannot place another Parallel block inside a Parallel block
-  - You cannot place any container block inside another container block
+<Callout type="info">
+  Container blocks (Loops and Parallels) support nesting. You can place parallels inside parallels, loops inside parallels, and any combination of container blocks to build complex multi-dimensional workflows.
 </Callout>
 
 <Callout type="info">

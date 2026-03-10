@@ -10,7 +10,7 @@ import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
-import { fetchKnowledgeBase, knowledgeKeys } from '@/hooks/queries/knowledge'
+import { fetchKnowledgeBase, knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 
 interface KnowledgeBaseSelectorProps {
   blockId: string

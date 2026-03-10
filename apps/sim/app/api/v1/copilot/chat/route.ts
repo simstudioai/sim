@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { SIM_AGENT_VERSION } from '@/lib/copilot/constants'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
@@ -75,8 +74,6 @@ export async function POST(req: NextRequest) {
       model: selectedModel,
       mode: transportMode,
       messageId: crypto.randomUUID(),
-      version: SIM_AGENT_VERSION,
-      headless: true,
       chatId,
     }
 
@@ -84,6 +81,7 @@ export async function POST(req: NextRequest) {
       userId: auth.userId,
       workflowId: resolved.workflowId,
       chatId,
+      goRoute: '/api/mcp',
       autoExecuteTools: parsed.autoExecuteTools,
       timeout: parsed.timeout,
       interactive: false,
@@ -93,8 +91,7 @@ export async function POST(req: NextRequest) {
       success: result.success,
       content: result.content,
       toolCalls: result.toolCalls,
-      chatId: result.chatId || chatId, // Return the chatId for conversation continuity
-      conversationId: result.conversationId,
+      chatId: result.chatId || chatId,
       error: result.error,
     })
   } catch (error) {

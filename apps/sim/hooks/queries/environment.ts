@@ -32,7 +32,7 @@ export function usePersonalEnvironment() {
 
   const query = useQuery({
     queryKey: environmentKeys.personal(),
-    queryFn: fetchPersonalEnvironment,
+    queryFn: ({ signal }) => fetchPersonalEnvironment(signal),
     staleTime: 60 * 1000, // 1 minute
     placeholderData: keepPreviousData,
   })
@@ -55,7 +55,7 @@ export function useWorkspaceEnvironment<TData = WorkspaceEnvironmentData>(
 ) {
   return useQuery({
     queryKey: environmentKeys.workspace(workspaceId),
-    queryFn: () => fetchWorkspaceEnvironment(workspaceId),
+    queryFn: ({ signal }) => fetchWorkspaceEnvironment(workspaceId, signal),
     enabled: !!workspaceId,
     staleTime: 60 * 1000, // 1 minute
     placeholderData: keepPreviousData,
@@ -108,7 +108,6 @@ export function useSavePersonalEnvironment() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: environmentKeys.personal() })
-      queryClient.invalidateQueries({ queryKey: environmentKeys.all })
     },
   })
 }

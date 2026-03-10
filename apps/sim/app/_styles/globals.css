@@ -10,7 +10,7 @@
  * @see stores/constants.ts for the source of truth
  */
 :root {
-  --sidebar-width: 232px; /* SIDEBAR_WIDTH.DEFAULT */
+  --sidebar-width: 248px; /* SIDEBAR_WIDTH.DEFAULT */
   --panel-width: 320px; /* PANEL_WIDTH.DEFAULT */
   --toolbar-triggers-height: 300px; /* TOOLBAR_TRIGGERS_HEIGHT.DEFAULT */
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
@@ -86,24 +86,29 @@
   :root,
   .light {
     --bg: #fefefe; /* main canvas - neutral near-white */
-    --surface-1: #fefefe; /* sidebar, panels */
+    --surface-1: #f9f9f9; /* sidebar, panels */
     --surface-2: #ffffff; /* blocks, cards, modals - pure white */
     --surface-3: #f7f7f7; /* popovers, headers */
     --surface-4: #f5f5f5; /* buttons base */
-    --border: #e0e0e0; /* primary border */
+    --border: #dedede; /* primary border */
     --surface-5: #f3f3f3; /* inputs, form elements */
     --border-1: #e0e0e0; /* stronger border */
-    --surface-6: #f0f0f0; /* popovers, elevated surfaces */
-    --surface-7: #ececec;
+    --surface-6: #e5e5e5; /* popovers, elevated surfaces */
+    --surface-7: #d9d9d9;
+    --surface-active: #e8e8e8; /* hover/active state */
 
     --workflow-edge: #e0e0e0; /* workflow handles/edges - matches border-1 */
 
     /* Text - neutral */
-    --text-primary: #2d2d2d;
-    --text-secondary: #404040;
+    --text-primary: #1a1a1a;
+    --text-secondary: #525252;
     --text-tertiary: #5c5c5c;
-    --text-muted: #737373;
+    --text-muted: #707070;
     --text-subtle: #8c8c8c;
+    --text-body: #3b3b3b;
+    --text-icon: #5e5e5e;
+
+    --sidebar-font-weight: 420;
     --text-inverse: #ffffff;
     --text-muted-inverse: #a0a0a0;
     --text-error: #ef4444;
@@ -118,6 +123,7 @@
     --brand-secondary: #33b4ff;
     --brand-tertiary: #22c55e;
     --brand-tertiary-2: #32bd7e;
+    --selection: #1a5cf6;
     --warning: #ea580c;
 
     /* Utility */
@@ -125,7 +131,7 @@
 
     /* Font weights - lighter for light mode */
     --font-weight-base: 430;
-    --font-weight-medium: 450;
+    --font-weight-medium: 440;
     --font-weight-semibold: 500;
 
     /* Extended palette */
@@ -207,11 +213,12 @@
     --surface-2: #232323;
     --surface-3: #242424;
     --surface-4: #292929;
-    --border: #2c2c2c;
+    --border: #333333;
     --surface-5: #363636;
     --border-1: #3d3d3d;
     --surface-6: #454545;
-    --surface-7: #454545;
+    --surface-7: #505050;
+    --surface-active: #303030; /* hover/active state */
 
     --workflow-edge: #454545; /* workflow handles/edges - same as surface-6 in dark */
 
@@ -221,6 +228,10 @@
     --text-tertiary: #b3b3b3;
     --text-muted: #787878;
     --text-subtle: #7d7d7d;
+    --text-body: #cdcdcd;
+    --text-icon: #939393;
+
+    --sidebar-font-weight: 420;
     --text-inverse: #1b1b1b;
     --text-muted-inverse: #b3b3b3;
     --text-error: #ef4444;
@@ -235,13 +246,14 @@
     --brand-secondary: #33b4ff;
     --brand-tertiary: #22c55e;
     --brand-tertiary-2: #32bd7e;
+    --selection: #4b83f7;
     --warning: #ff6600;
 
     /* Utility */
     --white: #ffffff;
 
     /* Font weights - standard weights for dark mode */
-    --font-weight-base: 440;
+    --font-weight-base: 450;
     --font-weight-medium: 480;
     --font-weight-semibold: 550;
 

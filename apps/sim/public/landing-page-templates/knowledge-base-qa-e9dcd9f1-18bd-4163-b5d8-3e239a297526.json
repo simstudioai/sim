@@ -1,0 +1,330 @@
+{
+  "version": "1.0",
+  "exportedAt": "2026-03-09T21:40:19.010Z",
+  "state": {
+    "blocks": {
+      "9d182a31-8710-4651-8a85-cd432e7fecf7": {
+        "id": "9d182a31-8710-4651-8a85-cd432e7fecf7",
+        "type": "start_trigger",
+        "name": "Start",
+        "position": {
+          "x": 150,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 100,
+        "subBlocks": {
+          "inputFormat": {
+            "id": "inputFormat",
+            "type": "input-format",
+            "value": [
+              {
+                "id": "2b3539b5-b5c4-4d51-b570-4d90f6056f14",
+                "name": "input",
+                "type": "string",
+                "value": "",
+                "collapsed": false
+              },
+              {
+                "id": "aad8e667-b17d-435e-85a2-974a6bb10bb7",
+                "name": "conversationId",
+                "type": "string",
+                "value": "",
+                "collapsed": false
+              },
+              {
+                "id": "8658c06a-d84c-4ee3-bc5c-47b98f5b9d67",
+                "name": "files",
+                "type": "file[]",
+                "value": "",
+                "collapsed": false
+              }
+            ]
+          }
+        },
+        "outputs": {
+          "files": {
+            "type": "file[]",
+            "description": "User uploaded files"
+          },
+          "input": {
+            "type": "string",
+            "description": "Primary user input or message"
+          },
+          "conversationId": {
+            "type": "string",
+            "description": "Conversation thread identifier"
+          }
+        },
+        "data": {},
+        "locked": false
+      },
+      "276feb2f-c809-4344-aee3-1ff0505e0459": {
+        "id": "276feb2f-c809-4344-aee3-1ff0505e0459",
+        "type": "agent",
+        "name": "Agent",
+        "position": {
+          "x": 580,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 0,
+        "subBlocks": {
+          "model": {
+            "id": "model",
+            "type": "short-input",
+            "value": "gemini-2.5-pro"
+          },
+          "tools": {
+            "id": "tools",
+            "type": "short-input",
+            "value": [
+              {
+                "type": "knowledge",
+                "title": "Knowledge Base",
+                "params": {
+                  "topK": "5",
+                  "knowledgeBaseId": "placeholder-kb-id"
+                },
+                "toolId": "knowledge_search",
+                "operation": "search",
+                "isExpanded": true,
+                "usageControl": "auto"
+              }
+            ]
+          },
+          "apiKey": {
+            "id": "apiKey",
+            "type": "short-input",
+            "value": null
+          },
+          "skills": {
+            "id": "skills",
+            "type": "skill-input",
+            "value": null
+          },
+          "messages": {
+            "id": "messages",
+            "type": "messages-input",
+            "value": [
+              {
+                "role": "system",
+                "content": "Answer using knowledge base"
+              },
+              {
+                "role": "user",
+                "content": "<start.input>"
+              }
+            ]
+          },
+          "maxTokens": {
+            "id": "maxTokens",
+            "type": "short-input",
+            "value": null
+          },
+          "verbosity": {
+            "id": "verbosity",
+            "type": "dropdown",
+            "value": null
+          },
+          "memoryType": {
+            "id": "memoryType",
+            "type": "dropdown",
+            "value": "none"
+          },
+          "temperature": {
+            "id": "temperature",
+            "type": "slider",
+            "value": null
+          },
+          "azureEndpoint": {
+            "id": "azureEndpoint",
+            "type": "short-input",
+            "value": null
+          },
+          "bedrockRegion": {
+            "id": "bedrockRegion",
+            "type": "short-input",
+            "value": null
+          },
+          "thinkingLevel": {
+            "id": "thinkingLevel",
+            "type": "dropdown",
+            "value": null
+          },
+          "vertexProject": {
+            "id": "vertexProject",
+            "type": "short-input",
+            "value": null
+          },
+          "conversationId": {
+            "id": "conversationId",
+            "type": "short-input",
+            "value": null
+          },
+          "responseFormat": {
+            "id": "responseFormat",
+            "type": "code",
+            "value": null
+          },
+          "vertexLocation": {
+            "id": "vertexLocation",
+            "type": "short-input",
+            "value": null
+          },
+          "azureApiVersion": {
+            "id": "azureApiVersion",
+            "type": "short-input",
+            "value": null
+          },
+          "reasoningEffort": {
+            "id": "reasoningEffort",
+            "type": "dropdown",
+            "value": null
+          },
+          "bedrockSecretKey": {
+            "id": "bedrockSecretKey",
+            "type": "short-input",
+            "value": null
+          },
+          "manualCredential": {
+            "id": "manualCredential",
+            "type": "short-input",
+            "value": null
+          },
+          "vertexCredential": {
+            "id": "vertexCredential",
+            "type": "oauth-input",
+            "value": null
+          },
+          "slidingWindowSize": {
+            "id": "slidingWindowSize",
+            "type": "short-input",
+            "value": null
+          },
+          "bedrockAccessKeyId": {
+            "id": "bedrockAccessKeyId",
+            "type": "short-input",
+            "value": null
+          },
+          "slidingWindowTokens": {
+            "id": "slidingWindowTokens",
+            "type": "short-input",
+            "value": null
+          },
+          "previousInteractionId": {
+            "id": "previousInteractionId",
+            "type": "short-input",
+            "value": null
+          }
+        },
+        "outputs": {
+          "cost": {
+            "type": "json",
+            "description": "Cost of the API call"
+          },
+          "model": {
+            "type": "string",
+            "description": "Model used for generation"
+          },
+          "tokens": {
+            "type": "json",
+            "description": "Token usage statistics"
+          },
+          "content": {
+            "type": "string",
+            "description": "Generated response content"
+          },
+          "toolCalls": {
+            "type": "json",
+            "description": "Tool calls made"
+          },
+          "providerTiming": {
+            "type": "json",
+            "description": "Provider timing information"
+          }
+        },
+        "data": {
+          "canonicalModes": {
+            "oauthCredential": "basic"
+          }
+        },
+        "locked": false
+      },
+      "d0eaf8bd-d234-4c52-a62a-d67d17ba617f": {
+        "id": "d0eaf8bd-d234-4c52-a62a-d67d17ba617f",
+        "type": "note",
+        "name": "Agent Setup",
+        "position": {
+          "x": 573.5022676225361,
+          "y": -72.17147114704349
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 0,
+        "subBlocks": {
+          "content": {
+            "id": "content",
+            "type": "long-input",
+            "value": "- Create a Knowledge Base in the Knowledge base tab and upload relevant documents \n- Select Knowledge Base in the tool here "
+          }
+        },
+        "outputs": {},
+        "data": {},
+        "locked": false
+      },
+      "3b06e171-145c-4118-b5e9-5362480dbc59": {
+        "id": "3b06e171-145c-4118-b5e9-5362480dbc59",
+        "type": "note",
+        "name": "Workflow Setup",
+        "position": {
+          "x": 153.7481407356546,
+          "y": -38.47285321350124
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 0,
+        "subBlocks": {
+          "content": {
+            "id": "content",
+            "type": "long-input",
+            "value": "- Deploy as Chat using the button on the top right\n- Select Chat Output as Agent's Content \n"
+          }
+        },
+        "outputs": {},
+        "data": {},
+        "locked": false
+      }
+    },
+    "edges": [
+      {
+        "id": "fcaefdd3-a4cc-4f08-9218-f5fbb1d90675",
+        "source": "9d182a31-8710-4651-8a85-cd432e7fecf7",
+        "target": "276feb2f-c809-4344-aee3-1ff0505e0459",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      }
+    ],
+    "loops": {},
+    "parallels": {},
+    "metadata": {
+      "name": "knowledge-base-qa",
+      "description": "New workflow",
+      "color": "#b61717",
+      "exportedAt": "2026-03-09T21:40:19.009Z"
+    },
+    "variables": {}
+  }
+}

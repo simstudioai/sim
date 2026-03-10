@@ -4,7 +4,7 @@ import {
   getStreamMeta,
   readStreamEvents,
   type StreamMeta,
-} from '@/lib/copilot/orchestrator/stream-buffer'
+} from '@/lib/copilot/orchestrator/stream/buffer'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request-helpers'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 

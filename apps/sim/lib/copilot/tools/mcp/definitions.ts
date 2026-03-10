@@ -38,26 +38,6 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
     annotations: { readOnlyHint: true },
   },
   {
-    name: 'list_workflows',
-    toolId: 'list_user_workflows',
-    description:
-      'List all workflows the user has access to. Returns workflow IDs, names, workspace, and folder info. Use workspaceId/folderId to scope results.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workspaceId: {
-          type: 'string',
-          description: 'Optional workspace ID to filter workflows.',
-        },
-        folderId: {
-          type: 'string',
-          description: 'Optional folder ID to filter workflows.',
-        },
-      },
-    },
-    annotations: { readOnlyHint: true },
-  },
-  {
     name: 'list_folders',
     toolId: 'list_folders',
     description:
@@ -71,23 +51,6 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
         },
       },
       required: ['workspaceId'],
-    },
-    annotations: { readOnlyHint: true },
-  },
-  {
-    name: 'get_workflow',
-    toolId: 'get_user_workflow',
-    description:
-      'Get a workflow by ID. Returns the full workflow definition including all blocks, connections, and configuration.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workflowId: {
-          type: 'string',
-          description: 'Workflow ID to retrieve.',
-        },
-      },
-      required: ['workflowId'],
     },
     annotations: { readOnlyHint: true },
   },
@@ -371,6 +334,55 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
     },
     annotations: { destructiveHint: false },
   },
+  {
+    name: 'create_job',
+    toolId: 'create_job',
+    description:
+      'Create a scheduled background job that runs a prompt against the Mothership at a specified frequency or time. Use for polling, reminders, or deferred tasks. Provide cron for recurring jobs or time for one-time execution.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: {
+          type: 'string',
+          description: 'A short descriptive title for the job (e.g., "Email Poller").',
+        },
+        prompt: {
+          type: 'string',
+          description: 'The prompt to execute when the job fires.',
+        },
+        cron: {
+          type: 'string',
+          description:
+            'Cron expression for recurring jobs (e.g., "*/5 * * * *" for every 5 minutes).',
+        },
+        time: {
+          type: 'string',
+          description:
+            'ISO 8601 datetime for one-time jobs or cron start time (e.g., "2026-03-06T09:00:00").',
+        },
+        timezone: {
+          type: 'string',
+          description: 'IANA timezone (default: UTC).',
+        },
+        lifecycle: {
+          type: 'string',
+          description:
+            '"persistent" (default, runs indefinitely) or "until_complete" (runs until complete_job is called).',
+        },
+        successCondition: {
+          type: 'string',
+          description:
+            'What must happen for the job to be considered complete. Used with until_complete lifecycle.',
+        },
+        maxRuns: {
+          type: 'number',
+          description: 'Maximum number of executions before the job auto-completes. Safety limit.',
+        },
+      },
+      required: ['title', 'prompt'],
+    },
+    annotations: { destructiveHint: false },
+  },
 ]
 
 export const SUBAGENT_TOOL_DEFS: SubagentToolDef[] = [
@@ -625,10 +637,40 @@ Supports full and partial execution:
     annotations: { destructiveHint: false },
   },
   {
-    name: 'sim_custom_tool',
-    agentId: 'custom_tool',
+    name: 'sim_table',
+    agentId: 'table',
     description:
-      'Manage custom tools (reusable API integrations). Supports listing, creating, updating, and deleting custom tools. Custom tools can be added to agent blocks as callable functions.',
+      'Manage user-defined tables for structured data storage. Supports creating tables with typed schemas, inserting/updating/deleting rows, querying with filters and sorting, and batch operations.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        request: { type: 'string' },
+        context: { type: 'object' },
+      },
+      required: ['request'],
+    },
+    annotations: { destructiveHint: false },
+  },
+  {
+    name: 'sim_job',
+    agentId: 'job',
+    description:
+      'Manage scheduled background jobs. Supports creating, listing, updating, pausing, resuming, and deleting jobs that run prompts against the Mothership on a schedule or at a specific time.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        request: { type: 'string' },
+        context: { type: 'object' },
+      },
+      required: ['request'],
+    },
+    annotations: { destructiveHint: false },
+  },
+  {
+    name: 'sim_agent',
+    agentId: 'agent',
+    description:
+      'Manage custom tools, MCP server connections, and skills for agent blocks. Supports creating, editing, deleting, and listing custom JavaScript tools, external MCP server connections, and workspace skills. Can also research external MCP tools and add deployed workflows as MCP tools.',
     inputSchema: {
       type: 'object',
       properties: {

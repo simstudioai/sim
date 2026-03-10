@@ -1,6 +1,7 @@
 import { Link, Section, Text } from '@react-email/components'
 import { baseStyles, colors, typography } from '@/components/emails/_styles'
 import { EmailLayout } from '@/components/emails/components'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface FreeTierUpgradeEmailProps {
@@ -12,11 +13,10 @@ interface FreeTierUpgradeEmailProps {
 }
 
 const proFeatures = [
-  { label: '$20/month', desc: 'in credits included' },
+  { label: '6,000 credits/month', desc: 'included' },
+  { label: '+50 daily refresh', desc: 'credits per day' },
   { label: '150 runs/min', desc: 'sync executions' },
-  { label: '1,000 runs/min', desc: 'async executions' },
   { label: '50GB storage', desc: 'for files & assets' },
-  { label: 'Unlimited', desc: 'workspaces & invites' },
 ]
 
 export function FreeTierUpgradeEmail({
@@ -37,9 +37,9 @@ export function FreeTierUpgradeEmail({
       </Text>
 
       <Text style={baseStyles.paragraph}>
-        You've used <strong>${currentUsage.toFixed(2)}</strong> of your{' '}
-        <strong>${limit.toFixed(2)}</strong> free credits ({percentUsed}%). Upgrade to Pro to keep
-        building without interruption.
+        You've used <strong>{dollarsToCredits(currentUsage).toLocaleString()}</strong> of your{' '}
+        <strong>{dollarsToCredits(limit).toLocaleString()}</strong> free credits ({percentUsed}%).
+        Upgrade to Pro to keep building without interruption.
       </Text>
 
       {/* Pro Features */}

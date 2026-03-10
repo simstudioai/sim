@@ -26,7 +26,8 @@
       "!**/public/fallback-*.js",
       "!**/apps/docs/.source/**",
       "!**/venv/**",
-      "!**/.venv/**"
+      "!**/.venv/**",
+      "!**/uploads/**"
     ]
   },
   "formatter": {

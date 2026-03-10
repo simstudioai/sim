@@ -81,7 +81,7 @@ export default function WorkspacePage() {
 
               if (newWorkspace?.id) {
                 logger.info(`Created default workspace: ${newWorkspace.id}`)
-                router.replace(`/workspace/${newWorkspace.id}/w`)
+                router.replace(`/workspace/${newWorkspace.id}/home`)
                 return
               }
             }
@@ -101,7 +101,7 @@ export default function WorkspacePage() {
         logger.info(`Redirecting to first workspace: ${firstWorkspace.id}`)
 
         // Redirect to the first workspace
-        router.replace(`/workspace/${firstWorkspace.id}/w`)
+        router.replace(`/workspace/${firstWorkspace.id}/home`)
       } catch (error) {
         logger.error('Error fetching workspaces for redirect:', error)
         // Don't redirect if there's an error - let the user stay on the page

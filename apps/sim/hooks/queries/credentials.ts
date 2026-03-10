@@ -53,12 +53,19 @@ interface MembersResponse {
 
 export const workspaceCredentialKeys = {
   all: ['workspaceCredentials'] as const,
+  lists: () => [...workspaceCredentialKeys.all, 'list'] as const,
   list: (workspaceId?: string, type?: string, providerId?: string) =>
-    ['workspaceCredentials', workspaceId ?? 'none', type ?? 'all', providerId ?? 'all'] as const,
+    [
+      ...workspaceCredentialKeys.lists(),
+      workspaceId ?? 'none',
+      type ?? 'all',
+      providerId ?? 'all',
+    ] as const,
+  details: () => [...workspaceCredentialKeys.all, 'detail'] as const,
   detail: (credentialId?: string) =>
-    ['workspaceCredentials', 'detail', credentialId ?? 'none'] as const,
+    [...workspaceCredentialKeys.details(), credentialId ?? 'none'] as const,
   members: (credentialId?: string) =>
-    ['workspaceCredentials', 'detail', credentialId ?? 'none', 'members'] as const,
+    [...workspaceCredentialKeys.detail(credentialId), 'members'] as const,
 }
 
 export function useWorkspaceCredentials(params: {
@@ -71,7 +78,7 @@ export function useWorkspaceCredentials(params: {
 
   return useQuery<WorkspaceCredential[]>({
     queryKey: workspaceCredentialKeys.list(workspaceId, type, providerId),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!workspaceId) return []
       const data = await fetchJson<CredentialListResponse>('/api/credentials', {
         searchParams: {
@@ -79,6 +86,7 @@ export function useWorkspaceCredentials(params: {
           type,
           providerId,
         },
+        signal,
       })
       return data.credentials ?? []
     },
@@ -90,9 +98,11 @@ export function useWorkspaceCredentials(params: {
 export function useWorkspaceCredential(credentialId?: string, enabled = true) {
   return useQuery<WorkspaceCredential | null>({
     queryKey: workspaceCredentialKeys.detail(credentialId),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!credentialId) return null
-      const data = await fetchJson<CredentialResponse>(`/api/credentials/${credentialId}`)
+      const data = await fetchJson<CredentialResponse>(`/api/credentials/${credentialId}`, {
+        signal,
+      })
       return data.credential ?? null
     },
     enabled: Boolean(credentialId) && enabled,
@@ -127,12 +137,9 @@ export function useCreateWorkspaceCredential() {
 
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: workspaceCredentialKeys.list(variables.workspaceId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: workspaceCredentialKeys.all,
+        queryKey: workspaceCredentialKeys.lists(),
       })
     },
   })
@@ -168,7 +175,7 @@ export function useUpdateWorkspaceCredential() {
         queryKey: workspaceCredentialKeys.detail(variables.credentialId),
       })
       queryClient.invalidateQueries({
-        queryKey: workspaceCredentialKeys.all,
+        queryKey: workspaceCredentialKeys.lists(),
       })
     },
   })
@@ -190,7 +197,7 @@ export function useDeleteWorkspaceCredential() {
     },
     onSuccess: (_data, credentialId) => {
       queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.detail(credentialId) })
-      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.all })
+      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() })
       queryClient.invalidateQueries({ queryKey: environmentKeys.all })
     },
   })
@@ -199,9 +206,11 @@ export function useDeleteWorkspaceCredential() {
 export function useWorkspaceCredentialMembers(credentialId?: string) {
   return useQuery<WorkspaceCredentialMember[]>({
     queryKey: workspaceCredentialKeys.members(credentialId),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!credentialId) return []
-      const data = await fetchJson<MembersResponse>(`/api/credentials/${credentialId}/members`)
+      const data = await fetchJson<MembersResponse>(`/api/credentials/${credentialId}/members`, {
+        signal,
+      })
       return data.members ?? []
     },
     enabled: Boolean(credentialId),
@@ -239,7 +248,6 @@ export function useUpsertWorkspaceCredentialMember() {
       queryClient.invalidateQueries({
         queryKey: workspaceCredentialKeys.detail(variables.credentialId),
       })
-      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.all })
     },
   })
 }
@@ -266,7 +274,6 @@ export function useRemoveWorkspaceCredentialMember() {
       queryClient.invalidateQueries({
         queryKey: workspaceCredentialKeys.detail(variables.credentialId),
       })
-      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.all })
     },
   })
 }

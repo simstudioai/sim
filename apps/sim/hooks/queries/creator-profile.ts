@@ -9,6 +9,7 @@ const logger = createLogger('CreatorProfileQuery')
  */
 export const creatorProfileKeys = {
   all: ['creatorProfile'] as const,
+  list: () => [...creatorProfileKeys.all, 'list'] as const,
   profile: (userId: string) => [...creatorProfileKeys.all, 'profile', userId] as const,
   organizations: () => [...creatorProfileKeys.all, 'organizations'] as const,
 }
@@ -40,8 +41,8 @@ export interface CreatorProfile {
  * Fetch organizations where user is owner or admin
  * Note: Filtering is done server-side in the API route
  */
-async function fetchOrganizations(): Promise<Organization[]> {
-  const response = await fetch('/api/organizations')
+async function fetchOrganizations(signal?: AbortSignal): Promise<Organization[]> {
+  const response = await fetch('/api/organizations', { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch organizations')
@@ -57,17 +58,16 @@ async function fetchOrganizations(): Promise<Organization[]> {
 export function useOrganizations() {
   return useQuery({
     queryKey: creatorProfileKeys.organizations(),
-    queryFn: fetchOrganizations,
+    queryFn: ({ signal }) => fetchOrganizations(signal),
     staleTime: 5 * 60 * 1000, // 5 minutes - organizations don't change often
-    placeholderData: keepPreviousData, // Show cached data immediately
   })
 }
 
 /**
  * Fetch all creator profiles for the current user
  */
-async function fetchCreatorProfiles(): Promise<CreatorProfile[]> {
-  const response = await fetch('/api/creators')
+async function fetchCreatorProfiles(signal?: AbortSignal): Promise<CreatorProfile[]> {
+  const response = await fetch('/api/creators', { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch creator profiles')
@@ -82,18 +82,20 @@ async function fetchCreatorProfiles(): Promise<CreatorProfile[]> {
  */
 export function useCreatorProfiles() {
   return useQuery({
-    queryKey: [...creatorProfileKeys.all, 'list'] as const,
-    queryFn: fetchCreatorProfiles,
+    queryKey: creatorProfileKeys.list(),
+    queryFn: ({ signal }) => fetchCreatorProfiles(signal),
     staleTime: 60 * 1000, // 1 minute
-    placeholderData: keepPreviousData,
   })
 }
 
 /**
  * Fetch creator profile for a user
  */
-async function fetchCreatorProfile(userId: string): Promise<CreatorProfile | null> {
-  const response = await fetch(`/api/creators?userId=${userId}`)
+async function fetchCreatorProfile(
+  userId: string,
+  signal?: AbortSignal
+): Promise<CreatorProfile | null> {
+  const response = await fetch(`/api/creators?userId=${userId}`, { signal })
 
   // Treat 404 as "no profile"
   if (response.status === 404) {
@@ -119,7 +121,7 @@ async function fetchCreatorProfile(userId: string): Promise<CreatorProfile | nul
 export function useCreatorProfile(userId: string) {
   return useQuery({
     queryKey: creatorProfileKeys.profile(userId),
-    queryFn: () => fetchCreatorProfile(userId),
+    queryFn: ({ signal }) => fetchCreatorProfile(userId, signal),
     enabled: !!userId,
     retry: false, // Don't retry on 404
     staleTime: 60 * 1000, // 1 minute
@@ -182,7 +184,7 @@ export function useSaveCreatorProfile() {
         queryKey: creatorProfileKeys.profile(variables.referenceId),
       })
       queryClient.invalidateQueries({
-        queryKey: [...creatorProfileKeys.all, 'list'],
+        queryKey: creatorProfileKeys.list(),
       })
 
       if (typeof window !== 'undefined') {

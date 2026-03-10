@@ -127,12 +127,13 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const params = useParams()
     const workspaceId = params.workspaceId as string
 
-    const copilotStore = useCopilotStore()
-    const workflowId =
-      workflowIdOverride !== undefined ? workflowIdOverride : copilotStore.workflowId
+    const storeWorkflowId = useCopilotStore((s) => s.workflowId)
+    const storeSelectedModel = useCopilotStore((s) => s.selectedModel)
+    const storeSetSelectedModel = useCopilotStore((s) => s.setSelectedModel)
+    const workflowId = workflowIdOverride !== undefined ? workflowIdOverride : storeWorkflowId
     const selectedModel =
-      selectedModelOverride !== undefined ? selectedModelOverride : copilotStore.selectedModel
-    const setSelectedModel = onModelChangeOverride || copilotStore.setSelectedModel
+      selectedModelOverride !== undefined ? selectedModelOverride : storeSelectedModel
+    const setSelectedModel = onModelChangeOverride || storeSetSelectedModel
 
     const [internalMessage, setInternalMessage] = useState('')
     const [isNearTop, setIsNearTop] = useState(false)
@@ -236,7 +237,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         scrollContainer.addEventListener('scroll', checkPosition, { passive: true })
       }
 
-      window.addEventListener('scroll', checkPosition, true)
+      window.addEventListener('scroll', checkPosition, { capture: true, passive: true })
       window.addEventListener('resize', checkPosition)
 
       return () => {
@@ -882,7 +883,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             type='file'
             onChange={fileAttachments.handleFileChange}
             className='hidden'
-            accept='image/*'
+            accept='image/*,.pdf,.txt,.csv,.md,.html,.json,.xml,application/pdf,text/plain,text/csv,text/markdown'
             multiple
             disabled={disabled}
           />

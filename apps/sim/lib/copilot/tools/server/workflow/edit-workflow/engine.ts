@@ -213,8 +213,8 @@ export function applyOperationsToWorkflowState(
     handler(operation, ctx)
   }
 
-  // Pass 2: Add all deferred connections from add/insert operations
-  // Now all blocks exist, so connections can be safely created
+  // Pass 2: Create all edges from deferred connections
+  // All blocks exist at this point, so forward references resolve correctly
   if (ctx.deferredConnections.length > 0) {
     logger.info('Processing deferred connections from add/insert operations', {
       deferredConnectionCount: ctx.deferredConnections.length,

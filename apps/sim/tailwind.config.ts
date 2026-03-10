@@ -13,6 +13,19 @@ export default {
     extend: {
       fontFamily: {
         season: ['var(--font-season)'],
+        body: [
+          'ui-sans-serif',
+          '-apple-system',
+          'system-ui',
+          'Segoe UI',
+          'Helvetica',
+          'Apple Color Emoji',
+          'Arial',
+          'sans-serif',
+          'Segoe UI Emoji',
+          'Segoe UI Symbol',
+        ],
+        mono: ['var(--font-martian-mono)', 'ui-monospace', 'monospace'],
       },
       fontSize: {
         xs: '11px',

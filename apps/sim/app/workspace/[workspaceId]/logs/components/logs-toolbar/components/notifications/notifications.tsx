@@ -23,6 +23,7 @@ import {
 } from '@/components/emcn'
 import { SlackIcon } from '@/components/icons'
 import { Skeleton } from '@/components/ui'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import {
   type NotificationSubscription,
@@ -32,7 +33,10 @@ import {
   useTestNotification,
   useUpdateNotification,
 } from '@/hooks/queries/notifications'
-import { useConnectedAccounts, useConnectOAuthService } from '@/hooks/queries/oauth-connections'
+import {
+  useConnectedAccounts,
+  useConnectOAuthService,
+} from '@/hooks/queries/oauth/oauth-connections'
 import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
 import { SlackChannelSelector } from './components/slack-channel-selector'
 import { WorkflowSelector } from './components/workflow-selector'
@@ -68,7 +72,7 @@ const ALERT_RULES: { value: AlertRule; label: string; description: string }[] = 
   {
     value: 'cost_threshold',
     label: 'Cost Threshold',
-    description: 'When execution cost exceeds $',
+    description: 'When execution cost exceeds credits',
   },
   { value: 'no_activity', label: 'No Activity', description: 'When no executions in time window' },
   { value: 'error_count', label: 'Error Count', description: 'When errors exceed count in window' },
@@ -103,7 +107,7 @@ function formatAlertConfigLabel(config: {
     case 'latency_spike':
       return `${config.latencySpikePercent}% above avg in ${config.windowHours}h`
     case 'cost_threshold':
-      return `>$${config.costThresholdDollars} per execution`
+      return `>${dollarsToCredits(config.costThresholdDollars ?? 0).toLocaleString()} credits per execution`
     case 'no_activity':
       return `No activity in ${config.inactivityHours}h`
     case 'error_count':

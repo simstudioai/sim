@@ -24,6 +24,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       options: [
         { label: 'List Bases', id: 'listBases' },
         { label: 'List Tables', id: 'listTables' },
+        { label: 'Get Base Schema', id: 'getSchema' },
         { label: 'List Records', id: 'list' },
         { label: 'Get Record', id: 'get' },
         { label: 'Create Records', id: 'create' },
@@ -87,8 +88,8 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       placeholder: 'Select Airtable table',
       dependsOn: ['credential', 'baseSelector'],
       mode: 'basic',
-      condition: { field: 'operation', value: ['listBases', 'listTables'], not: true },
-      required: { field: 'operation', value: ['listBases', 'listTables'], not: true },
+      condition: { field: 'operation', value: ['listBases', 'listTables', 'getSchema'], not: true },
+      required: { field: 'operation', value: ['listBases', 'listTables', 'getSchema'], not: true },
     },
     {
       id: 'tableId',
@@ -96,9 +97,10 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       type: 'short-input',
       canonicalParamId: 'tableId',
       placeholder: 'Enter table ID (e.g., tblXXXXXXXXXXXXXX)',
+      dependsOn: ['credential', 'baseId'],
       mode: 'advanced',
-      condition: { field: 'operation', value: ['listBases', 'listTables'], not: true },
-      required: { field: 'operation', value: ['listBases', 'listTables'], not: true },
+      condition: { field: 'operation', value: ['listBases', 'listTables', 'getSchema'], not: true },
+      required: { field: 'operation', value: ['listBases', 'listTables', 'getSchema'], not: true },
     },
     {
       id: 'recordId',
@@ -246,6 +248,7 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
       'airtable_create_records',
       'airtable_update_record',
       'airtable_update_multiple_records',
+      'airtable_get_base_schema',
     ],
     config: {
       tool: (params) => {
@@ -264,6 +267,8 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
             return 'airtable_update_record'
           case 'updateMultiple':
             return 'airtable_update_multiple_records'
+          case 'getSchema':
+            return 'airtable_get_base_schema'
           default:
             throw new Error(`Invalid Airtable operation: ${params.operation}`)
         }
@@ -317,14 +322,11 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
   },
   // Output structure depends on the operation, covered by AirtableResponse union type
   outputs: {
-    // List Bases output
     bases: { type: 'json', description: 'List of accessible Airtable bases' },
-    // List Tables output
-    tables: { type: 'json', description: 'List of tables in the base with schema' },
-    // Record outputs
-    records: { type: 'json', description: 'Retrieved record data' }, // Optional: for list, create, updateMultiple
-    record: { type: 'json', description: 'Single record data' }, // Optional: for get, update single
-    metadata: { type: 'json', description: 'Operation metadata' }, // Required: present in all responses
+    tables: { type: 'json', description: 'Table schemas with fields and views' },
+    records: { type: 'json', description: 'Retrieved record data' },
+    record: { type: 'json', description: 'Single record data' },
+    metadata: { type: 'json', description: 'Operation metadata' },
     // Trigger outputs
     event_type: { type: 'string', description: 'Type of Airtable event' },
     base_id: { type: 'string', description: 'Airtable base identifier' },

@@ -4,6 +4,7 @@ import { startTransition, useCallback, useEffect, useRef, useState } from 'react
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Circle,
@@ -24,6 +25,10 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverTrigger,
   Table,
   TableBody,
   TableCell,
@@ -55,7 +60,7 @@ import {
   useDeleteDocument,
   useDocumentChunkSearchQuery,
   useUpdateChunk,
-} from '@/hooks/queries/knowledge'
+} from '@/hooks/queries/kb/knowledge'
 
 const logger = createLogger('Document')
 
@@ -256,6 +261,8 @@ export function Document({
 
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
+  const [enabledFilter, setEnabledFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
+  const [isFilterPopoverOpen, setIsFilterPopoverOpen] = useState(false)
 
   const {
     chunks: initialChunks,
@@ -268,7 +275,7 @@ export function Document({
     refreshChunks: initialRefreshChunks,
     updateChunk: initialUpdateChunk,
     isFetching: isFetchingChunks,
-  } = useDocumentChunks(knowledgeBaseId, documentId, currentPageFromURL)
+  } = useDocumentChunks(knowledgeBaseId, documentId, currentPageFromURL, '', enabledFilter)
 
   const {
     data: searchResults = [],
@@ -287,7 +294,7 @@ export function Document({
 
   const searchError = searchQueryError instanceof Error ? searchQueryError.message : null
 
-  const [selectedChunks, setSelectedChunks] = useState<Set<string>>(new Set())
+  const [selectedChunks, setSelectedChunks] = useState<Set<string>>(() => new Set())
   const [selectedChunk, setSelectedChunk] = useState<ChunkData | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
@@ -377,6 +384,7 @@ export function Document({
 
   const combinedError = documentError || searchError || initialError
 
+  const isConnectorDocument = Boolean(documentData?.connectorId)
   const effectiveKnowledgeBaseName = knowledgeBase?.name || knowledgeBaseName || 'Knowledge Base'
   const effectiveDocumentName = documentData?.filename || documentName || 'Document'
 
@@ -690,47 +698,110 @@ export function Document({
           </div>
 
           <div className='mt-[14px] flex items-center justify-between'>
-            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-4)] px-[8px]'>
-              <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
-              <Input
-                placeholder={
-                  documentData?.processingStatus === 'completed'
-                    ? 'Search chunks...'
-                    : 'Document processing...'
-                }
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                disabled={documentData?.processingStatus !== 'completed'}
-                className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-              {searchQuery &&
-                (isLoadingSearch ? (
-                  <Loader2 className='h-[14px] w-[14px] animate-spin text-[var(--text-subtle)]' />
-                ) : (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className='text-[var(--text-subtle)] transition-colors hover:text-[var(--text-secondary)]'
-                  >
-                    <X className='h-[14px] w-[14px]' />
-                  </button>
-                ))}
+            <div className='flex items-center gap-[8px]'>
+              <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-4)] px-[8px]'>
+                <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
+                <Input
+                  placeholder={
+                    documentData?.processingStatus === 'completed'
+                      ? 'Search chunks...'
+                      : 'Document processing...'
+                  }
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  disabled={documentData?.processingStatus !== 'completed'}
+                  className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                />
+                {searchQuery &&
+                  (isLoadingSearch ? (
+                    <Loader2 className='h-[14px] w-[14px] animate-spin text-[var(--text-subtle)]' />
+                  ) : (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className='text-[var(--text-subtle)] transition-colors hover:text-[var(--text-secondary)]'
+                    >
+                      <X className='h-[14px] w-[14px]' />
+                    </button>
+                  ))}
+              </div>
             </div>
 
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  onClick={() => setIsCreateChunkModalOpen(true)}
-                  disabled={documentData?.processingStatus === 'failed' || !userPermissions.canEdit}
-                  variant='tertiary'
-                  className='h-[32px] rounded-[6px]'
-                >
-                  Create Chunk
-                </Button>
-              </Tooltip.Trigger>
-              {!userPermissions.canEdit && (
-                <Tooltip.Content>Write permission required to create chunks</Tooltip.Content>
-              )}
-            </Tooltip.Root>
+            <div className='flex items-center gap-[8px]'>
+              <Popover open={isFilterPopoverOpen} onOpenChange={setIsFilterPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant='default' className='h-[32px] rounded-[6px]'>
+                    {enabledFilter === 'all'
+                      ? 'Status'
+                      : enabledFilter === 'enabled'
+                        ? 'Enabled'
+                        : 'Disabled'}
+                    <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align='end' side='bottom' sideOffset={4}>
+                  <div className='flex flex-col gap-[2px]'>
+                    <PopoverItem
+                      active={enabledFilter === 'all'}
+                      onClick={() => {
+                        setEnabledFilter('all')
+                        setIsFilterPopoverOpen(false)
+                        setSelectedChunks(new Set())
+                        goToPage(1)
+                      }}
+                    >
+                      All
+                    </PopoverItem>
+                    <PopoverItem
+                      active={enabledFilter === 'enabled'}
+                      onClick={() => {
+                        setEnabledFilter('enabled')
+                        setIsFilterPopoverOpen(false)
+                        setSelectedChunks(new Set())
+                        goToPage(1)
+                      }}
+                    >
+                      Enabled
+                    </PopoverItem>
+                    <PopoverItem
+                      active={enabledFilter === 'disabled'}
+                      onClick={() => {
+                        setEnabledFilter('disabled')
+                        setIsFilterPopoverOpen(false)
+                        setSelectedChunks(new Set())
+                        goToPage(1)
+                      }}
+                    >
+                      Disabled
+                    </PopoverItem>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    onClick={() => setIsCreateChunkModalOpen(true)}
+                    disabled={
+                      documentData?.processingStatus === 'failed' ||
+                      !userPermissions.canEdit ||
+                      isConnectorDocument
+                    }
+                    variant='tertiary'
+                    className='h-[32px] rounded-[6px]'
+                  >
+                    Create Chunk
+                  </Button>
+                </Tooltip.Trigger>
+                {!userPermissions.canEdit && (
+                  <Tooltip.Content>Write permission required to create chunks</Tooltip.Content>
+                )}
+                {userPermissions.canEdit && isConnectorDocument && (
+                  <Tooltip.Content>
+                    Chunks from connector-synced documents are read-only
+                  </Tooltip.Content>
+                )}
+              </Tooltip.Root>
+            </div>
           </div>
 
           <div
@@ -767,7 +838,8 @@ export function Document({
                           onCheckedChange={handleSelectAll}
                           disabled={
                             documentData?.processingStatus !== 'completed' ||
-                            !userPermissions.canEdit
+                            !userPermissions.canEdit ||
+                            isConnectorDocument
                           }
                           aria-label='Select all chunks'
                         />
@@ -854,7 +926,7 @@ export function Document({
                                 onCheckedChange={(checked) =>
                                   handleSelectChunk(chunk.id, checked as boolean)
                                 }
-                                disabled={!userPermissions.canEdit}
+                                disabled={!userPermissions.canEdit || isConnectorDocument}
                                 aria-label={`Select chunk ${chunk.chunkIndex}`}
                                 onClick={(e) => e.stopPropagation()}
                               />
@@ -894,7 +966,7 @@ export function Document({
                                       e.stopPropagation()
                                       handleToggleEnabled(chunk.id)
                                     }}
-                                    disabled={!userPermissions.canEdit}
+                                    disabled={!userPermissions.canEdit || isConnectorDocument}
                                     className='h-[28px] w-[28px] p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-50'
                                   >
                                     {chunk.enabled ? (
@@ -907,9 +979,11 @@ export function Document({
                                 <Tooltip.Content side='top'>
                                   {!userPermissions.canEdit
                                     ? 'Write permission required to modify chunks'
-                                    : chunk.enabled
-                                      ? 'Disable Chunk'
-                                      : 'Enable Chunk'}
+                                    : isConnectorDocument
+                                      ? 'Connector-synced chunks are read-only'
+                                      : chunk.enabled
+                                        ? 'Disable Chunk'
+                                        : 'Enable Chunk'}
                                 </Tooltip.Content>
                               </Tooltip.Root>
                               <Tooltip.Root>
@@ -920,7 +994,7 @@ export function Document({
                                       e.stopPropagation()
                                       handleDeleteChunk(chunk.id)
                                     }}
-                                    disabled={!userPermissions.canEdit}
+                                    disabled={!userPermissions.canEdit || isConnectorDocument}
                                     className='h-[28px] w-[28px] p-0 text-[var(--text-muted)] hover:text-[var(--text-error)] disabled:opacity-50'
                                   >
                                     <Trash className='h-[14px] w-[14px]' />
@@ -929,7 +1003,9 @@ export function Document({
                                 <Tooltip.Content side='top'>
                                   {!userPermissions.canEdit
                                     ? 'Write permission required to delete chunks'
-                                    : 'Delete Chunk'}
+                                    : isConnectorDocument
+                                      ? 'Connector-synced chunks are read-only'
+                                      : 'Delete Chunk'}
                                 </Tooltip.Content>
                               </Tooltip.Root>
                             </div>
@@ -1051,15 +1127,14 @@ export function Document({
       {/* Bulk Action Bar */}
       <ActionBar
         selectedCount={selectedChunks.size}
-        onEnable={disabledCount > 0 ? handleBulkEnable : undefined}
-        onDisable={enabledCount > 0 ? handleBulkDisable : undefined}
-        onDelete={handleBulkDelete}
+        onEnable={disabledCount > 0 && !isConnectorDocument ? handleBulkEnable : undefined}
+        onDisable={enabledCount > 0 && !isConnectorDocument ? handleBulkDisable : undefined}
+        onDelete={!isConnectorDocument ? handleBulkDelete : undefined}
         enabledCount={enabledCount}
         disabledCount={disabledCount}
         isLoading={isBulkOperating}
       />
 
-      {/* Delete Document Modal */}
       <Modal open={showDeleteDocumentDialog} onOpenChange={setShowDeleteDocumentDialog}>
         <ModalContent size='sm'>
           <ModalHeader>Delete Document</ModalHeader>
@@ -1072,7 +1147,14 @@ export function Document({
               ? This will permanently delete the document and all {documentData?.chunkCount ?? 0}{' '}
               chunk
               {documentData?.chunkCount === 1 ? '' : 's'} within it.{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              {documentData?.connectorId ? (
+                <span className='text-[var(--text-error)]'>
+                  This document is synced from a connector. Deleting it will permanently exclude it
+                  from future syncs. To temporarily hide it from search, disable it instead.
+                </span>
+              ) : (
+                <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              )}
             </p>
           </ModalBody>
           <ModalFooter>
@@ -1128,7 +1210,7 @@ export function Document({
             : undefined
         }
         onToggleEnabled={
-          contextMenuChunk && userPermissions.canEdit
+          contextMenuChunk && userPermissions.canEdit && !isConnectorDocument
             ? selectedChunks.size > 1
               ? () => {
                   if (disabledCount > 0) {
@@ -1141,20 +1223,27 @@ export function Document({
             : undefined
         }
         onDelete={
-          contextMenuChunk && userPermissions.canEdit
+          contextMenuChunk && userPermissions.canEdit && !isConnectorDocument
             ? selectedChunks.size > 1
               ? handleBulkDelete
               : () => handleDeleteChunk(contextMenuChunk.id)
             : undefined
         }
         onAddChunk={
-          userPermissions.canEdit && documentData?.processingStatus !== 'failed'
+          userPermissions.canEdit &&
+          documentData?.processingStatus !== 'failed' &&
+          !isConnectorDocument
             ? () => setIsCreateChunkModalOpen(true)
             : undefined
         }
-        disableToggleEnabled={!userPermissions.canEdit}
-        disableDelete={!userPermissions.canEdit}
-        disableAddChunk={!userPermissions.canEdit || documentData?.processingStatus === 'failed'}
+        disableToggleEnabled={!userPermissions.canEdit || isConnectorDocument}
+        disableDelete={!userPermissions.canEdit || isConnectorDocument}
+        disableAddChunk={
+          !userPermissions.canEdit ||
+          documentData?.processingStatus === 'failed' ||
+          isConnectorDocument
+        }
+        isConnectorDocument={isConnectorDocument}
       />
     </div>
   )

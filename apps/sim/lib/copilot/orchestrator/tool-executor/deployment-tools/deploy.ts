@@ -217,18 +217,39 @@ export async function executeDeployMcp(
       return { success: false, error: 'workspaceId is required' }
     }
 
-    if (!workflowRecord.isDeployed) {
-      return {
-        success: false,
-        error: 'Workflow must be deployed before adding as an MCP tool. Use deploy_api first.',
-      }
-    }
-
     const serverId = params.serverId
     if (!serverId) {
       return {
         success: false,
         error: 'serverId is required. Use list_workspace_mcp_servers to get available servers.',
+      }
+    }
+
+    // Handle undeploy action — remove workflow from MCP server
+    if (params.action === 'undeploy') {
+      const deleted = await db
+        .delete(workflowMcpTool)
+        .where(
+          and(eq(workflowMcpTool.serverId, serverId), eq(workflowMcpTool.workflowId, workflowId))
+        )
+        .returning({ id: workflowMcpTool.id })
+
+      if (deleted.length === 0) {
+        return { success: false, error: 'Workflow is not deployed to this MCP server' }
+      }
+
+      mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
+
+      return {
+        success: true,
+        output: { workflowId, serverId, action: 'undeploy', removed: true },
+      }
+    }
+
+    if (!workflowRecord.isDeployed) {
+      return {
+        success: false,
+        error: 'Workflow must be deployed before adding as an MCP tool. Use deploy_api first.',
       }
     }
 

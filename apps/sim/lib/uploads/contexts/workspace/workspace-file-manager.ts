@@ -24,6 +24,13 @@ import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('WorkspaceFileStorage')
 
+export class FileConflictError extends Error {
+  readonly code = 'FILE_EXISTS' as const
+  constructor(name: string) {
+    super(`A file named "${name}" already exists in this workspace`)
+  }
+}
+
 export interface WorkspaceFileRecord {
   id: string
   workspaceId: string
@@ -321,6 +328,139 @@ export async function downloadWorkspaceFile(fileRecord: WorkspaceFileRecord): Pr
     throw new Error(
       `Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`
     )
+  }
+}
+
+/**
+ * Update a workspace file's content (re-uploads to same storage key)
+ */
+export async function updateWorkspaceFileContent(
+  workspaceId: string,
+  fileId: string,
+  userId: string,
+  content: Buffer
+): Promise<WorkspaceFileRecord> {
+  logger.info(`Updating workspace file content: ${fileId} for workspace ${workspaceId}`)
+
+  const fileRecord = await getWorkspaceFile(workspaceId, fileId)
+  if (!fileRecord) {
+    throw new Error('File not found')
+  }
+
+  const sizeDiff = content.length - fileRecord.size
+  if (sizeDiff > 0) {
+    const quotaCheck = await checkStorageQuota(userId, sizeDiff)
+    if (!quotaCheck.allowed) {
+      throw new Error(quotaCheck.error || 'Storage limit exceeded')
+    }
+  }
+
+  try {
+    const metadata: Record<string, string> = {
+      originalName: fileRecord.name,
+      uploadedAt: new Date().toISOString(),
+      purpose: 'workspace',
+      userId,
+      workspaceId,
+    }
+
+    await uploadFile({
+      file: content,
+      fileName: fileRecord.key,
+      contentType: fileRecord.type,
+      context: 'workspace',
+      preserveKey: true,
+      customKey: fileRecord.key,
+      metadata,
+    })
+
+    await db
+      .update(workspaceFiles)
+      .set({ size: content.length })
+      .where(
+        and(
+          eq(workspaceFiles.id, fileId),
+          eq(workspaceFiles.workspaceId, workspaceId),
+          eq(workspaceFiles.context, 'workspace')
+        )
+      )
+
+    if (sizeDiff !== 0) {
+      try {
+        if (sizeDiff > 0) {
+          await incrementStorageUsage(userId, sizeDiff)
+        } else {
+          await decrementStorageUsage(userId, Math.abs(sizeDiff))
+        }
+      } catch (storageError) {
+        logger.error(`Failed to update storage tracking:`, storageError)
+      }
+    }
+
+    logger.info(`Successfully updated workspace file content: ${fileRecord.name}`)
+
+    return {
+      ...fileRecord,
+      size: content.length,
+    }
+  } catch (error) {
+    logger.error(`Failed to update workspace file content ${fileId}:`, error)
+    throw new Error(
+      `Failed to update file content: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
+  }
+}
+
+/**
+ * Rename a workspace file (updates the display name in the database)
+ */
+export async function renameWorkspaceFile(
+  workspaceId: string,
+  fileId: string,
+  newName: string
+): Promise<WorkspaceFileRecord> {
+  logger.info(`Renaming workspace file: ${fileId} to "${newName}" in workspace ${workspaceId}`)
+
+  const trimmedName = newName.trim()
+  if (!trimmedName) {
+    throw new Error('File name cannot be empty')
+  }
+
+  const fileRecord = await getWorkspaceFile(workspaceId, fileId)
+  if (!fileRecord) {
+    throw new Error('File not found')
+  }
+
+  if (fileRecord.name === trimmedName) {
+    return fileRecord
+  }
+
+  const exists = await fileExistsInWorkspace(workspaceId, trimmedName)
+  if (exists) {
+    throw new FileConflictError(trimmedName)
+  }
+
+  const updated = await db
+    .update(workspaceFiles)
+    .set({ originalName: trimmedName })
+    .where(
+      and(
+        eq(workspaceFiles.id, fileId),
+        eq(workspaceFiles.workspaceId, workspaceId),
+        eq(workspaceFiles.context, 'workspace')
+      )
+    )
+    .returning({ id: workspaceFiles.id })
+
+  if (updated.length === 0) {
+    throw new Error('File not found or could not be renamed')
+  }
+
+  logger.info(`Successfully renamed workspace file ${fileId} to "${trimmedName}"`)
+
+  return {
+    ...fileRecord,
+    name: trimmedName,
   }
 }
 

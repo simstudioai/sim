@@ -15,14 +15,17 @@ export interface ChatLoadResult {
 /**
  * Resolve or create a copilot chat session.
  * If chatId is provided, loads the existing chat. Otherwise creates a new one.
+ * Supports both workflow-scoped and workspace-scoped chats.
  */
 export async function resolveOrCreateChat(params: {
   chatId?: string
   userId: string
-  workflowId: string
+  workflowId?: string
+  workspaceId?: string
   model: string
+  type?: 'mothership' | 'copilot'
 }): Promise<ChatLoadResult> {
-  const { chatId, userId, workflowId, model } = params
+  const { chatId, userId, workflowId, workspaceId, model, type } = params
 
   if (chatId) {
     const [chat] = await db
@@ -43,7 +46,9 @@ export async function resolveOrCreateChat(params: {
     .insert(copilotChats)
     .values({
       userId,
-      workflowId,
+      ...(workflowId ? { workflowId } : {}),
+      ...(workspaceId ? { workspaceId } : {}),
+      type: type ?? 'copilot',
       title: null,
       model,
       messages: [],
@@ -51,7 +56,7 @@ export async function resolveOrCreateChat(params: {
     .returning()
 
   if (!newChat) {
-    logger.warn('Failed to create new copilot chat row', { userId, workflowId })
+    logger.warn('Failed to create new copilot chat row', { userId, workflowId, workspaceId })
     return {
       chatId: '',
       chat: null,

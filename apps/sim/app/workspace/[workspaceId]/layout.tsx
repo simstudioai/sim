@@ -12,12 +12,16 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
       <SettingsLoader />
       <ProviderModelsLoader />
       <GlobalCommandsProvider>
-        <div className='flex h-screen w-full bg-[var(--bg)]'>
+        <div className='flex h-screen w-full bg-[var(--surface-1)]'>
           <WorkspacePermissionsProvider>
             <div className='shrink-0' suppressHydrationWarning>
               <Sidebar />
             </div>
-            {children}
+            <div className='flex min-w-0 flex-1 flex-col p-[8px] pl-0'>
+              <div className='flex-1 overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)]'>
+                {children}
+              </div>
+            </div>
           </WorkspacePermissionsProvider>
         </div>
       </GlobalCommandsProvider>

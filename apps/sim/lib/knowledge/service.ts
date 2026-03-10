@@ -1,8 +1,8 @@
 import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
-import { document, knowledgeBase, permissions } from '@sim/db/schema'
+import { document, knowledgeBase, knowledgeConnector, permissions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq, isNotNull, isNull, or } from 'drizzle-orm'
+import { and, count, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -22,9 +22,10 @@ export async function getKnowledgeBases(
   const knowledgeBasesWithCounts = await db
     .select({
       id: knowledgeBase.id,
+      userId: knowledgeBase.userId,
       name: knowledgeBase.name,
       description: knowledgeBase.description,
-      tokenCount: knowledgeBase.tokenCount,
+      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
       embeddingModel: knowledgeBase.embeddingModel,
       embeddingDimension: knowledgeBase.embeddingDimension,
       chunkingConfig: knowledgeBase.chunkingConfig,
@@ -69,10 +70,38 @@ export async function getKnowledgeBases(
     .groupBy(knowledgeBase.id)
     .orderBy(knowledgeBase.createdAt)
 
+  const kbIds = knowledgeBasesWithCounts.map((kb) => kb.id)
+
+  const connectorRows =
+    kbIds.length > 0
+      ? await db
+          .select({
+            knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
+            connectorType: knowledgeConnector.connectorType,
+          })
+          .from(knowledgeConnector)
+          .where(
+            and(
+              inArray(knowledgeConnector.knowledgeBaseId, kbIds),
+              isNull(knowledgeConnector.deletedAt)
+            )
+          )
+      : []
+
+  const connectorTypesByKb = new Map<string, string[]>()
+  for (const row of connectorRows) {
+    const types = connectorTypesByKb.get(row.knowledgeBaseId) ?? []
+    if (!types.includes(row.connectorType)) {
+      types.push(row.connectorType)
+    }
+    connectorTypesByKb.set(row.knowledgeBaseId, types)
+  }
+
   return knowledgeBasesWithCounts.map((kb) => ({
     ...kb,
     chunkingConfig: kb.chunkingConfig as ChunkingConfig,
     docCount: Number(kb.docCount),
+    connectorTypes: connectorTypesByKb.get(kb.id) ?? [],
   }))
 }
 
@@ -122,6 +151,7 @@ export async function createKnowledgeBase(
     updatedAt: now,
     workspaceId: data.workspaceId,
     docCount: 0,
+    connectorTypes: [],
   }
 }
 
@@ -173,9 +203,10 @@ export async function updateKnowledgeBase(
   const updatedKb = await db
     .select({
       id: knowledgeBase.id,
+      userId: knowledgeBase.userId,
       name: knowledgeBase.name,
       description: knowledgeBase.description,
-      tokenCount: knowledgeBase.tokenCount,
+      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
       embeddingModel: knowledgeBase.embeddingModel,
       embeddingDimension: knowledgeBase.embeddingDimension,
       chunkingConfig: knowledgeBase.chunkingConfig,
@@ -203,6 +234,7 @@ export async function updateKnowledgeBase(
     ...updatedKb[0],
     chunkingConfig: updatedKb[0].chunkingConfig as ChunkingConfig,
     docCount: Number(updatedKb[0].docCount),
+    connectorTypes: [],
   }
 }
 
@@ -215,9 +247,10 @@ export async function getKnowledgeBaseById(
   const result = await db
     .select({
       id: knowledgeBase.id,
+      userId: knowledgeBase.userId,
       name: knowledgeBase.name,
       description: knowledgeBase.description,
-      tokenCount: knowledgeBase.tokenCount,
+      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
       embeddingModel: knowledgeBase.embeddingModel,
       embeddingDimension: knowledgeBase.embeddingDimension,
       chunkingConfig: knowledgeBase.chunkingConfig,
@@ -243,6 +276,7 @@ export async function getKnowledgeBaseById(
     ...result[0],
     chunkingConfig: result[0].chunkingConfig as ChunkingConfig,
     docCount: Number(result[0].docCount),
+    connectorTypes: [],
   }
 }
 

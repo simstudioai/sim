@@ -1,6 +1,5 @@
 import { memo, useCallback, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
-import clsx from 'clsx'
 import { X } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -11,8 +10,6 @@ import {
   openCopilotWithMessage,
   useNotificationStore,
 } from '@/stores/notifications'
-import { usePanelStore } from '@/stores/panel'
-import { useTerminalStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('Notifications')
@@ -36,8 +33,6 @@ export const Notifications = memo(function Notifications() {
       .filter((n) => !n.workflowId || n.workflowId === activeWorkflowId)
       .slice(0, MAX_VISIBLE_NOTIFICATIONS)
   }, [allNotifications, activeWorkflowId])
-  const isTerminalResizing = useTerminalStore((state) => state.isResizing)
-  const isPanelResizing = usePanelStore((state) => state.isResizing)
 
   /**
    * Executes a notification action and handles side effects.
@@ -108,19 +103,10 @@ export const Notifications = memo(function Notifications() {
     return null
   }
 
-  const isResizing = isTerminalResizing || isPanelResizing
-
   return (
     <div
       ref={preventZoomRef}
-      className={clsx(
-        'fixed z-30 flex flex-col items-start',
-        !isResizing && 'transition-[bottom,right] duration-100 ease-out'
-      )}
-      style={{
-        bottom: 'calc(var(--terminal-height) + 16px)',
-        right: 'calc(var(--panel-width) + 16px)',
-      }}
+      className='absolute right-[16px] bottom-[16px] z-30 flex flex-col items-start'
     >
       {[...visibleNotifications].reverse().map((notification, index, stacked) => {
         const depth = stacked.length - index - 1

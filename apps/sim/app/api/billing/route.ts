@@ -6,6 +6,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getSimplifiedBillingSummary } from '@/lib/billing/core/billing'
 import { getOrganizationBillingData } from '@/lib/billing/core/organization'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { getPlanTierCredits } from '@/lib/billing/plan-helpers'
 
 /**
  * Gets the effective billing blocked status for a user.
@@ -43,27 +45,42 @@ async function getEffectiveBillingStatus(userId: string): Promise<{
     .from(member)
     .where(eq(member.userId, userId))
 
-  for (const m of memberships) {
-    const owners = await db
-      .select({ userId: member.userId })
-      .from(member)
-      .where(and(eq(member.organizationId, m.organizationId), eq(member.role, 'owner')))
-      .limit(1)
-
-    if (owners.length > 0 && owners[0].userId !== userId) {
-      const ownerStats = await db
-        .select({
-          blocked: userStats.billingBlocked,
-          blockedReason: userStats.billingBlockedReason,
-        })
-        .from(userStats)
-        .where(eq(userStats.userId, owners[0].userId))
+  // Fetch all org owners in parallel
+  const ownerResults = await Promise.all(
+    memberships.map((m) =>
+      db
+        .select({ userId: member.userId })
+        .from(member)
+        .where(and(eq(member.organizationId, m.organizationId), eq(member.role, 'owner')))
         .limit(1)
+    )
+  )
 
-      if (ownerStats.length > 0 && ownerStats[0].blocked) {
+  // Collect owner IDs that are not the current user
+  const otherOwnerIds = ownerResults
+    .filter((owners) => owners.length > 0 && owners[0].userId !== userId)
+    .map((owners) => owners[0].userId)
+
+  if (otherOwnerIds.length > 0) {
+    // Fetch all owner stats in parallel
+    const ownerStatsResults = await Promise.all(
+      otherOwnerIds.map((ownerId) =>
+        db
+          .select({
+            blocked: userStats.billingBlocked,
+            blockedReason: userStats.billingBlockedReason,
+          })
+          .from(userStats)
+          .where(eq(userStats.userId, ownerId))
+          .limit(1)
+      )
+    )
+
+    for (const stats of ownerStatsResults) {
+      if (stats.length > 0 && stats[0].blocked) {
         return {
           billingBlocked: true,
-          billingBlockedReason: ownerStats[0].blockedReason,
+          billingBlockedReason: stats[0].blockedReason,
           blockedByOrgOwner: true,
         }
       }
@@ -114,11 +131,12 @@ export async function GET(request: NextRequest) {
     let billingData
 
     if (context === 'user') {
-      // Get user billing (may include organization if they're part of one)
-      billingData = await getSimplifiedBillingSummary(session.user.id, contextId || undefined)
-
-      // Attach effective billing blocked status (includes org owner check)
-      const billingStatus = await getEffectiveBillingStatus(session.user.id)
+      // Get user billing and billing blocked status in parallel
+      const [billingResult, billingStatus] = await Promise.all([
+        getSimplifiedBillingSummary(session.user.id, contextId || undefined),
+        getEffectiveBillingStatus(session.user.id),
+      ])
+      billingData = billingResult
 
       billingData = {
         ...billingData,
@@ -188,10 +206,17 @@ export async function GET(request: NextRequest) {
         averageUsagePerMember: rawBillingData.averageUsagePerMember,
         billingPeriodStart: rawBillingData.billingPeriodStart?.toISOString() || null,
         billingPeriodEnd: rawBillingData.billingPeriodEnd?.toISOString() || null,
-        members: rawBillingData.members.map((member) => ({
-          ...member,
-          joinedAt: member.joinedAt.toISOString(),
-          lastActive: member.lastActive?.toISOString() || null,
+        tierCredits: getPlanTierCredits(rawBillingData.subscriptionPlan),
+        totalCurrentUsageCredits: dollarsToCredits(rawBillingData.totalCurrentUsage),
+        totalUsageLimitCredits: dollarsToCredits(rawBillingData.totalUsageLimit),
+        minimumBillingAmountCredits: dollarsToCredits(rawBillingData.minimumBillingAmount),
+        averageUsagePerMemberCredits: dollarsToCredits(rawBillingData.averageUsagePerMember),
+        members: rawBillingData.members.map((m) => ({
+          ...m,
+          joinedAt: m.joinedAt.toISOString(),
+          lastActive: m.lastActive?.toISOString() || null,
+          currentUsageCredits: dollarsToCredits(m.currentUsage),
+          usageLimitCredits: dollarsToCredits(m.usageLimit),
         })),
       }
 

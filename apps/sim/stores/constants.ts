@@ -20,8 +20,8 @@ export const API_ENDPOINTS = {
 
 /** Sidebar width constraints */
 export const SIDEBAR_WIDTH = {
-  DEFAULT: 232,
-  MIN: 232,
+  DEFAULT: 248,
+  MIN: 248,
   /** Maximum is 30% of viewport, enforced dynamically */
   MAX_PERCENTAGE: 0.3,
 } as const
