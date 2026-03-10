@@ -6,6 +6,7 @@ export const RESOURCE_TOOL_NAMES = new Set([
   'workspace_file',
   'create_workflow',
   'edit_workflow',
+  'function_execute',
 ])
 
 function getResultData(parsed: SSEPayload): Record<string, unknown> | undefined {
@@ -56,6 +57,34 @@ export function extractFileResource(
     (storedInnerArgs?.fileName as string) ||
     'File'
   if (fileId && typeof fileId === 'string') return { type: 'file', id: fileId, title: fileName }
+
+  return null
+}
+
+export function extractFunctionExecuteResource(
+  parsed: SSEPayload,
+  storedArgs: Record<string, unknown> | undefined
+): MothershipResource | null {
+  const topResult = (parsed.result ??
+    (typeof parsed.data === 'object' ? parsed.data?.result : undefined)) as
+    | Record<string, unknown>
+    | undefined
+
+  if (topResult?.tableId) {
+    return {
+      type: 'table',
+      id: topResult.tableId as string,
+      title: (topResult.tableName as string) || 'Table',
+    }
+  }
+
+  if (topResult?.fileId) {
+    return {
+      type: 'file',
+      id: topResult.fileId as string,
+      title: (topResult.fileName as string) || 'File',
+    }
+  }
 
   return null
 }
@@ -113,6 +142,9 @@ export function extractResourcesFromHistory(messages: TaskStoredMessage[]): Moth
         if (resource) lastTableId = resource.id
       } else if (tc.name === 'workspace_file') {
         resource = extractFileResource(payload, args)
+      } else if (tc.name === 'function_execute') {
+        resource = extractFunctionExecuteResource(payload, args)
+        if (resource?.type === 'table') lastTableId = resource.id
       } else if (tc.name === 'create_workflow' || tc.name === 'edit_workflow') {
         resource = extractWorkflowResource(payload, lastWorkflowId)
         if (resource) lastWorkflowId = resource.id

@@ -1,4 +1,7 @@
+import { db } from '@sim/db'
+import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { eq } from 'drizzle-orm'
 import {
   TOOL_DECISION_INITIAL_POLL_MS,
   TOOL_DECISION_MAX_POLL_MS,
@@ -18,6 +21,7 @@ import type {
   StreamingContext,
   ToolCallResult,
 } from '@/lib/copilot/orchestrator/types'
+import { getTableById } from '@/lib/table/service'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('CopilotSseToolExecution')
@@ -94,6 +98,114 @@ async function maybeWriteOutputToFile(
   }
 }
 
+const MAX_OUTPUT_TABLE_ROWS = 10_000
+const BATCH_CHUNK_SIZE = 500
+
+async function maybeWriteOutputToTable(
+  toolName: string,
+  params: Record<string, unknown> | undefined,
+  result: ToolCallResult,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  if (toolName !== 'function_execute') return result
+  if (!result.success || !result.output) return result
+  if (!context.workspaceId || !context.userId) return result
+
+  const outputTable = params?.outputTable as string | undefined
+  if (!outputTable) return result
+
+  try {
+    const table = await getTableById(outputTable)
+    if (!table) {
+      return {
+        success: false,
+        error: `Table "${outputTable}" not found`,
+      }
+    }
+
+    const rawOutput = result.output
+    let rows: Array<Record<string, unknown>>
+
+    if (rawOutput && typeof rawOutput === 'object' && 'result' in rawOutput) {
+      const inner = (rawOutput as Record<string, unknown>).result
+      if (Array.isArray(inner)) {
+        rows = inner
+      } else {
+        return {
+          success: false,
+          error: 'outputTable requires the code to return an array of objects',
+        }
+      }
+    } else if (Array.isArray(rawOutput)) {
+      rows = rawOutput
+    } else {
+      return {
+        success: false,
+        error: 'outputTable requires the code to return an array of objects',
+      }
+    }
+
+    if (rows.length > MAX_OUTPUT_TABLE_ROWS) {
+      return {
+        success: false,
+        error: `outputTable row limit exceeded: got ${rows.length}, max is ${MAX_OUTPUT_TABLE_ROWS}`,
+      }
+    }
+
+    if (rows.length === 0) {
+      return {
+        success: false,
+        error: 'outputTable requires at least one row — code returned an empty array',
+      }
+    }
+
+    await db.transaction(async (tx) => {
+      await tx.delete(userTableRows).where(eq(userTableRows.tableId, outputTable))
+
+      const now = new Date()
+      for (let i = 0; i < rows.length; i += BATCH_CHUNK_SIZE) {
+        const chunk = rows.slice(i, i + BATCH_CHUNK_SIZE)
+        const values = chunk.map((rowData, j) => ({
+          id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
+          tableId: outputTable,
+          workspaceId: context.workspaceId!,
+          data: rowData,
+          position: i + j,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: context.userId,
+        }))
+        await tx.insert(userTableRows).values(values)
+      }
+    })
+
+    logger.info('Tool output written to table', {
+      toolName,
+      tableId: outputTable,
+      rowCount: rows.length,
+    })
+
+    return {
+      success: true,
+      output: {
+        message: `Wrote ${rows.length} rows to table ${outputTable}`,
+        tableId: outputTable,
+        rowCount: rows.length,
+      },
+    }
+  } catch (err) {
+    logger.warn('Failed to write tool output to table', {
+      toolName,
+      outputTable,
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return {
+      success: false,
+      error: `Failed to write to table: ${err instanceof Error ? err.message : String(err)}`,
+    }
+  }
+}
+
 export async function executeToolAndReport(
   toolCallId: string,
   context: StreamingContext,
@@ -117,6 +229,7 @@ export async function executeToolAndReport(
   try {
     let result = await executeToolServerSide(toolCall, execContext)
     result = await maybeWriteOutputToFile(toolCall.name, toolCall.params, result, execContext)
+    result = await maybeWriteOutputToTable(toolCall.name, toolCall.params, result, execContext)
     toolCall.status = result.success ? 'success' : 'error'
     toolCall.result = result
     toolCall.error = result.error

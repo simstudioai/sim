@@ -12,6 +12,11 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { getTableById, queryRows } from '@/lib/table/service'
+import {
+  downloadWorkspaceFile,
+  listWorkspaceFiles,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
@@ -143,6 +148,97 @@ export async function executeIntegrationToolDirect(
     executionParams.blockNameMapping = {}
     executionParams.language = executionParams.language || 'javascript'
     executionParams.timeout = executionParams.timeout || 30000
+
+    if (isHosted && workspaceId) {
+      const sandboxFiles: Array<{ path: string; content: string }> = []
+      const MAX_FILE_SIZE = 10 * 1024 * 1024
+      const MAX_TOTAL_SIZE = 50 * 1024 * 1024
+      const TEXT_EXTENSIONS = new Set([
+        'csv',
+        'json',
+        'txt',
+        'md',
+        'html',
+        'xml',
+        'tsv',
+        'yaml',
+        'yml',
+      ])
+      let totalSize = 0
+
+      const inputFilePaths = executionParams.inputFiles as string[] | undefined
+      if (inputFilePaths?.length) {
+        const allFiles = await listWorkspaceFiles(workspaceId)
+        for (const filePath of inputFilePaths) {
+          const fileName = filePath.replace(/^files\//, '')
+          const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
+          if (!TEXT_EXTENSIONS.has(ext)) {
+            logger.warn('Skipping non-text sandbox input file', { fileName, ext })
+            continue
+          }
+          const record = allFiles.find(
+            (f) => f.name === fileName || f.name.normalize('NFC') === fileName.normalize('NFC')
+          )
+          if (!record) {
+            logger.warn('Sandbox input file not found', { fileName })
+            continue
+          }
+          if (record.size > MAX_FILE_SIZE) {
+            logger.warn('Sandbox input file exceeds size limit', { fileName, size: record.size })
+            continue
+          }
+          if (totalSize + record.size > MAX_TOTAL_SIZE) {
+            logger.warn('Sandbox input total size limit reached, skipping remaining files')
+            break
+          }
+          const buffer = await downloadWorkspaceFile(record)
+          totalSize += buffer.length
+          sandboxFiles.push({ path: `/home/user/${fileName}`, content: buffer.toString('utf-8') })
+        }
+      }
+
+      const inputTableIds = executionParams.inputTables as string[] | undefined
+      if (inputTableIds?.length) {
+        for (const tableId of inputTableIds) {
+          const table = await getTableById(tableId)
+          if (!table) {
+            logger.warn('Sandbox input table not found', { tableId })
+            continue
+          }
+          const { rows } = await queryRows(tableId, workspaceId, { limit: 10000 }, 'sandbox-input')
+          const cols = (table.schema as { columns: Array<{ name: string }> }).columns.map(
+            (c) => c.name
+          )
+          const csvLines = [cols.join(',')]
+          for (const row of rows) {
+            csvLines.push(
+              cols
+                .map((c) => JSON.stringify((row.data as Record<string, unknown>)[c] ?? ''))
+                .join(',')
+            )
+          }
+          const csvContent = csvLines.join('\n')
+          if (totalSize + csvContent.length > MAX_TOTAL_SIZE) {
+            logger.warn('Sandbox input total size limit reached, skipping remaining tables')
+            break
+          }
+          totalSize += csvContent.length
+          sandboxFiles.push({ path: `/home/user/tables/${tableId}.csv`, content: csvContent })
+        }
+      }
+
+      if (sandboxFiles.length > 0) {
+        executionParams._sandboxFiles = sandboxFiles
+        logger.info('Prepared sandbox input files', {
+          fileCount: sandboxFiles.length,
+          totalSize,
+          paths: sandboxFiles.map((f) => f.path),
+        })
+      }
+
+      executionParams.inputFiles = undefined
+      executionParams.inputTables = undefined
+    }
   }
 
   const result = await executeTool(toolName, executionParams)

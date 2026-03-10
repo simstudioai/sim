@@ -26,6 +26,7 @@ import type {
 import { SUBAGENT_LABELS } from '../types'
 import {
   extractFileResource,
+  extractFunctionExecuteResource,
   extractResourcesFromHistory,
   extractTableResource,
   extractWorkflowResource,
@@ -360,6 +361,22 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                     queryClient.invalidateQueries({
                       queryKey: workspaceFilesKeys.content(workspaceId, resource.id),
                     })
+                  }
+                } else if (toolName === 'function_execute') {
+                  resource = extractFunctionExecuteResource(parsed, storedArgs)
+                  if (resource) {
+                    if (resource.type === 'table') {
+                      lastTableId = resource.id
+                      queryClient.invalidateQueries({ queryKey: tableKeys.detail(resource.id) })
+                      queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(resource.id) })
+                    } else if (resource.type === 'file') {
+                      queryClient.invalidateQueries({
+                        queryKey: workspaceFilesKeys.list(workspaceId),
+                      })
+                      queryClient.invalidateQueries({
+                        queryKey: workspaceFilesKeys.content(workspaceId, resource.id),
+                      })
+                    }
                   }
                 } else if (toolName === 'create_workflow' || toolName === 'edit_workflow') {
                   resource = extractWorkflowResource(parsed, lastWorkflowId)
