@@ -2078,7 +2078,7 @@ export function LangsmithIcon(props: SVGProps<SVGSVGElement>) {
 
 export function LemlistIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 181' fill='none'>
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='24 24.92 132 132' fill='none'>
       <path
         fillRule='evenodd'
         clipRule='evenodd'
