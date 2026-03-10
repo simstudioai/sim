@@ -470,7 +470,7 @@ export function Subscription() {
   const badgeConfig = getBadgeConfig()
 
   const onDemandState: 'hidden' | 'enable' | 'disable' = (() => {
-    if (!subscription.isPaid || !permissions.canEditUsageLimit) return 'hidden'
+    if (!subscription.isPaid || !permissions.canEditUsageLimit || isBlocked) return 'hidden'
     return isOnDemandActive ? 'disable' : 'enable'
   })()
 

@@ -4,6 +4,8 @@
  * 1 credit = $0.005 (i.e. $1 = 200 credits)
  */
 
+import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
+
 export const CREDIT_MULTIPLIER = 200
 
 export function dollarsToCredits(dollars: number): number {
@@ -17,6 +19,6 @@ export function dollarsToCredits(dollars: number): number {
  * @example formatCredits(999999) => "∞"
  */
 export function formatCredits(dollars: number): string {
-  if (dollars >= 999999) return '∞'
+  if (dollars >= ON_DEMAND_UNLIMITED) return '∞'
   return dollarsToCredits(dollars).toLocaleString()
 }
