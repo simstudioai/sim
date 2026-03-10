@@ -502,12 +502,20 @@ export function Document({
     })
   }, [guardDirtyAction])
 
-  const handleChunkCreated = useCallback((chunkId: string) => {
-    setIsCreatingNewChunk(false)
-    setIsDirty(false)
-    setSaveStatus('idle')
-    setSelectedChunkId(chunkId)
-  }, [])
+  const handleChunkCreated = useCallback(
+    async (chunkId: string) => {
+      setIsCreatingNewChunk(false)
+      setIsDirty(false)
+      setSaveStatus('idle')
+
+      // New chunks append at the end — navigate to last page so the chunk is visible
+      if (totalPages > 1) {
+        await goToPage(totalPages)
+      }
+      setSelectedChunkId(chunkId)
+    },
+    [goToPage, totalPages]
+  )
 
   const createAction = {
     label: 'New chunk',
