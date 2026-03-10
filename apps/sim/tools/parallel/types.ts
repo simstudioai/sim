@@ -12,8 +12,8 @@ export interface ParallelSearchParams {
 }
 
 export interface ParallelSearchResult {
-  url: string
-  title: string
+  url: string | null
+  title: string | null
   publish_date?: string | null
   excerpts: string[]
 }
@@ -34,7 +34,7 @@ export interface ParallelExtractParams {
 }
 
 export interface ParallelExtractResult {
-  url: string
+  url: string | null
   title?: string | null
   publish_date?: string | null
   excerpts?: string[]
