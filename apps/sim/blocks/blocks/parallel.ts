@@ -9,7 +9,7 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Parallel AI into the workflow. Can search the web, extract information from URLs, and conduct deep research.',
-  docsLink: 'https://docs.parallel.ai/',
+  docsLink: 'https://docs.sim.ai/tools/parallel-ai',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: ParallelIcon,
@@ -56,7 +56,7 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
       title: 'Extract Objective',
       type: 'long-input',
       placeholder: 'What information to extract from the URLs?',
-      required: true,
+      required: false,
       condition: { field: 'operation', value: 'extract' },
     },
     {
@@ -90,12 +90,44 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'deep_research' },
     },
     {
+      id: 'search_mode',
+      title: 'Search Mode',
+      type: 'dropdown',
+      options: [
+        { label: 'One-Shot', id: 'one-shot' },
+        { label: 'Agentic', id: 'agentic' },
+        { label: 'Fast', id: 'fast' },
+      ],
+      value: () => 'one-shot',
+      condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'search_include_domains',
+      title: 'Include Domains',
+      type: 'short-input',
+      placeholder: 'Comma-separated domains to include (e.g., .edu, example.com)',
+      required: false,
+      condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'search_exclude_domains',
+      title: 'Exclude Domains',
+      type: 'short-input',
+      placeholder: 'Comma-separated domains to exclude',
+      required: false,
+      condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
+    },
+    {
       id: 'include_domains',
       title: 'Include Domains',
       type: 'short-input',
       placeholder: 'Comma-separated domains to include',
       required: false,
       condition: { field: 'operation', value: 'deep_research' },
+      mode: 'advanced',
     },
     {
       id: 'exclude_domains',
@@ -104,37 +136,37 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
       placeholder: 'Comma-separated domains to exclude',
       required: false,
       condition: { field: 'operation', value: 'deep_research' },
+      mode: 'advanced',
     },
     {
       id: 'processor',
-      title: 'Processor',
+      title: 'Research Processor',
       type: 'dropdown',
       options: [
-        { label: 'Lite', id: 'lite' },
-        { label: 'Base', id: 'base' },
-        { label: 'Core', id: 'core' },
-        { label: 'Core 2x', id: 'core2x' },
         { label: 'Pro', id: 'pro' },
         { label: 'Ultra', id: 'ultra' },
-        { label: 'Ultra 2x', id: 'ultra2x' },
-        { label: 'Ultra 4x', id: 'ultra4x' },
+        { label: 'Pro Fast', id: 'pro-fast' },
+        { label: 'Ultra Fast', id: 'ultra-fast' },
       ],
-      value: () => 'base',
-      condition: { field: 'operation', value: ['search', 'deep_research'] },
+      value: () => 'pro',
+      condition: { field: 'operation', value: 'deep_research' },
+      mode: 'advanced',
     },
     {
       id: 'max_results',
       title: 'Max Results',
       type: 'short-input',
-      placeholder: '5',
+      placeholder: '10',
       condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
     },
     {
       id: 'max_chars_per_result',
-      title: 'Max Chars',
+      title: 'Max Chars Per Result',
       type: 'short-input',
       placeholder: '1500',
       condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
     },
     {
       id: 'apiKey',
@@ -149,8 +181,6 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
     access: ['parallel_search', 'parallel_extract', 'parallel_deep_research'],
     config: {
       tool: (params) => {
-        if (params.extract_objective) params.objective = params.extract_objective
-        if (params.research_input) params.input = params.research_input
         switch (params.operation) {
           case 'search':
             return 'parallel_search'
@@ -174,19 +204,28 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
               .filter((query: string) => query.length > 0)
             if (queries.length > 0) {
               result.search_queries = queries
-            } else {
-              result.search_queries = undefined
             }
+          }
+          if (params.search_mode && params.search_mode !== 'one-shot') {
+            result.mode = params.search_mode
           }
           if (params.max_results) result.max_results = Number(params.max_results)
           if (params.max_chars_per_result) {
             result.max_chars_per_result = Number(params.max_chars_per_result)
           }
+          result.include_domains = params.search_include_domains || undefined
+          result.exclude_domains = params.search_exclude_domains || undefined
         }
 
         if (operation === 'extract') {
+          if (params.extract_objective) result.objective = params.extract_objective
           result.excerpts = !(params.excerpts === 'false' || params.excerpts === false)
           result.full_content = params.full_content === 'true' || params.full_content === true
+        }
+
+        if (operation === 'deep_research') {
+          if (params.research_input) result.input = params.research_input
+          if (params.processor) result.processor = params.processor
         }
 
         return result
@@ -202,29 +241,34 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
     excerpts: { type: 'boolean', description: 'Include excerpts' },
     full_content: { type: 'boolean', description: 'Include full content' },
     research_input: { type: 'string', description: 'Deep research query' },
-    include_domains: { type: 'string', description: 'Domains to include' },
-    exclude_domains: { type: 'string', description: 'Domains to exclude' },
-    processor: { type: 'string', description: 'Processing method' },
+    include_domains: { type: 'string', description: 'Domains to include (deep research)' },
+    exclude_domains: { type: 'string', description: 'Domains to exclude (deep research)' },
+    search_include_domains: { type: 'string', description: 'Domains to include (search)' },
+    search_exclude_domains: { type: 'string', description: 'Domains to exclude (search)' },
+    search_mode: { type: 'string', description: 'Search mode (one-shot, agentic, fast)' },
+    processor: { type: 'string', description: 'Research processing tier' },
     max_results: { type: 'number', description: 'Maximum number of results' },
     max_chars_per_result: { type: 'number', description: 'Maximum characters per result' },
     apiKey: { type: 'string', description: 'Parallel AI API key' },
   },
   outputs: {
-    results: { type: 'string', description: 'Search or extract results (JSON stringified)' },
+    results: {
+      type: 'json',
+      description: 'Search or extract results (array of url, title, excerpts)',
+    },
+    search_id: { type: 'string', description: 'Search request ID (for search)' },
+    extract_id: { type: 'string', description: 'Extract request ID (for extract)' },
     status: { type: 'string', description: 'Task status (for deep research)' },
     run_id: { type: 'string', description: 'Task run ID (for deep research)' },
     message: { type: 'string', description: 'Status message (for deep research)' },
     content: {
-      type: 'string',
-      description: 'Research content (for deep research, JSON stringified)',
+      type: 'json',
+      description: 'Research content (for deep research, structured based on output_schema)',
     },
     basis: {
-      type: 'string',
-      description: 'Citations and sources (for deep research, JSON stringified)',
-    },
-    metadata: {
-      type: 'string',
-      description: 'Task metadata (for deep research, JSON stringified)',
+      type: 'json',
+      description:
+        'Citations and sources with field, reasoning, citations, confidence (for deep research)',
     },
   },
 }
