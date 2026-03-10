@@ -13,7 +13,23 @@ import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/per
 
 const logger = createLogger('WorkspaceBYOKKeysAPI')
 
-const VALID_PROVIDERS = ['openai', 'anthropic', 'google', 'mistral', 'exa'] as const
+const VALID_PROVIDERS = [
+  'openai',
+  'anthropic',
+  'google',
+  'mistral',
+  'exa',
+  'browser_use',
+  'serper',
+  'firecrawl',
+  'linkup',
+  'perplexity',
+  'jina',
+  'google_cloud',
+  'elevenlabs',
+  'parallel_ai',
+  'brandfetch',
+] as const
 
 const UpsertKeySchema = z.object({
   providerId: z.enum(VALID_PROVIDERS),

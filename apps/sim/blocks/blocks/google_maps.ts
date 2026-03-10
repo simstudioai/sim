@@ -44,6 +44,7 @@ export const GoogleMapsBlock: BlockConfig = {
       password: true,
       placeholder: 'Enter your Google Maps API key',
       required: true,
+      hideWhenHosted: true,
     },
 
     // ========== Geocode ==========

@@ -448,6 +448,7 @@ export interface ScrapeResponse extends ToolResponse {
       statusCode: number
       error?: string
     }
+    creditsUsed: number
   }
 }
 
@@ -470,6 +471,7 @@ export interface SearchResponse extends ToolResponse {
         error?: string
       }
     }>
+    creditsUsed: number
   }
 }
 
@@ -500,6 +502,7 @@ export interface MapResponse extends ToolResponse {
   output: {
     success: boolean
     links: string[]
+    creditsUsed: number
   }
 }
 
@@ -508,6 +511,7 @@ export interface ExtractResponse extends ToolResponse {
     jobId: string
     success: boolean
     data: Record<string, any>
+    creditsUsed?: number
   }
 }
 

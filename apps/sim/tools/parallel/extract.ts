@@ -8,6 +8,29 @@ export const extractTool: ToolConfig<ParallelExtractParams, ToolResponse> = {
     'Extract targeted information from specific URLs using Parallel AI. Processes provided URLs to pull relevant content based on your objective.',
   version: '1.0.0',
 
+  hosting: {
+    envKeyPrefix: 'PARALLEL_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'parallel_ai',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, output) => {
+        if (!Array.isArray(output.results)) {
+          throw new Error('Parallel extract response missing results array')
+        }
+        // Parallel Extract: $1 per 1,000 URLs = $0.001 per URL
+        // https://docs.parallel.ai/resources/pricing
+        const urlCount = output.results.length
+        const cost = urlCount * 0.001
+        return { cost, metadata: { urlCount } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 30,
+    },
+  },
+
   params: {
     urls: {
       type: 'string',

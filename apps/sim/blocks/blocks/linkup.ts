@@ -120,6 +120,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       placeholder: 'Enter your Linkup API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
     },
   ],
 

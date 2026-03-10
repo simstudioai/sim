@@ -101,7 +101,7 @@ async function injectHostedKeyIfNeeded(
       retryAfterMs: acquireResult.retryAfterMs,
     })
 
-    PlatformEvents.userThrottled({
+    PlatformEvents.hostedKeyUserThrottled({
       toolId: tool.id,
       reason: 'billing_actor_limit',
       provider,
@@ -138,13 +138,21 @@ async function injectHostedKeyIfNeeded(
 }
 
 /**
- * Check if an error is a rate limit (throttling) error
+ * Check if an error is a rate limit (throttling) or quota exhaustion error.
+ * Some providers (e.g. Perplexity) return 401/403 with "insufficient_quota"
+ * instead of the standard 429, so we also inspect the error message.
  */
 function isRateLimitError(error: unknown): boolean {
   if (error && typeof error === 'object') {
     const status = (error as { status?: number }).status
-    // 429 = Too Many Requests, 503 = Service Unavailable (sometimes used for rate limiting)
     if (status === 429 || status === 503) return true
+
+    if (status === 401 || status === 403) {
+      const message = ((error as { message?: string }).message || '').toLowerCase()
+      if (message.includes('quota') || message.includes('rate limit')) {
+        return true
+      }
+    }
   }
   return false
 }
@@ -178,7 +186,7 @@ async function executeWithRetry<T>(
 
       if (!isRateLimitError(error) || attempt === maxRetries) {
         if (isRateLimitError(error) && attempt === maxRetries) {
-          PlatformEvents.userThrottled({
+          PlatformEvents.hostedKeyUserThrottled({
             toolId,
             reason: 'upstream_retries_exhausted',
             userId: executionContext?.userId,
@@ -277,7 +285,7 @@ async function processHostedKeyCost(
 
   if (!userId) return { cost, metadata }
 
-  const skipLog = !!ctx?.skipFixedUsageLog
+  const skipLog = !!ctx?.skipFixedUsageLog || !!tool.hosting?.skipFixedUsageLog
   if (!skipLog) {
     try {
       await logFixedUsage({
@@ -376,6 +384,13 @@ async function applyHostedKeyCostToResult(
   requestId: string
 ): Promise<void> {
   await reportCustomDimensionUsage(tool, params, finalResult.output, executionContext, requestId)
+
+  if (tool.hosting?.skipFixedUsageLog) {
+    const ctx = params._context as Record<string, unknown> | undefined
+    if (ctx) {
+      ctx.skipFixedUsageLog = true
+    }
+  }
 
   const { cost: hostedKeyCost, metadata } = await processHostedKeyCost(
     tool,

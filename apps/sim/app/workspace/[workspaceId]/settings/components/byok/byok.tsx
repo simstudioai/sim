@@ -13,7 +13,23 @@ import {
   ModalFooter,
   ModalHeader,
 } from '@/components/emcn'
-import { AnthropicIcon, ExaAIIcon, GeminiIcon, MistralIcon, OpenAIIcon } from '@/components/icons'
+import {
+  AnthropicIcon,
+  BrandfetchIcon,
+  BrowserUseIcon,
+  ElevenLabsIcon,
+  ExaAIIcon,
+  FirecrawlIcon,
+  GeminiIcon,
+  GoogleIcon,
+  JinaAIIcon,
+  LinkupIcon,
+  MistralIcon,
+  OpenAIIcon,
+  ParallelIcon,
+  PerplexityIcon,
+  SerperIcon,
+} from '@/components/icons'
 import { Skeleton } from '@/components/ui'
 import {
   type BYOKKey,
@@ -66,6 +82,76 @@ const PROVIDERS: {
     icon: ExaAIIcon,
     description: 'AI-powered search and research',
     placeholder: 'Enter your Exa API key',
+  },
+  {
+    id: 'browser_use',
+    name: 'Browser Use',
+    icon: BrowserUseIcon,
+    description: 'Browser automation tasks',
+    placeholder: 'Enter your Browser Use API key',
+  },
+  {
+    id: 'serper',
+    name: 'Serper',
+    icon: SerperIcon,
+    description: 'Google search API',
+    placeholder: 'Enter your Serper API key',
+  },
+  {
+    id: 'firecrawl',
+    name: 'Firecrawl',
+    icon: FirecrawlIcon,
+    description: 'Web scraping, crawling, and data extraction',
+    placeholder: 'Enter your Firecrawl API key',
+  },
+  {
+    id: 'linkup',
+    name: 'Linkup',
+    icon: LinkupIcon,
+    description: 'Web search and content retrieval',
+    placeholder: 'Enter your Linkup API key',
+  },
+  {
+    id: 'parallel_ai',
+    name: 'Parallel AI',
+    icon: ParallelIcon,
+    description: 'Web search, extraction, and deep research',
+    placeholder: 'Enter your Parallel AI API key',
+  },
+  {
+    id: 'perplexity',
+    name: 'Perplexity',
+    icon: PerplexityIcon,
+    description: 'AI-powered chat and web search',
+    placeholder: 'pplx-...',
+  },
+  {
+    id: 'jina',
+    name: 'Jina AI',
+    icon: JinaAIIcon,
+    description: 'Web reading and search',
+    placeholder: 'jina_...',
+  },
+  {
+    id: 'elevenlabs',
+    name: 'ElevenLabs',
+    icon: ElevenLabsIcon,
+    description: 'Text-to-speech generation',
+    placeholder: 'Enter your ElevenLabs API key',
+  },
+  {
+    id: 'google_cloud',
+    name: 'Google Cloud',
+    icon: GoogleIcon,
+    description: 'Translate, Maps, PageSpeed, and Books APIs',
+    placeholder: 'Enter your Google Cloud API key',
+  },
+  {
+    id: 'brandfetch',
+    name: 'Brandfetch',
+    icon: BrandfetchIcon,
+    description: 'Brand assets, logos, colors, and company info',
+    placeholder: 'Enter your Brandfetch API key',
   },
 ]
 

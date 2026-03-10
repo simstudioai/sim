@@ -8,6 +8,30 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
     'Search the web using Parallel AI. Provides comprehensive search results with intelligent processing and content extraction.',
   version: '1.0.0',
 
+  hosting: {
+    envKeyPrefix: 'PARALLEL_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'parallel_ai',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, output) => {
+        if (!Array.isArray(output.results)) {
+          throw new Error('Parallel search response missing results array')
+        }
+        // Parallel Search: $0.005 base (includes ≤10 results), +$0.001 per result beyond 10
+        // https://docs.parallel.ai/resources/pricing
+        const resultCount = output.results.length
+        const additionalResults = Math.max(0, resultCount - 10)
+        const cost = 0.005 + additionalResults * 0.001
+        return { cost, metadata: { resultCount, additionalResults } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 30,
+    },
+  },
+
   params: {
     objective: {
       type: 'string',

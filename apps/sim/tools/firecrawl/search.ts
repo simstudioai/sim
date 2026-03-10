@@ -23,6 +23,27 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     },
   },
 
+  hosting: {
+    envKeyPrefix: 'FIRECRAWL_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'firecrawl',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, output) => {
+        if (output.creditsUsed == null) {
+          throw new Error('Firecrawl search response missing creditsUsed field')
+        }
+        const creditsUsed = output.creditsUsed as number
+        const cost = creditsUsed * 0.001
+        return { cost, metadata: { creditsUsed } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 100,
+    },
+  },
+
   request: {
     method: 'POST',
     url: 'https://api.firecrawl.dev/v2/search',
@@ -58,6 +79,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       success: true,
       output: {
         data: data.data,
+        creditsUsed: data.creditsUsed,
       },
     }
   },
@@ -71,5 +93,6 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
         properties: SEARCH_RESULT_OUTPUT_PROPERTIES,
       },
     },
+    creditsUsed: { type: 'number', description: 'Number of Firecrawl credits consumed' },
   },
 }

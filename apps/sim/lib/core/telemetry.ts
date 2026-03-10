@@ -938,7 +938,7 @@ export const PlatformEvents = {
    * Track when a rate limit error is surfaced to the end user (not retried/absorbed).
    * Fires for both billing-actor limits and exhausted upstream retries.
    */
-  userThrottled: (attrs: {
+  hostedKeyUserThrottled: (attrs: {
     toolId: string
     reason: 'billing_actor_limit' | 'upstream_retries_exhausted'
     provider?: string
@@ -947,7 +947,7 @@ export const PlatformEvents = {
     workspaceId?: string
     workflowId?: string
   }) => {
-    trackPlatformEvent('platform.user.throttled', {
+    trackPlatformEvent('platform.hosted_key.user_throttled', {
       'tool.id': attrs.toolId,
       'throttle.reason': attrs.reason,
       ...(attrs.provider && { 'provider.id': attrs.provider }),
@@ -980,6 +980,18 @@ export const PlatformEvents = {
       ...(attrs.userId && { 'user.id': attrs.userId }),
       ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
       ...(attrs.workflowId && { 'workflow.id': attrs.workflowId }),
+    })
+  },
+
+  hostedKeyUnknownModelCost: (attrs: {
+    toolId: string
+    modelName: string
+    defaultCost: number
+  }) => {
+    trackPlatformEvent('platform.hosted_key.unknown_model_cost', {
+      'tool.id': attrs.toolId,
+      'model.name': attrs.modelName,
+      'cost.default_cost': attrs.defaultCost,
     })
   },
 

@@ -1,5 +1,5 @@
 import { existsSync } from 'fs'
-import { join, resolve, sep } from 'path'
+import path from 'path'
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { UPLOAD_DIR } from '@/lib/uploads/config'
@@ -156,7 +156,7 @@ function sanitizeFilename(filename: string): string {
     return sanitized
   })
 
-  return sanitizedSegments.join(sep)
+  return sanitizedSegments.join(path.sep)
 }
 
 export function findLocalFile(filename: string): string | null {
@@ -169,17 +169,18 @@ export function findLocalFile(filename: string): string | null {
     }
 
     const possiblePaths = [
-      join(UPLOAD_DIR, sanitizedFilename),
-      join(process.cwd(), 'uploads', sanitizedFilename),
+      path.join(UPLOAD_DIR, sanitizedFilename),
+      path.join(process.cwd(), 'uploads', sanitizedFilename),
     ]
 
-    for (const path of possiblePaths) {
-      const resolvedPath = resolve(path)
-      const allowedDirs = [resolve(UPLOAD_DIR), resolve(process.cwd(), 'uploads')]
+    for (const filePath of possiblePaths) {
+      const resolvedPath = path.resolve(filePath)
+      const allowedDirs = [path.resolve(UPLOAD_DIR), path.resolve(process.cwd(), 'uploads')]
 
       // Must be within allowed directory but NOT the directory itself
       const isWithinAllowedDir = allowedDirs.some(
-        (allowedDir) => resolvedPath.startsWith(allowedDir + sep) && resolvedPath !== allowedDir
+        (allowedDir) =>
+          resolvedPath.startsWith(allowedDir + path.sep) && resolvedPath !== allowedDir
       )
 
       if (!isWithinAllowedDir) {

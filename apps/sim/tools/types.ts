@@ -1,7 +1,22 @@
 import type { HostedKeyRateLimitConfig } from '@/lib/core/rate-limiter'
 import type { OAuthService } from '@/lib/oauth'
 
-export type BYOKProviderId = 'openai' | 'anthropic' | 'google' | 'mistral' | 'exa'
+export type BYOKProviderId =
+  | 'openai'
+  | 'anthropic'
+  | 'google'
+  | 'mistral'
+  | 'exa'
+  | 'browser_use'
+  | 'serper'
+  | 'firecrawl'
+  | 'jina'
+  | 'elevenlabs'
+  | 'perplexity'
+  | 'google_cloud'
+  | 'linkup'
+  | 'brandfetch'
+  | 'parallel_ai'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 
@@ -299,4 +314,6 @@ export interface ToolHostingConfig<P = Record<string, unknown>> {
   pricing: ToolHostingPricing<P>
   /** Hosted key rate limit configuration (required for hosted key distribution) */
   rateLimit: HostedKeyRateLimitConfig
+  /** When true, skip the fixed usage log entry (useful for tools that log custom dimensions instead) */
+  skipFixedUsageLog?: boolean
 }
