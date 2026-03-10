@@ -92,12 +92,21 @@ export function useTableUndo({ workspaceId, tableId }: UseTableUndoProps) {
             break
           }
 
+          case 'update-cells': {
+            const updates = action.cells.map((cell) => ({
+              rowId: cell.rowId,
+              data: direction === 'undo' ? cell.oldData : cell.newData,
+            }))
+            batchUpdateRowsMutation.mutate({ updates })
+            break
+          }
+
           case 'create-row': {
             if (direction === 'undo') {
               deleteRowMutation.mutate(action.rowId)
             } else {
               createRowMutation.mutate(
-                { data: {}, position: action.position },
+                { data: action.data ?? {}, position: action.position },
                 {
                   onSuccess: (response) => {
                     const newRowId = extractCreatedRowId(response as Record<string, unknown>)

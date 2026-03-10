@@ -42,6 +42,11 @@ export function cleanCellValue(value: unknown, column: ColumnDefinition): unknow
   if (column.type === 'boolean') {
     return Boolean(value)
   }
+  if (column.type === 'date') {
+    if (value === '' || value === null || value === undefined) return null
+    const str = String(value)
+    return Number.isNaN(Date.parse(str)) ? null : str
+  }
   return value || null
 }
 
@@ -54,12 +59,39 @@ export function formatValueForInput(value: unknown, type: string): string {
     return typeof value === 'string' ? value : JSON.stringify(value)
   }
   if (type === 'date' && value) {
+    const str = String(value)
+    const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (match) return match[0]
     try {
-      const date = new Date(String(value))
+      const date = new Date(str)
       return date.toISOString().split('T')[0]
     } catch {
-      return String(value)
+      return str
     }
   }
   return String(value)
+}
+
+/**
+ * Convert a stored YYYY-MM-DD date string to MM/DD/YYYY display format.
+ */
+export function storageToDisplay(stored: string): string {
+  const match = stored.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (match) return `${match[2]}/${match[3]}/${match[1]}`
+  return stored
+}
+
+/**
+ * Convert a MM/DD/YYYY (or MM/DD) display string back to YYYY-MM-DD storage format.
+ */
+export function displayToStorage(display: string): string | null {
+  const full = display.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (full) {
+    return `${full[3]}-${full[1].padStart(2, '0')}-${full[2].padStart(2, '0')}`
+  }
+  const partial = display.match(/^(\d{1,2})\/(\d{1,2})$/)
+  if (partial) {
+    return `${new Date().getFullYear()}-${partial[1].padStart(2, '0')}-${partial[2].padStart(2, '0')}`
+  }
+  return null
 }

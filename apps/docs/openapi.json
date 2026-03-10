@@ -220,13 +220,7 @@
         ],
         "parameters": [
           {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "description": "The unique identifier for your workspace. Found in the Sim dashboard URL or workspace settings.",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/WorkspaceId"
           },
           {
             "name": "folderId",
@@ -428,13 +422,7 @@
         ],
         "parameters": [
           {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "description": "The unique identifier for your workspace.",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/WorkspaceId"
           },
           {
             "name": "workflowIds",
@@ -836,12 +824,7 @@
             }
           },
           {
-            "name": "workspaceId",
-            "in": "query",
-            "description": "Filter to audit logs from a specific workspace.",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/WorkspaceId"
           },
           {
             "name": "actorId",
@@ -1028,7 +1011,8 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           }
-        }
+        },
+        "parameters": []
       }
     },
     "/api/v1/tables": {
@@ -1047,13 +1031,7 @@
         ],
         "parameters": [
           {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "description": "The workspace to list tables from.",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/WorkspaceId"
           }
         ],
         "responses": {
@@ -1201,7 +1179,8 @@
           "429": {
             "$ref": "#/components/responses/RateLimited"
           }
-        }
+        },
+        "parameters": []
       }
     },
     "/api/v1/tables/{tableId}": {
@@ -1220,23 +1199,10 @@
         ],
         "parameters": [
           {
-            "name": "tableId",
-            "in": "path",
-            "required": true,
-            "description": "The table ID.",
-            "schema": {
-              "type": "string",
-              "example": "tbl_abc123"
-            }
+            "$ref": "#/components/parameters/TableId"
           },
           {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "description": "The workspace the table belongs to.",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/WorkspaceId"
           }
         ],
         "responses": {
@@ -1298,23 +1264,10 @@
         ],
         "parameters": [
           {
-            "name": "tableId",
-            "in": "path",
-            "required": true,
-            "description": "The table ID to delete.",
-            "schema": {
-              "type": "string",
-              "example": "tbl_abc123"
-            }
+            "$ref": "#/components/parameters/TableId"
           },
           {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "description": "The workspace the table belongs to.",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/WorkspaceId"
           }
         ],
         "responses": {
@@ -1376,11 +1329,7 @@
         ],
         "parameters": [
           {
-            "name": "tableId",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" },
-            "description": "The table ID"
+            "$ref": "#/components/parameters/TableId"
           }
         ],
         "requestBody": {
@@ -1436,13 +1385,17 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "success": { "type": "boolean" },
+                    "success": {
+                      "type": "boolean"
+                    },
                     "data": {
                       "type": "object",
                       "properties": {
                         "columns": {
                           "type": "array",
-                          "items": { "$ref": "#/components/schemas/ColumnDefinition" }
+                          "items": {
+                            "$ref": "#/components/schemas/ColumnDefinition"
+                          }
                         }
                       }
                     }
@@ -1478,11 +1431,7 @@
         ],
         "parameters": [
           {
-            "name": "tableId",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" },
-            "description": "The table ID"
+            "$ref": "#/components/parameters/TableId"
           }
         ],
         "requestBody": {
@@ -1536,13 +1485,17 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "success": { "type": "boolean" },
+                    "success": {
+                      "type": "boolean"
+                    },
                     "data": {
                       "type": "object",
                       "properties": {
                         "columns": {
                           "type": "array",
-                          "items": { "$ref": "#/components/schemas/ColumnDefinition" }
+                          "items": {
+                            "$ref": "#/components/schemas/ColumnDefinition"
+                          }
                         }
                       }
                     }
@@ -1578,11 +1531,7 @@
         ],
         "parameters": [
           {
-            "name": "tableId",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" },
-            "description": "The table ID"
+            "$ref": "#/components/parameters/TableId"
           }
         ],
         "requestBody": {
@@ -1614,13 +1563,17 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "success": { "type": "boolean" },
+                    "success": {
+                      "type": "boolean"
+                    },
                     "data": {
                       "type": "object",
                       "properties": {
                         "columns": {
                           "type": "array",
-                          "items": { "$ref": "#/components/schemas/ColumnDefinition" }
+                          "items": {
+                            "$ref": "#/components/schemas/ColumnDefinition"
+                          }
                         }
                       }
                     }
@@ -1660,23 +1613,10 @@
         ],
         "parameters": [
           {
-            "name": "tableId",
-            "in": "path",
-            "required": true,
-            "description": "The table to query rows from.",
-            "schema": {
-              "type": "string",
-              "example": "tbl_abc123"
-            }
+            "$ref": "#/components/parameters/TableId"
           },
           {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "description": "The workspace the table belongs to.",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/WorkspaceId"
           },
           {
             "name": "filter",
@@ -1798,14 +1738,7 @@
         ],
         "parameters": [
           {
-            "name": "tableId",
-            "in": "path",
-            "required": true,
-            "description": "The table to insert rows into.",
-            "schema": {
-              "type": "string",
-              "example": "tbl_abc123"
-            }
+            "$ref": "#/components/parameters/TableId"
           }
         ],
         "requestBody": {
@@ -1827,6 +1760,11 @@
                         "type": "object",
                         "additionalProperties": true,
                         "description": "Key-value pairs matching the table schema."
+                      },
+                      "position": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Position index for the row. If omitted, the row is appended at the end of the table."
                       }
                     }
                   },
@@ -1845,8 +1783,19 @@
                           "type": "object",
                           "additionalProperties": true
                         },
+                        "minItems": 1,
                         "maxItems": 1000,
                         "description": "Array of row objects to insert. Each object contains key-value pairs matching the table schema."
+                      },
+                      "positions": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "uniqueItems": true,
+                        "maxItems": 1000,
+                        "description": "Array of position indices for each row. Must be the same length as the rows array and must not contain duplicates. If omitted, rows are appended in order."
                       }
                     }
                   }
@@ -1929,14 +1878,7 @@
         ],
         "parameters": [
           {
-            "name": "tableId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "tbl_abc123"
-            },
-            "description": "The table to update rows in."
+            "$ref": "#/components/parameters/TableId"
           }
         ],
         "requestBody": {
@@ -1974,41 +1916,7 @@
         },
         "responses": {
           "200": {
-            "description": "Rows updated.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "description": "Indicates whether the request was successful."
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "message": {
-                          "type": "string",
-                          "description": "Confirmation message describing how many rows were updated."
-                        },
-                        "updatedCount": {
-                          "type": "integer",
-                          "description": "Number of rows that were updated."
-                        },
-                        "updatedRowIds": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          },
-                          "description": "Array of IDs for each row that was updated."
-                        }
-                      },
-                      "description": "Response payload."
-                    }
-                  }
-                }
-              }
-            }
+            "$ref": "#/components/responses/RowsUpdated"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -2042,14 +1950,7 @@
         ],
         "parameters": [
           {
-            "name": "tableId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "tbl_abc123"
-            },
-            "description": "The table to delete rows from."
+            "$ref": "#/components/parameters/TableId"
           }
         ],
         "requestBody": {
@@ -2169,6 +2070,83 @@
             "$ref": "#/components/responses/RateLimited"
           }
         }
+      },
+      "patch": {
+        "operationId": "batchUpdateRows",
+        "summary": "Batch Update Rows",
+        "description": "Update multiple specific rows by their IDs in a single request. Each entry in the `updates` array specifies a row ID and the fields to update. Validates against the table schema and unique constraints. Up to 1000 rows can be updated per request.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X PATCH \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/rows\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"updates\": [\n      { \"rowId\": \"row_abc123\", \"data\": { \"status\": \"active\" } },\n      { \"rowId\": \"row_def456\", \"data\": { \"status\": \"archived\" } }\n    ]\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "updates"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace that owns the table."
+                  },
+                  "updates": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": ["rowId", "data"],
+                      "properties": {
+                        "rowId": {
+                          "type": "string",
+                          "description": "The ID of the row to update."
+                        },
+                        "data": {
+                          "type": "object",
+                          "additionalProperties": true,
+                          "description": "Key-value pairs of fields to update on this row."
+                        }
+                      }
+                    },
+                    "minItems": 1,
+                    "maxItems": 1000,
+                    "description": "Array of update objects. Each object specifies a row ID and the fields to update. Duplicate row IDs are not allowed."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/RowsUpdated"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
       }
     },
     "/api/v1/tables/{tableId}/rows/{rowId}": {
@@ -2187,33 +2165,13 @@
         ],
         "parameters": [
           {
-            "name": "tableId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "tbl_abc123"
-            },
-            "description": "The table the row belongs to."
+            "$ref": "#/components/parameters/TableId"
           },
           {
-            "name": "rowId",
-            "in": "path",
-            "required": true,
-            "description": "The row ID to retrieve.",
-            "schema": {
-              "type": "string",
-              "example": "row_xyz789"
-            }
+            "$ref": "#/components/parameters/RowId"
           },
           {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "The workspace that owns the table."
+            "$ref": "#/components/parameters/WorkspaceId"
           }
         ],
         "responses": {
@@ -2275,24 +2233,10 @@
         ],
         "parameters": [
           {
-            "name": "tableId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "tbl_abc123"
-            },
-            "description": "The table the row belongs to."
+            "$ref": "#/components/parameters/TableId"
           },
           {
-            "name": "rowId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "row_xyz789"
-            },
-            "description": "The unique identifier of the row."
+            "$ref": "#/components/parameters/RowId"
           }
         ],
         "requestBody": {
@@ -2380,33 +2324,13 @@
         ],
         "parameters": [
           {
-            "name": "tableId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "tbl_abc123"
-            },
-            "description": "The table the row belongs to."
+            "$ref": "#/components/parameters/TableId"
           },
           {
-            "name": "rowId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "row_xyz789"
-            },
-            "description": "The unique identifier of the row."
+            "$ref": "#/components/parameters/RowId"
           },
           {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "The workspace that owns the table."
+            "$ref": "#/components/parameters/WorkspaceId"
           }
         ],
         "responses": {
@@ -2474,14 +2398,7 @@
         ],
         "parameters": [
           {
-            "name": "tableId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "tbl_abc123"
-            },
-            "description": "The table to upsert the row into."
+            "$ref": "#/components/parameters/TableId"
           }
         ],
         "requestBody": {
@@ -2580,13 +2497,7 @@
         ],
         "parameters": [
           {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "description": "The workspace to list files from.",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/WorkspaceId"
           }
         ],
         "responses": {
@@ -2731,7 +2642,8 @@
           "429": {
             "$ref": "#/components/responses/RateLimited"
           }
-        }
+        },
+        "parameters": []
       }
     },
     "/api/v1/files/{fileId}": {
@@ -2760,13 +2672,7 @@
             }
           },
           {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "description": "The workspace the file belongs to.",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/WorkspaceId"
           }
         ],
         "responses": {
@@ -2865,13 +2771,7 @@
             }
           },
           {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "description": "The workspace the file belongs to.",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/WorkspaceId"
           }
         ],
         "responses": {
@@ -2935,13 +2835,7 @@
         ],
         "parameters": [
           {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "description": "The workspace to list knowledge bases from.",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/WorkspaceId"
           }
         ],
         "responses": {
@@ -3079,7 +2973,8 @@
           "429": {
             "$ref": "#/components/responses/RateLimited"
           }
-        }
+        },
+        "parameters": []
       }
     },
     "/api/v1/knowledge/{id}": {
@@ -3107,13 +3002,7 @@
             }
           },
           {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "description": "The workspace the knowledge base belongs to.",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/WorkspaceId"
           }
         ],
         "responses": {
@@ -3287,13 +3176,7 @@
             }
           },
           {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "description": "The workspace the knowledge base belongs to.",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/WorkspaceId"
           }
         ],
         "responses": {
@@ -3363,13 +3246,7 @@
             }
           },
           {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "description": "The workspace the knowledge base belongs to.",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/WorkspaceId"
           },
           {
             "name": "limit",
@@ -3685,13 +3562,7 @@
             }
           },
           {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "description": "The workspace the knowledge base belongs to.",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/WorkspaceId"
           }
         ],
         "responses": {
@@ -3768,13 +3639,7 @@
             }
           },
           {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "description": "The workspace the knowledge base belongs to.",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/WorkspaceId"
           }
         ],
         "responses": {
@@ -3948,7 +3813,8 @@
           "429": {
             "$ref": "#/components/responses/RateLimited"
           }
-        }
+        },
+        "parameters": []
       }
     }
   },
@@ -3959,6 +3825,37 @@
         "in": "header",
         "name": "X-API-Key",
         "description": "Your Sim API key (personal or workspace). Generate one from the Sim dashboard under Settings > API Keys."
+      }
+    },
+    "parameters": {
+      "TableId": {
+        "name": "tableId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "example": "tbl_abc123"
+        },
+        "description": "The unique identifier of the table."
+      },
+      "RowId": {
+        "name": "rowId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "example": "row_xyz789"
+        },
+        "description": "The unique identifier of the row."
+      },
+      "WorkspaceId": {
+        "name": "workspaceId",
+        "in": "query",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "The unique identifier of the workspace."
       }
     },
     "schemas": {
@@ -5278,6 +5175,43 @@
                 "error": {
                   "type": "string",
                   "description": "Human-readable error message with rate limit details."
+                }
+              }
+            }
+          }
+        }
+      },
+      "RowsUpdated": {
+        "description": "Rows updated.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "type": "boolean",
+                  "description": "Indicates whether the request was successful."
+                },
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "description": "Confirmation message describing how many rows were updated."
+                    },
+                    "updatedCount": {
+                      "type": "integer",
+                      "description": "Number of rows that were updated."
+                    },
+                    "updatedRowIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Array of IDs for each row that was updated."
+                    }
+                  },
+                  "description": "Response payload."
                 }
               }
             }

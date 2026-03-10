@@ -65,6 +65,7 @@ const CreateTableSchema = z.object({
       ),
   }),
   workspaceId: z.string().min(1, 'Workspace ID is required'),
+  initialRowCount: z.number().int().min(0).max(100).optional(),
 })
 
 const ListTablesSchema = z.object({
@@ -133,6 +134,7 @@ export async function POST(request: NextRequest) {
         userId: authResult.userId,
         maxRows: planLimits.maxRowsPerTable,
         maxTables: planLimits.maxTables,
+        initialRowCount: params.initialRowCount,
       },
       requestId
     )
