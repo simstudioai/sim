@@ -1,3 +1,5 @@
+import { isHosted } from '@/lib/core/config/feature-flags'
+import { isSubBlockHiddenByHostedKey } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import type { ToolConfig } from '@/tools/types'
@@ -365,16 +367,25 @@ function serializeSubBlock(sb: SubBlockConfig): Record<string, unknown> {
  * Serialize a block schema for VFS components/blocks/{type}.json
  */
 export function serializeBlockSchema(block: BlockConfig): string {
-  const subBlocks = block.subBlocks.map((sb) => {
-    const serialized = serializeSubBlock(sb)
+  const hiddenIds = new Set(block.subBlocks.filter(isSubBlockHiddenByHostedKey).map((sb) => sb.id))
 
-    // For model comboboxes with function options, inject static model data with hosting info
-    if (sb.id === 'model' && sb.type === 'combobox' && typeof sb.options === 'function') {
-      serialized.options = getStaticModelOptionsForVFS()
-    }
+  const subBlocks = block.subBlocks
+    .filter((sb) => !hiddenIds.has(sb.id))
+    .map((sb) => {
+      const serialized = serializeSubBlock(sb)
 
-    return serialized
-  })
+      // For model comboboxes with function options, inject static model data with hosting info
+      if (sb.id === 'model' && sb.type === 'combobox' && typeof sb.options === 'function') {
+        serialized.options = getStaticModelOptionsForVFS()
+      }
+
+      return serialized
+    })
+
+  const inputs =
+    block.inputs && hiddenIds.size > 0
+      ? Object.fromEntries(Object.entries(block.inputs).filter(([key]) => !hiddenIds.has(key)))
+      : block.inputs
 
   return JSON.stringify(
     {
@@ -388,7 +399,7 @@ export function serializeBlockSchema(block: BlockConfig): string {
       singleInstance: block.singleInstance || undefined,
       tools: block.tools.access,
       subBlocks,
-      inputs: block.inputs,
+      inputs,
       outputs: Object.fromEntries(
         Object.entries(block.outputs)
           .filter(([key, val]) => key !== 'visualization' && val != null)
@@ -704,6 +715,8 @@ export function serializeSkill(s: {
  * Serialize an integration/tool schema for VFS components/integrations/{service}/{operation}.json
  */
 export function serializeIntegrationSchema(tool: ToolConfig): string {
+  const hostedApiKeyParam = isHosted && tool.hosting ? tool.hosting.apiKeyParam : null
+
   return JSON.stringify(
     {
       id: tool.id,
@@ -716,7 +729,7 @@ export function serializeIntegrationSchema(tool: ToolConfig): string {
       params: tool.params
         ? Object.fromEntries(
             Object.entries(tool.params)
-              .filter(([, val]) => val != null)
+              .filter(([key, val]) => val != null && key !== hostedApiKeyParam)
               .map(([key, val]) => [
                 key,
                 {
