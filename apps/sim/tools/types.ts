@@ -14,8 +14,9 @@ export type BYOKProviderId =
   | 'elevenlabs'
   | 'perplexity'
   | 'google_cloud'
-  | 'huggingface'
   | 'linkup'
+  | 'brandfetch'
+  | 'parallel'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 
