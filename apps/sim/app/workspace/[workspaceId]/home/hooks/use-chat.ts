@@ -100,9 +100,18 @@ function mapStoredMessage(msg: TaskStoredMessage): ChatMessage {
   }
 
   if (Array.isArray(msg.toolCalls) && msg.toolCalls.length > 0) {
-    mapped.contentBlocks = msg.toolCalls.map(mapStoredToolCall)
+    const blocks: ContentBlock[] = msg.toolCalls.map(mapStoredToolCall)
+    if (msg.content?.trim()) {
+      blocks.push({ type: 'text', content: msg.content })
+    }
+    mapped.contentBlocks = blocks
   } else if (Array.isArray(msg.contentBlocks) && msg.contentBlocks.length > 0) {
-    mapped.contentBlocks = msg.contentBlocks.map(mapStoredBlock)
+    const blocks = msg.contentBlocks.map(mapStoredBlock)
+    const hasText = blocks.some((b) => b.type === 'text' && b.content?.trim())
+    if (!hasText && msg.content?.trim()) {
+      blocks.push({ type: 'text', content: msg.content })
+    }
+    mapped.contentBlocks = blocks
   }
 
   return mapped

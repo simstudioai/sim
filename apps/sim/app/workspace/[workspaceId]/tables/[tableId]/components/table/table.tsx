@@ -23,10 +23,9 @@ import {
 import {
   ArrowLeft,
   ArrowRight,
-  Asterisk,
   Calendar as CalendarIcon,
   ChevronDown,
-  Key,
+  Fingerprint,
   Pencil,
   Plus,
   Table as TableIcon,
@@ -315,17 +314,48 @@ export function Table({
     }
   }, [deleteTableMutation, tableId, router, workspaceId])
 
-  const handleContextMenuEdit = useCallback(() => {
-    if (contextMenu.row) {
-      setEditingRow(contextMenu.row)
+  const handleContextMenuEditCell = useCallback(() => {
+    if (contextMenu.row && contextMenu.columnName) {
+      const column = columnsRef.current.find((c) => c.name === contextMenu.columnName)
+      if (column?.type === 'boolean') {
+        mutateRef.current({
+          rowId: contextMenu.row.id,
+          data: { [contextMenu.columnName]: !contextMenu.row.data[contextMenu.columnName] },
+        })
+      } else if (column) {
+        setEditingCell({ rowId: contextMenu.row.id, columnName: contextMenu.columnName })
+        setInitialCharacter(null)
+      }
     }
     closeContextMenu()
-  }, [contextMenu.row, closeContextMenu])
+  }, [contextMenu.row, contextMenu.columnName, closeContextMenu])
 
   const handleContextMenuDelete = useCallback(() => {
-    if (contextMenu.row) {
+    if (!contextMenu.row) {
+      closeContextMenu()
+      return
+    }
+
+    const sel = computeNormalizedSelection(selectionAnchorRef.current, selectionFocusRef.current)
+    const isInSelection =
+      sel !== null &&
+      contextMenu.row.position >= sel.startRow &&
+      contextMenu.row.position <= sel.endRow
+
+    if (isInSelection && sel) {
+      const pMap = positionMapRef.current
+      const rowIds: string[] = []
+      for (let r = sel.startRow; r <= sel.endRow; r++) {
+        const row = pMap.get(r)
+        if (row) rowIds.push(row.id)
+      }
+      if (rowIds.length > 0) {
+        setDeletingRows(rowIds)
+      }
+    } else {
       setDeletingRows([contextMenu.row.id])
     }
+
     closeContextMenu()
   }, [contextMenu.row, closeContextMenu])
 
@@ -344,7 +374,13 @@ export function Table({
   const handleRowContextMenu = useCallback(
     (e: React.MouseEvent, row: TableRowType) => {
       setEditingCell(null)
-      baseHandleRowContextMenu(e, row)
+      const td = (e.target as HTMLElement).closest('td[data-col]') as HTMLElement | null
+      const colIndex = td ? Number.parseInt(td.getAttribute('data-col') || '-1', 10) : -1
+      const columnName =
+        colIndex >= 0 && colIndex < columnsRef.current.length
+          ? columnsRef.current[colIndex].name
+          : null
+      baseHandleRowContextMenu(e, row, columnName)
     },
     [baseHandleRowContextMenu]
   )
@@ -886,12 +922,6 @@ export function Table({
     updateColumnMutation.mutate({ columnName, updates: { unique: !column.unique } })
   }, [])
 
-  const handleToggleRequired = useCallback((columnName: string) => {
-    const column = columnsRef.current.find((c) => c.name === columnName)
-    if (!column) return
-    updateColumnMutation.mutate({ columnName, updates: { required: !column.required } })
-  }, [])
-
   const handleDeleteColumn = useCallback((columnName: string) => {
     setDeletingColumn(columnName)
   }, [])
@@ -941,6 +971,23 @@ export function Table({
     }),
     [columnOptions, activeSortState, handleSortChange, handleSortClear]
   )
+
+  const selectedRowCount = useMemo(() => {
+    if (!contextMenu.isOpen || !contextMenu.row) return 1
+    const sel = normalizedSelection
+    if (!sel) return 1
+
+    const isInSelection =
+      contextMenu.row.position >= sel.startRow && contextMenu.row.position <= sel.endRow
+
+    if (!isInSelection) return 1
+
+    let count = 0
+    for (let r = sel.startRow; r <= sel.endRow; r++) {
+      if (positionMap.has(r)) count++
+    }
+    return Math.max(count, 1)
+  }, [contextMenu.isOpen, contextMenu.row, normalizedSelection, positionMap])
 
   if (!isLoadingTable && !tableData) {
     return (
@@ -1082,7 +1129,6 @@ export function Table({
                       onInsertLeft={handleInsertColumnLeft}
                       onInsertRight={handleInsertColumnRight}
                       onToggleUnique={handleToggleUnique}
-                      onToggleRequired={handleToggleRequired}
                       onDeleteColumn={handleDeleteColumn}
                       onResizeStart={handleColumnResizeStart}
                       onResize={handleColumnResize}
@@ -1219,10 +1265,11 @@ export function Table({
       <ContextMenu
         contextMenu={contextMenu}
         onClose={closeContextMenu}
-        onEdit={handleContextMenuEdit}
+        onEditCell={handleContextMenuEditCell}
         onDelete={handleContextMenuDelete}
         onInsertAbove={handleInsertRowAbove}
         onInsertBelow={handleInsertRowBelow}
+        selectedRowCount={selectedRowCount}
       />
 
       {!embedded && (
@@ -2162,7 +2209,6 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onInsertLeft,
   onInsertRight,
   onToggleUnique,
-  onToggleRequired,
   onDeleteColumn,
   onResizeStart,
   onResize,
@@ -2179,7 +2225,6 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onInsertLeft: (columnName: string) => void
   onInsertRight: (columnName: string) => void
   onToggleUnique: (columnName: string) => void
-  onToggleRequired: (columnName: string) => void
   onDeleteColumn: (columnName: string) => void
   onResizeStart: (columnName: string) => void
   onResize: (columnName: string, width: number) => void
@@ -2291,12 +2336,8 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => onToggleUnique(column.name)}>
-              <Key />
+              <Fingerprint />
               {column.unique ? 'Remove unique' : 'Set unique'}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onToggleRequired(column.name)}>
-              <Asterisk />
-              {column.required ? 'Remove required' : 'Set required'}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem

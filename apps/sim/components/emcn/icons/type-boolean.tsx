@@ -1,7 +1,7 @@
 import type { SVGProps } from 'react'
 
 /**
- * Type boolean icon component - toggle switch for boolean columns
+ * Type boolean icon component - checkbox for boolean columns
  * @param props - SVG properties including className, fill, etc.
  */
 export function TypeBoolean(props: SVGProps<SVGSVGElement>) {
@@ -18,8 +18,8 @@ export function TypeBoolean(props: SVGProps<SVGSVGElement>) {
       xmlns='http://www.w3.org/2000/svg'
       {...props}
     >
-      <rect x='1.25' y='5.25' width='18' height='10.5' rx='5.25' />
-      <circle cx='6.5' cy='10.5' r='3' />
+      <rect x='2.5' y='2.75' width='15.5' height='15.5' rx='2.5' />
+      <path d='M6.25 10.75L9.25 13.75L14.25 7.25' />
     </svg>
   )
 }

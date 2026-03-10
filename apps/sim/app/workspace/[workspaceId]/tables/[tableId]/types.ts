@@ -20,6 +20,7 @@ export interface ContextMenuState {
   isOpen: boolean
   position: { x: number; y: number }
   row: TableRow | null
+  columnName: string | null
 }
 
 /**

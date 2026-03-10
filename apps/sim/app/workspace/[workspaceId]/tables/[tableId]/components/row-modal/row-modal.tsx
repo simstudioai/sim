@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { AlertCircle } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -148,50 +147,32 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
     onClose()
   }
 
-  // Delete mode UI
   if (mode === 'delete') {
     const deleteCount = rowIds?.length ?? (row ? 1 : 0)
     const isSingleRow = deleteCount === 1
 
     return (
       <Modal open={isOpen} onOpenChange={handleClose}>
-        <ModalContent className='w-[480px]'>
-          <ModalHeader>
-            <div className='flex items-center gap-[10px]'>
-              <div className='flex h-[36px] w-[36px] items-center justify-center rounded-[8px] bg-[var(--bg-error)] text-[var(--text-error)]'>
-                <AlertCircle className='h-[18px] w-[18px]' />
-              </div>
-              <h2 className='font-semibold text-[16px]'>
-                Delete {isSingleRow ? 'Row' : `${deleteCount} Rows`}
-              </h2>
-            </div>
-          </ModalHeader>
+        <ModalContent size='sm'>
+          <ModalHeader>Delete {isSingleRow ? 'Row' : `${deleteCount} Rows`}</ModalHeader>
           <ModalBody>
-            <div className='flex flex-col gap-[16px]'>
-              <ErrorMessage error={error} />
-              <p className='text-[14px] text-[var(--text-secondary)]'>
-                Are you sure you want to delete {isSingleRow ? 'this row' : 'these rows'}? This
-                action cannot be undone.
-              </p>
-            </div>
+            {error && (
+              <div className='rounded-[8px] border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-[14px] py-[12px] text-[13px] text-[var(--status-error-text)]'>
+                {error}
+              </div>
+            )}
+            <p className='text-[12px] text-[var(--text-secondary)]'>
+              Are you sure you want to delete{' '}
+              {isSingleRow ? 'this row' : `these ${deleteCount} rows`}? This will permanently remove
+              all data in {isSingleRow ? 'this row' : 'these rows'}.{' '}
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            </p>
           </ModalBody>
-          <ModalFooter className='gap-[10px]'>
-            <Button
-              type='button'
-              variant='default'
-              onClick={handleClose}
-              className='min-w-[90px]'
-              disabled={isSubmitting}
-            >
+          <ModalFooter>
+            <Button variant='default' onClick={handleClose} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button
-              type='button'
-              variant='destructive'
-              onClick={handleDelete}
-              disabled={isSubmitting}
-              className='min-w-[120px]'
-            >
+            <Button variant='destructive' onClick={handleDelete} disabled={isSubmitting}>
               {isSubmitting ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>

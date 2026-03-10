@@ -10,7 +10,7 @@
 import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq, gte, sql } from 'drizzle-orm'
+import { and, count, eq, gt, gte, sql } from 'drizzle-orm'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { buildFilterClause, buildSortClause } from './sql'
 import type {
@@ -959,12 +959,25 @@ export async function deleteRow(
   workspaceId: string,
   requestId: string
 ): Promise<void> {
-  const existingRow = await getRowById(tableId, rowId, workspaceId)
-  if (!existingRow) {
-    throw new Error('Row not found')
-  }
+  await db.transaction(async (trx) => {
+    const [deleted] = await trx
+      .delete(userTableRows)
+      .where(
+        and(
+          eq(userTableRows.id, rowId),
+          eq(userTableRows.tableId, tableId),
+          eq(userTableRows.workspaceId, workspaceId)
+        )
+      )
+      .returning({ position: userTableRows.position })
 
-  await db.delete(userTableRows).where(eq(userTableRows.id, rowId))
+    if (!deleted) throw new Error('Row not found')
+
+    await trx
+      .update(userTableRows)
+      .set({ position: sql`position - 1` })
+      .where(and(eq(userTableRows.tableId, tableId), gt(userTableRows.position, deleted.position)))
+  })
 
   logger.info(`[${requestId}] Deleted row ${rowId} from table ${tableId}`)
 }
@@ -1079,6 +1092,25 @@ export async function updateRowsByFilter(
   }
 }
 
+type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+/**
+ * Recompacts row positions to be contiguous (0, 1, 2, ...) after batch deletions.
+ * Single-row deletes use the more efficient `position - 1` shift in {@link deleteRow}.
+ */
+async function recompactPositions(tableId: string, trx: DbTransaction) {
+  await trx.execute(sql`
+    UPDATE user_table_rows t
+    SET position = r.new_pos
+    FROM (
+      SELECT id, ROW_NUMBER() OVER (ORDER BY position) - 1 AS new_pos
+      FROM user_table_rows
+      WHERE table_id = ${tableId}
+    ) r
+    WHERE t.id = r.id AND t.table_id = ${tableId} AND t.position != r.new_pos
+  `)
+}
+
 /**
  * Deletes multiple rows matching a filter.
  *
@@ -1121,7 +1153,6 @@ export async function deleteRowsByFilter(
 
   const rowIds = matchingRows.map((r) => r.id)
 
-  // Delete in batches
   await db.transaction(async (trx) => {
     for (let i = 0; i < rowIds.length; i += TABLE_LIMITS.DELETE_BATCH_SIZE) {
       const batch = rowIds.slice(i, i + TABLE_LIMITS.DELETE_BATCH_SIZE)
@@ -1136,6 +1167,8 @@ export async function deleteRowsByFilter(
         )
       )
     }
+
+    await recompactPositions(data.tableId, trx)
   })
 
   logger.info(`[${requestId}] Deleted ${matchingRows.length} rows from table ${data.tableId}`)
@@ -1178,6 +1211,9 @@ export async function deleteRowsByIds(
         .returning({ id: userTableRows.id })
       deleted.push(...rows)
     }
+
+    await recompactPositions(data.tableId, trx)
+
     return deleted
   })
 

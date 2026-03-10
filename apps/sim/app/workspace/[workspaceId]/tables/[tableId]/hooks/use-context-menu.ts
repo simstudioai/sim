@@ -4,7 +4,7 @@ import type { ContextMenuState } from '../types'
 
 interface UseContextMenuReturn {
   contextMenu: ContextMenuState
-  handleRowContextMenu: (e: React.MouseEvent, row: TableRow) => void
+  handleRowContextMenu: (e: React.MouseEvent, row: TableRow, columnName?: string | null) => void
   closeContextMenu: () => void
 }
 
@@ -13,17 +13,22 @@ export function useContextMenu(): UseContextMenuReturn {
     isOpen: false,
     position: { x: 0, y: 0 },
     row: null,
+    columnName: null,
   })
 
-  const handleRowContextMenu = useCallback((e: React.MouseEvent, row: TableRow) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setContextMenu({
-      isOpen: true,
-      position: { x: e.clientX, y: e.clientY },
-      row,
-    })
-  }, [])
+  const handleRowContextMenu = useCallback(
+    (e: React.MouseEvent, row: TableRow, columnName?: string | null) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setContextMenu({
+        isOpen: true,
+        position: { x: e.clientX, y: e.clientY },
+        row,
+        columnName: columnName ?? null,
+      })
+    },
+    []
+  )
 
   const closeContextMenu = useCallback(() => {
     setContextMenu((prev) => ({ ...prev, isOpen: false }))

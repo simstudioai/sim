@@ -166,7 +166,7 @@ export function Files() {
   const [creatingFile, setCreatingFile] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const [showPreview, setShowPreview] = useState(false)
+  const [showPreview, setShowPreview] = useState(true)
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [contextMenuFile, setContextMenuFile] = useState<WorkspaceFileRecord | null>(null)
@@ -410,6 +410,7 @@ export function Files() {
     if (justCreatedFileIdRef.current && selectedFileId !== justCreatedFileIdRef.current) {
       justCreatedFileIdRef.current = null
     }
+    setShowPreview(true)
   }, [selectedFileId])
 
   useEffect(() => {

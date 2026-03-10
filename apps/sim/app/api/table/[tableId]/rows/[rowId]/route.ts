@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { RowData } from '@/lib/table'
-import { updateRow } from '@/lib/table'
+import { deleteRow, updateRow } from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowAPI')
@@ -243,22 +243,7 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const [deletedRow] = await db
-      .delete(userTableRows)
-      .where(
-        and(
-          eq(userTableRows.id, rowId),
-          eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, validated.workspaceId)
-        )
-      )
-      .returning()
-
-    if (!deletedRow) {
-      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
-    }
-
-    logger.info(`[${requestId}] Deleted row ${rowId} from table ${tableId}`)
+    await deleteRow(tableId, rowId, validated.workspaceId, requestId)
 
     return NextResponse.json({
       success: true,
@@ -273,6 +258,12 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
         { error: 'Validation error', details: error.errors },
         { status: 400 }
       )
+    }
+
+    const errorMessage = error instanceof Error ? error.message : String(error)
+
+    if (errorMessage === 'Row not found') {
+      return NextResponse.json({ error: errorMessage }, { status: 404 })
     }
 
     logger.error(`[${requestId}] Error deleting row:`, error)
