@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import type { ParallelDeepResearchParams } from '@/tools/parallel/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -32,11 +33,20 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
           ultra8x: 2.4,
         }
         const processor = (params.processor as string) || 'base'
-        const cost = processorCosts[processor]
-        if (cost == null) {
-          throw new Error(`Unknown Parallel processor "${processor}", cannot determine cost`)
+        const DEFAULT_PROCESSOR_COST = processorCosts.base
+        const knownCost = processorCosts[processor]
+        if (knownCost == null) {
+          logger.warn(
+            `Unknown Parallel processor "${processor}", using default processor cost $${DEFAULT_PROCESSOR_COST}`
+          )
+          PlatformEvents.hostedKeyUnknownModelCost({
+            toolId: 'parallel_deep_research',
+            modelName: processor,
+            defaultCost: DEFAULT_PROCESSOR_COST,
+          })
         }
-        return { cost, metadata: { processor } }
+        const cost = knownCost ?? DEFAULT_PROCESSOR_COST
+        return { cost, metadata: { processor, defaultProcessorCost: DEFAULT_PROCESSOR_COST } }
       },
     },
     rateLimit: {

@@ -101,7 +101,7 @@ async function injectHostedKeyIfNeeded(
       retryAfterMs: acquireResult.retryAfterMs,
     })
 
-    PlatformEvents.userThrottled({
+    PlatformEvents.hostedKeyUserThrottled({
       toolId: tool.id,
       reason: 'billing_actor_limit',
       provider,
@@ -186,7 +186,7 @@ async function executeWithRetry<T>(
 
       if (!isRateLimitError(error) || attempt === maxRetries) {
         if (isRateLimitError(error) && attempt === maxRetries) {
-          PlatformEvents.userThrottled({
+          PlatformEvents.hostedKeyUserThrottled({
             toolId,
             reason: 'upstream_retries_exhausted',
             userId: executionContext?.userId,
