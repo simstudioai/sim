@@ -213,8 +213,8 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
           if (params.max_chars_per_result) {
             result.max_chars_per_result = Number(params.max_chars_per_result)
           }
-          if (params.search_include_domains) result.include_domains = params.search_include_domains
-          if (params.search_exclude_domains) result.exclude_domains = params.search_exclude_domains
+          result.include_domains = params.search_include_domains || undefined
+          result.exclude_domains = params.search_exclude_domains || undefined
         }
 
         if (operation === 'extract') {
@@ -224,7 +224,7 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
         }
 
         if (operation === 'deep_research') {
-          result.input = params.research_input
+          if (params.research_input) result.input = params.research_input
           if (params.processor) result.processor = params.processor
         }
 
