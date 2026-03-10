@@ -238,9 +238,11 @@ export function Document({
   const hasNextPage = showingSearch ? searchCurrentPage < searchTotalPages : initialHasNextPage
   const hasPrevPage = showingSearch ? searchCurrentPage > 1 : initialHasPrevPage
 
-  // Keep a ref to displayChunks so cross-page navigation can read fresh data
+  // Keep refs to displayChunks and totalPages so polling callbacks can read fresh data
   const displayChunksRef = useRef(displayChunks)
   displayChunksRef.current = displayChunks
+  const totalPagesRef = useRef(totalPages)
+  totalPagesRef.current = totalPages
 
   const goToPage = useCallback(
     async (page: number) => {
@@ -508,11 +510,30 @@ export function Document({
       setIsDirty(false)
       setSaveStatus('idle')
 
-      // New chunks append at the end — navigate to last page so the chunk is visible
-      if (totalPages > 1) {
-        await goToPage(totalPages)
+      // New chunks append at the end — navigate to last page so the chunk is visible.
+      // totalPages in the closure may be stale if the new chunk creates a new page,
+      // so we start at the current last page, then poll displayChunksRef. If the chunk
+      // isn't found, totalPagesRef will have the updated count after React Query refetches,
+      // so we navigate to the new last page and keep polling.
+      await goToPage(totalPages)
+      let retries = 0
+      let navigatedToNewPage = false
+      const checkAndSelect = () => {
+        const found = displayChunksRef.current.some((c) => c.id === chunkId)
+        if (found) {
+          setSelectedChunkId(chunkId)
+        } else if (!navigatedToNewPage && totalPagesRef.current > totalPages) {
+          // A new page was created — navigate to it
+          navigatedToNewPage = true
+          retries = 0
+          void goToPage(totalPagesRef.current)
+          setTimeout(checkAndSelect, 100)
+        } else if (retries < 50) {
+          retries++
+          setTimeout(checkAndSelect, 100)
+        }
       }
-      setSelectedChunkId(chunkId)
+      setTimeout(checkAndSelect, 0)
     },
     [goToPage, totalPages]
   )
