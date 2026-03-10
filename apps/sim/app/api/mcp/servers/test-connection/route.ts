@@ -51,14 +51,8 @@ function sanitizeConnectionError(error: unknown): string {
     return 'Unknown connection error'
   }
 
-  const msg = error.message
-
-  if (msg.length > 200) {
-    const firstLine = msg.split('\n')[0]
-    return firstLine.length > 200 ? `${firstLine.slice(0, 200)}...` : firstLine
-  }
-
-  return msg
+  const firstLine = error.message.split('\n')[0]
+  return firstLine.length > 200 ? `${firstLine.slice(0, 200)}...` : firstLine
 }
 
 /**
