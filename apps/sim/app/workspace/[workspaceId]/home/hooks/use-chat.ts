@@ -614,17 +614,28 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     if (sendingRef.current) {
       await persistPartialResponse()
     }
+    const sid = streamIdRef.current
     streamGenRef.current++
     abortControllerRef.current?.abort()
     abortControllerRef.current = null
     sendingRef.current = false
     setIsSending(false)
     invalidateChatQueries()
+    if (sid) {
+      fetch('/api/copilot/chat/abort', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ streamId: sid }),
+      }).catch(() => {})
+    }
   }, [invalidateChatQueries, persistPartialResponse])
 
   useEffect(() => {
     return () => {
       streamGenRef.current++
+      // Only drop the browser→Sim read; the Sim→Go stream stays open
+      // so the backend can finish persisting. Explicit abort is only
+      // triggered by the stop button via /api/copilot/chat/abort.
       abortControllerRef.current?.abort()
       abortControllerRef.current = null
       sendingRef.current = false

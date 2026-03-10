@@ -14,6 +14,18 @@ import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('CopilotChatStreaming')
 
+// Registry of in-flight Sim→Go streams so the explicit abort endpoint can
+// reach them. Keyed by streamId, cleaned up when the stream completes.
+const activeStreams = new Map<string, AbortController>()
+
+export function abortActiveStream(streamId: string): boolean {
+  const controller = activeStreams.get(streamId)
+  if (!controller) return false
+  controller.abort()
+  activeStreams.delete(streamId)
+  return true
+}
+
 const FLUSH_EVENT_TYPES = new Set([
   'tool_call',
   'tool_result',
@@ -94,6 +106,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   let eventWriter: ReturnType<typeof createStreamEventWriter> | null = null
   let clientDisconnected = false
   const abortController = new AbortController()
+  activeStreams.set(streamId, abortController)
 
   return new ReadableStream({
     async start(controller) {
@@ -163,8 +176,14 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         await eventWriter.close()
         await setStreamMeta(streamId, { status: 'complete', userId })
       } catch (error) {
-        if (clientDisconnected || abortController.signal.aborted) {
-          logger.info(`[${requestId}] Stream aborted by client disconnect`)
+        if (abortController.signal.aborted) {
+          logger.info(`[${requestId}] Stream aborted by explicit stop`)
+          await eventWriter.close().catch(() => {})
+          await setStreamMeta(streamId, { status: 'complete', userId })
+          return
+        }
+        if (clientDisconnected) {
+          logger.info(`[${requestId}] Stream ended after client disconnect`)
           await eventWriter.close().catch(() => {})
           await setStreamMeta(streamId, { status: 'complete', userId })
           return
@@ -183,14 +202,18 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           },
         })
       } finally {
-        controller.close()
+        activeStreams.delete(streamId)
+        try {
+          controller.close()
+        } catch {
+          // Controller already closed from cancel() — safe to ignore
+        }
       }
     },
-    async cancel() {
+    cancel() {
       clientDisconnected = true
-      abortController.abort()
       if (eventWriter) {
-        await eventWriter.flush()
+        eventWriter.flush().catch(() => {})
       }
     },
   })
