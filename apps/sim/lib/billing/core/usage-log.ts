@@ -28,12 +28,13 @@ export type UsageLogSource =
 export interface ModelUsageMetadata {
   inputTokens: number
   outputTokens: number
+  toolCost?: number
 }
 
 /**
- * Metadata for 'fixed' category charges (currently empty, extensible)
+ * Metadata for 'fixed' category charges (e.g., tool cost breakdown)
  */
-export type FixedUsageMetadata = Record<string, never>
+export type FixedUsageMetadata = Record<string, unknown>
 
 /**
  * Union type for all metadata types
@@ -50,6 +51,7 @@ export interface LogModelUsageParams {
   inputTokens: number
   outputTokens: number
   cost: number
+  toolCost?: number
   workspaceId?: string
   workflowId?: string
   executionId?: string
@@ -66,6 +68,8 @@ export interface LogFixedUsageParams {
   workspaceId?: string
   workflowId?: string
   executionId?: string
+  /** Optional metadata (e.g., tool cost breakdown from API) */
+  metadata?: FixedUsageMetadata
 }
 
 /**
@@ -80,6 +84,7 @@ export async function logModelUsage(params: LogModelUsageParams): Promise<void> 
     const metadata: ModelUsageMetadata = {
       inputTokens: params.inputTokens,
       outputTokens: params.outputTokens,
+      ...(params.toolCost != null && params.toolCost > 0 && { toolCost: params.toolCost }),
     }
 
     await db.insert(usageLog).values({
@@ -125,7 +130,7 @@ export async function logFixedUsage(params: LogFixedUsageParams): Promise<void> 
       category: 'fixed',
       source: params.source,
       description: params.description,
-      metadata: null,
+      metadata: params.metadata ?? null,
       cost: params.cost.toString(),
       workspaceId: params.workspaceId ?? null,
       workflowId: params.workflowId ?? null,
@@ -161,6 +166,7 @@ export interface LogWorkflowUsageBatchParams {
     {
       total: number
       tokens: { input: number; output: number }
+      toolCost?: number
     }
   >
 }
@@ -213,6 +219,8 @@ export async function logWorkflowUsageBatch(params: LogWorkflowUsageBatchParams)
           metadata: {
             inputTokens: modelData.tokens.input,
             outputTokens: modelData.tokens.output,
+            ...(modelData.toolCost != null &&
+              modelData.toolCost > 0 && { toolCost: modelData.toolCost }),
           },
           cost: modelData.total.toString(),
           workspaceId: params.workspaceId ?? null,

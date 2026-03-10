@@ -52,6 +52,17 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
     const result = await response.json()
     const data = result.data || result
 
+    // Restructure cost: extract tokens/model to top level for logging
+    let costFields: Record<string, unknown> = {}
+    if (data.cost && typeof data.cost === 'object') {
+      const { tokens, model, input, output: outputCost, total } = data.cost
+      costFields = {
+        cost: { input, output: outputCost, total },
+        ...(tokens && { tokens }),
+        ...(model && { model }),
+      }
+    }
+
     return {
       success: true,
       output: {
@@ -68,7 +79,7 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
         },
         documentId: data.documentId,
         documentName: data.documentName,
-        cost: data.cost,
+        ...costFields,
       },
     }
   },

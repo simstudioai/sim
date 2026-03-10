@@ -13,15 +13,15 @@ import {
   ModalFooter,
   ModalHeader,
 } from '@/components/emcn'
-import { AnthropicIcon, GeminiIcon, MistralIcon, OpenAIIcon } from '@/components/icons'
+import { AnthropicIcon, ExaAIIcon, GeminiIcon, MistralIcon, OpenAIIcon } from '@/components/icons'
 import { Skeleton } from '@/components/ui'
 import {
   type BYOKKey,
-  type BYOKProviderId,
   useBYOKKeys,
   useDeleteBYOKKey,
   useUpsertBYOKKey,
 } from '@/hooks/queries/byok-keys'
+import type { BYOKProviderId } from '@/tools/types'
 
 const logger = createLogger('BYOKSettings')
 
@@ -59,6 +59,13 @@ const PROVIDERS: {
     icon: MistralIcon,
     description: 'LLM calls and Knowledge Base OCR',
     placeholder: 'Enter your API key',
+  },
+  {
+    id: 'exa',
+    name: 'Exa',
+    icon: ExaAIIcon,
+    description: 'AI-powered search and research',
+    placeholder: 'Enter your Exa API key',
   },
 ]
 
