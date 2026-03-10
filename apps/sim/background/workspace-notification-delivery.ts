@@ -209,7 +209,7 @@ async function deliverWebhook(
   }
 
   try {
-    const fetchPromise = secureFetchWithValidation(
+    const response = await secureFetchWithValidation(
       webhookConfig.url,
       {
         method: 'POST',
@@ -219,12 +219,6 @@ async function deliverWebhook(
       },
       'webhookUrl'
     )
-
-    const timeoutPromise = new Promise<never>((_resolve, reject) => {
-      setTimeout(() => reject(new Error('Request timeout')), 30000)
-    })
-
-    const response = await Promise.race([fetchPromise, timeoutPromise])
 
     return {
       success: response.ok,

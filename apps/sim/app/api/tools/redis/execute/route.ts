@@ -26,7 +26,11 @@ export async function POST(request: NextRequest) {
     const { url, command, args } = RequestSchema.parse(body)
 
     const parsedUrl = new URL(url)
-    const hostValidation = await validateDatabaseHost(parsedUrl.hostname, 'host')
+    const hostname =
+      parsedUrl.hostname.startsWith('[') && parsedUrl.hostname.endsWith(']')
+        ? parsedUrl.hostname.slice(1, -1)
+        : parsedUrl.hostname
+    const hostValidation = await validateDatabaseHost(hostname, 'host')
     if (!hostValidation.isValid) {
       return NextResponse.json({ error: hostValidation.error }, { status: 400 })
     }

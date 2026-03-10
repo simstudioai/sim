@@ -137,7 +137,7 @@ async function testWebhook(subscription: typeof workspaceNotificationSubscriptio
   }
 
   try {
-    const fetchPromise = secureFetchWithValidation(
+    const response = await secureFetchWithValidation(
       webhookConfig.url,
       {
         method: 'POST',
@@ -147,12 +147,6 @@ async function testWebhook(subscription: typeof workspaceNotificationSubscriptio
       },
       'webhookUrl'
     )
-
-    const timeoutPromise = new Promise<never>((_resolve, reject) => {
-      setTimeout(() => reject(new Error('Request timeout')), 10000)
-    })
-
-    const response = await Promise.race([fetchPromise, timeoutPromise])
     const responseBody = await response.text().catch(() => '')
 
     return {
