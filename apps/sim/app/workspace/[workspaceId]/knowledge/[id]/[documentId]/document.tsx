@@ -400,11 +400,13 @@ export function Document({
         } else if (currentPage > 1) {
           await goToPage(currentPage - 1)
           // Use ref to read fresh displayChunks after page change
+          let retries = 0
           const checkAndSelect = () => {
             const chunks = displayChunksRef.current
             if (chunks.length > 0 && chunks !== displayChunks) {
               setSelectedChunkId(chunks[chunks.length - 1].id)
-            } else {
+            } else if (retries < 50) {
+              retries++
               setTimeout(checkAndSelect, 100)
             }
           }
@@ -415,11 +417,13 @@ export function Document({
           setSelectedChunkId(displayChunks[currentChunkIndex + 1].id)
         } else if (currentPage < totalPages) {
           await goToPage(currentPage + 1)
+          let retries = 0
           const checkAndSelect = () => {
             const chunks = displayChunksRef.current
             if (chunks.length > 0 && chunks !== displayChunks) {
               setSelectedChunkId(chunks[0].id)
-            } else {
+            } else if (retries < 50) {
+              retries++
               setTimeout(checkAndSelect, 100)
             }
           }
