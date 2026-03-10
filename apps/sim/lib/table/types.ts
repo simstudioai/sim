@@ -178,6 +178,8 @@ export interface BatchInsertData {
   rows: RowData[]
   workspaceId: string
   userId?: string
+  /** Optional per-row target positions. Length must equal `rows.length`. */
+  positions?: number[]
 }
 
 export interface UpsertRowData {

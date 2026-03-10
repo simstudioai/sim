@@ -198,6 +198,7 @@ export function Tables() {
         }}
         onDelete={() => setIsDeleteDialogOpen(true)}
         disableDelete={userPermissions.canEdit !== true}
+        disableRename={userPermissions.canEdit !== true}
       />
 
       <Modal open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

@@ -1,0 +1,178 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Label, Switch } from '@/components/emcn'
+import type { ChunkData, DocumentData } from '@/lib/knowledge/types'
+import { getAccurateTokenCount, getTokenStrings } from '@/lib/tokenization/estimators'
+import { useCreateChunk, useUpdateChunk } from '@/hooks/queries/kb/knowledge'
+
+const TOKEN_BG_COLORS = [
+  'rgba(239, 68, 68, 0.55)',
+  'rgba(249, 115, 22, 0.55)',
+  'rgba(234, 179, 8, 0.55)',
+  'rgba(132, 204, 22, 0.55)',
+  'rgba(34, 197, 94, 0.55)',
+  'rgba(20, 184, 166, 0.55)',
+  'rgba(6, 182, 212, 0.55)',
+  'rgba(59, 130, 246, 0.55)',
+  'rgba(139, 92, 246, 0.55)',
+  'rgba(217, 70, 239, 0.55)',
+] as const
+
+interface ChunkEditorProps {
+  mode?: 'edit' | 'create'
+  chunk?: ChunkData
+  document: DocumentData
+  knowledgeBaseId: string
+  canEdit: boolean
+  maxChunkSize?: number
+  onDirtyChange: (isDirty: boolean) => void
+  saveRef: React.MutableRefObject<(() => Promise<void>) | null>
+  onCreated?: (chunkId: string) => void
+}
+
+export function ChunkEditor({
+  mode = 'edit',
+  chunk,
+  document: documentData,
+  knowledgeBaseId,
+  canEdit,
+  maxChunkSize,
+  onDirtyChange,
+  saveRef,
+  onCreated,
+}: ChunkEditorProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const { mutateAsync: updateChunk } = useUpdateChunk()
+  const { mutateAsync: createChunk } = useCreateChunk()
+
+  const isCreateMode = mode === 'create'
+  const chunkContent = chunk?.content ?? ''
+
+  const [editedContent, setEditedContent] = useState(isCreateMode ? '' : chunkContent)
+  const [tokenizerOn, setTokenizerOn] = useState(false)
+  const [hoveredTokenIndex, setHoveredTokenIndex] = useState<number | null>(null)
+
+  const editedContentRef = useRef(editedContent)
+  editedContentRef.current = editedContent
+
+  const isDirty = isCreateMode ? editedContent.trim().length > 0 : editedContent !== chunkContent
+
+  useEffect(() => {
+    if (!isCreateMode) {
+      setEditedContent(chunkContent)
+    }
+  }, [isCreateMode, chunk?.id, chunkContent])
+
+  useEffect(() => {
+    onDirtyChange(isDirty)
+  }, [isDirty, onDirtyChange])
+
+  useEffect(() => {
+    if (isCreateMode && textareaRef.current) {
+      textareaRef.current.focus()
+    }
+  }, [isCreateMode])
+
+  const handleSave = useCallback(async () => {
+    const content = editedContentRef.current
+    if (content.trim().length === 0 || content.trim().length > 10000) return
+
+    if (isCreateMode) {
+      const created = await createChunk({
+        knowledgeBaseId,
+        documentId: documentData.id,
+        content: content.trim(),
+        enabled: true,
+      })
+      onCreated?.(created.id)
+    } else {
+      if (!chunk || content === chunk.content) return
+      await updateChunk({
+        knowledgeBaseId,
+        documentId: documentData.id,
+        chunkId: chunk.id,
+        content,
+      })
+    }
+  }, [isCreateMode, chunk, knowledgeBaseId, documentData.id, updateChunk, createChunk, onCreated])
+
+  useEffect(() => {
+    if (saveRef) {
+      saveRef.current = handleSave
+    }
+    return () => {
+      if (saveRef) {
+        saveRef.current = null
+      }
+    }
+  }, [saveRef, handleSave])
+
+  const tokenStrings = useMemo(() => {
+    if (!tokenizerOn || !editedContent) return []
+    return getTokenStrings(editedContent)
+  }, [editedContent, tokenizerOn])
+
+  const tokenCount = useMemo(() => {
+    if (!editedContent) return 0
+    if (tokenizerOn) return tokenStrings.length
+    return getAccurateTokenCount(editedContent)
+  }, [editedContent, tokenizerOn, tokenStrings])
+
+  const isConnectorDocument = Boolean(documentData.connectorId)
+
+  return (
+    <div className='flex flex-1 flex-col overflow-hidden'>
+      <div className='flex flex-1 overflow-hidden'>
+        {tokenizerOn ? (
+          <div className='h-full w-full overflow-y-auto whitespace-pre-wrap break-words p-[24px] font-sans text-[14px] text-[var(--text-body)]'>
+            {tokenStrings.map((token, index) => (
+              <span
+                key={index}
+                style={{ backgroundColor: TOKEN_BG_COLORS[index % TOKEN_BG_COLORS.length] }}
+                onMouseEnter={() => setHoveredTokenIndex(index)}
+                onMouseLeave={() => setHoveredTokenIndex(null)}
+              >
+                {token}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <textarea
+            ref={textareaRef}
+            value={editedContent}
+            onChange={(e) => setEditedContent(e.target.value)}
+            placeholder={
+              isCreateMode
+                ? 'Enter the content for this chunk...'
+                : canEdit
+                  ? 'Enter chunk content...'
+                  : isConnectorDocument
+                    ? 'This chunk is synced from a connector and cannot be edited'
+                    : 'Read-only view'
+            }
+            className='h-full w-full resize-none border-0 bg-transparent p-[24px] font-sans text-[14px] text-[var(--text-body)] outline-none placeholder:text-[var(--text-subtle)]'
+            disabled={!canEdit}
+            readOnly={!canEdit}
+            spellCheck={false}
+          />
+        )}
+      </div>
+      <div className='flex items-center justify-between border-[var(--border)] border-t px-[24px] py-[10px]'>
+        <div className='flex items-center gap-[8px]'>
+          <Label className='text-[12px] text-[var(--text-secondary)]'>Tokenizer</Label>
+          <Switch checked={tokenizerOn} onCheckedChange={setTokenizerOn} />
+          {tokenizerOn && hoveredTokenIndex !== null && (
+            <span className='text-[12px] text-[var(--text-tertiary)]'>
+              Token #{hoveredTokenIndex + 1}
+            </span>
+          )}
+        </div>
+        <span className='text-[12px] text-[var(--text-secondary)]'>
+          {tokenCount.toLocaleString()}
+          {maxChunkSize !== undefined && `/${maxChunkSize.toLocaleString()}`} tokens
+        </span>
+      </div>
+    </div>
+  )
+}

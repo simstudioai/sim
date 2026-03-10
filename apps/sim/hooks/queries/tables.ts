@@ -375,6 +375,53 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
   })
 }
 
+interface BatchCreateTableRowsParams {
+  rows: Array<Record<string, unknown>>
+  positions?: number[]
+}
+
+interface BatchCreateTableRowsResponse {
+  success: boolean
+  data?: {
+    rows: TableRow[]
+    insertedCount: number
+    message: string
+  }
+}
+
+/**
+ * Batch create rows in a table. Supports optional per-row positions for undo restore.
+ */
+export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (
+      variables: BatchCreateTableRowsParams
+    ): Promise<BatchCreateTableRowsResponse> => {
+      const res = await fetch(`/api/table/${tableId}/rows`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId,
+          rows: variables.rows,
+          positions: variables.positions,
+        }),
+      })
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error.error || 'Failed to create rows')
+      }
+
+      return res.json()
+    },
+    onSettled: () => {
+      invalidateRowCount(queryClient, workspaceId, tableId)
+    },
+  })
+}
+
 /**
  * Update a single row in a table.
  * Uses optimistic updates for instant UI feedback on inline cell edits.
@@ -415,6 +462,70 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
                 ? { ...row, data: { ...(row.data as Record<string, unknown>), ...data } }
                 : row
             ),
+          }
+        }
+      )
+
+      return { previousQueries }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousQueries) {
+        for (const [queryKey, data] of context.previousQueries) {
+          queryClient.setQueryData(queryKey, data)
+        }
+      }
+    },
+    onSettled: () => {
+      invalidateRowData(queryClient, tableId)
+    },
+  })
+}
+
+interface BatchUpdateTableRowsParams {
+  updates: Array<{ rowId: string; data: Record<string, unknown> }>
+}
+
+/**
+ * Batch update multiple rows by ID. Uses optimistic updates for instant UI feedback.
+ */
+export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ updates }: BatchUpdateTableRowsParams) => {
+      const res = await fetch(`/api/table/${tableId}/rows`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId, updates }),
+      })
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error.error || 'Failed to update rows')
+      }
+
+      return res.json()
+    },
+    onMutate: ({ updates }) => {
+      void queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+
+      const previousQueries = queryClient.getQueriesData<TableRowsResponse>({
+        queryKey: tableKeys.rowsRoot(tableId),
+      })
+
+      const updateMap = new Map(updates.map((u) => [u.rowId, u.data]))
+
+      queryClient.setQueriesData<TableRowsResponse>(
+        { queryKey: tableKeys.rowsRoot(tableId) },
+        (old) => {
+          if (!old) return old
+          return {
+            ...old,
+            rows: old.rows.map((row) => {
+              const patch = updateMap.get(row.id)
+              if (!patch) return row
+              return { ...row, data: { ...(row.data as Record<string, unknown>), ...patch } }
+            }),
           }
         }
       )

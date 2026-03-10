@@ -1,11 +1,11 @@
 'use client'
 
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverDivider,
+  PopoverItem,
 } from '@/components/emcn'
 import { Copy, Trash } from '@/components/emcn/icons'
 
@@ -15,7 +15,11 @@ interface TableContextMenuProps {
   onClose: () => void
   onCopyId?: () => void
   onDelete?: () => void
+  onViewSchema?: () => void
+  onRename?: () => void
   disableDelete?: boolean
+  disableRename?: boolean
+  menuRef?: React.RefObject<HTMLDivElement | null>
 }
 
 export function TableContextMenu({
@@ -24,39 +28,76 @@ export function TableContextMenu({
   onClose,
   onCopyId,
   onDelete,
+  onViewSchema,
+  onRename,
   disableDelete = false,
+  disableRename = false,
+  menuRef,
 }: TableContextMenuProps) {
   return (
-    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DropdownMenuTrigger asChild>
-        <div
-          style={{
-            position: 'fixed',
-            left: `${position.x}px`,
-            top: `${position.y}px`,
-            width: '1px',
-            height: '1px',
-            pointerEvents: 'none',
-          }}
-          tabIndex={-1}
-          aria-hidden
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='start' side='bottom' sideOffset={4}>
+    <Popover
+      open={isOpen}
+      onOpenChange={(open) => !open && onClose()}
+      variant='secondary'
+      size='sm'
+    >
+      <PopoverAnchor
+        style={{
+          position: 'fixed',
+          left: `${position.x}px`,
+          top: `${position.y}px`,
+          width: '1px',
+          height: '1px',
+        }}
+      />
+      <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
+        {onViewSchema && (
+          <PopoverItem
+            onClick={() => {
+              onViewSchema()
+              onClose()
+            }}
+          >
+            View Schema
+          </PopoverItem>
+        )}
+        {onRename && (
+          <PopoverItem
+            disabled={disableRename}
+            onClick={() => {
+              onRename()
+              onClose()
+            }}
+          >
+            Rename
+          </PopoverItem>
+        )}
+        {(onViewSchema || onRename) && (onCopyId || onDelete) && <PopoverDivider />}
         {onCopyId && (
-          <DropdownMenuItem onSelect={onCopyId}>
+          <PopoverItem
+            onClick={() => {
+              onCopyId()
+              onClose()
+            }}
+          >
             <Copy />
             Copy ID
-          </DropdownMenuItem>
+          </PopoverItem>
         )}
-        {onCopyId && onDelete && <DropdownMenuSeparator />}
+        {onCopyId && onDelete && <PopoverDivider />}
         {onDelete && (
-          <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
+          <PopoverItem
+            disabled={disableDelete}
+            onClick={() => {
+              onDelete()
+              onClose()
+            }}
+          >
             <Trash />
             Delete
-          </DropdownMenuItem>
+          </PopoverItem>
         )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverContent>
+    </Popover>
   )
 }

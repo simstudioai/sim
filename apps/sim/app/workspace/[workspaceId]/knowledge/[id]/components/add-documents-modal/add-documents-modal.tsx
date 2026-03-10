@@ -222,7 +222,7 @@ export function AddDocumentsModal({
   return (
     <Modal open={open} onOpenChange={handleClose}>
       <ModalContent size='md'>
-        <ModalHeader>Add Documents</ModalHeader>
+        <ModalHeader>New Documents</ModalHeader>
 
         <ModalBody>
           <div className='min-h-0 flex-1 overflow-y-auto'>

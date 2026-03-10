@@ -981,6 +981,8 @@ export const Sidebar = memo(function Sidebar() {
                   activeTaskId && activeTaskId !== 'new' ? handleStartTaskRename : undefined
                 }
                 onDelete={activeTaskId ? handleDeleteTask : undefined}
+                disableRename={!canEdit}
+                disableDelete={!canEdit}
               />
             </>
           )}

@@ -46,6 +46,10 @@ interface ChunkContextMenuProps {
    */
   disableAddChunk?: boolean
   /**
+   * Whether edit/view is disabled (e.g. user lacks permission)
+   */
+  disableEdit?: boolean
+  /**
    * Whether the document is synced from a connector (chunks are read-only)
    */
   isConnectorDocument?: boolean
@@ -84,6 +88,7 @@ export function ChunkContextMenu({
   disableToggleEnabled = false,
   disableDelete = false,
   disableAddChunk = false,
+  disableEdit = false,
   isConnectorDocument = false,
   selectedCount = 1,
   enabledCount = 0,
@@ -98,6 +103,11 @@ export function ChunkContextMenu({
     }
     return isChunkEnabled ? 'Disable' : 'Enable'
   }
+
+  const hasNavigationSection = !isMultiSelect && !!onOpenInNewTab
+  const hasEditSection = !isMultiSelect && (!!onEdit || !!onCopyContent)
+  const hasStateSection = !!onToggleEnabled
+  const hasDestructiveSection = !!onDelete
 
   return (
     <Popover
@@ -119,21 +129,23 @@ export function ChunkContextMenu({
         {hasChunk ? (
           <>
             {/* Navigation */}
-            {!isMultiSelect && onOpenInNewTab && (
+            {hasNavigationSection && (
               <PopoverItem
                 onClick={() => {
-                  onOpenInNewTab()
+                  onOpenInNewTab!()
                   onClose()
                 }}
               >
                 Open in new tab
               </PopoverItem>
             )}
-            {!isMultiSelect && onOpenInNewTab && <PopoverDivider />}
+            {hasNavigationSection &&
+              (hasEditSection || hasStateSection || hasDestructiveSection) && <PopoverDivider />}
 
             {/* Edit and copy actions */}
             {!isMultiSelect && onEdit && (
               <PopoverItem
+                disabled={disableEdit}
                 onClick={() => {
                   onEdit()
                   onClose()
@@ -152,7 +164,7 @@ export function ChunkContextMenu({
                 Copy content
               </PopoverItem>
             )}
-            {!isMultiSelect && (onEdit || onCopyContent) && <PopoverDivider />}
+            {hasEditSection && (hasStateSection || hasDestructiveSection) && <PopoverDivider />}
 
             {/* State toggle */}
             {onToggleEnabled && (
@@ -168,11 +180,7 @@ export function ChunkContextMenu({
             )}
 
             {/* Destructive action */}
-            {onDelete &&
-              ((!isMultiSelect && onOpenInNewTab) ||
-                (!isMultiSelect && onEdit) ||
-                (!isMultiSelect && onCopyContent) ||
-                onToggleEnabled) && <PopoverDivider />}
+            {hasStateSection && hasDestructiveSection && <PopoverDivider />}
             {onDelete && (
               <PopoverItem
                 disabled={disableDelete}

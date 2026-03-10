@@ -39,6 +39,10 @@ interface DocumentContextMenuProps {
    */
   hasTags?: boolean
   /**
+   * Whether rename is disabled
+   */
+  disableRename?: boolean
+  /**
    * Whether toggle enabled is disabled
    */
   disableToggleEnabled?: boolean
@@ -84,6 +88,7 @@ export function DocumentContextMenu({
   isDocumentEnabled = true,
   hasDocument,
   hasTags = false,
+  disableRename = false,
   disableToggleEnabled = false,
   disableDelete = false,
   disableAddDocument = false,
@@ -100,6 +105,11 @@ export function DocumentContextMenu({
     }
     return isDocumentEnabled ? 'Disable' : 'Enable'
   }
+
+  const hasNavigationSection = !isMultiSelect && (!!onOpenInNewTab || !!onOpenSource)
+  const hasEditSection = !isMultiSelect && (!!onRename || (hasTags && !!onViewTags))
+  const hasStateSection = !!onToggleEnabled
+  const hasDestructiveSection = !!onDelete
 
   return (
     <Popover
@@ -141,11 +151,13 @@ export function DocumentContextMenu({
                 Open source
               </PopoverItem>
             )}
-            {!isMultiSelect && (onOpenInNewTab || onOpenSource) && <PopoverDivider />}
+            {hasNavigationSection &&
+              (hasEditSection || hasStateSection || hasDestructiveSection) && <PopoverDivider />}
 
             {/* Edit and view actions */}
             {!isMultiSelect && onRename && (
               <PopoverItem
+                disabled={disableRename}
                 onClick={() => {
                   onRename()
                   onClose()
@@ -164,7 +176,7 @@ export function DocumentContextMenu({
                 View tags
               </PopoverItem>
             )}
-            {!isMultiSelect && (onRename || (hasTags && onViewTags)) && <PopoverDivider />}
+            {hasEditSection && (hasStateSection || hasDestructiveSection) && <PopoverDivider />}
 
             {/* State toggle */}
             {onToggleEnabled && (
@@ -180,12 +192,7 @@ export function DocumentContextMenu({
             )}
 
             {/* Destructive action */}
-            {onDelete &&
-              ((!isMultiSelect && onOpenInNewTab) ||
-                (!isMultiSelect && onOpenSource) ||
-                (!isMultiSelect && onRename) ||
-                (!isMultiSelect && hasTags && onViewTags) ||
-                onToggleEnabled) && <PopoverDivider />}
+            {hasStateSection && hasDestructiveSection && <PopoverDivider />}
             {onDelete && (
               <PopoverItem
                 disabled={disableDelete}
