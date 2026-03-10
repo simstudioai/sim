@@ -12,7 +12,6 @@ interface ContextMenuProps {
   contextMenu: ContextMenuState
   onClose: () => void
   onEditCell: () => void
-  onAddData: () => void
   onDelete: () => void
   onInsertAbove: () => void
   onInsertBelow: () => void
@@ -26,7 +25,6 @@ export function ContextMenu({
   contextMenu,
   onClose,
   onEditCell,
-  onAddData,
   onDelete,
   onInsertAbove,
   onInsertBelow,
@@ -35,7 +33,6 @@ export function ContextMenu({
   disableInsert = false,
   disableDelete = false,
 }: ContextMenuProps) {
-  const isEmptyCell = !contextMenu.row
   const deleteLabel = selectedRowCount > 1 ? `Delete ${selectedRowCount} rows` : 'Delete row'
 
   return (

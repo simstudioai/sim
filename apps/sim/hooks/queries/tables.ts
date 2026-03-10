@@ -458,9 +458,7 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
           return {
             ...old,
             rows: old.rows.map((row) =>
-              row.id === rowId
-                ? { ...row, data: { ...(row.data as Record<string, unknown>), ...data } }
-                : row
+              row.id === rowId ? { ...row, data: { ...row.data, ...data } } : row
             ),
           }
         }
@@ -524,7 +522,7 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
             rows: old.rows.map((row) => {
               const patch = updateMap.get(row.id)
               if (!patch) return row
-              return { ...row, data: { ...(row.data as Record<string, unknown>), ...patch } }
+              return { ...row, data: { ...row.data, ...patch } }
             }),
           }
         }

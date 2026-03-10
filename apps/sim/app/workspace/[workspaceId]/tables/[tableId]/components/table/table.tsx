@@ -434,26 +434,6 @@ export function Table({
   const handleInsertRowAbove = useCallback(() => handleInsertRow(0), [handleInsertRow])
   const handleInsertRowBelow = useCallback(() => handleInsertRow(1), [handleInsertRow])
 
-  const handleAddData = useCallback(() => {
-    if (contextMenu.rowIndex === null || !contextMenu.columnName) {
-      closeContextMenu()
-      return
-    }
-    const column = columnsRef.current.find((c) => c.name === contextMenu.columnName)
-    if (!column || column.type === 'boolean') {
-      closeContextMenu()
-      return
-    }
-    setSelectionAnchor({
-      rowIndex: contextMenu.rowIndex,
-      colIndex: columnsRef.current.findIndex((c) => c.name === contextMenu.columnName),
-    })
-    setSelectionFocus(null)
-    setEditingEmptyCell({ rowIndex: contextMenu.rowIndex, columnName: contextMenu.columnName })
-    setInitialCharacter(null)
-    closeContextMenu()
-  }, [contextMenu.rowIndex, contextMenu.columnName, closeContextMenu])
-
   const resolveColumnFromEvent = useCallback((e: React.MouseEvent) => {
     const td = (e.target as HTMLElement).closest('td[data-col]') as HTMLElement | null
     const colIndex = td ? Number.parseInt(td.getAttribute('data-col') || '-1', 10) : -1
@@ -1429,7 +1409,6 @@ export function Table({
         contextMenu={contextMenu}
         onClose={closeContextMenu}
         onEditCell={handleContextMenuEditCell}
-        onAddData={handleAddData}
         onDelete={handleContextMenuDelete}
         onInsertAbove={handleInsertRowAbove}
         onInsertBelow={handleInsertRowBelow}
