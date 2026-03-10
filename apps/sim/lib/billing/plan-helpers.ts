@@ -110,7 +110,7 @@ export function getValidPlanNames(type: 'pro' | 'team'): string[] {
 /**
  * Get the user-facing display name for a plan.
  * @example getDisplayPlanName('pro_25000') => 'Max'
- * @example getDisplayPlanName('team_6000') => 'Pro (Team)'
+ * @example getDisplayPlanName('team_6000') => 'Pro for Teams'
  * @example getDisplayPlanName('pro') => 'Legacy Pro'
  */
 export function getDisplayPlanName(plan: string | null | undefined): string {
@@ -121,6 +121,6 @@ export function getDisplayPlanName(plan: string | null | undefined): string {
   const isLegacy = plan === 'pro' || plan === 'team'
   const tierName = tier?.name ?? (plan === 'team' ? 'Max' : 'Pro')
   const prefix = isLegacy ? 'Legacy ' : ''
-  const suffix = isTeam(plan) ? ' (Team)' : ''
+  const suffix = isTeam(plan) ? ' for Teams' : ''
   return `${prefix}${tierName}${suffix}`
 }

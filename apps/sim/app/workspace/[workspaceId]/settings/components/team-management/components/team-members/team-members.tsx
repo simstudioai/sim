@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Avatar, AvatarFallback, AvatarImage, Badge, Button } from '@/components/emcn'
-import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { CREDIT_MULTIPLIER, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getUserColor } from '@/lib/workspaces/colors'
 import type { Invitation, Member, Organization } from '@/lib/workspaces/organization'
 import {
@@ -13,6 +13,34 @@ import {
 } from '@/hooks/queries/organization'
 
 const logger = createLogger('TeamMembers')
+
+/**
+ * Distributes a known credit total across members so per-member values always sum exactly.
+ * Uses the largest-remainder method: floor each share, then give +1 to the entries
+ * with the biggest fractional parts until the sum matches the total.
+ */
+function apportionCredits(
+  dollarsByUser: Record<string, number>,
+  totalCredits: number
+): Record<string, number> {
+  const entries = Object.entries(dollarsByUser).map(([userId, dollars]) => {
+    const exact = dollars * CREDIT_MULTIPLIER
+    return { userId, floor: Math.floor(exact), remainder: exact - Math.floor(exact) }
+  })
+
+  let floorSum = entries.reduce((s, e) => s + e.floor, 0)
+  const gap = totalCredits - floorSum
+
+  entries.sort((a, b) => b.remainder - a.remainder)
+  for (let i = 0; i < gap && i < entries.length; i++) {
+    entries[i].floor += 1
+    floorSum += 1
+  }
+
+  const result: Record<string, number> = {}
+  for (const e of entries) result[e.userId] = e.floor
+  return result
+}
 
 interface TeamMembersProps {
   organization: Organization
@@ -73,12 +101,16 @@ export function TeamMembers({
     )
   }
 
+  const rawDollars = Object.values(memberUsageData)
+  const totalCredits = dollarsToCredits(rawDollars.reduce((sum, d) => sum + d, 0))
+  const memberCredits = apportionCredits(memberUsageData, totalCredits)
+
   const teamItems: TeamMemberItem[] = []
 
   if (organization.members) {
     organization.members.forEach((member: Member) => {
       const userId = member.user?.id
-      const usageAmount = userId ? (memberUsageData[userId] ?? 0) : 0
+      const credits = userId ? (memberCredits[userId] ?? 0) : 0
       const name = member.user?.name || 'Unknown'
 
       const memberItem: MemberItem = {
@@ -89,7 +121,7 @@ export function TeamMembers({
         avatarInitial: name.charAt(0).toUpperCase(),
         avatarUrl: member.user?.image,
         userId: member.user?.id,
-        usage: `${dollarsToCredits(usageAmount).toLocaleString()} credits`,
+        usage: `${credits.toLocaleString()} credits`,
         role: member.role,
         member,
       }

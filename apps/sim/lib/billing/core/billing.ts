@@ -1,7 +1,11 @@
 import { db } from '@sim/db'
 import { member, organization, subscription, user, userStats } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import {
+  getBillingInterval,
+  getHighestPrioritySubscription,
+  type SubscriptionMetadata,
+} from '@/lib/billing/core/subscription'
 import { getUserUsageData } from '@/lib/billing/core/usage'
 import { getCreditBalance } from '@/lib/billing/credits/balance'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
@@ -23,20 +27,6 @@ export { getPlanPricing }
 import { createLogger } from '@sim/logger'
 
 const logger = createLogger('Billing')
-
-/**
- * Derive billing interval from subscription period dates.
- * If the period spans more than 180 days, assume annual; otherwise monthly.
- */
-function deriveBillingInterval(
-  periodStart?: Date | null,
-  periodEnd?: Date | null
-): 'month' | 'year' {
-  if (!periodStart || !periodEnd) return 'month'
-  const diffMs = periodEnd.getTime() - periodStart.getTime()
-  const diffDays = diffMs / (1000 * 60 * 60 * 24)
-  return diffDays > 180 ? 'year' : 'month'
-}
 
 /**
  * Get organization subscription directly by organization ID
@@ -383,10 +373,7 @@ export async function getSimplifiedBillingSummary(
 
       const orgCredits = await getCreditBalance(userId)
       const orgTotalProjected = totalBasePrice + totalOverage
-      const orgBillingInterval = deriveBillingInterval(
-        subscription.periodStart,
-        subscription.periodEnd
-      )
+      const orgBillingInterval = getBillingInterval(subscription.metadata as SubscriptionMetadata)
 
       return {
         type: 'organization',
@@ -525,9 +512,8 @@ export async function getSimplifiedBillingSummary(
 
     const userCredits = await getCreditBalance(userId)
     const individualTotalProjected = basePrice + overageAmount
-    const individualBillingInterval = deriveBillingInterval(
-      subscription?.periodStart,
-      subscription?.periodEnd
+    const individualBillingInterval = getBillingInterval(
+      subscription?.metadata as SubscriptionMetadata
     )
 
     return {

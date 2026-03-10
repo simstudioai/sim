@@ -3,9 +3,13 @@
 import type { ReactNode } from 'react'
 import { Badge } from '@/components/emcn'
 import { getFilledPillColor, USAGE_PILL_COLORS, USAGE_THRESHOLDS } from '@/lib/billing/client'
+import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { formatCredits } from '@/lib/billing/credits/conversion'
+import { cn } from '@/lib/core/utils/cn'
 
 const PILL_COUNT = 5
+
+type OnDemandState = 'hidden' | 'enable' | 'disable'
 
 interface UsageHeaderProps {
   title: string
@@ -19,6 +23,8 @@ interface UsageHeaderProps {
   seatsText?: string
   isBlocked?: boolean
   progressValue?: number
+  onDemandState?: OnDemandState
+  onToggleOnDemand?: () => void
 }
 
 /**
@@ -36,6 +42,8 @@ export function UsageHeader({
   seatsText,
   isBlocked,
   progressValue,
+  onDemandState = 'hidden',
+  onToggleOnDemand,
 }: UsageHeaderProps) {
   const progress = progressValue ?? (limit > 0 ? Math.min((current / limit) * 100, 100) : 0)
   const filledPillsCount = Math.ceil((progress / 100) * PILL_COUNT)
@@ -44,11 +52,12 @@ export function UsageHeader({
   const isWarning = !isCritical && progress >= USAGE_THRESHOLDS.WARNING
   const filledColor = getFilledPillColor(isCritical, isWarning)
 
+  const showOnDemandBadge = onDemandState !== 'hidden'
+  const isOnDemandActive = onDemandState === 'disable'
+
   return (
     <div className='flex flex-col gap-[12px]'>
-      {/* Main row: left = plan + usage, right = badge + pills */}
       <div className='flex items-center justify-between'>
-        {/* Left side: plan name and usage */}
         <div className='flex flex-col gap-[4px]'>
           <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
             {title}
@@ -69,7 +78,8 @@ export function UsageHeader({
                 <span className='font-medium text-[15px] text-[var(--text-primary)]'>/</span>
                 {rightContent ?? (
                   <span className='font-medium text-[15px] text-[var(--text-primary)] tabular-nums'>
-                    {formatCredits(limit)} credits
+                    {formatCredits(limit)}
+                    {limit < ON_DEMAND_UNLIMITED && ' credits'}
                   </span>
                 )}
               </>
@@ -77,18 +87,33 @@ export function UsageHeader({
           </div>
         </div>
 
-        {/* Right side: badge and pills */}
-        <div className='flex flex-col items-end gap-[8px]'>
-          {showBadge && badgeText && (
-            <Badge
-              variant={badgeVariant}
-              onClick={onBadgeClick}
-              className={onBadgeClick ? 'cursor-pointer' : 'cursor-default'}
-            >
-              {badgeText}
-            </Badge>
+        <div
+          className={cn(
+            'flex flex-col gap-[8px]',
+            showOnDemandBadge ? 'items-center' : 'items-end'
           )}
-          {/* Pills row */}
+        >
+          {showOnDemandBadge ? (
+            <Badge
+              variant={isOnDemandActive ? 'red' : 'green'}
+              size='sm'
+              className={cn(onToggleOnDemand ? 'cursor-pointer' : 'cursor-default')}
+              onClick={onToggleOnDemand}
+            >
+              {isOnDemandActive ? 'Disable On-Demand' : 'Enable On-Demand'}
+            </Badge>
+          ) : (
+            showBadge &&
+            badgeText && (
+              <Badge
+                variant={badgeVariant}
+                onClick={onBadgeClick}
+                className={onBadgeClick ? 'cursor-pointer' : 'cursor-default'}
+              >
+                {badgeText}
+              </Badge>
+            )
+          )}
           <div className='flex w-[100px] items-center gap-[4px]'>
             {Array.from({ length: PILL_COUNT }).map((_, i) => {
               const isFilled = i < filledPillsCount

@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import { writeBillingInterval } from '@/lib/billing/core/subscription'
 import { getPlanType, isEnterprise, isOrgPlan } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -151,6 +152,8 @@ export async function POST(request: NextRequest) {
         .set({ plan: targetPlanName })
         .where(eq(subscriptionTable.id, sub.id))
     }
+
+    await writeBillingInterval(sub.id, targetInterval as 'month' | 'year')
 
     logger.info('Subscription switched successfully', {
       userId,
