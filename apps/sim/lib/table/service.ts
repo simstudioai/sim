@@ -10,11 +10,12 @@
 import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq, gt, gte, sql } from 'drizzle-orm'
+import { and, count, eq, gt, gte, inArray, sql } from 'drizzle-orm'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { buildFilterClause, buildSortClause } from './sql'
 import type {
   BatchInsertData,
+  BatchUpdateByIdData,
   BulkDeleteByIdsData,
   BulkDeleteByIdsResult,
   BulkDeleteData,
@@ -1089,6 +1090,96 @@ export async function updateRowsByFilter(
   return {
     affectedCount: matchingRows.length,
     affectedRowIds: matchingRows.map((r) => r.id),
+  }
+}
+
+/**
+ * Updates multiple rows with per-row data in a single transaction.
+ * Avoids the race condition of parallel update_row calls overwriting each other.
+ */
+export async function batchUpdateRows(
+  data: BatchUpdateByIdData,
+  table: TableDefinition,
+  requestId: string
+): Promise<BulkOperationResult> {
+  if (data.updates.length === 0) {
+    return { affectedCount: 0, affectedRowIds: [] }
+  }
+
+  const rowIds = data.updates.map((u) => u.rowId)
+  const existingRows = await db
+    .select({ id: userTableRows.id, data: userTableRows.data })
+    .from(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.tableId, data.tableId),
+        eq(userTableRows.workspaceId, data.workspaceId),
+        inArray(userTableRows.id, rowIds)
+      )
+    )
+
+  const existingMap = new Map(existingRows.map((r) => [r.id, r.data as RowData]))
+
+  const missing = rowIds.filter((id) => !existingMap.has(id))
+  if (missing.length > 0) {
+    throw new Error(`Rows not found: ${missing.join(', ')}`)
+  }
+
+  const mergedUpdates: Array<{ rowId: string; mergedData: RowData }> = []
+  for (const update of data.updates) {
+    const existing = existingMap.get(update.rowId)!
+    const merged = { ...existing, ...update.data }
+
+    const sizeValidation = validateRowSize(merged)
+    if (!sizeValidation.valid) {
+      throw new Error(`Row ${update.rowId}: ${sizeValidation.errors.join(', ')}`)
+    }
+
+    const schemaValidation = validateRowAgainstSchema(merged, table.schema)
+    if (!schemaValidation.valid) {
+      throw new Error(`Row ${update.rowId}: ${schemaValidation.errors.join(', ')}`)
+    }
+
+    mergedUpdates.push({ rowId: update.rowId, mergedData: merged })
+  }
+
+  const uniqueColumns = getUniqueColumns(table.schema)
+  if (uniqueColumns.length > 0) {
+    for (const { rowId, mergedData } of mergedUpdates) {
+      const uniqueValidation = await checkUniqueConstraintsDb(
+        data.tableId,
+        mergedData,
+        table.schema,
+        rowId
+      )
+      if (!uniqueValidation.valid) {
+        throw new Error(`Row ${rowId}: ${uniqueValidation.errors.join(', ')}`)
+      }
+    }
+  }
+
+  const now = new Date()
+
+  await db.transaction(async (trx) => {
+    for (let i = 0; i < mergedUpdates.length; i += TABLE_LIMITS.UPDATE_BATCH_SIZE) {
+      const batch = mergedUpdates.slice(i, i + TABLE_LIMITS.UPDATE_BATCH_SIZE)
+      const updatePromises = batch.map(({ rowId, mergedData }) =>
+        trx
+          .update(userTableRows)
+          .set({ data: mergedData, updatedAt: now })
+          .where(eq(userTableRows.id, rowId))
+      )
+      await Promise.all(updatePromises)
+    }
+  })
+
+  logger.info(
+    `[${requestId}] Batch updated ${mergedUpdates.length} rows in table ${data.tableId}`
+  )
+
+  return {
+    affectedCount: mergedUpdates.length,
+    affectedRowIds: mergedUpdates.map((u) => u.rowId),
   }
 }
 

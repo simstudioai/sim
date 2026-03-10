@@ -121,6 +121,8 @@ export const UserTableArgsSchema = z.object({
     'delete_row',
     'update_rows_by_filter',
     'delete_rows_by_filter',
+    'batch_update_rows',
+    'batch_delete_rows',
     'add_column',
     'rename_column',
     'delete_column',
@@ -135,6 +137,11 @@ export const UserTableArgsSchema = z.object({
       rowId: z.string().optional(),
       data: z.record(z.any()).optional(),
       rows: z.array(z.record(z.any())).optional(),
+      updates: z
+        .array(z.object({ rowId: z.string(), data: z.record(z.any()) }))
+        .optional(),
+      rowIds: z.array(z.string()).optional(),
+      values: z.record(z.any()).optional(),
       filter: z.any().optional(),
       sort: z.record(z.enum(['asc', 'desc'])).optional(),
       limit: z.number().optional(),

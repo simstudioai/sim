@@ -62,8 +62,8 @@ export function useWorkspaceFiles(workspaceId: string) {
  * Fetch file content as text via the serve URL
  */
 async function fetchWorkspaceFileContent(key: string, signal?: AbortSignal): Promise<string> {
-  const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace`
-  const response = await fetch(serveUrl, { signal })
+  const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace&t=${Date.now()}`
+  const response = await fetch(serveUrl, { signal, cache: 'no-store' })
 
   if (!response.ok) {
     throw new Error('Failed to fetch file content')
