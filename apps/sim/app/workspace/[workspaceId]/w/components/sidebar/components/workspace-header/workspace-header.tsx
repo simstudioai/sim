@@ -343,7 +343,11 @@ export function WorkspaceHeader({
               align='start'
               side='bottom'
               sideOffset={8}
-              style={{ maxWidth: '160px', minWidth: '160px' }}
+              style={{
+                width: 'var(--radix-popover-trigger-width)',
+                minWidth: 'var(--radix-popover-trigger-width)',
+                maxWidth: 'var(--radix-popover-trigger-width)',
+              }}
               onOpenAutoFocus={(e) => e.preventDefault()}
             >
               {isWorkspacesLoading ? (
