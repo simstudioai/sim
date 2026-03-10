@@ -21,7 +21,6 @@ import {
   FirecrawlIcon,
   GeminiIcon,
   GoogleIcon,
-  HuggingFaceIcon,
   JinaAIIcon,
   LinkupIcon,
   MistralIcon,
@@ -102,13 +101,6 @@ const PROVIDERS: {
     icon: FirecrawlIcon,
     description: 'Web scraping, crawling, and data extraction',
     placeholder: 'Enter your Firecrawl API key',
-  },
-  {
-    id: 'huggingface',
-    name: 'Hugging Face',
-    icon: HuggingFaceIcon,
-    description: 'Inference API for chat completions',
-    placeholder: 'Enter your Hugging Face API token',
   },
   {
     id: 'linkup',

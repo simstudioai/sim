@@ -12,40 +12,6 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
   description: 'Generate completions using Hugging Face Inference API',
   version: '1.0',
 
-  hosting: {
-    envKeyPrefix: 'HUGGINGFACE_API_KEY',
-    apiKeyParam: 'apiKey',
-    byokProviderId: 'huggingface',
-    pricing: {
-      type: 'custom',
-      getCost: (_params, output) => {
-        const usage = output.usage as
-          | { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
-          | undefined
-        if (!usage || usage.total_tokens == null) {
-          throw new Error('Hugging Face response missing token usage data')
-        }
-        // HF passes through provider costs; ~$3/1M tokens average across routed providers
-        // https://huggingface.co/docs/api-inference/rate-limits
-        const totalTokens = usage.total_tokens
-        const cost = (totalTokens / 1_000_000) * 3
-        return {
-          cost,
-          metadata: {
-            promptTokens: usage.prompt_tokens,
-            completionTokens: usage.completion_tokens,
-            totalTokens,
-          },
-        }
-      },
-    },
-    rateLimit: {
-      mode: 'per_request',
-      requestsPerMinute: 60,
-    },
-    skipFixedUsageLog: true,
-  },
-
   params: {
     systemPrompt: {
       type: 'string',

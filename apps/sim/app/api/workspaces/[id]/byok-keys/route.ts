@@ -22,7 +22,6 @@ const VALID_PROVIDERS = [
   'browser_use',
   'serper',
   'firecrawl',
-  'huggingface',
   'linkup',
   'perplexity',
   'jina',

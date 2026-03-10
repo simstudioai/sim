@@ -81,7 +81,6 @@ export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
       required: true,
       placeholder: 'Enter your Hugging Face API token',
       password: true,
-      hideWhenHosted: true,
     },
   ],
   tools: {
