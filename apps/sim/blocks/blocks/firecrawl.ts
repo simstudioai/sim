@@ -443,7 +443,6 @@ Example 2 - Product Data:
     // Crawl output
     pages: { type: 'json', description: 'Crawled pages data' },
     total: { type: 'number', description: 'Total pages found' },
-    creditsUsed: { type: 'number', description: 'Credits consumed' },
     // Map output
     success: { type: 'boolean', description: 'Operation success status' },
     links: { type: 'json', description: 'Discovered URLs array' },
