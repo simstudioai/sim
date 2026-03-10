@@ -229,7 +229,6 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               schema: args.schema,
               workspaceId,
               userId: context.userId,
-              initialRowCount: 20,
             },
             requestId
           )
