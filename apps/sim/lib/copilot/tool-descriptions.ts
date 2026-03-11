@@ -19,7 +19,5 @@ export function getCopilotToolDescription(
     return baseDescription
   }
 
-  return baseDescription
-    ? `${baseDescription} ${HOSTED_API_KEY_NOTE}`
-    : HOSTED_API_KEY_NOTE
+  return baseDescription ? `${baseDescription} ${HOSTED_API_KEY_NOTE}` : HOSTED_API_KEY_NOTE
 }

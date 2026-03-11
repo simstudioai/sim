@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import { isPaid } from '@/lib/billing/plan-helpers'
 import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/copilot/constants'
 import {
   handleSubagentRouting,
@@ -80,16 +82,28 @@ export async function runStreamLoop(
     const errorText = await response.text().catch(() => '')
 
     if (response.status === 402) {
+      let action = 'upgrade_plan'
+      let message = "You've reached your usage limit. Please upgrade your plan to continue."
+      try {
+        const sub = await getHighestPrioritySubscription(execContext.userId)
+        if (sub && isPaid(sub.plan)) {
+          action = 'increase_limit'
+          message =
+            "You've reached your usage limit for this billing period. Please increase your usage limit to continue."
+        }
+      } catch {
+        // Fall back to upgrade_plan if we can't determine the plan
+      }
+
       const upgradePayload = JSON.stringify({
         reason: 'usage_limit',
-        action: 'increase_limit',
-        message:
-          "You've reached your usage limit for this billing period. Please upgrade your plan or increase your usage limit to continue.",
+        action,
+        message,
       })
       const syntheticContent = `<usage_upgrade>${upgradePayload}</usage_upgrade>`
 
       const syntheticEvents: SSEEvent[] = [
-        { type: 'content', data: syntheticContent },
+        { type: 'content', data: syntheticContent as unknown as Record<string, unknown> },
         { type: 'done', data: {} },
       ]
       for (const event of syntheticEvents) {

@@ -1,5 +1,5 @@
-import { isHosted } from '@/lib/core/config/feature-flags'
 import { getCopilotToolDescription } from '@/lib/copilot/tool-descriptions'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { isSubBlockHiddenByHostedKey } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
