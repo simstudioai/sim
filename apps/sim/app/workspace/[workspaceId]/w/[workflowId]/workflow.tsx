@@ -3981,9 +3981,9 @@ const WorkflowContent = React.memo(
             {!embedded && isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && (
               <CommandList />
             )}
-          </div>
 
-          {!embedded && <DiffControls />}
+            {!embedded && <DiffControls />}
+          </div>
 
           {!embedded && <Terminal />}
         </div>
