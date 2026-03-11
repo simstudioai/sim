@@ -1,11 +1,19 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
-import { EmbeddedWorkflowActions, ResourceContent, ResourceTabs } from './components'
+import { useRenameTable } from '@/hooks/queries/tables'
+import { useRenameWorkspaceFile } from '@/hooks/queries/workspace-files'
+import { useInlineRename } from '@/hooks/use-inline-rename'
+import {
+  EmbeddedKnowledgeBaseActions,
+  EmbeddedWorkflowActions,
+  ResourceContent,
+  ResourceTabs,
+} from './components'
 
 const PREVIEWABLE_EXTENSIONS = new Set(['md', 'html', 'htm', 'csv'])
 const PREVIEW_ONLY_EXTENSIONS = new Set(['html', 'htm'])
@@ -21,13 +29,14 @@ interface MothershipViewProps {
   resources: MothershipResource[]
   activeResourceId: string | null
   onSelectResource: (id: string) => void
+  onRenameResource: (id: string, newTitle: string) => void
   onCollapse: () => void
   isCollapsed: boolean
   className?: string
 }
 
 /**
- * Split-pane view that renders embedded resources (tables, files, workflows)
+ * Split-pane view that renders embedded resources (tables, files, workflows, knowledge bases)
  * alongside the chat conversation. Composes ResourceTabs for navigation
  * and ResourceContent for rendering the active resource.
  */
@@ -36,11 +45,39 @@ export function MothershipView({
   resources,
   activeResourceId,
   onSelectResource,
+  onRenameResource,
   onCollapse,
   isCollapsed,
   className,
 }: MothershipViewProps) {
   const active = resources.find((r) => r.id === activeResourceId) ?? resources[0] ?? null
+
+  const { mutate: renameFile } = useRenameWorkspaceFile()
+  const { mutate: renameTable } = useRenameTable(workspaceId)
+
+  const resourcesRef = useRef(resources)
+  useEffect(() => {
+    resourcesRef.current = resources
+  }, [resources])
+
+  const handleRenameSave = useCallback(
+    (id: string, newName: string) => {
+      const resource = resourcesRef.current.find((r) => r.id === id)
+      if (!resource) return
+
+      onRenameResource(id, newName)
+
+      if (resource.type === 'file') {
+        renameFile({ workspaceId, fileId: id, name: newName })
+      } else if (resource.type === 'table') {
+        renameTable({ tableId: id, name: newName })
+      }
+    },
+    [onRenameResource, renameFile, renameTable, workspaceId]
+  )
+
+  const { editingId, editValue, setEditValue, startRename, submitRename, cancelRename } =
+    useInlineRename({ onSave: handleRenameSave })
 
   const [previewMode, setPreviewMode] = useState<PreviewMode>('split')
   const handleCyclePreview = useCallback(() => setPreviewMode((m) => PREVIEW_CYCLE[m]), [])
@@ -56,6 +93,8 @@ export function MothershipView({
   const headerActions =
     active?.type === 'workflow' ? (
       <EmbeddedWorkflowActions workspaceId={workspaceId} workflowId={active.id} />
+    ) : active?.type === 'knowledgebase' ? (
+      <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={active.id} />
     ) : null
 
   return (
@@ -75,6 +114,12 @@ export function MothershipView({
           actions={headerActions}
           previewMode={isActivePreviewable ? previewMode : undefined}
           onCyclePreviewMode={isActivePreviewable ? handleCyclePreview : undefined}
+          editingId={editingId}
+          editValue={editValue}
+          onEditValueChange={setEditValue}
+          onStartRename={startRename}
+          onSubmitRename={submitRename}
+          onCancelRename={cancelRename}
         />
         <div className='min-h-0 flex-1 overflow-hidden'>
           {active && (

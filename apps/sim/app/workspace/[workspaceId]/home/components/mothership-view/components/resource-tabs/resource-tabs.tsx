@@ -8,10 +8,11 @@ import {
   useCallback,
 } from 'react'
 import { Button, Tooltip } from '@/components/emcn'
-import { PanelLeft, Table as TableIcon } from '@/components/emcn/icons'
+import { BookOpen, PanelLeft, Table as TableIcon } from '@/components/emcn/icons'
 import { WorkflowIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { cn } from '@/lib/core/utils/cn'
+import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import type {
   MothershipResource,
@@ -47,6 +48,8 @@ function PreviewModeIcon({ mode, ...props }: { mode: PreviewMode } & SVGProps<SV
   )
 }
 
+const RENAMABLE_TYPES = new Set(['file', 'table'])
+
 interface ResourceTabsProps {
   resources: MothershipResource[]
   activeId: string | null
@@ -55,11 +58,18 @@ interface ResourceTabsProps {
   previewMode?: PreviewMode
   onCyclePreviewMode?: () => void
   actions?: ReactNode
+  editingId?: string | null
+  editValue?: string
+  onEditValueChange?: (value: string) => void
+  onStartRename?: (id: string, currentName: string) => void
+  onSubmitRename?: () => void
+  onCancelRename?: () => void
 }
 
 const RESOURCE_ICONS: Record<Exclude<MothershipResourceType, 'file'>, ElementType> = {
   table: TableIcon,
   workflow: WorkflowIcon,
+  knowledgebase: BookOpen,
 }
 
 function getResourceIcon(resource: MothershipResource): ElementType {
@@ -81,6 +91,12 @@ export function ResourceTabs({
   previewMode,
   onCyclePreviewMode,
   actions,
+  editingId,
+  editValue,
+  onEditValueChange,
+  onStartRename,
+  onSubmitRename,
+  onCancelRename,
 }: ResourceTabsProps) {
   const scrollRef = useCallback<RefCallback<HTMLDivElement>>((node) => {
     if (!node) return
@@ -118,20 +134,37 @@ export function ResourceTabs({
         {resources.map((resource) => {
           const Icon = getResourceIcon(resource)
           const isActive = activeId === resource.id
+          const isEditing = editingId === resource.id
+          const isRenamable = RENAMABLE_TYPES.has(resource.type)
 
           return (
-            <Tooltip.Root key={resource.id}>
+            <Tooltip.Root key={resource.id} open={isEditing ? false : undefined}>
               <Tooltip.Trigger asChild>
                 <Button
                   variant='subtle'
                   onClick={() => onSelect(resource.id)}
+                  onDoubleClick={
+                    isRenamable && onStartRename
+                      ? () => onStartRename(resource.id, resource.title)
+                      : undefined
+                  }
                   className={cn(
                     'shrink-0 bg-transparent px-[8px] py-[4px] text-[12px]',
                     isActive && 'bg-[var(--surface-4)]'
                   )}
                 >
                   <Icon className={cn('mr-[6px] h-[14px] w-[14px] text-[var(--text-icon)]')} />
-                  {resource.title}
+                  {isEditing && onEditValueChange && onSubmitRename && onCancelRename ? (
+                    <InlineRenameInput
+                      value={editValue ?? ''}
+                      onChange={onEditValueChange}
+                      onSubmit={onSubmitRename}
+                      onCancel={onCancelRename}
+                      className='min-w-[60px] max-w-[160px] text-[12px]'
+                    />
+                  ) : (
+                    resource.title
+                  )}
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content side='bottom'>

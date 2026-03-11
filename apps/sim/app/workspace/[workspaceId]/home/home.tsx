@@ -169,6 +169,7 @@ export function Home({ chatId }: HomeProps = {}) {
     resources,
     activeResourceId,
     setActiveResourceId,
+    renameResource,
   } = useChat(workspaceId, chatId)
 
   const [isResourceCollapsed, setIsResourceCollapsed] = useState(false)
@@ -346,6 +347,7 @@ export function Home({ chatId }: HomeProps = {}) {
           resources={resources}
           activeResourceId={activeResourceId}
           onSelectResource={setActiveResourceId}
+          onRenameResource={renameResource}
           onCollapse={collapseResource}
           isCollapsed={isResourceCollapsed}
           className={animateResourcePanel ? 'animate-slide-in-right' : undefined}

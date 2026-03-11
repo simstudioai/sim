@@ -4,6 +4,7 @@ import type { WorkspaceFileArgs, WorkspaceFileResult } from '@/lib/copilot/tools
 import {
   deleteWorkspaceFile,
   getWorkspaceFile,
+  renameWorkspaceFile,
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -125,6 +126,39 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           }
         }
 
+        case 'rename': {
+          const fileId = (args as Record<string, unknown>).fileId as string | undefined
+          const newName = (args as Record<string, unknown>).newName as string | undefined
+
+          if (!fileId) {
+            return { success: false, message: 'fileId is required for rename operation' }
+          }
+          if (!newName) {
+            return { success: false, message: 'newName is required for rename operation' }
+          }
+
+          const fileRecord = await getWorkspaceFile(workspaceId, fileId)
+          if (!fileRecord) {
+            return { success: false, message: `File with ID "${fileId}" not found` }
+          }
+
+          const oldName = fileRecord.name
+          await renameWorkspaceFile(workspaceId, fileId, newName)
+
+          logger.info('Workspace file renamed via copilot', {
+            fileId,
+            oldName,
+            newName,
+            userId: context.userId,
+          })
+
+          return {
+            success: true,
+            message: `File renamed from "${oldName}" to "${newName}"`,
+            data: { id: fileId, name: newName },
+          }
+        }
+
         case 'delete': {
           const fileId = (args as Record<string, unknown>).fileId as string | undefined
           if (!fileId) {
@@ -154,7 +188,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
         default:
           return {
             success: false,
-            message: `Unknown operation: ${operation}. Supported: write, delete. Use the filesystem to list/read files.`,
+            message: `Unknown operation: ${operation}. Supported: write, update, rename, delete. Use the filesystem to list/read files.`,
           }
       }
     } catch (error) {

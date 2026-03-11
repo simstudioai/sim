@@ -227,7 +227,7 @@ export interface SSEPayload {
   subagent?: string
 }
 
-export type MothershipResourceType = 'table' | 'file' | 'workflow'
+export type MothershipResourceType = 'table' | 'file' | 'workflow' | 'knowledgebase'
 
 export interface MothershipResource {
   type: MothershipResourceType

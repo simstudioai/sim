@@ -1,2 +1,6 @@
-export { EmbeddedWorkflowActions, ResourceContent } from './resource-content'
+export {
+  EmbeddedKnowledgeBaseActions,
+  EmbeddedWorkflowActions,
+  ResourceContent,
+} from './resource-content'
 export { ResourceTabs } from './resource-tabs'

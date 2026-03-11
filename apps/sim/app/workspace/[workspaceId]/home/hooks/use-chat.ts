@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
+import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { tableKeys } from '@/hooks/queries/tables'
 import {
   type TaskChatHistory,
@@ -29,9 +30,11 @@ import type {
 import {
   extractFileResource,
   extractFunctionExecuteResource,
+  extractKnowledgeBaseResource,
   extractResourcesFromHistory,
   extractTableResource,
   extractWorkflowResource,
+  GENERIC_TITLES,
   RESOURCE_TOOL_NAMES,
 } from '../utils'
 
@@ -44,6 +47,7 @@ export interface UseChatReturn {
   resources: MothershipResource[]
   activeResourceId: string | null
   setActiveResourceId: (id: string | null) => void
+  renameResource: (id: string, newTitle: string) => void
 }
 
 const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
@@ -160,11 +164,15 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
 
   const { data: chatHistory } = useChatHistory(initialChatId)
 
+  const renameResource = useCallback((id: string, newTitle: string) => {
+    setResources((prev) => prev.map((r) => (r.id === id ? { ...r, title: newTitle } : r)))
+  }, [])
+
   const addResource = useCallback((resource: MothershipResource) => {
     setResources((prev) => {
       const existing = prev.find((r) => r.type === resource.type && r.id === resource.id)
       if (existing) {
-        const keepOldTitle = existing.title !== 'Table' && existing.title !== 'File'
+        const keepOldTitle = !GENERIC_TITLES.has(existing.title)
         const title = keepOldTitle ? existing.title : resource.title
         if (title === existing.title) return prev
         return prev.map((r) =>
@@ -468,6 +476,16 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                       registry.loadWorkflowState(resource.id)
                     }
                   }
+                } else if (toolName === 'knowledge') {
+                  resource = extractKnowledgeBaseResource(parsed, storedArgs)
+                  if (resource) {
+                    queryClient.invalidateQueries({
+                      queryKey: knowledgeKeys.detail(resource.id),
+                    })
+                    queryClient.invalidateQueries({
+                      queryKey: knowledgeKeys.list(workspaceId),
+                    })
+                  }
                 }
 
                 if (resource) addResource(resource)
@@ -723,5 +741,6 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     resources,
     activeResourceId,
     setActiveResourceId,
+    renameResource,
   }
 }

@@ -8,13 +8,21 @@ export const RESOURCE_TOOL_NAMES = new Set([
   'edit_workflow',
   'function_execute',
   'read',
+  'knowledge',
 ])
 
+/**
+ * Resolves the top-level result object from an SSE payload.
+ * The result may arrive at `parsed.result` or nested under `parsed.data.result`.
+ */
+function getTopResult(parsed: SSEPayload): Record<string, unknown> | undefined {
+  return (parsed.result ?? (typeof parsed.data === 'object' ? parsed.data?.result : undefined)) as
+    | Record<string, unknown>
+    | undefined
+}
+
 function getResultData(parsed: SSEPayload): Record<string, unknown> | undefined {
-  const topResult = parsed.result as Record<string, unknown> | undefined
-  const nestedResult =
-    typeof parsed.data === 'object' ? (parsed.data?.result as Record<string, unknown>) : undefined
-  const result = topResult ?? nestedResult
+  const result = getTopResult(parsed)
   return result?.data as Record<string, unknown> | undefined
 }
 
@@ -66,10 +74,7 @@ export function extractFunctionExecuteResource(
   parsed: SSEPayload,
   storedArgs: Record<string, unknown> | undefined
 ): MothershipResource | null {
-  const topResult = (parsed.result ??
-    (typeof parsed.data === 'object' ? parsed.data?.result : undefined)) as
-    | Record<string, unknown>
-    | undefined
+  const topResult = getTopResult(parsed)
 
   if (topResult?.tableId) {
     return {
@@ -94,10 +99,7 @@ export function extractWorkflowResource(
   parsed: SSEPayload,
   fallbackWorkflowId: string | null
 ): MothershipResource | null {
-  const topResult = (parsed.result ??
-    (typeof parsed.data === 'object' ? parsed.data?.result : undefined)) as
-    | Record<string, unknown>
-    | undefined
+  const topResult = getTopResult(parsed)
   const data = topResult?.data as Record<string, unknown> | undefined
 
   const workflowId =
@@ -110,7 +112,29 @@ export function extractWorkflowResource(
   return null
 }
 
-const GENERIC_TITLES = new Set(['Table', 'File', 'Workflow'])
+export function extractKnowledgeBaseResource(
+  parsed: SSEPayload,
+  storedArgs: Record<string, unknown> | undefined
+): MothershipResource | null {
+  const topResult = getTopResult(parsed)
+  const data = topResult?.data as Record<string, unknown> | undefined
+
+  const knowledgeBaseId =
+    (data?.id as string) ??
+    (topResult?.knowledgeBaseId as string) ??
+    (data?.knowledgeBaseId as string) ??
+    (storedArgs?.knowledgeBaseId as string)
+  const knowledgeBaseName =
+    (data?.name as string) ?? (topResult?.knowledgeBaseName as string) ?? 'Knowledge Base'
+
+  if (knowledgeBaseId) {
+    return { type: 'knowledgebase', id: knowledgeBaseId, title: knowledgeBaseName }
+  }
+
+  return null
+}
+
+export const GENERIC_TITLES = new Set(['Table', 'File', 'Workflow', 'Knowledge Base'])
 
 /**
  * Reconstructs the MothershipResource list from persisted tool calls.
@@ -157,6 +181,8 @@ export function extractResourcesFromHistory(messages: TaskStoredMessage[]): Moth
       } else if (tc.name === 'create_workflow' || tc.name === 'edit_workflow') {
         resource = extractWorkflowResource(payload, lastWorkflowId)
         if (resource) lastWorkflowId = resource.id
+      } else if (tc.name === 'knowledge') {
+        resource = extractKnowledgeBaseResource(payload, args)
       }
 
       if (resource) {
