@@ -331,10 +331,8 @@ export function WorkspaceHeader({
                 type='button'
                 aria-label='Switch workspace'
                 className={cn(
-                  'group flex min-w-0 items-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-5)]',
-                  isCollapsed
-                    ? 'h-[35px] w-[35px] justify-center px-0'
-                    : 'h-[32px] w-full cursor-pointer gap-[8px] pr-[8px] pl-[6.5px]'
+                  'group flex h-[32px] min-w-0 items-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] pl-[5px] transition-colors hover:bg-[var(--surface-5)]',
+                  isCollapsed ? 'w-[32px]' : 'w-full cursor-pointer gap-[8px] pr-[8px]'
                 )}
                 title={activeWorkspace?.name || 'Loading...'}
                 onContextMenu={(e) => {
@@ -368,7 +366,7 @@ export function WorkspaceHeader({
             <DropdownMenuContent
               align='start'
               side={isCollapsed ? 'right' : 'bottom'}
-              sideOffset={isCollapsed ? 12 : 8}
+              sideOffset={isCollapsed ? 16 : 8}
               style={
                 isCollapsed
                   ? {
@@ -539,10 +537,8 @@ export function WorkspaceHeader({
             type='button'
             aria-label='Switch workspace'
             className={cn(
-              'flex min-w-0 items-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)]',
-              isCollapsed
-                ? 'h-[35px] w-[35px] justify-center px-0'
-                : 'h-[32px] w-full gap-[8px] pr-[8px] pl-[6.5px]'
+              'flex h-[32px] min-w-0 items-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] pl-[5px]',
+              isCollapsed ? 'w-[32px]' : 'w-full gap-[8px] pr-[8px]'
             )}
             title={activeWorkspace?.name || 'Loading...'}
             disabled

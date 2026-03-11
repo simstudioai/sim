@@ -3836,8 +3836,12 @@ const WorkflowContent = React.memo(
                   onNodesChange={onNodesChange}
                   onEdgesChange={onEdgesChange}
                   onConnect={!embedded && effectivePermissions.canEdit ? onConnect : undefined}
-                  onConnectStart={!embedded && effectivePermissions.canEdit ? onConnectStart : undefined}
-                  onConnectEnd={!embedded && effectivePermissions.canEdit ? onConnectEnd : undefined}
+                  onConnectStart={
+                    !embedded && effectivePermissions.canEdit ? onConnectStart : undefined
+                  }
+                  onConnectEnd={
+                    !embedded && effectivePermissions.canEdit ? onConnectEnd : undefined
+                  }
                   nodeTypes={nodeTypes}
                   edgeTypes={edgeTypes}
                   onMouseDown={handleCanvasMouseDown}

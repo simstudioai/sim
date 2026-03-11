@@ -226,9 +226,8 @@ export function Home({ chatId }: HomeProps = {}) {
 
   if (!hasMessages) {
     return (
-      <div className='h-full overflow-hidden bg-[var(--bg)]'>
-        <div className='flex min-h-full flex-col items-center px-[24px]'>
-          <div className='min-h-[30vh] flex-1' />
+      <div className='h-full overflow-y-auto bg-[var(--bg)]'>
+        <div className='flex min-h-full flex-col items-center justify-center px-[24px] pb-[2vh]'>
           <h1 className='mb-[24px] max-w-[42rem] font-[440] font-season text-[32px] text-[var(--text-primary)] tracking-[-0.02em]'>
             What should we get done
             {session?.user?.name ? `, ${session.user.name.split(' ')[0]}` : ''}?
@@ -240,9 +239,9 @@ export function Home({ chatId }: HomeProps = {}) {
             onStopGeneration={stopGeneration}
             userId={session?.user?.id}
           />
-          <div className='w-full max-w-[42rem] pt-[48px] pb-[32px]'>
-            <TemplatePrompts onSelect={(prompt) => handleSubmit(prompt)} />
-          </div>
+        </div>
+        <div className='-mt-[30vh] mx-auto w-full max-w-[42rem] px-[16px] pb-[32px]'>
+          <TemplatePrompts onSelect={(prompt) => handleSubmit(prompt)} />
         </div>
       </div>
     )
@@ -250,10 +249,10 @@ export function Home({ chatId }: HomeProps = {}) {
 
   return (
     <div className='relative flex h-full bg-[var(--bg)]'>
-      <div className='relative flex h-full min-w-0 flex-1 flex-col'>
+      <div className='flex h-full min-w-0 flex-1 flex-col'>
         <div
           ref={scrollContainerRef}
-          className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-[98px]'
+          className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-4'
         >
           <div className='mx-auto max-w-[42rem] space-y-6'>
             {messages.map((msg, index) => {
@@ -328,9 +327,8 @@ export function Home({ chatId }: HomeProps = {}) {
           </div>
         </div>
 
-        <div className='pointer-events-none absolute right-0 bottom-0 left-0 z-10 px-[24px] pb-[16px]'>
-          <div className='pointer-events-auto relative mx-auto max-w-[42rem]'>
-            <div className='-top-px -right-px -left-px -bottom-[16px] -z-10 absolute rounded-t-[20px] bg-[var(--bg)]' />
+        <div className='flex-shrink-0 px-[24px] pb-[16px]'>
+          <div className='mx-auto max-w-[42rem]'>
             <UserInput
               onSubmit={handleSubmit}
               isSending={isSending}

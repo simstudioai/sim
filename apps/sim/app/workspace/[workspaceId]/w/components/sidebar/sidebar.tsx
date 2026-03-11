@@ -81,38 +81,49 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   task,
   active,
   isSelected,
+  showCollapsedContent,
   onMultiSelectClick,
   onContextMenu,
 }: {
   task: { id: string; href: string; name: string }
   active: boolean
   isSelected: boolean
+  showCollapsedContent: boolean
   onMultiSelectClick: (taskId: string, shiftKey: boolean, metaKey: boolean) => void
   onContextMenu: (e: React.MouseEvent, taskId: string) => void
 }) {
   return (
-    <Link
-      href={task.href}
-      className={cn(
-        'mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
-        (active || isSelected) && 'bg-[var(--surface-active)]'
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <Link
+          href={task.href}
+          className={cn(
+            'mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
+            (active || isSelected) && 'bg-[var(--surface-active)]'
+          )}
+          onClick={(e) => {
+            if (task.id === 'new') return
+            if (e.shiftKey || e.metaKey || e.ctrlKey) {
+              e.preventDefault()
+              onMultiSelectClick(task.id, e.shiftKey, e.metaKey || e.ctrlKey)
+            } else {
+              useFolderStore.getState().clearTaskSelection()
+            }
+          }}
+          onContextMenu={task.id !== 'new' ? (e) => onContextMenu(e, task.id) : undefined}
+        >
+          <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+          <div className='min-w-0 truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
+            {task.name}
+          </div>
+        </Link>
+      </Tooltip.Trigger>
+      {showCollapsedContent && (
+        <Tooltip.Content side='right'>
+          <p>{task.name}</p>
+        </Tooltip.Content>
       )}
-      onClick={(e) => {
-        if (task.id === 'new') return
-        if (e.shiftKey || e.metaKey || e.ctrlKey) {
-          e.preventDefault()
-          onMultiSelectClick(task.id, e.shiftKey, e.metaKey || e.ctrlKey)
-        } else {
-          useFolderStore.getState().clearTaskSelection()
-        }
-      }}
-      onContextMenu={task.id !== 'new' ? (e) => onContextMenu(e, task.id) : undefined}
-    >
-      <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-      <div className='min-w-0 truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
-        {task.name}
-      </div>
-    </Link>
+    </Tooltip.Root>
   )
 })
 
@@ -893,7 +904,7 @@ export const Sidebar = memo(function Sidebar() {
           </div>
 
           {/* Workspace Header */}
-          <div className='flex-shrink-0 px-[8px]'>
+          <div className='flex-shrink-0 px-[10px]'>
             <WorkspaceHeader
               activeWorkspace={activeWorkspace}
               workspaceId={workspaceId}
@@ -959,22 +970,27 @@ export const Sidebar = memo(function Sidebar() {
                 </div>
               </div>
 
-              {/* Scrollable Tasks + Workflows — hidden when collapsed */}
-              {!isCollapsed && (
-                <div
-                  ref={scrollContainerRef}
-                  className={cn(
-                    'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pt-[9px] transition-colors duration-150',
-                    !hasOverflowTop && 'border-transparent'
-                  )}
-                >
-                  {/* Tasks */}
-                  <div className='flex flex-shrink-0 flex-col'>
-                    <div className='flex flex-shrink-0 flex-col space-y-[4px] px-[16px]'>
-                      <div className='flex items-center justify-between'>
-                        <div className='font-base text-[var(--text-icon)] text-small'>
-                          All tasks
-                        </div>
+              {/* Scrollable Tasks + Workflows */}
+              <div
+                ref={isCollapsed ? undefined : scrollContainerRef}
+                className={cn(
+                  'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pt-[9px] transition-colors duration-150',
+                  !hasOverflowTop && 'border-transparent'
+                )}
+              >
+                {/* Tasks */}
+                <div className='flex flex-shrink-0 flex-col'>
+                  <div className='flex flex-shrink-0 flex-col space-y-[4px] px-[16px]'>
+                    <div className='flex items-center justify-between'>
+                      <div
+                        className={cn(
+                          'font-base text-[var(--text-icon)] text-small',
+                          isCollapsed && 'opacity-0'
+                        )}
+                      >
+                        All tasks
+                      </div>
+                      {!isCollapsed && (
                         <div className='flex items-center justify-center gap-[8px]'>
                           <Tooltip.Root>
                             <Tooltip.Trigger asChild>
@@ -991,64 +1007,67 @@ export const Sidebar = memo(function Sidebar() {
                             </Tooltip.Content>
                           </Tooltip.Root>
                         </div>
-                      </div>
-                    </div>
-                    <div className='mt-[6px] flex flex-col gap-[2px] px-[8px]'>
-                      {tasksLoading ? (
-                        <SidebarItemSkeleton />
-                      ) : (
-                        <>
-                          {tasks.slice(0, visibleTaskCount).map((task) => {
-                            const active = task.id !== 'new' && pathname === task.href
-                            const isRenaming = renamingTaskId === task.id
-                            const isSelected = task.id !== 'new' && selectedTasks.has(task.id)
-
-                            if (isRenaming) {
-                              return (
-                                <div
-                                  key={task.id}
-                                  className='mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] bg-[var(--surface-active)] px-[8px] text-[14px]'
-                                >
-                                  <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                                  <input
-                                    ref={renameInputRef}
-                                    value={renameValue}
-                                    onChange={(e) => setRenameValue(e.target.value)}
-                                    onKeyDown={handleRenameKeyDown}
-                                    onBlur={handleSaveTaskRename}
-                                    className='min-w-0 flex-1 border-none bg-transparent font-base text-[14px] text-[var(--text-body)] outline-none'
-                                  />
-                                </div>
-                              )
-                            }
-
-                            return (
-                              <SidebarTaskItem
-                                key={task.id}
-                                task={task}
-                                active={active}
-                                isSelected={isSelected}
-                                onMultiSelectClick={handleTaskClick}
-                                onContextMenu={handleTaskContextMenu}
-                              />
-                            )
-                          })}
-                          {tasks.length > visibleTaskCount && (
-                            <button
-                              type='button'
-                              onClick={() => setVisibleTaskCount((prev) => prev + 5)}
-                              className='mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] text-[var(--text-icon)] hover:bg-[var(--surface-active)]'
-                            >
-                              <MoreHorizontal className='h-[16px] w-[16px] flex-shrink-0' />
-                              <span className='font-[var(--sidebar-font-weight)]'>See more</span>
-                            </button>
-                          )}
-                        </>
                       )}
                     </div>
                   </div>
+                  <div className='mt-[6px] flex flex-col gap-[2px] px-[8px]'>
+                    {tasksLoading ? (
+                      <SidebarItemSkeleton />
+                    ) : (
+                      <>
+                        {tasks.slice(0, visibleTaskCount).map((task) => {
+                          const active = task.id !== 'new' && pathname === task.href
+                          const isRenaming = renamingTaskId === task.id
+                          const isSelected = task.id !== 'new' && selectedTasks.has(task.id)
 
-                  {/* Workflows */}
+                          if (!isCollapsed && isRenaming) {
+                            return (
+                              <div
+                                key={task.id}
+                                className='mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] bg-[var(--surface-active)] px-[8px] text-[14px]'
+                              >
+                                <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                                <input
+                                  ref={renameInputRef}
+                                  value={renameValue}
+                                  onChange={(e) => setRenameValue(e.target.value)}
+                                  onKeyDown={handleRenameKeyDown}
+                                  onBlur={handleSaveTaskRename}
+                                  className='min-w-0 flex-1 border-none bg-transparent font-base text-[14px] text-[var(--text-body)] outline-none'
+                                />
+                              </div>
+                            )
+                          }
+
+                          return (
+                            <SidebarTaskItem
+                              key={task.id}
+                              task={task}
+                              active={active}
+                              isSelected={isSelected}
+                              showCollapsedContent={showCollapsedContent}
+                              onMultiSelectClick={handleTaskClick}
+                              onContextMenu={handleTaskContextMenu}
+                            />
+                          )
+                        })}
+                        {tasks.length > visibleTaskCount && (
+                          <button
+                            type='button'
+                            onClick={() => setVisibleTaskCount((prev) => prev + 5)}
+                            className='mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] text-[var(--text-icon)] hover:bg-[var(--surface-active)]'
+                          >
+                            <MoreHorizontal className='h-[16px] w-[16px] flex-shrink-0' />
+                            <span className='font-[var(--sidebar-font-weight)]'>See more</span>
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Workflows */}
+                {!isCollapsed && (
                   <div className='workflows-section relative mt-[14px] flex flex-col'>
                     <div className='flex flex-shrink-0 flex-col space-y-[4px] px-[16px]'>
                       <div className='flex items-center justify-between'>
@@ -1132,10 +1151,8 @@ export const Sidebar = memo(function Sidebar() {
                       />
                     </div>
                   </div>
-                </div>
-              )}
-
-              {isCollapsed && <div className='flex-1' />}
+                )}
+              </div>
 
               {/* Footer */}
               <div
