@@ -19,6 +19,7 @@ import { checkUsageStatus } from '@/lib/billing/calculations/usage-monitor'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { formatDuration } from '@/lib/core/utils/formatting'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
@@ -207,18 +208,18 @@ async function deliverWebhook(
     headers['sim-signature'] = `t=${payload.timestamp},v1=${signature}`
   }
 
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 30000)
-
   try {
-    const response = await fetch(webhookConfig.url, {
-      method: 'POST',
-      headers,
-      body,
-      signal: controller.signal,
-    })
-
-    clearTimeout(timeoutId)
+    const response = await secureFetchWithValidation(
+      webhookConfig.url,
+      {
+        method: 'POST',
+        headers,
+        body,
+        timeout: 30000,
+        allowHttp: true,
+      },
+      'webhookUrl'
+    )
 
     return {
       success: response.ok,
@@ -226,11 +227,13 @@ async function deliverWebhook(
       error: response.ok ? undefined : `HTTP ${response.status}`,
     }
   } catch (error: unknown) {
-    clearTimeout(timeoutId)
-    const err = error as Error & { name?: string }
+    logger.warn('Webhook delivery failed', {
+      error: error instanceof Error ? error.message : String(error),
+      webhookUrl: webhookConfig.url,
+    })
     return {
       success: false,
-      error: err.name === 'AbortError' ? 'Request timeout' : err.message,
+      error: 'Failed to deliver webhook',
     }
   }
 }

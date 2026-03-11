@@ -4,7 +4,6 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import {
   checkWebhookPreprocessing,
   findAllWebhooksForPath,
-  formatProviderErrorResponse,
   handlePreDeploymentVerification,
   handleProviderChallenges,
   handleProviderReachabilityTest,
@@ -82,7 +81,6 @@ export async function POST(
       requestId
     )
     if (authError) {
-      // For multi-webhook, log and continue to next webhook
       if (webhooksForPath.length > 1) {
         logger.warn(`[${requestId}] Auth failed for webhook ${foundWebhook.id}, continuing to next`)
         continue
@@ -92,39 +90,18 @@ export async function POST(
 
     const reachabilityResponse = handleProviderReachabilityTest(foundWebhook, body, requestId)
     if (reachabilityResponse) {
-      // Reachability test should return immediately for the first webhook
       return reachabilityResponse
     }
 
-    let preprocessError: NextResponse | null = null
-    try {
-      preprocessError = await checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId)
-      if (preprocessError) {
-        if (webhooksForPath.length > 1) {
-          logger.warn(
-            `[${requestId}] Preprocessing failed for webhook ${foundWebhook.id}, continuing to next`
-          )
-          continue
-        }
-        return preprocessError
-      }
-    } catch (error) {
-      logger.error(`[${requestId}] Unexpected error during webhook preprocessing`, {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        webhookId: foundWebhook.id,
-        workflowId: foundWorkflow.id,
-      })
-
+    const preprocessResult = await checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId)
+    if (preprocessResult.error) {
       if (webhooksForPath.length > 1) {
+        logger.warn(
+          `[${requestId}] Preprocessing failed for webhook ${foundWebhook.id}, continuing to next`
+        )
         continue
       }
-
-      return formatProviderErrorResponse(
-        foundWebhook,
-        'An unexpected error occurred during preprocessing',
-        500
-      )
+      return preprocessResult.error
     }
 
     if (foundWebhook.blockId) {
@@ -152,6 +129,7 @@ export async function POST(
     const response = await queueWebhookExecution(foundWebhook, foundWorkflow, body, request, {
       requestId,
       path,
+      actorUserId: preprocessResult.actorUserId,
     })
     responses.push(response)
   }

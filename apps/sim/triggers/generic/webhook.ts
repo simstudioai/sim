@@ -25,7 +25,7 @@ export const genericWebhookTrigger: TriggerConfig = {
       title: 'Require Authentication',
       type: 'switch',
       description: 'Require authentication for all webhook requests',
-      defaultValue: false,
+      defaultValue: true,
       mode: 'trigger',
     },
     {
@@ -36,6 +36,7 @@ export const genericWebhookTrigger: TriggerConfig = {
       description: 'Token used to authenticate webhook requests via Bearer token or custom header',
       password: true,
       required: false,
+      value: () => crypto.randomUUID(),
       mode: 'trigger',
     },
     {

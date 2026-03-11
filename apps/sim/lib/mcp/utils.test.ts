@@ -246,7 +246,7 @@ describe('categorizeError', () => {
     const error = new Error('Server not accessible')
     const result = categorizeError(error)
     expect(result.status).toBe(404)
-    expect(result.message).toBe('Server not accessible')
+    expect(result.message).toBe('Resource not found')
   })
 
   it.concurrent('returns 401 for authentication errors', () => {
@@ -267,28 +267,28 @@ describe('categorizeError', () => {
     const error = new Error('Invalid parameter provided')
     const result = categorizeError(error)
     expect(result.status).toBe(400)
-    expect(result.message).toBe('Invalid parameter provided')
+    expect(result.message).toBe('Invalid request parameters')
   })
 
   it.concurrent('returns 400 for missing required errors', () => {
     const error = new Error('Missing required field: name')
     const result = categorizeError(error)
     expect(result.status).toBe(400)
-    expect(result.message).toBe('Missing required field: name')
+    expect(result.message).toBe('Invalid request parameters')
   })
 
   it.concurrent('returns 400 for validation errors', () => {
     const error = new Error('Validation failed for input')
     const result = categorizeError(error)
     expect(result.status).toBe(400)
-    expect(result.message).toBe('Validation failed for input')
+    expect(result.message).toBe('Invalid request parameters')
   })
 
   it.concurrent('returns 500 for generic errors', () => {
     const error = new Error('Something went wrong')
     const result = categorizeError(error)
     expect(result.status).toBe(500)
-    expect(result.message).toBe('Something went wrong')
+    expect(result.message).toBe('Internal server error')
   })
 
   it.concurrent('returns 500 for non-Error objects', () => {

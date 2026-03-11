@@ -324,7 +324,9 @@ vi.mock('@/lib/webhooks/processor', () => ({
         return null
       }
     ),
-  checkWebhookPreprocessing: vi.fn().mockResolvedValue(null),
+  checkWebhookPreprocessing: vi
+    .fn()
+    .mockResolvedValue({ error: null, actorUserId: 'test-user-id' }),
   formatProviderErrorResponse: vi.fn().mockImplementation((_webhook, error, status) => {
     const { NextResponse } = require('next/server')
     return NextResponse.json({ error }, { status })

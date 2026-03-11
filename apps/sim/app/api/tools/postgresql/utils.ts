@@ -1,7 +1,13 @@
 import postgres from 'postgres'
+import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 import type { PostgresConnectionConfig } from '@/tools/postgresql/types'
 
-export function createPostgresConnection(config: PostgresConnectionConfig) {
+export async function createPostgresConnection(config: PostgresConnectionConfig) {
+  const hostValidation = await validateDatabaseHost(config.host, 'host')
+  if (!hostValidation.isValid) {
+    throw new Error(hostValidation.error)
+  }
+
   const sslConfig =
     config.ssl === 'disabled'
       ? false

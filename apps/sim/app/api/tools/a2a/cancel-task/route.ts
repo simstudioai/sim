@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to cancel task',
+        error: 'Failed to cancel task',
       },
       { status: 500 }
     )
