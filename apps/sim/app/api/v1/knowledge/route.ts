@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
         userId,
         embeddingModel: 'text-embedding-3-small',
         embeddingDimension: 1536,
-        chunkingConfig,
+        chunkingConfig: chunkingConfig ?? { maxSize: 1024, minSize: 100, overlap: 200 },
       },
       requestId
     )

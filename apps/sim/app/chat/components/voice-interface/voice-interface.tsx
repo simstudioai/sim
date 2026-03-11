@@ -36,11 +36,9 @@ interface SpeechRecognitionStatic {
   new (): SpeechRecognition
 }
 
-declare global {
-  interface Window {
-    SpeechRecognition?: SpeechRecognitionStatic
-    webkitSpeechRecognition?: SpeechRecognitionStatic
-  }
+type WindowWithSpeech = Window & {
+  SpeechRecognition?: SpeechRecognitionStatic
+  webkitSpeechRecognition?: SpeechRecognitionStatic
 }
 
 interface VoiceInterfaceProps {
@@ -93,7 +91,11 @@ export function VoiceInterface({
   const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const isSupported =
-    typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+    typeof window !== 'undefined' &&
+    !!(
+      (window as WindowWithSpeech).SpeechRecognition ||
+      (window as WindowWithSpeech).webkitSpeechRecognition
+    )
 
   useEffect(() => {
     isMutedRef.current = isMuted
@@ -214,7 +216,8 @@ export function VoiceInterface({
   const setupSpeechRecognition = useCallback(() => {
     if (!isSupported) return
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    const w = window as WindowWithSpeech
+    const SpeechRecognition = w.SpeechRecognition || w.webkitSpeechRecognition
     if (!SpeechRecognition) return
 
     const recognition = new SpeechRecognition()

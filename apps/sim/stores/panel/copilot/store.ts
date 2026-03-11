@@ -2491,7 +2491,9 @@ export const useCopilotStore = create<CopilotStore>()(
 
       let masked = value
       // Sort by length descending to mask longer IDs first
-      const sortedIds = Array.from(sensitiveCredentialIds).toSorted((a, b) => b.length - a.length)
+      const sortedIds = Array.from(sensitiveCredentialIds).sort(
+        (a: string, b: string) => b.length - a.length
+      )
       for (const id of sortedIds) {
         if (id && masked.includes(id)) {
           masked = masked.split(id).join('••••••••')

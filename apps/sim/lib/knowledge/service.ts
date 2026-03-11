@@ -141,6 +141,7 @@ export async function createKnowledgeBase(
 
   return {
     id: kbId,
+    userId: data.userId,
     name: data.name,
     description: data.description ?? null,
     tokenCount: 0,

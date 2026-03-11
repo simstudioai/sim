@@ -32,6 +32,7 @@ export interface SyncLogData {
   docsUpdated: number
   docsDeleted: number
   docsUnchanged: number
+  docsFailed: number
   errorMessage: string | null
 }
 

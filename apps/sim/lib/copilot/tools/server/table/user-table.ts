@@ -781,7 +781,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           const requestId = crypto.randomUUID().slice(0, 8)
           const updated = await renameColumn(
-            { tableId: args.tableId, columnName: colName, newName: newColName },
+            { tableId: args.tableId, oldName: colName, newName: newColName },
             requestId
           )
           return {
@@ -844,7 +844,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           let result: TableDefinition | undefined
           if (newType !== undefined) {
             result = await updateColumnType(
-              { tableId: args.tableId, columnName: colName, newType },
+              {
+                tableId: args.tableId,
+                columnName: colName,
+                newType: newType as 'string' | 'number' | 'boolean' | 'date' | 'json',
+              },
               requestId
             )
           }

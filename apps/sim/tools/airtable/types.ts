@@ -172,13 +172,6 @@ export type AirtableResponse =
   | AirtableListBasesResponse
   | AirtableGetBaseSchemaResponse
 
-export interface AirtableListBasesResponse extends ToolResponse {
-  output: {
-    bases: Array<{ id: string; name: string; permissionLevel: string }>
-    metadata: { totalBases: number }
-  }
-}
-
 export interface AirtableGetBaseSchemaResponse extends ToolResponse {
   output: {
     tables: Array<{

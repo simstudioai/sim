@@ -4,8 +4,8 @@ export interface UsageData {
   percentUsed: number
   isWarning: boolean
   isExceeded: boolean
-  billingPeriodStart: Date | null
-  billingPeriodEnd: Date | null
+  billingPeriodStart: Date | string | null
+  billingPeriodEnd: Date | string | null
   lastPeriodCost: number
   lastPeriodCopilotCost?: number
   copilotCost?: number
@@ -30,7 +30,7 @@ export interface SubscriptionData {
   seats: number | null
   metadata: any | null
   stripeSubscriptionId: string | null
-  periodEnd: Date | null
+  periodEnd: Date | string | null
   cancelAtPeriodEnd?: boolean
   usage: UsageData
   billingBlocked?: boolean

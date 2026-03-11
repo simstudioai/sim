@@ -111,7 +111,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
       const cleanData = cleanRowData(columns, rowData)
 
       if (mode === 'add') {
-        await createRowMutation.mutateAsync(cleanData)
+        await createRowMutation.mutateAsync({ data: cleanData })
       } else if (mode === 'edit' && row) {
         await updateRowMutation.mutateAsync({ rowId: row.id, data: cleanData })
       }

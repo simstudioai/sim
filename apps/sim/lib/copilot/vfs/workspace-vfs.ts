@@ -1059,6 +1059,7 @@ export class WorkspaceVFS {
           lastRanAt: workflowSchedule.lastRanAt,
           sourceTaskName: workflowSchedule.sourceTaskName,
           sourceChatId: workflowSchedule.sourceChatId,
+          jobHistory: workflowSchedule.jobHistory,
           createdAt: workflowSchedule.createdAt,
         })
         .from(workflowSchedule)
