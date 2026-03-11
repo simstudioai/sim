@@ -147,12 +147,9 @@ export function Tables() {
       const result = await createTable.mutateAsync({
         name,
         schema: {
-          columns: [
-            { name: 'name', type: 'string' },
-            { name: 'status', type: 'string' },
-          ],
+          columns: [{ name: 'name', type: 'string' }],
         },
-        initialRowCount: 20,
+        initialRowCount: 1,
       })
       const tableId = result?.data?.table?.id
       if (tableId) {
