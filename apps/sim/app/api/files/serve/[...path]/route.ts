@@ -6,7 +6,6 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
-import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import {
@@ -19,17 +18,10 @@ import {
 
 const logger = createLogger('FilesServeAPI')
 
-async function resolveDisplayFilename(
-  cloudKey: string,
-  context: StorageContext
-): Promise<string | null> {
-  try {
-    const metadata = await getFileMetadataByKey(cloudKey, context)
-    if (metadata?.originalName) return metadata.originalName
-  } catch {
-    logger.debug('Failed to look up original filename from DB', { cloudKey, context })
-  }
-  return null
+const STORAGE_KEY_PREFIX_RE = /^\d+-[a-z0-9]+-/
+
+function stripStorageKeyPrefix(segment: string): string {
+  return STORAGE_KEY_PREFIX_RE.test(segment) ? segment.replace(STORAGE_KEY_PREFIX_RE, '') : segment
 }
 
 export async function GET(
@@ -117,9 +109,8 @@ async function handleLocalFile(filename: string, userId: string): Promise<NextRe
     }
 
     const fileBuffer = await readFile(filePath)
-    const fallbackName = filename.split('/').pop() || filename
-    const displayName =
-      (contextParam ? await resolveDisplayFilename(filename, contextParam) : null) ?? fallbackName
+    const segment = filename.split('/').pop() || filename
+    const displayName = stripStorageKeyPrefix(segment)
     const contentType = getContentType(displayName)
 
     logger.info('Local file served', { userId, filename, size: fileBuffer.length })
@@ -176,8 +167,8 @@ async function handleCloudProxy(
       })
     }
 
-    const fallbackName = cloudKey.split('/').pop() || 'download'
-    const displayName = (await resolveDisplayFilename(cloudKey, context)) ?? fallbackName
+    const segment = cloudKey.split('/').pop() || 'download'
+    const displayName = stripStorageKeyPrefix(segment)
     const contentType = getContentType(displayName)
 
     logger.info('Cloud file served', {
