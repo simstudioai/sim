@@ -989,7 +989,7 @@ export const Sidebar = memo(function Sidebar() {
                                     e.preventDefault()
                                     handleTaskClick(task.id, e.shiftKey, e.metaKey || e.ctrlKey)
                                   } else {
-                                    handleTaskClick(task.id, false, false)
+                                    useFolderStore.getState().clearTaskSelection()
                                   }
                                 }}
                                 onContextMenu={
