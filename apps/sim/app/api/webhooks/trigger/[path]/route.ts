@@ -73,12 +73,6 @@ export async function POST(
   const responses: NextResponse[] = []
 
   for (const { webhook: foundWebhook, workflow: foundWorkflow } of webhooksForPath) {
-    // Short-circuit: reachability test is a quick body-only check
-    const reachabilityResponse = handleProviderReachabilityTest(foundWebhook, body, requestId)
-    if (reachabilityResponse) {
-      return reachabilityResponse
-    }
-
     const authError = await verifyProviderAuth(
       foundWebhook,
       foundWorkflow,
@@ -92,6 +86,11 @@ export async function POST(
         continue
       }
       return authError
+    }
+
+    const reachabilityResponse = handleProviderReachabilityTest(foundWebhook, body, requestId)
+    if (reachabilityResponse) {
+      return reachabilityResponse
     }
 
     const preprocessResult = await checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId)

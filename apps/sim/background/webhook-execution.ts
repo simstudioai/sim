@@ -106,7 +106,6 @@ export type WebhookExecutionPayload = {
   blockId?: string
   workspaceId?: string
   credentialId?: string
-  credentialAccountUserId?: string
 }
 
 export async function executeWebhookJob(payload: WebhookExecutionPayload) {
@@ -206,9 +205,9 @@ async function executeWebhookJobInternal(
     const [workflowData, webhookRows, resolvedCredentialUserId] = await Promise.all([
       loadDeployedWorkflowState(payload.workflowId, workspaceId),
       db.select().from(webhook).where(eq(webhook.id, payload.webhookId)).limit(1),
-      !payload.credentialAccountUserId && payload.credentialId
+      payload.credentialId
         ? resolveCredentialAccountUserId(payload.credentialId)
-        : Promise.resolve(payload.credentialAccountUserId),
+        : Promise.resolve(undefined),
     ])
     const credentialAccountUserId = resolvedCredentialUserId
     if (payload.credentialId && !credentialAccountUserId) {
