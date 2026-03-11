@@ -34,7 +34,7 @@ export function DeleteChunkModal({
       <ModalContent size='sm'>
         <ModalHeader>Delete Chunk</ModalHeader>
         <ModalBody>
-          <p className='text-[12px] text-[var(--text-secondary)]'>
+          <p className='text-[var(--text-secondary)]'>
             Are you sure you want to delete this chunk?{' '}
             <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
           </p>

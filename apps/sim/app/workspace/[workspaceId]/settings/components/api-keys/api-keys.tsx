@@ -378,7 +378,7 @@ export function ApiKeys() {
         <ModalContent size='sm'>
           <ModalHeader>Delete Sim key</ModalHeader>
           <ModalBody>
-            <p className='text-[13px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Deleting{' '}
               <span className='font-medium text-[var(--text-primary)]'>{deleteKey?.name}</span> will
               immediately revoke access for any integrations using it.{' '}

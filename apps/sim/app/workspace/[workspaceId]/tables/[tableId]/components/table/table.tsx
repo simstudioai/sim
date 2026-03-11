@@ -1447,7 +1447,7 @@ export function Table({
           <ModalContent size='sm'>
             <ModalHeader>Delete Table</ModalHeader>
             <ModalBody>
-              <p className='text-[13px] text-[var(--text-secondary)]'>
+              <p className='text-[var(--text-secondary)]'>
                 Are you sure you want to delete{' '}
                 <span className='font-medium text-[var(--text-primary)]'>{tableData?.name}</span>?{' '}
                 <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
@@ -1482,7 +1482,7 @@ export function Table({
         <ModalContent size='sm'>
           <ModalHeader>Delete Column</ModalHeader>
           <ModalBody>
-            <p className='text-[13px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{deletingColumn}</span>? This
               will remove all data in this column.{' '}

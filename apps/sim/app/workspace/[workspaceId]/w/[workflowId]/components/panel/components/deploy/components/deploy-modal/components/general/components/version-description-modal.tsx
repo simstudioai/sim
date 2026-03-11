@@ -89,13 +89,13 @@ export function VersionDescriptionModal({
   return (
     <>
       <Modal open={open} onOpenChange={(openState) => !openState && handleCloseAttempt()}>
-        <ModalContent className='max-w-[480px]'>
+        <ModalContent size='md'>
           <ModalHeader>
             <span>Version Description</span>
           </ModalHeader>
           <ModalBody className='space-y-[10px]'>
             <div className='flex items-center justify-between'>
-              <p className='text-[12px] text-[var(--text-secondary)]'>
+              <p className='text-[var(--text-secondary)]'>
                 {currentDescription ? 'Edit the' : 'Add a'} description for{' '}
                 <span className='font-medium text-[var(--text-primary)]'>{versionName}</span>
               </p>
@@ -146,7 +146,7 @@ export function VersionDescriptionModal({
       </Modal>
 
       <Modal open={showUnsavedChangesAlert} onOpenChange={setShowUnsavedChangesAlert}>
-        <ModalContent className='max-w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>
             <span>Unsaved Changes</span>
           </ModalHeader>

@@ -59,6 +59,7 @@ export async function duplicateWorkspace(
     await tx.insert(workspaceTable).values({
       id: newWorkspaceId,
       name,
+      color: sourceWorkspace.color,
       ownerId: userId,
       billedAccountUserId: userId,
       allowPersonalApiKeys: sourceWorkspace.allowPersonalApiKeys,

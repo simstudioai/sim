@@ -496,7 +496,7 @@ export function General() {
         <ModalContent size='sm'>
           <ModalHeader>Reset Password</ModalHeader>
           <ModalBody>
-            <p className='text-[13px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               A password reset link will be sent to{' '}
               <span className='font-medium text-[var(--text-primary)]'>{profile?.email}</span>.
               Click the link in the email to create a new password.

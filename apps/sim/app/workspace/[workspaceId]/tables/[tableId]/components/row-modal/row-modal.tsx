@@ -162,7 +162,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
                 {error}
               </div>
             )}
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               {isSingleRow ? 'this row' : `these ${deleteCount} rows`}? This will permanently remove
               all data in {isSingleRow ? 'this row' : 'these rows'}.{' '}
@@ -186,7 +186,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
 
   return (
     <Modal open={isOpen} onOpenChange={handleClose}>
-      <ModalContent className='w-[600px]'>
+      <ModalContent size='lg'>
         <ModalHeader>
           <div className='flex flex-col gap-[4px]'>
             <h2 className='font-semibold text-[16px]'>{isAddMode ? 'Add New Row' : 'Edit Row'}</h2>

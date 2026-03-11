@@ -14,6 +14,10 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const patchWorkspaceSchema = z.object({
   name: z.string().trim().min(1).optional(),
+  color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .optional(),
   billedAccountUserId: z.string().optional(),
   allowPersonalApiKeys: z.boolean().optional(),
 })
@@ -113,10 +117,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   try {
     const body = patchWorkspaceSchema.parse(await request.json())
-    const { name, billedAccountUserId, allowPersonalApiKeys } = body
+    const { name, color, billedAccountUserId, allowPersonalApiKeys } = body
 
     if (
       name === undefined &&
+      color === undefined &&
       billedAccountUserId === undefined &&
       allowPersonalApiKeys === undefined
     ) {
@@ -137,6 +142,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     if (name !== undefined) {
       updateData.name = name
+    }
+
+    if (color !== undefined) {
+      updateData.color = color
     }
 
     if (allowPersonalApiKeys !== undefined) {

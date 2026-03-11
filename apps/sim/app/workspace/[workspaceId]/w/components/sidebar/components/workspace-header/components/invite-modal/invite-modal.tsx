@@ -608,7 +608,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         <ModalContent size='sm'>
           <ModalHeader>Remove Member</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to remove{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {memberToRemove?.email}
@@ -641,7 +641,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         <ModalContent size='sm'>
           <ModalHeader>Cancel Invitation</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to cancel the invitation for{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {invitationToRemove?.email}

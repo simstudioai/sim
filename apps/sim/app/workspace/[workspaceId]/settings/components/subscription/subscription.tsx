@@ -1043,7 +1043,7 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
       <ModalContent size='sm'>
         <ModalHeader>Get For Team</ModalHeader>
         <ModalBody>
-          <p className='text-[13px] text-[var(--text-secondary)]'>
+          <p className='text-[var(--text-secondary)]'>
             Choose a plan and number of seats for your team. Credits are pooled across all members.
           </p>
 
@@ -1257,7 +1257,7 @@ function ManagePlanModal({
           Manage {currentTier.name} Plan{isTeamPlan ? ' (Team)' : ''}
         </ModalHeader>
         <ModalBody>
-          <p className='text-[13px] text-[var(--text-secondary)]'>
+          <p className='text-[var(--text-secondary)]'>
             You're on the{' '}
             <span className='font-medium text-[var(--text-primary)]'>{currentTier.name}</span> plan
             {isTeamPlan ? ' for your team' : ''}, billed{' '}

@@ -60,7 +60,11 @@ export function useImportWorkspace({ onSuccess }: UseImportWorkspaceProps = {}) 
         const createResponse = await fetch('/api/workspaces', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: workspaceName, skipDefaultWorkflow: true }),
+          body: JSON.stringify({
+            name: workspaceName,
+            ...(metadata?.workspaceColor && { color: metadata.workspaceColor }),
+            skipDefaultWorkflow: true,
+          }),
         })
 
         if (!createResponse.ok) {

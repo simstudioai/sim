@@ -41,7 +41,7 @@ export function DeleteKnowledgeBaseModal({
       <ModalContent size='sm'>
         <ModalHeader>Delete Knowledge Base</ModalHeader>
         <ModalBody>
-          <p className='text-[12px] text-[var(--text-secondary)]'>
+          <p className='text-[var(--text-secondary)]'>
             {knowledgeBaseName ? (
               <>
                 Are you sure you want to delete{' '}

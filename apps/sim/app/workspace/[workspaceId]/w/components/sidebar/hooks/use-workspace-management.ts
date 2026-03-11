@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
-import { generateWorkspaceName } from '@/lib/workspaces/naming'
 import { useLeaveWorkspace } from '@/hooks/queries/invitations'
 import {
   useCreateWorkspace,
@@ -133,25 +132,26 @@ export function useWorkspaceManagement({
     [switchToWorkspace]
   )
 
-  const handleCreateWorkspace = useCallback(async () => {
-    if (createWorkspaceMutation.isPending) {
-      logger.info('Workspace creation already in progress, ignoring request')
-      return
-    }
+  const handleCreateWorkspace = useCallback(
+    async (name: string) => {
+      if (createWorkspaceMutation.isPending) {
+        logger.info('Workspace creation already in progress, ignoring request')
+        return
+      }
 
-    try {
-      logger.info('Creating new workspace')
-      const workspaceName = generateWorkspaceName()
-      logger.info(`Generated workspace name: ${workspaceName}`)
+      try {
+        logger.info(`Creating new workspace: ${name}`)
 
-      const newWorkspace = await createWorkspaceMutation.mutateAsync({ name: workspaceName })
-      logger.info('Created new workspace:', newWorkspace)
+        const newWorkspace = await createWorkspaceMutation.mutateAsync({ name })
+        logger.info('Created new workspace:', newWorkspace)
 
-      await switchWorkspace(newWorkspace)
-    } catch (error) {
-      logger.error('Error creating workspace:', error)
-    }
-  }, [createWorkspaceMutation, switchWorkspace])
+        await switchWorkspace(newWorkspace)
+      } catch (error) {
+        logger.error('Error creating workspace:', error)
+      }
+    },
+    [createWorkspaceMutation, switchWorkspace]
+  )
 
   const confirmDeleteWorkspace = useCallback(
     async (workspaceToDelete: Workspace, templateAction?: 'keep' | 'delete') => {

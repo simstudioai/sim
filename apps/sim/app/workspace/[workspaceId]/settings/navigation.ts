@@ -1,17 +1,20 @@
 import {
   BookOpen,
   Bug,
+  Card,
+  HexSimple,
+  Key,
   KeySquare,
   LogIn,
   Mail,
   Server,
   Settings,
   ShieldCheck,
+  TerminalWindow,
   User,
   Users,
   Wrench,
-} from 'lucide-react'
-import { Card, HexSimple, Key, TerminalWindow } from '@/components/emcn'
+} from '@/components/emcn'
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 

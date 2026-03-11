@@ -119,7 +119,7 @@ function AddMembersModal({
         onOpenChange(o)
       }}
     >
-      <ModalContent className='w-[420px]'>
+      <ModalContent size='sm'>
         <ModalHeader>Add Members</ModalHeader>
         <ModalBody className='!pb-[16px]'>
           {availableMembers.length === 0 ? (
@@ -1094,7 +1094,7 @@ export function AccessControl() {
           <ModalContent size='sm'>
             <ModalHeader>Unsaved Changes</ModalHeader>
             <ModalBody>
-              <p className='text-[13px] text-[var(--text-secondary)]'>
+              <p className='text-[var(--text-secondary)]'>
                 You have unsaved changes. Do you want to save them before closing?
               </p>
             </ModalBody>
@@ -1262,7 +1262,7 @@ export function AccessControl() {
         <ModalContent size='sm'>
           <ModalHeader>Delete Permission Group</ModalHeader>
           <ModalBody>
-            <p className='text-[13px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{deletingGroup?.name}</span>?
               All members will be removed from this group.{' '}
