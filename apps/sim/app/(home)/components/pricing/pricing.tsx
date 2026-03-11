@@ -20,7 +20,7 @@ const PRICING_TIERS: PricingTier[] = [
     price: 'Free',
     color: '#2ABBF8',
     features: [
-      '1,000 credits/mo',
+      '1,000 credits (trial)',
       '5GB file storage',
       '5 min execution limit',
       'Limited log retention',
