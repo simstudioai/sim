@@ -298,6 +298,8 @@ function generateBoundary(): string {
  * Encode a header value using RFC 2047 Base64 encoding if it contains non-ASCII characters.
  * Email headers per RFC 2822 must be ASCII-only. Non-ASCII characters (emojis, accented
  * characters, etc.) must be encoded as =?UTF-8?B?<base64>?= to avoid mojibake.
+ * Per RFC 2047, each encoded word must not exceed 75 characters. Long values are split
+ * into multiple encoded words separated by CRLF + space (folding whitespace).
  * @param value The header value to encode
  * @returns The encoded header value, or the original if it's already ASCII
  */
@@ -306,8 +308,20 @@ export function encodeRfc2047(value: string): string {
   if (/^[\x00-\x7F]*$/.test(value)) {
     return value
   }
-  const encoded = Buffer.from(value, 'utf-8').toString('base64')
-  return `=?UTF-8?B?${encoded}?=`
+
+  const utf8Bytes = Buffer.from(value, 'utf-8')
+  const encodedWords: string[] = []
+  const maxBytesPerWord = 45
+
+  let offset = 0
+  while (offset < utf8Bytes.length) {
+    const chunk = utf8Bytes.subarray(offset, offset + maxBytesPerWord)
+    const encoded = chunk.toString('base64')
+    encodedWords.push(`=?UTF-8?B?${encoded}?=`)
+    offset += maxBytesPerWord
+  }
+
+  return encodedWords.join('\r\n ')
 }
 
 /**
