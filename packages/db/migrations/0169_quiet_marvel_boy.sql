@@ -1,0 +1,1 @@
+ALTER TABLE "workspace" ADD COLUMN "color" text DEFAULT '#32bd7e' NOT NULL;
