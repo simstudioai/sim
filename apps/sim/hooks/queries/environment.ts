@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { fetchPersonalEnvironment, fetchWorkspaceEnvironment } from '@/lib/environment/api'
+import { workspaceCredentialKeys } from '@/hooks/queries/credentials'
 import { API_ENDPOINTS } from '@/stores/constants'
 import type { EnvironmentVariable } from '@/stores/settings/environment'
 import { useEnvironmentStore } from '@/stores/settings/environment'
@@ -106,8 +107,9 @@ export function useSavePersonalEnvironment() {
       logger.info('Saved personal environment variables')
       return transformedVariables
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: environmentKeys.personal() })
+      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() })
     },
   })
 }
@@ -138,11 +140,12 @@ export function useUpsertWorkspaceEnvironment() {
       logger.info(`Upserted workspace environment variables for workspace: ${workspaceId}`)
       return await response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: environmentKeys.workspace(variables.workspaceId),
       })
       queryClient.invalidateQueries({ queryKey: environmentKeys.personal() })
+      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() })
     },
   })
 }
@@ -173,11 +176,12 @@ export function useRemoveWorkspaceEnvironment() {
       logger.info(`Removed ${keys.length} workspace environment keys for workspace: ${workspaceId}`)
       return await response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: environmentKeys.workspace(variables.workspaceId),
       })
       queryClient.invalidateQueries({ queryKey: environmentKeys.personal() })
+      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() })
     },
   })
 }
