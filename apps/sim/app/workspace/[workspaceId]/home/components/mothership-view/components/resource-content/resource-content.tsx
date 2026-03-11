@@ -130,7 +130,7 @@ export function EmbeddedWorkflowActions({
           <Button
             variant='subtle'
             onClick={() => void handleRun()}
-            disabled={!isExecuting && isRunButtonDisabled}
+            disabled={isRunButtonDisabled}
             className='shrink-0 bg-transparent px-[8px] py-[5px] text-[12px]'
             aria-label={isExecuting ? 'Stop workflow' : 'Run workflow'}
           >
