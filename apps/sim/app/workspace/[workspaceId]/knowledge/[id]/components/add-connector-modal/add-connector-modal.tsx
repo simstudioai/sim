@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { ArrowLeft, Loader2, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -18,6 +18,7 @@ import {
   ModalFooter,
   ModalHeader,
 } from '@/components/emcn'
+import { useSession } from '@/lib/auth/auth-client'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
@@ -59,6 +60,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
   const [searchTerm, setSearchTerm] = useState('')
 
   const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { data: session } = useSession()
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
 
   const connectorConfig = selectedType ? CONNECTOR_REGISTRY[selectedType] : null
@@ -130,6 +132,30 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
       }
     )
   }
+
+  const handleConnectNewAccount = useCallback(async () => {
+    if (!connectorConfig || !connectorProviderId || !workspaceId) return
+
+    const userName = session?.user?.name
+    const integrationName = connectorConfig.name
+    const displayName = userName ? `${userName}'s ${integrationName}` : integrationName
+
+    try {
+      await fetch('/api/credentials/draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId,
+          providerId: connectorProviderId,
+          displayName,
+        }),
+      })
+    } catch {
+      // Draft creation is best-effort; OAuth flow will still proceed
+    }
+
+    setShowOAuthModal(true)
+  }, [connectorConfig, connectorProviderId, workspaceId, session?.user?.name])
 
   const connectorEntries = Object.entries(CONNECTOR_REGISTRY)
 
@@ -238,7 +264,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                             value: '__connect_new__',
                             icon: Plus,
                             onSelect: () => {
-                              setShowOAuthModal(true)
+                              void handleConnectNewAccount()
                             },
                           },
                         ]}

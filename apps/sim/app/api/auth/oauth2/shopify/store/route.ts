@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { safeAccountInsert } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('ShopifyStore')
@@ -68,13 +69,17 @@ export async function GET(request: NextRequest) {
       idToken: shopDomain,
     }
 
+    let resolvedAccountId: string
+
     if (existing) {
       await db.update(account).set(accountData).where(eq(account.id, existing.id))
       logger.info('Updated existing Shopify account', { accountId: existing.id })
+      resolvedAccountId = existing.id
     } else {
+      resolvedAccountId = `shopify_${session.user.id}_${Date.now()}`
       await safeAccountInsert(
         {
-          id: `shopify_${session.user.id}_${Date.now()}`,
+          id: resolvedAccountId,
           userId: session.user.id,
           providerId: 'shopify',
           accountId: accountData.accountId,
@@ -86,6 +91,16 @@ export async function GET(request: NextRequest) {
         },
         { provider: 'Shopify', identifier: shopDomain }
       )
+    }
+
+    try {
+      await processCredentialDraft({
+        userId: session.user.id,
+        providerId: 'shopify',
+        accountId: resolvedAccountId,
+      })
+    } catch (error) {
+      logger.error('Failed to process credential draft for Shopify', { error })
     }
 
     const returnUrl = request.cookies.get('shopify_return_url')?.value

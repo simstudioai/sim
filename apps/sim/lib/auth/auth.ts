@@ -65,10 +65,7 @@ import {
 } from '@/lib/core/config/feature-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import {
-  handleCreateCredentialFromDraft,
-  handleReconnectCredential,
-} from '@/lib/credentials/draft-hooks'
+import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -259,50 +256,12 @@ export const auth = betterAuth({
             })
           }
 
-          /**
-           * If a pending credential draft exists for this (userId, providerId),
-           * either create a new credential or reconnect an existing one.
-           *
-           * - draft.credentialId is null: create a new credential (normal connect flow)
-           * - draft.credentialId is set: update existing credential's accountId (reconnect flow)
-           */
           try {
-            const [draft] = await db
-              .select()
-              .from(schema.pendingCredentialDraft)
-              .where(
-                and(
-                  eq(schema.pendingCredentialDraft.userId, account.userId),
-                  eq(schema.pendingCredentialDraft.providerId, account.providerId),
-                  sql`${schema.pendingCredentialDraft.expiresAt} > NOW()`
-                )
-              )
-              .limit(1)
-
-            if (draft) {
-              const now = new Date()
-
-              if (draft.credentialId) {
-                await handleReconnectCredential({
-                  draft,
-                  newAccountId: account.id,
-                  workspaceId: draft.workspaceId,
-                  now,
-                })
-              } else {
-                await handleCreateCredentialFromDraft({
-                  draft,
-                  accountId: account.id,
-                  providerId: account.providerId,
-                  userId: account.userId,
-                  now,
-                })
-              }
-
-              await db
-                .delete(schema.pendingCredentialDraft)
-                .where(eq(schema.pendingCredentialDraft.id, draft.id))
-            }
+            await processCredentialDraft({
+              userId: account.userId,
+              providerId: account.providerId,
+              accountId: account.id,
+            })
           } catch (error) {
             logger.error('[account.create.after] Failed to process credential draft', {
               userId: account.userId,
