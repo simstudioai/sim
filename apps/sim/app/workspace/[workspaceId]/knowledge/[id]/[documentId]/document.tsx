@@ -439,57 +439,72 @@ export function Document({
     [guardDirtyAction, navigateToChunk]
   )
 
-  const breadcrumbs: BreadcrumbItem[] = combinedError
-    ? [
-        {
-          label: 'Knowledge Base',
-          onClick: () => router.push(`/workspace/${workspaceId}/knowledge`),
-        },
-        {
-          label: effectiveKnowledgeBaseName,
-          onClick: () => router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`),
-        },
-        { label: 'Error' },
-      ]
-    : [
-        {
-          label: 'Knowledge Base',
-          onClick: () => router.push(`/workspace/${workspaceId}/knowledge`),
-        },
-        {
-          label: effectiveKnowledgeBaseName,
-          onClick: () => router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`),
-        },
-        {
-          label: effectiveDocumentName,
-          editing: docRename.editingId
-            ? {
-                isEditing: true,
-                value: docRename.editValue,
-                onChange: docRename.setEditValue,
-                onSubmit: docRename.submitRename,
-                onCancel: docRename.cancelRename,
-              }
-            : undefined,
-          dropdownItems: [
-            ...(userPermissions.canEdit
-              ? [
-                  {
-                    label: 'Rename',
-                    icon: Pencil,
-                    onClick: () => docRename.startRename(documentId, effectiveDocumentName),
-                  },
-                  { label: 'Tags', icon: Tag, onClick: () => setShowTagsModal(true) },
-                  {
-                    label: 'Delete',
-                    icon: Trash,
-                    onClick: () => setShowDeleteDocumentDialog(true),
-                  },
-                ]
-              : []),
+  const handleNavToKB = useCallback(() => {
+    router.push(`/workspace/${workspaceId}/knowledge`)
+  }, [router, workspaceId])
+
+  const handleNavToKBDetail = useCallback(() => {
+    router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`)
+  }, [router, workspaceId, knowledgeBaseId])
+
+  const handleStartDocRename = useCallback(() => {
+    docRename.startRename(documentId, effectiveDocumentName)
+  }, [docRename.startRename, documentId, effectiveDocumentName])
+
+  const handleShowTags = useCallback(() => setShowTagsModal(true), [])
+  const handleShowDeleteDoc = useCallback(() => setShowDeleteDocumentDialog(true), [])
+  const handleClearSelectedChunk = useCallback(() => setSelectedChunkId(null), [])
+
+  const breadcrumbs = useMemo<BreadcrumbItem[]>(
+    () =>
+      combinedError
+        ? [
+            { label: 'Knowledge Base', onClick: handleNavToKB },
+            { label: effectiveKnowledgeBaseName, onClick: handleNavToKBDetail },
+            { label: 'Error' },
+          ]
+        : [
+            { label: 'Knowledge Base', onClick: handleNavToKB },
+            { label: effectiveKnowledgeBaseName, onClick: handleNavToKBDetail },
+            {
+              label: effectiveDocumentName,
+              editing: docRename.editingId
+                ? {
+                    isEditing: true,
+                    value: docRename.editValue,
+                    onChange: docRename.setEditValue,
+                    onSubmit: docRename.submitRename,
+                    onCancel: docRename.cancelRename,
+                  }
+                : undefined,
+              dropdownItems: [
+                ...(userPermissions.canEdit
+                  ? [
+                      { label: 'Rename', icon: Pencil, onClick: handleStartDocRename },
+                      { label: 'Tags', icon: Tag, onClick: handleShowTags },
+                      { label: 'Delete', icon: Trash, onClick: handleShowDeleteDoc },
+                    ]
+                  : []),
+              ],
+            },
           ],
-        },
-      ]
+    [
+      combinedError,
+      handleNavToKB,
+      handleNavToKBDetail,
+      effectiveKnowledgeBaseName,
+      effectiveDocumentName,
+      docRename.editingId,
+      docRename.editValue,
+      docRename.setEditValue,
+      docRename.submitRename,
+      docRename.cancelRename,
+      userPermissions.canEdit,
+      handleStartDocRename,
+      handleShowTags,
+      handleShowDeleteDoc,
+    ]
+  )
 
   const handleNewChunk = useCallback(() => {
     guardDirtyAction(() => {
@@ -534,14 +549,17 @@ export function Document({
     [goToPage, totalPages]
   )
 
-  const createAction = {
-    label: 'New chunk',
-    onClick: handleNewChunk,
-    disabled:
-      documentData?.processingStatus === 'failed' ||
-      !userPermissions.canEdit ||
-      isConnectorDocument,
-  }
+  const createAction = useMemo(
+    () => ({
+      label: 'New chunk',
+      onClick: handleNewChunk,
+      disabled:
+        documentData?.processingStatus === 'failed' ||
+        !userPermissions.canEdit ||
+        isConnectorDocument,
+    }),
+    [handleNewChunk, documentData?.processingStatus, userPermissions.canEdit, isConnectorDocument]
+  )
 
   const searchConfig: SearchConfig | undefined = isCompleted
     ? {
@@ -910,49 +928,115 @@ export function Document({
             ? 'Create Chunk'
             : 'Save'
 
-  // Editor breadcrumbs (shared between create and edit views)
-  const editorBreadcrumbs = useCallback(
-    (lastLabel: string): BreadcrumbItem[] => [
-      {
-        label: 'Knowledge Base',
-        onClick: () => router.push(`/workspace/${workspaceId}/knowledge`),
-      },
-      {
-        label: effectiveKnowledgeBaseName,
-        onClick: () => router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`),
-      },
-      {
-        label: effectiveDocumentName,
-        onClick: handleBackAttempt,
-      },
-      { label: lastLabel },
+  const editorBreadcrumbBase = useMemo<BreadcrumbItem[]>(
+    () => [
+      { label: 'Knowledge Base', onClick: handleNavToKB },
+      { label: effectiveKnowledgeBaseName, onClick: handleNavToKBDetail },
+      { label: effectiveDocumentName, onClick: handleBackAttempt },
     ],
     [
-      workspaceId,
+      handleNavToKB,
+      handleNavToKBDetail,
       effectiveKnowledgeBaseName,
-      knowledgeBaseId,
       effectiveDocumentName,
       handleBackAttempt,
-      router,
     ]
   )
 
-  // Inline create chunk view
-  if (isCreatingNewChunk && documentData) {
-    const createActions: HeaderAction[] = [
+  const newChunkBreadcrumbs = useMemo(
+    () => [...editorBreadcrumbBase, { label: 'New Chunk' }],
+    [editorBreadcrumbBase]
+  )
+
+  const editChunkBreadcrumbs = useMemo(
+    () => [
+      ...editorBreadcrumbBase,
+      { label: selectedChunk ? `Chunk #${selectedChunk.chunkIndex}` : '' },
+    ],
+    [editorBreadcrumbBase, selectedChunk?.chunkIndex]
+  )
+
+  const loadingBreadcrumbs = useMemo<BreadcrumbItem[]>(
+    () => [
+      { label: 'Knowledge Base', onClick: handleNavToKB },
+      { label: effectiveKnowledgeBaseName, onClick: handleNavToKBDetail },
+      { label: effectiveDocumentName, onClick: handleClearSelectedChunk },
+      { label: 'Loading...' },
+    ],
+    [
+      handleNavToKB,
+      handleNavToKBDetail,
+      effectiveKnowledgeBaseName,
+      effectiveDocumentName,
+      handleClearSelectedChunk,
+    ]
+  )
+
+  const handleSaveClick = useCallback(() => {
+    void handleSave()
+  }, [handleSave])
+
+  const handleNavigatePrev = useCallback(() => handleNavigateChunk('prev'), [handleNavigateChunk])
+
+  const handleNavigateNextChunk = useCallback(
+    () => handleNavigateChunk('next'),
+    [handleNavigateChunk]
+  )
+
+  const createActions = useMemo<HeaderAction[]>(
+    () => [
       {
         label: saveLabel,
-        onClick: () => void handleSave(),
+        onClick: handleSaveClick,
         disabled: !isDirty || saveStatus === 'saving',
       },
-    ]
+    ],
+    [saveLabel, handleSaveClick, isDirty, saveStatus]
+  )
 
+  const editorActions = useMemo<HeaderAction[]>(() => {
+    const actions: HeaderAction[] = [
+      {
+        label: 'Previous chunk',
+        icon: ChevronUp,
+        onClick: handleNavigatePrev,
+        disabled: !canNavigatePrev,
+      },
+      {
+        label: 'Next chunk',
+        icon: ChevronDown,
+        onClick: handleNavigateNextChunk,
+        disabled: !canNavigateNext,
+      },
+    ]
+    if (canEdit && !isConnectorDocument) {
+      actions.push({
+        label: saveLabel,
+        onClick: handleSaveClick,
+        disabled: !isDirty || saveStatus === 'saving',
+      })
+    }
+    return actions
+  }, [
+    handleNavigatePrev,
+    canNavigatePrev,
+    handleNavigateNextChunk,
+    canNavigateNext,
+    canEdit,
+    isConnectorDocument,
+    saveLabel,
+    handleSaveClick,
+    isDirty,
+    saveStatus,
+  ])
+
+  if (isCreatingNewChunk && documentData) {
     return (
       <>
         <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
           <ResourceHeader
             icon={FileText}
-            breadcrumbs={editorBreadcrumbs('New Chunk')}
+            breadcrumbs={newChunkBreadcrumbs}
             actions={createActions}
           />
           <ChunkEditor
@@ -987,25 +1071,7 @@ export function Document({
     if (!selectedChunk || !documentData) {
       return (
         <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
-          <ResourceHeader
-            icon={FileText}
-            breadcrumbs={[
-              {
-                label: 'Knowledge Base',
-                onClick: () => router.push(`/workspace/${workspaceId}/knowledge`),
-              },
-              {
-                label: effectiveKnowledgeBaseName,
-                onClick: () =>
-                  router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`),
-              },
-              {
-                label: effectiveDocumentName,
-                onClick: () => setSelectedChunkId(null),
-              },
-              { label: 'Loading...' },
-            ]}
-          />
+          <ResourceHeader icon={FileText} breadcrumbs={loadingBreadcrumbs} />
           <div className='flex flex-1 items-center justify-center'>
             <span className='text-[14px] text-[var(--text-muted)]'>Loading chunk...</span>
           </div>
@@ -1013,35 +1079,12 @@ export function Document({
       )
     }
 
-    const editorActions: HeaderAction[] = [
-      {
-        label: 'Previous chunk',
-        icon: ChevronUp,
-        onClick: () => handleNavigateChunk('prev'),
-        disabled: !canNavigatePrev,
-      },
-      {
-        label: 'Next chunk',
-        icon: ChevronDown,
-        onClick: () => handleNavigateChunk('next'),
-        disabled: !canNavigateNext,
-      },
-    ]
-
-    if (canEdit && !isConnectorDocument) {
-      editorActions.push({
-        label: saveLabel,
-        onClick: () => void handleSave(),
-        disabled: !isDirty || saveStatus === 'saving',
-      })
-    }
-
     return (
       <>
         <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
           <ResourceHeader
             icon={FileText}
-            breadcrumbs={editorBreadcrumbs(`Chunk #${selectedChunk.chunkIndex}`)}
+            breadcrumbs={editChunkBreadcrumbs}
             actions={editorActions}
           />
           <ChunkEditor

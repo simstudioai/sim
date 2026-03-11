@@ -47,7 +47,7 @@ export function Home({ chatId }: HomeProps = {}) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
   const { data: session } = useSession()
-  const [inputValue, setInputValue] = useState('')
+  const [initialPrompt, setInitialPrompt] = useState('')
   const hasCheckedLandingStorageRef = useRef(false)
 
   const createWorkflowFromLandingSeed = useCallback(
@@ -117,7 +117,7 @@ export function Home({ chatId }: HomeProps = {}) {
     const prompt = LandingPromptStorage.consume()
     if (prompt) {
       logger.info('Retrieved landing page prompt, populating home input')
-      setInputValue(prompt)
+      setInitialPrompt(prompt)
     }
   }, [createWorkflowFromLandingSeed, workspaceId, router])
 
@@ -144,13 +144,12 @@ export function Home({ chatId }: HomeProps = {}) {
   })
 
   const handleSubmit = useCallback(
-    (fileAttachments?: FileAttachmentForApi[]) => {
-      const trimmed = inputValue.trim()
+    (text: string, fileAttachments?: FileAttachmentForApi[]) => {
+      const trimmed = text.trim()
       if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
-      setInputValue('')
       sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments)
     },
-    [inputValue, sendMessage]
+    [sendMessage]
   )
 
   const hasMessages = messages.length > 0
@@ -162,8 +161,7 @@ export function Home({ chatId }: HomeProps = {}) {
           What do you want to do?
         </h1>
         <UserInput
-          value={inputValue}
-          onChange={setInputValue}
+          defaultValue={initialPrompt}
           onSubmit={handleSubmit}
           isSending={isSending}
           onStopGeneration={stopGeneration}
@@ -224,8 +222,6 @@ export function Home({ chatId }: HomeProps = {}) {
 
         <div className='flex-shrink-0 px-[24px] pb-[16px]'>
           <UserInput
-            value={inputValue}
-            onChange={setInputValue}
             onSubmit={handleSubmit}
             isSending={isSending}
             onStopGeneration={stopGeneration}

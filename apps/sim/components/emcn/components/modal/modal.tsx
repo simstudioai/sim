@@ -164,7 +164,7 @@ const ModalContent = React.forwardRef<
           className
         )}
         style={{
-          left: 'calc(50% + var(--sidebar-width, 0px) / 2)',
+          left: '50%',
           ...style,
         }}
         onEscapeKeyDown={(e) => {

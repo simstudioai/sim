@@ -2,7 +2,6 @@
 
 import { memo, useCallback, useEffect, useMemo } from 'react'
 import clsx from 'clsx'
-import { useParams, usePathname } from 'next/navigation'
 import { EmptyAreaContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/empty-area-context-menu'
 import { FolderItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/folder-item/folder-item'
 import { WorkflowItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/workflow-item'
@@ -35,6 +34,8 @@ function compareByOrder<T extends { sortOrder: number; createdAt?: Date; id: str
 }
 
 interface WorkflowListProps {
+  workspaceId: string
+  workflowId: string | undefined
   regularWorkflows: WorkflowMetadata[]
   isLoading?: boolean
   canReorder?: boolean
@@ -69,7 +70,9 @@ const DropIndicatorLine = memo(function DropIndicatorLine({
   )
 })
 
-export function WorkflowList({
+export const WorkflowList = memo(function WorkflowList({
+  workspaceId,
+  workflowId,
   regularWorkflows,
   isLoading = false,
   canReorder = true,
@@ -80,11 +83,6 @@ export function WorkflowList({
   onCreateFolder,
   disableCreate = false,
 }: WorkflowListProps) {
-  const pathname = usePathname()
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
-  const workflowId = params.workflowId as string
-
   const { isLoading: foldersLoading } = useFolders(workspaceId)
   const folders = useFolderStore((state) => state.folders)
   const { getFolderTree, expandedFolders, getFolderPath, setExpanded } = useFolderStore()
@@ -360,10 +358,7 @@ export function WorkflowList({
     folderDescendantIds,
   })
 
-  const isWorkflowActive = useCallback(
-    (wfId: string) => pathname === `/workspace/${workspaceId}/w/${wfId}`,
-    [pathname, workspaceId]
-  )
+  const isWorkflowActive = useCallback((wfId: string) => wfId === workflowId, [workflowId])
 
   useEffect(() => {
     if (!workflowId || isLoading || foldersLoading) return
@@ -646,4 +641,4 @@ export function WorkflowList({
       )}
     </SidebarDragContext.Provider>
   )
-}
+})

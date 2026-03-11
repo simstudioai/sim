@@ -327,6 +327,73 @@ export function Files() {
     }
   }, [isDirty])
 
+  const handleStartHeaderRename = useCallback(() => {
+    if (selectedFile) headerRename.startRename(selectedFile.id, selectedFile.name)
+  }, [selectedFile, headerRename.startRename])
+
+  const handleDownloadSelected = useCallback(() => {
+    if (selectedFile) handleDownload(selectedFile)
+  }, [selectedFile, handleDownload])
+
+  const handleDeleteSelected = useCallback(() => {
+    if (selectedFile) {
+      setDeleteTargetFile(selectedFile)
+      setShowDeleteConfirm(true)
+    }
+  }, [selectedFile])
+
+  const fileDetailBreadcrumbs = useMemo(
+    () =>
+      selectedFile
+        ? [
+            { label: 'Files', onClick: handleBackAttempt },
+            {
+              label: selectedFile.name,
+              editing: headerRename.editingId
+                ? {
+                    isEditing: true,
+                    value: headerRename.editValue,
+                    onChange: headerRename.setEditValue,
+                    onSubmit: headerRename.submitRename,
+                    onCancel: headerRename.cancelRename,
+                  }
+                : undefined,
+              dropdownItems: [
+                {
+                  label: 'Rename',
+                  icon: Pencil,
+                  onClick: handleStartHeaderRename,
+                },
+                {
+                  label: 'Download',
+                  icon: Download,
+                  onClick: handleDownloadSelected,
+                },
+                {
+                  label: 'Delete',
+                  icon: Trash,
+                  onClick: handleDeleteSelected,
+                },
+              ],
+            },
+          ]
+        : [],
+    [
+      selectedFile,
+      handleBackAttempt,
+      headerRename.editingId,
+      headerRename.editValue,
+      headerRename.setEditValue,
+      headerRename.submitRename,
+      headerRename.cancelRename,
+      handleStartHeaderRename,
+      handleDownloadSelected,
+      handleDeleteSelected,
+    ]
+  )
+
+  const handleTogglePreview = useCallback(() => setShowPreview((prev) => !prev), [])
+
   const handleDiscardChanges = useCallback(() => {
     setShowUnsavedChangesAlert(false)
     setIsDirty(false)
@@ -427,25 +494,11 @@ export function Files() {
     return () => window.removeEventListener('beforeunload', handler)
   }, [isDirty])
 
-  if (selectedFileId && !selectedFile) {
-    return (
-      <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
-        <ResourceHeader
-          icon={FilesIcon}
-          breadcrumbs={[
-            { label: 'Files', onClick: () => setSelectedFileId(null) },
-            { label: '...' },
-          ]}
-        />
-        <div className='flex flex-1 items-center justify-center'>
-          <Skeleton className='h-[16px] w-[200px]' />
-        </div>
-      </div>
-    )
-  }
-
-  if (selectedFile) {
+  const fileActions = useMemo<HeaderAction[]>(() => {
+    if (!selectedFile) return []
     const canEditText = isTextEditable(selectedFile)
+    const canPreview = isPreviewable(selectedFile)
+
     const saveLabel =
       saveStatus === 'saving'
         ? 'Saving...'
@@ -455,15 +508,13 @@ export function Files() {
             ? 'Save failed'
             : 'Save'
 
-    const canPreview = isPreviewable(selectedFile)
-
-    const fileActions: HeaderAction[] = [
+    return [
       ...(canPreview
         ? [
             {
               label: showPreview ? 'Hide Preview' : 'Preview',
               icon: Eye,
-              onClick: () => setShowPreview((prev) => !prev),
+              onClick: handleTogglePreview,
             },
           ]
         : []),
@@ -482,58 +533,51 @@ export function Files() {
       {
         label: 'Download',
         icon: Download,
-        onClick: () => handleDownload(selectedFile),
+        onClick: handleDownloadSelected,
       },
       {
         label: 'Delete',
         icon: Trash,
-        onClick: () => {
-          setDeleteTargetFile(selectedFile)
-          setShowDeleteConfirm(true)
-        },
+        onClick: handleDeleteSelected,
       },
     ]
+  }, [
+    selectedFile,
+    saveStatus,
+    showPreview,
+    handleTogglePreview,
+    handleSave,
+    isDirty,
+    handleDownloadSelected,
+    handleDeleteSelected,
+  ])
+
+  if (selectedFileId && !selectedFile) {
+    return (
+      <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
+        <ResourceHeader
+          icon={FilesIcon}
+          breadcrumbs={[
+            { label: 'Files', onClick: () => setSelectedFileId(null) },
+            { label: '...' },
+          ]}
+        />
+        <div className='flex flex-1 items-center justify-center'>
+          <Skeleton className='h-[16px] w-[200px]' />
+        </div>
+      </div>
+    )
+  }
+
+  if (selectedFile) {
+    const canPreview = isPreviewable(selectedFile)
 
     return (
       <>
         <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
           <ResourceHeader
             icon={FilesIcon}
-            breadcrumbs={[
-              { label: 'Files', onClick: handleBackAttempt },
-              {
-                label: selectedFile.name,
-                editing: headerRename.editingId
-                  ? {
-                      isEditing: true,
-                      value: headerRename.editValue,
-                      onChange: headerRename.setEditValue,
-                      onSubmit: headerRename.submitRename,
-                      onCancel: headerRename.cancelRename,
-                    }
-                  : undefined,
-                dropdownItems: [
-                  {
-                    label: 'Rename',
-                    icon: Pencil,
-                    onClick: () => headerRename.startRename(selectedFile.id, selectedFile.name),
-                  },
-                  {
-                    label: 'Download',
-                    icon: Download,
-                    onClick: () => handleDownload(selectedFile),
-                  },
-                  {
-                    label: 'Delete',
-                    icon: Trash,
-                    onClick: () => {
-                      setDeleteTargetFile(selectedFile)
-                      setShowDeleteConfirm(true)
-                    },
-                  },
-                ],
-              },
-            ]}
+            breadcrumbs={fileDetailBreadcrumbs}
             actions={fileActions}
           />
           <FileViewer

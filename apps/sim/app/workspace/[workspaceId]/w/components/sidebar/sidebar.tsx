@@ -77,6 +77,107 @@ function SidebarItemSkeleton() {
   )
 }
 
+const SidebarTaskItem = memo(function SidebarTaskItem({
+  task,
+  active,
+  isSelected,
+  onTaskClick,
+  onContextMenu,
+}: {
+  task: { id: string; href: string; name: string }
+  active: boolean
+  isSelected: boolean
+  onTaskClick: (taskId: string, shiftKey: boolean, metaKey: boolean) => void
+  onContextMenu: (e: React.MouseEvent, taskId: string) => void
+}) {
+  return (
+    <Link
+      href={task.href}
+      className={cn(
+        'mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
+        (active || isSelected) && 'bg-[var(--surface-active)]'
+      )}
+      onClick={(e) => {
+        if (task.id === 'new') return
+        if (e.shiftKey || e.metaKey || e.ctrlKey) {
+          e.preventDefault()
+          onTaskClick(task.id, e.shiftKey, e.metaKey || e.ctrlKey)
+        } else {
+          useFolderStore.getState().clearTaskSelection()
+        }
+      }}
+      onContextMenu={task.id !== 'new' ? (e) => onContextMenu(e, task.id) : undefined}
+    >
+      <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+      <div className='min-w-0 truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
+        {task.name}
+      </div>
+    </Link>
+  )
+})
+
+interface SidebarNavItemData {
+  id: string
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  href?: string
+  onClick?: () => void
+}
+
+const SidebarNavItem = memo(function SidebarNavItem({
+  item,
+  active,
+  showCollapsedContent,
+  onContextMenu,
+}: {
+  item: SidebarNavItemData
+  active: boolean
+  showCollapsedContent: boolean
+  onContextMenu?: (e: React.MouseEvent, href: string) => void
+}) {
+  const Icon = item.icon
+  const baseClasses =
+    'group flex h-[30px] items-center gap-[8px] rounded-[8px] mx-[2px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]'
+  const activeClasses = active ? 'bg-[var(--surface-active)]' : ''
+
+  const element = item.onClick ? (
+    <button
+      type='button'
+      data-item-id={item.id}
+      className={`${baseClasses} ${activeClasses}`}
+      onClick={item.onClick}
+    >
+      <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+      <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
+        {item.label}
+      </span>
+    </button>
+  ) : (
+    <Link
+      href={item.href!}
+      data-item-id={item.id}
+      className={`${baseClasses} ${activeClasses}`}
+      onContextMenu={onContextMenu ? (e) => onContextMenu(e, item.href!) : undefined}
+    >
+      <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+      <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
+        {item.label}
+      </span>
+    </Link>
+  )
+
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>{element}</Tooltip.Trigger>
+      {showCollapsedContent && (
+        <Tooltip.Content side='right'>
+          <p>{item.label}</p>
+        </Tooltip.Content>
+      )}
+    </Tooltip.Root>
+  )
+})
+
 /** Event name for sidebar scroll operations - centralized for consistency */
 export const SIDEBAR_SCROLL_EVENT = 'sidebar-scroll-to-item'
 
@@ -823,50 +924,15 @@ export const Sidebar = memo(function Sidebar() {
             <>
               {/* Top Navigation: Home, Search */}
               <div className='mt-[10px] flex flex-shrink-0 flex-col gap-[2px] px-[8px]'>
-                {topNavItems.map((item) => {
-                  const Icon = item.icon
-                  const active = item.href ? pathname?.startsWith(item.href) : false
-                  const baseClasses =
-                    'group flex h-[30px] items-center gap-[8px] rounded-[8px] mx-[2px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]'
-                  const activeClasses = active ? 'bg-[var(--surface-active)]' : ''
-
-                  const element = item.onClick ? (
-                    <button
-                      type='button'
-                      data-item-id={item.id}
-                      className={`${baseClasses} ${activeClasses}`}
-                      onClick={item.onClick}
-                    >
-                      <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                      <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
-                        {item.label}
-                      </span>
-                    </button>
-                  ) : (
-                    <Link
-                      href={item.href!}
-                      data-item-id={item.id}
-                      className={`${baseClasses} ${activeClasses}`}
-                      onContextMenu={(e) => handleNavItemContextMenu(e, item.href!)}
-                    >
-                      <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                      <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
-                        {item.label}
-                      </span>
-                    </Link>
-                  )
-
-                  return (
-                    <Tooltip.Root key={`${item.id}-${isCollapsed}`}>
-                      <Tooltip.Trigger asChild>{element}</Tooltip.Trigger>
-                      {showCollapsedContent && (
-                        <Tooltip.Content side='right'>
-                          <p>{item.label}</p>
-                        </Tooltip.Content>
-                      )}
-                    </Tooltip.Root>
-                  )
-                })}
+                {topNavItems.map((item) => (
+                  <SidebarNavItem
+                    key={`${item.id}-${isCollapsed}`}
+                    item={item}
+                    active={item.href ? !!pathname?.startsWith(item.href) : false}
+                    showCollapsedContent={showCollapsedContent}
+                    onContextMenu={item.href ? handleNavItemContextMenu : undefined}
+                  />
+                ))}
               </div>
 
               {/* Workspace */}
@@ -879,36 +945,15 @@ export const Sidebar = memo(function Sidebar() {
                   </div>
                 </div>
                 <div className='flex flex-col gap-[2px] px-[8px]'>
-                  {workspaceNavItems.map((item) => {
-                    const Icon = item.icon
-                    const active = item.href ? pathname?.startsWith(item.href) : false
-                    const baseClasses =
-                      'group flex h-[30px] items-center gap-[8px] rounded-[8px] mx-[2px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]'
-                    const activeClasses = active ? 'bg-[var(--surface-active)]' : ''
-
-                    return (
-                      <Tooltip.Root key={`${item.id}-${isCollapsed}`}>
-                        <Tooltip.Trigger asChild>
-                          <Link
-                            href={item.href!}
-                            data-item-id={item.id}
-                            className={`${baseClasses} ${activeClasses}`}
-                            onContextMenu={(e) => handleNavItemContextMenu(e, item.href!)}
-                          >
-                            <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                            <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
-                              {item.label}
-                            </span>
-                          </Link>
-                        </Tooltip.Trigger>
-                        {showCollapsedContent && (
-                          <Tooltip.Content side='right'>
-                            <p>{item.label}</p>
-                          </Tooltip.Content>
-                        )}
-                      </Tooltip.Root>
-                    )
-                  })}
+                  {workspaceNavItems.map((item) => (
+                    <SidebarNavItem
+                      key={`${item.id}-${isCollapsed}`}
+                      item={item}
+                      active={item.href ? !!pathname?.startsWith(item.href) : false}
+                      showCollapsedContent={showCollapsedContent}
+                      onContextMenu={handleNavItemContextMenu}
+                    />
+                  ))}
                 </div>
               </div>
 
@@ -976,33 +1021,14 @@ export const Sidebar = memo(function Sidebar() {
                             }
 
                             return (
-                              <Link
+                              <SidebarTaskItem
                                 key={task.id}
-                                href={task.href}
-                                className={cn(
-                                  'mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
-                                  (active || isSelected) && 'bg-[var(--surface-active)]'
-                                )}
-                                onClick={(e) => {
-                                  if (task.id === 'new') return
-                                  if (e.shiftKey || e.metaKey || e.ctrlKey) {
-                                    e.preventDefault()
-                                    handleTaskClick(task.id, e.shiftKey, e.metaKey || e.ctrlKey)
-                                  } else {
-                                    useFolderStore.getState().clearTaskSelection()
-                                  }
-                                }}
-                                onContextMenu={
-                                  task.id !== 'new'
-                                    ? (e) => handleTaskContextMenu(e, task.id)
-                                    : undefined
-                                }
-                              >
-                                <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                                <div className='min-w-0 truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
-                                  {task.name}
-                                </div>
-                              </Link>
+                                task={task}
+                                active={active}
+                                isSelected={isSelected}
+                                onTaskClick={handleTaskClick}
+                                onContextMenu={handleTaskContextMenu}
+                              />
                             )
                           })}
                           {tasks.length > visibleTaskCount && (
@@ -1090,6 +1116,8 @@ export const Sidebar = memo(function Sidebar() {
                     <div className='mt-[6px] px-[8px]'>
                       {workflowsLoading && regularWorkflows.length === 0 && <SidebarItemSkeleton />}
                       <WorkflowList
+                        workspaceId={workspaceId}
+                        workflowId={workflowId}
                         regularWorkflows={regularWorkflows}
                         isLoading={isLoading}
                         canReorder={canEdit}
@@ -1114,43 +1142,14 @@ export const Sidebar = memo(function Sidebar() {
                   !hasOverflowBottom && 'border-transparent'
                 )}
               >
-                {footerItems.map((item) => {
-                  const Icon = item.icon
-                  const footerClasses =
-                    'group flex h-[30px] items-center gap-[8px] rounded-[8px] mx-[2px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]'
-
-                  const element = item.href ? (
-                    <Link href={item.href} data-item-id={item.id} className={footerClasses}>
-                      <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                      <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
-                        {item.label}
-                      </span>
-                    </Link>
-                  ) : (
-                    <button
-                      type='button'
-                      data-item-id={item.id}
-                      className={footerClasses}
-                      onClick={item.onClick}
-                    >
-                      <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                      <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
-                        {item.label}
-                      </span>
-                    </button>
-                  )
-
-                  return (
-                    <Tooltip.Root key={`${item.id}-${isCollapsed}`}>
-                      <Tooltip.Trigger asChild>{element}</Tooltip.Trigger>
-                      {showCollapsedContent && (
-                        <Tooltip.Content side='right'>
-                          <p>{item.label}</p>
-                        </Tooltip.Content>
-                      )}
-                    </Tooltip.Root>
-                  )
-                })}
+                {footerItems.map((item) => (
+                  <SidebarNavItem
+                    key={`${item.id}-${isCollapsed}`}
+                    item={item}
+                    active={false}
+                    showCollapsedContent={showCollapsedContent}
+                  />
+                ))}
               </div>
 
               {/* Nav Item Context Menu */}

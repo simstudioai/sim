@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, memo } from 'react'
 import {
   Button,
   ChevronDown,
@@ -54,7 +54,7 @@ interface ResourceHeaderProps {
   actions?: HeaderAction[]
 }
 
-export function ResourceHeader({
+export const ResourceHeader = memo(function ResourceHeader({
   icon: Icon,
   title,
   breadcrumbs,
@@ -134,7 +134,7 @@ export function ResourceHeader({
       </div>
     </div>
   )
-}
+})
 
 function BreadcrumbSegment({
   icon: Icon,

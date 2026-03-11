@@ -42,9 +42,8 @@ const ACCEPTED_FILE_TYPES =
   'image/*,.pdf,.txt,.csv,.md,.html,.json,.xml,text/plain,text/csv,text/markdown,text/html,application/json,application/xml,application/pdf'
 
 interface UserInputProps {
-  value: string
-  onChange: (value: string) => void
-  onSubmit: (fileAttachments?: FileAttachmentForApi[]) => void
+  defaultValue?: string
+  onSubmit: (text: string, fileAttachments?: FileAttachmentForApi[]) => void
   isSending: boolean
   onStopGeneration: () => void
   isInitialView?: boolean
@@ -52,15 +51,20 @@ interface UserInputProps {
 }
 
 export function UserInput({
-  value,
-  onChange,
+  defaultValue = '',
   onSubmit,
   isSending,
   onStopGeneration,
   isInitialView = true,
   userId,
 }: UserInputProps) {
-  const animatedPlaceholder = useAnimatedPlaceholder()
+  const [value, setValue] = useState(defaultValue)
+
+  useEffect(() => {
+    if (defaultValue) setValue(defaultValue)
+  }, [defaultValue])
+
+  const animatedPlaceholder = useAnimatedPlaceholder(isInitialView)
   const placeholder = isInitialView ? animatedPlaceholder : 'Send message to Sim'
 
   const files = useFileAttachments({ userId, disabled: false, isLoading: isSending })
@@ -95,13 +99,14 @@ export function UserInput({
         size: f.size,
       }))
 
-    onSubmit(fileAttachmentsForApi.length > 0 ? fileAttachmentsForApi : undefined)
+    onSubmit(value, fileAttachmentsForApi.length > 0 ? fileAttachmentsForApi : undefined)
+    setValue('')
     files.clearAttachedFiles()
 
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
-  }, [onSubmit, files])
+  }, [onSubmit, files, value])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -149,7 +154,7 @@ export function UserInput({
         transcript += event.results[i][0].transcript
       }
       const prefix = prefixRef.current
-      onChange(prefix ? `${prefix} ${transcript}` : transcript)
+      setValue(prefix ? `${prefix} ${transcript}` : transcript)
     }
 
     recognition.onend = () => {
@@ -172,7 +177,7 @@ export function UserInput({
     recognitionRef.current = recognition
     recognition.start()
     setIsListening(true)
-  }, [isListening, value, onChange])
+  }, [isListening, value])
 
   return (
     <div
@@ -195,7 +200,7 @@ export function UserInput({
             return (
               <div
                 key={file.id}
-                className='group relative h-[56px] w-[56px] flex-shrink-0 cursor-pointer overflow-hidden rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-5)] transition-all hover:bg-[var(--surface-4)]'
+                className='group relative h-[56px] w-[56px] flex-shrink-0 cursor-pointer overflow-hidden rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-5)] hover:bg-[var(--surface-4)]'
                 title={`${file.name} (${files.formatFileSize(file.size)})`}
                 onClick={() => files.handleFileClick(file)}
               >
@@ -229,7 +234,7 @@ export function UserInput({
                       e.stopPropagation()
                       files.removeFile(file.id)
                     }}
-                    className='absolute top-[2px] right-[2px] flex h-[16px] w-[16px] items-center justify-center rounded-full bg-black/60 opacity-0 transition-opacity group-hover:opacity-100'
+                    className='absolute top-[2px] right-[2px] flex h-[16px] w-[16px] items-center justify-center rounded-full bg-black/60 opacity-0 group-hover:opacity-100'
                   >
                     <X className='h-[10px] w-[10px] text-white' />
                   </button>
@@ -243,7 +248,7 @@ export function UserInput({
       <textarea
         ref={textareaRef}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
         onInput={handleInput}
         placeholder={files.isDragging ? 'Drop files here...' : placeholder}

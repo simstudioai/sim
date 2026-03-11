@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { memo, type ReactNode } from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import {
   ArrowDown,
@@ -65,7 +65,7 @@ interface ResourceOptionsBarProps {
   extras?: ReactNode
 }
 
-export function ResourceOptionsBar({
+export const ResourceOptionsBar = memo(function ResourceOptionsBar({
   search,
   sort,
   filter,
@@ -172,7 +172,7 @@ export function ResourceOptionsBar({
       </div>
     </div>
   )
-}
+})
 
 function SortDropdown({ config }: { config: SortConfig }) {
   const { options, active, onSort, onClear } = config
