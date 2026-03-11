@@ -97,6 +97,7 @@ export function useAutoScroll(isStreaming: boolean) {
       el.removeEventListener('scroll', onScroll)
       observer.disconnect()
       cancelAnimationFrame(rafIdRef.current)
+      if (stickyRef.current) scrollToBottom()
     }
   }, [isStreaming, scrollToBottom])
 

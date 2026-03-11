@@ -140,10 +140,10 @@ export function SearchModal({
           hidden: permissionConfig.hideKnowledgeBaseTab,
         },
         {
-          id: 'schedules',
-          name: 'Schedules',
+          id: 'scheduled-tasks',
+          name: 'Scheduled Tasks',
           icon: Calendar,
-          href: `/workspace/${workspaceId}/schedules`,
+          href: `/workspace/${workspaceId}/scheduled-tasks`,
         },
         {
           id: 'logs',

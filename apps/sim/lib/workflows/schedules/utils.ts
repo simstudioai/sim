@@ -464,10 +464,12 @@ function getTimezoneAbbreviation(timezone: string): string {
  */
 export const parseCronToHumanReadable = (cronExpression: string, timezone?: string): string => {
   try {
-    const baseDescription = cronstrue.toString(cronExpression, {
-      use24HourTimeFormat: false, // Use 12-hour format with AM/PM
-      verbose: false, // Keep it concise
-    })
+    const baseDescription = cronstrue
+      .toString(cronExpression, {
+        use24HourTimeFormat: false,
+        verbose: false,
+      })
+      .replace(/\b0(\d:\d{2})/g, '$1')
 
     if (timezone && timezone !== 'UTC') {
       const tzAbbr = getTimezoneAbbreviation(timezone)

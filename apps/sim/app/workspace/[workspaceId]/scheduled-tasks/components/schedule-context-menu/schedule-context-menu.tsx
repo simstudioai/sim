@@ -13,7 +13,6 @@ interface ScheduleContextMenuProps {
   position: { x: number; y: number }
   menuRef: React.RefObject<HTMLDivElement | null>
   onClose: () => void
-  isJob: boolean
   isActive: boolean
   onEdit?: () => void
   onPause?: () => void
@@ -26,7 +25,6 @@ export function ScheduleContextMenu({
   position,
   menuRef,
   onClose,
-  isJob,
   isActive,
   onEdit,
   onPause,
@@ -50,7 +48,7 @@ export function ScheduleContextMenu({
         }}
       />
       <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
-        {isJob && onEdit && (
+        {onEdit && (
           <PopoverItem
             onClick={() => {
               onEdit()
@@ -60,7 +58,7 @@ export function ScheduleContextMenu({
             Edit
           </PopoverItem>
         )}
-        {isJob && onEdit && <PopoverDivider />}
+        {onEdit && <PopoverDivider />}
         {isActive && onPause && (
           <PopoverItem
             onClick={() => {

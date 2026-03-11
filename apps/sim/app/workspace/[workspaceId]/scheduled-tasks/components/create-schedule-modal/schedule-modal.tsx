@@ -306,7 +306,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
     } catch (error: unknown) {
       logger.error('Schedule submission failed:', { error })
       setSubmitError(
-        error instanceof Error ? error.message : 'Failed to save schedule. Please try again.'
+        error instanceof Error ? error.message : 'Failed to save scheduled task. Please try again.'
       )
     }
   }
@@ -314,10 +314,9 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size='lg'>
-        <ModalHeader>{isEditing ? 'Edit schedule' : 'Create new schedule'}</ModalHeader>
+        <ModalHeader>{isEditing ? 'Edit scheduled task' : 'Create new scheduled task'}</ModalHeader>
         <ModalBody>
           <div className='flex flex-col gap-[18px]'>
-            {/* Title */}
             <div className='flex flex-col gap-[8px]'>
               <p className='font-medium text-[14px] text-[var(--text-secondary)]'>Title</p>
               <EmcnInput
@@ -333,7 +332,6 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
               />
             </div>
 
-            {/* Prompt */}
             <div className='flex flex-col gap-[8px]'>
               <p className='font-medium text-[14px] text-[var(--text-secondary)]'>
                 Task description
@@ -349,7 +347,6 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
               />
             </div>
 
-            {/* Schedule Type */}
             <div className='flex flex-col gap-[8px]'>
               <p className='font-medium text-[14px] text-[var(--text-secondary)]'>Run frequency</p>
               <Combobox
@@ -360,7 +357,6 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
               />
             </div>
 
-            {/* Conditional schedule fields */}
             {scheduleType === 'minutes' && (
               <div className='flex flex-col gap-[8px]'>
                 <p className='font-medium text-[14px] text-[var(--text-secondary)]'>
@@ -455,7 +451,6 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
               </div>
             )}
 
-            {/* Timezone */}
             {showTimezone && (
               <div className='flex flex-col gap-[8px]'>
                 <p className='font-medium text-[14px] text-[var(--text-secondary)]'>Timezone</p>
@@ -484,7 +479,6 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
               </div>
             )}
 
-            {/* Lifecycle */}
             <div className='flex flex-col gap-[8px]'>
               <p className='font-medium text-[14px] text-[var(--text-secondary)]'>Lifecycle</p>
               <ButtonGroup
@@ -496,7 +490,6 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
               </ButtonGroup>
             </div>
 
-            {/* Max Runs */}
             {lifecycle === 'until_complete' && (
               <div className='flex flex-col gap-[8px]'>
                 <p className='font-medium text-[14px] text-[var(--text-secondary)]'>
@@ -514,7 +507,6 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
               </div>
             )}
 
-            {/* Schedule Preview */}
             {computedCron && schedulePreview && (
               <div>
                 {'error' in schedulePreview ? (
@@ -538,7 +530,6 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
               </div>
             )}
 
-            {/* Error */}
             {submitError && (
               <p className='text-[13px] text-[var(--text-error)] leading-tight'>{submitError}</p>
             )}

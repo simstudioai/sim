@@ -2,15 +2,15 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import { Calendar } from '@/components/emcn/icons'
 import { formatAbsoluteDate } from '@/lib/core/utils/formatting'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
 import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
 import { Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
-import { ScheduleModal } from '@/app/workspace/[workspaceId]/schedules/components/create-schedule-modal'
-import { ScheduleContextMenu } from '@/app/workspace/[workspaceId]/schedules/components/schedule-context-menu'
+import { ScheduleModal } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/create-schedule-modal'
+import { ScheduleContextMenu } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import type { WorkspaceScheduleData } from '@/hooks/queries/schedules'
 import {
@@ -21,26 +21,26 @@ import {
 } from '@/hooks/queries/schedules'
 import { useDebounce } from '@/hooks/use-debounce'
 
-const logger = createLogger('Schedules')
+const logger = createLogger('ScheduledTasks')
 
-function getHumanReadable(s: WorkspaceScheduleData) {
-  if (!s.cronExpression && s.nextRunAt) return `Once at ${formatAbsoluteDate(s.nextRunAt)}`
-  if (s.cronExpression) return parseCronToHumanReadable(s.cronExpression, s.timezone)
-  return 'Unknown schedule'
+function getScheduleDescription(s: WorkspaceScheduleData) {
+  if (!s.cronExpression && s.nextRunAt) return `Once, at ${formatAbsoluteDate(s.nextRunAt)}`
+  if (s.cronExpression) {
+    const timing = parseCronToHumanReadable(s.cronExpression, s.timezone)
+    return `Recurring, ${timing.charAt(0).toLowerCase()}${timing.slice(1)}`
+  }
+  return '-  -  -'
 }
 
 const COLUMNS: ResourceColumn[] = [
-  { id: 'name', header: 'Name' },
+  { id: 'task', header: 'Task' },
+  { id: 'schedule', header: 'Schedule', widthMultiplier: 1.5 },
   { id: 'nextRun', header: 'Next Run' },
   { id: 'lastRun', header: 'Last Run' },
-  { id: 'schedule', header: 'Schedule' },
-  { id: 'from', header: 'From' },
-  { id: 'lifecycle', header: 'Lifecycle' },
 ]
 
-export function Schedules() {
+export function ScheduledTasks() {
   const params = useParams()
-  const router = useRouter()
   const workspaceId = params.workspaceId as string
 
   const { data: allItems = [], isLoading, error } = useWorkspaceSchedules(workspaceId)
@@ -49,7 +49,7 @@ export function Schedules() {
   const reactivateSchedule = useReactivateSchedule()
 
   if (error) {
-    logger.error('Failed to load schedules:', error)
+    logger.error('Failed to load scheduled tasks:', error)
   }
 
   const {
@@ -63,12 +63,12 @@ export function Schedules() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [activeSchedule, setActiveSchedule] = useState<WorkspaceScheduleData | null>(null)
+  const [activeTask, setActiveTask] = useState<WorkspaceScheduleData | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
 
   const visibleItems = useMemo(
-    () => allItems.filter((item) => item.status !== 'completed'),
+    () => allItems.filter((item) => item.sourceType === 'job' && item.status !== 'completed'),
     [allItems]
   )
 
@@ -76,101 +76,75 @@ export function Schedules() {
     if (!debouncedSearchQuery) return visibleItems
     const q = debouncedSearchQuery.toLowerCase()
     return visibleItems.filter((item) => {
-      const name =
-        item.sourceType === 'job'
-          ? item.jobTitle || item.sourceTaskName || ''
-          : item.workflowName || ''
-      return name.toLowerCase().includes(q) || getHumanReadable(item).toLowerCase().includes(q)
+      const task = item.prompt || ''
+      return (
+        task.toLowerCase().includes(q) || getScheduleDescription(item).toLowerCase().includes(q)
+      )
     })
   }, [visibleItems, debouncedSearchQuery])
 
   const rows: ResourceRow[] = useMemo(
     () =>
-      filteredItems.map((item) => {
-        const isJob = item.sourceType === 'job'
-        const name = isJob ? item.jobTitle || item.sourceTaskName : item.workflowName
-
-        return {
-          id: item.id,
-          cells: {
-            name: {
-              icon: <Calendar className='h-[14px] w-[14px]' />,
-              label: name,
-            },
-            nextRun: timeCell(item.nextRunAt),
-            lastRun: timeCell(item.lastRanAt),
-            schedule: { label: getHumanReadable(item) },
-            from: { label: isJob ? item.prompt : item.workflowName },
-            lifecycle: { label: item.cronExpression ? 'Recurring' : 'One-time' },
+      filteredItems.map((item) => ({
+        id: item.id,
+        cells: {
+          task: {
+            icon: <Calendar className='h-[14px] w-[14px]' />,
+            label: item.prompt,
           },
-          sortValues: {
-            nextRun: item.nextRunAt ? -new Date(item.nextRunAt).getTime() : 0,
-            lastRun: item.lastRanAt ? -new Date(item.lastRanAt).getTime() : 0,
-          },
-        }
-      }),
+          schedule: { label: getScheduleDescription(item) },
+          nextRun: timeCell(item.nextRunAt),
+          lastRun: timeCell(item.lastRanAt),
+        },
+        sortValues: {
+          nextRun: item.nextRunAt ? -new Date(item.nextRunAt).getTime() : 0,
+          lastRun: item.lastRanAt ? -new Date(item.lastRanAt).getTime() : 0,
+        },
+      })),
     [filteredItems]
   )
 
   const itemById = useMemo(() => new Map(filteredItems.map((i) => [i.id, i])), [filteredItems])
 
-  const handleRowClick = useCallback(
-    (rowId: string) => {
-      if (isRowContextMenuOpen) return
-      const item = itemById.get(rowId)
-      if (item?.workflowId) {
-        router.push(`/workspace/${workspaceId}/w/${item.workflowId}`)
-      }
-    },
-    [itemById, isRowContextMenuOpen, router, workspaceId]
-  )
-
   const handleRowContextMenu = useCallback(
     (e: React.MouseEvent, rowId: string) => {
-      const item = itemById.get(rowId) ?? null
-      setActiveSchedule(item)
+      setActiveTask(itemById.get(rowId) ?? null)
       handleRowCtxMenu(e)
     },
     [itemById, handleRowCtxMenu]
   )
 
   const handleDelete = async () => {
-    if (!activeSchedule) return
+    if (!activeTask) return
     try {
-      await deleteSchedule.mutateAsync({
-        scheduleId: activeSchedule.id,
-        workspaceId,
-      })
+      await deleteSchedule.mutateAsync({ scheduleId: activeTask.id, workspaceId })
       setIsDeleteDialogOpen(false)
-      setActiveSchedule(null)
+      setActiveTask(null)
     } catch (err) {
-      logger.error('Failed to delete schedule:', err)
+      logger.error('Failed to delete scheduled task:', err)
     }
   }
 
   const handlePause = async () => {
-    if (!activeSchedule) return
+    if (!activeTask) return
     try {
-      await disableSchedule.mutateAsync({
-        scheduleId: activeSchedule.id,
-        workspaceId,
-      })
+      await disableSchedule.mutateAsync({ scheduleId: activeTask.id, workspaceId })
     } catch (err) {
-      logger.error('Failed to pause schedule:', err)
+      logger.error('Failed to pause scheduled task:', err)
     }
   }
 
   const handleResume = async () => {
-    if (!activeSchedule) return
+    if (!activeTask) return
     try {
       await reactivateSchedule.mutateAsync({
-        scheduleId: activeSchedule.id,
-        workflowId: activeSchedule.workflowId || '',
+        scheduleId: activeTask.id,
+        workflowId: activeTask.workflowId || '',
         blockId: '',
         workspaceId,
       })
     } catch (err) {
-      logger.error('Failed to resume schedule:', err)
+      logger.error('Failed to resume scheduled task:', err)
     }
   }
 
@@ -178,20 +152,19 @@ export function Schedules() {
     <>
       <Resource
         icon={Calendar}
-        title='Schedules'
+        title='Scheduled Tasks'
         create={{
-          label: 'New schedule',
+          label: 'New scheduled task',
           onClick: () => setIsCreateModalOpen(true),
         }}
         search={{
           value: searchQuery,
           onChange: setSearchQuery,
-          placeholder: 'Search schedules...',
+          placeholder: 'Search scheduled tasks...',
         }}
         defaultSort='nextRun'
         columns={COLUMNS}
         rows={rows}
-        onRowClick={handleRowClick}
         onRowContextMenu={handleRowContextMenu}
         isLoading={isLoading}
       />
@@ -201,8 +174,7 @@ export function Schedules() {
         position={rowContextMenuPosition}
         menuRef={rowMenuRef}
         onClose={closeRowContextMenu}
-        isJob={activeSchedule?.sourceType === 'job'}
-        isActive={activeSchedule?.status === 'active'}
+        isActive={activeTask?.status === 'active'}
         onEdit={() => setIsEditModalOpen(true)}
         onPause={handlePause}
         onResume={handleResume}
@@ -219,20 +191,20 @@ export function Schedules() {
         open={isEditModalOpen}
         onOpenChange={(open) => {
           setIsEditModalOpen(open)
-          if (!open) setActiveSchedule(null)
+          if (!open) setActiveTask(null)
         }}
         workspaceId={workspaceId}
-        schedule={activeSchedule ?? undefined}
+        schedule={activeTask ?? undefined}
       />
 
       <Modal open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <ModalContent size='sm'>
-          <ModalHeader>Delete Schedule</ModalHeader>
+          <ModalHeader>Delete Scheduled Task</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>
-                {activeSchedule?.jobTitle || activeSchedule?.workflowName || 'this schedule'}
+                {activeTask?.jobTitle || 'this task'}
               </span>
               ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
@@ -242,7 +214,7 @@ export function Schedules() {
               variant='default'
               onClick={() => {
                 setIsDeleteDialogOpen(false)
-                setActiveSchedule(null)
+                setActiveTask(null)
               }}
               disabled={deleteSchedule.isPending}
             >

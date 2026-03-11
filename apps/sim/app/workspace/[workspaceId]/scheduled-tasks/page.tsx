@@ -2,19 +2,19 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
-import { Schedules } from './schedules'
+import { ScheduledTasks } from './scheduled-tasks'
 
 export const metadata: Metadata = {
-  title: 'Schedules',
+  title: 'Scheduled Tasks',
 }
 
-interface SchedulesPageProps {
+interface ScheduledTasksPageProps {
   params: Promise<{
     workspaceId: string
   }>
 }
 
-export default async function SchedulesPage({ params }: SchedulesPageProps) {
+export default async function ScheduledTasksPage({ params }: ScheduledTasksPageProps) {
   const { workspaceId } = await params
   const session = await getSession()
 
@@ -27,5 +27,5 @@ export default async function SchedulesPage({ params }: SchedulesPageProps) {
     redirect('/')
   }
 
-  return <Schedules />
+  return <ScheduledTasks />
 }

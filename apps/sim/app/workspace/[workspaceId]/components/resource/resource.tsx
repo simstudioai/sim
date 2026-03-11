@@ -13,6 +13,7 @@ import { ResourceOptionsBar } from './components/resource-options-bar'
 export interface ResourceColumn {
   id: string
   header: string
+  widthMultiplier?: number
 }
 
 export interface ResourceCell {
@@ -426,7 +427,14 @@ function ResourceColGroup({
     <colgroup>
       {hasCheckbox && <col className='w-[52px]' />}
       {columns.map((col, colIdx) => (
-        <col key={col.id} className={colIdx === 0 ? 'min-w-[200px]' : 'w-[160px]'} />
+        <col
+          key={col.id}
+          style={
+            colIdx === 0
+              ? { minWidth: 200 * (col.widthMultiplier ?? 1) }
+              : { width: 160 * (col.widthMultiplier ?? 1) }
+          }
+        />
       ))}
     </colgroup>
   )

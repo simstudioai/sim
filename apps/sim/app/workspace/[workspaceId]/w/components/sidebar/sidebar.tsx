@@ -465,10 +465,10 @@ export const Sidebar = memo(function Sidebar() {
           hidden: permissionConfig.hideKnowledgeBaseTab,
         },
         {
-          id: 'schedules',
-          label: 'Schedules',
+          id: 'scheduled-tasks',
+          label: 'Scheduled Tasks',
           icon: Calendar,
-          href: `/workspace/${workspaceId}/schedules`,
+          href: `/workspace/${workspaceId}/scheduled-tasks`,
         },
         {
           id: 'logs',
