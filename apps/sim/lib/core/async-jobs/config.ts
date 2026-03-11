@@ -82,17 +82,18 @@ export async function getInlineJobQueue(): Promise<JobQueueBackend> {
   }
 
   const redis = getRedisClient()
+  let type: string
   if (redis) {
     const { RedisJobQueue } = await import('@/lib/core/async-jobs/backends/redis')
     cachedInlineBackend = new RedisJobQueue(redis)
+    type = 'redis'
   } else {
     const { DatabaseJobQueue } = await import('@/lib/core/async-jobs/backends/database')
     cachedInlineBackend = new DatabaseJobQueue()
+    type = 'database'
   }
 
-  logger.info(
-    `Inline job backend initialized: ${cachedInlineBackend ? 'redis or database' : 'none'}`
-  )
+  logger.info(`Inline job backend initialized: ${type}`)
   return cachedInlineBackend
 }
 
