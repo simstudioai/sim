@@ -30,7 +30,6 @@ const MothershipMessageSchema = z.object({
   chatId: z.string().optional(),
   createNewChat: z.boolean().optional().default(false),
   fileAttachments: z.array(FileAttachmentSchema).optional(),
-  additionalContext: z.string().optional(),
   userTimezone: z.string().optional(),
   contexts: z
     .array(
@@ -81,7 +80,6 @@ export async function POST(req: NextRequest) {
       chatId,
       createNewChat,
       fileAttachments,
-      additionalContext,
       contexts,
       userTimezone,
     } = MothershipMessageSchema.parse(body)
@@ -96,10 +94,6 @@ export async function POST(req: NextRequest) {
       } catch (e) {
         logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
       }
-    }
-
-    if (additionalContext) {
-      agentContexts.push({ type: 'workflow_execution', content: additionalContext })
     }
 
     let currentChat: any = null

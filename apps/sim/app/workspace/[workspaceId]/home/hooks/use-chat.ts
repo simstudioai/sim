@@ -40,11 +40,7 @@ export interface UseChatReturn {
   messages: ChatMessage[]
   isSending: boolean
   error: string | null
-  sendMessage: (
-    message: string,
-    fileAttachments?: FileAttachmentForApi[],
-    additionalContext?: string
-  ) => Promise<void>
+  sendMessage: (message: string, fileAttachments?: FileAttachmentForApi[]) => Promise<void>
   sendWorkflowResultToChat: (workflowName: string, result: ExecutionResult) => Promise<void>
   stopGeneration: () => Promise<void>
   resources: MothershipResource[]
@@ -57,29 +53,8 @@ const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
   error: 'error',
 } as const
 
-const WORKFLOW_RESULT_DISPLAY_MESSAGE = 'I ran the workflow, please check the logs'
-
-function formatExecutionContext(workflowName: string, result: ExecutionResult): string {
-  const lines: string[] = [
-    `[Workflow Execution: "${workflowName}"]`,
-    `Status: ${result.success ? 'Success' : 'Failed'}`,
-  ]
-  if (result.error) lines.push(`Error: ${result.error}`)
-  if (result.logs?.length) {
-    lines.push('', 'Block Results:')
-    for (const log of result.logs) {
-      const name = log.blockName ?? log.blockId
-      const type = log.blockType ?? 'unknown'
-      const status = log.success ? 'OK' : 'FAILED'
-      lines.push(`- ${name} (${type}): ${status} [${log.durationMs}ms]`)
-      if (log.output) lines.push(`  Output: ${JSON.stringify(log.output).slice(0, 2000)}`)
-      if (log.error) lines.push(`  Error: ${log.error}`)
-    }
-  }
-  if (result.output) {
-    lines.push('', `Final Output: ${JSON.stringify(result.output).slice(0, 3000)}`)
-  }
-  return lines.join('\n')
+function formatWorkflowResultMessage(_workflowName: string, _result: ExecutionResult): string {
+  return 'I ran the workflow, please check the logs'
 }
 
 function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
@@ -177,9 +152,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   const [error, setError] = useState<string | null>(null)
   const [resources, setResources] = useState<MothershipResource[]>([])
   const [activeResourceId, setActiveResourceId] = useState<string | null>(null)
-  const [queuedMessages, setQueuedMessages] = useState<
-    Array<{ message: string; additionalContext?: string }>
-  >([])
+  const [queuedMessages, setQueuedMessages] = useState<string[]>([])
   const abortControllerRef = useRef<AbortController | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
   const appliedChatIdRef = useRef<string | undefined>(undefined)
@@ -620,11 +593,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   }, [chatHistory?.activeStreamId, processSSEStream, finalize])
 
   const sendMessage = useCallback(
-    async (
-      message: string,
-      fileAttachments?: FileAttachmentForApi[],
-      additionalContext?: string
-    ) => {
+    async (message: string, fileAttachments?: FileAttachmentForApi[]) => {
       if (!message.trim() || !workspaceId) return
 
       if (sendingRef.current) {
@@ -695,7 +664,6 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
             createNewChat: !chatIdRef.current,
             ...(chatIdRef.current ? { chatId: chatIdRef.current } : {}),
             ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
-            ...(additionalContext ? { additionalContext } : {}),
             userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
           signal: abortController.signal,
@@ -723,17 +691,14 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
 
   const sendWorkflowResultToChat = useCallback(
     async (workflowName: string, result: ExecutionResult) => {
-      const context = formatExecutionContext(workflowName, result)
+      const message = formatWorkflowResultMessage(workflowName, result)
 
       if (sendingRef.current || isSending) {
-        setQueuedMessages((prev) => [
-          ...prev,
-          { message: WORKFLOW_RESULT_DISPLAY_MESSAGE, additionalContext: context },
-        ])
+        setQueuedMessages((prev) => [...prev, message])
         return
       }
 
-      await sendMessage(WORKFLOW_RESULT_DISPLAY_MESSAGE, undefined, context)
+      await sendMessage(message)
     },
     [isSending, sendMessage]
   )
@@ -741,9 +706,9 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   useEffect(() => {
     if (isSending || queuedMessages.length === 0) return
 
-    const [next, ...rest] = queuedMessages
+    const [nextMessage, ...rest] = queuedMessages
     setQueuedMessages(rest)
-    void sendMessage(next.message, undefined, next.additionalContext)
+    void sendMessage(nextMessage)
   }, [isSending, queuedMessages, sendMessage])
 
   const stopGeneration = useCallback(async () => {
