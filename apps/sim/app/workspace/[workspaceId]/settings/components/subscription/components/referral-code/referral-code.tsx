@@ -44,7 +44,7 @@ export function ReferralCode({ onRedeemComplete }: ReferralCodeProps) {
   }
 
   return (
-    <div className='flex flex-col'>
+    <div className='flex flex-col gap-[4px]'>
       <div className='flex items-center justify-between gap-[12px]'>
         <Label className='shrink-0'>Referral Code</Label>
         <div className='flex items-center gap-[8px]'>
@@ -59,12 +59,12 @@ export function ReferralCode({ onRedeemComplete }: ReferralCodeProps) {
               if (e.key === 'Enter') handleRedeem()
             }}
             placeholder='Enter code'
-            className='h-[32px] w-[140px] text-[13px]'
+            className='h-[32px] w-[140px] bg-[var(--surface-4)] text-[13px]'
             disabled={redeemCode.isPending}
           />
           <Button
-            variant='active'
-            className='h-[32px] shrink-0 rounded-[6px] text-[13px]'
+            variant='default'
+            className='h-[32px] shrink-0 text-[13px]'
             onClick={handleRedeem}
             disabled={redeemCode.isPending || !code.trim()}
           >
@@ -72,11 +72,11 @@ export function ReferralCode({ onRedeemComplete }: ReferralCodeProps) {
           </Button>
         </div>
       </div>
-      <div className='mt-[4px] min-h-[18px] text-right'>
-        {redeemCode.error && (
-          <span className='text-[11px] text-[var(--text-error)]'>{redeemCode.error.message}</span>
-        )}
-      </div>
+      {redeemCode.error && (
+        <span className='text-right text-[11px] text-[var(--text-error)]'>
+          {redeemCode.error.message}
+        </span>
+      )}
     </div>
   )
 }

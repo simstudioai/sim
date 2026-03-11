@@ -23,7 +23,7 @@ interface DeleteModalProps {
    * Type of item being deleted
    * - 'mixed' is used when both workflows and folders are selected
    */
-  itemType: 'workflow' | 'folder' | 'workspace' | 'mixed'
+  itemType: 'workflow' | 'folder' | 'workspace' | 'mixed' | 'task'
   /**
    * Name(s) of the item(s) being deleted (optional, for display)
    * Can be a single name or an array of names for multiple items
@@ -56,6 +56,8 @@ export function DeleteModal({
     title = isMultiple ? 'Delete Workflows' : 'Delete Workflow'
   } else if (itemType === 'folder') {
     title = isMultiple ? 'Delete Folders' : 'Delete Folder'
+  } else if (itemType === 'task') {
+    title = isMultiple ? 'Delete Tasks' : 'Delete Task'
   } else if (itemType === 'mixed') {
     title = 'Delete Items'
   } else {
@@ -110,6 +112,30 @@ export function DeleteModal({
         )
       }
       return 'Are you sure you want to delete this folder? This will permanently remove all associated workflows, logs, and knowledge bases.'
+    }
+
+    if (itemType === 'task') {
+      if (isMultiple) {
+        return (
+          <>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {displayNames.length} tasks
+            </span>
+            ? This will permanently remove all conversation history.
+          </>
+        )
+      }
+      if (isSingle && displayNames.length > 0) {
+        return (
+          <>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>? This
+            will permanently remove all conversation history.
+          </>
+        )
+      }
+      return 'Are you sure you want to delete this task? This will permanently remove all conversation history.'
     }
 
     if (itemType === 'mixed') {

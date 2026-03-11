@@ -43,10 +43,13 @@ import {
   WorkflowList,
   WorkspaceHeader,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
+import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
+import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import {
   useContextMenu,
   useFolderOperations,
   useSidebarResize,
+  useTaskSelection,
   useWorkflowOperations,
   useWorkspaceManagement,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -56,7 +59,7 @@ import {
   useImportWorkflow,
   useImportWorkspace,
 } from '@/app/workspace/[workspaceId]/w/hooks'
-import { useDeleteTask, useRenameTask, useTasks } from '@/hooks/queries/tasks'
+import { useDeleteTask, useDeleteTasks, useRenameTask, useTasks } from '@/hooks/queries/tasks'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
@@ -195,7 +198,6 @@ export const Sidebar = memo(function Sidebar() {
   })
 
   const [activeNavItemHref, setActiveNavItemHref] = useState<string | null>(null)
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
   const {
     isOpen: isNavContextMenuOpen,
     position: navContextMenuPosition,
@@ -204,22 +206,9 @@ export const Sidebar = memo(function Sidebar() {
     closeMenu: closeNavContextMenu,
   } = useContextMenu()
 
-  const deleteTaskMutation = useDeleteTask(workspaceId)
-  const renameTaskMutation = useRenameTask(workspaceId)
-
   const handleNavItemContextMenu = useCallback(
     (e: React.MouseEvent, href: string) => {
       setActiveNavItemHref(href)
-      setActiveTaskId(null)
-      handleNavContextMenuBase(e)
-    },
-    [handleNavContextMenuBase]
-  )
-
-  const handleTaskContextMenu = useCallback(
-    (e: React.MouseEvent, href: string, taskId: string) => {
-      setActiveNavItemHref(href)
-      setActiveTaskId(taskId)
       handleNavContextMenuBase(e)
     },
     [handleNavContextMenuBase]
@@ -228,7 +217,6 @@ export const Sidebar = memo(function Sidebar() {
   const handleNavContextMenuClose = useCallback(() => {
     closeNavContextMenu()
     setActiveNavItemHref(null)
-    setActiveTaskId(null)
   }, [closeNavContextMenu])
 
   const handleNavOpenInNewTab = useCallback(() => {
@@ -248,17 +236,39 @@ export const Sidebar = memo(function Sidebar() {
     }
   }, [activeNavItemHref])
 
-  const handleDeleteTask = useCallback(() => {
-    if (!activeTaskId) return
-    const isViewingDeletedTask = pathname === `/workspace/${workspaceId}/task/${activeTaskId}`
-    deleteTaskMutation.mutate(activeTaskId, {
-      onSuccess: () => {
-        if (isViewingDeletedTask) {
-          router.push(`/workspace/${workspaceId}/home`)
+  const deleteTaskMutation = useDeleteTask(workspaceId)
+  const deleteTasksMutation = useDeleteTasks(workspaceId)
+  const renameTaskMutation = useRenameTask(workspaceId)
+
+  const {
+    isOpen: isTaskContextMenuOpen,
+    position: taskContextMenuPosition,
+    menuRef: taskMenuRef,
+    handleContextMenu: handleTaskContextMenuBase,
+    closeMenu: closeTaskContextMenu,
+  } = useContextMenu()
+
+  const contextMenuSelectionRef = useRef<{ taskIds: string[]; names: string[] }>({
+    taskIds: [],
+    names: [],
+  })
+
+  const handleTaskContextMenu = useCallback(
+    (e: React.MouseEvent, taskId: string) => {
+      const { selectedTasks, selectTaskOnly } = useFolderStore.getState()
+      if (selectedTasks.size > 0 && selectedTasks.has(taskId)) {
+        contextMenuSelectionRef.current = {
+          taskIds: Array.from(selectedTasks),
+          names: [],
         }
-      },
-    })
-  }, [activeTaskId, pathname, workspaceId, deleteTaskMutation, router])
+      } else {
+        selectTaskOnly(taskId)
+        contextMenuSelectionRef.current = { taskIds: [taskId], names: [] }
+      }
+      handleTaskContextMenuBase(e)
+    },
+    [handleTaskContextMenuBase]
+  )
 
   const { handleDuplicateWorkspace: duplicateWorkspace } = useDuplicateWorkspace({
     workspaceId,
@@ -381,6 +391,46 @@ export const Sidebar = memo(function Sidebar() {
     [fetchedTasks, workspaceId]
   )
 
+  const taskIds = useMemo(() => tasks.map((t) => t.id).filter((id) => id !== 'new'), [tasks])
+
+  const { selectedTasks, handleTaskClick } = useTaskSelection({ taskIds })
+
+  const isMultiTaskContextMenu = contextMenuSelectionRef.current.taskIds.length > 1
+
+  const [isTaskDeleteModalOpen, setIsTaskDeleteModalOpen] = useState(false)
+
+  const handleDeleteTask = useCallback(() => {
+    const { taskIds: ids } = contextMenuSelectionRef.current
+    if (ids.length === 0) return
+    const names = ids.map((id) => tasks.find((t) => t.id === id)?.name).filter(Boolean) as string[]
+    contextMenuSelectionRef.current = { taskIds: ids, names }
+    setIsTaskDeleteModalOpen(true)
+  }, [tasks])
+
+  const handleConfirmDeleteTasks = useCallback(() => {
+    const { taskIds: taskIdsToDelete } = contextMenuSelectionRef.current
+    if (taskIdsToDelete.length === 0) return
+
+    const currentPath = pathname ?? ''
+    const isViewingDeletedTask = taskIdsToDelete.some(
+      (id) => currentPath === `/workspace/${workspaceId}/task/${id}`
+    )
+
+    const onDeleteSuccess = () => {
+      useFolderStore.getState().clearTaskSelection()
+      if (isViewingDeletedTask) {
+        router.push(`/workspace/${workspaceId}/home`)
+      }
+    }
+
+    if (taskIdsToDelete.length === 1) {
+      deleteTaskMutation.mutate(taskIdsToDelete[0], { onSuccess: onDeleteSuccess })
+    } else {
+      deleteTasksMutation.mutate(taskIdsToDelete, { onSuccess: onDeleteSuccess })
+    }
+    setIsTaskDeleteModalOpen(false)
+  }, [pathname, workspaceId, deleteTaskMutation, deleteTasksMutation, router])
+
   const [visibleTaskCount, setVisibleTaskCount] = useState(5)
   const [renamingTaskId, setRenamingTaskId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -394,14 +444,22 @@ export const Sidebar = memo(function Sidebar() {
     }
   }, [renamingTaskId])
 
+  const handleTaskOpenInNewTab = useCallback(() => {
+    const { taskIds: ids } = contextMenuSelectionRef.current
+    if (ids.length !== 1) return
+    window.open(`/workspace/${workspaceId}/task/${ids[0]}`, '_blank', 'noopener,noreferrer')
+  }, [workspaceId])
+
   const handleStartTaskRename = useCallback(() => {
-    if (!activeTaskId || activeTaskId === 'new') return
-    const task = tasks.find((t) => t.id === activeTaskId)
+    const { taskIds: ids } = contextMenuSelectionRef.current
+    if (ids.length !== 1) return
+    const taskId = ids[0]
+    const task = tasks.find((t) => t.id === taskId)
     if (!task) return
     renameCanceledRef.current = false
-    setRenamingTaskId(activeTaskId)
+    setRenamingTaskId(taskId)
     setRenameValue(task.name)
-  }, [activeTaskId, tasks])
+  }, [tasks])
 
   const handleSaveTaskRename = useCallback(() => {
     if (renameCanceledRef.current) {
@@ -522,8 +580,8 @@ export const Sidebar = memo(function Sidebar() {
       if (target.tagName === 'BUTTON' || target.closest('button, [role="button"], a')) {
         return
       }
-      const { selectOnly, clearSelection } = useFolderStore.getState()
-      workflowId ? selectOnly(workflowId) : clearSelection()
+      const { selectOnly, clearAllSelection } = useFolderStore.getState()
+      workflowId ? selectOnly(workflowId) : clearAllSelection()
     },
     [workflowId]
   )
@@ -808,6 +866,7 @@ export const Sidebar = memo(function Sidebar() {
                         {tasks.slice(0, visibleTaskCount).map((task) => {
                           const active = task.id !== 'new' && pathname === task.href
                           const isRenaming = renamingTaskId === task.id
+                          const isSelected = task.id !== 'new' && selectedTasks.has(task.id)
 
                           if (isRenaming) {
                             return (
@@ -832,8 +891,24 @@ export const Sidebar = memo(function Sidebar() {
                             <Link
                               key={task.id}
                               href={task.href}
-                              className={`mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)] ${active ? 'bg-[var(--surface-active)]' : ''}`}
-                              onContextMenu={(e) => handleTaskContextMenu(e, task.href, task.id)}
+                              className={cn(
+                                'mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
+                                (active || isSelected) && 'bg-[var(--surface-active)]'
+                              )}
+                              onClick={(e) => {
+                                if (task.id === 'new') return
+                                if (e.shiftKey || e.metaKey || e.ctrlKey) {
+                                  e.preventDefault()
+                                  handleTaskClick(task.id, e.shiftKey, e.metaKey || e.ctrlKey)
+                                } else {
+                                  handleTaskClick(task.id, false, false)
+                                }
+                              }}
+                              onContextMenu={
+                                task.id !== 'new'
+                                  ? (e) => handleTaskContextMenu(e, task.id)
+                                  : undefined
+                              }
                             >
                               <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
                               <div className='min-w-0 truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
@@ -982,7 +1057,7 @@ export const Sidebar = memo(function Sidebar() {
                 })}
               </div>
 
-              {/* Nav Item Context Menu */}
+              {/* Nav Item Context Menu (Home, Tables, Files, etc.) */}
               <NavItemContextMenu
                 isOpen={isNavContextMenuOpen}
                 position={navContextMenuPosition}
@@ -990,12 +1065,33 @@ export const Sidebar = memo(function Sidebar() {
                 onClose={handleNavContextMenuClose}
                 onOpenInNewTab={handleNavOpenInNewTab}
                 onCopyLink={handleNavCopyLink}
-                onRename={
-                  activeTaskId && activeTaskId !== 'new' ? handleStartTaskRename : undefined
-                }
-                onDelete={activeTaskId ? handleDeleteTask : undefined}
+              />
+
+              {/* Task Context Menu */}
+              <ContextMenu
+                isOpen={isTaskContextMenuOpen}
+                position={taskContextMenuPosition}
+                menuRef={taskMenuRef}
+                onClose={closeTaskContextMenu}
+                onOpenInNewTab={handleTaskOpenInNewTab}
+                onRename={handleStartTaskRename}
+                onDelete={handleDeleteTask}
+                showOpenInNewTab={!isMultiTaskContextMenu}
+                showRename={!isMultiTaskContextMenu}
+                showDuplicate={false}
+                showColorChange={false}
                 disableRename={!canEdit}
                 disableDelete={!canEdit}
+              />
+
+              {/* Task Delete Confirmation Modal */}
+              <DeleteModal
+                isOpen={isTaskDeleteModalOpen}
+                onClose={() => setIsTaskDeleteModalOpen(false)}
+                onConfirm={handleConfirmDeleteTasks}
+                isDeleting={deleteTaskMutation.isPending || deleteTasksMutation.isPending}
+                itemType='task'
+                itemName={contextMenuSelectionRef.current.names}
               />
             </>
           )}

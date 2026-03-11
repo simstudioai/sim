@@ -4,6 +4,7 @@ import {
   HeadphonesIcon,
   Server,
   ShieldCheck,
+  Table2,
   Timer,
   Users,
   Zap,
@@ -16,6 +17,7 @@ export const PRO_PLAN_FEATURES: PlanFeature[] = [
   { icon: Clock, text: '1,000 runs/min (async)' },
   { icon: Timer, text: '50 min sync execution limit' },
   { icon: HardDrive, text: '50GB file storage' },
+  { icon: Table2, text: '25 tables · 5,000 rows each' },
 ]
 
 export const MAX_PLAN_FEATURES: PlanFeature[] = [
@@ -23,12 +25,14 @@ export const MAX_PLAN_FEATURES: PlanFeature[] = [
   { icon: Clock, text: '2,500 runs/min (async)' },
   { icon: Timer, text: '50 min sync execution limit' },
   { icon: HardDrive, text: '500GB file storage' },
+  { icon: Table2, text: '25 tables · 5,000 rows each' },
 ]
 
 export const TEAM_INLINE_FEATURES: PlanFeature[] = [
   { icon: Users, text: 'Shared credit pool' },
   { icon: Zap, text: 'Max plan rate limits' },
   { icon: HardDrive, text: 'Max plan file storage' },
+  { icon: Table2, text: '100 tables · 10,000 rows each' },
   { icon: ShieldCheck, text: 'Access controls' },
   { icon: SlackMonoIcon, text: 'Dedicated Slack channel' },
 ]

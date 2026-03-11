@@ -137,7 +137,22 @@ export function useDeleteTask(workspaceId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: deleteTask,
-    onSuccess: () => {
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+    },
+  })
+}
+
+/**
+ * Deletes multiple mothership chat tasks and invalidates the task list.
+ */
+export function useDeleteTasks(workspaceId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (chatIds: string[]) => {
+      await Promise.all(chatIds.map(deleteTask))
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
     },
   })

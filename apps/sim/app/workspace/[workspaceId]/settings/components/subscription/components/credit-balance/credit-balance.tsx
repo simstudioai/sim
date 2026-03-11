@@ -103,7 +103,7 @@ export function CreditBalance({
       {canPurchase && (
         <Modal open={isOpen} onOpenChange={handleOpenChange}>
           <ModalTrigger asChild>
-            <Button variant='active' className='h-[32px] rounded-[6px] text-[13px]'>
+            <Button variant='default' className='h-[32px] text-[13px]'>
               Add Credits
             </Button>
           </ModalTrigger>

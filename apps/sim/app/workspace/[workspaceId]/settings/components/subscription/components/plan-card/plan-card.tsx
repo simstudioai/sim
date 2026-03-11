@@ -131,7 +131,7 @@ export function PlanCard({
         </ul>
         <Button
           onClick={onButtonClick}
-          className={cn(!inlineButton && 'w-full')}
+          className={cn(inlineButton ? 'shrink-0 whitespace-nowrap' : 'w-full')}
           variant={isError ? 'outline' : 'tertiary'}
           aria-label={`${buttonText} ${name} plan`}
         >

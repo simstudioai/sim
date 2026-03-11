@@ -912,80 +912,82 @@ export function Subscription() {
       />
 
       {/* Billing details section */}
-      <div className='flex flex-col gap-[14px] rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[14px] py-[12px]'>
-        {subscription.isPaid && permissions.canViewUsageInfo && (
-          <CreditBalance
-            balance={subscriptionData?.data?.creditBalance ?? 0}
-            canPurchase={permissions.canEditUsageLimit}
-            entityType={subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'}
-            isLoading={isLoading}
-            onPurchaseComplete={() => refetchSubscription()}
-          />
-        )}
-
-        {!subscription.isEnterprise && (
-          <ReferralCode onRedeemComplete={() => refetchSubscription()} />
-        )}
-
-        {subscription.isPaid &&
-          subscriptionData?.data?.periodEnd &&
-          !permissions.showTeamMemberView &&
-          !permissions.isEnterpriseMember && (
-            <div className='flex items-center justify-between'>
-              <Label>{isCancelledAtPeriodEnd ? 'Access Until' : 'Next Billing Date'}</Label>
-              <span className='text-[13px] text-[var(--text-secondary)]'>
-                {new Date(subscriptionData.data.periodEnd).toLocaleDateString()}
-              </span>
-            </div>
+      {(subscription.isPaid || (!isLoading && isTeamAdmin)) && (
+        <div className='flex flex-col gap-[14px] rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[14px] py-[12px]'>
+          {subscription.isPaid && permissions.canViewUsageInfo && (
+            <CreditBalance
+              balance={subscriptionData?.data?.creditBalance ?? 0}
+              canPurchase={permissions.canEditUsageLimit}
+              entityType={
+                subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
+              }
+              isLoading={isLoading}
+              onPurchaseComplete={() => refetchSubscription()}
+            />
           )}
 
-        {subscription.isPaid && permissions.canViewUsageInfo && <BillingUsageNotificationsToggle />}
-
-        {!isLoading && isTeamAdmin && (
-          <div className='flex items-center justify-between'>
-            <div className='flex items-center gap-[6px]'>
-              <Label htmlFor='billed-account'>Billed Account</Label>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Info className='h-[12px] w-[12px] text-[var(--text-secondary)]' />
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  <span>Usage from this workspace will be billed to this account</span>
-                </Tooltip.Content>
-              </Tooltip.Root>
-            </div>
-            {workspaceAdmins.length === 0 ? (
-              <div className='rounded-[6px] border border-[var(--border)] border-dashed px-[12px] py-[6px] text-[13px] text-[var(--text-muted)]'>
-                No admins available
-              </div>
-            ) : (
-              <div className='w-[200px]'>
-                <Combobox
-                  size='sm'
-                  align='end'
-                  dropdownWidth={200}
-                  value={billedAccountUserId || ''}
-                  onChange={async (value: string) => {
-                    if (value && value !== billedAccountUserId) {
-                      try {
-                        await updateWorkspaceSettings({ billedAccountUserId: value })
-                      } catch {
-                        /* logged above */
-                      }
-                    }
-                  }}
-                  disabled={!canManageWorkspaceKeys || updateWorkspaceMutation.isPending}
-                  placeholder='Select admin'
-                  options={workspaceAdmins.map((admin) => ({
-                    label: admin.email,
-                    value: admin.userId,
-                  }))}
-                />
+          {subscription.isPaid &&
+            subscriptionData?.data?.periodEnd &&
+            !permissions.showTeamMemberView &&
+            !permissions.isEnterpriseMember && (
+              <div className='flex items-center justify-between'>
+                <Label>{isCancelledAtPeriodEnd ? 'Access Until' : 'Next Billing Date'}</Label>
+                <span className='text-[13px] text-[var(--text-secondary)]'>
+                  {new Date(subscriptionData.data.periodEnd).toLocaleDateString()}
+                </span>
               </div>
             )}
-          </div>
-        )}
-      </div>
+
+          {subscription.isPaid && permissions.canViewUsageInfo && (
+            <BillingUsageNotificationsToggle />
+          )}
+
+          {!isLoading && isTeamAdmin && (
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-[6px]'>
+                <Label htmlFor='billed-account'>Billed Account</Label>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Info className='h-[12px] w-[12px] text-[var(--text-secondary)]' />
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>
+                    <span>Usage from this workspace will be billed to this account</span>
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              </div>
+              {workspaceAdmins.length === 0 ? (
+                <div className='rounded-[6px] border border-[var(--border)] border-dashed px-[12px] py-[6px] text-[13px] text-[var(--text-muted)]'>
+                  No admins available
+                </div>
+              ) : (
+                <div className='w-[200px]'>
+                  <Combobox
+                    size='sm'
+                    align='end'
+                    dropdownWidth={200}
+                    value={billedAccountUserId || ''}
+                    onChange={async (value: string) => {
+                      if (value && value !== billedAccountUserId) {
+                        try {
+                          await updateWorkspaceSettings({ billedAccountUserId: value })
+                        } catch {
+                          /* logged above */
+                        }
+                      }
+                    }}
+                    disabled={!canManageWorkspaceKeys || updateWorkspaceMutation.isPending}
+                    placeholder='Select admin'
+                    options={workspaceAdmins.map((admin) => ({
+                      label: admin.email,
+                      value: admin.userId,
+                    }))}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Enterprise */}
       {hasEnterprise && (
@@ -997,6 +999,11 @@ export function Subscription() {
           onButtonClick={() => window.open(CONSTANTS.TYPEFORM_ENTERPRISE_URL, '_blank')}
           inlineButton
         />
+      )}
+
+      {/* Referral Code */}
+      {!subscription.isEnterprise && (
+        <ReferralCode onRedeemComplete={() => refetchSubscription()} />
       )}
     </div>
   )

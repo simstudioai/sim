@@ -12,6 +12,7 @@ export {
   useSidebarDragContextValue,
 } from './use-sidebar-drag-context'
 export { useSidebarResize } from './use-sidebar-resize'
+export { useTaskSelection } from './use-task-selection'
 export { useWorkflowOperations } from './use-workflow-operations'
 export { useWorkflowSelection } from './use-workflow-selection'
 export { useWorkspaceManagement, type Workspace } from './use-workspace-management'

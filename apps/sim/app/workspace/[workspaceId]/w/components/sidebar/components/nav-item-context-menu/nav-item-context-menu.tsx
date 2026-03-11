@@ -9,10 +9,6 @@ interface NavItemContextMenuProps {
   onClose: () => void
   onOpenInNewTab: () => void
   onCopyLink: () => void
-  onRename?: () => void
-  onDelete?: () => void
-  disableRename?: boolean
-  disableDelete?: boolean
 }
 
 export function NavItemContextMenu({
@@ -22,10 +18,6 @@ export function NavItemContextMenu({
   onClose,
   onOpenInNewTab,
   onCopyLink,
-  onRename,
-  onDelete,
-  disableRename = false,
-  disableDelete = false,
 }: NavItemContextMenuProps) {
   return (
     <Popover
@@ -61,29 +53,6 @@ export function NavItemContextMenu({
         >
           Copy link
         </PopoverItem>
-        {onRename && (
-          <PopoverItem
-            onClick={() => {
-              onRename()
-              onClose()
-            }}
-            disabled={disableRename}
-          >
-            Rename
-          </PopoverItem>
-        )}
-        {onDelete && (
-          <PopoverItem
-            onClick={() => {
-              onDelete()
-              onClose()
-            }}
-            disabled={disableDelete}
-            className='text-[var(--color-error)]'
-          >
-            Delete
-          </PopoverItem>
-        )}
       </PopoverContent>
     </Popover>
   )
