@@ -41,6 +41,7 @@ export interface TaskStoredContentBlock {
     params?: Record<string, unknown>
     result?: { success: boolean; output?: unknown; error?: string }
     display?: { text?: string }
+    calledBy?: string
   } | null
 }
 

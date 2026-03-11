@@ -59,12 +59,13 @@ export interface ToolCallResult<T = unknown> {
   error?: string
 }
 
-export type ContentBlockType = 'text' | 'thinking' | 'tool_call' | 'subagent_text'
+export type ContentBlockType = 'text' | 'thinking' | 'tool_call' | 'subagent_text' | 'subagent'
 
 export interface ContentBlock {
   type: ContentBlockType
   content?: string
   toolCall?: ToolCallState
+  calledBy?: string
   timestamp: number
 }
 

@@ -37,9 +37,9 @@ export class CsvParser implements FileParser {
       `Parsing CSV buffer, size: ${bufferSize} bytes (${(bufferSize / 1024 / 1024).toFixed(2)} MB)`
     )
 
-    const stream = Readable.from(buffer, {
-      highWaterMark: CONFIG.STREAM_CHUNK_SIZE,
-    })
+    const stream = new Readable({ read() {} })
+    stream.push(buffer)
+    stream.push(null)
 
     return this.parseStream(stream)
   }

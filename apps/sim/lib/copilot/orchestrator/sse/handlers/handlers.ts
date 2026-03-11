@@ -484,6 +484,12 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     }
     if (!context.toolCalls.has(toolCallId)) {
       context.toolCalls.set(toolCallId, toolCall)
+      const parentToolCall = context.toolCalls.get(parentToolCallId)
+      addContentBlock(context, {
+        type: 'tool_call',
+        toolCall,
+        calledBy: parentToolCall?.name,
+      })
     }
 
     if (isPartial) return

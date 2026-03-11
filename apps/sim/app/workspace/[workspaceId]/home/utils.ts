@@ -7,6 +7,7 @@ export const RESOURCE_TOOL_NAMES = new Set([
   'create_workflow',
   'edit_workflow',
   'function_execute',
+  'read',
 ])
 
 function getResultData(parsed: SSEPayload): Record<string, unknown> | undefined {
@@ -138,11 +139,19 @@ export function extractResourcesFromHistory(messages: TaskStoredMessage[]): Moth
 
       let resource: MothershipResource | null = null
       if (tc.name === 'user_table') {
-        resource = extractTableResource(payload, args, lastTableId)
-        if (resource) lastTableId = resource.id
+        const redirected = extractFunctionExecuteResource(payload, args)
+        if (redirected?.type === 'file') {
+          resource = redirected
+        } else {
+          resource = extractTableResource(payload, args, lastTableId)
+          if (resource) lastTableId = resource.id
+        }
       } else if (tc.name === 'workspace_file') {
         resource = extractFileResource(payload, args)
       } else if (tc.name === 'function_execute') {
+        resource = extractFunctionExecuteResource(payload, args)
+        if (resource?.type === 'table') lastTableId = resource.id
+      } else if (tc.name === 'read') {
         resource = extractFunctionExecuteResource(payload, args)
         if (resource?.type === 'table') lastTableId = resource.id
       } else if (tc.name === 'create_workflow' || tc.name === 'edit_workflow') {

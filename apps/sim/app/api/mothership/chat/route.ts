@@ -206,6 +206,7 @@ export async function POST(req: NextRequest) {
                         : 'error'
                       : block.toolCall.status,
                   result: block.toolCall.result,
+                  ...(block.calledBy ? { calledBy: block.calledBy } : {}),
                 }
               }
               return stored

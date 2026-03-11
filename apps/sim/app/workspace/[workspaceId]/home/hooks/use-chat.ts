@@ -70,6 +70,7 @@ function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
       name: block.toolCall.name ?? 'unknown',
       status: STATE_TO_STATUS[block.toolCall.state ?? ''] ?? 'success',
       displayTitle: block.toolCall.display?.text,
+      calledBy: block.toolCall.calledBy,
       result: block.toolCall.result,
     }
   }
@@ -383,11 +384,22 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                 let resource: MothershipResource | null = null
 
                 if (toolName === 'user_table') {
-                  resource = extractTableResource(parsed, storedArgs, lastTableId)
-                  if (resource) {
-                    lastTableId = resource.id
-                    queryClient.invalidateQueries({ queryKey: tableKeys.detail(resource.id) })
-                    queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(resource.id) })
+                  const redirected = extractFunctionExecuteResource(parsed, storedArgs)
+                  if (redirected?.type === 'file') {
+                    resource = redirected
+                    queryClient.invalidateQueries({
+                      queryKey: workspaceFilesKeys.list(workspaceId),
+                    })
+                    queryClient.invalidateQueries({
+                      queryKey: workspaceFilesKeys.content(workspaceId, resource.id),
+                    })
+                  } else {
+                    resource = extractTableResource(parsed, storedArgs, lastTableId)
+                    if (resource) {
+                      lastTableId = resource.id
+                      queryClient.invalidateQueries({ queryKey: tableKeys.detail(resource.id) })
+                      queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(resource.id) })
+                    }
                   }
                 } else if (toolName === 'workspace_file') {
                   resource = extractFileResource(parsed, storedArgs)
@@ -414,6 +426,13 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                         queryKey: workspaceFilesKeys.content(workspaceId, resource.id),
                       })
                     }
+                  }
+                } else if (toolName === 'read') {
+                  resource = extractFunctionExecuteResource(parsed, storedArgs)
+                  if (resource?.type === 'table') {
+                    lastTableId = resource.id
+                    queryClient.invalidateQueries({ queryKey: tableKeys.detail(resource.id) })
+                    queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(resource.id) })
                   }
                 } else if (toolName === 'create_workflow' || toolName === 'edit_workflow') {
                   resource = extractWorkflowResource(parsed, lastWorkflowId)

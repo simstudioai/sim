@@ -176,11 +176,19 @@ export async function runStreamLoop(
       if (normalizedEvent.type === 'subagent_start') {
         const eventData = normalizedEvent.data as Record<string, unknown> | undefined
         const toolCallId = eventData?.tool_call_id as string | undefined
+        const subagentName = normalizedEvent.subagent || (eventData?.agent as string | undefined)
         if (toolCallId) {
           context.subAgentParentStack.push(toolCallId)
           context.subAgentParentToolCallId = toolCallId
           context.subAgentContent[toolCallId] = ''
           context.subAgentToolCalls[toolCallId] = []
+        }
+        if (subagentName) {
+          context.contentBlocks.push({
+            type: 'subagent',
+            content: subagentName,
+            timestamp: Date.now(),
+          })
         }
         continue
       }

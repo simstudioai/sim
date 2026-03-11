@@ -206,6 +206,119 @@ async function maybeWriteOutputToTable(
   }
 }
 
+async function maybeWriteReadCsvToTable(
+  toolName: string,
+  params: Record<string, unknown> | undefined,
+  result: ToolCallResult,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  if (toolName !== 'read') return result
+  if (!result.success || !result.output) return result
+  if (!context.workspaceId || !context.userId) return result
+
+  const outputTable = params?.outputTable as string | undefined
+  if (!outputTable) return result
+
+  try {
+    const table = await getTableById(outputTable)
+    if (!table) {
+      return { success: false, error: `Table "${outputTable}" not found` }
+    }
+
+    const output = result.output as Record<string, unknown>
+    const content = (output.content as string) || ''
+    if (!content.trim()) {
+      return { success: false, error: 'File has no content to import into table' }
+    }
+
+    const filePath = (params?.path as string) || ''
+    const ext = filePath.split('.').pop()?.toLowerCase()
+
+    let rows: Record<string, unknown>[]
+
+    if (ext === 'json') {
+      const parsed = JSON.parse(content)
+      if (!Array.isArray(parsed)) {
+        return {
+          success: false,
+          error: 'JSON file must contain an array of objects for table import',
+        }
+      }
+      rows = parsed
+    } else {
+      const { parse } = await import('csv-parse/sync')
+      rows = parse(content, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+        relax_column_count: true,
+        relax_quotes: true,
+        skip_records_with_error: true,
+        cast: false,
+      }) as Record<string, unknown>[]
+    }
+
+    if (rows.length === 0) {
+      return { success: false, error: 'File has no data rows to import' }
+    }
+
+    if (rows.length > MAX_OUTPUT_TABLE_ROWS) {
+      return {
+        success: false,
+        error: `Row limit exceeded: got ${rows.length}, max is ${MAX_OUTPUT_TABLE_ROWS}`,
+      }
+    }
+
+    await db.transaction(async (tx) => {
+      await tx.delete(userTableRows).where(eq(userTableRows.tableId, outputTable))
+
+      const now = new Date()
+      for (let i = 0; i < rows.length; i += BATCH_CHUNK_SIZE) {
+        const chunk = rows.slice(i, i + BATCH_CHUNK_SIZE)
+        const values = chunk.map((rowData, j) => ({
+          id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
+          tableId: outputTable,
+          workspaceId: context.workspaceId!,
+          data: rowData,
+          position: i + j,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: context.userId,
+        }))
+        await tx.insert(userTableRows).values(values)
+      }
+    })
+
+    logger.info('Read output written to table', {
+      toolName,
+      tableId: outputTable,
+      tableName: table.name,
+      rowCount: rows.length,
+      filePath,
+    })
+
+    return {
+      success: true,
+      output: {
+        message: `Imported ${rows.length} rows from "${filePath}" into table "${table.name}"`,
+        tableId: outputTable,
+        tableName: table.name,
+        rowCount: rows.length,
+      },
+    }
+  } catch (err) {
+    logger.warn('Failed to write read output to table', {
+      toolName,
+      outputTable,
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return {
+      success: false,
+      error: `Failed to import into table: ${err instanceof Error ? err.message : String(err)}`,
+    }
+  }
+}
+
 export async function executeToolAndReport(
   toolCallId: string,
   context: StreamingContext,
@@ -230,6 +343,7 @@ export async function executeToolAndReport(
     let result = await executeToolServerSide(toolCall, execContext)
     result = await maybeWriteOutputToFile(toolCall.name, toolCall.params, result, execContext)
     result = await maybeWriteOutputToTable(toolCall.name, toolCall.params, result, execContext)
+    result = await maybeWriteReadCsvToTable(toolCall.name, toolCall.params, result, execContext)
     toolCall.status = result.success ? 'success' : 'error'
     toolCall.result = result
     toolCall.error = result.error
