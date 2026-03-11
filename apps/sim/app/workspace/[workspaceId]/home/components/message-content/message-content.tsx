@@ -179,7 +179,12 @@ interface MessageContentProps {
   onOptionSelect?: (id: string) => void
 }
 
-export function MessageContent({ blocks, fallbackContent, onOptionSelect }: MessageContentProps) {
+export function MessageContent({
+  blocks,
+  fallbackContent,
+  isStreaming = false,
+  onOptionSelect,
+}: MessageContentProps) {
   const parsed = blocks.length > 0 ? parseBlocks(blocks) : []
 
   const segments: MessageSegment[] =
@@ -196,18 +201,34 @@ export function MessageContent({ blocks, fallbackContent, onOptionSelect }: Mess
       {segments.map((segment, i) => {
         switch (segment.type) {
           case 'text':
-            return <ChatContent key={`text-${i}`} content={segment.content} />
-          case 'agent_group':
             return (
-              <AgentGroup
-                key={segment.id}
-                agentName={segment.agentName}
-                agentLabel={segment.agentLabel}
-                tools={segment.tools}
-              />
+              <ChatContent key={`text-${i}`} content={segment.content} isStreaming={isStreaming} />
             )
+          case 'agent_group': {
+            const allToolsDone =
+              segment.tools.length > 0 &&
+              segment.tools.every((t) => t.status === 'success' || t.status === 'error')
+            const hasFollowingText = segments.slice(i + 1).some((s) => s.type === 'text')
+            return (
+              <div key={segment.id} className={isStreaming ? 'animate-stream-fade-in' : undefined}>
+                <AgentGroup
+                  agentName={segment.agentName}
+                  agentLabel={segment.agentLabel}
+                  tools={segment.tools}
+                  autoCollapse={allToolsDone && hasFollowingText}
+                />
+              </div>
+            )
+          }
           case 'options':
-            return <Options key={`options-${i}`} items={segment.items} onSelect={onOptionSelect} />
+            return (
+              <div
+                key={`options-${i}`}
+                className={isStreaming ? 'animate-stream-fade-in' : undefined}
+              >
+                <Options items={segment.items} onSelect={onOptionSelect} />
+              </div>
+            )
         }
       })}
     </div>

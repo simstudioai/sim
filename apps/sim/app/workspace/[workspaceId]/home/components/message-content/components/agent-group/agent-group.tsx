@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronDown } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { ToolCallStatus } from '../../../../types'
@@ -18,12 +18,39 @@ interface AgentGroupProps {
   agentName: string
   agentLabel: string
   tools: ToolCallData[]
+  autoCollapse?: boolean
 }
 
-export function AgentGroup({ agentName, agentLabel, tools }: AgentGroupProps) {
+const FADE_MS = 300
+
+export function AgentGroup({
+  agentName,
+  agentLabel,
+  tools,
+  autoCollapse = false,
+}: AgentGroupProps) {
   const AgentIcon = getAgentIcon(agentName)
-  const [expanded, setExpanded] = useState(true)
   const hasTools = tools.length > 0
+  const allDone = hasTools && tools.every((t) => t.status === 'success' || t.status === 'error')
+
+  const [expanded, setExpanded] = useState(!allDone)
+  const [mounted, setMounted] = useState(!allDone)
+  const didAutoCollapseRef = useRef(allDone)
+
+  useEffect(() => {
+    if (!autoCollapse || didAutoCollapseRef.current) return
+    didAutoCollapseRef.current = true
+    setExpanded(false)
+  }, [autoCollapse])
+
+  useEffect(() => {
+    if (expanded) {
+      setMounted(true)
+      return
+    }
+    const timer = setTimeout(() => setMounted(false), FADE_MS)
+    return () => clearTimeout(timer)
+  }, [expanded])
 
   return (
     <div className='flex flex-col gap-1.5'>
@@ -47,8 +74,13 @@ export function AgentGroup({ agentName, agentLabel, tools }: AgentGroupProps) {
           />
         )}
       </button>
-      {hasTools && expanded && (
-        <div className='flex flex-col gap-1.5'>
+      {hasTools && mounted && (
+        <div
+          className={cn(
+            'flex flex-col gap-1.5 transition-opacity duration-300 ease-out',
+            expanded ? 'opacity-100' : 'opacity-0'
+          )}
+        >
           {tools.map((tool) => (
             <ToolCallItem
               key={tool.id}

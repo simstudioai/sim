@@ -12,6 +12,7 @@ import {
   LandingWorkflowSeedStorage,
 } from '@/lib/core/utils/browser-storage'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
+import { useSidebarStore } from '@/stores/sidebar/store'
 import { MessageContent, MothershipView, UserInput } from './components'
 import type { FileAttachmentForApi } from './components/user-input/user-input'
 import { useChat } from './hooks'
@@ -111,6 +112,17 @@ export function Home({ chatId }: HomeProps = {}) {
     setActiveResourceId,
   } = useChat(workspaceId, chatId)
 
+  const prevResourceCountRef = useRef(resources.length)
+  const animateResourcePanel =
+    prevResourceCountRef.current === 0 && resources.length > 0 && isSending
+  useEffect(() => {
+    if (animateResourcePanel) {
+      const { isCollapsed, toggleCollapsed } = useSidebarStore.getState()
+      if (!isCollapsed) toggleCollapsed()
+    }
+    prevResourceCountRef.current = resources.length
+  })
+
   const handleSubmit = useCallback(
     (fileAttachments?: FileAttachmentForApi[]) => {
       const trimmed = inputValue.trim()
@@ -209,6 +221,7 @@ export function Home({ chatId }: HomeProps = {}) {
           resources={resources}
           activeResourceId={activeResourceId}
           onSelectResource={setActiveResourceId}
+          className={animateResourcePanel ? 'animate-slide-in-right' : undefined}
         />
       )}
     </div>

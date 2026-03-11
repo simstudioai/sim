@@ -1,5 +1,6 @@
 'use client'
 
+import { cn } from '@/lib/core/utils/cn'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { ResourceContent, ResourceTabs } from './components'
 
@@ -8,6 +9,7 @@ interface MothershipViewProps {
   resources: MothershipResource[]
   activeResourceId: string | null
   onSelectResource: (id: string) => void
+  className?: string
 }
 
 /**
@@ -20,11 +22,17 @@ export function MothershipView({
   resources,
   activeResourceId,
   onSelectResource,
+  className,
 }: MothershipViewProps) {
   const active = resources.find((r) => r.id === activeResourceId) ?? resources[0] ?? null
 
   return (
-    <div className='flex h-full w-[50%] min-w-[400px] flex-col border-[var(--border)] border-l'>
+    <div
+      className={cn(
+        'flex h-full w-[50%] min-w-[400px] flex-col border-[var(--border)] border-l',
+        className
+      )}
+    >
       <ResourceTabs
         resources={resources}
         activeId={active?.id ?? null}

@@ -1,6 +1,6 @@
 'use client'
 
-import { Children, type ComponentPropsWithoutRef, isValidElement } from 'react'
+import { Children, type ComponentPropsWithoutRef, isValidElement, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import 'prismjs/components/prism-typescript'
@@ -10,6 +10,7 @@ import 'prismjs/components/prism-markup'
 import '@/components/emcn/components/code/code.css'
 import { Checkbox, highlight, languages } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { useStreamingReveal } from '@/app/workspace/[workspaceId]/home/hooks/use-streaming-reveal'
 import { useThrottledValue } from '@/hooks/use-throttled-value'
 
 const REMARK_PLUGINS = [remarkGfm]
@@ -177,15 +178,39 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
 
 interface ChatContentProps {
   content: string
+  isStreaming?: boolean
 }
 
-export function ChatContent({ content }: ChatContentProps) {
-  const throttled = useThrottledValue(content)
+const STREAMING_THROTTLE_MS = 50
+
+export function ChatContent({ content, isStreaming = false }: ChatContentProps) {
+  const throttled = useThrottledValue(content, isStreaming ? STREAMING_THROTTLE_MS : undefined)
+  const rendered = isStreaming ? throttled : content
+  const { committed, incoming, generation } = useStreamingReveal(rendered, isStreaming)
+
+  const committedMarkdown = useMemo(
+    () =>
+      committed ? (
+        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
+          {committed}
+        </ReactMarkdown>
+      ) : null,
+    [committed]
+  )
+
   return (
     <div className={PROSE_CLASSES}>
-      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
-        {throttled}
-      </ReactMarkdown>
+      {committedMarkdown}
+      {incoming && (
+        <div
+          key={generation}
+          className={cn(isStreaming && 'animate-stream-fade-in', '[&>:first-child]:mt-0')}
+        >
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
+            {incoming}
+          </ReactMarkdown>
+        </div>
+      )}
     </div>
   )
 }

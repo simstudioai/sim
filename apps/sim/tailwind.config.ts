@@ -155,6 +155,14 @@ export default {
             'box-shadow': '0 0 0 4px var(--border-success)',
           },
         },
+        'stream-fade-in': {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
+        'slide-in-right': {
+          from: { opacity: '0', transform: 'translateX(40px)' },
+          to: { opacity: '1', transform: 'translateX(0)' },
+        },
       },
       animation: {
         'caret-blink': 'caret-blink 1.25s ease-out infinite',
@@ -163,6 +171,8 @@ export default {
         'dash-animation': 'dash-animation 1.5s linear infinite',
         'placeholder-pulse': 'placeholder-pulse 1.5s ease-in-out infinite',
         'ring-pulse': 'ring-pulse 1.5s ease-in-out infinite',
+        'stream-fade-in': 'stream-fade-in 300ms ease-out forwards',
+        'slide-in-right': 'slide-in-right 350ms ease-out forwards',
       },
     },
   },
