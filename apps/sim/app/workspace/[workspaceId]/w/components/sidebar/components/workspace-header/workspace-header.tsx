@@ -18,11 +18,13 @@ import {
   Plus,
   UserPlus,
 } from '@/components/emcn'
+import { getDisplayPlanName } from '@/lib/billing/plan-helpers'
 import { cn } from '@/lib/core/utils/cn'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
+import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const logger = createLogger('WorkspaceHeader')
@@ -128,6 +130,9 @@ export function WorkspaceHeader({
   }, [])
 
   const { isInvitationsDisabled } = usePermissionConfig()
+  const { data: subscriptionResponse } = useSubscriptionData()
+  const rawPlanName = getDisplayPlanName(subscriptionResponse?.data?.plan)
+  const planDisplayName = rawPlanName.includes('for Teams') ? rawPlanName : `${rawPlanName} Plan`
 
   // Listen for open-invite-modal event from context menu
   useEffect(() => {
@@ -397,7 +402,9 @@ export function WorkspaceHeader({
                       <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
                         {activeWorkspace?.name || 'Loading...'}
                       </span>
-                      <span className='text-[11px] text-[var(--text-tertiary)]'>Free Plan</span>
+                      <span className='text-[11px] text-[var(--text-tertiary)]'>
+                        {planDisplayName}
+                      </span>
                     </div>
                   </div>
 
