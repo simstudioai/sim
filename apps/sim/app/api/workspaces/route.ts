@@ -9,11 +9,16 @@ import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { getRandomWorkspaceColor } from '@/lib/workspaces/colors'
 
 const logger = createLogger('Workspaces')
 
 const createWorkspaceSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
+  color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .optional(),
   skipDefaultWorkflow: z.boolean().optional().default(false),
 })
 
@@ -65,9 +70,9 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { name, skipDefaultWorkflow } = createWorkspaceSchema.parse(await req.json())
+    const { name, color, skipDefaultWorkflow } = createWorkspaceSchema.parse(await req.json())
 
-    const newWorkspace = await createWorkspace(session.user.id, name, skipDefaultWorkflow)
+    const newWorkspace = await createWorkspace(session.user.id, name, skipDefaultWorkflow, color)
 
     recordAudit({
       workspaceId: newWorkspace.id,
@@ -96,16 +101,23 @@ async function createDefaultWorkspace(userId: string, userName?: string | null) 
   return createWorkspace(userId, workspaceName)
 }
 
-async function createWorkspace(userId: string, name: string, skipDefaultWorkflow = false) {
+async function createWorkspace(
+  userId: string,
+  name: string,
+  skipDefaultWorkflow = false,
+  explicitColor?: string
+) {
   const workspaceId = crypto.randomUUID()
   const workflowId = crypto.randomUUID()
   const now = new Date()
+  const color = explicitColor || getRandomWorkspaceColor()
 
   try {
     await db.transaction(async (tx) => {
       await tx.insert(workspace).values({
         id: workspaceId,
         name,
+        color,
         ownerId: userId,
         billedAccountUserId: userId,
         allowPersonalApiKeys: true,
@@ -174,6 +186,7 @@ async function createWorkspace(userId: string, name: string, skipDefaultWorkflow
   return {
     id: workspaceId,
     name,
+    color,
     ownerId: userId,
     billedAccountUserId: userId,
     allowPersonalApiKeys: true,

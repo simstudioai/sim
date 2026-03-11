@@ -144,7 +144,7 @@ export function CreditBalance({
                   </div>
 
                   <div className='rounded-[6px] bg-[var(--surface-4)] p-[12px]'>
-                    <p className='text-[13px] text-[var(--text-secondary)]'>
+                    <p className='text-[var(--text-secondary)]'>
                       Credits are non-refundable and don't expire. They'll be applied automatically
                       to your {entityType === 'organization' ? 'team' : ''} usage.
                     </p>

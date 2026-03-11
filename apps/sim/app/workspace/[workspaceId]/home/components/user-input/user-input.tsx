@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowUp, FileText, Loader2, Mic, Paperclip, X } from 'lucide-react'
 import { Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { useAnimatedPlaceholder } from '../../hooks'
 
@@ -37,9 +38,6 @@ export interface FileAttachmentForApi {
   media_type: string
   size: number
 }
-
-const ACCEPTED_FILE_TYPES =
-  'image/*,.pdf,.txt,.csv,.md,.html,.json,.xml,text/plain,text/csv,text/markdown,text/html,application/json,application/xml,application/pdf'
 
 interface UserInputProps {
   defaultValue?: string
@@ -82,6 +80,14 @@ export function UserInput({
   }, [])
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const wasSendingRef = useRef(false)
+
+  useEffect(() => {
+    if (wasSendingRef.current && !isSending) {
+      textareaRef.current?.focus()
+    }
+    wasSendingRef.current = isSending
+  }, [isSending])
 
   const handleContainerClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('button')) return
@@ -89,7 +95,7 @@ export function UserInput({
   }, [])
 
   const handleSubmit = useCallback(() => {
-    const fileAttachmentsForApi = files.attachedFiles
+    const fileAttachmentsForApi: FileAttachmentForApi[] = files.attachedFiles
       .filter((f) => !f.uploading && f.key)
       .map((f) => ({
         id: f.id,
@@ -194,7 +200,7 @@ export function UserInput({
     >
       {/* Attached files */}
       {files.attachedFiles.length > 0 && (
-        <div className='mb-[6px] flex gap-[6px] overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+        <div className='mb-[6px] flex flex-wrap gap-[6px]'>
           {files.attachedFiles.map((file) => {
             const isImage = file.type.startsWith('image/')
             return (
@@ -319,7 +325,7 @@ export function UserInput({
         type='file'
         onChange={files.handleFileChange}
         className='hidden'
-        accept={ACCEPTED_FILE_TYPES}
+        accept={CHAT_ACCEPT_ATTRIBUTE}
         multiple
       />
     </div>

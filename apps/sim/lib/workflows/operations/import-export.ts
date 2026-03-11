@@ -32,6 +32,7 @@ export interface FolderExportData {
 export interface WorkspaceExportStructure {
   workspace: {
     name: string
+    color?: string
     exportedAt: string
   }
   workflows: WorkflowExportData[]
@@ -178,7 +179,8 @@ function buildFolderPath(
 export async function exportWorkspaceToZip(
   workspaceName: string,
   workflows: WorkflowExportData[],
-  folders: FolderExportData[]
+  folders: FolderExportData[],
+  workspaceColor?: string
 ): Promise<Blob> {
   const zip = new JSZip()
   const foldersMap = new Map(folders.map((f) => [f.id, f]))
@@ -186,6 +188,7 @@ export async function exportWorkspaceToZip(
   const metadata = {
     workspace: {
       name: workspaceName,
+      ...(workspaceColor && { color: workspaceColor }),
       exportedAt: new Date().toISOString(),
     },
     folders: folders.map((f) => ({
@@ -292,6 +295,7 @@ export interface ImportedWorkflow {
 
 export interface WorkspaceImportMetadata {
   workspaceName: string
+  workspaceColor?: string
   exportedAt?: string
   folders?: Array<{
     id: string
@@ -326,6 +330,7 @@ export async function extractWorkflowsFromZip(
         const parsed = JSON.parse(content)
         metadata = {
           workspaceName: parsed.workspace?.name || 'Imported Workspace',
+          workspaceColor: parsed.workspace?.color,
           exportedAt: parsed.workspace?.exportedAt,
           folders: parsed.folders,
         }

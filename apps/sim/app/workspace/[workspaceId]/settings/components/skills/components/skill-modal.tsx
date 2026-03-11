@@ -126,7 +126,7 @@ export function SkillModal({
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent size='xl'>
+      <ModalContent size='lg'>
         <ModalHeader>{initialValues ? 'Edit Skill' : 'Create Skill'}</ModalHeader>
         <ModalBody>
           <div className='flex flex-col gap-[18px]'>

@@ -599,7 +599,7 @@ export const Panel = memo(function Panel() {
         <ModalContent size='sm'>
           <ModalHeader>Delete Workflow</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {currentWorkflow?.name ?? 'this workflow'}

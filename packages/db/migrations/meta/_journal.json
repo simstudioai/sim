@@ -1177,6 +1177,13 @@
       "when": 1773203900807,
       "tag": "0168_regular_jane_foster",
       "breakpoints": true
+    },
+    {
+      "idx": 169,
+      "version": "7",
+      "when": 1773207052828,
+      "tag": "0169_quiet_marvel_boy",
+      "breakpoints": true
     }
   ]
 }

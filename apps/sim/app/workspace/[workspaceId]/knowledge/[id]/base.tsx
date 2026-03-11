@@ -1121,7 +1121,7 @@ export function KnowledgeBase({
         <ModalContent size='sm'>
           <ModalHeader>Delete Knowledge Base</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{knowledgeBaseName}</span>?
               This will permanently delete the knowledge base and all {pagination.total} document
@@ -1151,7 +1151,7 @@ export function KnowledgeBase({
             {(() => {
               const docToDelete = documents.find((doc) => doc.id === documentToDelete)
               return (
-                <p className='text-[12px] text-[var(--text-secondary)]'>
+                <p className='text-[var(--text-secondary)]'>
                   Are you sure you want to delete{' '}
                   <span className='font-medium text-[var(--text-primary)]'>
                     {docToDelete?.filename ?? 'this document'}
@@ -1190,7 +1190,7 @@ export function KnowledgeBase({
         <ModalContent size='sm'>
           <ModalHeader>Delete Documents</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete {selectedDocuments.size} document
               {selectedDocuments.size === 1 ? '' : 's'}?{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>

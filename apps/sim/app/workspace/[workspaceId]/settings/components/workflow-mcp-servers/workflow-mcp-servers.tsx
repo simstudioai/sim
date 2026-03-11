@@ -629,7 +629,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         <ModalContent size='sm'>
           <ModalHeader>Remove Workflow</ModalHeader>
           <ModalBody>
-            <p className='text-[13px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to remove{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {toolToDelete?.toolName}
@@ -662,7 +662,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
           }
         }}
       >
-        <ModalContent className='w-[480px]'>
+        <ModalContent size='md'>
           <ModalHeader>{toolToView?.toolName}</ModalHeader>
           <ModalBody>
             <div className='flex flex-col gap-[18px]'>
@@ -812,10 +812,10 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
           }
         }}
       >
-        <ModalContent className='w-[420px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Add Workflow</ModalHeader>
           <ModalBody>
-            <p className='text-[13px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Select a deployed workflow to add to this MCP server. The workflow will be available
               as a tool.
             </p>
@@ -1215,7 +1215,7 @@ export function WorkflowMcpServers() {
         <ModalContent size='sm'>
           <ModalHeader>Delete MCP Server</ModalHeader>
           <ModalBody>
-            <p className='text-[13px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{serverToDelete?.name}</span>
               ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>

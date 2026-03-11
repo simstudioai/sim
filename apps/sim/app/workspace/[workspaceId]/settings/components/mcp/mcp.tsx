@@ -715,7 +715,7 @@ export function MCP({ initialServerId }: MCPProps) {
         <ModalContent size='sm'>
           <ModalHeader>Delete MCP Server</ModalHeader>
           <ModalBody>
-            <p className='text-[13px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{serverToDelete?.name}</span>
               ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>

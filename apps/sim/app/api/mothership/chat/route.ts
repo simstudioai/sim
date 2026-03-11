@@ -121,6 +121,16 @@ export async function POST(req: NextRequest) {
         role: 'user' as const,
         content: message,
         timestamp: new Date().toISOString(),
+        ...(fileAttachments &&
+          fileAttachments.length > 0 && {
+            fileAttachments: fileAttachments.map((f) => ({
+              id: f.id,
+              key: f.key,
+              filename: f.filename,
+              media_type: f.media_type,
+              size: f.size,
+            })),
+          }),
       }
 
       const [updated] = await db

@@ -21,6 +21,7 @@ export const workspaceKeys = {
 export interface Workspace {
   id: string
   name: string
+  color?: string
   ownerId: string
   role?: string
   membershipId?: string

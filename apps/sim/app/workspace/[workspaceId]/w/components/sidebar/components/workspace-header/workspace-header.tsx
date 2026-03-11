@@ -21,6 +21,7 @@ import {
 import { cn } from '@/lib/core/utils/cn'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
+import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
@@ -29,6 +30,7 @@ const logger = createLogger('WorkspaceHeader')
 interface Workspace {
   id: string
   name: string
+  color?: string
   ownerId: string
   role?: string
   permissions?: 'admin' | 'write' | 'read' | null
@@ -51,8 +53,8 @@ interface WorkspaceHeaderProps {
   setIsWorkspaceMenuOpen: (isOpen: boolean) => void
   /** Callback when workspace is switched */
   onWorkspaceSwitch: (workspace: Workspace) => void
-  /** Callback when create workspace is clicked */
-  onCreateWorkspace: () => Promise<void>
+  /** Callback when create workspace is confirmed with a name */
+  onCreateWorkspace: (name: string) => Promise<void>
   /** Callback to rename the workspace */
   onRenameWorkspace: (workspaceId: string, newName: string) => Promise<void>
   /** Callback to delete the workspace */
@@ -93,6 +95,7 @@ export function WorkspaceHeader({
   onLeaveWorkspace,
   sessionUserId,
 }: WorkspaceHeaderProps) {
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -324,7 +327,12 @@ export function WorkspaceHeader({
                   }
                 }}
               >
-                <div className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[var(--surface-7)] font-medium text-[12px] text-[var(--text-secondary)] leading-none'>
+                <div
+                  className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-[4px] font-medium text-[12px] text-white leading-none'
+                  style={{
+                    backgroundColor: activeWorkspaceFull?.color || 'var(--brand-tertiary-2)',
+                  }}
+                >
                   {workspaceInitial}
                 </div>
                 <span className='min-w-0 flex-1 truncate text-left font-base text-[14px] text-[var(--text-primary)]'>
@@ -355,7 +363,12 @@ export function WorkspaceHeader({
               ) : (
                 <>
                   <div className='flex items-center gap-[8px] px-[2px] py-[2px]'>
-                    <div className='flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-7)] font-medium text-[12px] text-[var(--text-secondary)]'>
+                    <div
+                      className='flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center rounded-[6px] font-medium text-[12px] text-white'
+                      style={{
+                        backgroundColor: activeWorkspaceFull?.color || 'var(--brand-tertiary-2)',
+                      }}
+                    >
                       {workspaceInitial}
                     </div>
                     <div className='flex min-w-0 flex-col'>
@@ -478,15 +491,15 @@ export function WorkspaceHeader({
                   <button
                     type='button'
                     className='flex w-full cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover:bg-[var(--surface-active)] disabled:pointer-events-none disabled:opacity-50'
-                    onClick={async (e) => {
+                    onClick={(e) => {
                       e.stopPropagation()
-                      await onCreateWorkspace()
                       setIsWorkspaceMenuOpen(false)
+                      setIsCreateModalOpen(true)
                     }}
                     disabled={isCreatingWorkspace}
                   >
                     <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-                    {isCreatingWorkspace ? 'Creating workspace...' : 'Create new workspace'}
+                    Create new workspace
                   </button>
                 </>
               )}
@@ -500,7 +513,10 @@ export function WorkspaceHeader({
             title={activeWorkspace?.name || 'Loading...'}
             disabled
           >
-            <div className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[var(--surface-7)] font-medium text-[12px] text-[var(--text-secondary)] leading-none'>
+            <div
+              className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-[4px] font-medium text-[12px] text-white leading-none'
+              style={{ backgroundColor: activeWorkspaceFull?.color || 'var(--brand-tertiary-2)' }}
+            >
               {workspaceInitial}
             </div>
             <span className='min-w-0 flex-1 truncate text-left font-base text-[14px] text-[var(--text-primary)]'>
@@ -542,6 +558,17 @@ export function WorkspaceHeader({
         )
       })()}
 
+      {/* Create Workspace Modal */}
+      <CreateWorkspaceModal
+        open={isCreateModalOpen}
+        onOpenChange={setIsCreateModalOpen}
+        onConfirm={async (name) => {
+          await onCreateWorkspace(name)
+          setIsCreateModalOpen(false)
+        }}
+        isCreating={isCreatingWorkspace}
+      />
+
       {/* Invite Modal */}
       <InviteModal
         open={isInviteModalOpen}
@@ -562,7 +589,7 @@ export function WorkspaceHeader({
         <ModalContent size='sm'>
           <ModalHeader>Leave Workspace</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to leave{' '}
               <span className='font-base text-[var(--text-primary)]'>{leaveTarget?.name}</span>? You
               will lose access to all workflows and data in this workspace.{' '}

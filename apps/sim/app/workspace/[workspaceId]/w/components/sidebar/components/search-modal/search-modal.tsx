@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { Blimp, Library } from '@/components/emcn'
 import { Calendar, Database, File, HelpCircle, Settings, Table } from '@/components/emcn/icons'
+import { Search } from '@/components/emcn/icons/search'
 import { cn } from '@/lib/core/utils/cn'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
@@ -344,7 +345,7 @@ export function SearchModal({
       {/* Overlay */}
       <div
         className={cn(
-          'fixed inset-0 z-40 bg-[#E4E4E4]/50 backdrop-blur-[0.75px] transition-opacity duration-100 dark:bg-[#0D0D0D]/50',
+          'fixed inset-0 z-40 transition-opacity duration-100',
           open ? 'opacity-100' : 'pointer-events-none opacity-0'
         )}
         onClick={() => onOpenChange(false)}
@@ -357,21 +358,24 @@ export function SearchModal({
         aria-hidden={!open}
         aria-label='Search'
         className={cn(
-          '-translate-x-1/2 fixed top-[15%] z-50 w-[500px] overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--surface-4)] shadow-lg',
+          '-translate-x-1/2 fixed top-[15%] z-50 w-[500px] rounded-xl border-[4px] border-black/[0.06] bg-[var(--bg)] shadow-[0_24px_80px_-16px_rgba(0,0,0,0.15)] dark:border-white/[0.06] dark:shadow-[0_24px_80px_-16px_rgba(0,0,0,0.4)]',
           open ? 'visible opacity-100' : 'invisible opacity-0'
         )}
         style={{ left: '50%' }}
       >
         <Command label='Search' shouldFilter={false}>
-          <Command.Input
-            ref={inputRef}
-            autoFocus
-            onValueChange={handleSearchChange}
-            placeholder='Search anything...'
-            className='w-full border-0 border-[var(--border)] border-b bg-transparent px-[12px] py-[10px] font-base text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none'
-          />
-          <Command.List className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto p-[8px]'>
-            <Command.Empty className='flex items-center justify-center px-[16px] py-[24px] text-[15px] text-[var(--text-subtle)]'>
+          <div className='mx-[8px] mt-[8px] mb-[4px] flex items-center gap-[6px] rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] dark:bg-[var(--surface-4)]'>
+            <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-muted)]' />
+            <Command.Input
+              ref={inputRef}
+              autoFocus
+              onValueChange={handleSearchChange}
+              placeholder='Search anything...'
+              className='w-full bg-transparent py-[6px] font-base text-[14px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
+            />
+          </div>
+          <Command.List className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto overflow-x-hidden p-[8px] [&_[cmdk-group]+[cmdk-group]]:mt-[10px]'>
+            <Command.Empty className='flex items-center justify-center px-[16px] py-[24px] text-[14px] text-[var(--text-subtle)]'>
               No results found.
             </Command.Empty>
 
@@ -433,7 +437,7 @@ export function SearchModal({
                     key={workflow.id}
                     value={`${workflow.name} workflow-${workflow.id}`}
                     onSelect={() => handleWorkflowSelect(workflow)}
-                    className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
+                    className='group flex h-[30px] w-full cursor-pointer items-center gap-[8px] rounded-[8px] border border-transparent px-[8px] text-left text-[14px] aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
                   >
                     <div
                       className='h-[14px] w-[14px] flex-shrink-0 rounded-[4px] border-[2px]'
@@ -443,7 +447,7 @@ export function SearchModal({
                         backgroundClip: 'padding-box',
                       }}
                     />
-                    <span className='truncate font-base text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+                    <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
                       {workflow.name}
                       {workflow.isCurrent && ' (current)'}
                     </span>
@@ -462,12 +466,12 @@ export function SearchModal({
                       router.push(task.href)
                       onOpenChange(false)
                     }}
-                    className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
+                    className='group flex h-[30px] w-full cursor-pointer items-center gap-[8px] rounded-[8px] border border-transparent px-[8px] text-left text-[14px] aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
                   >
                     <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-                      <Blimp className='h-[14px] w-[14px] text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]' />
+                      <Blimp className='h-[14px] w-[14px] text-[var(--text-icon)]' />
                     </div>
-                    <span className='truncate font-base text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+                    <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
                       {task.name}
                     </span>
                   </Command.Item>
@@ -499,9 +503,9 @@ export function SearchModal({
                     key={workspace.id}
                     value={`${workspace.name} workspace-${workspace.id}`}
                     onSelect={() => handleWorkspaceSelect(workspace)}
-                    className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
+                    className='group flex h-[30px] w-full cursor-pointer items-center gap-[8px] rounded-[8px] border border-transparent px-[8px] text-left text-[14px] aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
                   >
-                    <span className='truncate font-base text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+                    <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
                       {workspace.name}
                       {workspace.isCurrent && ' (current)'}
                     </span>
@@ -536,12 +540,12 @@ export function SearchModal({
                       key={page.id}
                       value={`${page.name} page-${page.id}`}
                       onSelect={() => handlePageSelect(page)}
-                      className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
+                      className='group flex h-[30px] w-full cursor-pointer items-center gap-[8px] rounded-[8px] border border-transparent px-[8px] text-left text-[14px] aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
                     >
                       <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-                        <Icon className='h-[14px] w-[14px] text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]' />
+                        <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
                       </div>
-                      <span className='truncate font-base text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+                      <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
                         {page.name}
                       </span>
                       {page.shortcut && (
@@ -563,7 +567,7 @@ export function SearchModal({
 }
 
 const groupHeadingClassName =
-  '[&_[cmdk-group-heading]]:pt-[2px] [&_[cmdk-group-heading]]:pb-[4px] [&_[cmdk-group-heading]]:font-base [&_[cmdk-group-heading]]:text-[13px] [&_[cmdk-group-heading]]:text-[var(--text-subtle)] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide'
+  '[&_[cmdk-group-heading]]:px-[8px] [&_[cmdk-group-heading]]:pt-[2px] [&_[cmdk-group-heading]]:pb-[6px] [&_[cmdk-group-heading]]:font-base [&_[cmdk-group-heading]]:text-[12px] [&_[cmdk-group-heading]]:text-[var(--text-icon)]'
 
 interface CommandItemProps {
   value: string
@@ -589,7 +593,7 @@ const MemoizedCommandItem = memo(
       <Command.Item
         value={value}
         onSelect={onSelect}
-        className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
+        className='group flex h-[30px] w-full cursor-pointer items-center gap-[8px] rounded-[8px] border border-transparent px-[8px] text-left text-[14px] aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
       >
         <div
           className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
@@ -600,11 +604,11 @@ const MemoizedCommandItem = memo(
               'transition-transform duration-100 group-hover:scale-110',
               showColoredIcon
                 ? '!h-[10px] !w-[10px] text-white'
-                : 'h-[14px] w-[14px] text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'
+                : 'h-[14px] w-[14px] text-[var(--text-icon)]'
             )}
           />
         </div>
-        <span className='truncate font-base text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+        <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
           {children}
         </span>
       </Command.Item>

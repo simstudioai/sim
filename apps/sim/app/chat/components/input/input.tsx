@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Paperclip, Send, Square, X } from 'lucide-react'
 import { Badge, Tooltip } from '@/components/emcn'
+import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { VoiceInput } from '@/app/chat/components/input/voice-input'
 
 const logger = createLogger('ChatInput')
@@ -268,7 +269,7 @@ export const ChatInput: React.FC<{
           >
             {/* File Previews */}
             {attachedFiles.length > 0 && (
-              <div className='mb-2 flex flex-wrap gap-2 px-3 pt-3 md:px-4'>
+              <div className='mb-2 flex max-h-[160px] flex-wrap gap-2 overflow-y-auto px-3 pt-3 md:px-4'>
                 {attachedFiles.map((file) => {
                   const formatFileSize = (bytes: number) => {
                     if (bytes === 0) return '0 B'
@@ -348,7 +349,7 @@ export const ChatInput: React.FC<{
                 ref={fileInputRef}
                 type='file'
                 multiple
-                accept='.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt,.json,.xml,.rtf,image/*'
+                accept={CHAT_ACCEPT_ATTRIBUTE}
                 onChange={(e) => {
                   handleFileSelect(e.target.files)
                   if (fileInputRef.current) {

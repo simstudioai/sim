@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { and, asc, eq, inArray, isNull, max } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
@@ -346,7 +347,7 @@ export async function createWorkflowRecord(params: CreateWorkflowInput) {
     workspaceId,
     name,
     description = null,
-    color = '#7F2FFF',
+    color = getNextWorkflowColor(),
     folderId = null,
   } = params
   const workflowId = crypto.randomUUID()

@@ -857,7 +857,7 @@ export function CredentialSets() {
         <ModalContent size='sm'>
           <ModalHeader>Leave Polling Group</ModalHeader>
           <ModalBody>
-            <p className='text-[13px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to leave{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {leavingMembership?.name}
@@ -884,7 +884,7 @@ export function CredentialSets() {
         <ModalContent size='sm'>
           <ModalHeader>Delete Polling Group</ModalHeader>
           <ModalBody>
-            <p className='text-[13px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{deletingSet?.name}</span>?{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>

@@ -1259,7 +1259,7 @@ export function Table({
         )}
         data-table-scroll
       >
-        <div className='relative' style={{ width: `${tableWidth}px` }}>
+        <div className='relative h-fit' style={{ width: `${tableWidth}px` }}>
           <table
             className='table-fixed border-separate border-spacing-0 text-[13px]'
             style={{ width: `${tableWidth}px` }}
@@ -1386,9 +1386,6 @@ export function Table({
                       </React.Fragment>
                     )
                   })}
-                  {userPermissions.canEdit && (
-                    <AddRowButton colSpan={columns.length + 2} onClick={handleAppendRow} />
-                  )}
                 </>
               )}
             </tbody>
@@ -1400,6 +1397,9 @@ export function Table({
             />
           )}
         </div>
+        {!isLoadingTable && !isLoadingRows && userPermissions.canEdit && (
+          <AddRowButton onClick={handleAppendRow} />
+        )}
       </div>
 
       {editingRow && tableData && (
@@ -1447,7 +1447,7 @@ export function Table({
           <ModalContent size='sm'>
             <ModalHeader>Delete Table</ModalHeader>
             <ModalBody>
-              <p className='text-[13px] text-[var(--text-secondary)]'>
+              <p className='text-[var(--text-secondary)]'>
                 Are you sure you want to delete{' '}
                 <span className='font-medium text-[var(--text-primary)]'>{tableData?.name}</span>?{' '}
                 <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
@@ -1482,7 +1482,7 @@ export function Table({
         <ModalContent size='sm'>
           <ModalHeader>Delete Column</ModalHeader>
           <ModalBody>
-            <p className='text-[13px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{deletingColumn}</span>? This
               will remove all data in this column.{' '}
@@ -1913,7 +1913,7 @@ function CellContent({
   return (
     <>
       {isEditing && (
-        <div className='absolute inset-0 z-10 flex items-center px-0'>
+        <div className='absolute inset-0 z-10 flex items-start px-0'>
           <InlineEditor
             value={value}
             column={column}
@@ -2378,26 +2378,18 @@ const AddColumnButton = React.memo(function AddColumnButton({
   )
 })
 
-const AddRowButton = React.memo(function AddRowButton({
-  colSpan,
-  onClick,
-}: {
-  colSpan: number
-  onClick: () => void
-}) {
+const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: () => void }) {
   return (
-    <tr>
-      <td colSpan={colSpan} className='px-[8px] py-[7px]'>
-        <button
-          type='button'
-          className='flex h-[20px] cursor-pointer items-center gap-[8px]'
-          onClick={onClick}
-        >
-          <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-          <span className='font-medium text-[13px] text-[var(--text-body)]'>New row</span>
-        </button>
-      </td>
-    </tr>
+    <div className='px-[8px] py-[7px]'>
+      <button
+        type='button'
+        className='flex h-[20px] cursor-pointer items-center gap-[8px]'
+        onClick={onClick}
+      >
+        <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+        <span className='font-medium text-[13px] text-[var(--text-body)]'>New row</span>
+      </button>
+    </div>
   )
 })
 

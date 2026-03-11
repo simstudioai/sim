@@ -861,7 +861,7 @@ export function DeployModal({
         <ModalContent size='sm'>
           <ModalHeader>Undeploy API</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to undeploy this workflow?{' '}
               <span className='text-[var(--text-error)]'>
                 This will remove the API endpoint and make it unavailable to external users.
@@ -887,7 +887,7 @@ export function DeployModal({
         <ModalContent size='sm'>
           <ModalHeader>Delete A2A Agent</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {existingA2aAgent?.name || 'this agent'}

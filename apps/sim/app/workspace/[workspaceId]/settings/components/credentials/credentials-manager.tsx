@@ -1029,7 +1029,7 @@ export function CredentialsManager() {
         if (!open) resetCreateForm()
       }}
     >
-      <ModalContent size='lg'>
+      <ModalContent size='md'>
         <ModalHeader>Create Secret</ModalHeader>
         <ModalBody>
           {(createError ||
@@ -1402,7 +1402,7 @@ export function CredentialsManager() {
           {credentialToDelete?.type === 'oauth' ? 'Disconnect Secret' : 'Delete Secret'}
         </ModalHeader>
         <ModalBody>
-          <p className='text-[13px] text-[var(--text-secondary)]'>
+          <p className='text-[var(--text-secondary)]'>
             Are you sure you want to{' '}
             {credentialToDelete?.type === 'oauth' ? 'disconnect' : 'delete'}{' '}
             <span className='font-medium text-[var(--text-primary)]'>
@@ -1444,7 +1444,7 @@ export function CredentialsManager() {
       <ModalContent size='sm'>
         <ModalHeader>Unsaved Changes</ModalHeader>
         <ModalBody>
-          <p className='text-[13px] text-[var(--text-secondary)]'>
+          <p className='text-[var(--text-secondary)]'>
             You have unsaved changes. Are you sure you want to discard them?
           </p>
         </ModalBody>

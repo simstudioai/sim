@@ -365,7 +365,7 @@ export function TemplateDeploy({
         <ModalContent size='sm'>
           <ModalHeader>Delete Template</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {existingTemplate?.name || formData.name || 'this template'}

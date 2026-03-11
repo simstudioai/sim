@@ -596,7 +596,7 @@ export function Files() {
             <ModalContent size='sm'>
               <ModalHeader>Unsaved Changes</ModalHeader>
               <ModalBody>
-                <p className='text-[13px] text-[var(--text-secondary)]'>
+                <p className='text-[var(--text-secondary)]'>
                   You have unsaved changes. Are you sure you want to discard them?
                 </p>
               </ModalBody>
@@ -731,7 +731,7 @@ function DeleteConfirmModal({
       <ModalContent size='sm'>
         <ModalHeader>Delete File</ModalHeader>
         <ModalBody>
-          <p className='text-[13px] text-[var(--text-secondary)]'>
+          <p className='text-[var(--text-secondary)]'>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>{fileName}</span>?{' '}
             <span className='text-[var(--text-error)]'>This action cannot be undone.</span>

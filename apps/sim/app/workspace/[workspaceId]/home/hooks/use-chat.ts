@@ -7,6 +7,7 @@ import { tableKeys } from '@/hooks/queries/tables'
 import {
   type TaskChatHistory,
   type TaskStoredContentBlock,
+  type TaskStoredFileAttachment,
   type TaskStoredMessage,
   type TaskStoredToolCall,
   taskKeys,
@@ -14,8 +15,10 @@ import {
 } from '@/hooks/queries/tasks'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import type { FileAttachmentForApi } from '../components/user-input/user-input'
 import type {
   ChatMessage,
+  ChatMessageAttachment,
   ContentBlock,
   ContentBlockType,
   MothershipResource,
@@ -36,16 +39,7 @@ export interface UseChatReturn {
   messages: ChatMessage[]
   isSending: boolean
   error: string | null
-  sendMessage: (
-    message: string,
-    fileAttachments?: Array<{
-      id: string
-      key: string
-      filename: string
-      media_type: string
-      size: number
-    }>
-  ) => Promise<void>
+  sendMessage: (message: string, fileAttachments?: FileAttachmentForApi[]) => Promise<void>
   stopGeneration: () => Promise<void>
   chatBottomRef: React.RefObject<HTMLDivElement | null>
   resources: MothershipResource[]
@@ -93,6 +87,18 @@ function mapStoredToolCall(tc: TaskStoredToolCall): ContentBlock {
   }
 }
 
+function toDisplayAttachment(f: TaskStoredFileAttachment): ChatMessageAttachment {
+  return {
+    id: f.id,
+    filename: f.filename,
+    media_type: f.media_type,
+    size: f.size,
+    previewUrl: f.media_type.startsWith('image/')
+      ? `/api/files/serve/${encodeURIComponent(f.key)}?context=copilot`
+      : undefined,
+  }
+}
+
 function mapStoredMessage(msg: TaskStoredMessage): ChatMessage {
   const mapped: ChatMessage = {
     id: msg.id,
@@ -118,6 +124,10 @@ function mapStoredMessage(msg: TaskStoredMessage): ChatMessage {
       blocks.push({ type: 'text', content: msg.content })
     }
     mapped.contentBlocks = blocks
+  }
+
+  if (Array.isArray(msg.fileAttachments) && msg.fileAttachments.length > 0) {
+    mapped.attachments = msg.fileAttachments.map(toDisplayAttachment)
   }
 
   return mapped
@@ -579,16 +589,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   }, [chatHistory?.activeStreamId, processSSEStream, finalize])
 
   const sendMessage = useCallback(
-    async (
-      message: string,
-      fileAttachments?: Array<{
-        id: string
-        key: string
-        filename: string
-        media_type: string
-        size: number
-      }>
-    ) => {
+    async (message: string, fileAttachments?: FileAttachmentForApi[]) => {
       if (!message.trim() || !workspaceId) return
 
       if (sendingRef.current) {
@@ -608,24 +609,40 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       pendingUserMsgRef.current = { id: userMessageId, content: message }
       streamIdRef.current = userMessageId
 
+      const storedAttachments: TaskStoredFileAttachment[] | undefined =
+        fileAttachments && fileAttachments.length > 0
+          ? fileAttachments.map((f) => ({
+              id: f.id,
+              key: f.key,
+              filename: f.filename,
+              media_type: f.media_type,
+              size: f.size,
+            }))
+          : undefined
+
       if (chatIdRef.current) {
+        const cachedUserMsg: TaskStoredMessage = {
+          id: userMessageId,
+          role: 'user' as const,
+          content: message,
+          ...(storedAttachments && { fileAttachments: storedAttachments }),
+        }
         queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(chatIdRef.current), (old) =>
           old
             ? {
                 ...old,
-                messages: [
-                  ...old.messages,
-                  { id: userMessageId, role: 'user' as const, content: message },
-                ],
+                messages: [...old.messages, cachedUserMsg],
                 activeStreamId: userMessageId,
               }
             : undefined
         )
       }
 
+      const userAttachments = storedAttachments?.map(toDisplayAttachment)
+
       setMessages((prev) => [
         ...prev,
-        { id: userMessageId, role: 'user', content: message },
+        { id: userMessageId, role: 'user', content: message, attachments: userAttachments },
         { id: assistantId, role: 'assistant', content: '', contentBlocks: [] },
       ])
 

@@ -30,6 +30,7 @@ import {
   extractPathFromOutputId,
   parseOutputContentSafely,
 } from '@/lib/core/utils/response-format'
+import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { START_BLOCK_RESERVED_FIELDS } from '@/lib/workflows/types'
@@ -1049,7 +1050,7 @@ export function Chat() {
           >
             {/* File thumbnails */}
             {chatFiles.length > 0 && (
-              <div className='mt-[4px] flex gap-[6px] overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+              <div className='mt-[4px] flex flex-wrap gap-[6px]'>
                 {chatFiles.map((file) => {
                   const previewUrl = getFilePreviewUrl(file)
 
@@ -1163,7 +1164,7 @@ export function Chat() {
               id='floating-chat-file-input'
               type='file'
               multiple
-              accept='.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt,.json,.xml,.rtf,image/*'
+              accept={CHAT_ACCEPT_ATTRIBUTE}
               onChange={handleFileInputChange}
               className='hidden'
               disabled={!activeWorkflowId || isExecuting}

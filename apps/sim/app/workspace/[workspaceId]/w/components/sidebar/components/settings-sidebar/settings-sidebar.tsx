@@ -168,7 +168,7 @@ export function SettingsSidebar({
   }
 
   return (
-    <div className='flex flex-1 flex-col overflow-hidden'>
+    <>
       {/* Back button */}
       <div className='mt-[10px] flex flex-shrink-0 flex-col gap-[2px] px-[8px]'>
         <Tooltip.Root key={`back-${isCollapsed}`}>
@@ -195,7 +195,12 @@ export function SettingsSidebar({
       </div>
 
       {/* Settings sections */}
-      <div className='mt-[14px] flex flex-1 flex-col gap-[14px] overflow-y-auto overflow-x-hidden'>
+      <div
+        className={cn(
+          'mt-[14px] flex flex-1 flex-col gap-[14px]',
+          !isCollapsed && 'overflow-y-auto overflow-x-hidden'
+        )}
+      >
         {sessionLoading || orgsLoading
           ? Array.from({ length: 3 }, (_, i) => (
               <div key={i} className='flex flex-shrink-0 flex-col'>
@@ -273,6 +278,6 @@ export function SettingsSidebar({
               )
             })}
       </div>
-    </div>
+    </>
   )
 }
