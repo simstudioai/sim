@@ -236,6 +236,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                     </Label>
                     <Input
                       type='password'
+                      autoComplete='new-password'
                       value={apiKeyValue}
                       onChange={(e) => setApiKeyValue(e.target.value)}
                       placeholder={

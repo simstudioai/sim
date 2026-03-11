@@ -630,6 +630,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                 <EmcnInput
                   type='url'
                   placeholder='https://your-app.com/webhook'
+                  autoComplete='off'
                   value={formData.webhookUrl}
                   onChange={(e) => {
                     setFormData({ ...formData, webhookUrl: e.target.value })
@@ -645,6 +646,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                 <EmcnInput
                   type='password'
                   placeholder='Webhook secret for signature verification'
+                  autoComplete='new-password'
                   value={formData.webhookSecret}
                   onChange={(e) => setFormData({ ...formData, webhookSecret: e.target.value })}
                 />
