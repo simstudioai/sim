@@ -1056,9 +1056,20 @@ export async function queueWebhookExecution(
       }
     }
 
-    // Extract credentialId from webhook config
-    // Note: Each webhook now has its own credentialId (credential sets are fanned out at save time)
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+
+    if (foundWebhook.provider === 'generic') {
+      const idempotencyField = providerConfig.idempotencyField as string | undefined
+      if (idempotencyField && body) {
+        const value = idempotencyField
+          .split('.')
+          .reduce((acc: any, key: string) => acc?.[key], body)
+        if (value !== undefined && value !== null) {
+          headers['x-sim-idempotency-key'] = String(value)
+        }
+      }
+    }
+
     const credentialId = providerConfig.credentialId as string | undefined
     let credentialAccountUserId: string | undefined
     if (credentialId) {
@@ -1202,6 +1213,25 @@ export async function queueWebhookExecution(
           'Content-Type': 'text/xml; charset=utf-8',
         },
       })
+    }
+
+    if (foundWebhook.provider === 'generic' && providerConfig.responseMode === 'custom') {
+      const statusCode = Number(providerConfig.responseStatusCode) || 200
+      const responseBody = (providerConfig.responseBody as string | undefined)?.trim()
+
+      if (!responseBody) {
+        return new NextResponse(null, { status: statusCode })
+      }
+
+      try {
+        const parsed = JSON.parse(responseBody)
+        return NextResponse.json(parsed, { status: statusCode })
+      } catch {
+        return new NextResponse(responseBody, {
+          status: statusCode,
+          headers: { 'Content-Type': 'text/plain' },
+        })
+      }
     }
 
     return NextResponse.json({ message: 'Webhook processed' })
