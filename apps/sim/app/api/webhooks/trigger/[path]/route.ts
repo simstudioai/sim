@@ -80,7 +80,6 @@ export async function POST(
     }
 
     // Parallelize auth verification with preprocessing — they are independent
-    // checkWebhookPreprocessing has its own try/catch and always returns WebhookPreprocessingResult
     const [authError, preprocessResult] = await Promise.all([
       verifyProviderAuth(foundWebhook, foundWorkflow, request, rawBody, requestId),
       checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId),

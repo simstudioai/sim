@@ -140,7 +140,7 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
 }
 
 /**
- * Resolve the account userId for a credential (deferred from API route to background job)
+ * Resolve the account userId for a credential
  */
 async function resolveCredentialAccountUserId(credentialId: string): Promise<string | undefined> {
   const resolved = await resolveOAuthAccountId(credentialId)
@@ -167,8 +167,7 @@ async function executeWebhookJobInternal(
     requestId
   )
 
-  // Use preprocessExecution to resolve workflow record, billing actor, subscription, and timeout
-  // Rate limits and deployment checks were already done in the API route
+  // Resolve workflow record, billing actor, subscription, and timeout
   const preprocessResult = await preprocessExecution({
     workflowId: payload.workflowId,
     userId: payload.userId,

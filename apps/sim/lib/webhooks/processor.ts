@@ -1086,7 +1086,6 @@ export async function queueWebhookExecution(
       }
     }
 
-    // actorUserId is pre-resolved by checkWebhookPreprocessing and threaded via options
     const actorUserId = options.actorUserId
     if (!actorUserId) {
       logger.error(`[${options.requestId}] No actorUserId provided for webhook ${foundWebhook.id}`)
