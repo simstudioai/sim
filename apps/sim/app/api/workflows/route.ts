@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { getUserEntityPermissions, workspaceExists } from '@/lib/workspaces/permissions/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
@@ -16,7 +17,10 @@ const CreateWorkflowSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional().default(''),
-  color: z.string().optional().default('#3972F6'),
+  color: z
+    .string()
+    .optional()
+    .transform((c) => c || getNextWorkflowColor()),
   workspaceId: z.string().optional(),
   folderId: z.string().nullable().optional(),
   sortOrder: z.number().int().optional(),
