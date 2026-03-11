@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { FileText } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import {
@@ -178,8 +179,38 @@ export function Home({ chatId }: HomeProps = {}) {
           <div className='mx-auto max-w-[42rem] space-y-6'>
             {messages.map((msg, index) => {
               if (msg.role === 'user') {
+                const hasAttachments = msg.attachments && msg.attachments.length > 0
                 return (
-                  <div key={msg.id} className='flex justify-end pt-3'>
+                  <div key={msg.id} className='flex flex-col items-end gap-[6px] pt-3'>
+                    {hasAttachments && (
+                      <div className='flex max-w-[70%] flex-wrap justify-end gap-[6px]'>
+                        {msg.attachments!.map((att) => {
+                          const isImage = att.media_type.startsWith('image/')
+                          return isImage && att.previewUrl ? (
+                            <div
+                              key={att.id}
+                              className='h-[56px] w-[56px] overflow-hidden rounded-[8px]'
+                            >
+                              <img
+                                src={att.previewUrl}
+                                alt={att.filename}
+                                className='h-full w-full object-cover'
+                              />
+                            </div>
+                          ) : (
+                            <div
+                              key={att.id}
+                              className='flex max-w-[140px] items-center gap-[5px] rounded-[10px] bg-[var(--surface-5)] px-[6px] py-[3px]'
+                            >
+                              <FileText className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                              <span className='truncate text-[11px] text-[var(--text-secondary)]'>
+                                {att.filename}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                     <div className='max-w-[70%] rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2'>
                       <p className='whitespace-pre-wrap font-[430] font-[family-name:var(--font-inter)] text-[15px] text-[var(--text-primary)] leading-[23px] tracking-[0] antialiased'>
                         {msg.content}

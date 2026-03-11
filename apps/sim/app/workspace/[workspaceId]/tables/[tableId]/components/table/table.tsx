@@ -1913,7 +1913,7 @@ function CellContent({
   return (
     <>
       {isEditing && (
-        <div className='absolute inset-0 z-10 flex items-center px-0'>
+        <div className='absolute inset-0 z-10 flex items-start px-0'>
           <InlineEditor
             value={value}
             column={column}

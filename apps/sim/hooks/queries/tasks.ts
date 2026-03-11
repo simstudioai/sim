@@ -23,12 +23,21 @@ export interface TaskStoredToolCall {
   durationMs?: number
 }
 
+export interface TaskStoredFileAttachment {
+  id: string
+  key: string
+  filename: string
+  media_type: string
+  size: number
+}
+
 export interface TaskStoredMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
   toolCalls?: TaskStoredToolCall[]
   contentBlocks?: TaskStoredContentBlock[]
+  fileAttachments?: TaskStoredFileAttachment[]
 }
 
 export interface TaskStoredContentBlock {

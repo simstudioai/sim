@@ -16,6 +16,7 @@ import { Badge, Button, Textarea } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import type { CopilotModelId } from '@/lib/copilot/models'
 import { cn } from '@/lib/core/utils/cn'
+import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import {
   AttachedFilesDisplay,
   BottomControls,
@@ -883,7 +884,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             type='file'
             onChange={fileAttachments.handleFileChange}
             className='hidden'
-            accept='image/*,.pdf,.txt,.csv,.md,.html,.json,.xml,application/pdf,text/plain,text/csv,text/markdown'
+            accept={CHAT_ACCEPT_ATTRIBUTE}
             multiple
             disabled={disabled}
           />

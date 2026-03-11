@@ -111,6 +111,8 @@ export const ACCEPTED_FILE_EXTENSIONS = SUPPORTED_DOCUMENT_EXTENSIONS.map((ext) 
 
 export const ACCEPT_ATTRIBUTE = [...ACCEPTED_FILE_TYPES, ...ACCEPTED_FILE_EXTENSIONS].join(',')
 
+export const CHAT_ACCEPT_ATTRIBUTE = [ACCEPT_ATTRIBUTE, 'image/*'].join(',')
+
 export interface FileValidationError {
   code: 'UNSUPPORTED_FILE_TYPE' | 'MIME_TYPE_MISMATCH'
   message: string

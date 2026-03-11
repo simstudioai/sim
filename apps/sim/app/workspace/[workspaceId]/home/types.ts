@@ -121,11 +121,20 @@ export interface ContentBlock {
   options?: OptionItem[]
 }
 
+export interface ChatMessageAttachment {
+  id: string
+  filename: string
+  media_type: string
+  size: number
+  previewUrl?: string
+}
+
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
   contentBlocks?: ContentBlock[]
+  attachments?: ChatMessageAttachment[]
 }
 
 export const SUBAGENT_LABELS: Record<SubagentName, string> = {
