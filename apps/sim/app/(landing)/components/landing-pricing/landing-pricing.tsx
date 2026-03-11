@@ -37,7 +37,7 @@ interface PricingTier {
 }
 
 const FREE_PLAN_FEATURES: PricingFeature[] = [
-  { icon: DollarSign, text: '3,000 credits/mo' },
+  { icon: DollarSign, text: '1,000 credits/mo' },
   { icon: HardDrive, text: '5GB file storage' },
   { icon: Timer, text: '5 min execution limit' },
   { icon: Database, text: 'Limited log retention' },
