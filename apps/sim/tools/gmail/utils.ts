@@ -298,8 +298,10 @@ function generateBoundary(): string {
  * Encode a header value using RFC 2047 Base64 encoding if it contains non-ASCII characters.
  * Email headers per RFC 2822 must be ASCII-only. Non-ASCII characters (emojis, accented
  * characters, etc.) must be encoded as =?UTF-8?B?<base64>?= to avoid mojibake.
- * Per RFC 2047, each encoded word must not exceed 75 characters. Long values are split
- * into multiple encoded words separated by CRLF + space (folding whitespace).
+ *
+ * Per RFC 2047 §2, each encoded-word must not exceed 75 characters. Long values are split
+ * into multiple encoded-words separated by CRLF + space (folding whitespace). Splits always
+ * occur on character boundaries to avoid producing invalid UTF-8 fragments.
  * @param value The header value to encode
  * @returns The encoded header value, or the original if it's already ASCII
  */
@@ -309,16 +311,32 @@ export function encodeRfc2047(value: string): string {
     return value
   }
 
-  const utf8Bytes = Buffer.from(value, 'utf-8')
+  // =?UTF-8?B? (10) + ?= (2) = 12 chars overhead. Max 75 - 12 = 63 chars for base64 payload.
+  // base64 encodes 3 bytes → 4 chars, so max raw bytes = floor(63 / 4) * 3 = 45 bytes per chunk.
+  const MAX_BYTES_PER_CHUNK = 45
   const encodedWords: string[] = []
-  const maxBytesPerWord = 45
 
-  let offset = 0
-  while (offset < utf8Bytes.length) {
-    const chunk = utf8Bytes.subarray(offset, offset + maxBytesPerWord)
-    const encoded = chunk.toString('base64')
-    encodedWords.push(`=?UTF-8?B?${encoded}?=`)
-    offset += maxBytesPerWord
+  // Split on character boundaries by iterating characters, not raw bytes
+  let currentChars: string[] = []
+  let currentByteLen = 0
+
+  for (const char of value) {
+    const charByteLen = Buffer.byteLength(char, 'utf-8')
+
+    if (currentByteLen + charByteLen > MAX_BYTES_PER_CHUNK && currentChars.length > 0) {
+      const chunkStr = currentChars.join('')
+      encodedWords.push(`=?UTF-8?B?${Buffer.from(chunkStr, 'utf-8').toString('base64')}?=`)
+      currentChars = []
+      currentByteLen = 0
+    }
+
+    currentChars.push(char)
+    currentByteLen += charByteLen
+  }
+
+  if (currentChars.length > 0) {
+    const chunkStr = currentChars.join('')
+    encodedWords.push(`=?UTF-8?B?${Buffer.from(chunkStr, 'utf-8').toString('base64')}?=`)
   }
 
   return encodedWords.join('\r\n ')
