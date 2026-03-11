@@ -36,7 +36,7 @@ export const GoogleMapsBlock: BlockConfig = {
       value: () => 'geocode',
     },
 
-    // API Key
+    // API Key — hidden when hosted for operations with hosted key support
     {
       id: 'apiKey',
       title: 'API Key',
@@ -45,6 +45,17 @@ export const GoogleMapsBlock: BlockConfig = {
       placeholder: 'Enter your Google Maps API key',
       required: true,
       hideWhenHosted: true,
+      condition: { field: 'operation', value: 'speed_limits', not: true },
+    },
+    // API Key — always visible for Speed Limits (deprecated API, no hosted key support)
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter your Google Maps API key',
+      required: true,
+      condition: { field: 'operation', value: 'speed_limits' },
     },
 
     // ========== Geocode ==========
