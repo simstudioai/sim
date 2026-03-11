@@ -1,18 +1,13 @@
 import { db } from '@sim/db'
-import { webhook, workflow as workflowTable } from '@sim/db/schema'
+import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
-import { getHighestPrioritySubscription } from '@/lib/billing'
-import {
-  createTimeoutAbortController,
-  getExecutionTimeout,
-  getTimeoutErrorMessage,
-} from '@/lib/core/execution-limits'
+import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { IdempotencyService, webhookIdempotency } from '@/lib/core/idempotency'
-import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
 import { processExecutionFiles } from '@/lib/execution/files'
+import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { WebhookAttachmentProcessor } from '@/lib/webhooks/attachment-processor'
@@ -20,7 +15,7 @@ import { fetchAndProcessAirtablePayloads, formatWebhookInput } from '@/lib/webho
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
-import { getWorkflowById } from '@/lib/workflows/utils'
+import { resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 import { getBlock } from '@/blocks'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
@@ -109,8 +104,8 @@ export type WebhookExecutionPayload = {
   headers: Record<string, string>
   path: string
   blockId?: string
+  workspaceId?: string
   credentialId?: string
-  credentialAccountUserId?: string
 }
 
 export async function executeWebhookJob(payload: WebhookExecutionPayload) {
@@ -143,6 +138,22 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
   )
 }
 
+/**
+ * Resolve the account userId for a credential
+ */
+async function resolveCredentialAccountUserId(credentialId: string): Promise<string | undefined> {
+  const resolved = await resolveOAuthAccountId(credentialId)
+  if (!resolved) {
+    return undefined
+  }
+  const [credentialRecord] = await db
+    .select({ userId: account.userId })
+    .from(account)
+    .where(eq(account.id, resolved.accountId))
+    .limit(1)
+  return credentialRecord?.userId
+}
+
 async function executeWebhookJobInternal(
   payload: WebhookExecutionPayload,
   executionId: string,
@@ -155,17 +166,56 @@ async function executeWebhookJobInternal(
     requestId
   )
 
-  const userSubscription = await getHighestPrioritySubscription(payload.userId)
-  const asyncTimeout = getExecutionTimeout(
-    userSubscription?.plan as SubscriptionPlan | undefined,
-    'async'
-  )
+  // Resolve workflow record, billing actor, subscription, and timeout
+  const preprocessResult = await preprocessExecution({
+    workflowId: payload.workflowId,
+    userId: payload.userId,
+    triggerType: 'webhook',
+    executionId,
+    requestId,
+    checkRateLimit: false,
+    checkDeployment: false,
+    skipUsageLimits: true,
+    workspaceId: payload.workspaceId,
+    loggingSession,
+  })
+
+  if (!preprocessResult.success) {
+    throw new Error(preprocessResult.error?.message || 'Preprocessing failed in background job')
+  }
+
+  const { workflowRecord, executionTimeout } = preprocessResult
+  if (!workflowRecord) {
+    throw new Error(`Workflow ${payload.workflowId} not found during preprocessing`)
+  }
+
+  const workspaceId = workflowRecord.workspaceId
+  if (!workspaceId) {
+    throw new Error(`Workflow ${payload.workflowId} has no associated workspace`)
+  }
+
+  const workflowVariables = (workflowRecord.variables as Record<string, any>) || {}
+  const asyncTimeout = executionTimeout?.async ?? 120_000
   const timeoutController = createTimeoutAbortController(asyncTimeout)
 
   let deploymentVersionId: string | undefined
 
   try {
-    const workflowData = await loadDeployedWorkflowState(payload.workflowId)
+    // Parallelize workflow state, webhook record, and credential resolution
+    const [workflowData, webhookRows, resolvedCredentialUserId] = await Promise.all([
+      loadDeployedWorkflowState(payload.workflowId, workspaceId),
+      db.select().from(webhook).where(eq(webhook.id, payload.webhookId)).limit(1),
+      payload.credentialId
+        ? resolveCredentialAccountUserId(payload.credentialId)
+        : Promise.resolve(undefined),
+    ])
+    const credentialAccountUserId = resolvedCredentialUserId
+    if (payload.credentialId && !credentialAccountUserId) {
+      logger.warn(
+        `[${requestId}] Failed to resolve credential account for credential ${payload.credentialId}`
+      )
+    }
+
     if (!workflowData) {
       throw new Error(
         'Workflow state not found. The workflow may not be deployed or the deployment data may be corrupted.'
@@ -178,28 +228,11 @@ async function executeWebhookJobInternal(
         ? (workflowData.deploymentVersionId as string)
         : undefined
 
-    const wfRows = await db
-      .select({ workspaceId: workflowTable.workspaceId, variables: workflowTable.variables })
-      .from(workflowTable)
-      .where(eq(workflowTable.id, payload.workflowId))
-      .limit(1)
-    const workspaceId = wfRows[0]?.workspaceId
-    if (!workspaceId) {
-      throw new Error(`Workflow ${payload.workflowId} has no associated workspace`)
-    }
-    const workflowVariables = (wfRows[0]?.variables as Record<string, any>) || {}
-
     // Handle special Airtable case
     if (payload.provider === 'airtable') {
       logger.info(`[${requestId}] Processing Airtable webhook via fetchAndProcessAirtablePayloads`)
 
-      // Load the actual webhook record from database to get providerConfig
-      const [webhookRecord] = await db
-        .select()
-        .from(webhook)
-        .where(eq(webhook.id, payload.webhookId))
-        .limit(1)
-
+      const webhookRecord = webhookRows[0]
       if (!webhookRecord) {
         throw new Error(`Webhook record not found: ${payload.webhookId}`)
       }
@@ -210,28 +243,19 @@ async function executeWebhookJobInternal(
         providerConfig: webhookRecord.providerConfig,
       }
 
-      // Create a mock workflow object for Airtable processing
       const mockWorkflow = {
         id: payload.workflowId,
         userId: payload.userId,
       }
 
-      // Get the processed Airtable input
       const airtableInput = await fetchAndProcessAirtablePayloads(
         webhookData,
         mockWorkflow,
         requestId
       )
 
-      // If we got input (changes), execute the workflow like other providers
       if (airtableInput) {
         logger.info(`[${requestId}] Executing workflow with Airtable changes`)
-
-        // Get workflow for core execution
-        const workflow = await getWorkflowById(payload.workflowId)
-        if (!workflow) {
-          throw new Error(`Workflow ${payload.workflowId} not found`)
-        }
 
         const metadata: ExecutionMetadata = {
           requestId,
@@ -240,13 +264,13 @@ async function executeWebhookJobInternal(
           workspaceId,
           userId: payload.userId,
           sessionUserId: undefined,
-          workflowUserId: workflow.userId,
+          workflowUserId: workflowRecord.userId,
           triggerType: payload.provider || 'webhook',
           triggerBlockId: payload.blockId,
           useDraftState: false,
           startTime: new Date().toISOString(),
           isClientSession: false,
-          credentialAccountUserId: payload.credentialAccountUserId,
+          credentialAccountUserId,
           workflowStateOverride: {
             blocks,
             edges,
@@ -258,7 +282,7 @@ async function executeWebhookJobInternal(
 
         const snapshot = new ExecutionSnapshot(
           metadata,
-          workflow,
+          workflowRecord,
           airtableInput,
           workflowVariables,
           []
@@ -329,7 +353,6 @@ async function executeWebhookJobInternal(
       // No changes to process
       logger.info(`[${requestId}] No Airtable changes to process`)
 
-      // Start logging session so the complete call has a log entry to update
       await loggingSession.safeStart({
         userId: payload.userId,
         workspaceId,
@@ -357,13 +380,6 @@ async function executeWebhookJobInternal(
     }
 
     // Format input for standard webhooks
-    // Load the actual webhook to get providerConfig (needed for Teams credentialId)
-    const webhookRows = await db
-      .select()
-      .from(webhook)
-      .where(eq(webhook.id, payload.webhookId))
-      .limit(1)
-
     const actualWebhook =
       webhookRows.length > 0
         ? webhookRows[0]
@@ -386,7 +402,6 @@ async function executeWebhookJobInternal(
     if (!input && payload.provider === 'whatsapp') {
       logger.info(`[${requestId}] No messages in WhatsApp payload, skipping execution`)
 
-      // Start logging session so the complete call has a log entry to update
       await loggingSession.safeStart({
         userId: payload.userId,
         workspaceId,
@@ -452,7 +467,6 @@ async function executeWebhookJobInternal(
         }
       } catch (error) {
         logger.error(`[${requestId}] Error processing trigger file outputs:`, error)
-        // Continue without processing attachments rather than failing execution
       }
     }
 
@@ -499,17 +513,10 @@ async function executeWebhookJobInternal(
         }
       } catch (error) {
         logger.error(`[${requestId}] Error processing generic webhook files:`, error)
-        // Continue without processing files rather than failing execution
       }
     }
 
     logger.info(`[${requestId}] Executing workflow for ${payload.provider} webhook`)
-
-    // Get workflow for core execution
-    const workflow = await getWorkflowById(payload.workflowId)
-    if (!workflow) {
-      throw new Error(`Workflow ${payload.workflowId} not found`)
-    }
 
     const metadata: ExecutionMetadata = {
       requestId,
@@ -518,13 +525,13 @@ async function executeWebhookJobInternal(
       workspaceId,
       userId: payload.userId,
       sessionUserId: undefined,
-      workflowUserId: workflow.userId,
+      workflowUserId: workflowRecord.userId,
       triggerType: payload.provider || 'webhook',
       triggerBlockId: payload.blockId,
       useDraftState: false,
       startTime: new Date().toISOString(),
       isClientSession: false,
-      credentialAccountUserId: payload.credentialAccountUserId,
+      credentialAccountUserId,
       workflowStateOverride: {
         blocks,
         edges,
@@ -536,7 +543,13 @@ async function executeWebhookJobInternal(
 
     const triggerInput = input || {}
 
-    const snapshot = new ExecutionSnapshot(metadata, workflow, triggerInput, workflowVariables, [])
+    const snapshot = new ExecutionSnapshot(
+      metadata,
+      workflowRecord,
+      triggerInput,
+      workflowVariables,
+      []
+    )
 
     const executionResult = await executeWorkflowCore({
       snapshot,
@@ -611,23 +624,9 @@ async function executeWebhookJobInternal(
     })
 
     try {
-      const wfRow = await db
-        .select({ workspaceId: workflowTable.workspaceId })
-        .from(workflowTable)
-        .where(eq(workflowTable.id, payload.workflowId))
-        .limit(1)
-      const errorWorkspaceId = wfRow[0]?.workspaceId
-
-      if (!errorWorkspaceId) {
-        logger.warn(
-          `[${requestId}] Cannot log error: workflow ${payload.workflowId} has no workspace`
-        )
-        throw error
-      }
-
       await loggingSession.safeStart({
         userId: payload.userId,
-        workspaceId: errorWorkspaceId,
+        workspaceId,
         variables: {},
         triggerData: {
           isTest: false,

@@ -1,5 +1,5 @@
 import { db, webhook, workflow, workflowDeploymentVersion } from '@sim/db'
-import { account, credentialSet, subscription } from '@sim/db/schema'
+import { credentialSet, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -26,8 +26,6 @@ import {
   validateTypeformSignature,
   verifyProviderWebhook,
 } from '@/lib/webhooks/utils.server'
-import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
-import { resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 import { executeWebhookJob } from '@/background/webhook-execution'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { isConfluencePayloadMatch } from '@/triggers/confluence/utils'
@@ -41,6 +39,12 @@ export interface WebhookProcessorOptions {
   requestId: string
   path?: string
   webhookId?: string
+  actorUserId?: string
+}
+
+export interface WebhookPreprocessingResult {
+  error: NextResponse | null
+  actorUserId?: string
 }
 
 function getExternalUrl(request: NextRequest): string {
@@ -836,7 +840,7 @@ export async function checkWebhookPreprocessing(
   foundWorkflow: any,
   foundWebhook: any,
   requestId: string
-): Promise<NextResponse | null> {
+): Promise<WebhookPreprocessingResult> {
   try {
     const executionId = uuidv4()
 
@@ -849,6 +853,7 @@ export async function checkWebhookPreprocessing(
       checkRateLimit: true,
       checkDeployment: true,
       workspaceId: foundWorkflow.workspaceId,
+      workflowRecord: foundWorkflow,
     })
 
     if (!preprocessResult.success) {
@@ -860,33 +865,39 @@ export async function checkWebhookPreprocessing(
       })
 
       if (foundWebhook.provider === 'microsoft-teams') {
-        return NextResponse.json(
-          {
-            type: 'message',
-            text: error.message,
-          },
-          { status: error.statusCode }
-        )
+        return {
+          error: NextResponse.json(
+            {
+              type: 'message',
+              text: error.message,
+            },
+            { status: error.statusCode }
+          ),
+        }
       }
 
-      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+      return { error: NextResponse.json({ error: error.message }, { status: error.statusCode }) }
     }
 
-    return null
+    return { error: null, actorUserId: preprocessResult.actorUserId }
   } catch (preprocessError) {
     logger.error(`[${requestId}] Error during webhook preprocessing:`, preprocessError)
 
     if (foundWebhook.provider === 'microsoft-teams') {
-      return NextResponse.json(
-        {
-          type: 'message',
-          text: 'Internal error during preprocessing',
-        },
-        { status: 500 }
-      )
+      return {
+        error: NextResponse.json(
+          {
+            type: 'message',
+            text: 'Internal error during preprocessing',
+          },
+          { status: 500 }
+        ),
+      }
     }
 
-    return NextResponse.json({ error: 'Internal error during preprocessing' }, { status: 500 })
+    return {
+      error: NextResponse.json({ error: 'Internal error during preprocessing' }, { status: 500 }),
+    }
   }
 }
 
@@ -1060,22 +1071,7 @@ export async function queueWebhookExecution(
     // Note: Each webhook now has its own credentialId (credential sets are fanned out at save time)
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
     const credentialId = providerConfig.credentialId as string | undefined
-    let credentialAccountUserId: string | undefined
-    if (credentialId) {
-      const resolved = await resolveOAuthAccountId(credentialId)
-      if (!resolved) {
-        logger.error(
-          `[${options.requestId}] Failed to resolve OAuth account for credential ${credentialId}`
-        )
-        return formatProviderErrorResponse(foundWebhook, 'Failed to resolve credential', 500)
-      }
-      const [credentialRecord] = await db
-        .select({ userId: account.userId })
-        .from(account)
-        .where(eq(account.id, resolved.accountId))
-        .limit(1)
-      credentialAccountUserId = credentialRecord?.userId
-    }
+
     // credentialSetId is a direct field on webhook table, not in providerConfig
     const credentialSetId = foundWebhook.credentialSetId as string | undefined
 
@@ -1090,16 +1086,9 @@ export async function queueWebhookExecution(
       }
     }
 
-    if (!foundWorkflow.workspaceId) {
-      logger.error(`[${options.requestId}] Workflow ${foundWorkflow.id} has no workspaceId`)
-      return NextResponse.json({ error: 'Workflow has no associated workspace' }, { status: 500 })
-    }
-
-    const actorUserId = await getWorkspaceBilledAccountUserId(foundWorkflow.workspaceId)
+    const actorUserId = options.actorUserId
     if (!actorUserId) {
-      logger.error(
-        `[${options.requestId}] No billing account for workspace ${foundWorkflow.workspaceId}`
-      )
+      logger.error(`[${options.requestId}] No actorUserId provided for webhook ${foundWebhook.id}`)
       return NextResponse.json({ error: 'Unable to resolve billing account' }, { status: 500 })
     }
 
@@ -1112,8 +1101,8 @@ export async function queueWebhookExecution(
       headers,
       path: options.path || foundWebhook.path,
       blockId: foundWebhook.blockId,
+      workspaceId: foundWorkflow.workspaceId,
       ...(credentialId ? { credentialId } : {}),
-      ...(credentialAccountUserId ? { credentialAccountUserId } : {}),
     }
 
     const jobQueue = await getJobQueue()
