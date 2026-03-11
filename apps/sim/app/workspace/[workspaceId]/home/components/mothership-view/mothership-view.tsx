@@ -5,7 +5,6 @@ import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
-import type { ExecutionResult } from '@/executor/types'
 import { ResourceContent, ResourceTabs } from './components'
 
 const PREVIEWABLE_EXTENSIONS = new Set(['md', 'html', 'htm', 'csv'])
@@ -22,7 +21,6 @@ interface MothershipViewProps {
   resources: MothershipResource[]
   activeResourceId: string | null
   onSelectResource: (id: string) => void
-  onWorkflowRunComplete?: (workflowName: string, result: ExecutionResult) => Promise<void>
   onCollapse: () => void
   isCollapsed: boolean
   className?: string
@@ -38,7 +36,6 @@ export function MothershipView({
   resources,
   activeResourceId,
   onSelectResource,
-  onWorkflowRunComplete,
   onCollapse,
   isCollapsed,
   className,
@@ -79,7 +76,6 @@ export function MothershipView({
               workspaceId={workspaceId}
               resource={active}
               previewMode={isActivePreviewable ? previewMode : undefined}
-              onWorkflowRunComplete={onWorkflowRunComplete}
             />
           )}
         </div>

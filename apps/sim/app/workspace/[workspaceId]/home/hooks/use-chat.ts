@@ -3,7 +3,6 @@ import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
-import type { ExecutionResult } from '@/executor/types'
 import { tableKeys } from '@/hooks/queries/tables'
 import {
   type TaskChatHistory,
@@ -41,7 +40,6 @@ export interface UseChatReturn {
   isSending: boolean
   error: string | null
   sendMessage: (message: string, fileAttachments?: FileAttachmentForApi[]) => Promise<void>
-  sendWorkflowResultToChat: (workflowName: string, result: ExecutionResult) => Promise<void>
   stopGeneration: () => Promise<void>
   resources: MothershipResource[]
   activeResourceId: string | null
@@ -52,10 +50,6 @@ const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
   success: 'success',
   error: 'error',
 } as const
-
-function formatWorkflowResultMessage(_workflowName: string, _result: ExecutionResult): string {
-  return 'I ran the workflow, please check the logs'
-}
 
 function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
   const mapped: ContentBlock = {
@@ -152,7 +146,6 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   const [error, setError] = useState<string | null>(null)
   const [resources, setResources] = useState<MothershipResource[]>([])
   const [activeResourceId, setActiveResourceId] = useState<string | null>(null)
-  const [queuedMessages, setQueuedMessages] = useState<string[]>([])
   const abortControllerRef = useRef<AbortController | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
   const appliedChatIdRef = useRef<string | undefined>(undefined)
@@ -689,28 +682,6 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     [workspaceId, queryClient, processSSEStream, finalize, persistPartialResponse]
   )
 
-  const sendWorkflowResultToChat = useCallback(
-    async (workflowName: string, result: ExecutionResult) => {
-      const message = formatWorkflowResultMessage(workflowName, result)
-
-      if (sendingRef.current || isSending) {
-        setQueuedMessages((prev) => [...prev, message])
-        return
-      }
-
-      await sendMessage(message)
-    },
-    [isSending, sendMessage]
-  )
-
-  useEffect(() => {
-    if (isSending || queuedMessages.length === 0) return
-
-    const [nextMessage, ...rest] = queuedMessages
-    setQueuedMessages(rest)
-    void sendMessage(nextMessage)
-  }, [isSending, queuedMessages, sendMessage])
-
   const stopGeneration = useCallback(async () => {
     if (sendingRef.current) {
       await persistPartialResponse()
@@ -748,7 +719,6 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     isSending,
     error,
     sendMessage,
-    sendWorkflowResultToChat,
     stopGeneration,
     resources,
     activeResourceId,

@@ -39,7 +39,6 @@ import { CanvasMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/compone
 import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/cursors/cursors'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
-import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import type { SubflowNodeData } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
 import { TrainingModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/training-modal/training-modal'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
@@ -72,7 +71,6 @@ import {
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
-import type { ExecutionResult } from '@/executor/types'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useAutoConnect, useSnapToGridSize } from '@/hooks/queries/general-settings'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
@@ -93,6 +91,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { getUniqueBlockName, prepareBlockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
+import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 
 /** Lazy-loaded components for non-critical UI that can load after initial render */
 const LazyChat = lazy(() =>
@@ -235,7 +234,6 @@ interface WorkflowContentProps {
   workspaceId?: string
   workflowId?: string
   embedded?: boolean
-  onManualRunComplete?: (result: ExecutionResult) => Promise<void> | void
 }
 
 const WorkflowContent = React.memo(
@@ -243,7 +241,6 @@ const WorkflowContent = React.memo(
     workspaceId: propWorkspaceId,
     workflowId: propWorkflowId,
     embedded,
-    onManualRunComplete,
   }: WorkflowContentProps = {}) => {
     const [isCanvasReady, setIsCanvasReady] = useState(false)
     const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
@@ -862,7 +859,7 @@ const WorkflowContent = React.memo(
     const getLastExecutionSnapshot = useExecutionStore((s) => s.getLastExecutionSnapshot)
 
     const canRunWorkflow = effectivePermissions.canRead
-    const isRunButtonDisabled = !isExecuting && !canRunWorkflow && !effectivePermissions.isLoading
+    const isRunButtonDisabled = !isExecuting && (!canRunWorkflow && !effectivePermissions.isLoading)
 
     const openSubscriptionSettings = useCallback(() => {
       navigateToSettings({ section: 'subscription' })
@@ -879,27 +876,11 @@ const WorkflowContent = React.memo(
         return
       }
 
-      const result = await handleRunWorkflow()
-
-      if (
-        !onManualRunComplete ||
-        !result ||
-        !('success' in result) ||
-        'stream' in result ||
-        result.status === 'cancelled' ||
-        result.status === 'paused'
-      ) {
-        return
-      }
-
-      Promise.resolve(onManualRunComplete(result)).catch((error) => {
-        logger.error('Failed to send embedded workflow result to mothership chat', { error })
-      })
+      await handleRunWorkflow()
     }, [
       handleCancelExecution,
       handleRunWorkflow,
       isExecuting,
-      onManualRunComplete,
       openSubscriptionSettings,
       usageExceeded,
     ])
@@ -3892,9 +3873,9 @@ const WorkflowContent = React.memo(
                 {showTrainingModal && <TrainingModal />}
 
                 {embedded && (
-                  <div className='-translate-x-1/2 absolute bottom-[28px] left-1/2 z-[31] flex items-center gap-[2px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-3)] p-[2px] shadow-sm backdrop-blur-sm'>
+                  <div className='absolute bottom-[28px] left-1/2 z-[31] flex -translate-x-1/2 items-center gap-[2px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-3)] p-[2px] shadow-sm backdrop-blur-sm'>
                     <Button
-                      className='h-[30px] gap-[8px] rounded-[8px] px-[12px] text-[var(--text-secondary)] hover:bg-[var(--surface-4)] hover:text-[var(--text-primary)]'
+                      className='h-[30px] rounded-[8px] gap-[8px] px-[12px] text-[var(--text-secondary)] hover:bg-[var(--surface-4)] hover:text-[var(--text-primary)]'
                       variant='ghost'
                       onClick={() => void handleEmbeddedRun()}
                       disabled={!isExecuting && isRunButtonDisabled}
@@ -3907,7 +3888,7 @@ const WorkflowContent = React.memo(
                       {isExecuting ? 'Stop' : 'Run'}
                     </Button>
                     <Button
-                      className='h-[30px] gap-[8px] rounded-[8px] px-[12px] text-[var(--text-secondary)] hover:bg-[var(--surface-4)] hover:text-[var(--text-primary)]'
+                      className='h-[30px] rounded-[8px] gap-[8px] px-[12px] text-[var(--text-secondary)] hover:bg-[var(--surface-4)] hover:text-[var(--text-primary)]'
                       variant='ghost'
                       onClick={handleOpenFullWorkflow}
                     >
@@ -4100,26 +4081,18 @@ interface WorkflowProps {
   workspaceId?: string
   workflowId?: string
   embedded?: boolean
-  onManualRunComplete?: (result: ExecutionResult) => Promise<void> | void
 }
 
 /** Workflow page with ReactFlowProvider and error boundary wrapper. */
-const Workflow = React.memo(
-  ({ workspaceId, workflowId, embedded, onManualRunComplete }: WorkflowProps = {}) => {
-    return (
-      <ReactFlowProvider>
-        <ErrorBoundary>
-          <WorkflowContent
-            workspaceId={workspaceId}
-            workflowId={workflowId}
-            embedded={embedded}
-            onManualRunComplete={onManualRunComplete}
-          />
-        </ErrorBoundary>
-      </ReactFlowProvider>
-    )
-  }
-)
+const Workflow = React.memo(({ workspaceId, workflowId, embedded }: WorkflowProps = {}) => {
+  return (
+    <ReactFlowProvider>
+      <ErrorBoundary>
+        <WorkflowContent workspaceId={workspaceId} workflowId={workflowId} embedded={embedded} />
+      </ErrorBoundary>
+    </ReactFlowProvider>
+  )
+})
 
 Workflow.displayName = 'Workflow'
 
