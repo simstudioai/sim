@@ -41,6 +41,13 @@ const General = dynamic(
     ),
   { loading: () => <GeneralSkeleton /> }
 )
+const Integrations = dynamic(
+  () =>
+    import('@/app/workspace/[workspaceId]/settings/components/integrations/integrations').then(
+      (m) => m.Integrations
+    ),
+  { loading: () => <CredentialsSkeleton /> }
+)
 const Credentials = dynamic(
   () =>
     import('@/app/workspace/[workspaceId]/settings/components/credentials/credentials').then(
@@ -148,7 +155,8 @@ export function SettingsPage({ section }: SettingsPageProps) {
     <div>
       <h2 className='mb-[28px] font-medium text-[22px] text-[var(--text-primary)]'>{label}</h2>
       {effectiveSection === 'general' && <General />}
-      {effectiveSection === 'credentials' && <Credentials />}
+      {effectiveSection === 'integrations' && <Integrations />}
+      {effectiveSection === 'secrets' && <Credentials />}
       {effectiveSection === 'template-profile' && <TemplateProfile />}
       {effectiveSection === 'credential-sets' && <CredentialSets />}
       {effectiveSection === 'access-control' && <AccessControl />}

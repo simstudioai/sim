@@ -150,7 +150,11 @@ export function SettingsSidebar({
           prefetchGeneralSettings(queryClient)
           void import('@/app/workspace/[workspaceId]/settings/components/general/general')
           break
-        case 'credentials':
+        case 'integrations':
+          prefetchWorkspaceCredentials(queryClient, workspaceId)
+          void import('@/app/workspace/[workspaceId]/settings/components/integrations/integrations')
+          break
+        case 'secrets':
           prefetchWorkspaceCredentials(queryClient, workspaceId)
           void import('@/app/workspace/[workspaceId]/settings/components/credentials/credentials')
           break

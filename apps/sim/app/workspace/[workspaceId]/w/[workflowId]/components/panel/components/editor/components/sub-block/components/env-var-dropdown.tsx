@@ -180,7 +180,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
         requestedAt: Date.now(),
       })
     }
-    navigateToSettings({ section: 'credentials' })
+    navigateToSettings({ section: 'secrets' })
     onClose?.()
   }
 

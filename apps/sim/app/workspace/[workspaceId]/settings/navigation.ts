@@ -2,6 +2,7 @@ import {
   BookOpen,
   Bug,
   Card,
+  Connections,
   HexSimple,
   Key,
   KeySquare,
@@ -20,7 +21,8 @@ import { getEnv, isTruthy } from '@/lib/core/config/env'
 
 export type SettingsSection =
   | 'general'
-  | 'credentials'
+  | 'integrations'
+  | 'secrets'
   | 'template-profile'
   | 'credential-sets'
   | 'access-control'
@@ -102,7 +104,8 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresTeam: true,
   },
-  { id: 'credentials', label: 'Secrets', icon: Key, section: 'account' },
+  { id: 'integrations', label: 'Integrations', icon: Connections, section: 'account' },
+  { id: 'secrets', label: 'Secrets', icon: Key, section: 'account' },
   { id: 'custom-tools', label: 'Custom Tools', icon: Wrench, section: 'tools' },
   { id: 'skills', label: 'Skills', icon: AgentSkillsIcon, section: 'tools' },
   { id: 'mcp', label: 'MCP Tools', icon: McpIcon, section: 'tools' },

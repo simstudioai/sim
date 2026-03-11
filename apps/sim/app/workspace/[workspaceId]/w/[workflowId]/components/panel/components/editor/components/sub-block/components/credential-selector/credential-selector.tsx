@@ -209,7 +209,7 @@ export function CredentialSelector({
       requestedAt: Date.now(),
     })
 
-    navigateToSettings({ section: 'credentials' })
+    navigateToSettings({ section: 'integrations' })
   }, [workspaceId, effectiveProviderId, serviceId])
 
   const getProviderIcon = useCallback((providerName: OAuthProvider) => {

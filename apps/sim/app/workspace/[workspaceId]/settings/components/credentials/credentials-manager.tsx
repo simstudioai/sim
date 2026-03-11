@@ -1,16 +1,16 @@
 'use client'
 
-import { createElement, useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { AlertTriangle, Check, Clipboard, Plus, Search, Share2, X } from 'lucide-react'
-import { useParams } from 'next/navigation'
+import { Check, Clipboard, Key, Search } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
 import {
+  Avatar,
+  AvatarFallback,
   Badge,
   Button,
-  ButtonGroup,
-  ButtonGroupItem,
   Combobox,
-  Input,
+  Input as EmcnInput,
   Label,
   Modal,
   ModalBody,
@@ -19,8 +19,9 @@ import {
   ModalHeader,
   Textarea,
   Tooltip,
+  Trash,
 } from '@/components/emcn'
-import { Skeleton, Input as UiInput } from '@/components/ui'
+import { Input, Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import {
   clearPendingCredentialCreateRequest,
@@ -28,17 +29,10 @@ import {
   type PendingCredentialCreateRequest,
   readPendingCredentialCreateRequest,
 } from '@/lib/credentials/client-state'
-import {
-  getCanonicalScopesForProvider,
-  getServiceConfigByProviderId,
-  type OAuthProvider,
-} from '@/lib/oauth'
-import { CredentialSkeleton } from '@/app/workspace/[workspaceId]/settings/components/credentials/credential-skeleton'
-import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { getUserColor } from '@/lib/workspaces/colors'
 import { isValidEnvVarName } from '@/executor/constants'
 import {
   useCreateWorkspaceCredential,
-  useDeleteWorkspaceCredential,
   useRemoveWorkspaceCredentialMember,
   useUpdateWorkspaceCredential,
   useUpsertWorkspaceCredentialMember,
@@ -49,234 +43,330 @@ import {
 } from '@/hooks/queries/credentials'
 import {
   usePersonalEnvironment,
+  useRemoveWorkspaceEnvironment,
   useSavePersonalEnvironment,
   useUpsertWorkspaceEnvironment,
   useWorkspaceEnvironment,
+  type WorkspaceEnvironmentData,
 } from '@/hooks/queries/environment'
-import {
-  useConnectOAuthService,
-  useDisconnectOAuthService,
-  useOAuthConnections,
-} from '@/hooks/queries/oauth/oauth-connections'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 
-const logger = createLogger('CredentialsManager')
+const logger = createLogger('SecretsManager')
 
-const roleOptions = [
+const GRID_COLS = 'grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_auto_auto] items-center'
+const COL_SPAN_ALL = 'col-span-5'
+const CONFLICT_CLASS = 'border-[var(--text-error)] bg-[#F6D2D2] dark:bg-[#442929]'
+
+const ROLE_OPTIONS = [
   { value: 'member', label: 'Member' },
   { value: 'admin', label: 'Admin' },
 ] as const
 
-type CreateCredentialType = 'oauth' | 'secret'
-type SecretScope = 'workspace' | 'personal'
-type SecretInputMode = 'single' | 'bulk'
+const generateRowId = (() => {
+  let counter = 0
+  return () => {
+    counter += 1
+    return Date.now() + counter
+  }
+})()
 
-const createTypeOptions = [
-  { value: 'secret', label: 'Secret' },
-  { value: 'oauth', label: 'OAuth Account' },
-] as const
+const createEmptyEnvVar = (): UIEnvironmentVariable => ({
+  key: '',
+  value: '',
+  id: generateRowId(),
+})
 
-interface ParsedEnvEntry {
+interface UIEnvironmentVariable {
   key: string
   value: string
+  id?: number
 }
 
 /**
- * Parses `.env`-style text into key-value pairs.
- * Supports `KEY=VALUE`, quoted values, comments (#), and blank lines.
+ * Updates an env var array with auto-add (new empty row when typing in last)
+ * and auto-remove (drop non-last empty rows).
  */
-function parseEnvText(text: string): { entries: ParsedEnvEntry[]; errors: string[] } {
-  const entries: ParsedEnvEntry[] = []
-  const errors: string[] = []
-  const seenKeys = new Set<string>()
-
-  const lines = text.split('\n')
-  for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i].trim()
-    if (!raw || raw.startsWith('#')) continue
-
-    const eqIndex = raw.indexOf('=')
-    if (eqIndex === -1) {
-      errors.push(`Line ${i + 1}: missing "=" separator`)
-      continue
-    }
-
-    const key = raw.slice(0, eqIndex).trim()
-    let value = raw.slice(eqIndex + 1).trim()
-
-    if (!key) {
-      errors.push(`Line ${i + 1}: empty key`)
-      continue
-    }
-
-    if (!isValidEnvVarName(key)) {
-      errors.push(`Line ${i + 1}: "${key}" must contain only letters, numbers, and underscores`)
-      continue
-    }
-
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1)
-    }
-
-    if (!value) {
-      errors.push(`Line ${i + 1}: "${key}" has an empty value`)
-      continue
-    }
-
-    if (seenKeys.has(key.toUpperCase())) {
-      errors.push(`Line ${i + 1}: duplicate key "${key}"`)
-      continue
-    }
-
-    seenKeys.add(key.toUpperCase())
-    entries.push({ key, value })
+function updateEnvVarArray(
+  vars: UIEnvironmentVariable[],
+  index: number,
+  field: 'key' | 'value',
+  value: string
+): UIEnvironmentVariable[] {
+  const updated = [...vars]
+  if (updated[index]) {
+    updated[index] = { ...updated[index], [field]: value }
   }
 
-  return { entries, errors }
+  const lastIdx = updated.length - 1
+  if (index === lastIdx && updated[lastIdx] && (updated[lastIdx].key || updated[lastIdx].value)) {
+    updated.push(createEmptyEnvVar())
+  }
+
+  const lastIndex = updated.length - 1
+  return updated.filter((v, i) => i === lastIndex || v.key !== '' || v.value !== '')
 }
 
-function getSecretCredentialType(
-  scope: SecretScope
-): Extract<WorkspaceCredential['type'], 'env_workspace' | 'env_personal'> {
-  return scope === 'workspace' ? 'env_workspace' : 'env_personal'
+/**
+ * Validates an environment variable key.
+ * Returns an error message if invalid, undefined if valid.
+ */
+function validateEnvVarKey(key: string): string | undefined {
+  if (!key) return undefined
+  if (key.includes(' ')) return 'Spaces are not allowed'
+  if (!isValidEnvVarName(key)) return 'Only letters, numbers, and underscores allowed'
+  return undefined
 }
 
-function typeBadgeVariant(_type: WorkspaceCredential['type']): 'gray-secondary' {
-  return 'gray-secondary'
+interface WorkspaceVariableRowProps {
+  envKey: string
+  value: string
+  renamingKey: string | null
+  pendingKeyValue: string
+  hasCredential: boolean
+  onRenameStart: (key: string) => void
+  onPendingKeyChange: (value: string) => void
+  onRenameEnd: (key: string, value: string) => void
+  onDelete: (key: string) => void
+  onViewDetails: (envKey: string) => void
 }
 
-function typeLabel(type: WorkspaceCredential['type']): string {
-  if (type === 'oauth') return 'oauth'
-  if (type === 'env_workspace') return 'workspace secret'
-  return 'personal secret'
+function WorkspaceVariableRow({
+  envKey,
+  value,
+  renamingKey,
+  pendingKeyValue,
+  hasCredential,
+  onRenameStart,
+  onPendingKeyChange,
+  onRenameEnd,
+  onDelete,
+  onViewDetails,
+}: WorkspaceVariableRowProps) {
+  return (
+    <div className='contents'>
+      <EmcnInput
+        value={renamingKey === envKey ? pendingKeyValue : envKey}
+        onChange={(e) => {
+          if (renamingKey !== envKey) onRenameStart(envKey)
+          onPendingKeyChange(e.target.value)
+        }}
+        onBlur={() => onRenameEnd(envKey, value)}
+        name={`workspace_env_key_${envKey}_${Math.random()}`}
+        autoComplete='off'
+        autoCapitalize='off'
+        spellCheck='false'
+        readOnly
+        onFocus={(e) => e.target.removeAttribute('readOnly')}
+        className='h-9'
+      />
+      <div />
+      <EmcnInput
+        value={value ? '\u2022'.repeat(value.length) : ''}
+        readOnly
+        autoComplete='off'
+        autoCorrect='off'
+        autoCapitalize='off'
+        spellCheck='false'
+        className='h-9'
+      />
+      <Button
+        variant='default'
+        onClick={() => onViewDetails(envKey)}
+        disabled={!hasCredential}
+        className={`ml-[8px] h-9 ${!hasCredential ? 'opacity-40' : ''}`}
+      >
+        Details
+      </Button>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Button variant='ghost' onClick={() => onDelete(envKey)} className='h-9 w-9'>
+            <Trash />
+          </Button>
+        </Tooltip.Trigger>
+        <Tooltip.Content>Delete secret</Tooltip.Content>
+      </Tooltip.Root>
+    </div>
+  )
 }
 
-function normalizeEnvKeyInput(raw: string): string {
-  const trimmed = raw.trim()
-  const wrappedMatch = /^\{\{\s*([A-Za-z0-9_]+)\s*\}\}$/.exec(trimmed)
-  return wrappedMatch ? wrappedMatch[1] : trimmed
+interface NewWorkspaceVariableRowProps {
+  envVar: UIEnvironmentVariable
+  index: number
+  onUpdate: (index: number, field: 'key' | 'value', value: string) => void
+}
+
+function NewWorkspaceVariableRow({ envVar, index, onUpdate }: NewWorkspaceVariableRowProps) {
+  const keyError = validateEnvVarKey(envVar.key)
+  const hasContent = Boolean(envVar.key || envVar.value)
+
+  return (
+    <div className='contents'>
+      <EmcnInput
+        value={envVar.key}
+        onChange={(e) => onUpdate(index, 'key', e.target.value)}
+        placeholder='API_KEY'
+        name={`new_workspace_key_${envVar.id || index}_${Math.random()}`}
+        autoComplete='off'
+        autoCapitalize='off'
+        spellCheck='false'
+        readOnly
+        onFocus={(e) => e.target.removeAttribute('readOnly')}
+        className={`h-9 ${keyError ? 'border-[var(--text-error)]' : ''}`}
+      />
+      <div />
+      <EmcnInput
+        value={envVar.value}
+        onChange={(e) => onUpdate(index, 'value', e.target.value)}
+        placeholder='Enter value'
+        type='text'
+        name={`new_workspace_value_${envVar.id || index}_${Math.random()}`}
+        autoComplete='off'
+        autoCapitalize='off'
+        spellCheck='false'
+        readOnly
+        onFocus={(e) => e.target.removeAttribute('readOnly')}
+        className='col-span-2 ml-0 h-9'
+      />
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Button
+            variant='ghost'
+            onClick={() => {
+              onUpdate(index, 'key', '')
+              onUpdate(index, 'value', '')
+            }}
+            disabled={!hasContent}
+            className={`h-9 w-9 ${!hasContent ? 'opacity-30' : ''}`}
+          >
+            <Trash />
+          </Button>
+        </Tooltip.Trigger>
+        {hasContent && <Tooltip.Content>Delete secret</Tooltip.Content>}
+      </Tooltip.Root>
+      {keyError && (
+        <div
+          className={`${COL_SPAN_ALL} mt-[-4px] text-[12px] text-[var(--text-error)] leading-tight`}
+        >
+          {keyError}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function CredentialsManager() {
   const params = useParams()
+  const router = useRouter()
   const workspaceId = (params?.workspaceId as string) || ''
-
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
-  const [memberRole, setMemberRole] = useState<WorkspaceCredentialRole>('admin')
-  const [memberUserId, setMemberUserId] = useState('')
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [createType, setCreateType] = useState<CreateCredentialType>('secret')
-  const [createSecretScope, setCreateSecretScope] = useState<SecretScope>('workspace')
-  const [createDisplayName, setCreateDisplayName] = useState('')
-  const [createDescription, setCreateDescription] = useState('')
-  const [createEnvKey, setCreateEnvKey] = useState('')
-  const [createEnvValue, setCreateEnvValue] = useState('')
-  const [isCreateEnvValueFocused, setIsCreateEnvValueFocused] = useState(false)
-  const [createOAuthProviderId, setCreateOAuthProviderId] = useState('')
-  const [createSecretInputMode, setCreateSecretInputMode] = useState<SecretInputMode>('single')
-  const [createBulkEntries, setCreateBulkEntries] = useState<ParsedEnvEntry[]>([])
-  const [createError, setCreateError] = useState<string | null>(null)
-  const [detailsError, setDetailsError] = useState<string | null>(null)
-  const [selectedEnvValueDraft, setSelectedEnvValueDraft] = useState('')
-  const [isEditingEnvValue, setIsEditingEnvValue] = useState(false)
-  const [selectedDescriptionDraft, setSelectedDescriptionDraft] = useState('')
-  const [selectedDisplayNameDraft, setSelectedDisplayNameDraft] = useState('')
-  const [showCreateOAuthRequiredModal, setShowCreateOAuthRequiredModal] = useState(false)
-  const [copyIdSuccess, setCopyIdSuccess] = useState(false)
-  const [credentialToDelete, setCredentialToDelete] = useState<WorkspaceCredential | null>(null)
-  const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const { data: session } = useSession()
-  const currentUserId = session?.user?.id || ''
 
-  const {
-    data: credentials = [],
-    isPending: credentialsLoading,
-    refetch: refetchCredentials,
-  } = useWorkspaceCredentials({
+  const { data: personalEnvData, isLoading: isPersonalLoading } = usePersonalEnvironment()
+  const { data: workspaceEnvData, isLoading: isWorkspaceLoading } = useWorkspaceEnvironment(
     workspaceId,
+    {
+      select: useCallback(
+        (data: WorkspaceEnvironmentData): WorkspaceEnvironmentData => ({
+          workspace: data.workspace || {},
+          personal: data.personal || {},
+          conflicts: data.conflicts || [],
+        }),
+        []
+      ),
+    }
+  )
+  const savePersonalMutation = useSavePersonalEnvironment()
+  const upsertWorkspaceMutation = useUpsertWorkspaceEnvironment()
+  const removeWorkspaceMutation = useRemoveWorkspaceEnvironment()
+
+  const { data: workspaceEnvCredentials = [] } = useWorkspaceCredentials({
+    workspaceId,
+    type: 'env_workspace',
     enabled: Boolean(workspaceId),
   })
 
-  const { data: oauthConnections = [] } = useOAuthConnections()
-  const connectOAuthService = useConnectOAuthService()
-  const disconnectOAuthService = useDisconnectOAuthService()
-  const savePersonalEnvironment = useSavePersonalEnvironment()
-  const upsertWorkspaceEnvironment = useUpsertWorkspaceEnvironment()
-  const { data: personalEnvironment = {} } = usePersonalEnvironment()
-  const { data: workspaceEnvironmentData } = useWorkspaceEnvironment(workspaceId, {
-    select: (data) => data,
+  const { data: personalEnvCredentials = [] } = useWorkspaceCredentials({
+    workspaceId,
+    type: 'env_personal',
+    enabled: Boolean(workspaceId),
   })
 
-  const { data: workspacePermissions } = useWorkspacePermissionsQuery(workspaceId || null)
-  const selectedCredential = useMemo(
-    () => credentials.find((credential) => credential.id === selectedCredentialId) || null,
-    [credentials, selectedCredentialId]
+  const envCredentials = useMemo(
+    () => [...workspaceEnvCredentials, ...personalEnvCredentials],
+    [workspaceEnvCredentials, personalEnvCredentials]
   )
 
+  const { data: workspacePermissions } = useWorkspacePermissionsQuery(workspaceId || null)
+
+  const isLoading = isPersonalLoading || isWorkspaceLoading
+  const variables = useMemo(() => personalEnvData || {}, [personalEnvData])
+
+  // --- List view state ---
+  const [envVars, setEnvVars] = useState<UIEnvironmentVariable[]>([])
+  const [newWorkspaceRows, setNewWorkspaceRows] = useState<UIEnvironmentVariable[]>([
+    createEmptyEnvVar(),
+  ])
+  const [searchTerm, setSearchTerm] = useState('')
+  const [focusedValueIndex, setFocusedValueIndex] = useState<number | null>(null)
+  const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
+  const [workspaceVars, setWorkspaceVars] = useState<Record<string, string>>({})
+  const [renamingKey, setRenamingKey] = useState<string | null>(null)
+  const [pendingKeyValue, setPendingKeyValue] = useState<string>('')
+  const [changeToken, setChangeToken] = useState(0)
+
+  // --- Detail view state ---
+  const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
+  const [selectedDisplayNameDraft, setSelectedDisplayNameDraft] = useState('')
+  const [selectedDescriptionDraft, setSelectedDescriptionDraft] = useState('')
+  const [copyIdSuccess, setCopyIdSuccess] = useState(false)
+  const [detailsError, setDetailsError] = useState<string | null>(null)
+  const [isSavingDetails, setIsSavingDetails] = useState(false)
+  const [showDetailUnsavedChanges, setShowDetailUnsavedChanges] = useState(false)
+  const [memberUserId, setMemberUserId] = useState('')
+  const [memberRole, setMemberRole] = useState<WorkspaceCredentialRole>('member')
+
+  const initialWorkspaceVarsRef = useRef<Record<string, string>>({})
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const initialVarsRef = useRef<UIEnvironmentVariable[]>([])
+  const hasChangesRef = useRef(false)
+  const hasSavedRef = useRef(false)
+  const shouldBlockNavRef = useRef(false)
+  const pendingNavigationUrlRef = useRef<string | null>(null)
+
+  // --- Credential lookups ---
+  const envKeyToCredential = useMemo(() => {
+    const map = new Map<string, WorkspaceCredential>()
+    for (const cred of envCredentials) {
+      if (cred.envKey) map.set(cred.envKey, cred)
+    }
+    return map
+  }, [envCredentials])
+
+  const selectedCredential = useMemo(
+    () => envCredentials.find((c) => c.id === selectedCredentialId) || null,
+    [envCredentials, selectedCredentialId]
+  )
+
+  // --- Detail view hooks ---
   const { data: members = [], isPending: membersLoading } = useWorkspaceCredentialMembers(
     selectedCredential?.id
   )
-
   const createCredential = useCreateWorkspaceCredential()
   const updateCredential = useUpdateWorkspaceCredential()
-  const deleteCredential = useDeleteWorkspaceCredential()
   const upsertMember = useUpsertWorkspaceCredentialMember()
   const removeMember = useRemoveWorkspaceCredentialMember()
-  const oauthServiceNameByProviderId = useMemo(
-    () => new Map(oauthConnections.map((service) => [service.providerId, service.name])),
-    [oauthConnections]
-  )
-  const resolveProviderLabel = (providerId?: string | null): string => {
-    if (!providerId) return ''
-    return oauthServiceNameByProviderId.get(providerId) || providerId
-  }
 
-  const filteredCredentials = useMemo(() => {
-    if (!searchTerm.trim()) return credentials
-    const normalized = searchTerm.toLowerCase()
-    return credentials.filter((credential) => {
-      return (
-        credential.displayName.toLowerCase().includes(normalized) ||
-        (credential.description || '').toLowerCase().includes(normalized) ||
-        (credential.providerId || '').toLowerCase().includes(normalized) ||
-        resolveProviderLabel(credential.providerId).toLowerCase().includes(normalized) ||
-        typeLabel(credential.type).toLowerCase().includes(normalized)
-      )
-    })
-  }, [credentials, searchTerm, oauthConnections])
-
-  const sortedCredentials = useMemo(() => {
-    return [...filteredCredentials].sort((a, b) => {
-      const aDate = new Date(a.updatedAt).getTime()
-      const bDate = new Date(b.updatedAt).getTime()
-      return bDate - aDate
-    })
-  }, [filteredCredentials])
-
-  const oauthServiceOptions = useMemo(
-    () =>
-      oauthConnections.map((service) => ({
-        value: service.providerId,
-        label: service.name,
-        icon: getServiceConfigByProviderId(service.providerId)?.icon,
-      })),
-    [oauthConnections]
-  )
-
+  // --- Detail view computed ---
   const activeMembers = useMemo(
     () => members.filter((member) => member.status === 'active'),
     [members]
   )
+
   const adminMemberCount = useMemo(
     () => activeMembers.filter((member) => member.role === 'admin').length,
     [activeMembers]
   )
+
+  const isSelectedAdmin = selectedCredential?.role === 'admin'
 
   const workspaceUserOptions = useMemo(() => {
     const activeMemberUserIds = new Set(activeMembers.map((member) => member.userId))
@@ -288,197 +378,213 @@ export function CredentialsManager() {
       }))
   }, [workspacePermissions?.users, activeMembers])
 
-  const selectedOAuthService = useMemo(
-    () => oauthConnections.find((service) => service.providerId === createOAuthProviderId) || null,
-    [oauthConnections, createOAuthProviderId]
-  )
-  const createOAuthRequiredScopes = useMemo(() => {
-    if (!createOAuthProviderId) return []
-    if (selectedOAuthService?.scopes?.length) {
-      return selectedOAuthService.scopes
+  const isDescriptionDirty = selectedCredential
+    ? selectedDescriptionDraft !== (selectedCredential.description || '')
+    : false
+  const isDisplayNameDirty = selectedCredential
+    ? selectedDisplayNameDraft !== selectedCredential.displayName
+    : false
+  const isDetailsDirty = isDescriptionDirty || isDisplayNameDirty
+
+  // --- List view computed ---
+  const filteredEnvVars = useMemo(() => {
+    const mapped = envVars.map((envVar, index) => ({ envVar, originalIndex: index }))
+    if (!searchTerm.trim()) return mapped
+    const term = searchTerm.toLowerCase()
+    return mapped.filter(({ envVar }) => envVar.key.toLowerCase().includes(term))
+  }, [envVars, searchTerm])
+
+  const filteredWorkspaceEntries = useMemo(() => {
+    const entries = Object.entries(workspaceVars)
+    if (!searchTerm.trim()) return entries
+    const term = searchTerm.toLowerCase()
+    return entries.filter(([key]) => key.toLowerCase().includes(term))
+  }, [workspaceVars, searchTerm])
+
+  const filteredNewWorkspaceRows = useMemo(() => {
+    const mapped = newWorkspaceRows.map((row, index) => ({ row, originalIndex: index }))
+    if (!searchTerm.trim()) return mapped
+    const term = searchTerm.toLowerCase()
+    return mapped.filter(({ row }) => row.key.toLowerCase().includes(term))
+  }, [newWorkspaceRows, searchTerm])
+
+  const allWorkspaceKeys = useMemo(() => {
+    const keys = new Set(Object.keys(workspaceVars))
+    for (const row of newWorkspaceRows) {
+      if (row.key) keys.add(row.key)
     }
-    return getCanonicalScopesForProvider(createOAuthProviderId)
-  }, [selectedOAuthService, createOAuthProviderId])
-  const createSecretType = useMemo(
-    () => getSecretCredentialType(createSecretScope),
-    [createSecretScope]
-  )
-  const selectedExistingEnvCredential = useMemo(() => {
-    if (createType !== 'secret' || createSecretInputMode !== 'single') return null
-    const envKey = normalizeEnvKeyInput(createEnvKey)
-    if (!envKey) return null
-    return (
-      credentials.find(
-        (row) =>
-          row.type === createSecretType && (row.envKey || '').toLowerCase() === envKey.toLowerCase()
-      ) ?? null
-    )
-  }, [credentials, createEnvKey, createSecretType, createType, createSecretInputMode])
+    return keys
+  }, [workspaceVars, newWorkspaceRows])
 
-  const crossScopeEnvConflict = useMemo(() => {
-    if (createType !== 'secret' || createSecretInputMode !== 'single') return null
-    if (createSecretScope !== 'personal') return null
-    const envKey = normalizeEnvKeyInput(createEnvKey)
-    if (!envKey) return null
-    return (
-      credentials.find(
-        (row) =>
-          row.type === 'env_workspace' && (row.envKey || '').toLowerCase() === envKey.toLowerCase()
-      ) ?? null
-    )
-  }, [credentials, createEnvKey, createSecretScope, createType, createSecretInputMode])
+  const hasChanges = useMemo(() => {
+    const initialVars = initialVarsRef.current.filter((v) => v.key || v.value)
+    const currentVars = envVars.filter((v) => v.key || v.value)
+    const initialMap = new Map(initialVars.map((v) => [v.key, v.value]))
+    const currentMap = new Map(currentVars.map((v) => [v.key, v.value]))
 
-  const existingOAuthDisplayName = useMemo(() => {
-    if (createType !== 'oauth') return null
-    const name = createDisplayName.trim()
-    if (!name) return null
-    return (
-      credentials.find(
-        (row) => row.type === 'oauth' && row.displayName.toLowerCase() === name.toLowerCase()
-      ) ?? null
-    )
-  }, [credentials, createDisplayName, createType])
-  const selectedEnvCurrentValue = useMemo(() => {
-    if (!selectedCredential || selectedCredential.type === 'oauth') return ''
-    const envKey = selectedCredential.envKey || ''
-    if (!envKey) return ''
+    if (initialMap.size !== currentMap.size) return true
 
-    if (selectedCredential.type === 'env_workspace') {
-      return workspaceEnvironmentData?.workspace?.[envKey] || ''
+    for (const [key, value] of currentMap) {
+      if (initialMap.get(key) !== value) return true
     }
 
-    if (selectedCredential.envOwnerUserId && selectedCredential.envOwnerUserId !== currentUserId) {
-      return ''
+    for (const key of initialMap.keys()) {
+      if (!currentMap.has(key)) return true
     }
 
-    return personalEnvironment[envKey]?.value || workspaceEnvironmentData?.personal?.[envKey] || ''
-  }, [selectedCredential, workspaceEnvironmentData, personalEnvironment, currentUserId])
-  const isEnvValueDirty = useMemo(() => {
-    if (!selectedCredential || selectedCredential.type === 'oauth') return false
-    return selectedEnvValueDraft !== selectedEnvCurrentValue
-  }, [selectedCredential, selectedEnvValueDraft, selectedEnvCurrentValue])
+    const before = initialWorkspaceVarsRef.current
+    const after = workspaceVars
+    const allKeys = new Set([...Object.keys(before), ...Object.keys(after)])
 
-  const isDescriptionDirty = useMemo(() => {
-    if (!selectedCredential) return false
-    return selectedDescriptionDraft !== (selectedCredential.description || '')
-  }, [selectedCredential, selectedDescriptionDraft])
+    if (Object.keys(before).length !== Object.keys(after).length) return true
 
-  const isDisplayNameDirty = useMemo(() => {
-    if (!selectedCredential) return false
-    return selectedDisplayNameDraft !== selectedCredential.displayName
-  }, [selectedCredential, selectedDisplayNameDraft])
+    for (const key of allKeys) {
+      if (before[key] !== after[key]) return true
+    }
 
-  const isDetailsDirty = isEnvValueDirty || isDescriptionDirty || isDisplayNameDirty
-  const [isSavingDetails, setIsSavingDetails] = useState(false)
+    if (newWorkspaceRows.some((row) => row.key && row.value)) return true
 
-  const handleSaveDetails = async () => {
-    if (!selectedCredential || !isSelectedAdmin || !isDetailsDirty) return
-    setDetailsError(null)
-    setIsSavingDetails(true)
+    return false
+  }, [envVars, workspaceVars, newWorkspaceRows, changeToken])
 
-    try {
-      if (isDisplayNameDirty || isDescriptionDirty) {
-        await updateCredential.mutateAsync({
-          credentialId: selectedCredential.id,
-          ...(isDisplayNameDirty && selectedCredential.type === 'oauth'
-            ? { displayName: selectedDisplayNameDraft.trim() }
-            : {}),
-          ...(isDescriptionDirty ? { description: selectedDescriptionDraft.trim() || null } : {}),
-        })
+  const hasConflicts = useMemo(() => {
+    return envVars.some((envVar) => !!envVar.key && allWorkspaceKeys.has(envVar.key))
+  }, [envVars, allWorkspaceKeys])
+
+  const hasInvalidKeys = useMemo(() => {
+    const personalInvalid = envVars.some((envVar) => !!envVar.key && validateEnvVarKey(envVar.key))
+    const workspaceInvalid = newWorkspaceRows.some((row) => !!row.key && validateEnvVarKey(row.key))
+    return personalInvalid || workspaceInvalid
+  }, [envVars, newWorkspaceRows])
+
+  // --- Effects ---
+  useEffect(() => {
+    hasChangesRef.current = hasChanges
+    shouldBlockNavRef.current = hasChanges || isDetailsDirty
+  }, [hasChanges, isDetailsDirty])
+
+  useEffect(() => {
+    if (hasSavedRef.current) return
+
+    const existingVars = Object.values(variables)
+    const initialVars = [
+      ...existingVars.map((envVar) => ({
+        ...envVar,
+        id: generateRowId(),
+      })),
+      createEmptyEnvVar(),
+    ]
+    initialVarsRef.current = JSON.parse(JSON.stringify(initialVars))
+    setEnvVars(JSON.parse(JSON.stringify(initialVars)))
+  }, [variables])
+
+  useEffect(() => {
+    if (workspaceEnvData) {
+      if (hasSavedRef.current) {
+        hasSavedRef.current = false
+      } else {
+        setWorkspaceVars(workspaceEnvData?.workspace || {})
+        initialWorkspaceVarsRef.current = workspaceEnvData?.workspace || {}
       }
-
-      if (isEnvValueDirty && canEditSelectedEnvValue) {
-        const envKey = selectedCredential.envKey || ''
-        if (envKey) {
-          if (selectedCredential.type === 'env_workspace') {
-            await upsertWorkspaceEnvironment.mutateAsync({
-              workspaceId,
-              variables: { [envKey]: selectedEnvValueDraft },
-            })
-          } else {
-            const personalVariables = Object.entries(personalEnvironment).reduce(
-              (acc, [key, value]) => ({
-                ...acc,
-                [key]: value.value,
-              }),
-              {} as Record<string, string>
-            )
-            await savePersonalEnvironment.mutateAsync({
-              variables: { ...personalVariables, [envKey]: selectedEnvValueDraft },
-            })
-          }
-        }
-      }
-
-      await refetchCredentials()
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to save changes'
-      setDetailsError(message)
-      logger.error('Failed to save credential details', error)
-    } finally {
-      setIsSavingDetails(false)
     }
-  }
+  }, [workspaceEnvData])
 
-  const handleBackAttempt = useCallback(() => {
-    if (isDetailsDirty && !isSavingDetails) {
-      setShowUnsavedChangesAlert(true)
-    } else {
-      setSelectedCredentialId(null)
-    }
-  }, [isDetailsDirty, isSavingDetails])
-
-  const handleDiscardChanges = useCallback(() => {
-    setShowUnsavedChangesAlert(false)
-    setSelectedEnvValueDraft(selectedEnvCurrentValue)
-    setSelectedDescriptionDraft(selectedCredential?.description || '')
-    setSelectedDisplayNameDraft(selectedCredential?.displayName || '')
-    setSelectedCredentialId(null)
-  }, [selectedEnvCurrentValue, selectedCredential])
+  const scrollToBottom = useCallback(() => {
+    requestAnimationFrame(() => {
+      scrollContainerRef.current?.scrollTo({
+        top: scrollContainerRef.current.scrollHeight,
+        behavior: 'smooth',
+      })
+    })
+  }, [])
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault()
     }
-    if (selectedCredentialId && isDetailsDirty) {
+    if (hasChanges || isDetailsDirty) {
       window.addEventListener('beforeunload', handler)
     }
     return () => window.removeEventListener('beforeunload', handler)
-  }, [selectedCredentialId, isDetailsDirty])
+  }, [hasChanges, isDetailsDirty])
 
+  /**
+   * Navigation guard: intercept link clicks in the capture phase before
+   * Next.js App Router processes them. This is needed because Next.js
+   * internally bypasses window.history.pushState overrides.
+   */
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (!shouldBlockNavRef.current) return
+
+      const anchor = (e.target as HTMLElement).closest('a[href]')
+      if (!anchor) return
+
+      const href = anchor.getAttribute('href')
+      if (!href || href.startsWith('http') || href.startsWith('#')) return
+
+      const currentPath = window.location.pathname
+      if (href === currentPath) return
+
+      e.preventDefault()
+      e.stopPropagation()
+      pendingNavigationUrlRef.current = href
+      setShowUnsavedChanges(true)
+    }
+
+    const handlePopState = () => {
+      if (shouldBlockNavRef.current) {
+        window.history.pushState(null, '', window.location.href)
+        setShowUnsavedChanges(true)
+      }
+    }
+
+    document.addEventListener('click', handleClick, true)
+    window.addEventListener('popstate', handlePopState)
+
+    return () => {
+      document.removeEventListener('click', handleClick, true)
+      window.removeEventListener('popstate', handlePopState)
+    }
+  }, [])
+
+  // --- Detail view: sync drafts when credential changes ---
+  useEffect(() => {
+    if (!selectedCredential) {
+      setSelectedDescriptionDraft('')
+      setSelectedDisplayNameDraft('')
+      return
+    }
+
+    setDetailsError(null)
+    setSelectedDescriptionDraft(selectedCredential.description || '')
+    setSelectedDisplayNameDraft(selectedCredential.displayName)
+  }, [selectedCredential])
+
+  // --- Pending credential create request ---
   const applyPendingCredentialCreateRequest = useCallback(
     (request: PendingCredentialCreateRequest) => {
-      if (request.workspaceId !== workspaceId) {
-        return
-      }
-
+      if (request.workspaceId !== workspaceId) return
       if (Date.now() - request.requestedAt > 15 * 60 * 1000) {
         clearPendingCredentialCreateRequest()
         return
       }
+      if (request.type === 'oauth') return
 
-      setShowCreateModal(true)
-      setShowCreateOAuthRequiredModal(false)
-      setCreateError(null)
-      setCreateDescription('')
-      setCreateEnvValue('')
-
-      if (request.type === 'oauth') {
-        setCreateType('oauth')
-        setCreateOAuthProviderId(request.providerId)
-        setCreateDisplayName(request.displayName)
-        setCreateEnvKey('')
-      } else {
-        setCreateType('secret')
-        setCreateSecretScope(request.type === 'env_workspace' ? 'workspace' : 'personal')
-        setCreateOAuthProviderId('')
-        setCreateDisplayName('')
-        setCreateEnvKey(request.envKey || '')
+      const envKey = request.envKey || ''
+      if (envKey) {
+        setEnvVars((prev) => {
+          const existing = prev.find((v) => v.key.toLowerCase() === envKey.toLowerCase())
+          if (existing) return prev
+          const nonEmpty = prev.filter((v) => v.key || v.value)
+          return [...nonEmpty, { key: envKey, value: '', id: generateRowId() }]
+        })
+        scrollToBottom()
       }
 
       clearPendingCredentialCreateRequest()
     },
-    [workspaceId]
+    [workspaceId, scrollToBottom]
   )
 
   useEffect(() => {
@@ -510,473 +616,88 @@ export function CredentialsManager() {
     }
   }, [workspaceId, applyPendingCredentialCreateRequest])
 
-  useEffect(() => {
-    if (!selectedCredential) {
-      setSelectedEnvValueDraft('')
-      setIsEditingEnvValue(false)
-      setSelectedDescriptionDraft('')
-      setSelectedDisplayNameDraft('')
-      return
-    }
-
+  // --- Detail view handlers ---
+  const handleSelectCredential = useCallback((credentialId: string) => {
+    setSelectedCredentialId(credentialId)
     setDetailsError(null)
-    setSelectedDescriptionDraft(selectedCredential.description || '')
-    setSelectedDisplayNameDraft(selectedCredential.displayName)
+    setMemberUserId('')
+    setMemberRole('member')
+  }, [])
 
-    if (selectedCredential.type === 'oauth') {
-      setSelectedEnvValueDraft('')
-      setIsEditingEnvValue(false)
-      return
+  const handleViewDetails = useCallback(
+    async (envKey: string, type: 'env_workspace' | 'env_personal') => {
+      const existing = envKeyToCredential.get(envKey)
+      if (existing) {
+        handleSelectCredential(existing.id)
+        return
+      }
+
+      try {
+        const result = await createCredential.mutateAsync({
+          workspaceId,
+          type,
+          displayName: envKey,
+          envKey,
+          ...(type === 'env_personal' ? { envOwnerUserId: session?.user?.id } : {}),
+        })
+        if (result.credential?.id) {
+          handleSelectCredential(result.credential.id)
+        }
+      } catch (error) {
+        logger.error('Failed to create credential record', error)
+      }
+    },
+    [envKeyToCredential, handleSelectCredential, createCredential, workspaceId, session?.user?.id]
+  )
+
+  const handleBackAttempt = useCallback(() => {
+    if (isDetailsDirty && !isSavingDetails) {
+      setShowDetailUnsavedChanges(true)
+    } else {
+      setSelectedCredentialId(null)
     }
+  }, [isDetailsDirty, isSavingDetails])
 
-    const envKey = selectedCredential.envKey || ''
-    if (!envKey) {
-      setSelectedEnvValueDraft('')
-      return
-    }
-
-    setSelectedEnvValueDraft(selectedEnvCurrentValue)
-    setIsEditingEnvValue(false)
-  }, [selectedCredential, selectedEnvCurrentValue])
-
-  const isSelectedAdmin = selectedCredential?.role === 'admin'
-  const selectedOAuthServiceConfig = useMemo(() => {
-    if (
-      !selectedCredential ||
-      selectedCredential.type !== 'oauth' ||
-      !selectedCredential.providerId
-    ) {
-      return null
-    }
-
-    return getServiceConfigByProviderId(selectedCredential.providerId)
+  const handleDiscardDetailChanges = useCallback(() => {
+    setShowDetailUnsavedChanges(false)
+    setSelectedDescriptionDraft(selectedCredential?.description || '')
+    setSelectedDisplayNameDraft(selectedCredential?.displayName || '')
+    setSelectedCredentialId(null)
   }, [selectedCredential])
 
-  const resetCreateForm = () => {
-    setCreateType('secret')
-    setCreateSecretScope('workspace')
-    setCreateSecretInputMode('single')
-    setCreateDisplayName('')
-    setCreateDescription('')
-    setCreateEnvKey('')
-    setCreateEnvValue('')
-    setCreateBulkEntries([])
-    setCreateOAuthProviderId('')
-    setCreateError(null)
-    setShowCreateOAuthRequiredModal(false)
-  }
-
-  const handleSelectCredential = (credential: WorkspaceCredential) => {
-    setSelectedCredentialId(credential.id)
+  const handleSaveDetails = useCallback(async () => {
+    if (!selectedCredential || !isSelectedAdmin || !isDetailsDirty) return
     setDetailsError(null)
-  }
-
-  const canEditSelectedEnvValue = useMemo(() => {
-    if (!selectedCredential || selectedCredential.type === 'oauth') return false
-    if (!isSelectedAdmin) return false
-    if (selectedCredential.type === 'env_workspace') return true
-    return Boolean(
-      selectedCredential.envOwnerUserId &&
-        currentUserId &&
-        selectedCredential.envOwnerUserId === currentUserId
-    )
-  }, [selectedCredential, isSelectedAdmin, currentUserId])
-
-  const handleCreateCredential = async () => {
-    if (!workspaceId) return
-    setCreateError(null)
-    const normalizedDescription = createDescription.trim()
+    setIsSavingDetails(true)
 
     try {
-      if (createType === 'oauth') {
-        if (!selectedOAuthService) {
-          setCreateError('Select an OAuth service before connecting.')
-          return
-        }
-        if (!createDisplayName.trim()) {
-          setCreateError('Display name is required.')
-          return
-        }
-        setShowCreateOAuthRequiredModal(true)
-        return
-      }
-
-      if (createSecretInputMode === 'bulk') {
-        await handleBulkCreateSecrets()
-        return
-      }
-
-      if (!createEnvKey.trim()) return
-      const normalizedEnvKey = normalizeEnvKeyInput(createEnvKey)
-      if (!isValidEnvVarName(normalizedEnvKey)) {
-        setCreateError('Secret key must contain only letters, numbers, and underscores.')
-        return
-      }
-      if (!createEnvValue.trim()) {
-        setCreateError('Secret value is required.')
-        return
-      }
-
-      if (createSecretType === 'env_personal') {
-        const personalVariables = Object.entries(personalEnvironment).reduce(
-          (acc, [key, value]) => ({
-            ...acc,
-            [key]: value.value,
-          }),
-          {} as Record<string, string>
-        )
-
-        await savePersonalEnvironment.mutateAsync({
-          variables: {
-            ...personalVariables,
-            [normalizedEnvKey]: createEnvValue.trim(),
-          },
-        })
-      } else {
-        const workspaceVariables = workspaceEnvironmentData?.workspace ?? {}
-        await upsertWorkspaceEnvironment.mutateAsync({
-          workspaceId,
-          variables: {
-            ...workspaceVariables,
-            [normalizedEnvKey]: createEnvValue.trim(),
-          },
-        })
-      }
-
-      const response = await createCredential.mutateAsync({
-        workspaceId,
-        type: createSecretType,
-        envKey: normalizedEnvKey,
-        description: normalizedDescription || undefined,
-      })
-      const credentialId = response?.credential?.id
-      if (credentialId) {
-        setSelectedCredentialId(credentialId)
-      }
-
-      await refetchCredentials()
-
-      setShowCreateModal(false)
-      resetCreateForm()
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to create secret'
-      setCreateError(message)
-      logger.error('Failed to create credential', error)
-    }
-  }
-
-  const handleBulkCreateSecrets = async () => {
-    if (!workspaceId) return
-    setCreateError(null)
-
-    const entries = createBulkEntries
-      .map((e) => ({ key: e.key.trim(), value: e.value.trim() }))
-      .filter((e) => e.key || e.value)
-
-    if (entries.length === 0) {
-      setCreateError('Add at least one secret.')
-      return
-    }
-
-    const errors: string[] = []
-    const seenKeys = new Set<string>()
-    for (let i = 0; i < entries.length; i++) {
-      const { key, value } = entries[i]
-      if (!key) {
-        errors.push(`Row ${i + 1}: empty key`)
-        continue
-      }
-      if (!isValidEnvVarName(key)) {
-        errors.push(`Row ${i + 1}: "${key}" must contain only letters, numbers, and underscores`)
-        continue
-      }
-      if (!value) {
-        errors.push(`Row ${i + 1}: "${key}" has an empty value`)
-        continue
-      }
-      if (seenKeys.has(key.toUpperCase())) {
-        errors.push(`Row ${i + 1}: duplicate key "${key}"`)
-        continue
-      }
-      seenKeys.add(key.toUpperCase())
-    }
-
-    if (errors.length > 0) {
-      setCreateError(errors.join('\n'))
-      return
-    }
-
-    try {
-      const newVars: Record<string, string> = {}
-      for (const entry of entries) {
-        newVars[entry.key] = entry.value
-      }
-
-      if (createSecretType === 'env_personal') {
-        const personalVariables = Object.entries(personalEnvironment).reduce(
-          (acc, [key, value]) => ({
-            ...acc,
-            [key]: value.value,
-          }),
-          {} as Record<string, string>
-        )
-
-        await savePersonalEnvironment.mutateAsync({
-          variables: { ...personalVariables, ...newVars },
-        })
-      } else {
-        const workspaceVariables = workspaceEnvironmentData?.workspace ?? {}
-        await upsertWorkspaceEnvironment.mutateAsync({
-          workspaceId,
-          variables: { ...workspaceVariables, ...newVars },
-        })
-      }
-
-      let lastCredentialId: string | null = null
-      for (const entry of entries) {
-        const response = await createCredential.mutateAsync({
-          workspaceId,
-          type: createSecretType,
-          envKey: entry.key,
-        })
-        if (response?.credential?.id) {
-          lastCredentialId = response.credential.id
-        }
-      }
-
-      if (lastCredentialId) {
-        setSelectedCredentialId(lastCredentialId)
-      }
-
-      await refetchCredentials()
-
-      setShowCreateModal(false)
-      resetCreateForm()
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to create secrets'
-      setCreateError(message)
-      logger.error('Failed to bulk create secrets', error)
-    }
-  }
-
-  const handleConnectOAuthService = async () => {
-    if (!selectedOAuthService) {
-      setCreateError('Select an OAuth service before connecting.')
-      return
-    }
-
-    const displayName = createDisplayName.trim()
-    if (!displayName) {
-      setCreateError('Display name is required.')
-      return
-    }
-
-    setCreateError(null)
-    try {
-      await fetch('/api/credentials/draft', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workspaceId,
-          providerId: selectedOAuthService.providerId,
-          displayName,
-          description: createDescription.trim() || undefined,
-        }),
-      })
-
-      window.sessionStorage.setItem(
-        'sim.oauth-connect-pending',
-        JSON.stringify({
-          displayName,
-          providerId: selectedOAuthService.providerId,
-          preCount: credentials.filter((c) => c.type === 'oauth').length,
-          workspaceId,
-        })
-      )
-
-      await connectOAuthService.mutateAsync({
-        providerId: selectedOAuthService.providerId,
-        callbackURL: window.location.href,
-      })
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to start OAuth connection'
-      setCreateError(message)
-      logger.error('Failed to connect OAuth service', error)
-    }
-  }
-
-  const handleDeleteClick = (credential: WorkspaceCredential) => {
-    setCredentialToDelete(credential)
-    setDeleteError(null)
-    setShowDeleteConfirmDialog(true)
-  }
-
-  const handleConfirmDelete = async () => {
-    if (!credentialToDelete) return
-    setDeleteError(null)
-
-    try {
-      if (credentialToDelete.type === 'oauth') {
-        if (!credentialToDelete.accountId || !credentialToDelete.providerId) {
-          const errorMessage =
-            'Cannot disconnect: missing account information. Please try reconnecting this credential first.'
-          setDeleteError(errorMessage)
-          logger.error('Cannot disconnect OAuth credential: missing accountId or providerId')
-          return
-        }
-        await disconnectOAuthService.mutateAsync({
-          provider: credentialToDelete.providerId.split('-')[0] || credentialToDelete.providerId,
-          providerId: credentialToDelete.providerId,
-          serviceId: credentialToDelete.providerId,
-          accountId: credentialToDelete.accountId,
-        })
-        await refetchCredentials()
-        window.dispatchEvent(
-          new CustomEvent('oauth-credentials-updated', {
-            detail: { providerId: credentialToDelete.providerId, workspaceId },
-          })
-        )
-      } else {
-        await deleteCredential.mutateAsync(credentialToDelete.id)
-      }
-      if (selectedCredentialId === credentialToDelete.id) {
-        setSelectedCredentialId(null)
-      }
-      setShowDeleteConfirmDialog(false)
-      setCredentialToDelete(null)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete credential'
-      setDeleteError(message)
-      logger.error('Failed to delete credential', error)
-    }
-  }
-
-  const [isPromoting, setIsPromoting] = useState(false)
-  const [isShareingWithWorkspace, setIsSharingWithWorkspace] = useState(false)
-
-  const handleShareWithWorkspace = async () => {
-    if (!selectedCredential || !isSelectedAdmin) return
-    const usersToAdd = workspaceUserOptions
-    if (usersToAdd.length === 0) return
-
-    setDetailsError(null)
-    setIsSharingWithWorkspace(true)
-
-    try {
-      for (const user of usersToAdd) {
-        await upsertMember.mutateAsync({
+      if (isDisplayNameDirty || isDescriptionDirty) {
+        await updateCredential.mutateAsync({
           credentialId: selectedCredential.id,
-          userId: user.value,
-          role: 'member',
+          ...(isDisplayNameDirty ? { displayName: selectedDisplayNameDraft.trim() } : {}),
+          ...(isDescriptionDirty ? { description: selectedDescriptionDraft.trim() || null } : {}),
         })
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to share with workspace'
+      const message = error instanceof Error ? error.message : 'Failed to save changes'
       setDetailsError(message)
-      logger.error('Failed to share credential with workspace', error)
+      logger.error('Failed to save secret details', error)
     } finally {
-      setIsSharingWithWorkspace(false)
+      setIsSavingDetails(false)
     }
-  }
+  }, [
+    selectedCredential,
+    isSelectedAdmin,
+    isDetailsDirty,
+    isDisplayNameDirty,
+    isDescriptionDirty,
+    selectedDisplayNameDraft,
+    selectedDescriptionDraft,
+    updateCredential,
+  ])
 
-  const handlePromoteToWorkspace = async () => {
-    if (!selectedCredential || selectedCredential.type !== 'env_personal' || !workspaceId) return
-    const envKey = selectedCredential.envKey || ''
-    if (!envKey) return
-
-    setDetailsError(null)
-    setIsPromoting(true)
-
-    try {
-      const currentValue =
-        personalEnvironment[envKey]?.value || workspaceEnvironmentData?.personal?.[envKey] || ''
-
-      if (!currentValue) {
-        setDetailsError('Cannot promote: secret value is empty.')
-        setIsPromoting(false)
-        return
-      }
-
-      const workspaceVariables = workspaceEnvironmentData?.workspace ?? {}
-      await upsertWorkspaceEnvironment.mutateAsync({
-        workspaceId,
-        variables: { ...workspaceVariables, [envKey]: currentValue },
-      })
-
-      const response = await createCredential.mutateAsync({
-        workspaceId,
-        type: 'env_workspace',
-        envKey,
-        description: selectedCredential.description || undefined,
-      })
-
-      await deleteCredential.mutateAsync(selectedCredential.id)
-
-      const newCredentialId = response?.credential?.id
-      if (newCredentialId) {
-        setSelectedCredentialId(newCredentialId)
-      } else {
-        setSelectedCredentialId(null)
-      }
-
-      await refetchCredentials()
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to promote secret'
-      setDetailsError(message)
-      logger.error('Failed to promote personal secret to workspace', error)
-    } finally {
-      setIsPromoting(false)
-    }
-  }
-
-  const handleReconnectOAuth = async () => {
-    if (
-      !selectedCredential ||
-      selectedCredential.type !== 'oauth' ||
-      !selectedCredential.providerId ||
-      !workspaceId
-    )
-      return
-
-    setDetailsError(null)
-
-    try {
-      await fetch('/api/credentials/draft', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workspaceId,
-          providerId: selectedCredential.providerId,
-          displayName: selectedCredential.displayName,
-          description: selectedCredential.description || undefined,
-          credentialId: selectedCredential.id,
-        }),
-      })
-
-      window.sessionStorage.setItem(
-        'sim.oauth-connect-pending',
-        JSON.stringify({
-          displayName: selectedCredential.displayName,
-          providerId: selectedCredential.providerId,
-          preCount: credentials.filter((c) => c.type === 'oauth').length,
-          workspaceId,
-          reconnect: true,
-        })
-      )
-
-      await connectOAuthService.mutateAsync({
-        providerId: selectedCredential.providerId,
-        callbackURL: window.location.href,
-      })
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to start reconnect'
-      setDetailsError(message)
-      logger.error('Failed to reconnect OAuth credential', error)
-    }
-  }
-
-  const handleAddMember = async () => {
-    if (!selectedCredential || !memberUserId) return
+  const handleAddMember = useCallback(async () => {
+    if (!memberUserId || !selectedCredential) return
     try {
       await upsertMember.mutateAsync({
         credentialId: selectedCredential.id,
@@ -984,668 +705,481 @@ export function CredentialsManager() {
         role: memberRole,
       })
       setMemberUserId('')
-      setMemberRole('admin')
+      setMemberRole('member')
     } catch (error) {
-      logger.error('Failed to add credential member', error)
+      logger.error('Failed to add member', error)
     }
-  }
+  }, [selectedCredential, memberUserId, memberRole])
 
-  const handleChangeMemberRole = async (userId: string, role: WorkspaceCredentialRole) => {
-    if (!selectedCredential) return
-    const currentMember = activeMembers.find((member) => member.userId === userId)
-    if (currentMember?.role === role) return
-    try {
-      await upsertMember.mutateAsync({
-        credentialId: selectedCredential.id,
-        userId,
-        role,
+  const handleRemoveMember = useCallback(
+    async (userId: string) => {
+      if (!selectedCredential) return
+      try {
+        await removeMember.mutateAsync({ credentialId: selectedCredential.id, userId })
+      } catch (error) {
+        logger.error('Failed to remove member', error)
+      }
+    },
+    [selectedCredential]
+  )
+
+  const handleChangeMemberRole = useCallback(
+    async (userId: string, role: WorkspaceCredentialRole) => {
+      if (!selectedCredential) return
+      try {
+        await upsertMember.mutateAsync({ credentialId: selectedCredential.id, userId, role })
+      } catch (error) {
+        logger.error('Failed to change member role', error)
+      }
+    },
+    [selectedCredential]
+  )
+
+  // --- List view handlers ---
+  const handleWorkspaceKeyRename = useCallback(
+    (currentKey: string, currentValue: string) => {
+      const newKey = pendingKeyValue.trim()
+      if (!renamingKey || renamingKey !== currentKey) return
+      setRenamingKey(null)
+      if (!newKey || newKey === currentKey) return
+
+      setWorkspaceVars((prev) => {
+        const next = { ...prev }
+        delete next[currentKey]
+        next[newKey] = currentValue
+        return next
       })
-    } catch (error) {
-      logger.error('Failed to change member role', error)
-    }
-  }
+    },
+    [pendingKeyValue, renamingKey]
+  )
 
-  const handleRemoveMember = async (userId: string) => {
-    if (!selectedCredential) return
-    try {
-      await removeMember.mutateAsync({
-        credentialId: selectedCredential.id,
-        userId,
+  const handleDeleteWorkspaceVar = useCallback((key: string) => {
+    setWorkspaceVars((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }, [])
+
+  const updateNewWorkspaceRow = useCallback(
+    (index: number, field: 'key' | 'value', value: string) => {
+      setNewWorkspaceRows((prev) => updateEnvVarArray(prev, index, field, value))
+    },
+    []
+  )
+
+  const updateEnvVar = useCallback((index: number, field: 'key' | 'value', value: string) => {
+    setEnvVars((prev) => updateEnvVarArray(prev, index, field, value))
+  }, [])
+
+  const removeEnvVar = useCallback((index: number) => {
+    setEnvVars((prev) => {
+      const filtered = prev.filter((_, i) => i !== index)
+      const hasTrailingEmpty =
+        filtered.length > 0 &&
+        !filtered[filtered.length - 1].key &&
+        !filtered[filtered.length - 1].value
+      return hasTrailingEmpty ? filtered : [...filtered, createEmptyEnvVar()]
+    })
+  }, [])
+
+  const handleValueFocus = useCallback((index: number, e: React.FocusEvent<HTMLInputElement>) => {
+    setFocusedValueIndex(index)
+    e.target.scrollLeft = 0
+  }, [])
+
+  const handleValueClick = useCallback((e: React.MouseEvent<HTMLInputElement>) => {
+    e.preventDefault()
+    e.currentTarget.scrollLeft = 0
+  }, [])
+
+  const parseEnvVarLine = useCallback((line: string): UIEnvironmentVariable | null => {
+    const trimmed = line.trim()
+
+    if (!trimmed || trimmed.startsWith('#')) return null
+
+    const withoutExport = trimmed.replace(/^export\s+/, '')
+
+    const equalIndex = withoutExport.indexOf('=')
+    if (equalIndex === -1 || equalIndex === 0) return null
+
+    const potentialKey = withoutExport.substring(0, equalIndex).trim()
+    if (!isValidEnvVarName(potentialKey)) return null
+
+    let value = withoutExport.substring(equalIndex + 1)
+
+    const looksLikeBase64Key = /^[A-Za-z0-9+/]+$/.test(potentialKey) && !potentialKey.includes('_')
+    const valueIsJustPadding = /^=+$/.test(value.trim())
+    if (looksLikeBase64Key && valueIsJustPadding && potentialKey.length > 20) {
+      return null
+    }
+
+    const trimmedValue = value.trim()
+    if (
+      !trimmedValue.startsWith('"') &&
+      !trimmedValue.startsWith("'") &&
+      !trimmedValue.startsWith('`')
+    ) {
+      const commentIndex = value.search(/\s#/)
+      if (commentIndex !== -1) {
+        value = value.substring(0, commentIndex)
+      }
+    }
+
+    value = value.trim()
+
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'")) ||
+      (value.startsWith('`') && value.endsWith('`'))
+    ) {
+      value = value.slice(1, -1)
+    }
+
+    return { key: potentialKey, value, id: generateRowId() }
+  }, [])
+
+  const handleSingleValuePaste = useCallback(
+    (text: string, index: number, inputType: 'key' | 'value') => {
+      setEnvVars((prev) => {
+        const newEnvVars = [...prev]
+        newEnvVars[index][inputType] = text
+        return newEnvVars
       })
+    },
+    []
+  )
+
+  const handleKeyValuePaste = useCallback(
+    (lines: string[]) => {
+      const parsedVars = lines
+        .map(parseEnvVarLine)
+        .filter((parsed): parsed is UIEnvironmentVariable => parsed !== null)
+        .filter(({ key, value }) => key && value)
+
+      if (parsedVars.length > 0) {
+        setEnvVars((prev) => {
+          const existingVars = prev.filter((v) => v.key || v.value)
+          return [...existingVars, ...parsedVars, createEmptyEnvVar()]
+        })
+        scrollToBottom()
+      }
+    },
+    [parseEnvVarLine, scrollToBottom]
+  )
+
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent<HTMLInputElement>, index: number) => {
+      const text = e.clipboardData.getData('text').trim()
+      if (!text) return
+
+      const lines = text.split('\n').filter((line) => line.trim())
+      if (lines.length === 0) return
+
+      e.preventDefault()
+
+      const inputType = (e.target as HTMLInputElement).getAttribute('data-input-type') as
+        | 'key'
+        | 'value'
+
+      if (inputType) {
+        const hasValidEnvVarPattern = lines.some((line) => parseEnvVarLine(line) !== null)
+        if (!hasValidEnvVarPattern) {
+          handleSingleValuePaste(text, index, inputType)
+          return
+        }
+      }
+
+      handleKeyValuePaste(lines)
+    },
+    [parseEnvVarLine, handleSingleValuePaste, handleKeyValuePaste]
+  )
+
+  const resetToSaved = useCallback(() => {
+    setEnvVars(JSON.parse(JSON.stringify(initialVarsRef.current)))
+    setWorkspaceVars({ ...initialWorkspaceVarsRef.current })
+    setNewWorkspaceRows([createEmptyEnvVar()])
+    setShowUnsavedChanges(false)
+  }, [])
+
+  const handleCancel = resetToSaved
+
+  const handleSave = useCallback(async () => {
+    const prevInitialVars = [...initialVarsRef.current]
+    const prevInitialWorkspaceVars = { ...initialWorkspaceVarsRef.current }
+
+    try {
+      setShowUnsavedChanges(false)
+      hasSavedRef.current = true
+
+      const mergedWorkspaceVars = { ...workspaceVars }
+      for (const row of newWorkspaceRows) {
+        if (row.key && row.value) {
+          mergedWorkspaceVars[row.key] = row.value
+        }
+      }
+
+      initialWorkspaceVarsRef.current = { ...mergedWorkspaceVars }
+      initialVarsRef.current = JSON.parse(JSON.stringify(envVars.filter((v) => v.key && v.value)))
+
+      setChangeToken((prev) => prev + 1)
+
+      const validVariables = envVars
+        .filter((v) => v.key && v.value)
+        .reduce<Record<string, string>>((acc, { key, value }) => ({ ...acc, [key]: value }), {})
+
+      await savePersonalMutation.mutateAsync({ variables: validVariables })
+
+      const before = prevInitialWorkspaceVars
+      const after = mergedWorkspaceVars
+      const toUpsert: Record<string, string> = {}
+      const toDelete: string[] = []
+
+      for (const [k, v] of Object.entries(after)) {
+        if (!(k in before) || before[k] !== v) {
+          toUpsert[k] = v
+        }
+      }
+
+      for (const k of Object.keys(before)) {
+        if (!(k in after)) toDelete.push(k)
+      }
+
+      if (workspaceId) {
+        if (Object.keys(toUpsert).length) {
+          await upsertWorkspaceMutation.mutateAsync({ workspaceId, variables: toUpsert })
+        }
+        if (toDelete.length) {
+          await removeWorkspaceMutation.mutateAsync({ workspaceId, keys: toDelete })
+        }
+      }
+
+      setWorkspaceVars(mergedWorkspaceVars)
+      setNewWorkspaceRows([createEmptyEnvVar()])
     } catch (error) {
-      logger.error('Failed to remove credential member', error)
+      hasSavedRef.current = false
+      initialVarsRef.current = prevInitialVars
+      initialWorkspaceVarsRef.current = prevInitialWorkspaceVars
+      logger.error('Failed to save environment variables:', error)
     }
-  }
+  }, [
+    envVars,
+    workspaceVars,
+    newWorkspaceRows,
+    workspaceId,
+    savePersonalMutation,
+    upsertWorkspaceMutation,
+    removeWorkspaceMutation,
+  ])
 
-  const hasCredentials = credentials && credentials.length > 0
-  const showNoResults =
-    searchTerm.trim() && sortedCredentials.length === 0 && credentials.length > 0
+  const handleDiscardAndNavigate = useCallback(() => {
+    shouldBlockNavRef.current = false
+    resetToSaved()
+    setSelectedCredentialId(null)
 
-  const createModalJsx = (
-    <Modal
-      open={showCreateModal}
-      onOpenChange={(open) => {
-        setShowCreateModal(open)
-        if (!open) resetCreateForm()
-      }}
-    >
-      <ModalContent size='md'>
-        <ModalHeader>Create Secret</ModalHeader>
-        <ModalBody>
-          {(createError ||
-            existingOAuthDisplayName ||
-            selectedExistingEnvCredential ||
-            crossScopeEnvConflict) && (
-            <div className='mb-3 flex flex-col gap-2'>
-              {createError && (
-                <Badge variant='red' size='lg' dot className='max-w-full'>
-                  {createError}
-                </Badge>
-              )}
-              {existingOAuthDisplayName && (
-                <Badge variant='red' size='lg' dot className='max-w-full'>
-                  A secret named "{existingOAuthDisplayName.displayName}" already exists.
-                </Badge>
-              )}
-              {selectedExistingEnvCredential && (
-                <Badge variant='red' size='lg' dot className='max-w-full'>
-                  A secret with key "{selectedExistingEnvCredential.displayName}" already exists.
-                </Badge>
-              )}
-              {!selectedExistingEnvCredential && crossScopeEnvConflict && (
-                <Badge variant='amber' size='lg' dot className='max-w-full'>
-                  A workspace secret with key "{crossScopeEnvConflict.envKey}" already exists.
-                  Workspace secrets take precedence at runtime.
-                </Badge>
-              )}
+    if (pendingNavigationUrlRef.current) {
+      const url = pendingNavigationUrlRef.current
+      pendingNavigationUrlRef.current = null
+      router.push(url)
+    }
+  }, [router, resetToSaved])
+
+  const renderEnvVarRow = useCallback(
+    (envVar: UIEnvironmentVariable, originalIndex: number) => {
+      const isConflict = !!envVar.key && allWorkspaceKeys.has(envVar.key)
+      const keyError = validateEnvVarKey(envVar.key)
+      const maskedValueStyle =
+        focusedValueIndex !== originalIndex && !isConflict
+          ? ({ WebkitTextSecurity: 'disc' } as React.CSSProperties)
+          : undefined
+
+      const isComplete = Boolean(envVar.key && envVar.value)
+      const hasCredential = isComplete && envKeyToCredential.has(envVar.key)
+
+      const hasContent = Boolean(envVar.key || envVar.value)
+
+      return (
+        <div className='contents'>
+          <EmcnInput
+            data-input-type='key'
+            value={envVar.key}
+            onChange={(e) => updateEnvVar(originalIndex, 'key', e.target.value)}
+            onPaste={(e) => handlePaste(e, originalIndex)}
+            placeholder='API_KEY'
+            name={`env_variable_name_${envVar.id || originalIndex}_${Math.random()}`}
+            autoComplete='off'
+            autoCapitalize='off'
+            spellCheck='false'
+            readOnly
+            onFocus={(e) => e.target.removeAttribute('readOnly')}
+            className={`h-9 ${isConflict ? CONFLICT_CLASS : ''} ${keyError ? 'border-[var(--text-error)]' : ''}`}
+          />
+          <div />
+          <EmcnInput
+            data-input-type='value'
+            value={envVar.value}
+            onChange={(e) => updateEnvVar(originalIndex, 'value', e.target.value)}
+            type='text'
+            onFocus={(e) => {
+              if (!isConflict) {
+                e.target.removeAttribute('readOnly')
+                handleValueFocus(originalIndex, e)
+              }
+            }}
+            onClick={handleValueClick}
+            onBlur={() => setFocusedValueIndex(null)}
+            onPaste={(e) => handlePaste(e, originalIndex)}
+            placeholder={isConflict ? 'Workspace override active' : 'Enter value'}
+            disabled={isConflict}
+            aria-disabled={isConflict}
+            name={`env_variable_value_${envVar.id || originalIndex}_${Math.random()}`}
+            autoComplete='off'
+            autoCapitalize='off'
+            spellCheck='false'
+            readOnly={isConflict}
+            style={maskedValueStyle}
+            className={`h-9 ${isComplete ? '' : 'col-span-2'} ${isConflict ? `cursor-not-allowed ${CONFLICT_CLASS}` : ''}`}
+          />
+          {isComplete && (
+            <Button
+              variant='default'
+              onClick={() => handleViewDetails(envVar.key, 'env_personal')}
+              disabled={!hasCredential}
+              className={`ml-[8px] h-9 ${!hasCredential ? 'opacity-40' : ''}`}
+            >
+              Details
+            </Button>
+          )}
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                variant='ghost'
+                onClick={() => removeEnvVar(originalIndex)}
+                disabled={!hasContent}
+                className={`h-9 w-9 ${!hasContent ? 'opacity-30' : ''}`}
+              >
+                <Trash />
+              </Button>
+            </Tooltip.Trigger>
+            {hasContent && <Tooltip.Content>Delete secret</Tooltip.Content>}
+          </Tooltip.Root>
+          {keyError && (
+            <div
+              className={`${COL_SPAN_ALL} mt-[-4px] text-[12px] text-[var(--text-error)] leading-tight`}
+            >
+              {keyError}
             </div>
           )}
-          <div className='flex flex-col gap-[12px]'>
-            <div>
-              <Label>Type</Label>
-              <div className='mt-[6px]'>
-                <Combobox
-                  options={createTypeOptions.map((option) => ({
-                    value: option.value,
-                    label: option.label,
-                  }))}
-                  value={
-                    createTypeOptions.find((option) => option.value === createType)?.label || ''
-                  }
-                  selectedValue={createType}
-                  onChange={(value) => {
-                    const newType = value as CreateCredentialType
-                    setCreateType(newType)
-                    setCreateError(null)
-                    if (
-                      newType === 'oauth' &&
-                      !createOAuthProviderId &&
-                      oauthConnections.length > 0
-                    ) {
-                      setCreateOAuthProviderId(oauthConnections[0]?.providerId || '')
-                    }
-                  }}
-                  placeholder='Select type'
-                />
-              </div>
-            </div>
-
-            {createType === 'oauth' ? (
-              <div className='flex flex-col gap-[10px]'>
-                <div>
-                  <Label>Account</Label>
-                  <div className='mt-[6px]'>
-                    <Combobox
-                      options={oauthServiceOptions}
-                      value={
-                        oauthServiceOptions.find((option) => option.value === createOAuthProviderId)
-                          ?.label || ''
-                      }
-                      selectedValue={createOAuthProviderId}
-                      onChange={(value) => {
-                        setCreateOAuthProviderId(value)
-                        setCreateError(null)
-                      }}
-                      placeholder='Select OAuth service'
-                      searchable
-                      searchPlaceholder='Search services...'
-                      overlayContent={
-                        createOAuthProviderId
-                          ? (() => {
-                              const config = getServiceConfigByProviderId(createOAuthProviderId)
-                              const label =
-                                oauthServiceOptions.find((o) => o.value === createOAuthProviderId)
-                                  ?.label || ''
-                              return (
-                                <div className='flex items-center gap-[8px]'>
-                                  {config &&
-                                    createElement(config.icon, {
-                                      className: 'h-[14px] w-[14px] flex-shrink-0',
-                                    })}
-                                  <span className='truncate'>{label}</span>
-                                </div>
-                              )
-                            })()
-                          : undefined
-                      }
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label>
-                    Display name<span className='ml-1'>*</span>
-                  </Label>
-                  <Input
-                    value={createDisplayName}
-                    onChange={(event) => setCreateDisplayName(event.target.value)}
-                    placeholder='Secret name'
-                    autoComplete='off'
-                    data-lpignore='true'
-                    className='mt-[6px]'
-                  />
-                </div>
-                <div>
-                  <Label>Description</Label>
-                  <Textarea
-                    value={createDescription}
-                    onChange={(event) => setCreateDescription(event.target.value)}
-                    placeholder='Optional description'
-                    maxLength={500}
-                    autoComplete='off'
-                    data-lpignore='true'
-                    className='mt-[6px] min-h-[80px] resize-none'
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className='flex flex-col gap-[10px]'>
-                {createSecretInputMode === 'single' ? (
-                  <>
-                    <div>
-                      <div className='grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)] items-end'>
-                        <Label>
-                          Key<span className='ml-1'>*</span>
-                        </Label>
-                        <div />
-                        <Label>
-                          Value<span className='ml-1'>*</span>
-                        </Label>
-                      </div>
-                      <div className='mt-[8px] grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)] items-center'>
-                        <Input
-                          value={createEnvKey}
-                          onChange={(event) => {
-                            setCreateEnvKey(event.target.value)
-                          }}
-                          onPaste={(event) => {
-                            const pasted = event.clipboardData.getData('text')
-                            const { entries } = parseEnvText(pasted)
-                            if (entries.length === 0) {
-                              return
-                            }
-
-                            event.preventDefault()
-                            if (entries.length === 1) {
-                              setCreateEnvKey(entries[0].key)
-                              setCreateEnvValue(entries[0].value)
-                              setCreateError(null)
-                              return
-                            }
-
-                            setCreateSecretInputMode('bulk')
-                            setCreateBulkEntries(entries)
-                            setCreateError(null)
-                          }}
-                          placeholder='API_KEY'
-                          autoComplete='off'
-                          autoCapitalize='none'
-                          autoCorrect='off'
-                          spellCheck={false}
-                          data-lpignore='true'
-                          data-1p-ignore='true'
-                        />
-                        <div />
-                        <Input
-                          type='text'
-                          value={createEnvValue}
-                          onChange={(event) => setCreateEnvValue(event.target.value)}
-                          onFocus={() => setIsCreateEnvValueFocused(true)}
-                          onBlur={() => setIsCreateEnvValueFocused(false)}
-                          placeholder='Value'
-                          autoComplete='new-password'
-                          autoCapitalize='none'
-                          autoCorrect='off'
-                          spellCheck={false}
-                          data-lpignore='true'
-                          data-1p-ignore='true'
-                          style={
-                            isCreateEnvValueFocused
-                              ? undefined
-                              : ({ WebkitTextSecurity: 'disc' } as React.CSSProperties)
-                          }
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label>Description</Label>
-                      <Textarea
-                        value={createDescription}
-                        onChange={(event) => setCreateDescription(event.target.value)}
-                        placeholder='Optional description'
-                        maxLength={500}
-                        autoComplete='off'
-                        className='mt-[6px] min-h-[80px] resize-none'
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <div>
-                    <Label>Secrets ({createBulkEntries.length})</Label>
-                    <div className='mt-[6px] grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_28px] items-end'>
-                      <span className='text-[11px] text-[var(--text-secondary)]'>Key</span>
-                      <div />
-                      <span className='text-[11px] text-[var(--text-secondary)]'>Value</span>
-                      <div />
-                    </div>
-                    <div className='mt-[4px] flex max-h-[240px] flex-col gap-[4px] overflow-y-auto'>
-                      {createBulkEntries.map((entry, index) => (
-                        <div
-                          key={index}
-                          className='grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_28px] items-center'
-                        >
-                          <Input
-                            value={entry.key}
-                            onChange={(event) => {
-                              const updated = [...createBulkEntries]
-                              updated[index] = { ...entry, key: event.target.value }
-                              setCreateBulkEntries(updated)
-                            }}
-                            placeholder='KEY'
-                            autoComplete='off'
-                            autoCapitalize='none'
-                            autoCorrect='off'
-                            spellCheck={false}
-                            data-lpignore='true'
-                            data-1p-ignore='true'
-                          />
-                          <div />
-                          <Input
-                            type='text'
-                            value={entry.value}
-                            onChange={(event) => {
-                              const updated = [...createBulkEntries]
-                              updated[index] = { ...entry, value: event.target.value }
-                              setCreateBulkEntries(updated)
-                            }}
-                            placeholder='Value'
-                            autoComplete='new-password'
-                            autoCapitalize='none'
-                            autoCorrect='off'
-                            spellCheck={false}
-                            data-lpignore='true'
-                            data-1p-ignore='true'
-                            style={{ WebkitTextSecurity: 'disc' } as React.CSSProperties}
-                          />
-                          <Button
-                            variant='ghost'
-                            className='h-[28px] w-[28px] p-0'
-                            onClick={() => {
-                              const updated = createBulkEntries.filter((_, i) => i !== index)
-                              if (updated.length === 0) {
-                                setCreateSecretInputMode('single')
-                              }
-                              setCreateBulkEntries(updated)
-                            }}
-                          >
-                            <X className='h-[12px] w-[12px]' />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <Label className='block'>Scope</Label>
-                  <div className='mt-[8px]'>
-                    <ButtonGroup
-                      value={createSecretScope}
-                      onValueChange={(value) => setCreateSecretScope(value as SecretScope)}
-                    >
-                      <ButtonGroupItem
-                        value='workspace'
-                        className='h-[28px] min-w-[80px] px-[10px] py-0 text-[13px]'
-                      >
-                        Workspace
-                      </ButtonGroupItem>
-                      <ButtonGroupItem
-                        value='personal'
-                        className='h-[28px] min-w-[72px] px-[10px] py-0 text-[13px]'
-                      >
-                        Personal
-                      </ButtonGroupItem>
-                    </ButtonGroup>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </ModalBody>
-        <ModalFooter>
-          <Button variant='default' onClick={() => setShowCreateModal(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant='tertiary'
-            onClick={handleCreateCredential}
-            disabled={
-              (createType === 'oauth'
-                ? !createOAuthProviderId ||
-                  !createDisplayName.trim() ||
-                  connectOAuthService.isPending ||
-                  Boolean(existingOAuthDisplayName)
-                : createSecretInputMode === 'bulk'
-                  ? createBulkEntries.length === 0
-                  : !createEnvKey.trim() ||
-                    !createEnvValue.trim() ||
-                    Boolean(selectedExistingEnvCredential)) ||
-              createCredential.isPending ||
-              savePersonalEnvironment.isPending ||
-              upsertWorkspaceEnvironment.isPending ||
-              disconnectOAuthService.isPending
-            }
-          >
-            {createType === 'oauth'
-              ? connectOAuthService.isPending
-                ? 'Connecting...'
-                : 'Connect'
-              : createSecretInputMode === 'bulk'
-                ? createCredential.isPending ||
-                  savePersonalEnvironment.isPending ||
-                  upsertWorkspaceEnvironment.isPending
-                  ? 'Importing...'
-                  : 'Import all'
-                : 'Create'}
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
-  )
-
-  const oauthRequiredModalJsx = showCreateOAuthRequiredModal && createOAuthProviderId && (
-    <OAuthRequiredModal
-      isOpen={showCreateOAuthRequiredModal}
-      onClose={() => setShowCreateOAuthRequiredModal(false)}
-      provider={createOAuthProviderId as OAuthProvider}
-      toolName={resolveProviderLabel(createOAuthProviderId)}
-      requiredScopes={createOAuthRequiredScopes}
-      newScopes={[]}
-      serviceId={selectedOAuthService?.id || createOAuthProviderId}
-      onConnect={async () => {
-        await handleConnectOAuthService()
-      }}
-    />
-  )
-
-  const handleCloseDeleteDialog = () => {
-    setShowDeleteConfirmDialog(false)
-    setCredentialToDelete(null)
-    setDeleteError(null)
-  }
-
-  const deleteConfirmDialogJsx = (
-    <Modal
-      open={showDeleteConfirmDialog}
-      onOpenChange={(open) => !open && handleCloseDeleteDialog()}
-    >
-      <ModalContent size='sm'>
-        <ModalHeader>
-          {credentialToDelete?.type === 'oauth' ? 'Disconnect Secret' : 'Delete Secret'}
-        </ModalHeader>
-        <ModalBody>
-          <p className='text-[var(--text-secondary)]'>
-            Are you sure you want to{' '}
-            {credentialToDelete?.type === 'oauth' ? 'disconnect' : 'delete'}{' '}
-            <span className='font-medium text-[var(--text-primary)]'>
-              {credentialToDelete?.displayName}
-            </span>
-            ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
-          </p>
-          {deleteError && (
-            <div className='mt-[12px] rounded-[8px] border border-red-500/50 bg-red-50 p-[12px] dark:bg-red-950/30'>
-              <div className='flex items-start gap-[10px]'>
-                <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400' />
-                <p className='text-[13px] text-red-700 dark:text-red-300'>{deleteError}</p>
-              </div>
+          {isConflict && !keyError && (
+            <div
+              className={`${COL_SPAN_ALL} mt-[-4px] text-[12px] text-[var(--text-error)] leading-tight`}
+            >
+              Workspace variable with the same name overrides this. Rename your personal key to use
+              it.
             </div>
           )}
-        </ModalBody>
-        <ModalFooter>
-          <Button variant='default' onClick={handleCloseDeleteDialog}>
-            Cancel
-          </Button>
-          <Button
-            variant='destructive'
-            onClick={handleConfirmDelete}
-            disabled={deleteCredential.isPending || disconnectOAuthService.isPending}
-          >
-            {deleteCredential.isPending || disconnectOAuthService.isPending
-              ? 'Deleting...'
-              : credentialToDelete?.type === 'oauth'
-                ? 'Disconnect'
-                : 'Delete'}
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+        </div>
+      )
+    },
+    [
+      allWorkspaceKeys,
+      focusedValueIndex,
+      updateEnvVar,
+      handlePaste,
+      handleValueFocus,
+      handleValueClick,
+      removeEnvVar,
+      handleViewDetails,
+      envKeyToCredential,
+    ]
   )
 
-  const unsavedChangesAlertJsx = (
-    <Modal open={showUnsavedChangesAlert} onOpenChange={setShowUnsavedChangesAlert}>
-      <ModalContent size='sm'>
-        <ModalHeader>Unsaved Changes</ModalHeader>
-        <ModalBody>
-          <p className='text-[var(--text-secondary)]'>
-            You have unsaved changes. Are you sure you want to discard them?
-          </p>
-        </ModalBody>
-        <ModalFooter>
-          <Button variant='default' onClick={() => setShowUnsavedChangesAlert(false)}>
-            Keep Editing
-          </Button>
-          <Button variant='destructive' onClick={handleDiscardChanges}>
-            Discard Changes
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
-  )
+  const isPendingNavigation = pendingNavigationUrlRef.current !== null
 
+  // Detail view (matches integrations detail page layout)
   if (selectedCredential) {
     return (
       <>
         <div className='flex h-full flex-col gap-[18px]'>
           <div className='min-h-0 flex-1 overflow-y-auto'>
             <div className='flex flex-col gap-[18px]'>
-              {selectedCredential.type === 'oauth' ? (
-                <div className='rounded-[8px] border border-[var(--border-1)] p-[10px]'>
-                  <div className='flex items-center justify-between gap-[12px]'>
-                    <div className='flex min-w-0 items-center gap-[10px]'>
-                      <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-[var(--surface-5)]'>
-                        {selectedOAuthServiceConfig ? (
-                          createElement(selectedOAuthServiceConfig.icon, { className: 'h-4 w-4' })
-                        ) : (
-                          <span className='font-medium text-[13px] text-[var(--text-tertiary)]'>
-                            {resolveProviderLabel(selectedCredential.providerId).slice(0, 1)}
-                          </span>
-                        )}
-                      </div>
-                      <div className='min-w-0'>
-                        <p className='text-[11px] text-[var(--text-tertiary)]'>Connected service</p>
-                        <p className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
-                          {resolveProviderLabel(selectedCredential.providerId) || 'Unknown service'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className='flex flex-shrink-0 items-center gap-[8px]'>
-                      <Badge variant={typeBadgeVariant(selectedCredential.type)}>
-                        {typeLabel(selectedCredential.type)}
-                      </Badge>
-                      {selectedCredential.role && (
-                        <Badge
-                          variant={
-                            selectedCredential.role === 'admin' ? 'purple' : 'gray-secondary'
-                          }
-                        >
-                          {selectedCredential.role}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
+              <div className='flex items-center gap-[10px] border-[var(--border)] border-b pb-[12px]'>
+                <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-[8px] bg-[var(--surface-5)]'>
+                  <Key className='h-[18px] w-[18px] text-[var(--text-tertiary)]' />
                 </div>
-              ) : (
-                <div className='flex flex-col gap-[10px]'>
-                  <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
-                    <Label>Type</Label>
-                  </div>
+                <div className='min-w-0 flex-1'>
                   <div className='flex items-center gap-[8px]'>
-                    <Badge variant={typeBadgeVariant(selectedCredential.type)}>
-                      {typeLabel(selectedCredential.type)}
+                    <p className='truncate font-medium text-[15px] text-[var(--text-primary)]'>
+                      {selectedCredential.envKey || selectedCredential.displayName}
+                    </p>
+                    <Badge variant='gray-secondary' size='sm'>
+                      {selectedCredential.type === 'env_personal' ? 'personal' : 'workspace'}
                     </Badge>
                     {selectedCredential.role && (
-                      <Badge
-                        variant={selectedCredential.role === 'admin' ? 'purple' : 'gray-secondary'}
-                      >
+                      <Badge variant='gray-secondary' size='sm'>
                         {selectedCredential.role}
                       </Badge>
                     )}
                   </div>
+                  <p className='text-[13px] text-[var(--text-muted)]'>
+                    {selectedCredential.type === 'env_personal'
+                      ? 'Personal secret'
+                      : 'Workspace secret'}
+                  </p>
                 </div>
-              )}
+              </div>
 
-              {selectedCredential.type === 'oauth' ? (
-                <>
-                  <div className='flex flex-col gap-[10px]'>
-                    <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
-                      <Label className='flex items-center gap-[6px]'>
-                        Display Name
-                        <Tooltip.Root>
-                          <Tooltip.Trigger asChild>
-                            <button
-                              type='button'
-                              className='-my-1 flex h-5 w-5 items-center justify-center'
-                              onClick={() => {
-                                navigator.clipboard.writeText(selectedCredential.id)
-                                setCopyIdSuccess(true)
-                                setTimeout(() => setCopyIdSuccess(false), 2000)
-                              }}
-                              aria-label='Copy value'
-                            >
-                              {copyIdSuccess ? (
-                                <Check className='h-3 w-3 text-green-500' />
-                              ) : (
-                                <Clipboard className='h-3 w-3 text-[var(--text-icon)]' />
-                              )}
-                            </button>
-                          </Tooltip.Trigger>
-                          <Tooltip.Content>
-                            {copyIdSuccess ? 'Copied!' : 'Copy secret ID'}
-                          </Tooltip.Content>
-                        </Tooltip.Root>
-                      </Label>
-                    </div>
-                    <Input
-                      id='credential-display-name'
-                      value={selectedDisplayNameDraft}
-                      onChange={(event) => setSelectedDisplayNameDraft(event.target.value)}
-                      autoComplete='off'
-                      data-lpignore='true'
-                      disabled={!isSelectedAdmin}
-                    />
-                  </div>
+              <div className='flex flex-col gap-[6px]'>
+                <Label className='flex items-center gap-[6px]'>
+                  Display Name
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <button
+                        type='button'
+                        className='-my-1 flex h-5 w-5 items-center justify-center'
+                        onClick={() => {
+                          navigator.clipboard.writeText(selectedCredential.id)
+                          setCopyIdSuccess(true)
+                          setTimeout(() => setCopyIdSuccess(false), 2000)
+                        }}
+                        aria-label='Copy value'
+                      >
+                        {copyIdSuccess ? (
+                          <Check className='h-3 w-3 text-green-500' />
+                        ) : (
+                          <Clipboard className='h-3 w-3 text-[var(--text-icon)]' />
+                        )}
+                      </button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content>
+                      {copyIdSuccess ? 'Copied!' : 'Copy credential ID'}
+                    </Tooltip.Content>
+                  </Tooltip.Root>
+                </Label>
+                <EmcnInput
+                  id='credential-display-name'
+                  value={selectedDisplayNameDraft}
+                  onChange={(event) => setSelectedDisplayNameDraft(event.target.value)}
+                  autoComplete='off'
+                  data-lpignore='true'
+                  disabled={!isSelectedAdmin}
+                />
+              </div>
 
-                  <div className='flex flex-col gap-[10px]'>
-                    <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
-                      <Label>Description</Label>
-                    </div>
-                    <Textarea
-                      id='credential-description'
-                      value={selectedDescriptionDraft}
-                      onChange={(event) => setSelectedDescriptionDraft(event.target.value)}
-                      placeholder='Add a description...'
-                      maxLength={500}
-                      autoComplete='off'
-                      data-lpignore='true'
-                      disabled={!isSelectedAdmin}
-                      className='min-h-[60px] resize-none'
-                    />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className='flex flex-col gap-[10px]'>
-                    <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
-                      <Label>Secret key</Label>
-                    </div>
-                    <Input
-                      id='credential-env-key'
-                      value={selectedCredential.envKey || ''}
-                      readOnly
-                      disabled
-                      autoComplete='off'
-                    />
-                  </div>
-
-                  <div className='flex flex-col gap-[10px]'>
-                    <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
-                      <Label>Secret value</Label>
-                      {canEditSelectedEnvValue && (
-                        <button
-                          type='button'
-                          className='-my-1 h-5 px-2 py-0 text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                          onClick={() => setIsEditingEnvValue((value) => !value)}
-                        >
-                          {isEditingEnvValue ? 'Hide' : 'Edit'}
-                        </button>
-                      )}
-                    </div>
-                    <Input
-                      id='credential-env-value'
-                      type={isEditingEnvValue ? 'text' : 'password'}
-                      value={selectedEnvValueDraft}
-                      onChange={(event) => setSelectedEnvValueDraft(event.target.value)}
-                      onFocus={() => {
-                        if (canEditSelectedEnvValue) {
-                          setIsEditingEnvValue(true)
-                        }
-                      }}
-                      autoComplete='new-password'
-                      autoCapitalize='none'
-                      autoCorrect='off'
-                      spellCheck={false}
-                      data-lpignore='true'
-                      data-1p-ignore='true'
-                      readOnly={!canEditSelectedEnvValue || !isEditingEnvValue}
-                      disabled={!canEditSelectedEnvValue}
-                    />
-                  </div>
-
-                  <div className='flex flex-col gap-[10px]'>
-                    <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
-                      <Label>Description</Label>
-                    </div>
-                    <Textarea
-                      id='credential-description'
-                      value={selectedDescriptionDraft}
-                      onChange={(event) => setSelectedDescriptionDraft(event.target.value)}
-                      placeholder='Add a description...'
-                      maxLength={500}
-                      autoComplete='off'
-                      disabled={!isSelectedAdmin}
-                      className='min-h-[60px] resize-none'
-                    />
-                  </div>
-                </>
-              )}
+              <div className='flex flex-col gap-[6px]'>
+                <Label>Description</Label>
+                <Textarea
+                  id='credential-description'
+                  value={selectedDescriptionDraft}
+                  onChange={(event) => setSelectedDescriptionDraft(event.target.value)}
+                  placeholder='Add a description...'
+                  maxLength={500}
+                  autoComplete='off'
+                  data-lpignore='true'
+                  disabled={!isSelectedAdmin}
+                  className='min-h-[60px] resize-none'
+                />
+              </div>
 
               {detailsError && (
                 <div className='rounded-[8px] border border-[var(--status-red)]/40 bg-[var(--status-red)]/10 px-[10px] py-[8px] text-[13px] text-[var(--status-red)]'>
@@ -1653,10 +1187,8 @@ export function CredentialsManager() {
                 </div>
               )}
 
-              <div className='flex flex-col gap-[10px]'>
-                <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
-                  <Label>Members ({activeMembers.length})</Label>
-                </div>
+              <div className='flex flex-col gap-[6px] border-[var(--border)] border-t pt-[16px]'>
+                <Label>Members ({activeMembers.length})</Label>
 
                 {membersLoading ? (
                   <div className='flex flex-col gap-[8px]'>
@@ -1668,27 +1200,39 @@ export function CredentialsManager() {
                     {activeMembers.map((member) => (
                       <div
                         key={member.id}
-                        className='grid grid-cols-[1fr_120px_auto] items-center gap-[8px]'
+                        className='grid grid-cols-[1fr_120px_72px] items-center gap-[8px]'
                       >
-                        <div className='min-w-0'>
-                          <p className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
-                            {member.userName || member.userEmail || member.userId}
-                          </p>
-                          <p className='truncate text-[11px] text-[var(--text-tertiary)]'>
-                            {member.userEmail || member.userId}
-                          </p>
+                        <div className='flex min-w-0 items-center gap-[10px]'>
+                          <Avatar className='h-8 w-8 flex-shrink-0'>
+                            <AvatarFallback
+                              style={{
+                                background: getUserColor(member.userId || member.userEmail || ''),
+                              }}
+                              className='border-0 text-[13px] text-white'
+                            >
+                              {(member.userName || member.userEmail || '?').charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className='min-w-0'>
+                            <p className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
+                              {member.userName || member.userEmail || member.userId}
+                            </p>
+                            <p className='truncate text-[12px] text-[var(--text-tertiary)]'>
+                              {member.userEmail || member.userId}
+                            </p>
+                          </div>
                         </div>
 
                         {isSelectedAdmin ? (
                           <>
                             <Combobox
-                              options={roleOptions.map((option) => ({
+                              options={ROLE_OPTIONS.map((option) => ({
                                 value: option.value,
                                 label: option.label,
                               }))}
                               value={
-                                roleOptions.find((option) => option.value === member.role)?.label ||
-                                ''
+                                ROLE_OPTIONS.find((option) => option.value === member.role)
+                                  ?.label || ''
                               }
                               selectedValue={member.role}
                               onChange={(value) =>
@@ -1701,30 +1245,25 @@ export function CredentialsManager() {
                               disabled={member.role === 'admin' && adminMemberCount <= 1}
                               size='sm'
                             />
-                            {selectedCredential.type !== 'env_workspace' ? (
-                              <Button
-                                variant='ghost'
-                                onClick={() => handleRemoveMember(member.userId)}
-                                disabled={member.role === 'admin' && adminMemberCount <= 1}
-                              >
-                                Remove
-                              </Button>
-                            ) : (
-                              <div />
-                            )}
+                            <Button
+                              variant='ghost'
+                              onClick={() => handleRemoveMember(member.userId)}
+                              disabled={member.role === 'admin' && adminMemberCount <= 1}
+                              className='w-full justify-end'
+                            >
+                              Remove
+                            </Button>
                           </>
                         ) : (
                           <>
-                            <Badge variant={member.role === 'admin' ? 'purple' : 'gray-secondary'}>
-                              {member.role}
-                            </Badge>
+                            <Badge variant='gray-secondary'>{member.role}</Badge>
                             <div />
                           </>
                         )}
                       </div>
                     ))}
-                    {isSelectedAdmin && selectedCredential.type !== 'env_workspace' && (
-                      <div className='grid grid-cols-[1fr_120px_auto] items-center gap-[8px] border-[var(--border)] border-t border-dashed pt-[8px]'>
+                    {isSelectedAdmin && (
+                      <div className='grid grid-cols-[1fr_120px_72px] items-center gap-[8px] border-[var(--border)] border-t pt-[8px]'>
                         <Combobox
                           options={workspaceUserOptions}
                           value={
@@ -1737,12 +1276,12 @@ export function CredentialsManager() {
                           size='sm'
                         />
                         <Combobox
-                          options={roleOptions.map((option) => ({
+                          options={ROLE_OPTIONS.map((option) => ({
                             value: option.value,
                             label: option.label,
                           }))}
                           value={
-                            roleOptions.find((option) => option.value === memberRole)?.label || ''
+                            ROLE_OPTIONS.find((option) => option.value === memberRole)?.label || ''
                           }
                           selectedValue={memberRole}
                           onChange={(value) => setMemberRole(value as WorkspaceCredentialRole)}
@@ -1753,6 +1292,7 @@ export function CredentialsManager() {
                           variant='ghost'
                           onClick={handleAddMember}
                           disabled={!memberUserId || upsertMember.isPending}
+                          className='w-full justify-end'
                         >
                           Add
                         </Button>
@@ -1764,54 +1304,7 @@ export function CredentialsManager() {
             </div>
           </div>
 
-          <div className='mt-auto flex items-center justify-between border-[var(--border)] border-t pt-[10px]'>
-            <div className='flex items-center gap-[8px]'>
-              {isSelectedAdmin && (
-                <>
-                  {selectedCredential.type === 'oauth' && (
-                    <Button
-                      variant='default'
-                      onClick={handleReconnectOAuth}
-                      disabled={connectOAuthService.isPending}
-                    >
-                      {`Reconnect to ${
-                        resolveProviderLabel(selectedCredential.providerId) || 'service'
-                      }`}
-                    </Button>
-                  )}
-                  {selectedCredential.type === 'env_personal' && (
-                    <Button
-                      variant='default'
-                      onClick={handlePromoteToWorkspace}
-                      disabled={isPromoting || deleteCredential.isPending}
-                    >
-                      <Share2 className='mr-[6px] h-[13px] w-[13px]' />
-                      Promote to workspace
-                    </Button>
-                  )}
-                  {selectedCredential.type === 'oauth' &&
-                    (workspaceUserOptions.length > 0 || isShareingWithWorkspace) && (
-                      <Button
-                        variant='default'
-                        onClick={handleShareWithWorkspace}
-                        disabled={isShareingWithWorkspace || workspaceUserOptions.length === 0}
-                      >
-                        <Share2 className='mr-[6px] h-[13px] w-[13px]' />
-                        {isShareingWithWorkspace ? 'Sharing...' : 'Share'}
-                      </Button>
-                    )}
-                  <Button
-                    variant='ghost'
-                    onClick={() => handleDeleteClick(selectedCredential)}
-                    disabled={
-                      deleteCredential.isPending || isPromoting || disconnectOAuthService.isPending
-                    }
-                  >
-                    {selectedCredential.type === 'oauth' ? 'Disconnect' : 'Delete'}
-                  </Button>
-                </>
-              )}
-            </div>
+          <div className='mt-auto flex items-center justify-end border-[var(--border)] border-t pt-[10px]'>
             <div className='flex items-center gap-[8px]'>
               <Button onClick={handleBackAttempt} variant='default'>
                 Back
@@ -1829,107 +1322,232 @@ export function CredentialsManager() {
           </div>
         </div>
 
-        {createModalJsx}
-        {oauthRequiredModalJsx}
-        {deleteConfirmDialogJsx}
-        {unsavedChangesAlertJsx}
+        <Modal open={showDetailUnsavedChanges} onOpenChange={setShowDetailUnsavedChanges}>
+          <ModalContent size='sm'>
+            <ModalHeader>Unsaved Changes</ModalHeader>
+            <ModalBody>
+              <p className='text-[var(--text-secondary)]'>
+                You have unsaved changes. Are you sure you want to discard them?
+              </p>
+            </ModalBody>
+            <ModalFooter>
+              <Button variant='default' onClick={() => setShowDetailUnsavedChanges(false)}>
+                Keep Editing
+              </Button>
+              <Button variant='destructive' onClick={handleDiscardDetailChanges}>
+                Discard Changes
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+
+        <Modal open={showUnsavedChanges} onOpenChange={setShowUnsavedChanges}>
+          <ModalContent size='sm'>
+            <ModalHeader>Unsaved Changes</ModalHeader>
+            <ModalBody>
+              <p className='text-[var(--text-secondary)]'>
+                You have unsaved changes. Are you sure you want to discard them?
+              </p>
+            </ModalBody>
+            <ModalFooter>
+              <Button variant='default' onClick={() => setShowUnsavedChanges(false)}>
+                Keep Editing
+              </Button>
+              <Button variant='destructive' onClick={handleDiscardAndNavigate}>
+                Discard Changes
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
       </>
     )
   }
 
+  // List view
   return (
     <>
-      <div className='flex h-full flex-col gap-[18px]'>
+      <div className='flex h-full flex-col gap-[16px]'>
+        <div className='hidden'>
+          <input
+            type='text'
+            name='fakeusernameremembered'
+            autoComplete='username'
+            tabIndex={-1}
+            readOnly
+          />
+          <input
+            type='password'
+            name='fakepasswordremembered'
+            autoComplete='current-password'
+            tabIndex={-1}
+            readOnly
+          />
+          <input
+            type='email'
+            name='fakeemailremembered'
+            autoComplete='email'
+            tabIndex={-1}
+            readOnly
+          />
+        </div>
         <div className='flex items-center gap-[8px]'>
           <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
             <Search
               className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
             />
-            <UiInput
+            <Input
               placeholder='Search secrets...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              disabled={credentialsLoading}
+              name='env_search_field'
+              autoComplete='off'
+              autoCapitalize='off'
+              spellCheck='false'
+              readOnly
+              onFocus={(e) => e.target.removeAttribute('readOnly')}
               className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
             />
           </div>
-          <Button
-            onClick={() => setShowCreateModal(true)}
-            disabled={credentialsLoading}
-            variant='tertiary'
-          >
-            <Plus className='mr-[6px] h-[13px] w-[13px]' />
-            Add
-          </Button>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                onClick={handleSave}
+                disabled={isLoading || !hasChanges || hasConflicts || hasInvalidKeys}
+                variant='tertiary'
+                className={`${hasConflicts || hasInvalidKeys ? 'cursor-not-allowed opacity-50' : ''}`}
+              >
+                Save
+              </Button>
+            </Tooltip.Trigger>
+            {hasConflicts && <Tooltip.Content>Resolve all conflicts before saving</Tooltip.Content>}
+            {hasInvalidKeys && !hasConflicts && (
+              <Tooltip.Content>Fix invalid variable names before saving</Tooltip.Content>
+            )}
+          </Tooltip.Root>
         </div>
 
-        <div className='min-h-0 flex-1 overflow-y-auto'>
-          {credentialsLoading ? (
-            <div className='flex flex-col gap-[8px]'>
-              <CredentialSkeleton />
-              <CredentialSkeleton />
-              <CredentialSkeleton />
-            </div>
-          ) : !hasCredentials ? (
-            <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
-              Click "Add" above to get started
-            </div>
-          ) : (
-            <div className='flex flex-col gap-[8px]'>
-              {sortedCredentials.map((credential) => {
-                const serviceConfig =
-                  credential.type === 'oauth' && credential.providerId
-                    ? getServiceConfigByProviderId(credential.providerId)
-                    : null
-
-                return (
-                  <div key={credential.id} className='flex items-center justify-between gap-[12px]'>
-                    <div className='flex min-w-0 items-center gap-[10px]'>
-                      {serviceConfig && (
-                        <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
-                          {createElement(serviceConfig.icon, { className: 'h-4 w-4' })}
-                        </div>
-                      )}
-                      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                        <span className='truncate font-medium text-[15px]'>
-                          {credential.displayName}
-                        </span>
-                        <p className='truncate text-[14px] text-[var(--text-muted)]'>
-                          {credential.description || 'No description'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className='flex flex-shrink-0 items-center gap-[4px]'>
-                      <Button variant='default' onClick={() => handleSelectCredential(credential)}>
-                        Details
-                      </Button>
-                      {credential.role === 'admin' && (
-                        <Button
-                          variant='ghost'
-                          onClick={() => handleDeleteClick(credential)}
-                          disabled={deleteCredential.isPending || disconnectOAuthService.isPending}
-                        >
-                          Delete
-                        </Button>
-                      )}
-                    </div>
+        <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
+          <div className='flex flex-col gap-[16px]'>
+            {isLoading ? (
+              <>
+                <div className='flex flex-col gap-[8px]'>
+                  <Skeleton className='h-5 w-[70px]' />
+                  <div className='text-[13px] text-[var(--text-muted)]'>
+                    <Skeleton className='h-5 w-[160px]' />
                   </div>
-                )
-              })}
-              {showNoResults && (
-                <div className='py-[16px] text-center text-[14px] text-[var(--text-muted)]'>
-                  No secrets found matching &ldquo;{searchTerm}&rdquo;
                 </div>
-              )}
-            </div>
-          )}
+                <div className={`${GRID_COLS} gap-y-[8px]`}>
+                  <Skeleton className={`${COL_SPAN_ALL} h-5 w-[55px]`} />
+                  {Array.from({ length: 2 }, (_, i) => (
+                    <div key={`personal-${i}`} className='contents'>
+                      <Skeleton className='h-9 rounded-[6px]' />
+                      <div />
+                      <Skeleton className='h-9 rounded-[6px]' />
+                      <Skeleton className='ml-[8px] h-9 w-[60px] rounded-[6px]' />
+                      <Skeleton className='h-9 w-9 rounded-[6px]' />
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className={`${GRID_COLS} gap-y-[8px]`}>
+                {(!searchTerm.trim() ||
+                  filteredWorkspaceEntries.length > 0 ||
+                  filteredNewWorkspaceRows.length > 0) && (
+                  <>
+                    <div
+                      className={`${COL_SPAN_ALL} font-medium text-[13px] text-[var(--text-secondary)]`}
+                    >
+                      Workspace
+                    </div>
+                    {(searchTerm.trim()
+                      ? filteredWorkspaceEntries
+                      : Object.entries(workspaceVars)
+                    ).map(([key, value]) => (
+                      <WorkspaceVariableRow
+                        key={key}
+                        envKey={key}
+                        value={value}
+                        renamingKey={renamingKey}
+                        pendingKeyValue={pendingKeyValue}
+                        hasCredential={envKeyToCredential.has(key)}
+                        onRenameStart={setRenamingKey}
+                        onPendingKeyChange={setPendingKeyValue}
+                        onRenameEnd={handleWorkspaceKeyRename}
+                        onDelete={handleDeleteWorkspaceVar}
+                        onViewDetails={(envKey) => handleViewDetails(envKey, 'env_workspace')}
+                      />
+                    ))}
+                    {(searchTerm.trim()
+                      ? filteredNewWorkspaceRows
+                      : newWorkspaceRows.map((row, index) => ({ row, originalIndex: index }))
+                    ).map(({ row, originalIndex }) => (
+                      <NewWorkspaceVariableRow
+                        key={row.id || originalIndex}
+                        envVar={row}
+                        index={originalIndex}
+                        onUpdate={updateNewWorkspaceRow}
+                      />
+                    ))}
+                    <div className={`${COL_SPAN_ALL} h-[8px]`} />
+                  </>
+                )}
+
+                {(!searchTerm.trim() || filteredEnvVars.length > 0) && (
+                  <>
+                    <div
+                      className={`${COL_SPAN_ALL} font-medium text-[13px] text-[var(--text-secondary)]`}
+                    >
+                      Personal
+                    </div>
+                    {filteredEnvVars.map(({ envVar, originalIndex }) => (
+                      <div key={envVar.id || originalIndex} className='contents'>
+                        {renderEnvVarRow(envVar, originalIndex)}
+                      </div>
+                    ))}
+                  </>
+                )}
+                {searchTerm.trim() &&
+                  filteredEnvVars.length === 0 &&
+                  filteredWorkspaceEntries.length === 0 &&
+                  filteredNewWorkspaceRows.length === 0 &&
+                  (envVars.length > 0 ||
+                    Object.keys(workspaceVars).length > 0 ||
+                    newWorkspaceRows.length > 0) && (
+                    <div
+                      className={`${COL_SPAN_ALL} py-[16px] text-center text-[13px] text-[var(--text-muted)]`}
+                    >
+                      No secrets found matching &ldquo;{searchTerm}&rdquo;
+                    </div>
+                  )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {createModalJsx}
-      {oauthRequiredModalJsx}
-      {deleteConfirmDialogJsx}
+      <Modal open={showUnsavedChanges} onOpenChange={setShowUnsavedChanges}>
+        <ModalContent size='sm'>
+          <ModalHeader>Unsaved Changes</ModalHeader>
+          <ModalBody>
+            <p className='text-[var(--text-secondary)]'>
+              You have unsaved changes. Are you sure you want to discard them?
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant='default' onClick={() => setShowUnsavedChanges(false)}>
+              Keep Editing
+            </Button>
+            <Button
+              variant='destructive'
+              onClick={isPendingNavigation ? handleDiscardAndNavigate : handleCancel}
+            >
+              Discard Changes
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </>
   )
 }

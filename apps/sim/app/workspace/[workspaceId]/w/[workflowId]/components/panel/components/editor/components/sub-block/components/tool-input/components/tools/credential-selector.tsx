@@ -174,7 +174,7 @@ export function ToolCredentialSelector({
       requestedAt: Date.now(),
     })
 
-    navigateToSettings({ section: 'credentials' })
+    navigateToSettings({ section: 'integrations' })
   }, [workspaceId, effectiveProviderId, serviceId])
 
   const comboboxOptions = useMemo(() => {

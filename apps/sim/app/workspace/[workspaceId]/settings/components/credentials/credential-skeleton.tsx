@@ -1,39 +1,43 @@
 import { Skeleton } from '@/components/emcn'
 
+const GRID_COLS = 'grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_auto] items-center'
+
 /**
- * Skeleton component for credential list items.
- * Includes an icon placeholder for OAuth credentials.
+ * Skeleton component for a single secret row in the grid layout.
  */
 export function CredentialSkeleton() {
   return (
-    <div className='flex items-center justify-between gap-[12px]'>
-      <div className='flex min-w-0 items-center gap-[10px]'>
-        <Skeleton className='h-8 w-8 flex-shrink-0 rounded-[6px]' />
-        <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-          <Skeleton className='h-[14px] w-[100px]' />
-          <Skeleton className='h-[13px] w-[200px]' />
-        </div>
-      </div>
-      <div className='flex flex-shrink-0 items-center gap-[4px]'>
-        <Skeleton className='h-[30px] w-[54px] rounded-[4px]' />
-        <Skeleton className='h-[30px] w-[50px] rounded-[4px]' />
+    <div className={GRID_COLS}>
+      <Skeleton className='h-9 rounded-[6px]' />
+      <div />
+      <Skeleton className='h-9 rounded-[6px]' />
+      <div className='ml-[8px] flex items-center gap-0'>
+        <Skeleton className='h-9 w-9 rounded-[6px]' />
+        <Skeleton className='h-9 w-9 rounded-[6px]' />
       </div>
     </div>
   )
 }
 
 /**
- * Skeleton for the Credentials section shown during dynamic import loading.
+ * Skeleton for the Secrets section shown during dynamic import loading.
  */
 export function CredentialsSkeleton() {
   return (
-    <div className='flex h-full flex-col gap-[18px]'>
+    <div className='flex h-full flex-col gap-[16px]'>
       <div className='flex items-center gap-[8px]'>
         <Skeleton className='h-[30px] flex-1 rounded-[8px]' />
-        <Skeleton className='h-[30px] w-[64px] rounded-[6px]' />
+        <Skeleton className='h-[30px] w-[56px] rounded-[6px]' />
+        <Skeleton className='h-[30px] w-[50px] rounded-[6px]' />
       </div>
       <div className='flex flex-col gap-[8px]'>
-        <CredentialSkeleton />
+        <Skeleton className='h-5 w-[70px]' />
+        <div className='text-[13px] text-[var(--text-muted)]'>
+          <Skeleton className='h-5 w-[160px]' />
+        </div>
+      </div>
+      <div className='flex flex-col gap-[8px]'>
+        <Skeleton className='h-5 w-[55px]' />
         <CredentialSkeleton />
         <CredentialSkeleton />
       </div>
