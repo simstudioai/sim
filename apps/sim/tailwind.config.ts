@@ -25,7 +25,16 @@ export default {
           'Segoe UI Emoji',
           'Segoe UI Symbol',
         ],
-        mono: ['var(--font-martian-mono)', 'ui-monospace', 'monospace'],
+        mono: [
+          'var(--font-martian-mono, ui-monospace)',
+          'SFMono-Regular',
+          'Menlo',
+          'Monaco',
+          'Consolas',
+          '"Liberation Mono"',
+          '"Courier New"',
+          'monospace',
+        ],
       },
       fontSize: {
         xs: '11px',
