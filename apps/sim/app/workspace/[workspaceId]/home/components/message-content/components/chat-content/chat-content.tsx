@@ -10,6 +10,11 @@ import 'prismjs/components/prism-markup'
 import '@/components/emcn/components/code/code.css'
 import { Checkbox, highlight, languages } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import {
+  PendingTagIndicator,
+  parseSpecialTags,
+  SpecialTags,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { useStreamingReveal } from '@/app/workspace/[workspaceId]/home/hooks/use-streaming-reveal'
 import { useThrottledValue } from '@/hooks/use-throttled-value'
 
@@ -179,14 +184,23 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
 interface ChatContentProps {
   content: string
   isStreaming?: boolean
+  onOptionSelect?: (id: string) => void
 }
 
 const STREAMING_THROTTLE_MS = 50
 
-export function ChatContent({ content, isStreaming = false }: ChatContentProps) {
+export function ChatContent({ content, isStreaming = false, onOptionSelect }: ChatContentProps) {
   const throttled = useThrottledValue(content, isStreaming ? STREAMING_THROTTLE_MS : undefined)
   const rendered = isStreaming ? throttled : content
-  const { committed, incoming, generation } = useStreamingReveal(rendered, isStreaming)
+
+  const parsed = useMemo(() => parseSpecialTags(rendered, isStreaming), [rendered, isStreaming])
+  const hasSpecialContent = parsed.hasPendingTag || parsed.segments.some((s) => s.type !== 'text')
+
+  const plainText = hasSpecialContent ? '' : rendered
+  const { committed, incoming, generation } = useStreamingReveal(
+    plainText,
+    !hasSpecialContent && isStreaming
+  )
 
   const committedMarkdown = useMemo(
     () =>
@@ -197,6 +211,28 @@ export function ChatContent({ content, isStreaming = false }: ChatContentProps) 
       ) : null,
     [committed]
   )
+
+  if (hasSpecialContent) {
+    return (
+      <div className='space-y-3'>
+        {parsed.segments.map((segment, i) => {
+          if (segment.type === 'text') {
+            return (
+              <div key={`text-${i}`} className={PROSE_CLASSES}>
+                <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
+                  {segment.content}
+                </ReactMarkdown>
+              </div>
+            )
+          }
+          return (
+            <SpecialTags key={`special-${i}`} segment={segment} onOptionSelect={onOptionSelect} />
+          )
+        })}
+        {parsed.hasPendingTag && isStreaming && <PendingTagIndicator />}
+      </div>
+    )
+  }
 
   return (
     <div className={PROSE_CLASSES}>

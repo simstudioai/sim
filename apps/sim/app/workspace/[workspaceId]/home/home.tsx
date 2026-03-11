@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { FileText } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { PanelLeft } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import {
   LandingPromptStorage,
@@ -18,6 +19,8 @@ import type { FileAttachmentForApi } from './components/user-input/user-input'
 import { useChat } from './hooks'
 
 const logger = createLogger('Home')
+
+const RESOURCE_PANEL_EXPAND_DELAY = 160
 
 const THINKING_BLOCKS = [
   { color: '#2ABBF8', delay: '0s' },
@@ -133,6 +136,21 @@ export function Home({ chatId }: HomeProps = {}) {
     setActiveResourceId,
   } = useChat(workspaceId, chatId)
 
+  const [isResourceCollapsed, setIsResourceCollapsed] = useState(false)
+  const [showExpandButton, setShowExpandButton] = useState(false)
+
+  useEffect(() => {
+    if (!isResourceCollapsed) {
+      setShowExpandButton(false)
+      return
+    }
+    const timer = setTimeout(() => setShowExpandButton(true), RESOURCE_PANEL_EXPAND_DELAY)
+    return () => clearTimeout(timer)
+  }, [isResourceCollapsed])
+
+  const collapseResource = useCallback(() => setIsResourceCollapsed(true), [])
+  const expandResource = useCallback(() => setIsResourceCollapsed(false), [])
+
   const prevResourceCountRef = useRef(resources.length)
   const animateResourcePanel =
     prevResourceCountRef.current === 0 && resources.length > 0 && isSending
@@ -173,7 +191,7 @@ export function Home({ chatId }: HomeProps = {}) {
   }
 
   return (
-    <div className='flex h-full bg-[var(--bg)]'>
+    <div className='relative flex h-full bg-[var(--bg)]'>
       <div className='flex h-full min-w-0 flex-1 flex-col'>
         <div className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 py-4'>
           <div className='mx-auto max-w-[42rem] space-y-6'>
@@ -268,8 +286,23 @@ export function Home({ chatId }: HomeProps = {}) {
           resources={resources}
           activeResourceId={activeResourceId}
           onSelectResource={setActiveResourceId}
+          onCollapse={collapseResource}
+          isCollapsed={isResourceCollapsed}
           className={animateResourcePanel ? 'animate-slide-in-right' : undefined}
         />
+      )}
+
+      {resources.length > 0 && showExpandButton && (
+        <div className='absolute top-[8.5px] right-[16px]'>
+          <button
+            type='button'
+            onClick={expandResource}
+            className='flex h-[30px] w-[30px] items-center justify-center rounded-[8px] hover:bg-[var(--surface-active)]'
+            aria-label='Expand resource view'
+          >
+            <PanelLeft className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+          </button>
+        </div>
       )}
     </div>
   )

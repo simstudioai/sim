@@ -9,6 +9,8 @@ interface MothershipViewProps {
   resources: MothershipResource[]
   activeResourceId: string | null
   onSelectResource: (id: string) => void
+  onCollapse: () => void
+  isCollapsed: boolean
   className?: string
 }
 
@@ -22,6 +24,8 @@ export function MothershipView({
   resources,
   activeResourceId,
   onSelectResource,
+  onCollapse,
+  isCollapsed,
   className,
 }: MothershipViewProps) {
   const active = resources.find((r) => r.id === activeResourceId) ?? resources[0] ?? null
@@ -29,17 +33,21 @@ export function MothershipView({
   return (
     <div
       className={cn(
-        'flex h-full w-[50%] min-w-[400px] flex-col border-[var(--border)] border-l',
+        'flex h-full flex-col overflow-hidden border-[var(--border)] transition-[width,min-width,border-width] duration-300 ease-out',
+        isCollapsed ? 'w-0 min-w-0 border-l-0' : 'w-[50%] min-w-[400px] border-l',
         className
       )}
     >
-      <ResourceTabs
-        resources={resources}
-        activeId={active?.id ?? null}
-        onSelect={onSelectResource}
-      />
-      <div className='min-h-0 flex-1 overflow-hidden'>
-        {active && <ResourceContent workspaceId={workspaceId} resource={active} />}
+      <div className='flex min-w-[400px] flex-1 flex-col'>
+        <ResourceTabs
+          resources={resources}
+          activeId={active?.id ?? null}
+          onSelect={onSelectResource}
+          onCollapse={onCollapse}
+        />
+        <div className='min-h-0 flex-1 overflow-hidden'>
+          {active && <ResourceContent workspaceId={workspaceId} resource={active} />}
+        </div>
       </div>
     </div>
   )

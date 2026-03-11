@@ -173,8 +173,8 @@ export default {
           '30%, 55%': { opacity: '1' },
         },
         'slide-in-right': {
-          from: { opacity: '0', transform: 'translateX(40px)' },
-          to: { opacity: '1', transform: 'translateX(0)' },
+          from: { transform: 'translateX(40px)' },
+          to: { transform: 'translateX(0)' },
         },
       },
       animation: {
