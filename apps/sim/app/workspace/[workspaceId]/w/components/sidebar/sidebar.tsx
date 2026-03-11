@@ -290,7 +290,7 @@ export const Sidebar = memo(function Sidebar() {
     switchWorkspace,
     handleCreateWorkspace,
     isCreatingWorkspace,
-    updateWorkspaceName,
+    updateWorkspace,
     confirmDeleteWorkspace,
     handleLeaveWorkspace,
   } = useWorkspaceManagement({
@@ -702,9 +702,16 @@ export const Sidebar = memo(function Sidebar() {
 
   const handleRenameWorkspace = useCallback(
     async (workspaceIdToRename: string, newName: string) => {
-      await updateWorkspaceName(workspaceIdToRename, newName)
+      await updateWorkspace(workspaceIdToRename, { name: newName })
     },
-    [updateWorkspaceName]
+    [updateWorkspace]
+  )
+
+  const handleColorChangeWorkspace = useCallback(
+    async (workspaceIdToUpdate: string, color: string) => {
+      await updateWorkspace(workspaceIdToUpdate, { color })
+    },
+    [updateWorkspace]
   )
 
   const handleDeleteWorkspace = useCallback(
@@ -732,13 +739,6 @@ export const Sidebar = memo(function Sidebar() {
       await duplicateWorkspace(workspaceName)
     },
     [duplicateWorkspace]
-  )
-
-  const handleExportWorkspace = useCallback(
-    async (workspaceIdToExport: string, workspaceName: string) => {
-      await exportWorkspace(workspaceIdToExport, workspaceName)
-    },
-    [exportWorkspace]
   )
 
   const handleImportWorkspace = useCallback(() => {
@@ -907,9 +907,10 @@ export const Sidebar = memo(function Sidebar() {
               onRenameWorkspace={handleRenameWorkspace}
               onDeleteWorkspace={handleDeleteWorkspace}
               onDuplicateWorkspace={handleDuplicateWorkspace}
-              onExportWorkspace={handleExportWorkspace}
+              onExportWorkspace={exportWorkspace}
               onImportWorkspace={handleImportWorkspace}
               isImportingWorkspace={isImportingWorkspace}
+              onColorChange={handleColorChangeWorkspace}
               onLeaveWorkspace={handleLeaveWorkspaceWrapper}
               sessionUserId={sessionData?.user?.id}
             />

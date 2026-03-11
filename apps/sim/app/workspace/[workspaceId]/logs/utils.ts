@@ -7,11 +7,10 @@ import { getBlock } from '@/blocks/registry'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 
 export const LOG_COLUMNS = {
-  date: { width: 'w-[8%]', minWidth: 'min-w-[70px]', label: 'Date' },
-  time: { width: 'w-[12%]', minWidth: 'min-w-[90px]', label: 'Time' },
-  status: { width: 'w-[12%]', minWidth: 'min-w-[100px]', label: 'Status' },
   workflow: { width: 'w-[22%]', minWidth: 'min-w-[140px]', label: 'Workflow' },
-  cost: { width: 'w-[12%]', minWidth: 'min-w-[90px]', label: 'Cost' },
+  date: { width: 'w-[18%]', minWidth: 'min-w-[140px]', label: 'Date' },
+  status: { width: 'w-[12%]', minWidth: 'min-w-[100px]', label: 'Status' },
+  cost: { width: 'w-[14%]', minWidth: 'min-w-[90px]', label: 'Cost' },
   trigger: { width: 'w-[14%]', minWidth: 'min-w-[110px]', label: 'Trigger' },
   duration: { width: 'w-[20%]', minWidth: 'min-w-[100px]', label: 'Duration' },
 } as const
@@ -19,10 +18,9 @@ export const LOG_COLUMNS = {
 export type LogColumnKey = keyof typeof LOG_COLUMNS
 
 export const LOG_COLUMN_ORDER: readonly LogColumnKey[] = [
-  'date',
-  'time',
-  'status',
   'workflow',
+  'date',
+  'status',
   'cost',
   'trigger',
   'duration',

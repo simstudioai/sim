@@ -83,22 +83,6 @@ const LogRow = memo(
         onContextMenu={handleContextMenu}
       >
         <div className='flex flex-1 items-center'>
-          <span
-            className={`${LOG_COLUMNS.date.width} ${LOG_COLUMNS.date.minWidth} font-medium text-[12px] text-[var(--text-primary)]`}
-          >
-            {formattedDate.compactDate}
-          </span>
-
-          <span
-            className={`${LOG_COLUMNS.time.width} ${LOG_COLUMNS.time.minWidth} font-medium text-[12px] text-[var(--text-primary)]`}
-          >
-            {formattedDate.compactTime}
-          </span>
-
-          <div className={`${LOG_COLUMNS.status.width} ${LOG_COLUMNS.status.minWidth}`}>
-            <StatusBadge status={getDisplayStatus(log.status)} />
-          </div>
-
           <div
             className={`flex ${LOG_COLUMNS.workflow.width} ${LOG_COLUMNS.workflow.minWidth} items-center gap-[8px] pr-[8px]`}
           >
@@ -118,6 +102,16 @@ const LogRow = memo(
             >
               {workflowName}
             </span>
+          </div>
+
+          <span
+            className={`${LOG_COLUMNS.date.width} ${LOG_COLUMNS.date.minWidth} font-medium text-[12px] text-[var(--text-primary)]`}
+          >
+            {formattedDate.compactDate} {formattedDate.compactTime}
+          </span>
+
+          <div className={`${LOG_COLUMNS.status.width} ${LOG_COLUMNS.status.minWidth}`}>
+            <StatusBadge status={getDisplayStatus(log.status)} />
           </div>
 
           <span

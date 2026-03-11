@@ -6,7 +6,7 @@ import { useLeaveWorkspace } from '@/hooks/queries/invitations'
 import {
   useCreateWorkspace,
   useDeleteWorkspace,
-  useUpdateWorkspaceName,
+  useUpdateWorkspace,
   useWorkspacesQuery,
   type Workspace,
   workspaceKeys,
@@ -46,7 +46,7 @@ export function useWorkspaceManagement({
   const leaveWorkspaceMutation = useLeaveWorkspace()
   const createWorkspaceMutation = useCreateWorkspace()
   const deleteWorkspaceMutation = useDeleteWorkspace()
-  const updateWorkspaceNameMutation = useUpdateWorkspaceName()
+  const updateWorkspaceMutation = useUpdateWorkspace()
 
   const workspaceIdRef = useRef<string>(workspaceId)
   const routerRef = useRef<ReturnType<typeof useRouter>>(router)
@@ -92,18 +92,18 @@ export function useWorkspaceManagement({
     await refetchWorkspaces()
   }, [refetchWorkspaces])
 
-  const updateWorkspaceName = useCallback(
-    async (workspaceId: string, newName: string): Promise<boolean> => {
+  const updateWorkspace = useCallback(
+    async (workspaceId: string, updates: { name?: string; color?: string }): Promise<boolean> => {
       try {
-        await updateWorkspaceNameMutation.mutateAsync({ workspaceId, name: newName })
-        logger.info('Successfully updated workspace name to:', newName.trim())
+        await updateWorkspaceMutation.mutateAsync({ workspaceId, ...updates })
+        logger.info('Successfully updated workspace:', updates)
         return true
       } catch (error) {
-        logger.error('Error updating workspace name:', error)
+        logger.error('Error updating workspace:', error)
         return false
       }
     },
-    [updateWorkspaceNameMutation]
+    [updateWorkspaceMutation]
   )
 
   const switchWorkspace = useCallback(
@@ -251,7 +251,7 @@ export function useWorkspaceManagement({
     isLeaving: leaveWorkspaceMutation.isPending,
     fetchWorkspaces,
     refreshWorkspaceList,
-    updateWorkspaceName,
+    updateWorkspace,
     switchWorkspace,
     handleCreateWorkspace,
     confirmDeleteWorkspace,

@@ -80,10 +80,9 @@ const LOGS_PER_PAGE = 50 as const
 const REFRESH_SPINNER_DURATION_MS = 1000 as const
 
 const LOG_COLUMNS: ResourceColumn[] = [
-  { id: 'date', header: 'Date' },
-  { id: 'time', header: 'Time' },
-  { id: 'status', header: 'Status' },
   { id: 'workflow', header: 'Workflow' },
+  { id: 'date', header: 'Date' },
+  { id: 'status', header: 'Status' },
   { id: 'cost', header: 'Cost' },
   { id: 'trigger', header: 'Trigger' },
   { id: 'duration', header: 'Duration' },
@@ -662,9 +661,6 @@ export default function Logs() {
         return {
           id: log.id,
           cells: {
-            date: { label: formattedDate.compactDate },
-            time: { label: formattedDate.compactTime },
-            status: { content: <StatusBadge status={displayStatus} /> },
             workflow: {
               icon: workflowColor ? (
                 <div
@@ -678,6 +674,8 @@ export default function Logs() {
               ) : undefined,
               label: workflowName,
             },
+            date: { label: `${formattedDate.compactDate} ${formattedDate.compactTime}` },
+            status: { content: <StatusBadge status={displayStatus} /> },
             cost: { label: costText },
             trigger: { content: <TriggerBadge trigger={log.trigger || 'manual'} /> },
             duration: { label: durationText },

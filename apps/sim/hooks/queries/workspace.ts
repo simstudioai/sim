@@ -119,29 +119,31 @@ export function useDeleteWorkspace() {
   })
 }
 
-interface UpdateWorkspaceNameParams {
+interface UpdateWorkspaceParams {
   workspaceId: string
-  name: string
+  name?: string
+  color?: string
 }
 
 /**
- * Updates a workspace's name.
+ * Updates a workspace's properties (name, color, etc.).
  * Invalidates both the workspace list and the specific workspace detail cache.
  */
-export function useUpdateWorkspaceName() {
+export function useUpdateWorkspace() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, name }: UpdateWorkspaceNameParams) => {
+    mutationFn: async ({ workspaceId, ...updates }: UpdateWorkspaceParams) => {
+      const body = updates.name !== undefined ? { ...updates, name: updates.name.trim() } : updates
       const response = await fetch(`/api/workspaces/${workspaceId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim() }),
+        body: JSON.stringify(body),
       })
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Failed to update workspace name')
+        throw new Error(error.error || 'Failed to update workspace')
       }
 
       return response.json()

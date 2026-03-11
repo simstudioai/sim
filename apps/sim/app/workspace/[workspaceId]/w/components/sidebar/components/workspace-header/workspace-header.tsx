@@ -67,6 +67,8 @@ interface WorkspaceHeaderProps {
   onImportWorkspace: () => void
   /** Whether workspace import is in progress */
   isImportingWorkspace: boolean
+  /** Callback to change the workspace color */
+  onColorChange?: (workspaceId: string, color: string) => Promise<void>
   /** Callback to leave the workspace */
   onLeaveWorkspace?: (workspaceId: string) => Promise<void>
   /** Current user's session ID for owner check */
@@ -92,6 +94,7 @@ export function WorkspaceHeader({
   onExportWorkspace,
   onImportWorkspace,
   isImportingWorkspace,
+  onColorChange,
   onLeaveWorkspace,
   sessionUserId,
 }: WorkspaceHeaderProps) {
@@ -110,11 +113,7 @@ export function WorkspaceHeader({
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
   const contextMenuRef = useRef<HTMLDivElement | null>(null)
-  const capturedWorkspaceRef = useRef<{
-    id: string
-    name: string
-    permissions?: 'admin' | 'write' | 'read' | null
-  } | null>(null)
+  const capturedWorkspaceRef = useRef<Workspace | null>(null)
   const isRenamingRef = useRef(false)
   const isContextMenuOpeningRef = useRef(false)
   const contextMenuClosedRef = useRef(true)
@@ -166,11 +165,7 @@ export function WorkspaceHeader({
     isContextMenuOpeningRef.current = true
     contextMenuClosedRef.current = false
 
-    capturedWorkspaceRef.current = {
-      id: workspace.id,
-      name: workspace.name,
-      permissions: workspace.permissions,
-    }
+    capturedWorkspaceRef.current = workspace
     setContextMenuPosition({ x, y })
     setIsContextMenuOpen(true)
   }
@@ -261,6 +256,14 @@ export function WorkspaceHeader({
       setIsLeaveModalOpen(true)
       setIsWorkspaceMenuOpen(false)
     }
+  }
+
+  /**
+   * Handles color change action from context menu
+   */
+  const handleColorChangeAction = async (color: string) => {
+    if (!capturedWorkspaceRef.current || !onColorChange) return
+    await onColorChange(capturedWorkspaceRef.current.id, color)
   }
 
   /**
@@ -546,14 +549,18 @@ export function WorkspaceHeader({
             onExport={handleExportAction}
             onDelete={handleDeleteAction}
             onLeave={handleLeaveAction}
+            onColorChange={onColorChange ? handleColorChangeAction : undefined}
+            currentColor={capturedWorkspace?.color}
             showRename={true}
             showDuplicate={true}
             showExport={true}
+            showColorChange={!!onColorChange}
             showLeave={!isOwner && !!onLeaveWorkspace}
             disableRename={!contextCanAdmin}
             disableDuplicate={!contextCanEdit}
             disableExport={!contextCanAdmin}
             disableDelete={!contextCanAdmin}
+            disableColorChange={!contextCanAdmin}
           />
         )
       })()}

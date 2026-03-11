@@ -50,6 +50,7 @@
 'use client'
 
 import * as React from 'react'
+import { DismissableLayerBranch } from '@radix-ui/react-dismissable-layer'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { Check, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { createPortal } from 'react-dom'
@@ -948,7 +949,7 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
         {isHoverOpen &&
           typeof document !== 'undefined' &&
           createPortal(
-            <div
+            <DismissableLayerBranch
               className={cn(
                 'fixed z-[10000201] min-w-[120px]',
                 STYLES.content,
@@ -958,10 +959,11 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
               style={{
                 top: submenuPosition.top,
                 left: submenuPosition.left,
+                pointerEvents: 'auto',
               }}
             >
               {children}
-            </div>,
+            </DismissableLayerBranch>,
             document.body
           )}
       </>
