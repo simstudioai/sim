@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
+import { Loader } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import {
   LandingPromptStorage,
@@ -149,8 +150,8 @@ export function Home({ chatId }: HomeProps = {}) {
               if (msg.role === 'user') {
                 return (
                   <div key={msg.id} className='flex justify-end pt-3'>
-                    <div className='max-w-[70%] rounded-[22px] bg-[var(--surface-5)] px-4 py-2.5'>
-                      <p className='whitespace-pre-wrap font-[420] font-[family-name:var(--font-inter)] text-[16px] text-[var(--text-primary)] leading-6 tracking-[0] antialiased'>
+                    <div className='max-w-[70%] rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2'>
+                      <p className='whitespace-pre-wrap font-[430] font-[family-name:var(--font-inter)] text-[15px] text-[var(--text-primary)] leading-[23px] tracking-[0] antialiased'>
                         {msg.content}
                       </p>
                     </div>
@@ -164,9 +165,9 @@ export function Home({ chatId }: HomeProps = {}) {
 
               if (!hasBlocks && !msg.content && isThisStreaming) {
                 return (
-                  <div key={msg.id} className='flex items-center gap-[6px] py-[8px]'>
-                    <div className='h-[6px] w-[6px] animate-pulse rounded-full bg-[var(--text-tertiary)]' />
-                    <span className='font-base text-[13px] text-[var(--text-tertiary)]'>
+                  <div key={msg.id} className='flex items-center gap-[8px] py-[8px]'>
+                    <Loader className='h-[16px] w-[16px] text-[var(--text-icon)]' animate />
+                    <span className='font-[var(--sidebar-font-weight)] text-[14px] text-[var(--text-body)]'>
                       Thinking…
                     </span>
                   </div>

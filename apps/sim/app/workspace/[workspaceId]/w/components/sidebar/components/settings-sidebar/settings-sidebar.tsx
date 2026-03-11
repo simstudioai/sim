@@ -4,7 +4,7 @@ import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import { ChevronDown, Skeleton } from '@/components/emcn'
+import { ChevronDown, Skeleton, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionStatus } from '@/lib/billing/client'
 import { isHosted } from '@/lib/core/config/feature-flags'
@@ -24,7 +24,15 @@ import { prefetchSubscriptionData, useSubscriptionData } from '@/hooks/queries/s
 import { useSuperUserStatus } from '@/hooks/queries/user-profile'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
-export function SettingsSidebar() {
+interface SettingsSidebarProps {
+  isCollapsed?: boolean
+  showCollapsedContent?: boolean
+}
+
+export function SettingsSidebar({
+  isCollapsed = false,
+  showCollapsedContent = false,
+}: SettingsSidebarProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const pathname = usePathname()
@@ -163,18 +171,27 @@ export function SettingsSidebar() {
     <div className='flex flex-1 flex-col overflow-hidden'>
       {/* Back button */}
       <div className='mt-[10px] flex flex-shrink-0 flex-col gap-[2px] px-[8px]'>
-        <button
-          type='button'
-          onClick={handleBack}
-          className='group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]'
-        >
-          <span className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'>
-            <ChevronDown className='h-[10px] w-[10px] rotate-90' />
-          </span>
-          <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
-            Back
-          </span>
-        </button>
+        <Tooltip.Root key={`back-${isCollapsed}`}>
+          <Tooltip.Trigger asChild>
+            <button
+              type='button'
+              onClick={handleBack}
+              className='group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]'
+            >
+              <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'>
+                <ChevronDown className='h-[10px] w-[10px] rotate-90' />
+              </div>
+              <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
+                Back
+              </span>
+            </button>
+          </Tooltip.Trigger>
+          {showCollapsedContent && (
+            <Tooltip.Content side='right'>
+              <p>Back</p>
+            </Tooltip.Content>
+          )}
+        </Tooltip.Root>
       </div>
 
       {/* Settings sections */}
@@ -207,7 +224,7 @@ export function SettingsSidebar() {
                     {sectionItems.map((item) => {
                       const Icon = item.icon
                       const active = activeSection === item.id
-                      const className = cn(
+                      const itemClassName = cn(
                         'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
                         active && 'bg-[var(--surface-active)]'
                       )
@@ -220,30 +237,35 @@ export function SettingsSidebar() {
                         </>
                       )
 
-                      if (item.externalUrl) {
-                        return (
-                          <a
-                            key={item.id}
-                            href={item.externalUrl}
-                            target='_blank'
-                            rel='noopener noreferrer'
-                            className={className}
-                          >
-                            {content}
-                          </a>
-                        )
-                      }
-
-                      return (
+                      const element = item.externalUrl ? (
+                        <a
+                          href={item.externalUrl}
+                          target='_blank'
+                          rel='noopener noreferrer'
+                          className={itemClassName}
+                        >
+                          {content}
+                        </a>
+                      ) : (
                         <Link
-                          key={item.id}
                           href={`/workspace/${workspaceId}/settings/${item.id}`}
-                          className={className}
+                          className={itemClassName}
                           onMouseEnter={() => handlePrefetch(item.id)}
                           onFocus={() => handlePrefetch(item.id)}
                         >
                           {content}
                         </Link>
+                      )
+
+                      return (
+                        <Tooltip.Root key={`${item.id}-${isCollapsed}`}>
+                          <Tooltip.Trigger asChild>{element}</Tooltip.Trigger>
+                          {showCollapsedContent && (
+                            <Tooltip.Content side='right'>
+                              <p>{item.label}</p>
+                            </Tooltip.Content>
+                          )}
+                        </Tooltip.Root>
                       )
                     })}
                   </div>

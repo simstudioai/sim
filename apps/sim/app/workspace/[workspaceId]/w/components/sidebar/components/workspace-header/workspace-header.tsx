@@ -316,7 +316,7 @@ export function WorkspaceHeader({
               <button
                 type='button'
                 aria-label='Switch workspace'
-                className='group flex h-[32px] w-full min-w-0 cursor-pointer items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] px-[8px] transition-colors hover:bg-[var(--surface-5)]'
+                className='group flex h-[32px] w-full min-w-0 cursor-pointer items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] pr-[8px] pl-[6.5px] transition-colors hover:bg-[var(--surface-5)]'
                 title={activeWorkspace?.name || 'Loading...'}
                 onContextMenu={(e) => {
                   if (activeWorkspaceFull) {
@@ -496,7 +496,7 @@ export function WorkspaceHeader({
           <button
             type='button'
             aria-label='Switch workspace'
-            className='flex h-[32px] w-full min-w-0 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] px-[8px]'
+            className='flex h-[32px] w-full min-w-0 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] pr-[8px] pl-[6.5px]'
             title={activeWorkspace?.name || 'Loading...'}
             disabled
           >

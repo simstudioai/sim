@@ -46,8 +46,8 @@ export function ResourceTabs({ resources, activeId, onSelect }: ResourceTabsProp
             variant='subtle'
             onClick={() => onSelect(resource.id)}
             className={cn(
-              'shrink-0 border border-transparent bg-transparent px-[8px] py-[4px] text-[12px]',
-              isActive && 'border-[var(--border)] bg-[var(--surface-4)]'
+              'shrink-0 bg-transparent px-[8px] py-[4px] text-[12px]',
+              isActive && 'bg-[var(--surface-4)]'
             )}
           >
             <Icon className={cn('mr-[6px] h-[14px] w-[14px] text-[var(--text-icon)]')} />

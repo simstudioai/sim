@@ -1,6 +1,7 @@
 import type { ComponentType, SVGProps } from 'react'
 import {
   Asterisk,
+  Blimp,
   BubbleChatPreview,
   Connections,
   Database,
@@ -14,16 +15,17 @@ import {
   Pencil,
   Play,
   Rocket,
-  Rows3,
   Search,
   Settings,
   TerminalWindow,
 } from '@/components/emcn'
+import { Table as TableIcon } from '@/components/emcn/icons'
 import type { MothershipToolName, SubagentName } from '../../types'
 
-type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
+export type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
 
-const TOOL_ICONS: Record<MothershipToolName | SubagentName, IconComponent> = {
+const TOOL_ICONS: Record<MothershipToolName | SubagentName | 'mothership', IconComponent> = {
+  mothership: Blimp,
   glob: FolderCode,
   grep: Search,
   read: File,
@@ -36,7 +38,7 @@ const TOOL_ICONS: Record<MothershipToolName | SubagentName, IconComponent> = {
   user_memory: Database,
   function_execute: TerminalWindow,
   superagent: Play,
-  user_table: Rows3,
+  user_table: TableIcon,
   workspace_file: File,
   create_workflow: Connections,
   edit_workflow: Pencil,
@@ -45,7 +47,7 @@ const TOOL_ICONS: Record<MothershipToolName | SubagentName, IconComponent> = {
   deploy: Rocket,
   auth: Key,
   knowledge: Database,
-  table: Rows3,
+  table: TableIcon,
   job: Loader,
   agent: BubbleChatPreview,
   custom_tool: Settings,
@@ -55,6 +57,11 @@ const TOOL_ICONS: Record<MothershipToolName | SubagentName, IconComponent> = {
   edit: Pencil,
 }
 
+export function getAgentIcon(name: string): IconComponent {
+  return TOOL_ICONS[name as keyof typeof TOOL_ICONS] ?? Blimp
+}
+
 export function getToolIcon(name: string): IconComponent | undefined {
-  return TOOL_ICONS[name as MothershipToolName | SubagentName]
+  const icon = TOOL_ICONS[name as keyof typeof TOOL_ICONS]
+  return icon === Blimp ? undefined : icon
 }

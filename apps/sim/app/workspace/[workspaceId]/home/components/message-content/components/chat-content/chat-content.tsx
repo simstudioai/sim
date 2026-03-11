@@ -39,12 +39,12 @@ function extractTextContent(node: React.ReactNode): string {
 
 const PROSE_CLASSES = cn(
   'prose prose-base dark:prose-invert max-w-none',
-  'font-[family-name:var(--font-inter)] antialiased break-words font-[420] tracking-[0]',
+  'font-[family-name:var(--font-inter)] antialiased break-words font-[430] tracking-[0]',
   'prose-headings:font-[600] prose-headings:tracking-[0] prose-headings:text-[var(--text-primary)]',
   'prose-headings:mb-3 prose-headings:mt-6 first:prose-headings:mt-0',
-  'prose-p:text-[16px] prose-p:leading-7 prose-p:text-[var(--text-primary)]',
+  'prose-p:text-[15px] prose-p:leading-[25px] prose-p:text-[var(--text-primary)]',
   'first:prose-p:mt-0 last:prose-p:mb-0',
-  'prose-li:text-[16px] prose-li:leading-7 prose-li:text-[var(--text-primary)]',
+  'prose-li:text-[15px] prose-li:leading-[25px] prose-li:text-[var(--text-primary)]',
   'prose-li:my-1',
   'prose-ul:my-4 prose-ol:my-4',
   'prose-strong:font-[600] prose-strong:text-[var(--text-primary)]',
@@ -106,7 +106,7 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
 
     if (!codeString) {
       return (
-        <pre className='not-prose my-6 overflow-x-auto rounded-lg bg-[var(--surface-5)] p-4 font-[420] font-mono text-[13px] text-[var(--text-primary)] leading-[21px] dark:bg-[#1F1F1F]'>
+        <pre className='not-prose my-6 overflow-x-auto rounded-lg bg-[var(--surface-5)] p-4 font-[430] font-mono text-[13px] text-[var(--text-primary)] leading-[21px] dark:bg-[#1F1F1F]'>
           {children}
         </pre>
       )
@@ -125,7 +125,7 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
         )}
         <div className='code-editor-theme bg-[var(--surface-5)] dark:bg-[#1F1F1F]'>
           <pre
-            className='m-0 overflow-x-auto whitespace-pre p-4 font-[420] font-mono text-[13px] text-[var(--text-primary)] leading-[21px] dark:text-[#eeeeee]'
+            className='m-0 overflow-x-auto whitespace-pre p-4 font-[430] font-mono text-[13px] text-[var(--text-primary)] leading-[21px] dark:text-[#eeeeee]'
             dangerouslySetInnerHTML={{ __html: html }}
           />
         </div>
@@ -156,13 +156,13 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
   li({ children, className }) {
     if (className?.includes('task-list-item')) {
       return (
-        <li className='flex list-none items-start gap-2 text-[16px] text-[var(--text-primary)] leading-7'>
+        <li className='flex list-none items-start gap-2 text-[15px] text-[var(--text-primary)] leading-[25px]'>
           {children}
         </li>
       )
     }
     return (
-      <li className='my-1 text-[16px] text-[var(--text-primary)] leading-7 marker:text-[var(--text-primary)]'>
+      <li className='my-1 text-[15px] text-[var(--text-primary)] leading-[25px] marker:text-[var(--text-primary)]'>
         {children}
       </li>
     )

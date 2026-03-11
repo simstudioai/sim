@@ -2,29 +2,26 @@
 
 import type { ContentBlock, OptionItem, SubagentName, ToolCallStatus } from '../../types'
 import { SUBAGENT_LABELS } from '../../types'
-import { ChatContent, Options, Subagent, ToolCall } from './components'
+import { AgentGroup, ChatContent, Options } from './components'
 
 interface TextSegment {
   type: 'text'
   content: string
 }
 
-interface ToolCallSegment {
-  type: 'tool_call'
+interface ToolCallData {
   id: string
   toolName: string
-  displayTitle?: string
+  displayTitle: string
   status: ToolCallStatus
-  phaseLabel?: string
-  calledBy?: string
 }
 
-interface SubagentSegment {
-  type: 'subagent'
+interface AgentGroupSegment {
+  type: 'agent_group'
   id: string
-  name: string
-  label: string
-  status: ToolCallStatus
+  agentName: string
+  agentLabel: string
+  tools: ToolCallData[]
 }
 
 interface OptionsSegment {
@@ -32,7 +29,9 @@ interface OptionsSegment {
   items: OptionItem[]
 }
 
-type MessageSegment = TextSegment | ToolCallSegment | SubagentSegment | OptionsSegment
+type MessageSegment = TextSegment | AgentGroupSegment | OptionsSegment
+
+const SUBAGENT_KEYS = new Set(Object.keys(SUBAGENT_LABELS))
 
 function formatToolName(name: string): string {
   return name
@@ -42,71 +41,134 @@ function formatToolName(name: string): string {
     .join(' ')
 }
 
-/**
- * Flattens raw content blocks into typed segments for rendering.
- * Each content type maps to its own segment with all available data preserved.
- */
-function parseBlocks(blocks: ContentBlock[], isStreaming: boolean): MessageSegment[] {
-  const segments: MessageSegment[] = []
-  let lastSubagentIdx = -1
-  for (let j = blocks.length - 1; j >= 0; j--) {
-    if (blocks[j].type === 'subagent') {
-      lastSubagentIdx = j
-      break
-    }
+function resolveAgentLabel(key: string): string {
+  return SUBAGENT_LABELS[key as SubagentName] ?? formatToolName(key)
+}
+
+function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
+  return {
+    id: tc.id,
+    toolName: tc.name,
+    displayTitle: tc.displayTitle || formatToolName(tc.name),
+    status: tc.status,
   }
+}
+
+/**
+ * Groups content blocks into agent-scoped segments.
+ * Dispatch tool_calls (name matches a subagent key, no calledBy) are absorbed
+ * into the agent header. Inner tool_calls are nested underneath their agent.
+ * Orphan tool_calls (no calledBy, not a dispatch) group under "Mothership".
+ */
+function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
+  const segments: MessageSegment[] = []
+  let group: AgentGroupSegment | null = null
 
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]
 
-    switch (block.type) {
-      case 'text': {
-        if (block.content?.trim()) {
-          const last = segments[segments.length - 1]
-          if (last?.type === 'text') {
-            last.content += block.content
-          } else {
-            segments.push({ type: 'text', content: block.content })
+    if (block.type === 'text') {
+      if (!block.content?.trim()) continue
+      if (group) {
+        segments.push(group)
+        group = null
+      }
+      const last = segments[segments.length - 1]
+      if (last?.type === 'text') {
+        last.content += block.content
+      } else {
+        segments.push({ type: 'text', content: block.content })
+      }
+      continue
+    }
+
+    if (block.type === 'subagent') {
+      if (!block.content) continue
+      const key = block.content
+      if (group && group.agentName === key) continue
+      if (group) {
+        segments.push(group)
+        group = null
+      }
+      group = {
+        type: 'agent_group',
+        id: `agent-${key}-${i}`,
+        agentName: key,
+        agentLabel: resolveAgentLabel(key),
+        tools: [],
+      }
+      continue
+    }
+
+    if (block.type === 'tool_call') {
+      if (!block.toolCall) continue
+      const tc = block.toolCall
+      const isDispatch = SUBAGENT_KEYS.has(tc.name) && !tc.calledBy
+
+      if (isDispatch) {
+        if (!group || group.agentName !== tc.name) {
+          if (group) {
+            segments.push(group)
+            group = null
+          }
+          group = {
+            type: 'agent_group',
+            id: `agent-${tc.name}-${i}`,
+            agentName: tc.name,
+            agentLabel: resolveAgentLabel(tc.name),
+            tools: [],
           }
         }
-        break
+        continue
       }
-      case 'subagent': {
-        if (block.content) {
-          const key = block.content
-          segments.push({
-            type: 'subagent',
-            id: `subagent-${i}`,
-            name: key,
-            label: SUBAGENT_LABELS[key as SubagentName] ?? key,
-            status: isStreaming && i === lastSubagentIdx ? 'executing' : 'success',
-          })
+
+      const tool = toToolData(tc)
+
+      if (tc.calledBy && group && group.agentName === tc.calledBy) {
+        group.tools.push(tool)
+      } else if (tc.calledBy) {
+        if (group) {
+          segments.push(group)
+          group = null
         }
-        break
-      }
-      case 'tool_call': {
-        if (block.toolCall) {
-          segments.push({
-            type: 'tool_call',
-            id: block.toolCall.id,
-            toolName: block.toolCall.name,
-            displayTitle: block.toolCall.displayTitle || formatToolName(block.toolCall.name),
-            status: block.toolCall.status,
-            phaseLabel: block.toolCall.phaseLabel,
-            calledBy: block.toolCall.calledBy,
-          })
+        group = {
+          type: 'agent_group',
+          id: `agent-${tc.calledBy}-${i}`,
+          agentName: tc.calledBy,
+          agentLabel: resolveAgentLabel(tc.calledBy),
+          tools: [tool],
         }
-        break
-      }
-      case 'options': {
-        if (block.options?.length) {
-          segments.push({ type: 'options', items: block.options })
+      } else {
+        if (group && group.agentName === 'mothership') {
+          group.tools.push(tool)
+        } else {
+          if (group) {
+            segments.push(group)
+            group = null
+          }
+          group = {
+            type: 'agent_group',
+            id: `agent-mothership-${i}`,
+            agentName: 'mothership',
+            agentLabel: 'Mothership',
+            tools: [tool],
+          }
         }
-        break
       }
+      continue
+    }
+
+    if (block.type === 'options') {
+      if (!block.options?.length) continue
+      if (group) {
+        segments.push(group)
+        group = null
+      }
+      segments.push({ type: 'options', items: block.options })
     }
   }
 
+  if (group) segments.push(group)
   return segments
 }
 
@@ -117,13 +179,8 @@ interface MessageContentProps {
   onOptionSelect?: (id: string) => void
 }
 
-export function MessageContent({
-  blocks,
-  fallbackContent,
-  isStreaming,
-  onOptionSelect,
-}: MessageContentProps) {
-  const parsed = blocks.length > 0 ? parseBlocks(blocks, isStreaming) : []
+export function MessageContent({ blocks, fallbackContent, onOptionSelect }: MessageContentProps) {
+  const parsed = blocks.length > 0 ? parseBlocks(blocks) : []
 
   const segments: MessageSegment[] =
     parsed.length > 0
@@ -140,26 +197,13 @@ export function MessageContent({
         switch (segment.type) {
           case 'text':
             return <ChatContent key={`text-${i}`} content={segment.content} />
-          case 'tool_call':
+          case 'agent_group':
             return (
-              <ToolCall
+              <AgentGroup
                 key={segment.id}
-                id={segment.id}
-                toolName={segment.toolName}
-                displayTitle={segment.displayTitle}
-                status={segment.status}
-                phaseLabel={segment.phaseLabel}
-                calledBy={segment.calledBy}
-              />
-            )
-          case 'subagent':
-            return (
-              <Subagent
-                key={segment.id}
-                id={segment.id}
-                name={segment.name}
-                label={segment.label}
-                status={segment.status}
+                agentName={segment.agentName}
+                agentLabel={segment.agentLabel}
+                tools={segment.tools}
               />
             )
           case 'options':

@@ -22,7 +22,7 @@ const SEND_BUTTON_ACTIVE =
   'bg-[var(--c-383838)] hover:bg-[var(--c-575757)] dark:bg-[var(--c-E0E0E0)] dark:hover:bg-[var(--c-CFCFCF)]'
 const SEND_BUTTON_DISABLED = 'bg-[var(--c-808080)] dark:bg-[var(--c-808080)]'
 
-const MAX_CHAT_TEXTAREA_HEIGHT = 104 // 4 lines × 24px line-height + 8px padding
+const MAX_CHAT_TEXTAREA_HEIGHT = 200 // 8 lines × 24px line-height + 8px padding
 
 function autoResizeTextarea(e: React.FormEvent<HTMLTextAreaElement>, maxHeight: number) {
   const target = e.target as HTMLTextAreaElement
@@ -248,7 +248,7 @@ export function UserInput({
         onInput={handleInput}
         placeholder={files.isDragging ? 'Drop files here...' : placeholder}
         rows={1}
-        className={cn(TEXTAREA_BASE_CLASSES, isInitialView ? 'max-h-[30vh]' : 'max-h-[104px]')}
+        className={cn(TEXTAREA_BASE_CLASSES, isInitialView ? 'max-h-[30vh]' : 'max-h-[200px]')}
       />
       <div className='flex items-center justify-between'>
         <button
