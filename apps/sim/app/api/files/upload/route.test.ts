@@ -420,10 +420,10 @@ describe('File Upload Security Tests', () => {
       }
     })
 
-    it('should reject HTML files to prevent XSS', async () => {
+    it('should accept HTML files (supported document type)', async () => {
       const formData = new FormData()
-      const maliciousContent = '<script>alert("XSS")</script>'
-      const file = new File([maliciousContent], 'malicious.html', { type: 'text/html' })
+      const htmlContent = '<h1>Hello World</h1>'
+      const file = new File([htmlContent], 'document.html', { type: 'text/html' })
       formData.append('file', file)
       formData.append('context', 'workspace')
       formData.append('workspaceId', 'test-workspace-id')
@@ -435,15 +435,14 @@ describe('File Upload Security Tests', () => {
 
       const response = await POST(req as unknown as NextRequest)
 
-      expect(response.status).toBe(400)
-      const data = await response.json()
-      expect(data.message).toContain("File type 'html' is not allowed")
+      expect(response.status).toBe(200)
     })
 
-    it('should reject HTML files to prevent XSS', async () => {
+    it('should accept SVG files (supported image type)', async () => {
       const formData = new FormData()
-      const maliciousContent = '<script>alert("XSS")</script>'
-      const file = new File([maliciousContent], 'malicious.html', { type: 'text/html' })
+      const svgContent =
+        '<svg xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100"/></svg>'
+      const file = new File([svgContent], 'image.svg', { type: 'image/svg+xml' })
       formData.append('file', file)
       formData.append('context', 'workspace')
       formData.append('workspaceId', 'test-workspace-id')
@@ -455,29 +454,7 @@ describe('File Upload Security Tests', () => {
 
       const response = await POST(req as unknown as NextRequest)
 
-      expect(response.status).toBe(400)
-      const data = await response.json()
-      expect(data.message).toContain("File type 'html' is not allowed")
-    })
-
-    it('should reject SVG files to prevent XSS', async () => {
-      const formData = new FormData()
-      const maliciousSvg = '<svg onload="alert(\'XSS\')" xmlns="http://www.w3.org/2000/svg"></svg>'
-      const file = new File([maliciousSvg], 'malicious.svg', { type: 'image/svg+xml' })
-      formData.append('file', file)
-      formData.append('context', 'workspace')
-      formData.append('workspaceId', 'test-workspace-id')
-
-      const req = new Request('http://localhost/api/files/upload', {
-        method: 'POST',
-        body: formData,
-      })
-
-      const response = await POST(req as unknown as NextRequest)
-
-      expect(response.status).toBe(400)
-      const data = await response.json()
-      expect(data.message).toContain("File type 'svg' is not allowed")
+      expect(response.status).toBe(200)
     })
 
     it('should reject JavaScript files', async () => {
@@ -525,8 +502,8 @@ describe('File Upload Security Tests', () => {
       const validFile = new File(['valid content'], 'valid.pdf', { type: 'application/pdf' })
       formData.append('file', validFile)
 
-      const invalidFile = new File(['<script>alert("XSS")</script>'], 'malicious.html', {
-        type: 'text/html',
+      const invalidFile = new File(['binary content'], 'malicious.exe', {
+        type: 'application/x-msdownload',
       })
       formData.append('file', invalidFile)
       formData.append('context', 'workspace')
@@ -541,7 +518,7 @@ describe('File Upload Security Tests', () => {
 
       expect(response.status).toBe(400)
       const data = await response.json()
-      expect(data.message).toContain("File type 'html' is not allowed")
+      expect(data.message).toContain("File type 'exe' is not allowed")
     })
   })
 
