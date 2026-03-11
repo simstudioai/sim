@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
-import { Loader } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import {
   LandingPromptStorage,
@@ -18,6 +17,27 @@ import type { FileAttachmentForApi } from './components/user-input/user-input'
 import { useChat } from './hooks'
 
 const logger = createLogger('Home')
+
+const THINKING_BLOCKS = [
+  { color: '#2ABBF8', delay: '0s' },
+  { color: '#00F701', delay: '0.2s' },
+  { color: '#FA4EDF', delay: '0.6s' },
+  { color: '#FFCC02', delay: '0.4s' },
+] as const
+
+function ThinkingIndicator() {
+  return (
+    <div className='grid h-[16px] w-[16px] grid-cols-2 gap-[1.5px]'>
+      {THINKING_BLOCKS.map((block, i) => (
+        <div
+          key={i}
+          className='animate-thinking-block rounded-[2px]'
+          style={{ backgroundColor: block.color, animationDelay: block.delay }}
+        />
+      ))}
+    </div>
+  )
+}
 
 interface HomeProps {
   chatId?: string
@@ -178,7 +198,7 @@ export function Home({ chatId }: HomeProps = {}) {
               if (!hasBlocks && !msg.content && isThisStreaming) {
                 return (
                   <div key={msg.id} className='flex items-center gap-[8px] py-[8px]'>
-                    <Loader className='h-[16px] w-[16px] text-[var(--text-icon)]' animate />
+                    <ThinkingIndicator />
                     <span className='font-[var(--sidebar-font-weight)] text-[14px] text-[var(--text-body)]'>
                       Thinking…
                     </span>

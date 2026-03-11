@@ -159,6 +159,10 @@ export default {
           from: { opacity: '0' },
           to: { opacity: '1' },
         },
+        'thinking-block': {
+          '0%, 100%': { opacity: '0.15' },
+          '30%, 55%': { opacity: '1' },
+        },
         'slide-in-right': {
           from: { opacity: '0', transform: 'translateX(40px)' },
           to: { opacity: '1', transform: 'translateX(0)' },
@@ -172,6 +176,7 @@ export default {
         'placeholder-pulse': 'placeholder-pulse 1.5s ease-in-out infinite',
         'ring-pulse': 'ring-pulse 1.5s ease-in-out infinite',
         'stream-fade-in': 'stream-fade-in 300ms ease-out forwards',
+        'thinking-block': 'thinking-block 1.6s ease-in-out infinite',
         'slide-in-right': 'slide-in-right 350ms ease-out forwards',
       },
     },
