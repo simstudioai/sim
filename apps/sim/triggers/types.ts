@@ -25,6 +25,9 @@ export interface TriggerConfig {
     method?: 'POST' | 'GET' | 'PUT' | 'DELETE'
     headers?: Record<string, string>
   }
+
+  /** When true, this trigger is poll-based (cron-driven) rather than push-based. */
+  polling?: boolean
 }
 
 export interface TriggerRegistry {

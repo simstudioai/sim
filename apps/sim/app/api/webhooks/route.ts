@@ -367,9 +367,7 @@ export async function POST(request: NextRequest) {
             )
           }
 
-          // Configure each new webhook (for providers that need configuration)
-          const pollingProviders = ['gmail', 'outlook']
-          const needsConfiguration = pollingProviders.includes(provider)
+          const needsConfiguration = provider === 'gmail' || provider === 'outlook'
 
           if (needsConfiguration) {
             const configureFunc =

@@ -19,6 +19,7 @@ import {
   refreshAccessTokenIfNeeded,
   resolveOAuthAccountId,
 } from '@/app/api/auth/oauth/utils'
+import { isPollingWebhookProvider } from '@/triggers/constants'
 
 const logger = createLogger('WebhookUtils')
 
@@ -2222,10 +2223,7 @@ export async function syncWebhooksForCredentialSet(params: {
     `[${requestId}] Syncing webhooks for credential set ${credentialSetId}, provider ${provider}`
   )
 
-  // Polling providers get unique paths per credential (for independent state)
-  // External webhook providers share the same path (external service sends to one URL)
-  const pollingProviders = ['gmail', 'outlook', 'rss', 'imap']
-  const useUniquePaths = pollingProviders.includes(provider)
+  const useUniquePaths = isPollingWebhookProvider(provider)
 
   const credentials = await getCredentialsForCredentialSet(credentialSetId, oauthProviderId)
 

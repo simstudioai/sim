@@ -12,6 +12,7 @@ export const imapPollingTrigger: TriggerConfig = {
   description: 'Triggers when new emails are received via IMAP (works with any email provider)',
   version: '1.0.0',
   icon: MailServerIcon,
+  polling: true,
 
   subBlocks: [
     // Connection settings
