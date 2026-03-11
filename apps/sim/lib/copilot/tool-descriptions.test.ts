@@ -25,7 +25,7 @@ describe('getCopilotToolDescription', () => {
         },
         { isHosted: true }
       )
-    ).toBe('Search for brands by company name API key is hosted by Sim on hosted deployments.')
+    ).toBe('Search for brands by company name <note>API key is hosted by Sim.</note>')
   })
 
   it.concurrent('uses the fallback name when no description exists', () => {
@@ -38,6 +38,6 @@ describe('getCopilotToolDescription', () => {
         },
         { isHosted: true, fallbackName: 'brandfetch_search' }
       )
-    ).toBe('brandfetch_search API key is hosted by Sim on hosted deployments.')
+    ).toBe('brandfetch_search <note>API key is hosted by Sim.</note>')
   })
 })
