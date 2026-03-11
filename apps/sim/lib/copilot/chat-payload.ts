@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getUserSubscriptionState } from '@/lib/billing/core/subscription'
 import { processFileAttachments } from '@/lib/copilot/chat-context'
 import { getCopilotToolDescription } from '@/lib/copilot/tool-descriptions'
 import { isHosted } from '@/lib/core/config/feature-flags'
@@ -44,11 +45,12 @@ export interface ToolSchema {
  * Shared by the interactive chat payload builder and the non-interactive
  * block execution route so both paths send the same tool definitions to Go.
  */
-export async function buildIntegrationToolSchemas(): Promise<ToolSchema[]> {
+export async function buildIntegrationToolSchemas(userId: string): Promise<ToolSchema[]> {
   const integrationTools: ToolSchema[] = []
   try {
     const { createUserToolSchema } = await import('@/tools/params')
     const latestTools = getLatestVersionTools(tools)
+    const subscriptionState = await getUserSubscriptionState(userId)
 
     for (const [toolId, toolConfig] of Object.entries(latestTools)) {
       try {
@@ -59,7 +61,7 @@ export async function buildIntegrationToolSchemas(): Promise<ToolSchema[]> {
           description: getCopilotToolDescription(toolConfig, {
             isHosted,
             fallbackName: strippedName,
-            appendEmailTagline: true,
+            appendEmailTagline: subscriptionState.isFree,
           }),
           input_schema: userSchema as unknown as Record<string, unknown>,
           defer_loading: true,
@@ -119,7 +121,7 @@ export async function buildCopilotRequestPayload(
   let integrationTools: ToolSchema[] = []
 
   if (effectiveMode === 'build') {
-    integrationTools = await buildIntegrationToolSchemas()
+    integrationTools = await buildIntegrationToolSchemas(userId)
 
     // Discover MCP tools from workspace servers and include as deferred tools
     if (workflowId) {
