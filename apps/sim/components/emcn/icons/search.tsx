@@ -18,8 +18,8 @@ export function Search(props: SVGProps<SVGSVGElement>) {
       xmlns='http://www.w3.org/2000/svg'
       {...props}
     >
-      <circle cx='8.5' cy='8.5' r='6.5' />
-      <path d='M13.5 13.5L18.5 18.5' />
+      <circle cx='8.5' cy='8.5' r='7.5' />
+      <path d='M14 14L18 18' />
     </svg>
   )
 }
