@@ -70,6 +70,7 @@ async function completeSyncLog(
       docsUpdated: result.docsUpdated,
       docsDeleted: result.docsDeleted,
       docsUnchanged: result.docsUnchanged,
+      docsFailed: result.docsFailed,
     })
     .where(eq(knowledgeConnectorSyncLog.id, syncLogId))
 }
@@ -171,6 +172,7 @@ export async function executeSync(
     docsUpdated: 0,
     docsDeleted: 0,
     docsUnchanged: 0,
+    docsFailed: 0,
   }
 
   const connectorRows = await db
@@ -390,6 +392,7 @@ export async function executeSync(
           if (batch[j].type === 'add') result.docsAdded++
           else result.docsUpdated++
         } else {
+          result.docsFailed++
           logger.error('Failed to process document', {
             connectorId,
             externalId: batch[j].extDoc.externalId,

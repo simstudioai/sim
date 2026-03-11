@@ -501,7 +501,8 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
       {logs.map((log) => {
         const isError = log.status === 'error' || log.status === 'failed'
         const isRunning = log.status === 'running' || log.status === 'syncing'
-        const totalChanges = log.docsAdded + log.docsUpdated + log.docsDeleted
+        const totalChanges =
+          log.docsAdded + log.docsUpdated + log.docsDeleted + (log.docsFailed ?? 0)
 
         return (
           <div key={log.id} className='flex items-start gap-[8px] text-[11px]'>
@@ -539,6 +540,13 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
                           <>
                             {(log.docsAdded > 0 || log.docsUpdated > 0) && ' '}
                             <span className='text-[var(--text-error)]'>-{log.docsDeleted}</span>
+                          </>
+                        )}
+                        {log.docsFailed > 0 && (
+                          <>
+                            {(log.docsAdded > 0 || log.docsUpdated > 0 || log.docsDeleted > 0) &&
+                              ' '}
+                            <span className='text-[var(--text-error)]'>!{log.docsFailed}</span>
                           </>
                         )}
                       </>
