@@ -6,6 +6,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import {
@@ -17,6 +18,19 @@ import {
 } from '@/app/api/files/utils'
 
 const logger = createLogger('FilesServeAPI')
+
+async function resolveDisplayFilename(
+  cloudKey: string,
+  context: StorageContext
+): Promise<string | null> {
+  try {
+    const metadata = await getFileMetadataByKey(cloudKey, context)
+    if (metadata?.originalName) return metadata.originalName
+  } catch {
+    logger.debug('Failed to look up original filename from DB', { cloudKey, context })
+  }
+  return null
+}
 
 export async function GET(
   request: NextRequest,
@@ -103,14 +117,17 @@ async function handleLocalFile(filename: string, userId: string): Promise<NextRe
     }
 
     const fileBuffer = await readFile(filePath)
-    const contentType = getContentType(filename)
+    const fallbackName = filename.split('/').pop() || filename
+    const displayName =
+      (contextParam ? await resolveDisplayFilename(filename, contextParam) : null) ?? fallbackName
+    const contentType = getContentType(displayName)
 
     logger.info('Local file served', { userId, filename, size: fileBuffer.length })
 
     return createFileResponse({
       buffer: fileBuffer,
       contentType,
-      filename,
+      filename: displayName,
       cacheControl: contextParam === 'workspace' ? 'private, no-cache, must-revalidate' : undefined,
     })
   } catch (error) {
@@ -159,8 +176,9 @@ async function handleCloudProxy(
       })
     }
 
-    const originalFilename = cloudKey.split('/').pop() || 'download'
-    const contentType = getContentType(originalFilename)
+    const fallbackName = cloudKey.split('/').pop() || 'download'
+    const displayName = (await resolveDisplayFilename(cloudKey, context)) ?? fallbackName
+    const contentType = getContentType(displayName)
 
     logger.info('Cloud file served', {
       userId,
@@ -172,7 +190,7 @@ async function handleCloudProxy(
     return createFileResponse({
       buffer: fileBuffer,
       contentType,
-      filename: originalFilename,
+      filename: displayName,
       cacheControl: context === 'workspace' ? 'private, no-cache, must-revalidate' : undefined,
     })
   } catch (error) {
@@ -197,8 +215,9 @@ async function handleCloudProxyPublic(
       })
     }
 
-    const originalFilename = cloudKey.split('/').pop() || 'download'
-    const contentType = getContentType(originalFilename)
+    const fallbackName = cloudKey.split('/').pop() || 'download'
+    const displayName = (await resolveDisplayFilename(cloudKey, context)) ?? fallbackName
+    const contentType = getContentType(displayName)
 
     logger.info('Public cloud file served', {
       key: cloudKey,
@@ -209,7 +228,7 @@ async function handleCloudProxyPublic(
     return createFileResponse({
       buffer: fileBuffer,
       contentType,
-      filename: originalFilename,
+      filename: displayName,
     })
   } catch (error) {
     logger.error('Error serving public cloud file:', error)

@@ -9,11 +9,11 @@ import {
   FileViewer,
   type PreviewMode,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
-import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
-import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
-import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
+import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/components'
+import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
+import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useCurrentWorkflowExecution } from '@/stores/execution'
@@ -72,10 +72,7 @@ interface EmbeddedWorkflowActionsProps {
   workflowId: string
 }
 
-export function EmbeddedWorkflowActions({
-  workspaceId,
-  workflowId,
-}: EmbeddedWorkflowActionsProps) {
+export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWorkflowActionsProps) {
   const router = useRouter()
   const { navigateToSettings } = useSettingsNavigation()
   const { userPermissions: effectivePermissions } = useWorkspacePermissionsContext()
@@ -88,7 +85,8 @@ export function EmbeddedWorkflowActions({
     setActiveWorkflow(workflowId)
   }, [setActiveWorkflow, workflowId])
 
-  const isRunButtonDisabled = !isExecuting && (!effectivePermissions.canRead && !effectivePermissions.isLoading)
+  const isRunButtonDisabled =
+    !isExecuting && !effectivePermissions.canRead && !effectivePermissions.isLoading
 
   const handleRun = useCallback(async () => {
     if (isExecuting) {

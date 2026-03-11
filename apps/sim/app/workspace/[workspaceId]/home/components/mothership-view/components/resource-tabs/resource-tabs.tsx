@@ -1,6 +1,12 @@
 'use client'
 
-import { type ElementType, type ReactNode, type RefCallback, type SVGProps, useCallback } from 'react'
+import {
+  type ElementType,
+  type ReactNode,
+  type RefCallback,
+  type SVGProps,
+  useCallback,
+} from 'react'
 import { Button, Tooltip } from '@/components/emcn'
 import { PanelLeft, Table as TableIcon } from '@/components/emcn/icons'
 import { WorkflowIcon } from '@/components/icons'

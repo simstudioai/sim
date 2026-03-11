@@ -83,6 +83,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
               name: result.name,
               contentType,
               size: fileBuffer.length,
+              downloadUrl: result.url,
             },
           }
         }
