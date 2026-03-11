@@ -64,8 +64,12 @@ export function getStorageLimitForPlan(plan: string, metadata?: any): number {
   }
 
   const effectivePlan = getPlanTypeForLimits(plan)
-  const planLimitMap: Record<string, number> = { ...limits, enterprise: limits.enterpriseDefault }
-  return planLimitMap[effectivePlan] ?? limits.free
+  const limitByPlan: Record<'free' | 'pro' | 'team', number> = {
+    free: limits.free,
+    pro: limits.pro,
+    team: limits.team,
+  }
+  return limitByPlan[effectivePlan as 'free' | 'pro' | 'team'] ?? limits.free
 }
 
 /**
@@ -86,11 +90,12 @@ export async function getUserStorageLimit(userId: string): Promise<number> {
 
     if (!isOrgPlan(sub.plan)) {
       const effectivePlan = getPlanTypeForLimits(sub.plan)
-      const planLimitMap: Record<string, number> = {
-        ...limits,
-        enterprise: limits.enterpriseDefault,
+      const limitByPlan: Record<'free' | 'pro' | 'team', number> = {
+        free: limits.free,
+        pro: limits.pro,
+        team: limits.team,
       }
-      return planLimitMap[effectivePlan] ?? limits.free
+      return limitByPlan[effectivePlan as 'free' | 'pro' | 'team'] ?? limits.free
     }
 
     if (isOrgPlan(sub.plan)) {

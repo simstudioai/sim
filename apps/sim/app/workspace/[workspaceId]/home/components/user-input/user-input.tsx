@@ -26,6 +26,11 @@ interface SpeechRecognitionStatic {
   new (): SpeechRecognitionInstance
 }
 
+type WindowWithSpeech = Window & {
+  SpeechRecognition?: SpeechRecognitionStatic
+  webkitSpeechRecognition?: SpeechRecognitionStatic
+}
+
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowUp, FileText, Loader2, Mic, Paperclip, X } from 'lucide-react'
 import { Button } from '@/components/emcn'
@@ -166,10 +171,7 @@ export function UserInput({
       return
     }
 
-    const w = window as Window & {
-      SpeechRecognition?: SpeechRecognitionStatic
-      webkitSpeechRecognition?: SpeechRecognitionStatic
-    }
+    const w = window as WindowWithSpeech
     const SpeechRecognitionAPI = w.SpeechRecognition || w.webkitSpeechRecognition
     if (!SpeechRecognitionAPI) return
 
