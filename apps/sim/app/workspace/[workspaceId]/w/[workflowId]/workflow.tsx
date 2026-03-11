@@ -1,6 +1,7 @@
 'use client'
 
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import ReactFlow, {
   applyNodeChanges,
@@ -17,6 +18,8 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { createLogger } from '@sim/logger'
 import { useShallow } from 'zustand/react/shallow'
+import { Button, PlayOutline } from '@/components/emcn'
+import { WorkflowIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/base-tool'
 import type { OAuthProvider } from '@/lib/oauth'
@@ -72,6 +75,7 @@ import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useAutoConnect, useSnapToGridSize } from '@/hooks/queries/general-settings'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useChatStore } from '@/stores/chat/store'
@@ -87,6 +91,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { getUniqueBlockName, prepareBlockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
+import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 
 /** Lazy-loaded components for non-critical UI that can load after initial render */
 const LazyChat = lazy(() =>
@@ -379,7 +384,8 @@ const WorkflowContent = React.memo(
 
     const showTrainingModal = useCopilotTrainingStore((state) => state.showModal)
 
-    const { handleRunFromBlock, handleRunUntilBlock } = useWorkflowExecution()
+    const { handleRunFromBlock, handleRunUntilBlock, handleRunWorkflow, handleCancelExecution } =
+      useWorkflowExecution()
 
     const snapToGridSize = useSnapToGridSize()
     const snapToGrid = snapToGridSize > 0
@@ -612,6 +618,11 @@ const WorkflowContent = React.memo(
 
     const { userPermissions, workspacePermissions, permissionsError } =
       useWorkspacePermissionsContext()
+    const { navigateToSettings } = useSettingsNavigation()
+    const { usageExceeded } = useUsageLimits({
+      context: 'user',
+      autoRefresh: hydration.phase !== 'idle' && hydration.phase !== 'metadata-loading',
+    })
 
     /** Returns read-only permissions when viewing snapshot, otherwise user permissions. */
     const effectivePermissions = useMemo(() => {
@@ -625,7 +636,6 @@ const WorkflowContent = React.memo(
       }
       return userPermissions
     }, [userPermissions, currentWorkflow.isSnapshotView])
-
     const {
       collaborativeBatchAddEdges,
       collaborativeBatchRemoveEdges,
@@ -847,6 +857,37 @@ const WorkflowContent = React.memo(
       })
     )
     const getLastExecutionSnapshot = useExecutionStore((s) => s.getLastExecutionSnapshot)
+
+    const canRunWorkflow = effectivePermissions.canRead
+    const isRunButtonDisabled = !isExecuting && (!canRunWorkflow && !effectivePermissions.isLoading)
+
+    const openSubscriptionSettings = useCallback(() => {
+      navigateToSettings({ section: 'subscription' })
+    }, [navigateToSettings])
+
+    const handleEmbeddedRun = useCallback(async () => {
+      if (isExecuting) {
+        await handleCancelExecution()
+        return
+      }
+
+      if (usageExceeded) {
+        openSubscriptionSettings()
+        return
+      }
+
+      await handleRunWorkflow()
+    }, [
+      handleCancelExecution,
+      handleRunWorkflow,
+      isExecuting,
+      openSubscriptionSettings,
+      usageExceeded,
+    ])
+
+    const handleOpenFullWorkflow = useCallback(() => {
+      router.push(`/workspace/${workspaceId}/w/${workflowIdParam}`)
+    }, [router, workspaceId, workflowIdParam])
 
     const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
 
@@ -3830,6 +3871,32 @@ const WorkflowContent = React.memo(
             {isWorkflowReady && (
               <>
                 {showTrainingModal && <TrainingModal />}
+
+                {embedded && (
+                  <div className='absolute bottom-[28px] left-1/2 z-[31] flex -translate-x-1/2 items-center gap-[2px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-3)] p-[2px] shadow-sm backdrop-blur-sm'>
+                    <Button
+                      className='h-[30px] rounded-[8px] gap-[8px] px-[12px] text-[var(--text-secondary)] hover:bg-[var(--surface-4)] hover:text-[var(--text-primary)]'
+                      variant='ghost'
+                      onClick={() => void handleEmbeddedRun()}
+                      disabled={!isExecuting && isRunButtonDisabled}
+                    >
+                      {isExecuting ? (
+                        <Square className='h-[11.5px] w-[11.5px] fill-current' />
+                      ) : (
+                        <PlayOutline className='h-[11.5px] w-[11.5px]' />
+                      )}
+                      {isExecuting ? 'Stop' : 'Run'}
+                    </Button>
+                    <Button
+                      className='h-[30px] rounded-[8px] gap-[8px] px-[12px] text-[var(--text-secondary)] hover:bg-[var(--surface-4)] hover:text-[var(--text-primary)]'
+                      variant='ghost'
+                      onClick={handleOpenFullWorkflow}
+                    >
+                      <WorkflowIcon className='h-[13px] w-[13px]' />
+                      Open Workflow
+                    </Button>
+                  </div>
+                )}
 
                 <ReactFlow
                   nodes={displayNodes}
