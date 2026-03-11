@@ -18,6 +18,12 @@ import {
 
 const logger = createLogger('FilesServeAPI')
 
+const STORAGE_KEY_PREFIX_RE = /^\d{13}-[a-z0-9]{7}-/
+
+function stripStorageKeyPrefix(segment: string): string {
+  return STORAGE_KEY_PREFIX_RE.test(segment) ? segment.replace(STORAGE_KEY_PREFIX_RE, '') : segment
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
@@ -103,14 +109,16 @@ async function handleLocalFile(filename: string, userId: string): Promise<NextRe
     }
 
     const fileBuffer = await readFile(filePath)
-    const contentType = getContentType(filename)
+    const segment = filename.split('/').pop() || filename
+    const displayName = stripStorageKeyPrefix(segment)
+    const contentType = getContentType(displayName)
 
     logger.info('Local file served', { userId, filename, size: fileBuffer.length })
 
     return createFileResponse({
       buffer: fileBuffer,
       contentType,
-      filename,
+      filename: displayName,
       cacheControl: contextParam === 'workspace' ? 'private, no-cache, must-revalidate' : undefined,
     })
   } catch (error) {
@@ -159,8 +167,9 @@ async function handleCloudProxy(
       })
     }
 
-    const originalFilename = cloudKey.split('/').pop() || 'download'
-    const contentType = getContentType(originalFilename)
+    const segment = cloudKey.split('/').pop() || 'download'
+    const displayName = stripStorageKeyPrefix(segment)
+    const contentType = getContentType(displayName)
 
     logger.info('Cloud file served', {
       userId,
@@ -172,7 +181,7 @@ async function handleCloudProxy(
     return createFileResponse({
       buffer: fileBuffer,
       contentType,
-      filename: originalFilename,
+      filename: displayName,
       cacheControl: context === 'workspace' ? 'private, no-cache, must-revalidate' : undefined,
     })
   } catch (error) {
@@ -197,8 +206,8 @@ async function handleCloudProxyPublic(
       })
     }
 
-    const originalFilename = cloudKey.split('/').pop() || 'download'
-    const contentType = getContentType(originalFilename)
+    const filename = cloudKey.split('/').pop() || 'download'
+    const contentType = getContentType(filename)
 
     logger.info('Public cloud file served', {
       key: cloudKey,
@@ -209,7 +218,7 @@ async function handleCloudProxyPublic(
     return createFileResponse({
       buffer: fileBuffer,
       contentType,
-      filename: originalFilename,
+      filename,
     })
   } catch (error) {
     logger.error('Error serving public cloud file:', error)

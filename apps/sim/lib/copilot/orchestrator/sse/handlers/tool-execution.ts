@@ -179,6 +179,7 @@ async function maybeWriteOutputToFile(
         fileId: uploaded.id,
         fileName,
         size: buffer.length,
+        downloadUrl: uploaded.url,
       },
     }
   } catch (err) {
