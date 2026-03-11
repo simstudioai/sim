@@ -99,16 +99,21 @@ function mapStoredMessage(msg: TaskStoredMessage): ChatMessage {
     content: msg.content,
   }
 
-  if (Array.isArray(msg.toolCalls) && msg.toolCalls.length > 0) {
-    const blocks: ContentBlock[] = msg.toolCalls.map(mapStoredToolCall)
-    if (msg.content?.trim()) {
+  const hasContentBlocks = Array.isArray(msg.contentBlocks) && msg.contentBlocks.length > 0
+  const hasToolCalls = Array.isArray(msg.toolCalls) && msg.toolCalls.length > 0
+  const contentBlocksHaveTools =
+    hasContentBlocks && msg.contentBlocks!.some((b) => b.type === 'tool_call')
+
+  if (hasContentBlocks && (!hasToolCalls || contentBlocksHaveTools)) {
+    const blocks = msg.contentBlocks!.map(mapStoredBlock)
+    const hasText = blocks.some((b) => b.type === 'text' && b.content?.trim())
+    if (!hasText && msg.content?.trim()) {
       blocks.push({ type: 'text', content: msg.content })
     }
     mapped.contentBlocks = blocks
-  } else if (Array.isArray(msg.contentBlocks) && msg.contentBlocks.length > 0) {
-    const blocks = msg.contentBlocks.map(mapStoredBlock)
-    const hasText = blocks.some((b) => b.type === 'text' && b.content?.trim())
-    if (!hasText && msg.content?.trim()) {
+  } else if (hasToolCalls) {
+    const blocks: ContentBlock[] = msg.toolCalls!.map(mapStoredToolCall)
+    if (msg.content?.trim()) {
       blocks.push({ type: 'text', content: msg.content })
     }
     mapped.contentBlocks = blocks

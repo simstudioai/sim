@@ -185,12 +185,14 @@ export const sseHandlers: Record<string, SSEHandler> = {
       event.toolName || (data?.toolName as string | undefined) || (data?.name as string | undefined)
     if (!toolCallId || !toolName) return
     if (!context.toolCalls.has(toolCallId)) {
-      context.toolCalls.set(toolCallId, {
+      const toolCall = {
         id: toolCallId,
         name: toolName,
-        status: 'pending',
+        status: 'pending' as const,
         startTime: Date.now(),
-      })
+      }
+      context.toolCalls.set(toolCallId, toolCall)
+      addContentBlock(context, { type: 'tool_call', toolCall })
     }
   },
   tool_call: async (event, context, execContext, options) => {
@@ -217,15 +219,20 @@ export const sseHandlers: Record<string, SSEHandler> = {
 
     if (existing) {
       if (args && !existing.params) existing.params = args
+      if (
+        !context.contentBlocks.some((b) => b.type === 'tool_call' && b.toolCall?.id === toolCallId)
+      ) {
+        addContentBlock(context, { type: 'tool_call', toolCall: existing })
+      }
     } else {
-      context.toolCalls.set(toolCallId, {
+      const created = {
         id: toolCallId,
         name: toolName,
-        status: 'pending',
+        status: 'pending' as const,
         params: args,
         startTime: Date.now(),
-      })
-      const created = context.toolCalls.get(toolCallId)!
+      }
+      context.toolCalls.set(toolCallId, created)
       addContentBlock(context, { type: 'tool_call', toolCall: created })
     }
 

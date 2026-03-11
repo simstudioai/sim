@@ -191,6 +191,26 @@ export async function POST(req: NextRequest) {
           if (result.toolCalls.length > 0) {
             assistantMessage.toolCalls = result.toolCalls
           }
+          if (result.contentBlocks.length > 0) {
+            assistantMessage.contentBlocks = result.contentBlocks.map((block) => {
+              const stored: Record<string, unknown> = { type: block.type }
+              if (block.content) stored.content = block.content
+              if (block.type === 'tool_call' && block.toolCall) {
+                stored.toolCall = {
+                  id: block.toolCall.id,
+                  name: block.toolCall.name,
+                  state:
+                    block.toolCall.result?.success !== undefined
+                      ? block.toolCall.result.success
+                        ? 'success'
+                        : 'error'
+                      : block.toolCall.status,
+                  result: block.toolCall.result,
+                }
+              }
+              return stored
+            })
+          }
 
           try {
             const [row] = await db
