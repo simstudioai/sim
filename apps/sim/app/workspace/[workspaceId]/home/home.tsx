@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { FileText } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Skeleton } from '@/components/emcn'
 import { PanelLeft } from '@/components/emcn/icons'
+import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useSession } from '@/lib/auth/auth-client'
 import {
   LandingPromptStorage,
@@ -41,6 +41,21 @@ function ThinkingIndicator() {
           style={{ backgroundColor: block.color, animationDelay: block.delay }}
         />
       ))}
+    </div>
+  )
+}
+
+interface FileAttachmentPillProps {
+  mediaType: string
+  filename: string
+}
+
+function FileAttachmentPill({ mediaType, filename }: FileAttachmentPillProps) {
+  const Icon = getDocumentIcon(mediaType, filename)
+  return (
+    <div className='flex max-w-[140px] items-center gap-[5px] rounded-[10px] bg-[var(--surface-5)] px-[6px] py-[3px]'>
+      <Icon className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+      <span className='truncate text-[11px] text-[var(--text-secondary)]'>{filename}</span>
     </div>
   )
 }
@@ -235,10 +250,10 @@ export function Home({ chatId }: HomeProps = {}) {
 
   return (
     <div className='relative flex h-full bg-[var(--bg)]'>
-      <div className='flex h-full min-w-0 flex-1 flex-col'>
+      <div className='relative flex h-full min-w-0 flex-1 flex-col'>
         <div
           ref={scrollContainerRef}
-          className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 py-4'
+          className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-[98px]'
         >
           <div className='mx-auto max-w-[42rem] space-y-6'>
             {messages.map((msg, index) => {
@@ -262,15 +277,11 @@ export function Home({ chatId }: HomeProps = {}) {
                               />
                             </div>
                           ) : (
-                            <div
+                            <FileAttachmentPill
                               key={att.id}
-                              className='flex max-w-[140px] items-center gap-[5px] rounded-[10px] bg-[var(--surface-5)] px-[6px] py-[3px]'
-                            >
-                              <FileText className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
-                              <span className='truncate text-[11px] text-[var(--text-secondary)]'>
-                                {att.filename}
-                              </span>
-                            </div>
+                              mediaType={att.media_type}
+                              filename={att.filename}
+                            />
                           )
                         })}
                       </div>
@@ -317,14 +328,17 @@ export function Home({ chatId }: HomeProps = {}) {
           </div>
         </div>
 
-        <div className='flex-shrink-0 px-[24px] pb-[16px]'>
-          <UserInput
-            onSubmit={handleSubmit}
-            isSending={isSending}
-            onStopGeneration={stopGeneration}
-            isInitialView={false}
-            userId={session?.user?.id}
-          />
+        <div className='pointer-events-none absolute right-0 bottom-0 left-0 z-10 px-[24px] pb-[16px]'>
+          <div className='pointer-events-auto relative mx-auto max-w-[42rem]'>
+            <div className='-top-px -right-px -left-px -bottom-[16px] -z-10 absolute rounded-t-[20px] bg-[var(--bg)]' />
+            <UserInput
+              onSubmit={handleSubmit}
+              isSending={isSending}
+              onStopGeneration={stopGeneration}
+              isInitialView={false}
+              userId={session?.user?.id}
+            />
+          </div>
         </div>
       </div>
 

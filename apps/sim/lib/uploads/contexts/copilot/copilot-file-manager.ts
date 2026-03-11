@@ -5,6 +5,7 @@ import {
   generatePresignedDownloadUrl,
   generatePresignedUploadUrl,
 } from '@/lib/uploads/core/storage-service'
+import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import type { PresignedUrlResponse } from '@/lib/uploads/shared/types'
 
 const logger = createLogger('CopilotFileManager')
@@ -29,17 +30,10 @@ const SUPPORTED_FILE_TYPES = [
 ]
 
 /**
- * Check if a file type is supported for copilot attachments
+ * Check if a MIME type is supported for copilot attachments
  */
 export function isSupportedFileType(mimeType: string): boolean {
   return SUPPORTED_FILE_TYPES.includes(mimeType.toLowerCase())
-}
-
-/**
- * Check if a content type is an image
- */
-export function isImageFileType(contentType: string): boolean {
-  return contentType.toLowerCase().startsWith('image/')
 }
 
 export interface CopilotFileAttachment {

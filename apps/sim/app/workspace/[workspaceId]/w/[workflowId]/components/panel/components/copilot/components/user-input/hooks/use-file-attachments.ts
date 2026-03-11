@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { resolveFileType } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('useFileAttachments')
 
@@ -117,11 +118,13 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
           previewUrl = URL.createObjectURL(file)
         }
 
+        const resolvedType = resolveFileType(file)
+
         const tempFile: AttachedFile = {
           id: crypto.randomUUID(),
           name: file.name,
           size: file.size,
-          type: file.type,
+          type: resolvedType,
           path: '',
           uploading: true,
           previewUrl,
