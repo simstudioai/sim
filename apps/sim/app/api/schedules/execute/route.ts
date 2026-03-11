@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
 
       try {
         const jobId = await jobQueue.enqueue('schedule-execution', payload, {
-          metadata: { workflowId: schedule.workflowId },
+          metadata: { workflowId: schedule.workflowId ?? undefined },
         })
         logger.info(
           `[${requestId}] Queued schedule execution task ${jobId} for workflow ${schedule.workflowId}`

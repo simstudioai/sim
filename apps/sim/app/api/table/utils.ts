@@ -155,7 +155,9 @@ export function serverErrorResponse(message = 'Internal server error') {
   return errorResponse(message, 500)
 }
 
-const columnTypeEnum = z.enum(COLUMN_TYPES as unknown as [string, ...string[]])
+const columnTypeEnum = z.enum(
+  COLUMN_TYPES as unknown as [(typeof COLUMN_TYPES)[number], ...(typeof COLUMN_TYPES)[number][]]
+)
 
 export const CreateColumnSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),

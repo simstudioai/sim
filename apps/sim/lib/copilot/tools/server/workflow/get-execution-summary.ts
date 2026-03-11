@@ -16,7 +16,7 @@ interface GetExecutionSummaryArgs {
 
 interface ExecutionSummary {
   executionId: string
-  workflowId: string
+  workflowId: string | null
   workflowName: string | null
   status: string
   trigger: string

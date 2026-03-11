@@ -1,5 +1,36 @@
 'use client'
 
+interface SpeechRecognitionEvent extends Event {
+  resultIndex: number
+  results: SpeechRecognitionResultList
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string
+}
+
+interface SpeechRecognitionInstance extends EventTarget {
+  continuous: boolean
+  interimResults: boolean
+  lang: string
+  start(): void
+  stop(): void
+  abort(): void
+  onstart: ((ev: Event) => void) | null
+  onend: ((ev: Event) => void) | null
+  onresult: ((ev: SpeechRecognitionEvent) => void) | null
+  onerror: ((ev: SpeechRecognitionErrorEvent) => void) | null
+}
+
+interface SpeechRecognitionStatic {
+  new (): SpeechRecognitionInstance
+}
+
+type WindowWithSpeech = Window & {
+  SpeechRecognition?: SpeechRecognitionStatic
+  webkitSpeechRecognition?: SpeechRecognitionStatic
+}
+
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowUp, Loader2, Mic, Paperclip, X } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
@@ -94,7 +125,7 @@ export function UserInput({
   const canSubmit = (value.trim().length > 0 || hasFiles) && !isSending
 
   const [isListening, setIsListening] = useState(false)
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const prefixRef = useRef('')
 
   useEffect(() => {
@@ -164,10 +195,7 @@ export function UserInput({
       return
     }
 
-    const w = window as Window & {
-      SpeechRecognition?: typeof SpeechRecognition
-      webkitSpeechRecognition?: typeof SpeechRecognition
-    }
+    const w = window as WindowWithSpeech
     const SpeechRecognitionAPI = w.SpeechRecognition || w.webkitSpeechRecognition
     if (!SpeechRecognitionAPI) return
 

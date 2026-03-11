@@ -240,7 +240,7 @@ export async function POST(request: NextRequest) {
           const tags: Record<string, string | number | boolean | Date | null> = {}
 
           ALL_TAG_SLOTS.forEach((slot) => {
-            const tagValue = (result as Record<string, unknown>)[slot]
+            const tagValue = result[slot as keyof SearchResult]
             if (tagValue !== null && tagValue !== undefined) {
               const displayName = kbTagMap[slot] || slot
               tags[displayName] = tagValue as string | number | boolean | Date | null

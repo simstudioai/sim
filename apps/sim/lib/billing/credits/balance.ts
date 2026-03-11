@@ -17,7 +17,7 @@ export interface CreditBalanceInfo {
 export async function getCreditBalance(userId: string): Promise<CreditBalanceInfo> {
   const subscription = await getHighestPrioritySubscription(userId)
 
-  if (isOrgPlan(subscription?.plan)) {
+  if (subscription && isOrgPlan(subscription.plan)) {
     const orgRows = await db
       .select({ creditBalance: organization.creditBalance })
       .from(organization)

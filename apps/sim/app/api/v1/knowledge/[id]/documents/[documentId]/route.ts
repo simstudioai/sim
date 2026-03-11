@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { document } from '@sim/db/schema'
+import { document, knowledgeConnector } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -64,10 +64,11 @@ export async function GET(request: NextRequest, { params }: DocumentDetailRouteP
         enabled: document.enabled,
         uploadedAt: document.uploadedAt,
         connectorId: document.connectorId,
-        connectorType: document.connectorType,
+        connectorType: knowledgeConnector.connectorType,
         sourceUrl: document.sourceUrl,
       })
       .from(document)
+      .leftJoin(knowledgeConnector, eq(document.connectorId, knowledgeConnector.id))
       .where(
         and(
           eq(document.id, documentId),

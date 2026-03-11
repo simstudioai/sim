@@ -91,10 +91,10 @@ export async function resolveKnowledgeBase(
 /**
  * Validates data against a Zod schema with consistent error response.
  */
-export function validateSchema<T>(
-  schema: z.ZodSchema<T>,
+export function validateSchema<S extends z.ZodType>(
+  schema: S,
   data: unknown
-): { success: true; data: T } | { success: false; response: NextResponse } {
+): { success: true; data: z.output<S> } | { success: false; response: NextResponse } {
   const result = schema.safeParse(data)
   if (!result.success) {
     return {

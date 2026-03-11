@@ -3,7 +3,7 @@
  */
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { Filter, Sort, TableDefinition, TableMetadata, TableRow } from '@/lib/table'
+import type { Filter, RowData, Sort, TableDefinition, TableMetadata, TableRow } from '@/lib/table'
 
 export const tableKeys = {
   all: ['tables'] as const,
@@ -462,7 +462,7 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
           return {
             ...old,
             rows: old.rows.map((row) =>
-              row.id === rowId ? { ...row, data: { ...row.data, ...data } } : row
+              row.id === rowId ? { ...row, data: { ...row.data, ...data } as RowData } : row
             ),
           }
         }
@@ -526,7 +526,7 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
             rows: old.rows.map((row) => {
               const patch = updateMap.get(row.id)
               if (!patch) return row
-              return { ...row, data: { ...row.data, ...patch } }
+              return { ...row, data: { ...row.data, ...patch } as RowData }
             }),
           }
         }

@@ -643,7 +643,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           )
 
           if (!createRes.success) {
-            return { success: false, message: createRes.error }
+            return { success: false, message: createRes.error ?? 'Failed to create connector' }
           }
 
           const connector = createRes.data
@@ -698,7 +698,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           )
 
           if (!updateRes.success) {
-            return { success: false, message: updateRes.error }
+            return { success: false, message: updateRes.error ?? 'Failed to update connector' }
           }
 
           logger.info('Connector updated via copilot', {
@@ -730,7 +730,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           )
 
           if (!deleteRes.success) {
-            return { success: false, message: deleteRes.error }
+            return { success: false, message: deleteRes.error ?? 'Failed to delete connector' }
           }
 
           logger.info('Connector deleted via copilot', {
@@ -762,7 +762,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           )
 
           if (!syncRes.success) {
-            return { success: false, message: syncRes.error }
+            return { success: false, message: syncRes.error ?? 'Failed to sync connector' }
           }
 
           logger.info('Connector sync triggered via copilot', {

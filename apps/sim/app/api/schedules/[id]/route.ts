@@ -75,6 +75,11 @@ async function fetchAndAuthorize(
     return { schedule, workspaceId: schedule.sourceWorkspaceId }
   }
 
+  if (!schedule.workflowId) {
+    logger.warn(`[${requestId}] Schedule has no workflow: ${scheduleId}`)
+    return NextResponse.json({ error: 'Schedule has no associated workflow' }, { status: 400 })
+  }
+
   const authorization = await authorizeWorkflowByWorkspacePermission({
     workflowId: schedule.workflowId,
     userId,

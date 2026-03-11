@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import type { UserTableArgs, UserTableResult } from '@/lib/copilot/tools/shared/schemas'
+import { COLUMN_TYPES } from '@/lib/table/constants'
 import {
   addTableColumn,
   batchInsertRows,
@@ -781,7 +782,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           const requestId = crypto.randomUUID().slice(0, 8)
           const updated = await renameColumn(
-            { tableId: args.tableId, columnName: colName, newName: newColName },
+            { tableId: args.tableId, oldName: colName, newName: newColName },
             requestId
           )
           return {
@@ -843,8 +844,18 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = crypto.randomUUID().slice(0, 8)
           let result: TableDefinition | undefined
           if (newType !== undefined) {
+            if (!(COLUMN_TYPES as readonly string[]).includes(newType)) {
+              return {
+                success: false,
+                message: `Invalid column type "${newType}". Must be one of: ${COLUMN_TYPES.join(', ')}`,
+              }
+            }
             result = await updateColumnType(
-              { tableId: args.tableId, columnName: colName, newType },
+              {
+                tableId: args.tableId,
+                columnName: colName,
+                newType: newType as (typeof COLUMN_TYPES)[number],
+              },
               requestId
             )
           }
