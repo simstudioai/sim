@@ -18,7 +18,7 @@ import {
 
 const logger = createLogger('FilesServeAPI')
 
-const STORAGE_KEY_PREFIX_RE = /^\d+-[a-z0-9]+-/
+const STORAGE_KEY_PREFIX_RE = /^\d{13}-[a-z0-9]{7}-/
 
 function stripStorageKeyPrefix(segment: string): string {
   return STORAGE_KEY_PREFIX_RE.test(segment) ? segment.replace(STORAGE_KEY_PREFIX_RE, '') : segment
