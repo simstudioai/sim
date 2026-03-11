@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getUserSubscriptionState } from '@/lib/billing/core/subscription'
 import { processFileAttachments } from '@/lib/copilot/chat-context'
 import { getCopilotToolDescription } from '@/lib/copilot/tool-descriptions'
 import { isHosted } from '@/lib/core/config/feature-flags'
@@ -44,11 +45,22 @@ export interface ToolSchema {
  * Shared by the interactive chat payload builder and the non-interactive
  * block execution route so both paths send the same tool definitions to Go.
  */
-export async function buildIntegrationToolSchemas(): Promise<ToolSchema[]> {
+export async function buildIntegrationToolSchemas(userId: string): Promise<ToolSchema[]> {
   const integrationTools: ToolSchema[] = []
   try {
     const { createUserToolSchema } = await import('@/tools/params')
     const latestTools = getLatestVersionTools(tools)
+    let shouldAppendEmailTagline = false
+
+    try {
+      const subscriptionState = await getUserSubscriptionState(userId)
+      shouldAppendEmailTagline = subscriptionState.isFree
+    } catch (error) {
+      logger.warn('Failed to load subscription state for copilot tool descriptions', {
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
 
     for (const [toolId, toolConfig] of Object.entries(latestTools)) {
       try {
@@ -59,6 +71,7 @@ export async function buildIntegrationToolSchemas(): Promise<ToolSchema[]> {
           description: getCopilotToolDescription(toolConfig, {
             isHosted,
             fallbackName: strippedName,
+            appendEmailTagline: shouldAppendEmailTagline,
           }),
           input_schema: userSchema as unknown as Record<string, unknown>,
           defer_loading: true,
@@ -118,7 +131,7 @@ export async function buildCopilotRequestPayload(
   let integrationTools: ToolSchema[] = []
 
   if (effectiveMode === 'build') {
-    integrationTools = await buildIntegrationToolSchemas()
+    integrationTools = await buildIntegrationToolSchemas(userId)
 
     // Discover MCP tools from workspace servers and include as deferred tools
     if (workflowId) {

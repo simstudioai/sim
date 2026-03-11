@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     const effectiveChatId = chatId || crypto.randomUUID()
     const [workspaceContext, integrationTools, userPermission] = await Promise.all([
       generateWorkspaceContext(workspaceId, userId),
-      buildIntegrationToolSchemas(),
+      buildIntegrationToolSchemas(userId),
       getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
     ])
 
