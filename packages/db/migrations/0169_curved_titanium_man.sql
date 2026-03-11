@@ -1,1 +1,0 @@
-ALTER TABLE "user_stats" ALTER COLUMN "current_usage_limit" SET DEFAULT '5';
