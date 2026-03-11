@@ -379,7 +379,8 @@ const WorkflowContent = React.memo(
 
     const showTrainingModal = useCopilotTrainingStore((state) => state.showModal)
 
-    const { handleRunFromBlock, handleRunUntilBlock } = useWorkflowExecution()
+    const { handleRunFromBlock, handleRunUntilBlock, handleRunWorkflow, handleCancelExecution } =
+      useWorkflowExecution()
 
     const snapToGridSize = useSnapToGridSize()
     const snapToGrid = snapToGridSize > 0
@@ -612,7 +613,6 @@ const WorkflowContent = React.memo(
 
     const { userPermissions, workspacePermissions, permissionsError } =
       useWorkspacePermissionsContext()
-
     /** Returns read-only permissions when viewing snapshot, otherwise user permissions. */
     const effectivePermissions = useMemo(() => {
       if (currentWorkflow.isSnapshotView) {
@@ -625,7 +625,6 @@ const WorkflowContent = React.memo(
       }
       return userPermissions
     }, [userPermissions, currentWorkflow.isSnapshotView])
-
     const {
       collaborativeBatchAddEdges,
       collaborativeBatchRemoveEdges,
@@ -3836,9 +3835,9 @@ const WorkflowContent = React.memo(
                   edges={edgesWithSelection}
                   onNodesChange={onNodesChange}
                   onEdgesChange={onEdgesChange}
-                  onConnect={effectivePermissions.canEdit ? onConnect : undefined}
-                  onConnectStart={effectivePermissions.canEdit ? onConnectStart : undefined}
-                  onConnectEnd={effectivePermissions.canEdit ? onConnectEnd : undefined}
+                  onConnect={!embedded && effectivePermissions.canEdit ? onConnect : undefined}
+                  onConnectStart={!embedded && effectivePermissions.canEdit ? onConnectStart : undefined}
+                  onConnectEnd={!embedded && effectivePermissions.canEdit ? onConnectEnd : undefined}
                   nodeTypes={nodeTypes}
                   edgeTypes={edgeTypes}
                   onMouseDown={handleCanvasMouseDown}
@@ -3859,7 +3858,7 @@ const WorkflowContent = React.memo(
                   connectionLineStyle={connectionLineStyle}
                   connectionLineType={ConnectionLineType.SmoothStep}
                   onPaneClick={onPaneClick}
-                  onEdgeClick={onEdgeClick}
+                  onEdgeClick={embedded ? undefined : onEdgeClick}
                   onNodeClick={handleNodeClick}
                   onPaneContextMenu={handlePaneContextMenu}
                   onNodeContextMenu={handleNodeContextMenu}
@@ -3876,8 +3875,8 @@ const WorkflowContent = React.memo(
                   nodesDraggable={!embedded && effectivePermissions.canEdit}
                   draggable={false}
                   noWheelClassName='allow-scroll'
-                  edgesFocusable={true}
-                  edgesUpdatable={effectivePermissions.canEdit}
+                  edgesFocusable={!embedded}
+                  edgesUpdatable={!embedded && effectivePermissions.canEdit}
                   className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
                   onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
                   onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
@@ -3985,7 +3984,7 @@ const WorkflowContent = React.memo(
             {!embedded && <DiffControls />}
           </div>
 
-          {!embedded && <Terminal />}
+          <Terminal />
         </div>
 
         {!embedded && <Panel />}

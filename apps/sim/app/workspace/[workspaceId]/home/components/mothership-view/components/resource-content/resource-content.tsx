@@ -1,14 +1,23 @@
 'use client'
 
-import { lazy, Suspense, useMemo } from 'react'
-import { Skeleton } from '@/components/emcn'
+import { lazy, Suspense, useCallback, useEffect, useMemo } from 'react'
+import { Square } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
+import { WorkflowIcon } from '@/components/icons'
 import {
   FileViewer,
   type PreviewMode,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
+import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/components'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { useCurrentWorkflowExecution } from '@/stores/execution'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const Workflow = lazy(() => import('@/app/workspace/[workspaceId]/w/[workflowId]/workflow'))
 
@@ -56,6 +65,88 @@ export function ResourceContent({ workspaceId, resource, previewMode }: Resource
     default:
       return null
   }
+}
+
+interface EmbeddedWorkflowActionsProps {
+  workspaceId: string
+  workflowId: string
+}
+
+export function EmbeddedWorkflowActions({
+  workspaceId,
+  workflowId,
+}: EmbeddedWorkflowActionsProps) {
+  const router = useRouter()
+  const { navigateToSettings } = useSettingsNavigation()
+  const { userPermissions: effectivePermissions } = useWorkspacePermissionsContext()
+  const setActiveWorkflow = useWorkflowRegistry((state) => state.setActiveWorkflow)
+  const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
+  const { isExecuting } = useCurrentWorkflowExecution()
+  const { usageExceeded } = useUsageLimits()
+
+  useEffect(() => {
+    setActiveWorkflow(workflowId)
+  }, [setActiveWorkflow, workflowId])
+
+  const isRunButtonDisabled = !isExecuting && (!effectivePermissions.canRead && !effectivePermissions.isLoading)
+
+  const handleRun = useCallback(async () => {
+    if (isExecuting) {
+      await handleCancelExecution()
+      return
+    }
+
+    if (usageExceeded) {
+      navigateToSettings({ section: 'subscription' })
+      return
+    }
+
+    await handleRunWorkflow()
+  }, [handleCancelExecution, handleRunWorkflow, isExecuting, navigateToSettings, usageExceeded])
+
+  const handleOpenWorkflow = useCallback(() => {
+    router.push(`/workspace/${workspaceId}/w/${workflowId}`)
+  }, [router, workspaceId, workflowId])
+
+  return (
+    <>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Button
+            variant='subtle'
+            onClick={handleOpenWorkflow}
+            className='shrink-0 bg-transparent px-[8px] py-[5px] text-[12px]'
+            aria-label='Open workflow'
+          >
+            <WorkflowIcon className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+          </Button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>Open Workflow</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Button
+            variant='subtle'
+            onClick={() => void handleRun()}
+            disabled={isRunButtonDisabled}
+            className='shrink-0 bg-transparent px-[8px] py-[5px] text-[12px]'
+            aria-label={isExecuting ? 'Stop workflow' : 'Run workflow'}
+          >
+            {isExecuting ? (
+              <Square className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+            ) : (
+              <PlayOutline className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+            )}
+          </Button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>{isExecuting ? 'Stop' : 'Run'}</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    </>
+  )
 }
 
 interface EmbeddedFileProps {

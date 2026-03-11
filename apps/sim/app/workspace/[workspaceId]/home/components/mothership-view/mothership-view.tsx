@@ -5,7 +5,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
-import { ResourceContent, ResourceTabs } from './components'
+import { EmbeddedWorkflowActions, ResourceContent, ResourceTabs } from './components'
 
 const PREVIEWABLE_EXTENSIONS = new Set(['md', 'html', 'htm', 'csv'])
 const PREVIEW_ONLY_EXTENSIONS = new Set(['html', 'htm'])
@@ -53,6 +53,11 @@ export function MothershipView({
   const isActivePreviewable =
     active?.type === 'file' && PREVIEWABLE_EXTENSIONS.has(getFileExtension(active.title))
 
+  const headerActions =
+    active?.type === 'workflow' ? (
+      <EmbeddedWorkflowActions workspaceId={workspaceId} workflowId={active.id} />
+    ) : null
+
   return (
     <div
       className={cn(
@@ -67,6 +72,7 @@ export function MothershipView({
           activeId={active?.id ?? null}
           onSelect={onSelectResource}
           onCollapse={onCollapse}
+          actions={headerActions}
           previewMode={isActivePreviewable ? previewMode : undefined}
           onCyclePreviewMode={isActivePreviewable ? handleCyclePreview : undefined}
         />

@@ -1,1 +1,1 @@
-export { ResourceContent } from './resource-content'
+export { EmbeddedWorkflowActions, ResourceContent } from './resource-content'

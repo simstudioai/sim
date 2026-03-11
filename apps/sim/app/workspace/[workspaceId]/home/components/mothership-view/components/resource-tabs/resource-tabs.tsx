@@ -1,6 +1,6 @@
 'use client'
 
-import type { ElementType, SVGProps } from 'react'
+import type { ElementType, ReactNode, SVGProps } from 'react'
 import { Button, Tooltip } from '@/components/emcn'
 import { PanelLeft, Table as TableIcon } from '@/components/emcn/icons'
 import { WorkflowIcon } from '@/components/icons'
@@ -48,6 +48,7 @@ interface ResourceTabsProps {
   onCollapse: () => void
   previewMode?: PreviewMode
   onCyclePreviewMode?: () => void
+  actions?: ReactNode
 }
 
 const RESOURCE_ICONS: Record<Exclude<MothershipResourceType, 'file'>, ElementType> = {
@@ -73,6 +74,7 @@ export function ResourceTabs({
   onCollapse,
   previewMode,
   onCyclePreviewMode,
+  actions,
 }: ResourceTabsProps) {
   return (
     <div className='flex shrink-0 items-center border-[var(--border)] border-b px-[16px] py-[8.5px]'>
@@ -118,26 +120,29 @@ export function ResourceTabs({
           )
         })}
       </div>
-      {previewMode && onCyclePreviewMode && (
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Button
-              variant='subtle'
-              onClick={onCyclePreviewMode}
-              className='ml-auto shrink-0 bg-transparent px-[8px] py-[5px] text-[12px]'
-              aria-label='Cycle preview mode'
-            >
-              <PreviewModeIcon
-                mode={previewMode}
-                className='h-[16px] w-[16px] text-[var(--text-icon)]'
-              />
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='bottom'>
-            <p>Preview mode</p>
-          </Tooltip.Content>
-        </Tooltip.Root>
-      )}
+      <div className='ml-auto flex shrink-0 items-center gap-[6px]'>
+        {actions}
+        {previewMode && onCyclePreviewMode && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                variant='subtle'
+                onClick={onCyclePreviewMode}
+                className='shrink-0 bg-transparent px-[8px] py-[5px] text-[12px]'
+                aria-label='Cycle preview mode'
+              >
+                <PreviewModeIcon
+                  mode={previewMode}
+                  className='h-[16px] w-[16px] text-[var(--text-icon)]'
+                />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='bottom'>
+              <p>Preview mode</p>
+            </Tooltip.Content>
+          </Tooltip.Root>
+        )}
+      </div>
     </div>
   )
 }
