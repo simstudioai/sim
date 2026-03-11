@@ -96,7 +96,7 @@ export default function StructuredData() {
         offers: [
           {
             '@type': 'Offer',
-            name: 'Community Plan — 3,000 credits included',
+            name: 'Community Plan — 1,000 credits included',
             price: '0',
             priceCurrency: 'USD',
             availability: 'https://schema.org/InStock',
@@ -191,7 +191,7 @@ export default function StructuredData() {
             name: 'How much does Sim cost?',
             acceptedAnswer: {
               '@type': 'Answer',
-              text: 'Sim offers a free Community plan with 3,000 credits, a Pro plan at $25/month with 6,000 credits, a Max plan at $100/month with 25,000 credits, team plans available for both tiers, and custom Enterprise pricing. All plans include CLI/SDK access.',
+              text: 'Sim offers a free Community plan with 1,000 credits to start, a Pro plan at $25/month with 6,000 credits, a Max plan at $100/month with 25,000 credits, team plans available for both tiers, and custom Enterprise pricing. All plans include CLI/SDK access.',
             },
           },
           {
