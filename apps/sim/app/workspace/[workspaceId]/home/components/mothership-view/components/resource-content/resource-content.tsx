@@ -8,6 +8,7 @@ import {
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/components'
+import type { ExecutionResult } from '@/executor/types'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
 const Workflow = lazy(() => import('@/app/workspace/[workspaceId]/w/[workflowId]/workflow'))
@@ -24,6 +25,7 @@ interface ResourceContentProps {
   workspaceId: string
   resource: MothershipResource
   previewMode?: PreviewMode
+  onWorkflowRunComplete?: (workflowName: string, result: ExecutionResult) => Promise<void>
 }
 
 /**
@@ -31,7 +33,12 @@ interface ResourceContentProps {
  * Handles table, file, and workflow resource types with appropriate
  * embedded rendering for each.
  */
-export function ResourceContent({ workspaceId, resource, previewMode }: ResourceContentProps) {
+export function ResourceContent({
+  workspaceId,
+  resource,
+  previewMode,
+  onWorkflowRunComplete,
+}: ResourceContentProps) {
   switch (resource.type) {
     case 'table':
       return <Table key={resource.id} workspaceId={workspaceId} tableId={resource.id} embedded />
@@ -49,7 +56,17 @@ export function ResourceContent({ workspaceId, resource, previewMode }: Resource
     case 'workflow':
       return (
         <Suspense fallback={LOADING_SKELETON}>
-          <Workflow key={resource.id} workspaceId={workspaceId} workflowId={resource.id} embedded />
+          <Workflow
+            key={resource.id}
+            workspaceId={workspaceId}
+            workflowId={resource.id}
+            embedded
+            onManualRunComplete={
+              onWorkflowRunComplete
+                ? (result) => onWorkflowRunComplete(resource.title, result)
+                : undefined
+            }
+          />
         </Suspense>
       )
 

@@ -165,6 +165,7 @@ export function Home({ chatId }: HomeProps = {}) {
     messages,
     isSending,
     sendMessage,
+    sendWorkflowResultToChat,
     stopGeneration,
     resources,
     activeResourceId,
@@ -348,6 +349,7 @@ export function Home({ chatId }: HomeProps = {}) {
           resources={resources}
           activeResourceId={activeResourceId}
           onSelectResource={setActiveResourceId}
+          onWorkflowRunComplete={sendWorkflowResultToChat}
           onCollapse={collapseResource}
           isCollapsed={isResourceCollapsed}
           className={animateResourcePanel ? 'animate-slide-in-right' : undefined}
