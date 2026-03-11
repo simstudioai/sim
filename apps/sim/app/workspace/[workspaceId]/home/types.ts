@@ -138,17 +138,17 @@ export interface ChatMessage {
 }
 
 export const SUBAGENT_LABELS: Record<SubagentName, string> = {
-  build: 'Building',
-  deploy: 'Deploying',
-  auth: 'Connecting credentials',
-  research: 'Researching',
-  knowledge: 'Managing knowledge base',
-  table: 'Managing tables',
-  custom_tool: 'Creating tool',
-  superagent: 'Executing action',
-  plan: 'Planning',
-  debug: 'Debugging',
-  edit: 'Editing workflow',
+  build: 'Build agent',
+  deploy: 'Deploy agent',
+  auth: 'Integration agent',
+  research: 'Research agent',
+  knowledge: 'Knowledge agent',
+  table: 'Table agent',
+  custom_tool: 'Custom Tool agent',
+  superagent: 'Superagent',
+  plan: 'Plan agent',
+  debug: 'Debug agent',
+  edit: 'Edit agent',
 } as const
 
 export interface ToolUIMetadata {

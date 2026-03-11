@@ -16,11 +16,11 @@ import { persistImportedWorkflow } from '@/lib/workflows/operations/import-expor
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { MessageContent, MothershipView, UserInput } from './components'
 import type { FileAttachmentForApi } from './components/user-input/user-input'
-import { useChat } from './hooks'
+import { useAutoScroll, useChat } from './hooks'
 
 const logger = createLogger('Home')
 
-const RESOURCE_PANEL_EXPAND_DELAY = 160
+const RESOURCE_PANEL_EXPAND_DELAY = 175
 
 const THINKING_BLOCKS = [
   { color: '#2ABBF8', delay: '0s' },
@@ -130,7 +130,6 @@ export function Home({ chatId }: HomeProps = {}) {
     isSending,
     sendMessage,
     stopGeneration,
-    chatBottomRef,
     resources,
     activeResourceId,
     setActiveResourceId,
@@ -171,13 +170,16 @@ export function Home({ chatId }: HomeProps = {}) {
     [sendMessage]
   )
 
+  const scrollContainerRef = useAutoScroll(isSending)
+
   const hasMessages = messages.length > 0
 
   if (!hasMessages) {
     return (
       <div className='flex h-full flex-col items-center justify-center bg-[var(--bg)] px-[24px]'>
         <h1 className='mb-[24px] font-[450] font-season text-[32px] text-[var(--text-primary)] tracking-[-0.02em]'>
-          What do you want to do?
+          What should we get done{session?.user?.name ? `, ${session.user.name.split(' ')[0]}` : ''}
+          ?
         </h1>
         <UserInput
           defaultValue={initialPrompt}
@@ -193,7 +195,10 @@ export function Home({ chatId }: HomeProps = {}) {
   return (
     <div className='relative flex h-full bg-[var(--bg)]'>
       <div className='flex h-full min-w-0 flex-1 flex-col'>
-        <div className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 py-4'>
+        <div
+          ref={scrollContainerRef}
+          className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 py-4'
+        >
           <div className='mx-auto max-w-[42rem] space-y-6'>
             {messages.map((msg, index) => {
               if (msg.role === 'user') {
@@ -255,17 +260,19 @@ export function Home({ chatId }: HomeProps = {}) {
 
               if (!hasBlocks && !msg.content) return null
 
+              const isLastMessage = index === messages.length - 1
+
               return (
                 <div key={msg.id} className='pb-4'>
                   <MessageContent
                     blocks={msg.contentBlocks || []}
                     fallbackContent={msg.content}
                     isStreaming={isThisStreaming}
+                    onOptionSelect={isLastMessage ? sendMessage : undefined}
                   />
                 </div>
               )
             })}
-            <div ref={chatBottomRef} />
           </div>
         </div>
 

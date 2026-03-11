@@ -41,7 +41,6 @@ export interface UseChatReturn {
   error: string | null
   sendMessage: (message: string, fileAttachments?: FileAttachmentForApi[]) => Promise<void>
   stopGeneration: () => Promise<void>
-  chatBottomRef: React.RefObject<HTMLDivElement | null>
   resources: MothershipResource[]
   activeResourceId: string | null
   setActiveResourceId: (id: string | null) => void
@@ -149,7 +148,6 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   const [activeResourceId, setActiveResourceId] = useState<string | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
-  const chatBottomRef = useRef<HTMLDivElement>(null)
   const appliedChatIdRef = useRef<string | undefined>(undefined)
   const pendingUserMsgRef = useRef<{ id: string; content: string } | null>(null)
   const streamIdRef = useRef<string | undefined>(undefined)
@@ -545,7 +543,6 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     sendingRef.current = false
     setIsSending(false)
     abortControllerRef.current = null
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     invalidateChatQueries()
   }, [invalidateChatQueries])
 
@@ -723,7 +720,6 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     error,
     sendMessage,
     stopGeneration,
-    chatBottomRef,
     resources,
     activeResourceId,
     setActiveResourceId,

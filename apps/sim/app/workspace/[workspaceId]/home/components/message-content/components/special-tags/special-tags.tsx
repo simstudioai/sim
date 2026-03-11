@@ -1,9 +1,10 @@
 'use client'
 
-import { ArrowUpRight } from 'lucide-react'
+import { createElement } from 'react'
 import { useParams } from 'next/navigation'
 import { ArrowRight } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 
 export interface OptionsItemData {
   title: string
@@ -177,6 +178,8 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
   const entries = Object.entries(data)
   if (entries.length === 0) return null
 
+  const disabled = !onSelect
+
   return (
     <div className='animate-stream-fade-in'>
       <span className='font-[var(--sidebar-font-weight)] text-[14px] text-[var(--text-body)]'>
@@ -190,9 +193,11 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
             <button
               key={key}
               type='button'
-              onClick={() => onSelect?.(key)}
+              disabled={disabled}
+              onClick={() => onSelect?.(title)}
               className={cn(
-                'flex items-center gap-[8px] border-[var(--divider)] px-[8px] py-[8px] text-left transition-colors hover:bg-[var(--surface-5)]',
+                'flex items-center gap-[8px] border-[var(--divider)] px-[8px] py-[8px] text-left transition-colors',
+                disabled ? 'cursor-not-allowed' : 'hover:bg-[var(--surface-5)]',
                 i > 0 && 'border-t'
               )}
             >
@@ -213,7 +218,44 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
   )
 }
 
+function getCredentialIcon(provider: string): React.ComponentType<{ className?: string }> | null {
+  const lower = provider.toLowerCase()
+
+  const directMatch = OAUTH_PROVIDERS[lower]
+  if (directMatch) return directMatch.icon
+
+  for (const config of Object.values(OAUTH_PROVIDERS)) {
+    if (config.name.toLowerCase() === lower) return config.icon
+    for (const service of Object.values(config.services)) {
+      if (service.name.toLowerCase() === lower) return service.icon
+      if (service.providerId.toLowerCase() === lower) return service.icon
+    }
+  }
+
+  return null
+}
+
+const LockIcon = (props: { className?: string }) => (
+  <svg
+    className={props.className}
+    viewBox='0 0 16 16'
+    fill='none'
+    xmlns='http://www.w3.org/2000/svg'
+  >
+    <rect x='2' y='5' width='12' height='8' rx='1.5' stroke='currentColor' strokeWidth='1.3' />
+    <path
+      d='M5 5V3.5a3 3 0 1 1 6 0V5'
+      stroke='currentColor'
+      strokeWidth='1.3'
+      strokeLinecap='round'
+    />
+    <circle cx='8' cy='9.5' r='1.25' fill='currentColor' />
+  </svg>
+)
+
 function CredentialDisplay({ data }: { data: CredentialTagData }) {
+  const Icon = getCredentialIcon(data.provider) ?? LockIcon
+
   return (
     <a
       href={data.link}
@@ -221,25 +263,11 @@ function CredentialDisplay({ data }: { data: CredentialTagData }) {
       rel='noopener noreferrer'
       className='flex animate-stream-fade-in items-center gap-[8px] rounded-lg border border-[var(--divider)] px-3 py-2.5 transition-colors hover:bg-[var(--surface-5)]'
     >
-      <svg
-        className='h-[16px] w-[16px] shrink-0 text-[var(--text-icon)]'
-        viewBox='0 0 16 16'
-        fill='none'
-        xmlns='http://www.w3.org/2000/svg'
-      >
-        <rect x='2' y='5' width='12' height='8' rx='1.5' stroke='currentColor' strokeWidth='1.3' />
-        <path
-          d='M5 5V3.5a3 3 0 1 1 6 0V5'
-          stroke='currentColor'
-          strokeWidth='1.3'
-          strokeLinecap='round'
-        />
-        <circle cx='8' cy='9.5' r='1.25' fill='currentColor' />
-      </svg>
+      {createElement(Icon, { className: 'h-[16px] w-[16px] shrink-0' })}
       <span className='flex-1 font-[var(--sidebar-font-weight)] text-[14px] text-[var(--text-body)]'>
         Connect {data.provider}
       </span>
-      <ArrowUpRight className='h-[16px] w-[16px] shrink-0 text-[var(--text-icon)]' />
+      <ArrowRight className='h-[16px] w-[16px] shrink-0 text-[var(--text-icon)]' />
     </a>
   )
 }
@@ -279,7 +307,7 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
         className='mt-2 inline-flex items-center gap-1 font-[500] text-[13px] text-amber-700 underline decoration-dashed underline-offset-2 transition-colors hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-200'
       >
         {buttonLabel}
-        <ArrowUpRight className='h-3 w-3' />
+        <ArrowRight className='h-3 w-3' />
       </a>
     </div>
   )

@@ -202,7 +202,12 @@ export function MessageContent({
         switch (segment.type) {
           case 'text':
             return (
-              <ChatContent key={`text-${i}`} content={segment.content} isStreaming={isStreaming} />
+              <ChatContent
+                key={`text-${i}`}
+                content={segment.content}
+                isStreaming={isStreaming}
+                onOptionSelect={onOptionSelect}
+              />
             )
           case 'agent_group': {
             const allToolsDone =

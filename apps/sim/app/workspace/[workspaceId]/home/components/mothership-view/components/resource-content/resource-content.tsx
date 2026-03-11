@@ -4,7 +4,7 @@ import { lazy, Suspense, useMemo } from 'react'
 import { Skeleton } from '@/components/emcn'
 import {
   FileViewer,
-  isPreviewable,
+  type PreviewMode,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/components'
@@ -23,6 +23,7 @@ const LOADING_SKELETON = (
 interface ResourceContentProps {
   workspaceId: string
   resource: MothershipResource
+  previewMode?: PreviewMode
 }
 
 /**
@@ -30,13 +31,20 @@ interface ResourceContentProps {
  * Handles table, file, and workflow resource types with appropriate
  * embedded rendering for each.
  */
-export function ResourceContent({ workspaceId, resource }: ResourceContentProps) {
+export function ResourceContent({ workspaceId, resource, previewMode }: ResourceContentProps) {
   switch (resource.type) {
     case 'table':
       return <Table key={resource.id} workspaceId={workspaceId} tableId={resource.id} embedded />
 
     case 'file':
-      return <EmbeddedFile key={resource.id} workspaceId={workspaceId} fileId={resource.id} />
+      return (
+        <EmbeddedFile
+          key={resource.id}
+          workspaceId={workspaceId}
+          fileId={resource.id}
+          previewMode={previewMode}
+        />
+      )
 
     case 'workflow':
       return (
@@ -53,9 +61,10 @@ export function ResourceContent({ workspaceId, resource }: ResourceContentProps)
 interface EmbeddedFileProps {
   workspaceId: string
   fileId: string
+  previewMode?: PreviewMode
 }
 
-function EmbeddedFile({ workspaceId, fileId }: EmbeddedFileProps) {
+function EmbeddedFile({ workspaceId, fileId, previewMode }: EmbeddedFileProps) {
   const { data: files = [], isLoading } = useWorkspaceFiles(workspaceId)
   const file = useMemo(() => files.find((f) => f.id === fileId), [files, fileId])
 
@@ -76,7 +85,7 @@ function EmbeddedFile({ workspaceId, fileId }: EmbeddedFileProps) {
         file={file}
         workspaceId={workspaceId}
         canEdit={true}
-        showPreview={isPreviewable(file)}
+        previewMode={previewMode}
       />
     </div>
   )

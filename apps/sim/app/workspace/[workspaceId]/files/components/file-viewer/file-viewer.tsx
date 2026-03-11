@@ -54,11 +54,14 @@ export function isPreviewable(file: { type: string; name: string }): boolean {
   return resolvePreviewType(file.type, file.name) !== null
 }
 
+export type PreviewMode = 'editor' | 'split' | 'preview'
+
 interface FileViewerProps {
   file: WorkspaceFileRecord
   workspaceId: string
   canEdit: boolean
   showPreview?: boolean
+  previewMode?: PreviewMode
   autoFocus?: boolean
   onDirtyChange?: (isDirty: boolean) => void
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
@@ -70,6 +73,7 @@ export function FileViewer({
   workspaceId,
   canEdit,
   showPreview,
+  previewMode,
   autoFocus,
   onDirtyChange,
   onSaveStatusChange,
@@ -83,7 +87,7 @@ export function FileViewer({
         file={file}
         workspaceId={workspaceId}
         canEdit={canEdit}
-        showPreview={showPreview}
+        previewMode={previewMode ?? (showPreview ? 'split' : 'editor')}
         autoFocus={autoFocus}
         onDirtyChange={onDirtyChange}
         onSaveStatusChange={onSaveStatusChange}
@@ -103,7 +107,7 @@ interface TextEditorProps {
   file: WorkspaceFileRecord
   workspaceId: string
   canEdit: boolean
-  showPreview?: boolean
+  previewMode: PreviewMode
   autoFocus?: boolean
   onDirtyChange?: (isDirty: boolean) => void
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
@@ -114,7 +118,7 @@ function TextEditor({
   file,
   workspaceId,
   canEdit,
-  showPreview,
+  previewMode,
   autoFocus,
   onDirtyChange,
   onSaveStatusChange,
@@ -256,36 +260,43 @@ function TextEditor({
     )
   }
 
+  const showEditor = previewMode !== 'preview'
+  const showPreviewPane = previewMode !== 'editor'
+
   return (
     <div ref={containerRef} className='relative flex flex-1 overflow-hidden'>
-      <textarea
-        ref={textareaRef}
-        value={content}
-        onChange={(e) => handleContentChange(e.target.value)}
-        readOnly={!canEdit}
-        spellCheck={false}
-        style={showPreview ? { width: `${splitPct}%`, flexShrink: 0 } : undefined}
-        className={cn(
-          'h-full resize-none border-0 bg-transparent p-[24px] font-mono text-[14px] text-[var(--text-body)] outline-none placeholder:text-[var(--text-subtle)]',
-          !showPreview && 'w-full',
-          isResizing && 'pointer-events-none'
-        )}
-      />
-      {showPreview && (
+      {showEditor && (
+        <textarea
+          ref={textareaRef}
+          value={content}
+          onChange={(e) => handleContentChange(e.target.value)}
+          readOnly={!canEdit}
+          spellCheck={false}
+          style={showPreviewPane ? { width: `${splitPct}%`, flexShrink: 0 } : undefined}
+          className={cn(
+            'h-full resize-none border-0 bg-transparent p-[24px] font-mono text-[14px] text-[var(--text-body)] outline-none placeholder:text-[var(--text-subtle)]',
+            !showPreviewPane && 'w-full',
+            isResizing && 'pointer-events-none'
+          )}
+        />
+      )}
+      {showPreviewPane && (
         <>
-          <div className='relative shrink-0'>
-            <div className='h-full w-px bg-[var(--border)]' />
-            <div
-              className='-left-[3px] absolute top-0 z-10 h-full w-[6px] cursor-col-resize'
-              onMouseDown={() => setIsResizing(true)}
-              role='separator'
-              aria-orientation='vertical'
-              aria-label='Resize split'
-            />
-            {isResizing && (
-              <div className='-translate-x-[0.5px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]' />
-            )}
-          </div>
+          {showEditor && (
+            <div className='relative shrink-0'>
+              <div className='h-full w-px bg-[var(--border)]' />
+              <div
+                className='-left-[3px] absolute top-0 z-10 h-full w-[6px] cursor-col-resize'
+                onMouseDown={() => setIsResizing(true)}
+                role='separator'
+                aria-orientation='vertical'
+                aria-label='Resize split'
+              />
+              {isResizing && (
+                <div className='-translate-x-[0.5px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]' />
+              )}
+            </div>
+          )}
           <div
             className={cn('min-w-0 flex-1 overflow-hidden', isResizing && 'pointer-events-none')}
           >

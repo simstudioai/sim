@@ -1,8 +1,20 @@
 'use client'
 
+import { useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/core/utils/cn'
+import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { ResourceContent, ResourceTabs } from './components'
+
+const PREVIEWABLE_EXTENSIONS = new Set(['md', 'html', 'htm', 'csv'])
+const PREVIEW_ONLY_EXTENSIONS = new Set(['html', 'htm'])
+
+const PREVIEW_CYCLE: Record<PreviewMode, PreviewMode> = {
+  editor: 'split',
+  split: 'preview',
+  preview: 'editor',
+} as const
 
 interface MothershipViewProps {
   workspaceId: string
@@ -30,6 +42,17 @@ export function MothershipView({
 }: MothershipViewProps) {
   const active = resources.find((r) => r.id === activeResourceId) ?? resources[0] ?? null
 
+  const [previewMode, setPreviewMode] = useState<PreviewMode>('split')
+  const handleCyclePreview = useCallback(() => setPreviewMode((m) => PREVIEW_CYCLE[m]), [])
+
+  useEffect(() => {
+    const ext = active?.type === 'file' ? getFileExtension(active.title) : ''
+    setPreviewMode(PREVIEW_ONLY_EXTENSIONS.has(ext) ? 'preview' : 'split')
+  }, [active?.id])
+
+  const isActivePreviewable =
+    active?.type === 'file' && PREVIEWABLE_EXTENSIONS.has(getFileExtension(active.title))
+
   return (
     <div
       className={cn(
@@ -38,15 +61,23 @@ export function MothershipView({
         className
       )}
     >
-      <div className='flex min-w-[400px] flex-1 flex-col'>
+      <div className='flex min-h-0 min-w-[400px] flex-1 flex-col'>
         <ResourceTabs
           resources={resources}
           activeId={active?.id ?? null}
           onSelect={onSelectResource}
           onCollapse={onCollapse}
+          previewMode={isActivePreviewable ? previewMode : undefined}
+          onCyclePreviewMode={isActivePreviewable ? handleCyclePreview : undefined}
         />
         <div className='min-h-0 flex-1 overflow-hidden'>
-          {active && <ResourceContent workspaceId={workspaceId} resource={active} />}
+          {active && (
+            <ResourceContent
+              workspaceId={workspaceId}
+              resource={active}
+              previewMode={isActivePreviewable ? previewMode : undefined}
+            />
+          )}
         </div>
       </div>
     </div>
