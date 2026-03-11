@@ -5,7 +5,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { executeJobInline, executeScheduleJob } from '@/background/schedule-execution'
+import {
+  executeJobInline,
+  executeScheduleJob,
+  releaseScheduleLock,
+} from '@/background/schedule-execution'
 
 export const dynamic = 'force-dynamic'
 
@@ -150,6 +154,12 @@ export async function GET(request: NextRequest) {
           logger.error(`[${requestId}] Job execution failed for ${job.id}`, {
             error: error instanceof Error ? error.message : String(error),
           })
+          await releaseScheduleLock(
+            job.id,
+            requestId,
+            queuedAt,
+            `Failed to release lock for job ${job.id}`
+          )
         }
       })()
     })
