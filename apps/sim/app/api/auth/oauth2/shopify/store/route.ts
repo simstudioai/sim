@@ -69,17 +69,13 @@ export async function GET(request: NextRequest) {
       idToken: shopDomain,
     }
 
-    let resolvedAccountId: string
-
     if (existing) {
       await db.update(account).set(accountData).where(eq(account.id, existing.id))
       logger.info('Updated existing Shopify account', { accountId: existing.id })
-      resolvedAccountId = existing.id
     } else {
-      resolvedAccountId = `shopify_${session.user.id}_${Date.now()}`
       await safeAccountInsert(
         {
-          id: resolvedAccountId,
+          id: `shopify_${session.user.id}_${Date.now()}`,
           userId: session.user.id,
           providerId: 'shopify',
           accountId: accountData.accountId,
@@ -93,14 +89,26 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    try {
-      await processCredentialDraft({
-        userId: session.user.id,
-        providerId: 'shopify',
-        accountId: resolvedAccountId,
-      })
-    } catch (error) {
-      logger.error('Failed to process credential draft for Shopify', { error })
+    const persisted =
+      existing ??
+      (await db.query.account.findFirst({
+        where: and(
+          eq(account.userId, session.user.id),
+          eq(account.providerId, 'shopify'),
+          eq(account.accountId, stableAccountId)
+        ),
+      }))
+
+    if (persisted) {
+      try {
+        await processCredentialDraft({
+          userId: session.user.id,
+          providerId: 'shopify',
+          accountId: persisted.id,
+        })
+      } catch (error) {
+        logger.error('Failed to process credential draft for Shopify', { error })
+      }
     }
 
     const returnUrl = request.cookies.get('shopify_return_url')?.value

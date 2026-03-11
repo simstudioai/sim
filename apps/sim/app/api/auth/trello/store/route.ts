@@ -62,8 +62,6 @@ export async function POST(request: NextRequest) {
 
     const now = new Date()
 
-    let resolvedAccountId: string
-
     if (existing) {
       await db
         .update(account)
@@ -74,12 +72,10 @@ export async function POST(request: NextRequest) {
           updatedAt: now,
         })
         .where(eq(account.id, existing.id))
-      resolvedAccountId = existing.id
     } else {
-      resolvedAccountId = `trello_${session.user.id}_${Date.now()}`
       await safeAccountInsert(
         {
-          id: resolvedAccountId,
+          id: `trello_${session.user.id}_${Date.now()}`,
           userId: session.user.id,
           providerId: 'trello',
           accountId: trelloUser.id,
@@ -92,14 +88,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    try {
-      await processCredentialDraft({
-        userId: session.user.id,
-        providerId: 'trello',
-        accountId: resolvedAccountId,
-      })
-    } catch (error) {
-      logger.error('Failed to process credential draft for Trello', { error })
+    const persisted =
+      existing ??
+      (await db.query.account.findFirst({
+        where: and(
+          eq(account.userId, session.user.id),
+          eq(account.providerId, 'trello'),
+          eq(account.accountId, trelloUser.id)
+        ),
+      }))
+
+    if (persisted) {
+      try {
+        await processCredentialDraft({
+          userId: session.user.id,
+          providerId: 'trello',
+          accountId: persisted.id,
+        })
+      } catch (error) {
+        logger.error('Failed to process credential draft for Trello', { error })
+      }
     }
 
     return NextResponse.json({ success: true })

@@ -141,7 +141,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
     const displayName = userName ? `${userName}'s ${integrationName}` : integrationName
 
     try {
-      await fetch('/api/credentials/draft', {
+      const res = await fetch('/api/credentials/draft', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -150,8 +150,13 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
           displayName,
         }),
       })
+      if (!res.ok) {
+        setError('Failed to prepare credential. Please try again.')
+        return
+      }
     } catch {
-      // Draft creation is best-effort; OAuth flow will still proceed
+      setError('Failed to prepare credential. Please try again.')
+      return
     }
 
     setShowOAuthModal(true)
