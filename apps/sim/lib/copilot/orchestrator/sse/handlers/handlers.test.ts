@@ -19,7 +19,7 @@ vi.mock('@/lib/copilot/orchestrator/tool-executor', () => ({
   isToolAvailableOnSimSide,
 }))
 
-import { sseHandlers } from '@/lib/copilot/orchestrator/sse-handlers'
+import { sseHandlers } from '@/lib/copilot/orchestrator/sse/handlers'
 import type { ExecutionContext, StreamingContext } from '@/lib/copilot/orchestrator/types'
 
 describe('sse-handlers tool lifecycle', () => {

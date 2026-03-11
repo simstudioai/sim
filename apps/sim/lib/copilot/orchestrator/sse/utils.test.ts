@@ -6,7 +6,7 @@ import {
   normalizeSseEvent,
   shouldSkipToolCallEvent,
   shouldSkipToolResultEvent,
-} from '@/lib/copilot/orchestrator/sse-utils'
+} from '@/lib/copilot/orchestrator/sse/utils'
 
 describe('sse-utils', () => {
   it.concurrent('normalizes tool fields from string data', () => {

@@ -88,7 +88,7 @@ import {
   appendStreamEvent,
   createStreamEventWriter,
   readStreamEvents,
-} from '@/lib/copilot/orchestrator/stream-buffer'
+} from '@/lib/copilot/orchestrator/stream/buffer'
 
 describe('stream-buffer', () => {
   beforeEach(() => {

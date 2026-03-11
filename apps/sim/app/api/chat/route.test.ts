@@ -214,6 +214,7 @@ describe('Chat API Route', () => {
       }
 
       mockLimit.mockResolvedValueOnce([{ id: 'existing-chat' }]) // Identifier exists
+      mockCheckWorkflowAccessForChatCreation.mockResolvedValue({ hasAccess: false })
 
       const req = new NextRequest('http://localhost:3000/api/chat', {
         method: 'POST',
