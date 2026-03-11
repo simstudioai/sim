@@ -50,7 +50,17 @@ export async function buildIntegrationToolSchemas(userId: string): Promise<ToolS
   try {
     const { createUserToolSchema } = await import('@/tools/params')
     const latestTools = getLatestVersionTools(tools)
-    const subscriptionState = await getUserSubscriptionState(userId)
+    let shouldAppendEmailTagline = false
+
+    try {
+      const subscriptionState = await getUserSubscriptionState(userId)
+      shouldAppendEmailTagline = subscriptionState.isFree
+    } catch (error) {
+      logger.warn('Failed to load subscription state for copilot tool descriptions', {
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
 
     for (const [toolId, toolConfig] of Object.entries(latestTools)) {
       try {
@@ -61,7 +71,7 @@ export async function buildIntegrationToolSchemas(userId: string): Promise<ToolS
           description: getCopilotToolDescription(toolConfig, {
             isHosted,
             fallbackName: strippedName,
-            appendEmailTagline: subscriptionState.isFree,
+            appendEmailTagline: shouldAppendEmailTagline,
           }),
           input_schema: userSchema as unknown as Record<string, unknown>,
           defer_loading: true,

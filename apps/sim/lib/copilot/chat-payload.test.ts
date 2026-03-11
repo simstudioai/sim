@@ -60,6 +60,7 @@ import { buildIntegrationToolSchemas } from '@/lib/copilot/chat-payload'
 
 const mockedGetUserSubscriptionState = getUserSubscriptionState as unknown as {
   mockResolvedValue: (value: unknown) => void
+  mockRejectedValue: (value: unknown) => void
   mockClear: () => void
 }
 
@@ -86,5 +87,17 @@ describe('buildIntegrationToolSchemas', () => {
 
     expect(getUserSubscriptionState).toHaveBeenCalledWith('user-paid')
     expect(gmailTool?.description).toBe('Send emails using Gmail')
+  })
+
+  it('still builds integration tools when subscription lookup fails', async () => {
+    mockedGetUserSubscriptionState.mockRejectedValue(new Error('db unavailable'))
+
+    const toolSchemas = await buildIntegrationToolSchemas('user-error')
+    const gmailTool = toolSchemas.find((tool) => tool.name === 'gmail_send')
+    const brandfetchTool = toolSchemas.find((tool) => tool.name === 'brandfetch_search')
+
+    expect(getUserSubscriptionState).toHaveBeenCalledWith('user-error')
+    expect(gmailTool?.description).toBe('Send emails using Gmail')
+    expect(brandfetchTool?.description).toBe('Search for brands by company name')
   })
 })
