@@ -727,19 +727,29 @@ export function serializeIntegrationSchema(tool: ToolConfig): string {
         ? { required: tool.oauth.required, provider: tool.oauth.provider }
         : undefined,
       params: tool.params
-        ? Object.fromEntries(
-            Object.entries(tool.params)
-              .filter(([key, val]) => val != null && key !== hostedApiKeyParam)
-              .map(([key, val]) => [
-                key,
-                {
-                  type: val.type,
-                  required: val.required,
-                  description: val.description,
-                  default: val.default,
-                },
-              ])
-          )
+        ? {
+            ...Object.fromEntries(
+              Object.entries(tool.params)
+                .filter(([key, val]) => val != null && key !== hostedApiKeyParam)
+                .map(([key, val]) => [
+                  key,
+                  {
+                    type: val.type,
+                    required: val.required,
+                    description: val.description,
+                    default: val.default,
+                  },
+                ])
+            ),
+            ...(tool.oauth?.required && {
+              credentialId: {
+                type: 'string',
+                required: false,
+                description:
+                  'Optional credential ID to use when multiple accounts are connected for this provider. Get IDs from environment/credentials.json. If omitted, auto-selects the first available credential.',
+              },
+            }),
+          }
         : undefined,
       outputs: tool.outputs
         ? Object.fromEntries(

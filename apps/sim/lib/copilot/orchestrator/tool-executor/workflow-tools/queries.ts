@@ -42,7 +42,9 @@ export async function executeListFolders(
 ): Promise<ToolCallResult> {
   try {
     const workspaceId =
-      (params?.workspaceId as string | undefined) || (await getDefaultWorkspaceId(context.userId))
+      (params?.workspaceId as string | undefined) ||
+      context.workspaceId ||
+      (await getDefaultWorkspaceId(context.userId))
 
     await ensureWorkspaceAccess(workspaceId, context.userId, false)
 

@@ -52,9 +52,9 @@ export async function executeIntegrationToolDirect(
   // has active credential_member access before proceeding. This prevents
   // unauthorized credential usage even if the agent hallucinated or received
   // a credential ID the user doesn't have access to.
-  const suppliedCredentialId = (executionParams.oauthCredential || executionParams.credential) as
-    | string
-    | undefined
+  const suppliedCredentialId = (executionParams.credentialId ||
+    executionParams.oauthCredential ||
+    executionParams.credential) as string | undefined
   if (suppliedCredentialId) {
     const actorCtx = await getCredentialActorContext(suppliedCredentialId, userId)
     if (!actorCtx.member) {
@@ -73,9 +73,10 @@ export async function executeIntegrationToolDirect(
   if (toolConfig.oauth?.required && toolConfig.oauth.provider) {
     const provider = toolConfig.oauth.provider
 
-    // If the user already supplied a credential ID that passed the check above,
-    // skip auto-resolution and let executeTool handle it via the token endpoint.
-    if (!suppliedCredentialId) {
+    // Determine which credential to use: supplied by the LLM or auto-resolved
+    let resolvedCredentialId = suppliedCredentialId
+
+    if (!resolvedCredentialId) {
       if (!workspaceId) {
         return {
           success: false,
@@ -93,37 +94,38 @@ export async function executeIntegrationToolDirect(
         }
       }
 
-      // Resolve the credential to its underlying account for token refresh
-      const matchCtx = await getCredentialActorContext(match.id, userId)
-      const accountId = matchCtx.credential?.accountId
-      if (!accountId) {
-        return {
-          success: false,
-          error: `OAuth account for ${provider} not found. Please reconnect your account.`,
-        }
-      }
-
-      const [acc] = await db.select().from(account).where(eq(account.id, accountId)).limit(1)
-
-      if (!acc) {
-        return {
-          success: false,
-          error: `OAuth account for ${provider} not found. Please reconnect your account.`,
-        }
-      }
-
-      const requestId = generateRequestId()
-      const { accessToken } = await refreshTokenIfNeeded(requestId, acc, acc.id)
-
-      if (!accessToken) {
-        return {
-          success: false,
-          error: `OAuth token not available for ${provider}. Please reconnect your account.`,
-        }
-      }
-
-      executionParams.accessToken = accessToken
+      resolvedCredentialId = match.id
     }
+
+    const matchCtx = await getCredentialActorContext(resolvedCredentialId, userId)
+    const accountId = matchCtx.credential?.accountId
+    if (!accountId) {
+      return {
+        success: false,
+        error: `OAuth account for ${provider} not found. Please reconnect your account.`,
+      }
+    }
+
+    const [acc] = await db.select().from(account).where(eq(account.id, accountId)).limit(1)
+
+    if (!acc) {
+      return {
+        success: false,
+        error: `OAuth account for ${provider} not found. Please reconnect your account.`,
+      }
+    }
+
+    const requestId = generateRequestId()
+    const { accessToken } = await refreshTokenIfNeeded(requestId, acc, acc.id)
+
+    if (!accessToken) {
+      return {
+        success: false,
+        error: `OAuth token not available for ${provider}. Please reconnect your account.`,
+      }
+    }
+
+    executionParams.accessToken = accessToken
   }
 
   const hasHostedKeySupport = isHosted && !!toolConfig.hosting

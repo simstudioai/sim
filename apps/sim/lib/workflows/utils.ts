@@ -346,7 +346,7 @@ export async function createWorkflowRecord(params: CreateWorkflowInput) {
     workspaceId,
     name,
     description = null,
-    color = '#3972F6',
+    color = '#7F2FFF',
     folderId = null,
   } = params
   const workflowId = crypto.randomUUID()

@@ -438,6 +438,14 @@ export function createUserToolSchema(toolConfig: ToolConfig): ToolSchema {
     }
   }
 
+  if (toolConfig.oauth?.required) {
+    schema.properties.credentialId = {
+      type: 'string',
+      description:
+        'Optional credential ID to use when multiple accounts are connected for this provider. Get IDs from environment/credentials.json. If omitted, auto-selects the first available credential.',
+    }
+  }
+
   return schema
 }
 

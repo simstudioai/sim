@@ -105,7 +105,8 @@ export async function executeCreateWorkflow(
       return { success: false, error: 'Description must be 2000 characters or less' }
     }
 
-    const workspaceId = params?.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    const workspaceId =
+      params?.workspaceId || context.workspaceId || (await getDefaultWorkspaceId(context.userId))
     const folderId = params?.folderId || null
 
     await ensureWorkspaceAccess(workspaceId, context.userId, true)
@@ -145,7 +146,8 @@ export async function executeCreateFolder(
       return { success: false, error: 'Folder name must be 200 characters or less' }
     }
 
-    const workspaceId = params?.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    const workspaceId =
+      params?.workspaceId || context.workspaceId || (await getDefaultWorkspaceId(context.userId))
     const parentId = params?.parentId || null
 
     await ensureWorkspaceAccess(workspaceId, context.userId, true)
@@ -426,7 +428,8 @@ export async function executeGenerateApiKey(
       return { success: false, error: 'API key name must be 200 characters or less' }
     }
 
-    const workspaceId = params.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    const workspaceId =
+      params.workspaceId || context.workspaceId || (await getDefaultWorkspaceId(context.userId))
     await ensureWorkspaceAccess(workspaceId, context.userId, true)
 
     const newKey = await createWorkspaceApiKey({
