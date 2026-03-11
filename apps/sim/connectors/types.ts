@@ -46,6 +46,7 @@ export interface SyncResult {
   docsUpdated: number
   docsDeleted: number
   docsUnchanged: number
+  docsFailed: number
   error?: string
 }
 

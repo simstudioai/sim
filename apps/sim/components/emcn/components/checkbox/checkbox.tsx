@@ -82,17 +82,19 @@ export interface CheckboxProps
  * </div>
  * ```
  */
-const Checkbox = React.forwardRef<React.ElementRef<typeof CheckboxPrimitive.Root>, CheckboxProps>(
-  ({ className, size, ...props }, ref) => (
-    <CheckboxPrimitive.Root
-      ref={ref}
-      className={cn(checkboxVariants({ size }), className)}
-      {...props}
-    >
-      <CheckboxPrimitive.Indicator className='flex items-center justify-center text-[var(--surface-2)]'>
-        <Check className={cn(checkboxIconVariants({ size }))} />
-      </CheckboxPrimitive.Indicator>
-    </CheckboxPrimitive.Root>
+const Checkbox = React.memo(
+  React.forwardRef<React.ElementRef<typeof CheckboxPrimitive.Root>, CheckboxProps>(
+    ({ className, size, ...props }, ref) => (
+      <CheckboxPrimitive.Root
+        ref={ref}
+        className={cn(checkboxVariants({ size }), className)}
+        {...props}
+      >
+        <CheckboxPrimitive.Indicator className='flex items-center justify-center text-[var(--surface-2)]'>
+          <Check className={cn(checkboxIconVariants({ size }))} />
+        </CheckboxPrimitive.Indicator>
+      </CheckboxPrimitive.Root>
+    )
   )
 )
 Checkbox.displayName = CheckboxPrimitive.Root.displayName

@@ -38,6 +38,7 @@ export const knowledgeConnectorSync = task({
         updated: result.docsUpdated,
         deleted: result.docsDeleted,
         unchanged: result.docsUnchanged,
+        failed: result.docsFailed,
       })
 
       return {

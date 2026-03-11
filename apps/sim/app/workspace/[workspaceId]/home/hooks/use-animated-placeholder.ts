@@ -13,7 +13,7 @@ const DELETE_SPEED_MS = 35
 const PAUSE_AFTER_TYPING_MS = 2000
 const PAUSE_AFTER_DELETING_MS = 400
 
-export function useAnimatedPlaceholder(): string {
+export function useAnimatedPlaceholder(enabled = true): string {
   const [text, setText] = useState(PLACEHOLDER_PREFIX)
   const stateRef = useRef({
     suffixIndex: 0,
@@ -22,6 +22,8 @@ export function useAnimatedPlaceholder(): string {
   })
 
   useEffect(() => {
+    if (!enabled) return
+
     const tick = () => {
       const s = stateRef.current
       const suffix = PLACEHOLDER_SUFFIXES[s.suffixIndex]
@@ -66,7 +68,7 @@ export function useAnimatedPlaceholder(): string {
     timer = setTimeout(schedule, TYPE_SPEED_MS)
 
     return () => clearTimeout(timer)
-  }, [])
+  }, [enabled])
 
-  return text
+  return enabled ? text : PLACEHOLDER_PREFIX
 }

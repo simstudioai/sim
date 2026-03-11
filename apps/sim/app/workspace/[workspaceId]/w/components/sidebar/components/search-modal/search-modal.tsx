@@ -360,7 +360,7 @@ export function SearchModal({
           '-translate-x-1/2 fixed top-[15%] z-50 w-[500px] overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--surface-4)] shadow-lg',
           open ? 'visible opacity-100' : 'invisible opacity-0'
         )}
-        style={{ left: 'calc(50% + var(--sidebar-width, 0px) / 2)' }}
+        style={{ left: '50%' }}
       >
         <Command label='Search' shouldFilter={false}>
           <Command.Input

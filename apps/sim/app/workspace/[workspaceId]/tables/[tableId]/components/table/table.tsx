@@ -266,6 +266,9 @@ export function Table({
     normalizedSelection.startCol === 0 &&
     normalizedSelection.endCol === columns.length - 1
 
+  const isAllRowsSelectedRef = useRef(isAllRowsSelected)
+  isAllRowsSelectedRef.current = isAllRowsSelected
+
   const columnsRef = useRef(columns)
   const rowsRef = useRef(rows)
   const selectionAnchorRef = useRef(selectionAnchor)
@@ -540,6 +543,14 @@ export function Table({
     setSelectionFocus({ rowIndex: lastRow, colIndex: lastCol })
     scrollRef.current?.focus({ preventScroll: true })
   }, [])
+
+  const handleSelectAllToggle = useCallback(() => {
+    if (isAllRowsSelectedRef.current) {
+      handleClearSelection()
+    } else {
+      handleSelectAllRows()
+    }
+  }, [handleClearSelection, handleSelectAllRows])
 
   const handleColumnResizeStart = useCallback((columnName: string) => {
     setResizingColumn(columnName)
@@ -1075,6 +1086,11 @@ export function Table({
     updateColumnMutation.mutate({ columnName, updates: { unique: !previousValue } })
   }, [])
 
+  const handleRenameColumn = useCallback(
+    (name: string) => columnRename.startRename(name, name),
+    [columnRename.startRename]
+  )
+
   const handleDeleteColumn = useCallback((columnName: string) => {
     setDeletingColumn(columnName)
   }, [])
@@ -1105,6 +1121,78 @@ export function Table({
         icon: COLUMN_TYPE_ICONS[col.type],
       })),
     [columns]
+  )
+
+  const tableDataRef = useRef(tableData)
+  tableDataRef.current = tableData
+
+  const handleStartTableRename = useCallback(() => {
+    const data = tableDataRef.current
+    if (data) tableHeaderRename.startRename(tableId, data.name)
+  }, [tableHeaderRename.startRename, tableId])
+
+  const handleShowDeleteTableConfirm = useCallback(() => {
+    setShowDeleteTableConfirm(true)
+  }, [])
+
+  const hasTableData = !!tableData
+
+  const breadcrumbs = useMemo(
+    () => [
+      { label: 'Tables', onClick: handleNavigateBack },
+      {
+        label: tableData?.name ?? '',
+        editing: tableHeaderRename.editingId
+          ? {
+              isEditing: true,
+              value: tableHeaderRename.editValue,
+              onChange: tableHeaderRename.setEditValue,
+              onSubmit: tableHeaderRename.submitRename,
+              onCancel: tableHeaderRename.cancelRename,
+            }
+          : undefined,
+        dropdownItems: [
+          {
+            label: 'Rename',
+            icon: Pencil,
+            disabled: !hasTableData,
+            onClick: handleStartTableRename,
+          },
+          {
+            label: 'Delete',
+            icon: Trash,
+            disabled: !hasTableData,
+            onClick: handleShowDeleteTableConfirm,
+          },
+        ],
+      },
+    ],
+    [
+      handleNavigateBack,
+      tableData?.name,
+      tableHeaderRename.editingId,
+      tableHeaderRename.editValue,
+      tableHeaderRename.setEditValue,
+      tableHeaderRename.submitRename,
+      tableHeaderRename.cancelRename,
+      hasTableData,
+      handleStartTableRename,
+      handleShowDeleteTableConfirm,
+    ]
+  )
+
+  const createAction = useMemo(
+    () => ({
+      label: 'New column',
+      onClick: handleAddColumn,
+      disabled: addColumnMutation.isPending,
+    }),
+    [handleAddColumn, addColumnMutation.isPending]
+  )
+
+  const filterElement = useMemo(
+    () => <TableFilter columns={columns} onApply={handleFilterApply} />,
+    [columns, handleFilterApply]
   )
 
   const activeSortState = useMemo(() => {
@@ -1156,50 +1244,9 @@ export function Table({
     <div ref={containerRef} className='flex h-full flex-col overflow-hidden'>
       {!embedded && (
         <>
-          <ResourceHeader
-            icon={TableIcon}
-            breadcrumbs={[
-              { label: 'Tables', onClick: handleNavigateBack },
-              {
-                label: tableData?.name ?? '',
-                editing: tableHeaderRename.editingId
-                  ? {
-                      isEditing: true,
-                      value: tableHeaderRename.editValue,
-                      onChange: tableHeaderRename.setEditValue,
-                      onSubmit: tableHeaderRename.submitRename,
-                      onCancel: tableHeaderRename.cancelRename,
-                    }
-                  : undefined,
-                dropdownItems: [
-                  {
-                    label: 'Rename',
-                    icon: Pencil,
-                    disabled: !tableData,
-                    onClick: () => {
-                      if (tableData) tableHeaderRename.startRename(tableId, tableData.name)
-                    },
-                  },
-                  {
-                    label: 'Delete',
-                    icon: Trash,
-                    disabled: !tableData,
-                    onClick: () => setShowDeleteTableConfirm(true),
-                  },
-                ],
-              },
-            ]}
-            create={{
-              label: 'New column',
-              onClick: handleAddColumn,
-              disabled: addColumnMutation.isPending,
-            }}
-          />
+          <ResourceHeader icon={TableIcon} breadcrumbs={breadcrumbs} create={createAction} />
 
-          <ResourceOptionsBar
-            sort={sortConfig}
-            filter={<TableFilter columns={columns} onApply={handleFilterApply} />}
-          />
+          <ResourceOptionsBar sort={sortConfig} filter={filterElement} />
         </>
       )}
 
@@ -1253,21 +1300,10 @@ export function Table({
                 </tr>
               ) : (
                 <tr>
-                  <th className={CELL_HEADER_CHECKBOX}>
-                    <div className='flex items-center justify-center'>
-                      <Checkbox
-                        size='sm'
-                        checked={isAllRowsSelected}
-                        onCheckedChange={() => {
-                          if (isAllRowsSelected) {
-                            handleClearSelection()
-                          } else {
-                            handleSelectAllRows()
-                          }
-                        }}
-                      />
-                    </div>
-                  </th>
+                  <SelectAllCheckbox
+                    checked={isAllRowsSelected}
+                    onCheckedChange={handleSelectAllToggle}
+                  />
                   {columns.map((column) => (
                     <ColumnHeaderMenu
                       key={column.name}
@@ -1279,7 +1315,7 @@ export function Table({
                       onRenameValueChange={columnRename.setEditValue}
                       onRenameSubmit={columnRename.submitRename}
                       onRenameCancel={columnRename.cancelRename}
-                      onRenameColumn={(name: string) => columnRename.startRename(name, name)}
+                      onRenameColumn={handleRenameColumn}
                       onChangeType={handleChangeType}
                       onInsertLeft={handleInsertColumnLeft}
                       onInsertRight={handleInsertColumnRight}
@@ -1290,19 +1326,10 @@ export function Table({
                       onResizeEnd={handleColumnResizeEnd}
                     />
                   ))}
-                  <th className={CELL_HEADER}>
-                    <button
-                      type='button'
-                      className='flex h-[20px] cursor-pointer items-center gap-[8px]'
-                      onClick={handleAddColumn}
-                      disabled={addColumnMutation.isPending}
-                    >
-                      <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-                      <span className='font-medium text-[13px] text-[var(--text-body)]'>
-                        New column
-                      </span>
-                    </button>
-                  </th>
+                  <AddColumnButton
+                    onClick={handleAddColumn}
+                    disabled={addColumnMutation.isPending}
+                  />
                 </tr>
               )}
             </thead>
@@ -1360,20 +1387,7 @@ export function Table({
                     )
                   })}
                   {userPermissions.canEdit && (
-                    <tr>
-                      <td colSpan={columns.length + 2} className='px-[8px] py-[7px]'>
-                        <button
-                          type='button'
-                          className='flex h-[20px] cursor-pointer items-center gap-[8px]'
-                          onClick={handleAppendRow}
-                        >
-                          <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-                          <span className='font-medium text-[13px] text-[var(--text-body)]'>
-                            New row
-                          </span>
-                        </button>
-                      </td>
-                    </tr>
+                    <AddRowButton colSpan={columns.length + 2} onClick={handleAppendRow} />
                   )}
                 </>
               )}
@@ -2323,6 +2337,67 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         onPointerDown={handleResizePointerDown}
       />
     </th>
+  )
+})
+
+const SelectAllCheckbox = React.memo(function SelectAllCheckbox({
+  checked,
+  onCheckedChange,
+}: {
+  checked: boolean
+  onCheckedChange: () => void
+}) {
+  return (
+    <th className={CELL_HEADER_CHECKBOX}>
+      <div className='flex items-center justify-center'>
+        <Checkbox size='sm' checked={checked} onCheckedChange={onCheckedChange} />
+      </div>
+    </th>
+  )
+})
+
+const AddColumnButton = React.memo(function AddColumnButton({
+  onClick,
+  disabled,
+}: {
+  onClick: () => void
+  disabled: boolean
+}) {
+  return (
+    <th className={CELL_HEADER}>
+      <button
+        type='button'
+        className='flex h-[20px] cursor-pointer items-center gap-[8px]'
+        onClick={onClick}
+        disabled={disabled}
+      >
+        <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+        <span className='font-medium text-[13px] text-[var(--text-body)]'>New column</span>
+      </button>
+    </th>
+  )
+})
+
+const AddRowButton = React.memo(function AddRowButton({
+  colSpan,
+  onClick,
+}: {
+  colSpan: number
+  onClick: () => void
+}) {
+  return (
+    <tr>
+      <td colSpan={colSpan} className='px-[8px] py-[7px]'>
+        <button
+          type='button'
+          className='flex h-[20px] cursor-pointer items-center gap-[8px]'
+          onClick={onClick}
+        >
+          <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+          <span className='font-medium text-[13px] text-[var(--text-body)]'>New row</span>
+        </button>
+      </td>
+    </tr>
   )
 })
 

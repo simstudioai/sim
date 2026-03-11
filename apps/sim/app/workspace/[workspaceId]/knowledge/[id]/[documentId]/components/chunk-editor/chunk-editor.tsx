@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Label, Switch } from '@/components/emcn'
 import type { ChunkData, DocumentData } from '@/lib/knowledge/types'
 import { getAccurateTokenCount, getTokenStrings } from '@/lib/tokenization/estimators'
@@ -234,15 +234,11 @@ export function ChunkEditor({
         )}
       </div>
       <div className='flex items-center justify-between border-[var(--border)] border-t px-[24px] py-[10px]'>
-        <div className='flex items-center gap-[8px]'>
-          <Label className='text-[12px] text-[var(--text-secondary)]'>Tokenizer</Label>
-          <Switch checked={tokenizerOn} onCheckedChange={setTokenizerOn} />
-          {tokenizerOn && hoveredTokenIndex !== null && (
-            <span className='text-[12px] text-[var(--text-tertiary)]'>
-              Token #{hoveredTokenIndex + 1}
-            </span>
-          )}
-        </div>
+        <TokenizerToggle
+          checked={tokenizerOn}
+          onCheckedChange={setTokenizerOn}
+          hoveredTokenIndex={tokenizerOn ? hoveredTokenIndex : null}
+        />
         <span className='text-[12px] text-[var(--text-secondary)]'>
           {tokenCount.toLocaleString()}
           {maxChunkSize !== undefined && `/${maxChunkSize.toLocaleString()}`} tokens
@@ -251,3 +247,25 @@ export function ChunkEditor({
     </div>
   )
 }
+
+const TokenizerToggle = React.memo(function TokenizerToggle({
+  checked,
+  onCheckedChange,
+  hoveredTokenIndex,
+}: {
+  checked: boolean
+  onCheckedChange: (value: boolean) => void
+  hoveredTokenIndex: number | null
+}) {
+  return (
+    <div className='flex items-center gap-[8px]'>
+      <Label className='text-[12px] text-[var(--text-secondary)]'>Tokenizer</Label>
+      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+      {checked && hoveredTokenIndex !== null && (
+        <span className='text-[12px] text-[var(--text-tertiary)]'>
+          Token #{hoveredTokenIndex + 1}
+        </span>
+      )}
+    </div>
+  )
+})

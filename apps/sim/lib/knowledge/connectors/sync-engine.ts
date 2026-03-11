@@ -24,6 +24,57 @@ import type {
 
 const logger = createLogger('ConnectorSyncEngine')
 
+class ConnectorDeletedException extends Error {
+  constructor(connectorId: string) {
+    super(`Connector ${connectorId} was deleted during sync`)
+    this.name = 'ConnectorDeletedException'
+  }
+}
+
+const SYNC_BATCH_SIZE = 5
+const MAX_PAGES = 500
+
+type DocOp =
+  | { type: 'add'; extDoc: ExternalDocument }
+  | { type: 'update'; existingId: string; extDoc: ExternalDocument }
+
+async function isConnectorDeleted(connectorId: string): Promise<boolean> {
+  const rows = await db
+    .select({ deletedAt: knowledgeConnector.deletedAt })
+    .from(knowledgeConnector)
+    .where(eq(knowledgeConnector.id, connectorId))
+    .limit(1)
+  return rows.length === 0 || rows[0].deletedAt !== null
+}
+
+function calculateNextSyncTime(syncIntervalMinutes: number): Date | null {
+  if (syncIntervalMinutes <= 0) return null
+  const now = Date.now()
+  const jitterMs = Math.floor(Math.random() * Math.min(syncIntervalMinutes * 6_000, 300_000))
+  return new Date(now + syncIntervalMinutes * 60_000 + jitterMs)
+}
+
+async function completeSyncLog(
+  syncLogId: string,
+  status: 'completed' | 'failed',
+  result: SyncResult,
+  errorMessage?: string
+): Promise<void> {
+  await db
+    .update(knowledgeConnectorSyncLog)
+    .set({
+      status,
+      completedAt: new Date(),
+      ...(errorMessage != null && { errorMessage }),
+      docsAdded: result.docsAdded,
+      docsUpdated: result.docsUpdated,
+      docsDeleted: result.docsDeleted,
+      docsUnchanged: result.docsUnchanged,
+      docsFailed: result.docsFailed,
+    })
+    .where(eq(knowledgeConnectorSyncLog.id, syncLogId))
+}
+
 /**
  * Resolves tag values from connector metadata using the connector's mapTags function.
  * Translates semantic keys returned by mapTags to actual DB slots using the
@@ -121,6 +172,7 @@ export async function executeSync(
     docsUpdated: 0,
     docsDeleted: 0,
     docsUnchanged: 0,
+    docsFailed: 0,
   }
 
   const connectorRows = await db
@@ -162,7 +214,13 @@ export async function executeSync(
   const lockResult = await db
     .update(knowledgeConnector)
     .set({ status: 'syncing', updatedAt: new Date() })
-    .where(and(eq(knowledgeConnector.id, connectorId), ne(knowledgeConnector.status, 'syncing')))
+    .where(
+      and(
+        eq(knowledgeConnector.id, connectorId),
+        ne(knowledgeConnector.status, 'syncing'),
+        isNull(knowledgeConnector.deletedAt)
+      )
+    )
     .returning({ id: knowledgeConnector.id })
 
   if (lockResult.length === 0) {
@@ -182,7 +240,6 @@ export async function executeSync(
     const externalDocs: ExternalDocument[] = []
     let cursor: string | undefined
     let hasMore = true
-    const MAX_PAGES = 500
     const syncContext: Record<string, unknown> = {}
 
     // Determine if this sync should be incremental
@@ -221,25 +278,26 @@ export async function executeSync(
       connectorId,
     })
 
-    const existingDocs = await db
-      .select({
-        id: document.id,
-        externalId: document.externalId,
-        contentHash: document.contentHash,
-      })
-      .from(document)
-      .where(and(eq(document.connectorId, connectorId), isNull(document.deletedAt)))
-
-    const excludedDocs = await db
-      .select({ externalId: document.externalId })
-      .from(document)
-      .where(
-        and(
-          eq(document.connectorId, connectorId),
-          eq(document.userExcluded, true),
-          isNull(document.deletedAt)
-        )
-      )
+    const [existingDocs, excludedDocs] = await Promise.all([
+      db
+        .select({
+          id: document.id,
+          externalId: document.externalId,
+          contentHash: document.contentHash,
+        })
+        .from(document)
+        .where(and(eq(document.connectorId, connectorId), isNull(document.deletedAt))),
+      db
+        .select({ externalId: document.externalId })
+        .from(document)
+        .where(
+          and(
+            eq(document.connectorId, connectorId),
+            eq(document.userExcluded, true),
+            isNull(document.deletedAt)
+          )
+        ),
+    ])
 
     const excludedExternalIds = new Set(excludedDocs.map((d) => d.externalId).filter(Boolean))
 
@@ -249,31 +307,20 @@ export async function executeSync(
         { connectorId }
       )
 
-      await db
-        .update(knowledgeConnectorSyncLog)
-        .set({ status: 'completed', completedAt: new Date() })
-        .where(eq(knowledgeConnectorSyncLog.id, syncLogId))
+      await completeSyncLog(syncLogId, 'completed', result)
 
       const now = new Date()
-      const jitterMs = Math.floor(
-        Math.random() * Math.min(connector.syncIntervalMinutes * 6_000, 300_000)
-      )
-      const nextSync =
-        connector.syncIntervalMinutes > 0
-          ? new Date(now.getTime() + connector.syncIntervalMinutes * 60 * 1000 + jitterMs)
-          : null
-
       await db
         .update(knowledgeConnector)
         .set({
           status: 'active',
           lastSyncAt: now,
           lastSyncError: null,
-          nextSyncAt: nextSync,
+          nextSyncAt: calculateNextSyncTime(connector.syncIntervalMinutes),
           consecutiveFailures: 0,
           updatedAt: now,
         })
-        .where(eq(knowledgeConnector.id, connectorId))
+        .where(and(eq(knowledgeConnector.id, connectorId), isNull(knowledgeConnector.deletedAt)))
 
       return result
     }
@@ -284,6 +331,7 @@ export async function executeSync(
 
     const seenExternalIds = new Set<string>()
 
+    const pendingOps: DocOp[] = []
     for (const extDoc of externalDocs) {
       seenExternalIds.add(extDoc.externalId)
 
@@ -302,40 +350,77 @@ export async function executeSync(
       const existing = existingByExternalId.get(extDoc.externalId)
 
       if (!existing) {
-        await addDocument(
-          connector.knowledgeBaseId,
-          connectorId,
-          connector.connectorType,
-          extDoc,
-          sourceConfig
-        )
-        result.docsAdded++
+        pendingOps.push({ type: 'add', extDoc })
       } else if (existing.contentHash !== extDoc.contentHash) {
-        await updateDocument(
-          existing.id,
-          connector.knowledgeBaseId,
-          connectorId,
-          connector.connectorType,
-          extDoc,
-          sourceConfig
-        )
-        result.docsUpdated++
+        pendingOps.push({ type: 'update', existingId: existing.id, extDoc })
       } else {
         result.docsUnchanged++
       }
     }
 
-    // Skip deletion reconciliation during incremental syncs — results only contain changed docs
-    if (!isIncremental && (options?.fullSync || connector.syncMode === 'full')) {
-      for (const existing of existingDocs) {
-        if (existing.externalId && !seenExternalIds.has(existing.externalId)) {
-          await db
-            .update(document)
-            .set({ deletedAt: new Date() })
-            .where(eq(document.id, existing.id))
-          result.docsDeleted++
+    for (let i = 0; i < pendingOps.length; i += SYNC_BATCH_SIZE) {
+      if (await isConnectorDeleted(connectorId)) {
+        throw new ConnectorDeletedException(connectorId)
+      }
+
+      const batch = pendingOps.slice(i, i + SYNC_BATCH_SIZE)
+      const settled = await Promise.allSettled(
+        batch.map((op) => {
+          if (op.type === 'add') {
+            return addDocument(
+              connector.knowledgeBaseId,
+              connectorId,
+              connector.connectorType,
+              op.extDoc,
+              sourceConfig
+            )
+          }
+          return updateDocument(
+            op.existingId,
+            connector.knowledgeBaseId,
+            connectorId,
+            connector.connectorType,
+            op.extDoc,
+            sourceConfig
+          )
+        })
+      )
+
+      for (let j = 0; j < settled.length; j++) {
+        const outcome = settled[j]
+        if (outcome.status === 'fulfilled') {
+          if (batch[j].type === 'add') result.docsAdded++
+          else result.docsUpdated++
+        } else {
+          result.docsFailed++
+          logger.error('Failed to process document', {
+            connectorId,
+            externalId: batch[j].extDoc.externalId,
+            error:
+              outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason),
+          })
         }
       }
+    }
+
+    // Skip deletion reconciliation during incremental syncs — results only contain changed docs
+    if (!isIncremental && (options?.fullSync || connector.syncMode === 'full')) {
+      const removedIds = existingDocs
+        .filter((d) => d.externalId && !seenExternalIds.has(d.externalId))
+        .map((d) => d.id)
+
+      if (removedIds.length > 0) {
+        await db
+          .update(document)
+          .set({ deletedAt: new Date() })
+          .where(inArray(document.id, removedIds))
+        result.docsDeleted += removedIds.length
+      }
+    }
+
+    // Check if connector was deleted before retrying stuck documents
+    if (await isConnectorDeleted(connectorId)) {
+      throw new ConnectorDeletedException(connectorId)
     }
 
     // Retry stuck documents that failed or never completed processing
@@ -377,27 +462,9 @@ export async function executeSync(
       }
     }
 
-    await db
-      .update(knowledgeConnectorSyncLog)
-      .set({
-        status: 'completed',
-        completedAt: new Date(),
-        docsAdded: result.docsAdded,
-        docsUpdated: result.docsUpdated,
-        docsDeleted: result.docsDeleted,
-        docsUnchanged: result.docsUnchanged,
-      })
-      .where(eq(knowledgeConnectorSyncLog.id, syncLogId))
+    await completeSyncLog(syncLogId, 'completed', result)
 
     const now = new Date()
-    const jitterMs = Math.floor(
-      Math.random() * Math.min(connector.syncIntervalMinutes * 6_000, 300_000)
-    )
-    const nextSync =
-      connector.syncIntervalMinutes > 0
-        ? new Date(now.getTime() + connector.syncIntervalMinutes * 60 * 1000 + jitterMs)
-        : null
-
     await db
       .update(knowledgeConnector)
       .set({
@@ -405,48 +472,66 @@ export async function executeSync(
         lastSyncAt: now,
         lastSyncError: null,
         lastSyncDocCount: externalDocs.length,
-        nextSyncAt: nextSync,
+        nextSyncAt: calculateNextSyncTime(connector.syncIntervalMinutes),
         consecutiveFailures: 0,
         updatedAt: now,
       })
-      .where(eq(knowledgeConnector.id, connectorId))
+      .where(and(eq(knowledgeConnector.id, connectorId), isNull(knowledgeConnector.deletedAt)))
 
     logger.info('Sync completed', { connectorId, ...result })
     return result
   } catch (error) {
+    if (error instanceof ConnectorDeletedException) {
+      logger.info('Connector deleted during sync, cleaning up', { connectorId })
+
+      try {
+        const cleanupTime = new Date()
+        await db
+          .update(document)
+          .set({ deletedAt: cleanupTime })
+          .where(and(eq(document.connectorId, connectorId), isNull(document.deletedAt)))
+
+        await completeSyncLog(syncLogId, 'failed', result, 'Connector deleted during sync')
+      } catch (cleanupError) {
+        logger.error('Failed to clean up after connector deletion', {
+          connectorId,
+          error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+        })
+      }
+
+      result.error = 'Connector deleted during sync'
+      return result
+    }
+
     const errorMessage = error instanceof Error ? error.message : String(error)
-
-    await db
-      .update(knowledgeConnectorSyncLog)
-      .set({
-        status: 'failed',
-        completedAt: new Date(),
-        errorMessage,
-        docsAdded: result.docsAdded,
-        docsUpdated: result.docsUpdated,
-        docsDeleted: result.docsDeleted,
-        docsUnchanged: result.docsUnchanged,
-      })
-      .where(eq(knowledgeConnectorSyncLog.id, syncLogId))
-
-    const now = new Date()
-    const failures = (connector.consecutiveFailures ?? 0) + 1
-    const backoffMinutes = Math.min(failures * 30, 1440)
-    const nextSync = new Date(now.getTime() + backoffMinutes * 60 * 1000)
-
-    await db
-      .update(knowledgeConnector)
-      .set({
-        status: 'error',
-        lastSyncAt: now,
-        lastSyncError: errorMessage,
-        nextSyncAt: nextSync,
-        consecutiveFailures: failures,
-        updatedAt: now,
-      })
-      .where(eq(knowledgeConnector.id, connectorId))
-
     logger.error('Sync failed', { connectorId, error: errorMessage })
+
+    try {
+      await completeSyncLog(syncLogId, 'failed', result, errorMessage)
+
+      const now = new Date()
+      const failures = (connector.consecutiveFailures ?? 0) + 1
+      const backoffMinutes = Math.min(failures * 30, 1440)
+      const nextSync = new Date(now.getTime() + backoffMinutes * 60 * 1000)
+
+      await db
+        .update(knowledgeConnector)
+        .set({
+          status: 'error',
+          lastSyncAt: now,
+          lastSyncError: errorMessage,
+          nextSyncAt: nextSync,
+          consecutiveFailures: failures,
+          updatedAt: now,
+        })
+        .where(and(eq(knowledgeConnector.id, connectorId), isNull(knowledgeConnector.deletedAt)))
+    } catch (recoveryError) {
+      logger.error('Failed to record sync failure', {
+        connectorId,
+        error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
+      })
+    }
+
     result.error = errorMessage
     return result
   }
@@ -483,13 +568,12 @@ async function addDocument(
     ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig)
     : undefined
 
-  const displayName = extDoc.title
   const processingFilename = `${safeTitle}.txt`
 
   await db.insert(document).values({
     id: documentId,
     knowledgeBaseId,
-    filename: displayName,
+    filename: extDoc.title,
     fileUrl,
     fileSize: contentBuffer.length,
     mimeType: 'text/plain',
