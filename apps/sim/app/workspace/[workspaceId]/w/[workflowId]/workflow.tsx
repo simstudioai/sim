@@ -243,7 +243,7 @@ const WorkflowContent = React.memo(
     const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
     const selectedIdsRef = useRef<string[] | null>(null)
     const canvasMode = useCanvasModeStore((state) => state.mode)
-    const isHandMode = embedded ? false : canvasMode === 'hand'
+    const isHandMode = embedded ? true : canvasMode === 'hand'
     const { handleCanvasMouseDown, selectionProps } = useShiftSelectionLock({ isHandMode })
     const [oauthModal, setOauthModal] = useState<{
       provider: OAuthProvider
@@ -2299,6 +2299,8 @@ const WorkflowContent = React.memo(
 
     /** Handles navigation validation and redirects for invalid workflow IDs. */
     useEffect(() => {
+      if (embedded) return
+
       // Wait for metadata to finish loading before making navigation decisions
       if (hydration.phase === 'metadata-loading' || hydration.phase === 'idle') {
         return
@@ -2341,6 +2343,7 @@ const WorkflowContent = React.memo(
         router.replace(`/workspace/${workflowData.workspaceId}/w/${workflowIdParam}`)
       }
     }, [
+      embedded,
       workflowIdParam,
       currentWorkflowExists,
       workflowCount,
@@ -2480,6 +2483,7 @@ const WorkflowContent = React.memo(
             name: block.name,
             isActive,
             isPending,
+            ...(embedded && { isEmbedded: true }),
           },
           // Include dynamic dimensions for container resizing calculations (must match rendered size)
           // Both note and workflow blocks calculate dimensions deterministically via useBlockDimensions
@@ -3862,14 +3866,14 @@ const WorkflowContent = React.memo(
                   onSelectionContextMenu={handleSelectionContextMenu}
                   onPointerMove={handleCanvasPointerMove}
                   onPointerLeave={handleCanvasPointerLeave}
-                  elementsSelectable={true}
-                  selectionOnDrag={selectionProps.selectionOnDrag}
+                  elementsSelectable={!embedded}
+                  selectionOnDrag={embedded ? false : selectionProps.selectionOnDrag}
                   selectionMode={SelectionMode.Partial}
-                  panOnDrag={selectionProps.panOnDrag}
-                  selectionKeyCode={selectionProps.selectionKeyCode}
-                  multiSelectionKeyCode={['Meta', 'Control', 'Shift']}
-                  nodesConnectable={effectivePermissions.canEdit}
-                  nodesDraggable={effectivePermissions.canEdit}
+                  panOnDrag={embedded ? true : selectionProps.panOnDrag}
+                  selectionKeyCode={embedded ? null : selectionProps.selectionKeyCode}
+                  multiSelectionKeyCode={embedded ? null : ['Meta', 'Control', 'Shift']}
+                  nodesConnectable={!embedded && effectivePermissions.canEdit}
+                  nodesDraggable={!embedded && effectivePermissions.canEdit}
                   draggable={false}
                   noWheelClassName='allow-scroll'
                   edgesFocusable={true}

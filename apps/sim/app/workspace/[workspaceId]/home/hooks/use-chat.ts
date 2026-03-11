@@ -200,8 +200,30 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     if (restored.length > 0) {
       setResources(restored)
       setActiveResourceId(restored[restored.length - 1].id)
+
+      for (const resource of restored) {
+        if (resource.type !== 'workflow') continue
+        const registry = useWorkflowRegistry.getState()
+        if (!registry.workflows[resource.id]) {
+          useWorkflowRegistry.setState((state) => ({
+            workflows: {
+              ...state.workflows,
+              [resource.id]: {
+                id: resource.id,
+                name: resource.title,
+                lastModified: new Date(),
+                createdAt: new Date(),
+                color: '#7F2FFF',
+                workspaceId,
+                folderId: null,
+                sortOrder: 0,
+              },
+            },
+          }))
+        }
+      }
     }
-  }, [chatHistory])
+  }, [chatHistory, workspaceId])
 
   const processSSEStream = useCallback(
     async (reader: ReadableStreamDefaultReader<Uint8Array>, assistantId: string) => {
@@ -209,6 +231,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       let buffer = ''
       const blocks: ContentBlock[] = []
       const toolMap = new Map<string, number>()
+      let activeSubagent: string | undefined
       let lastTableId: string | null = null
       let lastWorkflowId: string | null = null
       let runningText = ''
@@ -304,6 +327,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                 }
               }
 
+              if (name.endsWith('_respond')) break
               const ui = parsed.ui || data?.ui
               if (ui?.hidden) break
               const displayTitle = ui?.title || ui?.phaseLabel
@@ -312,7 +336,14 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                 toolMap.set(id, blocks.length)
                 blocks.push({
                   type: 'tool_call',
-                  toolCall: { id, name, status: 'executing', displayTitle, phaseLabel },
+                  toolCall: {
+                    id,
+                    name,
+                    status: 'executing',
+                    displayTitle,
+                    phaseLabel,
+                    calledBy: activeSubagent,
+                  },
                 })
               } else {
                 const idx = toolMap.get(id)!
@@ -424,12 +455,14 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
             case 'subagent_start': {
               const name = parsed.subagent || getPayloadData(parsed)?.agent
               if (name) {
+                activeSubagent = name
                 blocks.push({ type: 'subagent', content: name })
                 flush()
               }
               break
             }
             case 'subagent_end': {
+              activeSubagent = undefined
               flush()
               break
             }

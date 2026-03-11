@@ -97,6 +97,10 @@ export function UserInput({
 
     onSubmit(fileAttachmentsForApi.length > 0 ? fileAttachmentsForApi : undefined)
     files.clearAttachedFiles()
+
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+    }
   }, [onSubmit, files])
 
   const handleKeyDown = useCallback(

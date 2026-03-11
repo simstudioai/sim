@@ -1248,7 +1248,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
           </div>
         )}
 
-        {!data.isPreview && (
+        {!data.isPreview && !data.isEmbedded && (
           <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
         )}
 

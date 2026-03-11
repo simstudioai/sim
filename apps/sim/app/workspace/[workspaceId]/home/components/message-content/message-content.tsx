@@ -16,6 +16,7 @@ interface ToolCallSegment {
   displayTitle?: string
   status: ToolCallStatus
   phaseLabel?: string
+  calledBy?: string
 }
 
 interface SubagentSegment {
@@ -92,6 +93,7 @@ function parseBlocks(blocks: ContentBlock[], isStreaming: boolean): MessageSegme
             displayTitle: block.toolCall.displayTitle || formatToolName(block.toolCall.name),
             status: block.toolCall.status,
             phaseLabel: block.toolCall.phaseLabel,
+            calledBy: block.toolCall.calledBy,
           })
         }
         break
@@ -147,6 +149,7 @@ export function MessageContent({
                 displayTitle={segment.displayTitle}
                 status={segment.status}
                 phaseLabel={segment.phaseLabel}
+                calledBy={segment.calledBy}
               />
             )
           case 'subagent':

@@ -1,6 +1,6 @@
 import { cn } from '@/lib/core/utils/cn'
-import type { MothershipToolName, ToolCallStatus, ToolPhase } from '../../../../types'
-import { TOOL_UI_METADATA } from '../../../../types'
+import type { MothershipToolName, SubagentName, ToolCallStatus, ToolPhase } from '../../../../types'
+import { SUBAGENT_LABELS, TOOL_UI_METADATA } from '../../../../types'
 import { getToolIcon } from '../../utils'
 
 const STATUS_STYLES: Record<ToolCallStatus, string> = {
@@ -24,14 +24,18 @@ interface ToolCallProps {
   displayTitle?: string
   status: ToolCallStatus
   phaseLabel?: string
+  calledBy?: string
 }
 
-export function ToolCall({ toolName, displayTitle, status, phaseLabel }: ToolCallProps) {
+export function ToolCall({ toolName, displayTitle, status, phaseLabel, calledBy }: ToolCallProps) {
   const metadata = TOOL_UI_METADATA[toolName as MothershipToolName]
   const resolvedTitle = displayTitle || metadata?.title || toolName
   const resolvedPhase = phaseLabel || metadata?.phaseLabel
   const resolvedPhaseType = metadata?.phase
   const Icon = getToolIcon(toolName)
+  const callerLabel = calledBy
+    ? (SUBAGENT_LABELS[calledBy as SubagentName] ?? calledBy)
+    : 'Mothership'
 
   return (
     <div className='flex items-center gap-[6px]'>
@@ -48,6 +52,7 @@ export function ToolCall({ toolName, displayTitle, status, phaseLabel }: ToolCal
           {resolvedPhase}
         </span>
       )}
+      <span className='text-[11px] text-[var(--text-quaternary)]'>via {callerLabel}</span>
     </div>
   )
 }

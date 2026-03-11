@@ -64,6 +64,7 @@ export type MothershipToolName =
   | 'research'
   | 'plan'
   | 'debug'
+  | 'edit'
 
 /**
  * Subagent identifiers dispatched via `subagent_start` SSE events.
@@ -102,6 +103,7 @@ export interface ToolCallInfo {
   status: ToolCallStatus
   displayTitle?: string
   phaseLabel?: string
+  calledBy?: string
   result?: { success: boolean; output?: unknown; error?: string }
 }
 
@@ -180,6 +182,7 @@ export const TOOL_UI_METADATA: Partial<Record<MothershipToolName, ToolUIMetadata
   research: { title: 'Researching', phaseLabel: 'Research', phase: 'subagent' },
   plan: { title: 'Planning', phaseLabel: 'Plan', phase: 'subagent' },
   debug: { title: 'Debugging', phaseLabel: 'Debug', phase: 'subagent' },
+  edit: { title: 'Editing workflow', phaseLabel: 'Edit', phase: 'subagent' },
 }
 
 export interface SSEPayloadUI {
