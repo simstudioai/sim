@@ -1,7 +1,7 @@
 'use client'
 
 import type { ElementType, SVGProps } from 'react'
-import { Button } from '@/components/emcn'
+import { Button, Tooltip } from '@/components/emcn'
 import { PanelLeft, Table as TableIcon } from '@/components/emcn/icons'
 import { WorkflowIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
@@ -76,47 +76,67 @@ export function ResourceTabs({
 }: ResourceTabsProps) {
   return (
     <div className='flex shrink-0 items-center border-[var(--border)] border-b px-[16px] py-[8.5px]'>
-      <Button
-        variant='subtle'
-        onClick={onCollapse}
-        className='shrink-0 bg-transparent px-[8px] py-[5px] text-[12px]'
-        aria-label='Collapse resource view'
-      >
-        <PanelLeft className='-scale-x-100 h-[16px] w-[16px] text-[var(--text-icon)]' />
-      </Button>
-      <div className='flex min-w-0 items-center gap-[6px] overflow-x-auto pl-[6px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Button
+            variant='subtle'
+            onClick={onCollapse}
+            className='shrink-0 bg-transparent px-[8px] py-[5px] text-[12px]'
+            aria-label='Collapse resource view'
+          >
+            <PanelLeft className='-scale-x-100 h-[16px] w-[16px] text-[var(--text-icon)]' />
+          </Button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>Collapse</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+      <div className='mx-[2px] flex min-w-0 items-center gap-[6px] overflow-x-auto px-[6px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
         {resources.map((resource) => {
           const Icon = getResourceIcon(resource)
           const isActive = activeId === resource.id
 
           return (
-            <Button
-              key={resource.id}
-              variant='subtle'
-              onClick={() => onSelect(resource.id)}
-              className={cn(
-                'shrink-0 bg-transparent px-[8px] py-[4px] text-[12px]',
-                isActive && 'bg-[var(--surface-4)]'
-              )}
-            >
-              <Icon className={cn('mr-[6px] h-[14px] w-[14px] text-[var(--text-icon)]')} />
-              {resource.title}
-            </Button>
+            <Tooltip.Root key={resource.id}>
+              <Tooltip.Trigger asChild>
+                <Button
+                  variant='subtle'
+                  onClick={() => onSelect(resource.id)}
+                  className={cn(
+                    'shrink-0 bg-transparent px-[8px] py-[4px] text-[12px]',
+                    isActive && 'bg-[var(--surface-4)]'
+                  )}
+                >
+                  <Icon className={cn('mr-[6px] h-[14px] w-[14px] text-[var(--text-icon)]')} />
+                  {resource.title}
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='bottom'>
+                <p>{resource.title}</p>
+              </Tooltip.Content>
+            </Tooltip.Root>
           )
         })}
       </div>
       {previewMode && onCyclePreviewMode && (
-        <Button
-          variant='subtle'
-          onClick={onCyclePreviewMode}
-          className='ml-auto shrink-0 bg-transparent px-[8px] py-[5px] text-[12px]'
-          aria-label='Cycle preview mode'
-        >
-          <PreviewModeIcon
-            mode={previewMode}
-            className='h-[16px] w-[16px] text-[var(--text-icon)]'
-          />
-        </Button>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Button
+              variant='subtle'
+              onClick={onCyclePreviewMode}
+              className='ml-auto shrink-0 bg-transparent px-[8px] py-[5px] text-[12px]'
+              aria-label='Cycle preview mode'
+            >
+              <PreviewModeIcon
+                mode={previewMode}
+                className='h-[16px] w-[16px] text-[var(--text-icon)]'
+              />
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>
+            <p>Preview mode</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
       )}
     </div>
   )

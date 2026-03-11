@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { FileText } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { Skeleton } from '@/components/emcn'
 import { PanelLeft } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import {
@@ -13,6 +14,7 @@ import {
   LandingWorkflowSeedStorage,
 } from '@/lib/core/utils/browser-storage'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
+import { useChatHistory } from '@/hooks/queries/tasks'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { MessageContent, MothershipView, UserInput } from './components'
 import type { FileAttachmentForApi } from './components/user-input/user-input'
@@ -39,6 +41,23 @@ function ThinkingIndicator() {
           style={{ backgroundColor: block.color, animationDelay: block.delay }}
         />
       ))}
+    </div>
+  )
+}
+
+const SKELETON_LINE_COUNT = 4
+
+function ChatSkeleton({ children }: { children: React.ReactNode }) {
+  return (
+    <div className='flex h-full flex-col bg-[var(--bg)]'>
+      <div className='min-h-0 flex-1 overflow-hidden px-6 py-4'>
+        <div className='mx-auto max-w-[42rem] space-y-[10px] pt-3'>
+          {Array.from({ length: SKELETON_LINE_COUNT }).map((_, i) => (
+            <Skeleton key={i} className='h-[16px]' style={{ width: `${120 + (i % 4) * 48}px` }} />
+          ))}
+        </div>
+      </div>
+      <div className='flex-shrink-0 px-[24px] pb-[16px]'>{children}</div>
     </div>
   )
 }
@@ -125,6 +144,8 @@ export function Home({ chatId }: HomeProps = {}) {
     }
   }, [createWorkflowFromLandingSeed, workspaceId, router])
 
+  const { isLoading: isLoadingHistory } = useChatHistory(chatId)
+
   const {
     messages,
     isSending,
@@ -173,6 +194,20 @@ export function Home({ chatId }: HomeProps = {}) {
   const scrollContainerRef = useAutoScroll(isSending)
 
   const hasMessages = messages.length > 0
+
+  if (!hasMessages && chatId && isLoadingHistory) {
+    return (
+      <ChatSkeleton>
+        <UserInput
+          onSubmit={handleSubmit}
+          isSending={isSending}
+          onStopGeneration={stopGeneration}
+          isInitialView={false}
+          userId={session?.user?.id}
+        />
+      </ChatSkeleton>
+    )
+  }
 
   if (!hasMessages) {
     return (

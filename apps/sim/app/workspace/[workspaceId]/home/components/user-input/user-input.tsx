@@ -1,8 +1,20 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowUp, FileText, Loader2, Mic, Paperclip, X } from 'lucide-react'
-import { Button } from '@/components/emcn'
+import { ArrowUp, Loader2, Mic, Paperclip, X } from 'lucide-react'
+import { Button, Tooltip } from '@/components/emcn'
+import {
+  AudioIcon,
+  CsvIcon,
+  DocxIcon,
+  getDocumentIcon,
+  JsonIcon,
+  MarkdownIcon,
+  PdfIcon,
+  TxtIcon,
+  VideoIcon,
+  XlsxIcon,
+} from '@/components/icons/document-icons'
 import { cn } from '@/lib/core/utils/cn'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
@@ -23,7 +35,19 @@ const SEND_BUTTON_ACTIVE =
   'bg-[var(--c-383838)] hover:bg-[var(--c-575757)] dark:bg-[var(--c-E0E0E0)] dark:hover:bg-[var(--c-CFCFCF)]'
 const SEND_BUTTON_DISABLED = 'bg-[var(--c-808080)] dark:bg-[var(--c-808080)]'
 
-const MAX_CHAT_TEXTAREA_HEIGHT = 200 // 8 lines × 24px line-height + 8px padding
+const MAX_CHAT_TEXTAREA_HEIGHT = 200
+
+const DROP_OVERLAY_ICONS = [
+  PdfIcon,
+  DocxIcon,
+  XlsxIcon,
+  CsvIcon,
+  TxtIcon,
+  MarkdownIcon,
+  JsonIcon,
+  AudioIcon,
+  VideoIcon,
+] as const
 
 function autoResizeTextarea(e: React.FormEvent<HTMLTextAreaElement>, maxHeight: number) {
   const target = e.target as HTMLTextAreaElement
@@ -189,9 +213,8 @@ export function UserInput({
     <div
       onClick={handleContainerClick}
       className={cn(
-        'mx-auto w-full max-w-[42rem] cursor-text rounded-[20px] border border-[var(--border-1)] bg-[var(--white)] px-[10px] py-[8px] dark:bg-[var(--surface-4)]',
-        isInitialView && 'shadow-sm',
-        files.isDragging && 'ring-[1.75px] ring-[var(--brand-secondary)]'
+        'relative mx-auto w-full max-w-[42rem] cursor-text rounded-[20px] border border-[var(--border-1)] bg-[var(--white)] px-[10px] py-[8px] dark:bg-[var(--surface-4)]',
+        isInitialView && 'shadow-sm'
       )}
       onDragEnter={files.handleDragEnter}
       onDragLeave={files.handleDragLeave}
@@ -204,48 +227,52 @@ export function UserInput({
           {files.attachedFiles.map((file) => {
             const isImage = file.type.startsWith('image/')
             return (
-              <div
-                key={file.id}
-                className='group relative h-[56px] w-[56px] flex-shrink-0 cursor-pointer overflow-hidden rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-5)] hover:bg-[var(--surface-4)]'
-                title={`${file.name} (${files.formatFileSize(file.size)})`}
-                onClick={() => files.handleFileClick(file)}
-              >
-                {isImage && file.previewUrl ? (
-                  <img
-                    src={file.previewUrl}
-                    alt={file.name}
-                    className='h-full w-full object-cover'
-                  />
-                ) : (
-                  <div className='flex h-full w-full flex-col items-center justify-center gap-[2px]'>
-                    {file.type.includes('pdf') ? (
-                      <FileText className='h-[18px] w-[18px] text-red-500' />
-                    ) : (
-                      <FileText className='h-[18px] w-[18px] text-blue-500' />
-                    )}
-                    <span className='max-w-[48px] truncate px-[2px] text-[9px] text-[var(--text-muted)]'>
-                      {file.name.split('.').pop()}
-                    </span>
-                  </div>
-                )}
-                {file.uploading && (
-                  <div className='absolute inset-0 flex items-center justify-center bg-black/50'>
-                    <Loader2 className='h-[14px] w-[14px] animate-spin text-white' />
-                  </div>
-                )}
-                {!file.uploading && (
-                  <button
-                    type='button'
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      files.removeFile(file.id)
-                    }}
-                    className='absolute top-[2px] right-[2px] flex h-[16px] w-[16px] items-center justify-center rounded-full bg-black/60 opacity-0 group-hover:opacity-100'
+              <Tooltip.Root key={file.id}>
+                <Tooltip.Trigger asChild>
+                  <div
+                    className='group relative h-[56px] w-[56px] flex-shrink-0 cursor-pointer overflow-hidden rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-5)] hover:bg-[var(--surface-4)]'
+                    onClick={() => files.handleFileClick(file)}
                   >
-                    <X className='h-[10px] w-[10px] text-white' />
-                  </button>
-                )}
-              </div>
+                    {isImage && file.previewUrl ? (
+                      <img
+                        src={file.previewUrl}
+                        alt={file.name}
+                        className='h-full w-full object-cover'
+                      />
+                    ) : (
+                      <div className='flex h-full w-full flex-col items-center justify-center gap-[2px] text-[var(--text-icon)]'>
+                        {(() => {
+                          const Icon = getDocumentIcon(file.type, file.name)
+                          return <Icon className='h-[18px] w-[18px]' />
+                        })()}
+                        <span className='max-w-[48px] truncate px-[2px] text-[9px] text-[var(--text-muted)]'>
+                          {file.name.split('.').pop()}
+                        </span>
+                      </div>
+                    )}
+                    {file.uploading && (
+                      <div className='absolute inset-0 flex items-center justify-center bg-black/50'>
+                        <Loader2 className='h-[14px] w-[14px] animate-spin text-white' />
+                      </div>
+                    )}
+                    {!file.uploading && (
+                      <button
+                        type='button'
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          files.removeFile(file.id)
+                        }}
+                        className='absolute top-[2px] right-[2px] flex h-[16px] w-[16px] items-center justify-center rounded-full bg-black/60 opacity-0 group-hover:opacity-100'
+                      >
+                        <X className='h-[10px] w-[10px] text-white' />
+                      </button>
+                    )}
+                  </div>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='top'>
+                  <p className='max-w-[200px] truncate'>{file.name}</p>
+                </Tooltip.Content>
+              </Tooltip.Root>
             )
           })}
         </div>
@@ -257,7 +284,7 @@ export function UserInput({
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
         onInput={handleInput}
-        placeholder={files.isDragging ? 'Drop files here...' : placeholder}
+        placeholder={placeholder}
         rows={1}
         className={cn(TEXTAREA_BASE_CLASSES, isInitialView ? 'max-h-[30vh]' : 'max-h-[200px]')}
       />
@@ -319,7 +346,6 @@ export function UserInput({
         </div>
       </div>
 
-      {/* Hidden file input */}
       <input
         ref={files.fileInputRef}
         type='file'
@@ -328,6 +354,19 @@ export function UserInput({
         accept={CHAT_ACCEPT_ATTRIBUTE}
         multiple
       />
+
+      {files.isDragging && (
+        <div className='pointer-events-none absolute inset-[6px] z-10 flex items-center justify-center rounded-[14px] border-[1.5px] border-[var(--border-1)] border-dashed bg-[var(--white)] dark:bg-[var(--surface-4)]'>
+          <div className='flex flex-col items-center gap-[8px]'>
+            <span className='font-medium text-[13px] text-[var(--text-secondary)]'>Drop files</span>
+            <div className='flex items-center gap-[8px] text-[var(--text-icon)]'>
+              {DROP_OVERLAY_ICONS.map((Icon, i) => (
+                <Icon key={i} className='h-[14px] w-[14px]' />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
