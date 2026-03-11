@@ -1049,7 +1049,7 @@ export async function queueWebhookExecution(
       }
     }
 
-    const headers = Object.fromEntries(request.headers.entries())
+    const { 'x-sim-idempotency-key': _, ...headers } = Object.fromEntries(request.headers.entries())
 
     // For Microsoft Teams Graph notifications, extract unique identifiers for idempotency
     if (
@@ -1067,9 +1067,20 @@ export async function queueWebhookExecution(
       }
     }
 
-    // Extract credentialId from webhook config
-    // Note: Each webhook now has its own credentialId (credential sets are fanned out at save time)
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+
+    if (foundWebhook.provider === 'generic') {
+      const idempotencyField = providerConfig.idempotencyField as string | undefined
+      if (idempotencyField && body) {
+        const value = idempotencyField
+          .split('.')
+          .reduce((acc: any, key: string) => acc?.[key], body)
+        if (value !== undefined && value !== null && typeof value !== 'object') {
+          headers['x-sim-idempotency-key'] = String(value)
+        }
+      }
+    }
+
     const credentialId = providerConfig.credentialId as string | undefined
 
     // credentialSetId is a direct field on webhook table, not in providerConfig
@@ -1191,6 +1202,26 @@ export async function queueWebhookExecution(
           'Content-Type': 'text/xml; charset=utf-8',
         },
       })
+    }
+
+    if (foundWebhook.provider === 'generic' && providerConfig.responseMode === 'custom') {
+      const rawCode = Number(providerConfig.responseStatusCode) || 200
+      const statusCode = rawCode >= 100 && rawCode <= 599 ? rawCode : 200
+      const responseBody = (providerConfig.responseBody as string | undefined)?.trim()
+
+      if (!responseBody) {
+        return new NextResponse(null, { status: statusCode })
+      }
+
+      try {
+        const parsed = JSON.parse(responseBody)
+        return NextResponse.json(parsed, { status: statusCode })
+      } catch {
+        return new NextResponse(responseBody, {
+          status: statusCode,
+          headers: { 'Content-Type': 'text/plain' },
+        })
+      }
     }
 
     return NextResponse.json({ message: 'Webhook processed' })

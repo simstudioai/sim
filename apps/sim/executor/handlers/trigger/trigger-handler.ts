@@ -22,7 +22,7 @@ export class TriggerBlockHandler implements BlockHandler {
     }
 
     const existingState = ctx.blockStates.get(block.id)
-    if (existingState?.output && Object.keys(existingState.output).length > 0) {
+    if (existingState?.output) {
       return existingState.output
     }
 

@@ -413,6 +413,7 @@ export class IdempotencyService {
       : undefined
 
     const webhookIdHeader =
+      normalizedHeaders?.['x-sim-idempotency-key'] ||
       normalizedHeaders?.['webhook-id'] ||
       normalizedHeaders?.['x-webhook-id'] ||
       normalizedHeaders?.['x-shopify-webhook-id'] ||
