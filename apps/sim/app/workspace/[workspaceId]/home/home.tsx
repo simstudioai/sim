@@ -16,7 +16,7 @@ import {
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 import { useChatHistory } from '@/hooks/queries/tasks'
 import { useSidebarStore } from '@/stores/sidebar/store'
-import { MessageContent, MothershipView, UserInput } from './components'
+import { MessageContent, MothershipView, TemplatePrompts, UserInput } from './components'
 import type { FileAttachmentForApi } from './components/user-input/user-input'
 import { useAutoScroll, useChat } from './hooks'
 
@@ -211,18 +211,24 @@ export function Home({ chatId }: HomeProps = {}) {
 
   if (!hasMessages) {
     return (
-      <div className='flex h-full flex-col items-center justify-center bg-[var(--bg)] px-[24px]'>
-        <h1 className='mb-[24px] font-[450] font-season text-[32px] text-[var(--text-primary)] tracking-[-0.02em]'>
-          What should we get done{session?.user?.name ? `, ${session.user.name.split(' ')[0]}` : ''}
-          ?
-        </h1>
-        <UserInput
-          defaultValue={initialPrompt}
-          onSubmit={handleSubmit}
-          isSending={isSending}
-          onStopGeneration={stopGeneration}
-          userId={session?.user?.id}
-        />
+      <div className='h-full overflow-y-auto bg-[var(--bg)]'>
+        <div className='flex min-h-full flex-col items-center px-[24px]'>
+          <div className='min-h-[30vh] flex-1' />
+          <h1 className='mb-[24px] max-w-[42rem] font-[440] font-season text-[32px] text-[var(--text-primary)] tracking-[-0.02em]'>
+            What should we get done
+            {session?.user?.name ? `, ${session.user.name.split(' ')[0]}` : ''}?
+          </h1>
+          <UserInput
+            defaultValue={initialPrompt}
+            onSubmit={handleSubmit}
+            isSending={isSending}
+            onStopGeneration={stopGeneration}
+            userId={session?.user?.id}
+          />
+          <div className='w-full max-w-[42rem] pt-[48px] pb-[32px]'>
+            <TemplatePrompts onSelect={(prompt) => handleSubmit(prompt)} />
+          </div>
+        </div>
       </div>
     )
   }
