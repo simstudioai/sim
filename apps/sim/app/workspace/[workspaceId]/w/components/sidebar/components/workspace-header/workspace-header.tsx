@@ -73,6 +73,8 @@ interface WorkspaceHeaderProps {
   onLeaveWorkspace?: (workspaceId: string) => Promise<void>
   /** Current user's session ID for owner check */
   sessionUserId?: string
+  /** Whether the sidebar is collapsed */
+  isCollapsed?: boolean
 }
 
 /**
@@ -97,6 +99,7 @@ export function WorkspaceHeader({
   onColorChange,
   onLeaveWorkspace,
   sessionUserId,
+  isCollapsed = false,
 }: WorkspaceHeaderProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
@@ -322,7 +325,12 @@ export function WorkspaceHeader({
               <button
                 type='button'
                 aria-label='Switch workspace'
-                className='group flex h-[32px] w-full min-w-0 cursor-pointer items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] pr-[8px] pl-[6.5px] transition-colors hover:bg-[var(--surface-5)]'
+                className={cn(
+                  'group flex min-w-0 items-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-5)]',
+                  isCollapsed
+                    ? 'h-[35px] w-[35px] justify-center px-0'
+                    : 'h-[32px] w-full cursor-pointer gap-[8px] pr-[8px] pl-[6.5px]'
+                )}
                 title={activeWorkspace?.name || 'Loading...'}
                 onContextMenu={(e) => {
                   if (activeWorkspaceFull) {
@@ -338,25 +346,36 @@ export function WorkspaceHeader({
                 >
                   {workspaceInitial}
                 </div>
-                <span className='min-w-0 flex-1 truncate text-left font-base text-[14px] text-[var(--text-primary)]'>
-                  {activeWorkspace?.name || 'Loading...'}
-                </span>
-                <ChevronDown
-                  className={`sidebar-collapse-hide h-[8px] w-[10px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100 group-hover:text-[var(--text-secondary)] ${
-                    isWorkspaceMenuOpen ? 'rotate-180' : ''
-                  }`}
-                />
+                {!isCollapsed && (
+                  <>
+                    <span className='min-w-0 flex-1 truncate text-left font-base text-[14px] text-[var(--text-primary)]'>
+                      {activeWorkspace?.name || 'Loading...'}
+                    </span>
+                    <ChevronDown
+                      className={`sidebar-collapse-hide h-[8px] w-[10px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100 group-hover:text-[var(--text-secondary)] ${
+                        isWorkspaceMenuOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </>
+                )}
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align='start'
-              side='bottom'
-              sideOffset={8}
-              style={{
-                width: 'var(--radix-dropdown-menu-trigger-width)',
-                minWidth: 'var(--radix-dropdown-menu-trigger-width)',
-                maxWidth: 'var(--radix-dropdown-menu-trigger-width)',
-              }}
+              side={isCollapsed ? 'right' : 'bottom'}
+              sideOffset={isCollapsed ? 12 : 8}
+              style={
+                isCollapsed
+                  ? {
+                      width: '248px',
+                      maxWidth: 'calc(100vw - 24px)',
+                    }
+                  : {
+                      width: 'var(--radix-dropdown-menu-trigger-width)',
+                      minWidth: 'var(--radix-dropdown-menu-trigger-width)',
+                      maxWidth: 'var(--radix-dropdown-menu-trigger-width)',
+                    }
+              }
               onCloseAutoFocus={(e) => e.preventDefault()}
             >
               {isWorkspacesLoading ? (
@@ -512,7 +531,12 @@ export function WorkspaceHeader({
           <button
             type='button'
             aria-label='Switch workspace'
-            className='flex h-[32px] w-full min-w-0 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] pr-[8px] pl-[6.5px]'
+            className={cn(
+              'flex min-w-0 items-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)]',
+              isCollapsed
+                ? 'h-[35px] w-[35px] justify-center px-0'
+                : 'h-[32px] w-full gap-[8px] pr-[8px] pl-[6.5px]'
+            )}
             title={activeWorkspace?.name || 'Loading...'}
             disabled
           >
@@ -522,10 +546,14 @@ export function WorkspaceHeader({
             >
               {workspaceInitial}
             </div>
-            <span className='min-w-0 flex-1 truncate text-left font-base text-[14px] text-[var(--text-primary)]'>
-              {activeWorkspace?.name || 'Loading...'}
-            </span>
-            <ChevronDown className='sidebar-collapse-hide h-[8px] w-[10px] flex-shrink-0 text-[var(--text-muted)]' />
+            {!isCollapsed && (
+              <>
+                <span className='min-w-0 flex-1 truncate text-left font-base text-[14px] text-[var(--text-primary)]'>
+                  {activeWorkspace?.name || 'Loading...'}
+                </span>
+                <ChevronDown className='sidebar-collapse-hide h-[8px] w-[10px] flex-shrink-0 text-[var(--text-muted)]' />
+              </>
+            )}
           </button>
         )}
       </div>

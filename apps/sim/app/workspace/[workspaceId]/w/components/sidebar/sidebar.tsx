@@ -913,6 +913,7 @@ export const Sidebar = memo(function Sidebar() {
               onColorChange={handleColorChangeWorkspace}
               onLeaveWorkspace={handleLeaveWorkspaceWrapper}
               sessionUserId={sessionData?.user?.id}
+              isCollapsed={isCollapsed}
             />
           </div>
 
