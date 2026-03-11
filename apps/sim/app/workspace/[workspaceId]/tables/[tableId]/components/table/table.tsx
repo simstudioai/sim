@@ -183,6 +183,7 @@ export function Table({
   const [resizingColumn, setResizingColumn] = useState<string | null>(null)
   const metadataSeededRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
 
   const { tableData, isLoadingTable, rows, isLoadingRows } = useTableData({
@@ -482,7 +483,7 @@ export function Table({
         setSelectionFocus(null)
       }
       isDraggingRef.current = true
-      containerRef.current?.focus({ preventScroll: true })
+      scrollRef.current?.focus({ preventScroll: true })
     },
     []
   )
@@ -506,7 +507,7 @@ export function Table({
       setSelectionFocus({ rowIndex, colIndex: lastCol })
     }
     isDraggingRef.current = true
-    containerRef.current?.focus({ preventScroll: true })
+    scrollRef.current?.focus({ preventScroll: true })
   }, [])
 
   const handleRowMouseEnter = useCallback((rowIndex: number) => {
@@ -522,7 +523,7 @@ export function Table({
     setEditingCell(null)
     setSelectionAnchor({ rowIndex, colIndex: 0 })
     setSelectionFocus({ rowIndex, colIndex: lastCol })
-    containerRef.current?.focus({ preventScroll: true })
+    scrollRef.current?.focus({ preventScroll: true })
   }, [])
 
   const handleClearSelection = useCallback(() => {
@@ -537,7 +538,7 @@ export function Table({
     setEditingCell(null)
     setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
     setSelectionFocus({ rowIndex: lastRow, colIndex: lastCol })
-    containerRef.current?.focus({ preventScroll: true })
+    scrollRef.current?.focus({ preventScroll: true })
   }, [])
 
   const handleColumnResizeStart = useCallback((columnName: string) => {
@@ -949,7 +950,7 @@ export function Table({
       setSelectionAnchor(moveCell(anchor, cols.length, totalRows, -1))
     }
     setSelectionFocus(null)
-    containerRef.current?.focus({ preventScroll: true })
+    scrollRef.current?.focus({ preventScroll: true })
   }, [])
 
   const handleInlineSave = useCallback(
@@ -985,7 +986,7 @@ export function Table({
   const handleInlineCancel = useCallback(() => {
     setEditingCell(null)
     setInitialCharacter(null)
-    containerRef.current?.focus({ preventScroll: true })
+    scrollRef.current?.focus({ preventScroll: true })
   }, [])
 
   const generateColumnName = useCallback(() => {
@@ -1152,7 +1153,7 @@ export function Table({
   }
 
   return (
-    <div ref={containerRef} tabIndex={-1} className='flex h-full flex-col outline-none'>
+    <div ref={containerRef} className='flex h-full flex-col overflow-hidden'>
       {!embedded && (
         <>
           <ResourceHeader
@@ -1203,8 +1204,10 @@ export function Table({
       )}
 
       <div
+        ref={scrollRef}
+        tabIndex={-1}
         className={cn(
-          'min-h-0 flex-1 overflow-auto overscroll-none',
+          'min-h-0 flex-1 overflow-auto overscroll-none outline-none',
           resizingColumn && 'select-none'
         )}
         data-table-scroll
@@ -1865,7 +1868,12 @@ function CellContent({
     )
   } else if (!isNull && column.type === 'json') {
     displayContent = (
-      <span className={cn('block truncate text-[var(--text-primary)]', isEditing && 'invisible')}>
+      <span
+        className={cn(
+          'block overflow-clip text-ellipsis text-[var(--text-primary)]',
+          isEditing && 'invisible'
+        )}
+      >
         {JSON.stringify(value)}
       </span>
     )
@@ -1877,7 +1885,12 @@ function CellContent({
     )
   } else if (!isNull) {
     displayContent = (
-      <span className={cn('block truncate text-[var(--text-primary)]', isEditing && 'invisible')}>
+      <span
+        className={cn(
+          'block overflow-clip text-ellipsis text-[var(--text-primary)]',
+          isEditing && 'invisible'
+        )}
+      >
         {String(value)}
       </span>
     )
