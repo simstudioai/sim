@@ -67,7 +67,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]
 
-    if (block.type === 'text') {
+    if (block.type === 'text' || block.type === 'subagent_text') {
       if (!block.content?.trim()) continue
       if (group) {
         segments.push(group)
