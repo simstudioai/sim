@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { processFileAttachments } from '@/lib/copilot/chat-context'
+import { getCopilotToolDescription } from '@/lib/copilot/tool-descriptions'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { getWorkflowById } from '@/lib/workflows/utils'
@@ -55,7 +56,10 @@ export async function buildIntegrationToolSchemas(): Promise<ToolSchema[]> {
         const strippedName = stripVersionSuffix(toolId)
         integrationTools.push({
           name: strippedName,
-          description: toolConfig.description || toolConfig.name || strippedName,
+          description: getCopilotToolDescription(toolConfig, {
+            isHosted,
+            fallbackName: strippedName,
+          }),
           input_schema: userSchema as unknown as Record<string, unknown>,
           defer_loading: true,
           ...(toolConfig.oauth?.required && {

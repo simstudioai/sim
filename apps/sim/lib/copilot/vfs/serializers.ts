@@ -1,4 +1,5 @@
 import { isHosted } from '@/lib/core/config/feature-flags'
+import { getCopilotToolDescription } from '@/lib/copilot/tool-descriptions'
 import { isSubBlockHiddenByHostedKey } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
@@ -721,7 +722,7 @@ export function serializeIntegrationSchema(tool: ToolConfig): string {
     {
       id: tool.id,
       name: tool.name,
-      description: tool.description,
+      description: getCopilotToolDescription(tool, { isHosted }),
       version: tool.version,
       oauth: tool.oauth
         ? { required: tool.oauth.required, provider: tool.oauth.provider }
