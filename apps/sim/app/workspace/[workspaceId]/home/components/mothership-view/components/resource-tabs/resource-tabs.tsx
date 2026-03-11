@@ -1,6 +1,6 @@
 'use client'
 
-import type { ElementType, ReactNode, SVGProps } from 'react'
+import { type ElementType, type ReactNode, type RefCallback, type SVGProps, useCallback } from 'react'
 import { Button, Tooltip } from '@/components/emcn'
 import { PanelLeft, Table as TableIcon } from '@/components/emcn/icons'
 import { WorkflowIcon } from '@/components/icons'
@@ -76,6 +76,18 @@ export function ResourceTabs({
   onCyclePreviewMode,
   actions,
 }: ResourceTabsProps) {
+  const scrollRef = useCallback<RefCallback<HTMLDivElement>>((node) => {
+    if (!node) return
+    const handler = (e: WheelEvent) => {
+      if (e.deltaY !== 0) {
+        node.scrollLeft += e.deltaY
+        e.preventDefault()
+      }
+    }
+    node.addEventListener('wheel', handler, { passive: false })
+    return () => node.removeEventListener('wheel', handler)
+  }, [])
+
   return (
     <div className='flex shrink-0 items-center border-[var(--border)] border-b px-[16px] py-[8.5px]'>
       <Tooltip.Root>
@@ -93,7 +105,10 @@ export function ResourceTabs({
           <p>Collapse</p>
         </Tooltip.Content>
       </Tooltip.Root>
-      <div className='mx-[2px] flex min-w-0 items-center gap-[6px] overflow-x-auto px-[6px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+      <div
+        ref={scrollRef}
+        className='mx-[2px] flex min-w-0 items-center gap-[6px] overflow-x-auto px-[6px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+      >
         {resources.map((resource) => {
           const Icon = getResourceIcon(resource)
           const isActive = activeId === resource.id
