@@ -81,13 +81,13 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   task,
   active,
   isSelected,
-  onTaskClick,
+  onMultiSelectClick,
   onContextMenu,
 }: {
   task: { id: string; href: string; name: string }
   active: boolean
   isSelected: boolean
-  onTaskClick: (taskId: string, shiftKey: boolean, metaKey: boolean) => void
+  onMultiSelectClick: (taskId: string, shiftKey: boolean, metaKey: boolean) => void
   onContextMenu: (e: React.MouseEvent, taskId: string) => void
 }) {
   return (
@@ -101,7 +101,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
         if (task.id === 'new') return
         if (e.shiftKey || e.metaKey || e.ctrlKey) {
           e.preventDefault()
-          onTaskClick(task.id, e.shiftKey, e.metaKey || e.ctrlKey)
+          onMultiSelectClick(task.id, e.shiftKey, e.metaKey || e.ctrlKey)
         } else {
           useFolderStore.getState().clearTaskSelection()
         }
@@ -1026,7 +1026,7 @@ export const Sidebar = memo(function Sidebar() {
                                 task={task}
                                 active={active}
                                 isSelected={isSelected}
-                                onTaskClick={handleTaskClick}
+                                onMultiSelectClick={handleTaskClick}
                                 onContextMenu={handleTaskContextMenu}
                               />
                             )
