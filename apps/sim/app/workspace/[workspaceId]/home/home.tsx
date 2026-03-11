@@ -226,7 +226,7 @@ export function Home({ chatId }: HomeProps = {}) {
 
   if (!hasMessages) {
     return (
-      <div className='h-full overflow-y-auto bg-[var(--bg)]'>
+      <div className='h-full overflow-hidden bg-[var(--bg)]'>
         <div className='flex min-h-full flex-col items-center px-[24px]'>
           <div className='min-h-[30vh] flex-1' />
           <h1 className='mb-[24px] max-w-[42rem] font-[440] font-season text-[32px] text-[var(--text-primary)] tracking-[-0.02em]'>
