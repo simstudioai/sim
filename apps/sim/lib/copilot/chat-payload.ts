@@ -59,6 +59,7 @@ export async function buildIntegrationToolSchemas(): Promise<ToolSchema[]> {
           description: getCopilotToolDescription(toolConfig, {
             isHosted,
             fallbackName: strippedName,
+            appendEmailTagline: true,
           }),
           input_schema: userSchema as unknown as Record<string, unknown>,
           defer_loading: true,
