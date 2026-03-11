@@ -215,9 +215,8 @@ async function handleCloudProxyPublic(
       })
     }
 
-    const fallbackName = cloudKey.split('/').pop() || 'download'
-    const displayName = (await resolveDisplayFilename(cloudKey, context)) ?? fallbackName
-    const contentType = getContentType(displayName)
+    const filename = cloudKey.split('/').pop() || 'download'
+    const contentType = getContentType(filename)
 
     logger.info('Public cloud file served', {
       key: cloudKey,
@@ -228,7 +227,7 @@ async function handleCloudProxyPublic(
     return createFileResponse({
       buffer: fileBuffer,
       contentType,
-      filename: displayName,
+      filename,
     })
   } catch (error) {
     logger.error('Error serving public cloud file:', error)
