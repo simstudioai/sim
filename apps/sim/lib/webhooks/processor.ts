@@ -1038,7 +1038,7 @@ export async function queueWebhookExecution(
       }
     }
 
-    const headers = Object.fromEntries(request.headers.entries())
+    const { 'x-sim-idempotency-key': _, ...headers } = Object.fromEntries(request.headers.entries())
 
     // For Microsoft Teams Graph notifications, extract unique identifiers for idempotency
     if (
@@ -1216,7 +1216,8 @@ export async function queueWebhookExecution(
     }
 
     if (foundWebhook.provider === 'generic' && providerConfig.responseMode === 'custom') {
-      const statusCode = Number(providerConfig.responseStatusCode) || 200
+      const rawCode = Number(providerConfig.responseStatusCode) || 200
+      const statusCode = rawCode >= 100 && rawCode <= 599 ? rawCode : 200
       const responseBody = (providerConfig.responseBody as string | undefined)?.trim()
 
       if (!responseBody) {

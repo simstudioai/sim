@@ -67,14 +67,16 @@ export const genericWebhookTrigger: TriggerConfig = {
         { label: 'Default', id: 'default' },
         { label: 'Custom', id: 'custom' },
       ],
+      defaultValue: 'default',
       mode: 'trigger',
     },
     {
       id: 'responseStatusCode',
       title: 'Response Status Code',
       type: 'short-input',
-      placeholder: '200',
-      description: 'HTTP status code to return to the webhook caller.',
+      placeholder: '200 (default)',
+      description:
+        'HTTP status code (100–599) to return to the webhook caller. Defaults to 200 if empty or invalid.',
       required: false,
       mode: 'trigger',
       condition: { field: 'responseMode', value: 'custom' },

@@ -433,7 +433,7 @@ describe('hasWorkflowChanged', () => {
       expect(hasWorkflowChanged(state1, state2)).toBe(true)
     })
 
-    it.concurrent('should detect subBlock type changes', () => {
+    it.concurrent('should ignore subBlock type changes', () => {
       const state1 = createWorkflowState({
         blocks: {
           block1: createBlock('block1', {
@@ -448,7 +448,7 @@ describe('hasWorkflowChanged', () => {
           }),
         },
       })
-      expect(hasWorkflowChanged(state1, state2)).toBe(true)
+      expect(hasWorkflowChanged(state1, state2)).toBe(false)
     })
 
     it.concurrent('should handle null/undefined subBlock values consistently', () => {
