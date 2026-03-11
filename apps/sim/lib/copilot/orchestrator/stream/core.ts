@@ -78,6 +78,36 @@ export async function runStreamLoop(
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '')
+
+    if (response.status === 402) {
+      const upgradePayload = JSON.stringify({
+        reason: 'usage_limit',
+        action: 'increase_limit',
+        message:
+          "You've reached your usage limit for this billing period. Please upgrade your plan or increase your usage limit to continue.",
+      })
+      const syntheticContent = `<usage_upgrade>${upgradePayload}</usage_upgrade>`
+
+      const syntheticEvents: SSEEvent[] = [
+        { type: 'content', data: syntheticContent },
+        { type: 'done', data: {} },
+      ]
+      for (const event of syntheticEvents) {
+        try {
+          await options.onEvent?.(event)
+        } catch {
+          // best-effort forwarding
+        }
+
+        const handler = sseHandlers[event.type]
+        if (handler) {
+          await handler(event, context, execContext, options)
+        }
+        if (context.streamComplete) break
+      }
+      return
+    }
+
     throw new Error(
       `Copilot backend error (${response.status}): ${errorText || response.statusText}`
     )
