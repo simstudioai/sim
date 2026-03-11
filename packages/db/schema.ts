@@ -2122,6 +2122,7 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'workflow',
   'wand',
   'copilot',
+  'workspace-chat',
   'mcp_copilot',
   'mothership_block',
 ])
