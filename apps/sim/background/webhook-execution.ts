@@ -211,6 +211,11 @@ async function executeWebhookJobInternal(
         : Promise.resolve(payload.credentialAccountUserId),
     ])
     const credentialAccountUserId = resolvedCredentialUserId
+    if (payload.credentialId && !credentialAccountUserId) {
+      logger.warn(
+        `[${requestId}] Failed to resolve credential account for credential ${payload.credentialId}`
+      )
+    }
 
     if (!workflowData) {
       throw new Error(

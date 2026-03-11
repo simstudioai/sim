@@ -79,12 +79,13 @@ export async function POST(
       return reachabilityResponse
     }
 
-    // Parallelize auth verification with preprocessing — they are independent
-    const [authError, preprocessResult] = await Promise.all([
-      verifyProviderAuth(foundWebhook, foundWorkflow, request, rawBody, requestId),
-      checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId),
-    ])
-
+    const authError = await verifyProviderAuth(
+      foundWebhook,
+      foundWorkflow,
+      request,
+      rawBody,
+      requestId
+    )
     if (authError) {
       if (webhooksForPath.length > 1) {
         logger.warn(`[${requestId}] Auth failed for webhook ${foundWebhook.id}, continuing to next`)
@@ -93,6 +94,7 @@ export async function POST(
       return authError
     }
 
+    const preprocessResult = await checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId)
     if (preprocessResult.error) {
       if (webhooksForPath.length > 1) {
         logger.warn(
