@@ -34,20 +34,6 @@ export const googleMapsSpeedLimitsTool: ToolConfig<
     },
   },
 
-  hosting: {
-    envKeyPrefix: 'GOOGLE_CLOUD_API_KEY',
-    apiKeyParam: 'apiKey',
-    byokProviderId: 'google_cloud',
-    pricing: {
-      type: 'per_request',
-      cost: 0.02,
-    },
-    rateLimit: {
-      mode: 'per_request',
-      requestsPerMinute: 60,
-    },
-  },
-
   request: {
     url: (params) => {
       const hasPath = params.path && params.path.trim().length > 0

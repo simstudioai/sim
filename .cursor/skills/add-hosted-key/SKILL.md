@@ -194,6 +194,45 @@ In the block config (`blocks/blocks/{service}.ts`), add `hideWhenHosted: true` t
 
 The visibility is controlled by `isSubBlockHiddenByHostedKey()` in `lib/workflows/subblocks/visibility.ts`, which checks the `isHosted` feature flag.
 
+### Excluding Specific Operations from Hosted Key Support
+
+When a block has multiple operations but some operations should **not** use a hosted key (e.g., the underlying API is deprecated, unsupported, or too expensive), use the **duplicate apiKey subblock** pattern. This is the same pattern Exa uses for its `research` operation:
+
+1. **Remove the `hosting` config** from the tool definition for that operation — it must not have a `hosting` object at all.
+2. **Duplicate the `apiKey` subblock** in the block config with opposing conditions:
+
+```typescript
+// API Key — hidden when hosted for operations with hosted key support
+{
+  id: 'apiKey',
+  title: 'API Key',
+  type: 'short-input',
+  placeholder: 'Enter your API key',
+  password: true,
+  required: true,
+  hideWhenHosted: true,
+  condition: { field: 'operation', value: 'unsupported_op', not: true },
+},
+// API Key — always visible for unsupported_op (no hosted key support)
+{
+  id: 'apiKey',
+  title: 'API Key',
+  type: 'short-input',
+  placeholder: 'Enter your API key',
+  password: true,
+  required: true,
+  condition: { field: 'operation', value: 'unsupported_op' },
+},
+```
+
+Both subblocks share the same `id: 'apiKey'`, so the same value flows to the tool. The conditions ensure only one is visible at a time. The first has `hideWhenHosted: true` and shows for all hosted operations; the second has no `hideWhenHosted` and shows only for the excluded operation — meaning users must always provide their own key for that operation.
+
+To exclude multiple operations, use an array: `{ field: 'operation', value: ['op_a', 'op_b'] }`.
+
+**Reference implementations:**
+- **Exa** (`blocks/blocks/exa.ts`): `research` operation excluded from hosting — lines 309-329
+- **Google Maps** (`blocks/blocks/google_maps.ts`): `speed_limits` operation excluded from hosting (deprecated Roads API)
+
 ## Step 5: Add to the BYOK Settings UI
 
 Add an entry to the `PROVIDERS` array in the BYOK settings component so users can bring their own key. You need the service icon from `components/icons.tsx`:
