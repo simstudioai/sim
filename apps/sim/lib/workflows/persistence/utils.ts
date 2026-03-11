@@ -465,9 +465,9 @@ export async function loadWorkflowFromNormalizedTables(
       if (subflow.type === SUBFLOW_TYPES.LOOP) {
         const loopType =
           (config as Loop).loopType === 'for' ||
-          (config as Loop).loopType === 'forEach' ||
-          (config as Loop).loopType === 'while' ||
-          (config as Loop).loopType === 'doWhile'
+            (config as Loop).loopType === 'forEach' ||
+            (config as Loop).loopType === 'while' ||
+            (config as Loop).loopType === 'doWhile'
             ? (config as Loop).loopType
             : 'for'
 
@@ -504,7 +504,7 @@ export async function loadWorkflowFromNormalizedTables(
           distribution: (config as Parallel).distribution ?? '',
           parallelType:
             (config as Parallel).parallelType === 'count' ||
-            (config as Parallel).parallelType === 'collection'
+              (config as Parallel).parallelType === 'collection'
               ? (config as Parallel).parallelType
               : 'count',
           enabled: finalBlocks[subflow.id]?.enabled ?? true,
@@ -548,6 +548,8 @@ export async function saveWorkflowToNormalizedTables(
         tx.delete(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId)),
       ])
 
+      const CHUNK_SIZE = 50
+
       // Insert blocks
       if (Object.keys(state.blocks).length > 0) {
         const blockInserts = Object.values(state.blocks).map((block) => ({
@@ -570,7 +572,12 @@ export async function saveWorkflowToNormalizedTables(
           locked: block.locked ?? false,
         }))
 
-        await tx.insert(workflowBlocks).values(blockInserts)
+        // SQLite limits bound parameters to 999 per statement.
+        // workflowBlocks has 17 fields -> max safe chunk = floor(999/17) = 58.
+        // Using 50 for a conservative margin.
+        for (let i = 0; i < blockInserts.length; i += CHUNK_SIZE) {
+          await tx.insert(workflowBlocks).values(blockInserts.slice(i, i + CHUNK_SIZE))
+        }
       }
 
       // Insert edges
@@ -584,7 +591,9 @@ export async function saveWorkflowToNormalizedTables(
           targetHandle: edge.targetHandle || null,
         }))
 
-        await tx.insert(workflowEdges).values(edgeInserts)
+        for (let i = 0; i < edgeInserts.length; i += CHUNK_SIZE) {
+          await tx.insert(workflowEdges).values(edgeInserts.slice(i, i + CHUNK_SIZE))
+        }
       }
 
       // Insert subflows (loops and parallels)
@@ -611,7 +620,9 @@ export async function saveWorkflowToNormalizedTables(
       })
 
       if (subflowInserts.length > 0) {
-        await tx.insert(workflowSubflows).values(subflowInserts)
+        for (let i = 0; i < subflowInserts.length; i += CHUNK_SIZE) {
+          await tx.insert(workflowSubflows).values(subflowInserts.slice(i, i + CHUNK_SIZE))
+        }
       }
     })
 
@@ -807,11 +818,11 @@ export function regenerateWorkflowStateIds(state: RegenerateStateInput): Regener
     blockIdMapping.set(oldId, crypto.randomUUID())
   })
 
-  // Map edge IDs
+    // Map edge IDs
 
-  ;(state.edges || []).forEach((edge: Edge) => {
-    edgeIdMapping.set(edge.id, crypto.randomUUID())
-  })
+    ; (state.edges || []).forEach((edge: Edge) => {
+      edgeIdMapping.set(edge.id, crypto.randomUUID())
+    })
 
   // Map loop IDs
   Object.keys(state.loops || {}).forEach((oldId) => {
@@ -865,20 +876,20 @@ export function regenerateWorkflowStateIds(state: RegenerateStateInput): Regener
     newBlocks[newId] = newBlock
   })
 
-  // Regenerate edges with updated source/target references
+    // Regenerate edges with updated source/target references
 
-  ;(state.edges || []).forEach((edge: Edge) => {
-    const newId = edgeIdMapping.get(edge.id)!
-    const newSource = blockIdMapping.get(edge.source) || edge.source
-    const newTarget = blockIdMapping.get(edge.target) || edge.target
+    ; (state.edges || []).forEach((edge: Edge) => {
+      const newId = edgeIdMapping.get(edge.id)!
+      const newSource = blockIdMapping.get(edge.source) || edge.source
+      const newTarget = blockIdMapping.get(edge.target) || edge.target
 
-    newEdges.push({
-      ...edge,
-      id: newId,
-      source: newSource,
-      target: newTarget,
+      newEdges.push({
+        ...edge,
+        id: newId,
+        source: newSource,
+        target: newTarget,
+      })
     })
-  })
 
   // Regenerate loops with updated node references
   Object.entries(state.loops || {}).forEach(([oldId, loop]) => {
