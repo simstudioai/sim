@@ -1064,7 +1064,7 @@ export async function queueWebhookExecution(
         const value = idempotencyField
           .split('.')
           .reduce((acc: any, key: string) => acc?.[key], body)
-        if (value !== undefined && value !== null) {
+        if (value !== undefined && value !== null && typeof value !== 'object') {
           headers['x-sim-idempotency-key'] = String(value)
         }
       }
