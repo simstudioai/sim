@@ -6,16 +6,15 @@ const BOTTOM_THRESHOLD = 30
  * Manages sticky auto-scroll for a streaming chat container.
  *
  * Stays pinned to the bottom while content streams in. Detaches when the user
- * explicitly scrolls up (wheel, touch, or scrollbar drag). Re-attaches when
- * the scroll position returns to within {@link BOTTOM_THRESHOLD} of the bottom.
+ * scrolls beyond {@link BOTTOM_THRESHOLD} from the bottom. Re-attaches when
+ * the scroll position returns within the threshold. Preserves bottom position
+ * across container resizes (e.g. sidebar collapse).
  */
 export function useAutoScroll(isStreaming: boolean) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const stickyRef = useRef(true)
-  const prevScrollTopRef = useRef(0)
-  const prevScrollHeightRef = useRef(0)
-  const touchStartYRef = useRef(0)
+  const atBottomRef = useRef(true)
   const rafIdRef = useRef(0)
+  const teardownRef = useRef<(() => void) | null>(null)
 
   const scrollToBottom = useCallback(() => {
     const el = containerRef.current
@@ -24,8 +23,30 @@ export function useAutoScroll(isStreaming: boolean) {
   }, [])
 
   const callbackRef = useCallback((el: HTMLDivElement | null) => {
+    teardownRef.current?.()
+    teardownRef.current = null
     containerRef.current = el
-    if (el) el.scrollTop = el.scrollHeight
+    if (!el) return
+
+    el.scrollTop = el.scrollHeight
+    atBottomRef.current = true
+
+    const onScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = el
+      atBottomRef.current = scrollHeight - scrollTop - clientHeight <= BOTTOM_THRESHOLD
+    }
+
+    const ro = new ResizeObserver(() => {
+      if (atBottomRef.current) el.scrollTop = el.scrollHeight
+    })
+
+    el.addEventListener('scroll', onScroll, { passive: true })
+    ro.observe(el)
+
+    teardownRef.current = () => {
+      el.removeEventListener('scroll', onScroll)
+      ro.disconnect()
+    }
   }, [])
 
   useEffect(() => {
@@ -33,71 +54,26 @@ export function useAutoScroll(isStreaming: boolean) {
     const el = containerRef.current
     if (!el) return
 
-    stickyRef.current = true
-    prevScrollTopRef.current = el.scrollTop
-    prevScrollHeightRef.current = el.scrollHeight
+    atBottomRef.current = true
     scrollToBottom()
 
-    const detach = () => {
-      stickyRef.current = false
-    }
-
-    const onWheel = (e: WheelEvent) => {
-      if (e.deltaY < 0) detach()
-    }
-
-    const onTouchStart = (e: TouchEvent) => {
-      touchStartYRef.current = e.touches[0].clientY
-    }
-
-    const onTouchMove = (e: TouchEvent) => {
-      if (e.touches[0].clientY > touchStartYRef.current) detach()
-    }
-
-    const onScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = el
-      const distanceFromBottom = scrollHeight - scrollTop - clientHeight
-
-      if (distanceFromBottom <= BOTTOM_THRESHOLD) {
-        stickyRef.current = true
-      } else if (
-        scrollTop < prevScrollTopRef.current &&
-        scrollHeight <= prevScrollHeightRef.current
-      ) {
-        stickyRef.current = false
-      }
-
-      prevScrollTopRef.current = scrollTop
-      prevScrollHeightRef.current = scrollHeight
-    }
-
     const guardedScroll = () => {
-      if (stickyRef.current) scrollToBottom()
+      if (atBottomRef.current) scrollToBottom()
     }
 
     const onMutation = () => {
-      prevScrollHeightRef.current = el.scrollHeight
-      if (!stickyRef.current) return
+      if (!atBottomRef.current) return
       cancelAnimationFrame(rafIdRef.current)
       rafIdRef.current = requestAnimationFrame(guardedScroll)
     }
-
-    el.addEventListener('wheel', onWheel, { passive: true })
-    el.addEventListener('touchstart', onTouchStart, { passive: true })
-    el.addEventListener('touchmove', onTouchMove, { passive: true })
-    el.addEventListener('scroll', onScroll, { passive: true })
 
     const observer = new MutationObserver(onMutation)
     observer.observe(el, { childList: true, subtree: true, characterData: true })
 
     return () => {
-      el.removeEventListener('wheel', onWheel)
-      el.removeEventListener('touchstart', onTouchStart)
-      el.removeEventListener('touchmove', onTouchMove)
-      el.removeEventListener('scroll', onScroll)
       observer.disconnect()
       cancelAnimationFrame(rafIdRef.current)
-      if (stickyRef.current) scrollToBottom()
+      if (atBottomRef.current) scrollToBottom()
     }
   }, [isStreaming, scrollToBottom])
 
