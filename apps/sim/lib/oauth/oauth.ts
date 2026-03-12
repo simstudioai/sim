@@ -474,6 +474,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'read:comment:jira',
           'delete:comment:jira',
           'read:attachment:jira',
+          'write:attachment:jira',
           'delete:attachment:jira',
           'write:issue-worklog:jira',
           'read:issue-worklog:jira',
