@@ -701,6 +701,7 @@ async function handleBlocksOperationTx(
           .onConflictDoUpdate({
             target: workflowBlocks.id,
             set: {
+              type: sql`excluded.type`,
               name: sql`excluded.name`,
               positionX: sql`excluded.position_x`,
               positionY: sql`excluded.position_y`,
