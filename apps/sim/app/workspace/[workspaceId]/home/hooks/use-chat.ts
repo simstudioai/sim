@@ -31,6 +31,7 @@ import {
   extractFileResource,
   extractFunctionExecuteResource,
   extractKnowledgeBaseResource,
+  extractKnowledgeRespondResources,
   extractResourcesFromHistory,
   extractTableResource,
   extractWorkflowResource,
@@ -47,7 +48,6 @@ export interface UseChatReturn {
   resources: MothershipResource[]
   activeResourceId: string | null
   setActiveResourceId: (id: string | null) => void
-  renameResource: (id: string, newTitle: string) => void
 }
 
 const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
@@ -163,10 +163,6 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   const isHomePage = pathname.endsWith('/home')
 
   const { data: chatHistory } = useChatHistory(initialChatId)
-
-  const renameResource = useCallback((id: string, newTitle: string) => {
-    setResources((prev) => prev.map((r) => (r.id === id ? { ...r, title: newTitle } : r)))
-  }, [])
 
   const addResource = useCallback((resource: MothershipResource) => {
     setResources((prev) => {
@@ -476,12 +472,22 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                       registry.loadWorkflowState(resource.id)
                     }
                   }
-                } else if (toolName === 'knowledge') {
+                } else if (toolName === 'knowledge_base') {
                   resource = extractKnowledgeBaseResource(parsed, storedArgs)
                   if (resource) {
                     queryClient.invalidateQueries({
                       queryKey: knowledgeKeys.detail(resource.id),
                     })
+                    queryClient.invalidateQueries({
+                      queryKey: knowledgeKeys.list(workspaceId),
+                    })
+                  }
+                } else if (toolName === 'knowledge') {
+                  const kbResources = extractKnowledgeRespondResources(parsed)
+                  for (const r of kbResources) {
+                    addResource(r)
+                  }
+                  if (kbResources.length > 0) {
                     queryClient.invalidateQueries({
                       queryKey: knowledgeKeys.list(workspaceId),
                     })
@@ -741,6 +747,5 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     resources,
     activeResourceId,
     setActiveResourceId,
-    renameResource,
   }
 }
