@@ -157,6 +157,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'read:comment:jira': 'Read comments on Jira issues',
   'delete:comment:jira': 'Delete comments from Jira issues',
   'read:attachment:jira': 'Read attachments from Jira issues',
+  'write:attachment:jira': 'Add attachments to Jira issues',
   'delete:attachment:jira': 'Delete attachments from Jira issues',
   'write:issue-worklog:jira': 'Add and update worklog entries on Jira issues',
   'read:issue-worklog:jira': 'Read worklog entries from Jira issues',
