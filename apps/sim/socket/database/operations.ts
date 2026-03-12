@@ -695,7 +695,7 @@ async function handleBlocksOperationTx(
           }
         })
 
-        await tx.insert(workflowBlocks).values(blockValues)
+        await tx.insert(workflowBlocks).values(blockValues).onConflictDoNothing()
 
         // Create subflow entries for loop/parallel blocks (skip if already in payload)
         const loopIds = new Set(loops ? Object.keys(loops) : [])
@@ -750,7 +750,7 @@ async function handleBlocksOperationTx(
           targetHandle: (edge.targetHandle as string | null) || null,
         }))
 
-        await tx.insert(workflowEdges).values(edgeValues)
+        await tx.insert(workflowEdges).values(edgeValues).onConflictDoNothing()
       }
 
       if (loops && Object.keys(loops).length > 0) {
@@ -761,7 +761,7 @@ async function handleBlocksOperationTx(
           config: loop as Record<string, unknown>,
         }))
 
-        await tx.insert(workflowSubflows).values(loopValues)
+        await tx.insert(workflowSubflows).values(loopValues).onConflictDoNothing()
       }
 
       if (parallels && Object.keys(parallels).length > 0) {
@@ -772,7 +772,7 @@ async function handleBlocksOperationTx(
           config: parallel as Record<string, unknown>,
         }))
 
-        await tx.insert(workflowSubflows).values(parallelValues)
+        await tx.insert(workflowSubflows).values(parallelValues).onConflictDoNothing()
       }
 
       logger.info(`Successfully batch added blocks to workflow ${workflowId}`)
@@ -1546,7 +1546,7 @@ async function handleEdgesOperationTx(
         targetHandle: (edge.targetHandle as string | null) || null,
       }))
 
-      await tx.insert(workflowEdges).values(edgeValues)
+      await tx.insert(workflowEdges).values(edgeValues).onConflictDoNothing()
 
       logger.debug(`Batch added ${safeEdges.length} edges to workflow ${workflowId}`)
       break

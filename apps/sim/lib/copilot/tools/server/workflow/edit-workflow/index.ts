@@ -238,10 +238,17 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     // Persist the workflow state to the database
     const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
 
-    // Identify blocks that need layout (newly added blocks at default position 0,0)
-    const blocksNeedingLayout = Object.entries(finalWorkflowState.blocks)
-      .filter(([_, block]: [string, any]) => block.position?.x === 0 && block.position?.y === 0)
-      .map(([id]) => id)
+    // Identify blocks that need layout by comparing against the pre-operation
+    // state. This catches genuinely new blocks AND blocks whose parent scope
+    // changed (moved into/out of a subflow), without false-positives on blocks
+    // that happen to sit at position (0,0).
+    const preOperationBlockIds = new Set(Object.keys(workflowState.blocks || {}))
+    const blocksNeedingLayout = Object.keys(finalWorkflowState.blocks).filter((id) => {
+      if (!preOperationBlockIds.has(id)) return true
+      const prevParent = workflowState.blocks[id]?.data?.parentId ?? null
+      const currParent = finalWorkflowState.blocks[id]?.data?.parentId ?? null
+      return prevParent !== currParent
+    })
 
     let layoutedBlocks = finalWorkflowState.blocks
 

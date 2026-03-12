@@ -3,6 +3,7 @@ import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
 import type { BlockWithDiff } from '@/lib/workflows/diff/types'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
+import { isUuid } from '@/executor/constants'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -356,10 +357,15 @@ export class WorkflowDiffEngine {
         if (existingBlockMap[key]) {
           // Preserve existing ID
           idMap[proposedId] = existingBlockMap[key].id
+        } else if (isUuid(proposedId)) {
+          // New block with a valid UUID (e.g., from server's DB save) — keep it.
+          // Minting a new UUID would create a mismatch between the client store
+          // and the database, causing foreign key violations on subsequent
+          // socket operations.
+          idMap[proposedId] = proposedId
         } else {
-          // Generate new ID for truly new blocks
-          const newId = uuidv4()
-          idMap[proposedId] = newId
+          // New block with a non-UUID ID (e.g., from YAML parsing) — mint a UUID
+          idMap[proposedId] = uuidv4()
         }
       }
 
