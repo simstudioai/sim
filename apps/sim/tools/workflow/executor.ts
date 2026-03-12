@@ -1,6 +1,8 @@
 import type { ToolConfig } from '@/tools/types'
 import type { WorkflowExecutorParams, WorkflowExecutorResponse } from '@/tools/workflow/types'
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 /**
  * Tool for executing workflows as blocks within other workflows.
  * This tool is used by the WorkflowBlockHandler to provide the execution capability.
@@ -57,9 +59,11 @@ export const workflowExecutorTool: ToolConfig<
     // The execute endpoint has two response shapes:
     // 1. Standard: { success, executionId, output, error, metadata }
     // 2. Response block: arbitrary user-defined data (no wrapper)
-    // Detect standard format by checking for executionId (always present) + success boolean.
+    // Detect standard format via executionId (always a UUID from uuidv4()) + success boolean.
     const isStandardFormat =
-      typeof data?.success === 'boolean' && typeof data?.executionId === 'string'
+      typeof data?.success === 'boolean' &&
+      typeof data?.executionId === 'string' &&
+      UUID_RE.test(data.executionId)
 
     const outputData = isStandardFormat ? (data.output ?? {}) : data
     const success = isStandardFormat ? data.success : response.ok
@@ -67,8 +71,8 @@ export const workflowExecutorTool: ToolConfig<
     return {
       success,
       duration: isStandardFormat ? (data?.metadata?.duration ?? 0) : 0,
-      childWorkflowId: data?.workflowId ?? '',
-      childWorkflowName: data?.workflowName ?? '',
+      childWorkflowId: isStandardFormat ? (data?.workflowId ?? '') : '',
+      childWorkflowName: isStandardFormat ? (data?.workflowName ?? '') : '',
       output: outputData,
       result: outputData,
       error: data?.error,

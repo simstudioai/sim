@@ -256,7 +256,7 @@ describe('workflowExecutorTool', () => {
     it.concurrent('should parse standard format response', async () => {
       const body = {
         success: true,
-        executionId: 'exec-123',
+        executionId: '550e8400-e29b-41d4-a716-446655440000',
         output: { result: 'hello' },
         metadata: { duration: 500 },
       }
@@ -272,7 +272,7 @@ describe('workflowExecutorTool', () => {
     it.concurrent('should parse standard format failure', async () => {
       const body = {
         success: false,
-        executionId: 'exec-123',
+        executionId: '550e8400-e29b-41d4-a716-446655440000',
         output: {},
         error: 'Something went wrong',
       }
@@ -336,6 +336,35 @@ describe('workflowExecutorTool', () => {
       expect(result.output).toEqual({ results: [], error: 'No results found' })
       expect(result.error).toBe('No results found')
     })
+
+    it.concurrent(
+      'should not misidentify user data with success + non-UUID executionId as standard format',
+      async () => {
+        const body = { success: true, executionId: 'my-exec-run', data: [1, 2, 3] }
+
+        const result = await transformResponse(mockResponse(body))
+
+        expect(result.success).toBe(true)
+        expect(result.output).toEqual({
+          success: true,
+          executionId: 'my-exec-run',
+          data: [1, 2, 3],
+        })
+      }
+    )
+
+    it.concurrent(
+      'should not leak user payload fields into childWorkflowId/childWorkflowName',
+      async () => {
+        const body = { workflowId: 'user-wf-id', workflowName: 'User WF', data: 'test' }
+
+        const result = await transformResponse(mockResponse(body))
+
+        expect(result.childWorkflowId).toBe('')
+        expect(result.childWorkflowName).toBe('')
+        expect(result.output).toEqual(body)
+      }
+    )
   })
 
   describe('tool metadata', () => {
