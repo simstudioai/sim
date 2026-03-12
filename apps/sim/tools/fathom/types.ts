@@ -21,7 +21,7 @@ export interface FathomListMeetingsResponse extends ToolResponse {
     meetings: Array<{
       title: string
       meeting_title: string | null
-      recording_id: number
+      recording_id: number | null
       url: string
       share_url: string
       created_at: string

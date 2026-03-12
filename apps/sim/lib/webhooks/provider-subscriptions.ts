@@ -835,7 +835,7 @@ export async function deleteFathomWebhook(webhook: any, requestId: string): Prom
       },
     })
 
-    if (!fathomResponse.ok && fathomResponse.status !== 404 && fathomResponse.status !== 204) {
+    if (!fathomResponse.ok && fathomResponse.status !== 404) {
       fathomLogger.warn(
         `[${requestId}] Failed to delete Fathom webhook (non-fatal): ${fathomResponse.status}`
       )
@@ -1403,9 +1403,9 @@ export async function createFathomWebhookSubscription(
       destination_url: notificationUrl,
       triggered_for: [triggeredForValue],
       include_summary: includeSummary !== undefined ? Boolean(includeSummary) : true,
-      include_transcript: Boolean(includeTranscript),
-      include_action_items: Boolean(includeActionItems),
-      include_crm_matches: Boolean(includeCrmMatches),
+      include_transcript: includeTranscript !== undefined ? Boolean(includeTranscript) : false,
+      include_action_items: includeActionItems !== undefined ? Boolean(includeActionItems) : false,
+      include_crm_matches: includeCrmMatches !== undefined ? Boolean(includeCrmMatches) : false,
     }
 
     fathomLogger.info(`[${requestId}] Creating Fathom webhook`, {
@@ -1423,10 +1423,13 @@ export async function createFathomWebhookSubscription(
       body: JSON.stringify(requestBody),
     })
 
-    const responseBody = await fathomResponse.json()
+    const responseBody = await fathomResponse.json().catch(() => ({}))
 
     if (!fathomResponse.ok) {
-      const errorMessage = responseBody.message || responseBody.error || 'Unknown Fathom API error'
+      const errorMessage =
+        (responseBody as Record<string, string>).message ||
+        (responseBody as Record<string, string>).error ||
+        'Unknown Fathom API error'
       fathomLogger.error(
         `[${requestId}] Failed to create webhook in Fathom for webhook ${webhookData.id}. Status: ${fathomResponse.status}`,
         { message: errorMessage, response: responseBody }

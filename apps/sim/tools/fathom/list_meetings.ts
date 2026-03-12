@@ -114,7 +114,7 @@ export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMe
       (meeting: Record<string, unknown> & { recorded_by?: Record<string, unknown> }) => ({
         title: meeting.title ?? '',
         meeting_title: meeting.meeting_title ?? null,
-        recording_id: meeting.recording_id ?? 0,
+        recording_id: meeting.recording_id ?? null,
         url: meeting.url ?? '',
         share_url: meeting.share_url ?? '',
         created_at: meeting.created_at ?? '',
