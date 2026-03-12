@@ -406,7 +406,10 @@ export class WorkflowDiffEngine {
         // - Different scope (parentId changed): use proposed position because
         //   the coordinate system changed (absolute ↔ relative-to-container).
         const existingParent = existingBlock?.data?.parentId ?? null
-        const proposedParent = proposedBlock.data?.parentId ?? null
+        const proposedParentRaw = proposedBlock.data?.parentId ?? null
+        const proposedParent = proposedParentRaw
+          ? (idMap[proposedParentRaw] ?? proposedParentRaw)
+          : null
         const scopeChanged = existingBlock ? existingParent !== proposedParent : false
 
         const finalBlock: BlockState & BlockWithDiff = existingBlock
