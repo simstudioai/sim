@@ -20,8 +20,10 @@ export interface UsageUpgradeTagData {
 }
 
 export interface CredentialTagData {
-  link: string
-  provider: string
+  value: string
+  type: 'env_key' | 'oauth_key' | 'sim_key' | 'link'
+  provider?: string
+  credential_id?: string
 }
 
 export type ContentSegment =
@@ -254,11 +256,13 @@ const LockIcon = (props: { className?: string }) => (
 )
 
 function CredentialDisplay({ data }: { data: CredentialTagData }) {
+  if (data.type !== 'link' || !data.provider) return null
+
   const Icon = getCredentialIcon(data.provider) ?? LockIcon
 
   return (
     <a
-      href={data.link}
+      href={data.value}
       target='_blank'
       rel='noopener noreferrer'
       className='flex animate-stream-fade-in items-center gap-[8px] rounded-lg border border-[var(--divider)] px-3 py-2.5 transition-colors hover:bg-[var(--surface-5)]'
