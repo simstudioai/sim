@@ -13,7 +13,7 @@ import {
   isTerminalState,
   parseWorkflowSSEChunk,
 } from '@/lib/a2a/utils'
-import { type AuthResult, checkHybridAuth } from '@/lib/auth/hybrid'
+import { type AuthResult, AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
 import { acquireLock, getRedisClient, releaseLock } from '@/lib/core/config/redis'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
@@ -242,9 +242,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
 
     const { id, method, params: rpcParams } = body
     const requestApiKey = request.headers.get('X-API-Key')
-    const apiKey = authenticatedAuthType === 'api_key' ? requestApiKey : null
+    const apiKey = authenticatedAuthType === AuthType.API_KEY ? requestApiKey : null
     const isPersonalApiKeyCaller =
-      authenticatedAuthType === 'api_key' && authenticatedApiKeyType === 'personal'
+      authenticatedAuthType === AuthType.API_KEY && authenticatedApiKeyType === 'personal'
     const billedUserId = await getWorkspaceBilledAccountUserId(agent.workspaceId)
     if (!billedUserId) {
       logger.error('Unable to resolve workspace billed account for A2A execution', {

@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getCredential, getOAuthToken, refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       })
 
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-      if (!auth.success || auth.authType !== 'session' || !auth.userId) {
+      if (!auth.success || auth.authType !== AuthType.SESSION || !auth.userId) {
         logger.warn(`[${requestId}] Unauthorized request for credentialAccountUserId path`, {
           success: auth.success,
           authType: auth.authType,
@@ -202,7 +202,7 @@ export async function GET(request: NextRequest) {
       credentialId,
       requireWorkflowIdForInternal: false,
     })
-    if (!authz.ok || authz.authType !== 'session' || !authz.credentialOwnerUserId) {
+    if (!authz.ok || authz.authType !== AuthType.SESSION || !authz.credentialOwnerUserId) {
       return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
     }
 

@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { AuthType } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
@@ -39,7 +40,7 @@ export async function POST(
 
   const resumeInput = payload?.input ?? payload ?? {}
   const isPersonalApiKeyCaller =
-    access.auth?.authType === 'api_key' && access.auth?.apiKeyType === 'personal'
+    access.auth?.authType === AuthType.API_KEY && access.auth?.apiKeyType === 'personal'
 
   let userId: string
   if (isPersonalApiKeyCaller && access.auth?.userId) {

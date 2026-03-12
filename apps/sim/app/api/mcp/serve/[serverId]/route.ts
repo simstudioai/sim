@@ -19,7 +19,7 @@ import { workflow, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { type AuthResult, checkHybridAuth } from '@/lib/auth/hybrid'
+import { type AuthResult, AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
       executeAuthContext = {
         authType: auth.authType,
         userId: auth.userId,
-        apiKey: auth.authType === 'api_key' ? request.headers.get('X-API-Key') : null,
+        apiKey: auth.authType === AuthType.API_KEY ? request.headers.get('X-API-Key') : null,
       }
     }
 
@@ -295,7 +295,7 @@ async function handleToolsCall(
       const internalToken = await generateInternalToken(publicServerOwnerId)
       headers.Authorization = `Bearer ${internalToken}`
     } else if (executeAuthContext) {
-      if (executeAuthContext.authType === 'api_key' && executeAuthContext.apiKey) {
+      if (executeAuthContext.authType === AuthType.API_KEY && executeAuthContext.apiKey) {
         headers['X-API-Key'] = executeAuthContext.apiKey
       } else {
         const internalToken = await generateInternalToken(executeAuthContext.userId)
