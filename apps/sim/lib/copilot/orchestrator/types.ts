@@ -40,7 +40,7 @@ export interface SSEEvent {
   ui?: Record<string, unknown>
 }
 
-export type ToolCallStatus = 'pending' | 'executing' | 'success' | 'error' | 'skipped' | 'rejected'
+export type ToolCallStatus = 'pending' | 'executing' | 'success' | 'error' | 'skipped' | 'rejected' | 'cancelled'
 
 export interface ToolCallState {
   id: string

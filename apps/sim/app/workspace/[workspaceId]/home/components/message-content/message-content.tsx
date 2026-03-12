@@ -212,7 +212,9 @@ export function MessageContent({
           case 'agent_group': {
             const allToolsDone =
               segment.tools.length > 0 &&
-              segment.tools.every((t) => t.status === 'success' || t.status === 'error')
+              segment.tools.every(
+                (t) => t.status === 'success' || t.status === 'error' || t.status === 'cancelled'
+              )
             const hasFollowingText = segments.slice(i + 1).some((s) => s.type === 'text')
             return (
               <div key={segment.id} className={isStreaming ? 'animate-stream-fade-in' : undefined}>

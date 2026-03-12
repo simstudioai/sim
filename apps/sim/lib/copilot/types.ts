@@ -7,6 +7,7 @@ export type NotificationStatus =
   | 'accepted'
   | 'rejected'
   | 'background'
+  | 'cancelled'
 
 export type { CopilotToolCall, ToolState }
 

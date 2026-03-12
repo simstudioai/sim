@@ -57,6 +57,9 @@ export interface UseChatReturn {
 const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
   success: 'success',
   error: 'error',
+  cancelled: 'cancelled',
+  rejected: 'error',
+  skipped: 'success',
 } as const
 
 function areResourcesEqual(left: MothershipResource[], right: MothershipResource[]): boolean {
@@ -117,11 +120,13 @@ function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
   }
 
   if (block.type === 'tool_call' && block.toolCall) {
+    const resolvedStatus = STATE_TO_STATUS[block.toolCall.state ?? ''] ?? 'error'
     mapped.toolCall = {
       id: block.toolCall.id ?? '',
       name: block.toolCall.name ?? 'unknown',
-      status: STATE_TO_STATUS[block.toolCall.state ?? ''] ?? 'success',
-      displayTitle: block.toolCall.display?.text,
+      status: resolvedStatus,
+      displayTitle:
+        resolvedStatus === 'cancelled' ? 'Stopped by user' : block.toolCall.display?.text,
       calledBy: block.toolCall.calledBy,
       result: block.toolCall.result,
     }
@@ -131,12 +136,14 @@ function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
 }
 
 function mapStoredToolCall(tc: TaskStoredToolCall): ContentBlock {
+  const resolvedStatus = (STATE_TO_STATUS[tc.status] ?? 'error') as ToolCallStatus
   return {
     type: 'tool_call',
     toolCall: {
       id: tc.id,
       name: tc.name,
-      status: (STATE_TO_STATUS[tc.status] ?? 'success') as ToolCallStatus,
+      status: resolvedStatus,
+      displayTitle: resolvedStatus === 'cancelled' ? 'Stopped by user' : undefined,
       result:
         tc.result != null
           ? { success: tc.status === 'success', output: tc.result, error: tc.error }
@@ -577,7 +584,25 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
               const idx = toolMap.get(id)
               if (idx !== undefined && blocks[idx].toolCall) {
                 const tc = blocks[idx].toolCall!
-                tc.status = parsed.success ? 'success' : 'error'
+
+                const payloadData = getPayloadData(parsed)
+                const resultObj =
+                  parsed.result && typeof parsed.result === 'object'
+                    ? (parsed.result as Record<string, unknown>)
+                    : undefined
+                const isCancelled =
+                  resultObj?.reason === 'user_cancelled' ||
+                  resultObj?.cancelledByUser === true ||
+                  (payloadData as Record<string, unknown> | undefined)?.reason ===
+                    'user_cancelled' ||
+                  (payloadData as Record<string, unknown> | undefined)?.cancelledByUser === true
+
+                if (isCancelled) {
+                  tc.status = 'cancelled'
+                  tc.displayTitle = 'Stopped by user'
+                } else {
+                  tc.status = parsed.success ? 'success' : 'error'
+                }
                 tc.result = {
                   success: !!parsed.success,
                   output: parsed.result ?? getPayloadData(parsed)?.result,

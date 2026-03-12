@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
 import { BookOpen } from '@/components/emcn/icons'
 import { WorkflowIcon } from '@/components/icons'
+import { reportManualRunToolStop } from '@/lib/copilot/client-sse/run-tool-execution'
 import {
   FileViewer,
   type PreviewMode,
@@ -107,6 +108,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
 
     if (isExecuting) {
       await handleCancelExecution()
+      await reportManualRunToolStop(workflowId)
       return
     }
 

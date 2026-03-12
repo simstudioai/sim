@@ -31,7 +31,11 @@ export function AgentGroup({
 }: AgentGroupProps) {
   const AgentIcon = getAgentIcon(agentName)
   const hasTools = tools.length > 0
-  const allDone = hasTools && tools.every((t) => t.status === 'success' || t.status === 'error')
+  const allDone =
+    hasTools &&
+    tools.every(
+      (t) => t.status === 'success' || t.status === 'error' || t.status === 'cancelled'
+    )
 
   const [expanded, setExpanded] = useState(!allDone)
   const [mounted, setMounted] = useState(!allDone)

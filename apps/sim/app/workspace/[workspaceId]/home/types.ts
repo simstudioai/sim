@@ -96,7 +96,7 @@ export type ToolPhase =
   | 'resource'
   | 'subagent'
 
-export type ToolCallStatus = 'executing' | 'success' | 'error'
+export type ToolCallStatus = 'executing' | 'success' | 'error' | 'cancelled'
 
 export interface ToolCallInfo {
   id: string
