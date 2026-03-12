@@ -370,7 +370,7 @@ export function regenerateWorkflowIds(
     blockIdMap.set(oldId, newId)
     const oldNormalizedName = normalizeName(block.name)
     nameMap.set(oldNormalizedName, oldNormalizedName)
-    const newBlock = { ...block, id: newId }
+    const newBlock = { ...block, id: newId, subBlocks: JSON.parse(JSON.stringify(block.subBlocks)) }
     remapConditionIds(newBlock.subBlocks, {}, oldId, newId)
     newBlocks[newId] = newBlock
   })
@@ -540,6 +540,7 @@ export function regenerateBlockIds(
       id: newId,
       name: newName,
       position: newPosition,
+      subBlocks: JSON.parse(JSON.stringify(block.subBlocks)),
       // Temporarily keep data as-is, we'll fix parentId in second pass
       data: block.data ? { ...block.data } : block.data,
       // Duplicated blocks are always unlocked so users can edit them
