@@ -86,6 +86,7 @@ export function markOutgoingEdgesFromOutput(
 }
 
 export interface WorkflowExecutionOptions {
+  workflowId?: string
   workflowInput?: any
   onStream?: (se: StreamingExecution) => Promise<void>
   executionId?: string
@@ -107,15 +108,16 @@ export async function executeWorkflowWithFullLogging(
   options: WorkflowExecutionOptions = {}
 ): Promise<ExecutionResult | StreamingExecution> {
   const { activeWorkflowId } = useWorkflowRegistry.getState()
+  const targetWorkflowId = options.workflowId || activeWorkflowId
 
-  if (!activeWorkflowId) {
+  if (!targetWorkflowId) {
     throw new Error('No active workflow')
   }
 
   const executionId = options.executionId || uuidv4()
   const { addConsole } = useTerminalConsoleStore.getState()
   const { setActiveBlocks, setBlockRunStatus, setEdgeRunStatus } = useExecutionStore.getState()
-  const wfId = activeWorkflowId
+  const wfId = targetWorkflowId
   const workflowEdges = useWorkflowStore.getState().edges
 
   const activeBlocksSet = new Set<string>()
@@ -138,7 +140,7 @@ export async function executeWorkflowWithFullLogging(
       : {}),
   }
 
-  const response = await fetch(`/api/workflows/${activeWorkflowId}/execute`, {
+  const response = await fetch(`/api/workflows/${targetWorkflowId}/execute`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -220,7 +222,7 @@ export async function executeWorkflowWithFullLogging(
                 startedAt: new Date(Date.now() - event.data.durationMs).toISOString(),
                 executionOrder: event.data.executionOrder,
                 endedAt: new Date().toISOString(),
-                workflowId: activeWorkflowId,
+                workflowId: targetWorkflowId,
                 blockId: event.data.blockId,
                 executionId,
                 blockName: event.data.blockName,
@@ -267,7 +269,7 @@ export async function executeWorkflowWithFullLogging(
                 startedAt: new Date(Date.now() - event.data.durationMs).toISOString(),
                 executionOrder: event.data.executionOrder,
                 endedAt: new Date().toISOString(),
-                workflowId: activeWorkflowId,
+                workflowId: targetWorkflowId,
                 blockId: event.data.blockId,
                 executionId,
                 blockName: event.data.blockName,

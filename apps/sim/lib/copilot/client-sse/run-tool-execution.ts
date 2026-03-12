@@ -39,17 +39,23 @@ async function doExecuteRunTool(
   toolName: string,
   params: Record<string, unknown>
 ): Promise<void> {
-  const { activeWorkflowId } = useWorkflowRegistry.getState()
+  const { activeWorkflowId, setActiveWorkflow } = useWorkflowRegistry.getState()
+  const targetWorkflowId =
+    typeof params.workflowId === 'string' && params.workflowId.length > 0
+      ? params.workflowId
+      : activeWorkflowId
 
-  if (!activeWorkflowId) {
+  if (!targetWorkflowId) {
     logger.warn('[RunTool] Execution prevented: no active workflow', { toolCallId, toolName })
     setToolState(toolCallId, ClientToolCallState.error)
     await reportCompletion(toolCallId, false, 'No active workflow found')
     return
   }
 
+  setActiveWorkflow(targetWorkflowId)
+
   const { getWorkflowExecution, setIsExecuting } = useExecutionStore.getState()
-  const { isExecuting } = getWorkflowExecution(activeWorkflowId)
+  const { isExecuting } = getWorkflowExecution(targetWorkflowId)
 
   if (isExecuting) {
     logger.warn('[RunTool] Execution prevented: already executing', { toolCallId, toolName })
@@ -86,7 +92,7 @@ async function doExecuteRunTool(
     return undefined
   })()
 
-  setIsExecuting(activeWorkflowId, true)
+  setIsExecuting(targetWorkflowId, true)
   const executionId = uuidv4()
   const executionStartTime = new Date().toISOString()
 
@@ -94,7 +100,7 @@ async function doExecuteRunTool(
     toolCallId,
     toolName,
     executionId,
-    activeWorkflowId,
+    workflowId: targetWorkflowId,
     hasInput: !!workflowInput,
     stopAfterBlockId,
     runFromBlock: runFromBlock ? { startBlockId: runFromBlock.startBlockId } : undefined,
@@ -102,6 +108,7 @@ async function doExecuteRunTool(
 
   try {
     const result = await executeWorkflowWithFullLogging({
+      workflowId: targetWorkflowId,
       workflowInput,
       executionId,
       overrideTriggerType: 'copilot',
@@ -153,7 +160,7 @@ async function doExecuteRunTool(
     setToolState(toolCallId, ClientToolCallState.error)
     await reportCompletion(toolCallId, false, msg)
   } finally {
-    setIsExecuting(activeWorkflowId, false)
+    setIsExecuting(targetWorkflowId, false)
   }
 }
 
