@@ -6,12 +6,22 @@ import { vi } from 'vitest'
 import type { MockUser } from './auth.mock'
 import { defaultMockUser } from './auth.mock'
 
+/**
+ * Auth type constants matching @/lib/auth/hybrid AuthType.
+ * Include this in vi.mock() factories so route code can reference AuthType.*.
+ */
+export const AuthTypeMock = {
+  SESSION: 'session',
+  API_KEY: 'api_key',
+  INTERNAL_JWT: 'internal_jwt',
+} as const
+
 interface HybridAuthResponse {
   success: boolean
   userId?: string
   userName?: string | null
   userEmail?: string | null
-  authType?: 'session' | 'api_key' | 'internal_jwt'
+  authType?: (typeof AuthTypeMock)[keyof typeof AuthTypeMock]
   error?: string
 }
 
@@ -46,6 +56,7 @@ export function mockHybridAuth(user: MockUser = defaultMockUser): MockHybridAuth
   const mockCheckInternalAuth = vi.fn<() => Promise<HybridAuthResponse>>()
 
   vi.doMock('@/lib/auth/hybrid', () => ({
+    AuthType: AuthTypeMock,
     checkHybridAuth: mockCheckHybridAuth,
     checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
     checkInternalAuth: mockCheckInternalAuth,
