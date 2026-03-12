@@ -59,6 +59,7 @@ import {
   confluenceSpaceUpdatedTrigger,
   confluenceWebhookTrigger,
 } from '@/triggers/confluence'
+import { fathomNewMeetingTrigger, fathomWebhookTrigger } from '@/triggers/fathom'
 import { firefliesTranscriptionCompleteTrigger } from '@/triggers/fireflies'
 import { genericWebhookTrigger } from '@/triggers/generic'
 import {
@@ -226,6 +227,8 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   github_release_published: githubReleasePublishedTrigger,
   github_workflow_run: githubWorkflowRunTrigger,
   fireflies_transcription_complete: firefliesTranscriptionCompleteTrigger,
+  fathom_new_meeting: fathomNewMeetingTrigger,
+  fathom_webhook: fathomWebhookTrigger,
   gmail_poller: gmailPollingTrigger,
   grain_webhook: grainWebhookTrigger,
   grain_recording_created: grainRecordingCreatedTrigger,

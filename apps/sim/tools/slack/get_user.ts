@@ -85,6 +85,7 @@ export const slackGetUserTool: ToolConfig<SlackGetUserParams, SlackGetUserRespon
           first_name: profile.first_name || '',
           last_name: profile.last_name || '',
           title: profile.title || '',
+          email: profile.email || '',
           phone: profile.phone || '',
           skype: profile.skype || '',
           is_bot: user.is_bot || false,

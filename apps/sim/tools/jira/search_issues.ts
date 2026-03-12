@@ -137,8 +137,11 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
         if (params.nextPageToken) query.set('nextPageToken', params.nextPageToken)
         if (typeof params.maxResults === 'number')
           query.set('maxResults', String(params.maxResults))
-        if (Array.isArray(params.fields) && params.fields.length > 0)
+        if (Array.isArray(params.fields) && params.fields.length > 0) {
           query.set('fields', params.fields.join(','))
+        } else {
+          query.set('fields', '*all')
+        }
         const qs = query.toString()
         return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/search/jql${qs ? `?${qs}` : ''}`
       }
@@ -159,8 +162,11 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
       if (params?.jql) query.set('jql', params.jql)
       if (params?.nextPageToken) query.set('nextPageToken', params.nextPageToken)
       if (typeof params?.maxResults === 'number') query.set('maxResults', String(params.maxResults))
-      if (Array.isArray(params?.fields) && params.fields.length > 0)
+      if (Array.isArray(params?.fields) && params.fields.length > 0) {
         query.set('fields', params.fields.join(','))
+      } else {
+        query.set('fields', '*all')
+      }
       const searchUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${query.toString()}`
       const searchResponse = await fetch(searchUrl, {
         method: 'GET',

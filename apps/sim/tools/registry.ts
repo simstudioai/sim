@@ -446,6 +446,13 @@ import {
   exaResearchTool,
   exaSearchTool,
 } from '@/tools/exa'
+import {
+  fathomGetSummaryTool,
+  fathomGetTranscriptTool,
+  fathomListMeetingsTool,
+  fathomListTeamMembersTool,
+  fathomListTeamsTool,
+} from '@/tools/fathom'
 import { fileParserV2Tool, fileParserV3Tool, fileParseTool } from '@/tools/file'
 import {
   firecrawlAgentTool,
@@ -3666,6 +3673,11 @@ export const tools: Record<string, ToolConfig> = {
   knowledge_create_document: knowledgeCreateDocumentTool,
   search_tool: searchTool,
   elevenlabs_tts: elevenLabsTtsTool,
+  fathom_list_meetings: fathomListMeetingsTool,
+  fathom_get_summary: fathomGetSummaryTool,
+  fathom_get_transcript: fathomGetTranscriptTool,
+  fathom_list_team_members: fathomListTeamMembersTool,
+  fathom_list_teams: fathomListTeamsTool,
   stt_whisper: whisperSttTool,
   stt_whisper_v2: whisperSttV2Tool,
   stt_deepgram: deepgramSttTool,

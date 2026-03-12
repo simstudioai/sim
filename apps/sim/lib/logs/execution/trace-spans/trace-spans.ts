@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import type { ToolCall, TraceSpan } from '@/lib/logs/types'
-import { isWorkflowBlockType, stripCustomToolPrefix } from '@/executor/constants'
+import {
+  isConditionBlockType,
+  isWorkflowBlockType,
+  stripCustomToolPrefix,
+} from '@/executor/constants'
 import type { ExecutionResult } from '@/executor/types'
 import { stripCloneSuffixes } from '@/executor/utils/subflow-utils'
 
@@ -109,6 +113,7 @@ export function buildTraceSpans(result: ExecutionResult): {
     if (!log.blockId || !log.blockType) return
 
     const spanId = `${log.blockId}-${new Date(log.startedAt).getTime()}`
+    const isCondition = isConditionBlockType(log.blockType)
 
     const duration = log.durationMs || 0
 
@@ -164,7 +169,7 @@ export function buildTraceSpans(result: ExecutionResult): {
       ...(log.parentIterations?.length && { parentIterations: log.parentIterations }),
     }
 
-    if (log.output?.providerTiming) {
+    if (!isCondition && log.output?.providerTiming) {
       const providerTiming = log.output.providerTiming as {
         duration: number
         startTime: string
@@ -186,7 +191,7 @@ export function buildTraceSpans(result: ExecutionResult): {
       }
     }
 
-    if (log.output?.cost) {
+    if (!isCondition && log.output?.cost) {
       span.cost = log.output.cost as {
         input?: number
         output?: number
@@ -194,7 +199,7 @@ export function buildTraceSpans(result: ExecutionResult): {
       }
     }
 
-    if (log.output?.tokens) {
+    if (!isCondition && log.output?.tokens) {
       const t = log.output.tokens as
         | number
         | {
@@ -224,12 +229,13 @@ export function buildTraceSpans(result: ExecutionResult): {
       }
     }
 
-    if (log.output?.model) {
+    if (!isCondition && log.output?.model) {
       span.model = log.output.model as string
     }
 
     if (
       !isWorkflowBlockType(log.blockType) &&
+      !isCondition &&
       log.output?.providerTiming?.timeSegments &&
       Array.isArray(log.output.providerTiming.timeSegments)
     ) {
@@ -317,7 +323,7 @@ export function buildTraceSpans(result: ExecutionResult): {
           }
         }
       )
-    } else {
+    } else if (!isCondition) {
       let toolCallsList = null
 
       try {
