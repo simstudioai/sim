@@ -376,6 +376,11 @@ export const USER_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Job title', optional: true },
   phone: { type: 'string', description: 'Phone number', optional: true },
   skype: { type: 'string', description: 'Skype handle', optional: true },
+  email: {
+    type: 'string',
+    description: 'Email address (requires users:read.email scope)',
+    optional: true,
+  },
   is_bot: { type: 'boolean', description: 'Whether the user is a bot' },
   is_admin: { type: 'boolean', description: 'Whether the user is a workspace admin' },
   is_owner: { type: 'boolean', description: 'Whether the user is the workspace owner' },
@@ -438,6 +443,11 @@ export const USER_SUMMARY_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Username (handle)' },
   real_name: { type: 'string', description: 'Full real name' },
   display_name: { type: 'string', description: 'Display name shown in Slack' },
+  email: {
+    type: 'string',
+    description: 'Email address (requires users:read.email scope)',
+    optional: true,
+  },
   is_bot: { type: 'boolean', description: 'Whether the user is a bot' },
   is_admin: { type: 'boolean', description: 'Whether the user is a workspace admin' },
   is_owner: { type: 'boolean', description: 'Whether the user is the workspace owner' },
@@ -953,6 +963,7 @@ export interface SlackUser {
   title?: string
   phone?: string
   skype?: string
+  email: string
   is_bot: boolean
   is_admin: boolean
   is_owner: boolean

@@ -590,6 +590,7 @@ List all users in a Slack workspace. Returns user profiles with names and avatar
 |   ↳ `name` | string | Username \(handle\) |
 |   ↳ `real_name` | string | Full real name |
 |   ↳ `display_name` | string | Display name shown in Slack |
+|   ↳ `email` | string | Email address \(requires users:read.email scope\) |
 |   ↳ `is_bot` | boolean | Whether the user is a bot |
 |   ↳ `is_admin` | boolean | Whether the user is a workspace admin |
 |   ↳ `is_owner` | boolean | Whether the user is the workspace owner |
@@ -629,6 +630,7 @@ Get detailed information about a specific Slack user by their user ID.
 |   ↳ `title` | string | Job title |
 |   ↳ `phone` | string | Phone number |
 |   ↳ `skype` | string | Skype handle |
+|   ↳ `email` | string | Email address \(requires users:read.email scope\) |
 |   ↳ `is_bot` | boolean | Whether the user is a bot |
 |   ↳ `is_admin` | boolean | Whether the user is a workspace admin |
 |   ↳ `is_owner` | boolean | Whether the user is the workspace owner |

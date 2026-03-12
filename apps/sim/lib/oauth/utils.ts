@@ -270,6 +270,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'im:history': 'Read direct message history',
   'im:read': 'View direct message channels',
   'users:read': 'View workspace users',
+  'users:read.email': 'View user email addresses',
   'files:write': 'Upload files',
   'files:read': 'Download and read files',
   'canvases:write': 'Create canvas documents',
