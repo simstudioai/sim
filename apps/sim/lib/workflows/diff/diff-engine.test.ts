@@ -26,7 +26,6 @@ vi.mock('@/lib/workflows/sanitization/key-validation', () => ({
 vi.mock('@/lib/workflows/autolayout', () => ({
   transferBlockHeights: vi.fn(),
   applyTargetedLayout: (blocks: Record<string, BlockState>) => blocks,
-  applyAutoLayout: () => ({ success: true, blocks: {} }),
 }))
 
 vi.mock('@/lib/workflows/autolayout/constants', () => ({

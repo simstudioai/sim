@@ -997,6 +997,8 @@ export function handleExtractFromSubflowOperation(
       y: (container.position.y ?? 0) + (block.position.y ?? 0),
     }
   } else {
+    // Fallback to (0,0) which signals to blocksNeedingLayout in index.ts
+    // that this block requires targeted layout repositioning.
     block.position = { x: 0, y: 0 }
   }
 
