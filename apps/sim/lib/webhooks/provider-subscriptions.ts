@@ -817,6 +817,14 @@ export async function deleteFathomWebhook(webhook: any, requestId: string): Prom
       return
     }
 
+    const idValidation = validateAlphanumericId(externalId, 'Fathom webhook ID', 100)
+    if (!idValidation.isValid) {
+      fathomLogger.warn(
+        `[${requestId}] Invalid externalId format for Fathom webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
     const fathomApiUrl = `https://api.fathom.ai/external/v1/webhooks/${externalId}`
 
     const fathomResponse = await fetch(fathomApiUrl, {
@@ -1391,12 +1399,10 @@ export async function createFathomWebhookSubscription(
 
     const triggeredForValue = triggeredFor || 'my_recordings'
 
-    const hasInclude =
-      includeSummary || includeTranscript || includeActionItems || includeCrmMatches
     const requestBody: Record<string, any> = {
       destination_url: notificationUrl,
       triggered_for: [triggeredForValue],
-      include_summary: hasInclude ? Boolean(includeSummary) : true,
+      include_summary: includeSummary !== undefined ? Boolean(includeSummary) : true,
       include_transcript: Boolean(includeTranscript),
       include_action_items: Boolean(includeActionItems),
       include_crm_matches: Boolean(includeCrmMatches),

@@ -33,6 +33,20 @@ export const getSummaryTool: ToolConfig<FathomGetSummaryParams, FathomGetSummary
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error:
+          (errorData as Record<string, string>).message ||
+          `Fathom API error: ${response.status} ${response.statusText}`,
+        output: {
+          template_name: null,
+          markdown_formatted: null,
+        },
+      }
+    }
+
     const data = await response.json()
     const summary = data.summary ?? data
 

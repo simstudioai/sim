@@ -34,6 +34,19 @@ export const getTranscriptTool: ToolConfig<FathomGetTranscriptParams, FathomGetT
     },
 
     transformResponse: async (response: Response) => {
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        return {
+          success: false,
+          error:
+            (errorData as Record<string, string>).message ||
+            `Fathom API error: ${response.status} ${response.statusText}`,
+          output: {
+            transcript: [],
+          },
+        }
+      }
+
       const data = await response.json()
       const transcript = (data.transcript ?? []).map(
         (entry: { speaker?: Record<string, unknown>; text?: string; timestamp?: string }) => ({

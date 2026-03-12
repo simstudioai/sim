@@ -94,6 +94,20 @@ export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMe
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error:
+          (errorData as Record<string, string>).message ||
+          `Fathom API error: ${response.status} ${response.statusText}`,
+        output: {
+          meetings: [],
+          next_cursor: null,
+        },
+      }
+    }
+
     const data = await response.json()
 
     const meetings = (data.items ?? []).map(

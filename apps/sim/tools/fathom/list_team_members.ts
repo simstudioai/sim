@@ -49,6 +49,20 @@ export const listTeamMembersTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error:
+          (errorData as Record<string, string>).message ||
+          `Fathom API error: ${response.status} ${response.statusText}`,
+        output: {
+          members: [],
+          next_cursor: null,
+        },
+      }
+    }
+
     const data = await response.json()
     const members = (data.items ?? []).map(
       (member: { name?: string; email?: string; created_at?: string }) => ({
