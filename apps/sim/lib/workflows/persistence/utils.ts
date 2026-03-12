@@ -14,6 +14,7 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
 import type { DbOrTx } from '@/lib/db/types'
+import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import {
   backfillCanonicalModes,
   migrateSubblockIds,
@@ -833,7 +834,12 @@ export function regenerateWorkflowStateIds(state: RegenerateStateInput): Regener
   Object.entries(state.blocks || {}).forEach(([oldId, block]) => {
     const newId = blockIdMapping.get(oldId)!
     // Duplicated blocks are always unlocked so users can edit them
-    const newBlock: BlockState = { ...block, id: newId, locked: false }
+    const newBlock: BlockState = {
+      ...block,
+      id: newId,
+      subBlocks: JSON.parse(JSON.stringify(block.subBlocks)),
+      locked: false,
+    }
 
     // Update parentId reference if it exists
     if (newBlock.data?.parentId) {
@@ -857,6 +863,21 @@ export function regenerateWorkflowStateIds(state: RegenerateStateInput): Regener
           updatedSubBlock.value = blockIdMapping.get(updatedSubBlock.value) ?? updatedSubBlock.value
         }
 
+        // Remap condition/router IDs embedded in condition-input/router-input subBlocks
+        if (
+          (updatedSubBlock.type === 'condition-input' || updatedSubBlock.type === 'router-input') &&
+          typeof updatedSubBlock.value === 'string'
+        ) {
+          try {
+            const parsed = JSON.parse(updatedSubBlock.value)
+            if (Array.isArray(parsed) && remapConditionBlockIds(parsed, oldId, newId)) {
+              updatedSubBlock.value = JSON.stringify(parsed)
+            }
+          } catch {
+            // Not valid JSON, skip
+          }
+        }
+
         updatedSubBlocks[subId] = updatedSubBlock
       })
       newBlock.subBlocks = updatedSubBlocks
@@ -871,12 +892,17 @@ export function regenerateWorkflowStateIds(state: RegenerateStateInput): Regener
     const newId = edgeIdMapping.get(edge.id)!
     const newSource = blockIdMapping.get(edge.source) || edge.source
     const newTarget = blockIdMapping.get(edge.target) || edge.target
+    const newSourceHandle =
+      edge.sourceHandle && blockIdMapping.has(edge.source)
+        ? remapConditionEdgeHandle(edge.sourceHandle, edge.source, newSource)
+        : edge.sourceHandle
 
     newEdges.push({
       ...edge,
       id: newId,
       source: newSource,
       target: newTarget,
+      sourceHandle: newSourceHandle,
     })
   })
 
