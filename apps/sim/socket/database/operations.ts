@@ -703,27 +703,33 @@ async function handleBlocksOperationTx(
         for (const block of allowedBlocks) {
           const blockId = block.id as string
           if (block.type === 'loop' && !loopIds.has(blockId)) {
-            await tx.insert(workflowSubflows).values({
-              id: blockId,
-              workflowId,
-              type: 'loop',
-              config: {
-                loopType: 'for',
-                iterations: DEFAULT_LOOP_ITERATIONS,
-                nodes: [],
-              },
-            })
+            await tx
+              .insert(workflowSubflows)
+              .values({
+                id: blockId,
+                workflowId,
+                type: 'loop',
+                config: {
+                  loopType: 'for',
+                  iterations: DEFAULT_LOOP_ITERATIONS,
+                  nodes: [],
+                },
+              })
+              .onConflictDoNothing()
           } else if (block.type === 'parallel' && !parallelIds.has(blockId)) {
-            await tx.insert(workflowSubflows).values({
-              id: blockId,
-              workflowId,
-              type: 'parallel',
-              config: {
-                parallelType: 'fixed',
-                count: DEFAULT_PARALLEL_COUNT,
-                nodes: [],
-              },
-            })
+            await tx
+              .insert(workflowSubflows)
+              .values({
+                id: blockId,
+                workflowId,
+                type: 'parallel',
+                config: {
+                  parallelType: 'fixed',
+                  count: DEFAULT_PARALLEL_COUNT,
+                  nodes: [],
+                },
+              })
+              .onConflictDoNothing()
           }
         }
 

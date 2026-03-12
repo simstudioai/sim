@@ -26,37 +26,6 @@ import {
 
 const logger = createLogger('EditWorkflowServerTool')
 
-/**
- * Removes edges that become invalid when a block changes scope (moves into
- * or out of a subflow). After the move, edges are only valid between blocks
- * that share the same parent scope.
- *
- * @param newParentId - The block's new parentId (null for root-level)
- */
-function removeInvalidEdgesForBlock(
-  modifiedState: any,
-  blockId: string,
-  newParentId: string | null
-): void {
-  modifiedState.edges = modifiedState.edges.filter((edge: any) => {
-    const isSource = edge.source === blockId
-    const isTarget = edge.target === blockId
-    if (!isSource && !isTarget) return true
-
-    const otherId = isSource ? edge.target : edge.source
-    const otherBlock = modifiedState.blocks[otherId]
-    if (!otherBlock) return true
-
-    const otherParentId = otherBlock.data?.parentId ?? null
-
-    // Edge to/from the block's own parent container is always invalid
-    if (otherId === newParentId) return false
-
-    // Edge is valid only if the other block is in the same scope
-    return otherParentId === newParentId
-  })
-}
-
 export function handleDeleteOperation(op: EditWorkflowOperation, ctx: OperationContext): void {
   const { modifiedState, skippedItems } = ctx
   const { block_id } = op
@@ -840,11 +809,6 @@ export function handleInsertIntoSubflowOperation(
     }
     existingBlock.position = { x: 0, y: 0 }
 
-    // Remove edges that become invalid after the move. A child block inside
-    // a subflow cannot have edges to/from blocks outside the subflow or to
-    // its own parent container.
-    removeInvalidEdgesForBlock(modifiedState, block_id, subflowId)
-
     // Update inputs if provided (with validation)
     if (params.inputs) {
       // Validate inputs against block configuration
@@ -1021,16 +985,23 @@ export function handleExtractFromSubflowOperation(
     })
   }
 
-  // Remove edges that will become invalid once the block leaves the container.
-  // A root-level block cannot have edges to/from blocks inside a subflow.
-  removeInvalidEdgesForBlock(modifiedState, block_id, null)
+  // Convert from relative (to container) to absolute position so the block
+  // appears at roughly the same visual location after extraction. This avoids
+  // needing targeted layout to reposition it — extracted blocks often lose
+  // their edges to siblings still in the container, making them disconnected
+  // and causing layout to stack them at layer 0.
+  const container = modifiedState.blocks[subflowId]
+  if (container?.position && block.position) {
+    block.position = {
+      x: (container.position.x ?? 0) + (block.position.x ?? 0),
+      y: (container.position.y ?? 0) + (block.position.y ?? 0),
+    }
+  } else {
+    block.position = { x: 0, y: 0 }
+  }
 
-  // Remove parent relationship and reset position.
-  // The block's position was relative to the container; it needs to be
-  // reset so targeted layout can place it properly at root level.
   if (block.data) {
     block.data.parentId = undefined
     block.data.extent = undefined
   }
-  block.position = { x: 0, y: 0 }
 }

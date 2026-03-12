@@ -3,7 +3,7 @@ import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import { applyAutoLayout, applyTargetedLayout } from '@/lib/workflows/autolayout'
+import { applyTargetedLayout } from '@/lib/workflows/autolayout'
 import {
   DEFAULT_HORIZONTAL_SPACING,
   DEFAULT_VERTICAL_SPACING,
@@ -239,60 +239,36 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
 
     // Identify blocks that need layout by comparing against the pre-operation
-    // state. This catches genuinely new blocks AND blocks whose parent scope
-    // changed (moved into/out of a subflow), without false-positives on blocks
-    // that happen to sit at position (0,0).
+    // state. New blocks and blocks inserted into subflows (position reset to
+    // 0,0) need repositioning. Extracted blocks are excluded — their handler
+    // already computed valid absolute positions from the container offset.
     const preOperationBlockIds = new Set(Object.keys(workflowState.blocks || {}))
     const blocksNeedingLayout = Object.keys(finalWorkflowState.blocks).filter((id) => {
       if (!preOperationBlockIds.has(id)) return true
       const prevParent = workflowState.blocks[id]?.data?.parentId ?? null
       const currParent = finalWorkflowState.blocks[id]?.data?.parentId ?? null
-      return prevParent !== currParent
+      if (prevParent === currParent) return false
+      // Parent changed — only needs layout if position was reset to (0,0)
+      // by insert_into_subflow. extract_from_subflow computes absolute
+      // positions directly, so those blocks don't need repositioning.
+      const pos = finalWorkflowState.blocks[id]?.position
+      return pos?.x === 0 && pos?.y === 0
     })
 
     let layoutedBlocks = finalWorkflowState.blocks
 
     if (blocksNeedingLayout.length > 0) {
-      const totalBlocks = Object.keys(finalWorkflowState.blocks).length
-
-      if (blocksNeedingLayout.length === totalBlocks) {
-        // All blocks need layout (brand new workflow) — use full autolayout
-        const layoutResult = applyAutoLayout(finalWorkflowState.blocks, finalWorkflowState.edges, {
+      try {
+        layoutedBlocks = applyTargetedLayout(finalWorkflowState.blocks, finalWorkflowState.edges, {
+          changedBlockIds: blocksNeedingLayout,
           horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
           verticalSpacing: DEFAULT_VERTICAL_SPACING,
-          padding: { x: 100, y: 100 },
         })
-
-        layoutedBlocks =
-          layoutResult.success && layoutResult.blocks
-            ? layoutResult.blocks
-            : finalWorkflowState.blocks
-
-        if (!layoutResult.success) {
-          logger.warn('Full autolayout failed, using default positions', {
-            workflowId,
-            error: layoutResult.error,
-          })
-        }
-      } else {
-        // Only some blocks need layout — use targeted autolayout to preserve
-        // existing block positions and only reposition new blocks
-        try {
-          layoutedBlocks = applyTargetedLayout(
-            finalWorkflowState.blocks,
-            finalWorkflowState.edges,
-            {
-              changedBlockIds: blocksNeedingLayout,
-              horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
-              verticalSpacing: DEFAULT_VERTICAL_SPACING,
-            }
-          )
-        } catch (error) {
-          logger.warn('Targeted autolayout failed, using default positions', {
-            workflowId,
-            error: error instanceof Error ? error.message : String(error),
-          })
-        }
+      } catch (error) {
+        logger.warn('Targeted autolayout failed, using default positions', {
+          workflowId,
+          error: error instanceof Error ? error.message : String(error),
+        })
       }
     }
 

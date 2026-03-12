@@ -510,14 +510,19 @@ export class WorkflowDiffEngine {
 
         const totalBlocks = Object.keys(finalBlocks).length
 
-        if (blocksNeedingLayout.length === 0 && hasExistingBaseline) {
+        if (blocksNeedingLayout.length === 0) {
           logger.info('No blocks need layout; skipping autolayout', {
             totalBlocks,
           })
-        } else if (hasExistingBaseline) {
-          logger.info('Using targeted layout for copilot edits (baseline exists)', {
+        } else {
+          // Always use targeted layout for copilot edits. When anchors exist
+          // (some blocks unchanged), they preserve user positions. When no
+          // anchors exist (all blocks are new), targeted layout degrades
+          // gracefully to a full layout from the padding origin — same result
+          // as applyAutoLayout but with one unified code path.
+          logger.info('Using targeted layout for copilot edits', {
             blocksNeedingLayout: blocksNeedingLayout.length,
-            existingBlocks: baselineBlockIds.size,
+            anchors: totalBlocks - blocksNeedingLayout.length,
             totalBlocks,
           })
 
@@ -560,37 +565,6 @@ export class WorkflowDiffEngine {
             blocksLayouted: Object.keys(layoutedBlocks).length,
             blocksNeedingLayout: blocksNeedingLayout.length,
           })
-        } else {
-          // No baseline — copilot built the entire workflow from scratch
-          logger.info('Using full autolayout (no baseline, building from scratch)', {
-            totalBlocks,
-          })
-
-          const { applyAutoLayout: applyNativeAutoLayout } = await import(
-            '@/lib/workflows/autolayout'
-          )
-          const { DEFAULT_LAYOUT_OPTIONS } = await import('@/lib/workflows/autolayout/constants')
-
-          const layoutResult = applyNativeAutoLayout(
-            finalBlocks,
-            fullyCleanedState.edges,
-            DEFAULT_LAYOUT_OPTIONS
-          )
-
-          if (layoutResult.success && layoutResult.blocks) {
-            Object.entries(layoutResult.blocks).forEach(([id, layoutBlock]) => {
-              if (finalBlocks[id]) {
-                finalBlocks[id].position = layoutBlock.position
-              }
-            })
-            logger.info('Successfully applied full autolayout to proposed state', {
-              blocksLayouted: Object.keys(layoutResult.blocks).length,
-            })
-          } else {
-            logger.warn('Autolayout failed, using default positions', {
-              error: layoutResult.error,
-            })
-          }
         }
       } catch (layoutError) {
         logger.warn('Error applying autolayout, using default positions', {
