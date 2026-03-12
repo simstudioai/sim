@@ -24,7 +24,7 @@ function CircleCheck({ className }: { className?: string }) {
   )
 }
 
-function CircleStop({ className }: { className?: string }) {
+export function CircleStop({ className }: { className?: string }) {
   return (
     <svg
       width='16'

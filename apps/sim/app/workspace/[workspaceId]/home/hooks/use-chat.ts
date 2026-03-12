@@ -802,6 +802,10 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       return { type: block.type, content: block.content }
     })
 
+    if (storedBlocks.length > 0) {
+      storedBlocks.push({ type: 'stopped' })
+    }
+
     try {
       const res = await fetch('/api/mothership/chat/stop', {
         method: 'POST',
@@ -995,20 +999,19 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     setMessages((prev) =>
       prev.map((msg) => {
         if (!msg.contentBlocks?.some((b) => b.toolCall?.status === 'executing')) return msg
-        return {
-          ...msg,
-          contentBlocks: msg.contentBlocks!.map((block) => {
-            if (block.toolCall?.status !== 'executing') return block
-            return {
-              ...block,
-              toolCall: {
-                ...block.toolCall,
-                status: 'cancelled' as const,
-                displayTitle: 'Stopped by user',
-              },
-            }
-          }),
-        }
+        const updated = msg.contentBlocks!.map((block) => {
+          if (block.toolCall?.status !== 'executing') return block
+          return {
+            ...block,
+            toolCall: {
+              ...block.toolCall,
+              status: 'cancelled' as const,
+              displayTitle: 'Stopped by user',
+            },
+          }
+        })
+        updated.push({ type: 'stopped' as const })
+        return { ...msg, contentBlocks: updated }
       })
     )
 

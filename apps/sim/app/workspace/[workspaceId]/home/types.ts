@@ -113,7 +113,13 @@ export interface OptionItem {
   label: string
 }
 
-export type ContentBlockType = 'text' | 'tool_call' | 'subagent' | 'subagent_text' | 'options'
+export type ContentBlockType =
+  | 'text'
+  | 'tool_call'
+  | 'subagent'
+  | 'subagent_text'
+  | 'options'
+  | 'stopped'
 
 export interface ContentBlock {
   type: ContentBlockType
