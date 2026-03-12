@@ -197,12 +197,15 @@ export function Home({ chatId }: HomeProps = {}) {
       const { isCollapsed, toggleCollapsed } = useSidebarStore.getState()
       if (!isCollapsed) toggleCollapsed()
       setIsResourceAnimatingIn(true)
-      const timer = setTimeout(() => setIsResourceAnimatingIn(false), 400)
-      prevResourceCountRef.current = visibleResources.length
-      return () => clearTimeout(timer)
     }
     prevResourceCountRef.current = visibleResources.length
   }, [shouldEnterResourcePanel, visibleResources.length])
+
+  useEffect(() => {
+    if (!isResourceAnimatingIn) return
+    const timer = setTimeout(() => setIsResourceAnimatingIn(false), 400)
+    return () => clearTimeout(timer)
+  }, [isResourceAnimatingIn])
 
   const handleSubmit = useCallback(
     (text: string, fileAttachments?: FileAttachmentForApi[]) => {
