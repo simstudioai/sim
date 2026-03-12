@@ -12,6 +12,7 @@ import {
   filterValidEdges,
   getUniqueBlockName,
   mergeSubblockState,
+  remapConditionIds,
 } from '@/stores/workflows/utils'
 import type {
   Position,
@@ -611,6 +612,21 @@ export const useWorkflowStore = create<WorkflowStore>()(
           {}
         )
 
+        // Remap condition/router IDs in the duplicated subBlocks
+        const clonedSubBlockValues = activeWorkflowId
+          ? JSON.parse(
+              JSON.stringify(
+                useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[id] || {}
+              )
+            )
+          : {}
+        remapConditionIds(
+          newSubBlocks as Record<string, SubBlockState>,
+          clonedSubBlockValues,
+          id,
+          newId
+        )
+
         const newState = {
           blocks: {
             ...get().blocks,
@@ -630,14 +646,12 @@ export const useWorkflowStore = create<WorkflowStore>()(
         }
 
         if (activeWorkflowId) {
-          const subBlockValues =
-            useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[id] || {}
           useSubBlockStore.setState((state) => ({
             workflowValues: {
               ...state.workflowValues,
               [activeWorkflowId]: {
                 ...state.workflowValues[activeWorkflowId],
-                [newId]: JSON.parse(JSON.stringify(subBlockValues)),
+                [newId]: clonedSubBlockValues,
               },
             },
           }))
