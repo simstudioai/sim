@@ -1,0 +1,135 @@
+---
+title: Fathom
+description: Access meeting recordings, transcripts, and summaries
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="fathom"
+  color="#181C1E"
+/>
+
+## Usage Instructions
+
+Integrate Fathom AI Notetaker into your workflow. List meetings, get transcripts and summaries, and manage team members and teams. Can also trigger workflows when new meeting content is ready.
+
+
+
+## Tools
+
+### `fathom_list_meetings`
+
+List recent meetings recorded by the user or shared to their team.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fathom API Key |
+| `includeSummary` | string | No | Include meeting summary \(true/false\) |
+| `includeTranscript` | string | No | Include meeting transcript \(true/false\) |
+| `includeActionItems` | string | No | Include action items \(true/false\) |
+| `includeCrmMatches` | string | No | Include linked CRM matches \(true/false\) |
+| `createdAfter` | string | No | Filter meetings created after this ISO 8601 timestamp |
+| `createdBefore` | string | No | Filter meetings created before this ISO 8601 timestamp |
+| `recordedBy` | string | No | Filter by recorder email address |
+| `teams` | string | No | Filter by team name |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `meetings` | array | List of meetings |
+|   ↳ `title` | string | Meeting title |
+|   ↳ `recording_id` | number | Unique recording ID |
+|   ↳ `url` | string | URL to view the meeting |
+|   ↳ `share_url` | string | Shareable URL |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `transcript_language` | string | Transcript language |
+| `next_cursor` | string | Pagination cursor for next page |
+
+### `fathom_get_summary`
+
+Get the call summary for a specific meeting recording.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fathom API Key |
+| `recordingId` | string | Yes | The recording ID of the meeting |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `template_name` | string | Name of the summary template used |
+| `markdown_formatted` | string | Markdown-formatted summary text |
+
+### `fathom_get_transcript`
+
+Get the full transcript for a specific meeting recording.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fathom API Key |
+| `recordingId` | string | Yes | The recording ID of the meeting |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transcript` | array | Array of transcript entries with speaker, text, and timestamp |
+|   ↳ `speaker` | object | Speaker information |
+|     ↳ `display_name` | string | Speaker display name |
+|     ↳ `matched_calendar_invitee_email` | string | Matched calendar invitee email |
+|   ↳ `text` | string | Transcript text |
+|   ↳ `timestamp` | string | Timestamp \(HH:MM:SS\) |
+
+### `fathom_list_team_members`
+
+List team members in your Fathom organization.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fathom API Key |
+| `teams` | string | No | Team name to filter by |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | List of team members |
+|   ↳ `name` | string | Team member name |
+|   ↳ `email` | string | Team member email |
+|   ↳ `created_at` | string | Date the member was added |
+| `next_cursor` | string | Pagination cursor for next page |
+
+### `fathom_list_teams`
+
+List teams in your Fathom organization.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fathom API Key |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `teams` | array | List of teams |
+|   ↳ `name` | string | Team name |
+|   ↳ `created_at` | string | Date the team was created |
+| `next_cursor` | string | Pagination cursor for next page |
+
+

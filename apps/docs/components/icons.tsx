@@ -1979,6 +1979,24 @@ export function ElevenLabsIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function FathomIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 1000' fill='none'>
+      <path
+        d='M0,668.7v205.78c0,53.97,34.24,102.88,85.8,119.08,87.48,27.49,167.88-36.99,167.88-120.22v-77.45L0,668.7Z'
+        fill='#007299'
+      />
+      <path
+        d='M873.72,626.07c-19.05,0-38.38-4.3-56.58-13.38L72.78,241.43C11.15,210.69-17.51,136.6,11.18,74.05,41.2,8.59,119.26-18.53,183.23,13.38l744.25,371.21c62.45,31.15,91,109.08,59.79,171.43-22.22,44.38-67.02,70.05-113.55,70.05Z'
+        fill='#00beff'
+      />
+      <path
+        d='M500.09,813.66c-19.05,0-38.38-4.3-56.58-13.38l-370.72-184.9c-61.63-30.74-90.29-104.82-61.61-167.37,30.02-65.46,108.08-92.59,172.06-60.68l370.62,184.85c62.45,31.15,91,109.08,59.79,171.43-22.22,44.38-67.02,70.05-113.55,70.05Z'
+        fill='#00beff'
+      />
+    </svg>
+  )
+}
 export function LinkupIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 154 107' fill='none'>

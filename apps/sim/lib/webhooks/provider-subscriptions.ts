@@ -17,6 +17,7 @@ const airtableLogger = createLogger('AirtableWebhook')
 const typeformLogger = createLogger('TypeformWebhook')
 const calendlyLogger = createLogger('CalendlyWebhook')
 const grainLogger = createLogger('GrainWebhook')
+const fathomLogger = createLogger('FathomWebhook')
 const lemlistLogger = createLogger('LemlistWebhook')
 const webflowLogger = createLogger('WebflowWebhook')
 const attioLogger = createLogger('AttioWebhook')
@@ -793,6 +794,60 @@ export async function deleteGrainWebhook(webhook: any, requestId: string): Promi
 }
 
 /**
+ * Delete a Fathom webhook
+ * Don't fail webhook deletion if cleanup fails
+ */
+export async function deleteFathomWebhook(webhook: any, requestId: string): Promise<void> {
+  try {
+    const config = getProviderConfig(webhook)
+    const apiKey = config.apiKey as string | undefined
+    const externalId = config.externalId as string | undefined
+
+    if (!apiKey) {
+      fathomLogger.warn(
+        `[${requestId}] Missing apiKey for Fathom webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
+    if (!externalId) {
+      fathomLogger.warn(
+        `[${requestId}] Missing externalId for Fathom webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
+    const idValidation = validateAlphanumericId(externalId, 'Fathom webhook ID', 100)
+    if (!idValidation.isValid) {
+      fathomLogger.warn(
+        `[${requestId}] Invalid externalId format for Fathom webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
+    const fathomApiUrl = `https://api.fathom.ai/external/v1/webhooks/${externalId}`
+
+    const fathomResponse = await fetch(fathomApiUrl, {
+      method: 'DELETE',
+      headers: {
+        'X-Api-Key': apiKey,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!fathomResponse.ok && fathomResponse.status !== 404) {
+      fathomLogger.warn(
+        `[${requestId}] Failed to delete Fathom webhook (non-fatal): ${fathomResponse.status}`
+      )
+    } else {
+      fathomLogger.info(`[${requestId}] Successfully deleted Fathom webhook ${externalId}`)
+    }
+  } catch (error) {
+    fathomLogger.warn(`[${requestId}] Error deleting Fathom webhook (non-fatal)`, error)
+  }
+}
+
+/**
  * Delete a Lemlist webhook
  * Don't fail webhook deletion if cleanup fails
  */
@@ -1314,6 +1369,116 @@ export async function createGrainWebhookSubscription(
   }
 }
 
+export async function createFathomWebhookSubscription(
+  _request: NextRequest,
+  webhookData: any,
+  requestId: string
+): Promise<{ id: string } | undefined> {
+  try {
+    const { path, providerConfig } = webhookData
+    const {
+      apiKey,
+      triggerId,
+      triggeredFor,
+      includeSummary,
+      includeTranscript,
+      includeActionItems,
+      includeCrmMatches,
+    } = providerConfig || {}
+
+    if (!apiKey) {
+      fathomLogger.warn(`[${requestId}] Missing apiKey for Fathom webhook creation.`, {
+        webhookId: webhookData.id,
+      })
+      throw new Error(
+        'Fathom API Key is required. Please provide your API key in the trigger configuration.'
+      )
+    }
+
+    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+
+    const triggeredForValue = triggeredFor || 'my_recordings'
+
+    const toBool = (val: unknown, fallback: boolean): boolean => {
+      if (val === undefined) return fallback
+      return val === true || val === 'true'
+    }
+
+    const requestBody: Record<string, any> = {
+      destination_url: notificationUrl,
+      triggered_for: [triggeredForValue],
+      include_summary: toBool(includeSummary, true),
+      include_transcript: toBool(includeTranscript, false),
+      include_action_items: toBool(includeActionItems, false),
+      include_crm_matches: toBool(includeCrmMatches, false),
+    }
+
+    fathomLogger.info(`[${requestId}] Creating Fathom webhook`, {
+      triggerId,
+      triggeredFor: triggeredForValue,
+      webhookId: webhookData.id,
+    })
+
+    const fathomResponse = await fetch('https://api.fathom.ai/external/v1/webhooks', {
+      method: 'POST',
+      headers: {
+        'X-Api-Key': apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    const responseBody = await fathomResponse.json().catch(() => ({}))
+
+    if (!fathomResponse.ok) {
+      const errorMessage =
+        (responseBody as Record<string, string>).message ||
+        (responseBody as Record<string, string>).error ||
+        'Unknown Fathom API error'
+      fathomLogger.error(
+        `[${requestId}] Failed to create webhook in Fathom for webhook ${webhookData.id}. Status: ${fathomResponse.status}`,
+        { message: errorMessage, response: responseBody }
+      )
+
+      let userFriendlyMessage = 'Failed to create webhook subscription in Fathom'
+      if (fathomResponse.status === 401) {
+        userFriendlyMessage = 'Invalid Fathom API Key. Please verify your key is correct.'
+      } else if (fathomResponse.status === 400) {
+        userFriendlyMessage = `Fathom error: ${errorMessage}`
+      } else if (errorMessage && errorMessage !== 'Unknown Fathom API error') {
+        userFriendlyMessage = `Fathom error: ${errorMessage}`
+      }
+
+      throw new Error(userFriendlyMessage)
+    }
+
+    if (!responseBody.id) {
+      fathomLogger.error(
+        `[${requestId}] Fathom webhook creation returned success but no webhook ID for ${webhookData.id}.`
+      )
+      throw new Error('Fathom webhook created but no ID returned. Please try again.')
+    }
+
+    fathomLogger.info(
+      `[${requestId}] Successfully created webhook in Fathom for webhook ${webhookData.id}.`,
+      {
+        fathomWebhookId: responseBody.id,
+      }
+    )
+
+    return { id: responseBody.id }
+  } catch (error: any) {
+    fathomLogger.error(
+      `[${requestId}] Exception during Fathom webhook creation for webhook ${webhookData.id}.`,
+      {
+        message: error.message,
+        stack: error.stack,
+      }
+    )
+    throw error
+  }
+}
+
 export async function createLemlistWebhookSubscription(
   webhookData: any,
   requestId: string
@@ -1811,6 +1976,7 @@ const PROVIDERS_WITH_EXTERNAL_SUBSCRIPTIONS = new Set([
   'airtable',
   'attio',
   'calendly',
+  'fathom',
   'webflow',
   'typeform',
   'grain',
@@ -1923,6 +2089,12 @@ export async function createExternalWebhookSubscription(
       updatedProviderConfig = { ...updatedProviderConfig, webhookTag: usedTag }
     }
     externalSubscriptionCreated = true
+  } else if (provider === 'fathom') {
+    const result = await createFathomWebhookSubscription(request, webhookData, requestId)
+    if (result) {
+      updatedProviderConfig = { ...updatedProviderConfig, externalId: result.id }
+      externalSubscriptionCreated = true
+    }
   } else if (provider === 'grain') {
     const result = await createGrainWebhookSubscription(request, webhookData, requestId)
     if (result) {
@@ -1968,6 +2140,8 @@ export async function cleanupExternalWebhook(
     await deleteCalendlyWebhook(webhook, requestId)
   } else if (webhook.provider === 'webflow') {
     await deleteWebflowWebhook(webhook, workflow, requestId)
+  } else if (webhook.provider === 'fathom') {
+    await deleteFathomWebhook(webhook, requestId)
   } else if (webhook.provider === 'grain') {
     await deleteGrainWebhook(webhook, requestId)
   } else if (webhook.provider === 'lemlist') {
