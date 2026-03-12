@@ -202,6 +202,7 @@ export interface SSEPayloadUI {
   phaseLabel?: string
   icon?: string
   internal?: boolean
+  clientExecutable?: boolean
 }
 
 export interface SSEPayloadData {
@@ -209,6 +210,7 @@ export interface SSEPayloadData {
   ui?: SSEPayloadUI
   id?: string
   agent?: string
+  partial?: boolean
   arguments?: Record<string, unknown>
   input?: Record<string, unknown>
   result?: unknown

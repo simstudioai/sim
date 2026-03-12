@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
+import { executeRunToolOnClient } from '@/lib/copilot/client-sse/run-tool-execution'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
+import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { tableKeys } from '@/hooks/queries/tables'
 import {
@@ -249,6 +251,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       let buffer = ''
       const blocks: ContentBlock[] = []
       const toolMap = new Map<string, number>()
+      const clientExecutionStarted = new Set<string>()
       let activeSubagent: string | undefined
       let lastTableId: string | null = null
       let lastWorkflowId: string | null = null
@@ -336,6 +339,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
               const id = parsed.toolCallId
               const data = getPayloadData(parsed)
               const name = parsed.toolName || data?.name || 'unknown'
+              const isPartial = data?.partial === true
               if (!id) break
 
               if (RESOURCE_TOOL_NAMES.has(name)) {
@@ -373,6 +377,18 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                 }
               }
               flush()
+
+              if (
+                parsed.type === 'tool_call' &&
+                ui?.clientExecutable &&
+                isWorkflowToolName(name) &&
+                !isPartial &&
+                !clientExecutionStarted.has(id)
+              ) {
+                clientExecutionStarted.add(id)
+                const args = data?.arguments ?? data?.input ?? {}
+                executeRunToolOnClient(id, name, args as Record<string, unknown>)
+              }
               break
             }
             case 'tool_result': {

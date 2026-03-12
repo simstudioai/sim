@@ -18,6 +18,7 @@ import type {
   StreamingContext,
   ToolCallState,
 } from '@/lib/copilot/orchestrator/types'
+import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { executeToolAndReport, waitForToolCompletion, waitForToolDecision } from './tool-execution'
 
 const logger = createLogger('CopilotSseHandlers')
@@ -265,9 +266,17 @@ export const sseHandlers: Record<string, SSEHandler> = {
       })
     }
 
-    // Non-interactive mode (Mothership/MCP): skip confirmation & client gates,
-    // execute server-side directly.
     if (options.interactive === false) {
+      if (clientExecutable && isWorkflowToolName(toolName)) {
+        toolCall.status = 'executing'
+        const completion = await waitForToolCompletion(
+          toolCallId,
+          options.timeout || STREAM_TIMEOUT_MS,
+          options.abortSignal
+        )
+        handleClientCompletion(toolCall, toolCallId, completion)
+        return
+      }
       if (options.autoExecuteTools !== false) {
         fireToolExecution()
       }
@@ -514,9 +523,17 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
       })
     }
 
-    // Non-interactive mode (Mothership/MCP): skip confirmation & client gates,
-    // execute server-side directly.
     if (options.interactive === false) {
+      if (clientExecutable && isWorkflowToolName(toolName)) {
+        toolCall.status = 'executing'
+        const completion = await waitForToolCompletion(
+          toolCallId,
+          options.timeout || STREAM_TIMEOUT_MS,
+          options.abortSignal
+        )
+        handleClientCompletion(toolCall, toolCallId, completion)
+        return
+      }
       if (options.autoExecuteTools !== false) {
         fireToolExecution()
       }
