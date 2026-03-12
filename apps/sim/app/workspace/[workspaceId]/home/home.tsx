@@ -14,7 +14,7 @@ import {
   LandingWorkflowSeedStorage,
 } from '@/lib/core/utils/browser-storage'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
-import { useChatHistory } from '@/hooks/queries/tasks'
+import { useChatHistory, useMarkTaskRead } from '@/hooks/queries/tasks'
 import { MessageContent, MothershipView, TemplatePrompts, UserInput } from './components'
 import type { FileAttachmentForApi } from './components/user-input/user-input'
 import { useAutoScroll, useChat } from './hooks'
@@ -158,7 +158,10 @@ export function Home({ chatId }: HomeProps = {}) {
     }
   }, [createWorkflowFromLandingSeed, workspaceId, router])
 
+  const wasSendingRef = useRef(false)
+
   const { isLoading: isLoadingHistory } = useChatHistory(chatId)
+  const { mutate: markRead } = useMarkTaskRead(workspaceId)
 
   const {
     messages,
@@ -170,6 +173,17 @@ export function Home({ chatId }: HomeProps = {}) {
     activeResourceId,
     setActiveResourceId,
   } = useChat(workspaceId, chatId)
+
+  useEffect(() => {
+    if (chatId) markRead(chatId)
+  }, [chatId, markRead])
+
+  useEffect(() => {
+    if (wasSendingRef.current && !isSending && chatId) {
+      markRead(chatId)
+    }
+    wasSendingRef.current = isSending
+  }, [isSending, chatId, markRead])
 
   const [isResourceCollapsed, setIsResourceCollapsed] = useState(false)
   const [showExpandButton, setShowExpandButton] = useState(false)

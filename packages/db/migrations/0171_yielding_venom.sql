@@ -1,0 +1,1 @@
+ALTER TABLE "copilot_chats" ADD COLUMN "last_seen_at" timestamp;

@@ -63,12 +63,29 @@ import {
 import { useDeleteTask, useDeleteTasks, useRenameTask, useTasks } from '@/hooks/queries/tasks'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { useTaskEvents } from '@/hooks/use-task-events'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
+
+type TaskStatus = 'running' | 'unread' | 'idle'
+
+function TaskStatusIcon({ status }: { status: TaskStatus }) {
+  return (
+    <div className='relative h-[16px] w-[16px] flex-shrink-0'>
+      <Blimp className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+      {status === 'running' && (
+        <span className='-bottom-[1px] -right-[1px] absolute h-[7px] w-[7px] animate-pulse rounded-full border border-[var(--surface-1)] bg-[var(--brand-tertiary-2)]' />
+      )}
+      {status === 'unread' && (
+        <span className='-bottom-[1px] -right-[1px] absolute h-[7px] w-[7px] rounded-full border border-[var(--surface-1)] bg-[var(--brand-tertiary)]' />
+      )}
+    </div>
+  )
+}
 
 function SidebarItemSkeleton() {
   return (
@@ -80,15 +97,17 @@ function SidebarItemSkeleton() {
 
 const SidebarTaskItem = memo(function SidebarTaskItem({
   task,
-  active,
+  isCurrentRoute,
   isSelected,
+  status,
   showCollapsedContent,
   onMultiSelectClick,
   onContextMenu,
 }: {
   task: { id: string; href: string; name: string }
-  active: boolean
+  isCurrentRoute: boolean
   isSelected: boolean
+  status: TaskStatus
   showCollapsedContent: boolean
   onMultiSelectClick: (taskId: string, shiftKey: boolean, metaKey: boolean) => void
   onContextMenu: (e: React.MouseEvent, taskId: string) => void
@@ -100,7 +119,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
           href={task.href}
           className={cn(
             'mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
-            (active || isSelected) && 'bg-[var(--surface-active)]'
+            (isCurrentRoute || isSelected) && 'bg-[var(--surface-active)]'
           )}
           onClick={(e) => {
             if (task.id === 'new') return
@@ -113,7 +132,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
           }}
           onContextMenu={task.id !== 'new' ? (e) => onContextMenu(e, task.id) : undefined}
         >
-          <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+          <TaskStatusIcon status={status} />
           <div className='min-w-0 truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
             {task.name}
           </div>
@@ -507,6 +526,8 @@ export const Sidebar = memo(function Sidebar() {
 
   const { data: fetchedTasks = [], isLoading: tasksLoading } = useTasks(workspaceId)
 
+  useTaskEvents(workspaceId)
+
   const tasks = useMemo(
     () =>
       fetchedTasks.length > 0
@@ -514,7 +535,15 @@ export const Sidebar = memo(function Sidebar() {
             ...t,
             href: `/workspace/${workspaceId}/task/${t.id}`,
           }))
-        : [{ id: 'new', name: 'New task', href: `/workspace/${workspaceId}/home` }],
+        : [
+            {
+              id: 'new',
+              name: 'New task',
+              href: `/workspace/${workspaceId}/home`,
+              isActive: false,
+              isUnread: false,
+            },
+          ],
     [fetchedTasks, workspaceId]
   )
 
@@ -1018,9 +1047,16 @@ export const Sidebar = memo(function Sidebar() {
                     ) : (
                       <>
                         {tasks.slice(0, visibleTaskCount).map((task) => {
-                          const active = task.id !== 'new' && pathname === task.href
+                          const isCurrentRoute = task.id !== 'new' && pathname === task.href
                           const isRenaming = renamingTaskId === task.id
                           const isSelected = task.id !== 'new' && selectedTasks.has(task.id)
+                          const status: TaskStatus = isCurrentRoute
+                            ? 'idle'
+                            : task.isActive
+                              ? 'running'
+                              : task.isUnread
+                                ? 'unread'
+                                : 'idle'
 
                           if (!isCollapsed && isRenaming) {
                             return (
@@ -1028,7 +1064,7 @@ export const Sidebar = memo(function Sidebar() {
                                 key={task.id}
                                 className='mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] bg-[var(--surface-active)] px-[8px] text-[14px]'
                               >
-                                <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                                <TaskStatusIcon status={status} />
                                 <input
                                   ref={renameInputRef}
                                   value={renameValue}
@@ -1045,8 +1081,9 @@ export const Sidebar = memo(function Sidebar() {
                             <SidebarTaskItem
                               key={task.id}
                               task={task}
-                              active={active}
+                              isCurrentRoute={isCurrentRoute}
                               isSelected={isSelected}
+                              status={status}
                               showCollapsedContent={showCollapsedContent}
                               onMultiSelectClick={handleTaskClick}
                               onContextMenu={handleTaskContextMenu}

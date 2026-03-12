@@ -10,6 +10,7 @@ import {
   resetStreamBuffer,
   setStreamMeta,
 } from '@/lib/copilot/orchestrator/stream/buffer'
+import { taskPubSub } from '@/lib/copilot/task-events'
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('CopilotChatStreaming')
@@ -85,6 +86,7 @@ export interface StreamingOrchestrationParams {
   titleModel: string
   titleProvider?: string
   requestId: string
+  workspaceId?: string
   orchestrateOptions: Omit<OrchestrateStreamOptions, 'onEvent'>
 }
 
@@ -100,6 +102,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
     titleModel,
     titleProvider,
     requestId,
+    workspaceId,
     orchestrateOptions,
   } = params
 
@@ -157,6 +160,9 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             if (title) {
               await db.update(copilotChats).set({ title }).where(eq(copilotChats.id, chatId!))
               await pushEvent({ type: 'title_updated', title })
+              if (workspaceId) {
+                taskPubSub?.publishStatusChanged({ workspaceId, chatId: chatId!, type: 'renamed' })
+              }
             }
           })
           .catch((error) => {

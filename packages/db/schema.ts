@@ -1568,6 +1568,7 @@ export const copilotChats = pgTable(
     previewYaml: text('preview_yaml'),
     planArtifact: text('plan_artifact'),
     config: jsonb('config'),
+    lastSeenAt: timestamp('last_seen_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
