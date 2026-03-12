@@ -224,7 +224,11 @@ export function buildOfferCreateOutputs(): Record<string, TriggerOutput> {
         description:
           'Offer process status (WaitingOnApprovalStart, WaitingOnOfferApproval, WaitingOnCandidateResponse, CandidateAccepted, CandidateRejected, OfferCancelled)',
       },
-      decidedAt: { type: 'string', description: 'Offer decision timestamp (ISO 8601)' },
+      decidedAt: {
+        type: 'string',
+        description:
+          'Offer decision timestamp (ISO 8601). Typically null at creation; populated after candidate responds.',
+      },
       latestVersion: {
         id: { type: 'string', description: 'Latest offer version UUID' },
       },

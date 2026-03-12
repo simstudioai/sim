@@ -2309,10 +2309,12 @@ export async function deleteAshbyWebhook(webhook: any, requestId: string): Promi
     })
 
     if (ashbyResponse.ok) {
+      await ashbyResponse.body?.cancel()
       ashbyLogger.info(
         `[${requestId}] Successfully deleted Ashby webhook subscription ${externalId}`
       )
     } else if (ashbyResponse.status === 404) {
+      await ashbyResponse.body?.cancel()
       ashbyLogger.info(
         `[${requestId}] Ashby webhook ${externalId} not found during deletion (already removed)`
       )
