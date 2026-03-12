@@ -2224,7 +2224,7 @@ export async function createAshbyWebhookSubscription(
       body: JSON.stringify(requestBody),
     })
 
-    const responseBody = await ashbyResponse.json()
+    const responseBody = await ashbyResponse.json().catch(() => ({}))
 
     if (!ashbyResponse.ok || !responseBody.success) {
       const errorMessage =

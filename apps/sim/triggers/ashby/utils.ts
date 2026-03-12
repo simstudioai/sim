@@ -47,6 +47,7 @@ export function buildAshbyExtraFields(triggerId: string): SubBlockConfig[] {
       description: 'Required to create the webhook in Ashby. Must have apiKeysWrite permission.',
       password: true,
       required: true,
+      paramVisibility: 'user-only',
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },
     },
@@ -87,36 +88,37 @@ export function buildApplicationSubmitOutputs(): Record<string, TriggerOutput> {
 
 /**
  * Build outputs for candidateStageChange events.
- * Payload: { action, data: { candidate: { id, firstName, lastName, email },
- *   application: { id, stage: { id, name } },
- *   stageChange: { fromStage: { id, name }, toStage: { id, name }, changedAt } } }
+ * Payload matches the application object structure (same as applicationUpdate).
+ * Payload: { action, data: { application: { id, createdAt, updatedAt, status,
+ *   candidate: { id, name }, currentInterviewStage: { id, title, type },
+ *   job: { id, title } } } }
  */
 export function buildCandidateStageChangeOutputs(): Record<string, TriggerOutput> {
   return {
     ...coreOutputs,
-    candidate: {
-      id: { type: 'string', description: 'Candidate UUID' },
-      firstName: { type: 'string', description: 'Candidate first name' },
-      lastName: { type: 'string', description: 'Candidate last name' },
-      email: { type: 'string', description: 'Candidate email address' },
-    },
     application: {
       id: { type: 'string', description: 'Application UUID' },
-      stage: {
-        id: { type: 'string', description: 'Current stage UUID' },
-        name: { type: 'string', description: 'Current stage name' },
+      createdAt: { type: 'string', description: 'Application creation timestamp (ISO 8601)' },
+      updatedAt: {
+        type: 'string',
+        description: 'Application last update timestamp (ISO 8601)',
       },
-    },
-    stageChange: {
-      fromStage: {
-        id: { type: 'string', description: 'Previous stage UUID' },
-        name: { type: 'string', description: 'Previous stage name' },
+      status: {
+        type: 'string',
+        description: 'Application status (Active, Hired, Archived, Lead)',
       },
-      toStage: {
-        id: { type: 'string', description: 'New stage UUID' },
-        name: { type: 'string', description: 'New stage name' },
+      candidate: {
+        id: { type: 'string', description: 'Candidate UUID' },
+        name: { type: 'string', description: 'Candidate name' },
       },
-      changedAt: { type: 'string', description: 'Stage change timestamp' },
+      currentInterviewStage: {
+        id: { type: 'string', description: 'Current interview stage UUID' },
+        title: { type: 'string', description: 'Current interview stage title' },
+      },
+      job: {
+        id: { type: 'string', description: 'Job UUID' },
+        title: { type: 'string', description: 'Job title' },
+      },
     },
   } as Record<string, TriggerOutput>
 }
@@ -145,7 +147,6 @@ export function buildCandidateHireOutputs(): Record<string, TriggerOutput> {
       currentInterviewStage: {
         id: { type: 'string', description: 'Current interview stage UUID' },
         title: { type: 'string', description: 'Current interview stage title' },
-        stageType: { type: 'string', description: 'Interview stage type' },
       },
       job: {
         id: { type: 'string', description: 'Job UUID' },
