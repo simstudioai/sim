@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
@@ -13,7 +13,7 @@ import {
   taskKeys,
   useChatHistory,
 } from '@/hooks/queries/tasks'
-import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
+import { useWorkspaceFiles, workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { FileAttachmentForApi } from '../components/user-input/user-input'
 import type {
@@ -50,6 +50,31 @@ const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
   success: 'success',
   error: 'error',
 } as const
+
+function areResourcesEqual(left: MothershipResource[], right: MothershipResource[]): boolean {
+  if (left.length !== right.length) return false
+  return left.every(
+    (resource, index) =>
+      resource.id === right[index]?.id &&
+      resource.type === right[index]?.type &&
+      resource.title === right[index]?.title
+  )
+}
+
+function sanitizeResources(
+  resources: MothershipResource[],
+  existingFileIds: Set<string>,
+  shouldFilterMissingFiles: boolean
+): MothershipResource[] {
+  return resources.filter((resource) => {
+    if (resource.type === 'file') {
+      if (shouldFilterMissingFiles && !existingFileIds.has(resource.id)) {
+        return false
+      }
+    }
+    return true
+  })
+}
 
 function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
   const mapped: ContentBlock = {
@@ -159,6 +184,12 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   const isHomePage = pathname.endsWith('/home')
 
   const { data: chatHistory } = useChatHistory(initialChatId)
+  const { data: workspaceFiles = [], isLoading: isWorkspaceFilesLoading } = useWorkspaceFiles(workspaceId)
+
+  const existingWorkspaceFileIds = useMemo(
+    () => new Set(workspaceFiles.map((file) => file.id)),
+    [workspaceFiles]
+  )
 
   const addResource = useCallback((resource: MothershipResource) => {
     setResources((prev) => {
@@ -238,6 +269,26 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       }
     }
   }, [chatHistory, workspaceId])
+
+  useEffect(() => {
+    setResources((prev) => {
+      const next = sanitizeResources(prev, existingWorkspaceFileIds, !isWorkspaceFilesLoading)
+      return areResourcesEqual(prev, next) ? prev : next
+    })
+  }, [existingWorkspaceFileIds, isWorkspaceFilesLoading])
+
+  useEffect(() => {
+    if (resources.length === 0) {
+      if (activeResourceId !== null) {
+        setActiveResourceId(null)
+      }
+      return
+    }
+
+    if (!activeResourceId || !resources.some((resource) => resource.id === activeResourceId)) {
+      setActiveResourceId(resources[resources.length - 1].id)
+    }
+  }, [activeResourceId, resources])
 
   const processSSEStream = useCallback(
     async (reader: ReadableStreamDefaultReader<Uint8Array>, assistantId: string) => {
