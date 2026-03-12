@@ -47,6 +47,7 @@ export interface TableDefinition {
   maxRows: number
   workspaceId: string
   createdBy: string
+  archivedAt?: Date | string | null
   createdAt: Date | string
   updatedAt: Date | string
 }

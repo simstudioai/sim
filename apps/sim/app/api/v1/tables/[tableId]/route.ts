@@ -84,7 +84,7 @@ export async function GET(request: NextRequest, { params }: TableRouteParams) {
   }
 }
 
-/** DELETE /api/v1/tables/[tableId] — Delete a table. */
+/** DELETE /api/v1/tables/[tableId] — Archive a table. */
 export async function DELETE(request: NextRequest, { params }: TableRouteParams) {
   const requestId = generateRequestId()
 
@@ -125,14 +125,14 @@ export async function DELETE(request: NextRequest, { params }: TableRouteParams)
       resourceType: AuditResourceType.TABLE,
       resourceId: tableId,
       resourceName: result.table.name,
-      description: `Deleted table "${result.table.name}"`,
+      description: `Archived table "${result.table.name}"`,
       request,
     })
 
     return NextResponse.json({
       success: true,
       data: {
-        message: 'Table deleted successfully',
+        message: 'Table archived successfully',
       },
     })
   } catch (error) {

@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import { db } from '@sim/db'
 import { chat, workflowMcpTool } from '@sim/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
@@ -87,7 +87,11 @@ export async function executeDeployChat(
       return { success: false, error: 'Workflow not found or access denied' }
     }
 
-    const existing = await db.select().from(chat).where(eq(chat.workflowId, workflowId)).limit(1)
+    const existing = await db
+      .select()
+      .from(chat)
+      .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt)))
+      .limit(1)
     const existingDeployment = existing[0] || null
 
     const identifier = String(params.identifier || existingDeployment?.identifier || '').trim()
@@ -107,7 +111,7 @@ export async function executeDeployChat(
     const existingIdentifier = await db
       .select()
       .from(chat)
-      .where(eq(chat.identifier, identifier))
+      .where(and(eq(chat.identifier, identifier), isNull(chat.archivedAt)))
       .limit(1)
     if (existingIdentifier.length > 0 && existingIdentifier[0].id !== existingDeployment?.id) {
       return { success: false, error: 'Identifier already in use' }
@@ -228,9 +232,14 @@ export async function executeDeployMcp(
     // Handle undeploy action — remove workflow from MCP server
     if (params.action === 'undeploy') {
       const deleted = await db
-        .delete(workflowMcpTool)
+        .update(workflowMcpTool)
+        .set({ archivedAt: new Date(), updatedAt: new Date() })
         .where(
-          and(eq(workflowMcpTool.serverId, serverId), eq(workflowMcpTool.workflowId, workflowId))
+          and(
+            eq(workflowMcpTool.serverId, serverId),
+            eq(workflowMcpTool.workflowId, workflowId),
+            isNull(workflowMcpTool.archivedAt)
+          )
         )
         .returning({ id: workflowMcpTool.id })
 
@@ -257,7 +266,11 @@ export async function executeDeployMcp(
       .select()
       .from(workflowMcpTool)
       .where(
-        and(eq(workflowMcpTool.serverId, serverId), eq(workflowMcpTool.workflowId, workflowId))
+        and(
+          eq(workflowMcpTool.serverId, serverId),
+          eq(workflowMcpTool.workflowId, workflowId),
+          isNull(workflowMcpTool.archivedAt)
+        )
       )
       .limit(1)
 

@@ -5,10 +5,13 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Filter, RowData, Sort, TableDefinition, TableMetadata, TableRow } from '@/lib/table'
 
+type TableQueryScope = 'active' | 'archived' | 'all'
+
 export const tableKeys = {
   all: ['tables'] as const,
   lists: () => [...tableKeys.all, 'list'] as const,
-  list: (workspaceId?: string) => [...tableKeys.lists(), workspaceId ?? ''] as const,
+  list: (workspaceId?: string, scope: TableQueryScope = 'active') =>
+    [...tableKeys.lists(), workspaceId ?? '', scope] as const,
   details: () => [...tableKeys.all, 'detail'] as const,
   detail: (tableId: string) => [...tableKeys.details(), tableId] as const,
   rowsRoot: (tableId: string) => [...tableKeys.detail(tableId), 'rows'] as const,
@@ -129,7 +132,7 @@ function invalidateRowCount(
 ) {
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
-  queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
+  queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
 }
 
 function invalidateTableSchema(
@@ -139,21 +142,24 @@ function invalidateTableSchema(
 ) {
   queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
-  queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
+  queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
 }
 
 /**
  * Fetch all tables for a workspace.
  */
-export function useTablesList(workspaceId?: string) {
+export function useTablesList(workspaceId?: string, scope: TableQueryScope = 'active') {
   return useQuery({
-    queryKey: tableKeys.list(workspaceId),
+    queryKey: tableKeys.list(workspaceId, scope),
     queryFn: async ({ signal }) => {
       if (!workspaceId) throw new Error('Workspace ID required')
 
-      const res = await fetch(`/api/table?workspaceId=${encodeURIComponent(workspaceId)}`, {
-        signal,
-      })
+      const res = await fetch(
+        `/api/table?workspaceId=${encodeURIComponent(workspaceId)}&scope=${scope}`,
+        {
+          signal,
+        }
+      )
 
       if (!res.ok) {
         const error = await res.json()
@@ -239,7 +245,7 @@ export function useCreateTable(workspaceId: string) {
       return res.json()
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
     },
   })
 }
@@ -300,7 +306,7 @@ export function useRenameTable(workspaceId: string) {
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.detail(variables.tableId) })
-      queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
     },
   })
 }
@@ -327,8 +333,10 @@ export function useDeleteTable(workspaceId: string) {
 
       return res.json()
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
+    onSettled: (_data, _error, tableId) => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      queryClient.removeQueries({ queryKey: tableKeys.detail(tableId) })
+      queryClient.removeQueries({ queryKey: tableKeys.rowsRoot(tableId) })
     },
   })
 }

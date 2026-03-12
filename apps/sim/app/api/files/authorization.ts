@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { document, workspaceFile } from '@sim/db/schema'
+import { document, knowledgeBase, workspaceFile } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq, like, or } from 'drizzle-orm'
+import { and, eq, isNull, like, or } from 'drizzle-orm'
 import { getFileMetadata } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import {
@@ -30,11 +30,13 @@ export interface AuthorizationResult {
  * @returns Workspace file info or null if not found
  */
 export async function lookupWorkspaceFileByKey(
-  key: string
+  key: string,
+  options?: { includeDeleted?: boolean }
 ): Promise<{ workspaceId: string; uploadedBy: string } | null> {
   try {
+    const { includeDeleted = false } = options ?? {}
     // Priority 1: Check new workspaceFiles table
-    const fileRecord = await getFileMetadataByKey(key, 'workspace')
+    const fileRecord = await getFileMetadataByKey(key, 'workspace', { includeDeleted })
 
     if (fileRecord) {
       return {
@@ -51,7 +53,11 @@ export async function lookupWorkspaceFileByKey(
           uploadedBy: workspaceFile.uploadedBy,
         })
         .from(workspaceFile)
-        .where(eq(workspaceFile.key, key))
+        .where(
+          includeDeleted
+            ? eq(workspaceFile.key, key)
+            : and(eq(workspaceFile.key, key), isNull(workspaceFile.deletedAt))
+        )
         .limit(1)
 
       if (legacyFile) {
@@ -165,6 +171,17 @@ async function verifyWorkspaceFileAccess(
   isLocal?: boolean
 ): Promise<boolean> {
   try {
+    const anyWorkspaceFileRecord = await getFileMetadataByKey(cloudKey, 'workspace', {
+      includeDeleted: true,
+    })
+    if (anyWorkspaceFileRecord?.deletedAt) {
+      logger.warn('Workspace file access denied for archived file', {
+        userId,
+        cloudKey,
+      })
+      return false
+    }
+
     // Priority 1: Check database (most reliable, works for both local and cloud)
     const workspaceFileRecord = await lookupWorkspaceFileByKey(cloudKey)
     if (workspaceFileRecord) {
@@ -352,7 +369,17 @@ async function verifyKBFileAccess(
 ): Promise<boolean> {
   try {
     // Priority 1: Check workspaceFiles table (new system)
-    const fileRecord = await getFileMetadataByKey(cloudKey, 'knowledge-base')
+    const fileRecord = await getFileMetadataByKey(cloudKey, 'knowledge-base', {
+      includeDeleted: true,
+    })
+
+    if (fileRecord?.deletedAt) {
+      logger.warn('KB file access denied for archived file metadata', {
+        userId,
+        cloudKey,
+      })
+      return false
+    }
 
     if (fileRecord?.workspaceId) {
       const permission = await getUserEntityPermissions(userId, 'workspace', fileRecord.workspaceId)
@@ -381,22 +408,24 @@ async function verifyKBFileAccess(
         })
         .from(document)
         .where(
-          or(
-            like(document.fileUrl, `%${cloudKey}%`),
-            like(document.fileUrl, `%${encodeURIComponent(cloudKey)}%`)
+          and(
+            isNull(document.deletedAt),
+            or(
+              like(document.fileUrl, `%${cloudKey}%`),
+              like(document.fileUrl, `%${encodeURIComponent(cloudKey)}%`)
+            )
           )
         )
         .limit(10) // Limit to avoid scanning too many
 
       // Check each document's knowledge base for workspace access
       for (const doc of documents) {
-        const { knowledgeBase } = await import('@sim/db/schema')
         const [kb] = await db
           .select({
             workspaceId: knowledgeBase.workspaceId,
           })
           .from(knowledgeBase)
-          .where(eq(knowledgeBase.id, doc.knowledgeBaseId))
+          .where(and(eq(knowledgeBase.id, doc.knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
           .limit(1)
 
         if (kb?.workspaceId) {

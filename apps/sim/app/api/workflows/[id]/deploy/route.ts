@@ -11,6 +11,7 @@ import {
   saveTriggerWebhooksForDeploy,
 } from '@/lib/webhooks/deploy'
 import {
+  activateWorkflowVersionById,
   deployWorkflow,
   loadWorkflowFromNormalizedTables,
   undeployWorkflow,
@@ -154,6 +155,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .limit(1)
     const previousVersionId = currentActiveVersion?.id
 
+    const rollbackDeployment = async () => {
+      if (previousVersionId) {
+        await restorePreviousVersionWebhooks({
+          request,
+          workflow: workflowData as Record<string, unknown>,
+          userId: actorUserId,
+          previousVersionId,
+          requestId,
+        })
+        const reactivateResult = await activateWorkflowVersionById({
+          workflowId: id,
+          deploymentVersionId: previousVersionId,
+        })
+        if (reactivateResult.success) {
+          return
+        }
+      }
+
+      await undeployWorkflow({ workflowId: id })
+    }
+
     const deployResult = await deployWorkflow({
       workflowId: id,
       deployedBy: actorUserId,
@@ -190,7 +212,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         requestId,
         deploymentVersionId,
       })
-      await undeployWorkflow({ workflowId: id })
+      await rollbackDeployment()
       return createErrorResponse(
         triggerSaveResult.error?.message || 'Failed to save trigger configuration',
         triggerSaveResult.error?.status || 500
@@ -214,16 +236,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         requestId,
         deploymentVersionId,
       })
-      if (previousVersionId) {
-        await restorePreviousVersionWebhooks({
-          request,
-          workflow: workflowData as Record<string, unknown>,
-          userId: actorUserId,
-          previousVersionId,
-          requestId,
-        })
-      }
-      await undeployWorkflow({ workflowId: id })
+      await rollbackDeployment()
       return createErrorResponse(scheduleResult.error || 'Failed to create schedule', 500)
     }
     if (scheduleResult.scheduleId) {

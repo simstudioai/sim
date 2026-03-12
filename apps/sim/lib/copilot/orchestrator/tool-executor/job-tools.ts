@@ -1,12 +1,19 @@
 import { db } from '@sim/db'
 import { copilotChats, workflowSchedule } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import { parseCronToHumanReadable, validateCronExpression } from '@/lib/workflows/schedules/utils'
 
 const logger = createLogger('JobTools')
+
+const ACTIVE_JOB_CONDITION = (workspaceId: string) =>
+  and(
+    eq(workflowSchedule.sourceWorkspaceId, workspaceId),
+    eq(workflowSchedule.sourceType, 'job'),
+    isNull(workflowSchedule.archivedAt)
+  )
 
 interface CreateJobParams {
   title?: string
@@ -225,12 +232,7 @@ export async function executeManageJob(
             createdAt: workflowSchedule.createdAt,
           })
           .from(workflowSchedule)
-          .where(
-            and(
-              eq(workflowSchedule.sourceWorkspaceId, context.workspaceId),
-              eq(workflowSchedule.sourceType, 'job')
-            )
-          )
+          .where(ACTIVE_JOB_CONDITION(context.workspaceId))
 
         return {
           success: true,
@@ -272,11 +274,7 @@ export async function executeManageJob(
           .select()
           .from(workflowSchedule)
           .where(
-            and(
-              eq(workflowSchedule.id, args.jobId),
-              eq(workflowSchedule.sourceType, 'job'),
-              eq(workflowSchedule.sourceWorkspaceId, context.workspaceId)
-            )
+            and(eq(workflowSchedule.id, args.jobId), ACTIVE_JOB_CONDITION(context.workspaceId))
           )
           .limit(1)
 
@@ -322,11 +320,7 @@ export async function executeManageJob(
           .select({ id: workflowSchedule.id })
           .from(workflowSchedule)
           .where(
-            and(
-              eq(workflowSchedule.id, args.jobId),
-              eq(workflowSchedule.sourceType, 'job'),
-              eq(workflowSchedule.sourceWorkspaceId, context.workspaceId)
-            )
+            and(eq(workflowSchedule.id, args.jobId), ACTIVE_JOB_CONDITION(context.workspaceId))
           )
           .limit(1)
 
@@ -380,7 +374,10 @@ export async function executeManageJob(
           updates.maxRuns = args.maxRuns
         }
 
-        await db.update(workflowSchedule).set(updates).where(eq(workflowSchedule.id, args.jobId))
+        await db
+          .update(workflowSchedule)
+          .set(updates)
+          .where(and(eq(workflowSchedule.id, args.jobId), isNull(workflowSchedule.archivedAt)))
 
         logger.info('Job updated', { jobId: args.jobId, fields: Object.keys(updates) })
 
@@ -410,11 +407,7 @@ export async function executeManageJob(
           .select({ id: workflowSchedule.id })
           .from(workflowSchedule)
           .where(
-            and(
-              eq(workflowSchedule.id, args.jobId),
-              eq(workflowSchedule.sourceType, 'job'),
-              eq(workflowSchedule.sourceWorkspaceId, context.workspaceId)
-            )
+            and(eq(workflowSchedule.id, args.jobId), ACTIVE_JOB_CONDITION(context.workspaceId))
           )
           .limit(1)
 
@@ -422,7 +415,15 @@ export async function executeManageJob(
           return { success: false, error: `Job not found: ${args.jobId}` }
         }
 
-        await db.delete(workflowSchedule).where(eq(workflowSchedule.id, args.jobId))
+        await db
+          .update(workflowSchedule)
+          .set({
+            archivedAt: new Date(),
+            updatedAt: new Date(),
+            status: 'disabled',
+            nextRunAt: null,
+          })
+          .where(and(eq(workflowSchedule.id, args.jobId), isNull(workflowSchedule.archivedAt)))
 
         logger.info('Job deleted', { jobId: args.jobId })
 
@@ -464,7 +465,13 @@ export async function executeCompleteJob(
         sourceWorkspaceId: workflowSchedule.sourceWorkspaceId,
       })
       .from(workflowSchedule)
-      .where(and(eq(workflowSchedule.id, jobId), eq(workflowSchedule.sourceType, 'job')))
+      .where(
+        and(
+          eq(workflowSchedule.id, jobId),
+          eq(workflowSchedule.sourceType, 'job'),
+          isNull(workflowSchedule.archivedAt)
+        )
+      )
       .limit(1)
 
     if (!job) {
@@ -489,7 +496,7 @@ export async function executeCompleteJob(
         nextRunAt: null,
         updatedAt: new Date(),
       })
-      .where(eq(workflowSchedule.id, jobId))
+      .where(and(eq(workflowSchedule.id, jobId), isNull(workflowSchedule.archivedAt)))
 
     logger.info('Job completed', { jobId })
 
@@ -526,13 +533,7 @@ export async function executeUpdateJobHistory(
         jobHistory: workflowSchedule.jobHistory,
       })
       .from(workflowSchedule)
-      .where(
-        and(
-          eq(workflowSchedule.id, jobId),
-          eq(workflowSchedule.sourceType, 'job'),
-          eq(workflowSchedule.sourceWorkspaceId, context.workspaceId)
-        )
-      )
+      .where(and(eq(workflowSchedule.id, jobId), ACTIVE_JOB_CONDITION(context.workspaceId)))
       .limit(1)
 
     if (!job) {
@@ -545,7 +546,7 @@ export async function executeUpdateJobHistory(
     await db
       .update(workflowSchedule)
       .set({ jobHistory: updated, updatedAt: new Date() })
-      .where(eq(workflowSchedule.id, jobId))
+      .where(and(eq(workflowSchedule.id, jobId), isNull(workflowSchedule.archivedAt)))
 
     logger.info('Job history updated', { jobId, entryCount: updated.length })
 

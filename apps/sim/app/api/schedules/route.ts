@@ -80,6 +80,7 @@ export async function GET(req: NextRequest) {
       .where(
         and(
           ...conditions,
+          isNull(workflowSchedule.archivedAt),
           or(
             eq(workflowSchedule.deploymentVersionId, workflowDeploymentVersion.id),
             and(isNull(workflowDeploymentVersion.id), isNull(workflowSchedule.deploymentVersionId))
@@ -141,7 +142,9 @@ async function handleWorkspaceSchedules(requestId: string, userId: string, works
       .where(
         and(
           eq(workflow.workspaceId, workspaceId),
+          isNull(workflow.archivedAt),
           eq(workflowSchedule.triggerType, 'schedule'),
+          isNull(workflowSchedule.archivedAt),
           or(eq(workflowSchedule.sourceType, 'workflow'), isNull(workflowSchedule.sourceType)),
           or(
             eq(workflowSchedule.deploymentVersionId, workflowDeploymentVersion.id),
@@ -155,7 +158,8 @@ async function handleWorkspaceSchedules(requestId: string, userId: string, works
       .where(
         and(
           eq(workflowSchedule.sourceWorkspaceId, workspaceId),
-          eq(workflowSchedule.sourceType, 'job')
+          eq(workflowSchedule.sourceType, 'job'),
+          isNull(workflowSchedule.archivedAt)
         )
       ),
   ])

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { form } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
@@ -134,7 +134,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         const existingIdentifier = await db
           .select()
           .from(form)
-          .where(eq(form.identifier, identifier))
+          .where(and(eq(form.identifier, identifier), isNull(form.archivedAt)))
           .limit(1)
 
         if (existingIdentifier.length > 0) {

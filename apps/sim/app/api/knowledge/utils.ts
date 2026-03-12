@@ -293,7 +293,13 @@ export async function checkDocumentWriteAccess(
       externalId: document.externalId,
     })
     .from(document)
-    .where(and(eq(document.id, documentId), isNull(document.deletedAt)))
+    .where(
+      and(
+        eq(document.id, documentId),
+        eq(document.knowledgeBaseId, knowledgeBaseId),
+        isNull(document.deletedAt)
+      )
+    )
     .limit(1)
 
   if (doc.length === 0) {

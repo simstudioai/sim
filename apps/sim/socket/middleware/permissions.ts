@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import {
   BLOCK_OPERATIONS,
@@ -93,7 +93,7 @@ export async function verifyWorkflowAccess(
         name: workflow.name,
       })
       .from(workflow)
-      .where(eq(workflow.id, workflowId))
+      .where(and(eq(workflow.id, workflowId), isNull(workflow.archivedAt)))
       .limit(1)
 
     if (!workflowData.length) {

@@ -646,7 +646,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                   if (redirected?.type === 'file') {
                     resource = redirected
                     queryClient.invalidateQueries({
-                      queryKey: workspaceFilesKeys.list(workspaceId),
+                      queryKey: workspaceFilesKeys.lists(),
                     })
                     queryClient.invalidateQueries({
                       queryKey: workspaceFilesKeys.content(workspaceId, resource.id),
@@ -655,7 +655,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                     resource = extractTableResource(parsed, storedArgs, lastTableId)
                     if (resource) {
                       lastTableId = resource.id
-                      queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
+                      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
                       queryClient.invalidateQueries({ queryKey: tableKeys.detail(resource.id) })
                       queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(resource.id) })
                     }
@@ -664,7 +664,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                   resource = extractFileResource(parsed, storedArgs)
                   if (resource) {
                     queryClient.invalidateQueries({
-                      queryKey: workspaceFilesKeys.list(workspaceId),
+                      queryKey: workspaceFilesKeys.lists(),
                     })
                     queryClient.invalidateQueries({
                       queryKey: workspaceFilesKeys.content(workspaceId, resource.id),
@@ -675,12 +675,12 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                   if (resource) {
                     if (resource.type === 'table') {
                       lastTableId = resource.id
-                      queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
+                      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
                       queryClient.invalidateQueries({ queryKey: tableKeys.detail(resource.id) })
                       queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(resource.id) })
                     } else if (resource.type === 'file') {
                       queryClient.invalidateQueries({
-                        queryKey: workspaceFilesKeys.list(workspaceId),
+                        queryKey: workspaceFilesKeys.lists(),
                       })
                       queryClient.invalidateQueries({
                         queryKey: workspaceFilesKeys.content(workspaceId, resource.id),
@@ -691,7 +691,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                   resource = extractFunctionExecuteResource(parsed, storedArgs)
                   if (resource?.type === 'table') {
                     lastTableId = resource.id
-                    queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
+                    queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
                     queryClient.invalidateQueries({ queryKey: tableKeys.detail(resource.id) })
                     queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(resource.id) })
                   }
@@ -704,7 +704,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                     } else {
                       useWorkflowRegistry.getState().loadWorkflowState(resource.id)
                     }
-                    queryClient.invalidateQueries({ queryKey: workflowKeys.list(workspaceId) })
+                    queryClient.invalidateQueries({ queryKey: workflowKeys.lists() })
                   }
                 } else if (toolName === 'knowledge_base') {
                   resource = extractKnowledgeBaseResource(parsed, storedArgs)
@@ -713,7 +713,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                       queryKey: knowledgeKeys.detail(resource.id),
                     })
                     queryClient.invalidateQueries({
-                      queryKey: knowledgeKeys.list(workspaceId),
+                      queryKey: knowledgeKeys.all,
                     })
                   }
                 } else if (toolName === 'knowledge') {
@@ -723,7 +723,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                   }
                   if (kbResources.length > 0) {
                     queryClient.invalidateQueries({
-                      queryKey: knowledgeKeys.list(workspaceId),
+                      queryKey: knowledgeKeys.all,
                     })
                   }
                 }

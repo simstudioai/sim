@@ -255,7 +255,7 @@ export function useDeleteFolderMutation() {
     },
     onSuccess: async (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: folderKeys.list(variables.workspaceId) })
-      queryClient.invalidateQueries({ queryKey: workflowKeys.list(variables.workspaceId) })
+      queryClient.invalidateQueries({ queryKey: workflowKeys.lists() })
     },
   })
 }
@@ -324,7 +324,7 @@ export function useDuplicateFolderMutation() {
     ...handlers,
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: folderKeys.list(variables.workspaceId) })
-      queryClient.invalidateQueries({ queryKey: workflowKeys.list(variables.workspaceId) })
+      queryClient.invalidateQueries({ queryKey: workflowKeys.lists() })
     },
   })
 }

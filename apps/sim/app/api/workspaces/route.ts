@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { permissions, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
@@ -23,11 +23,16 @@ const createWorkspaceSchema = z.object({
 })
 
 // Get all workspaces for the current user
-export async function GET() {
+export async function GET(request: Request) {
   const session = await getSession()
 
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const scope = (new URL(request.url).searchParams.get('scope') ?? 'active') as WorkspaceScope
+  if (!['active', 'archived', 'all'].includes(scope)) {
+    return NextResponse.json({ error: 'Invalid scope' }, { status: 400 })
   }
 
   const userWorkspaces = await db
@@ -37,10 +42,24 @@ export async function GET() {
     })
     .from(permissions)
     .innerJoin(workspace, eq(permissions.entityId, workspace.id))
-    .where(and(eq(permissions.userId, session.user.id), eq(permissions.entityType, 'workspace')))
+    .where(
+      scope === 'all'
+        ? and(eq(permissions.userId, session.user.id), eq(permissions.entityType, 'workspace'))
+        : scope === 'archived'
+          ? and(
+              eq(permissions.userId, session.user.id),
+              eq(permissions.entityType, 'workspace'),
+              sql`${workspace.archivedAt} IS NOT NULL`
+            )
+          : and(
+              eq(permissions.userId, session.user.id),
+              eq(permissions.entityType, 'workspace'),
+              isNull(workspace.archivedAt)
+            )
+    )
     .orderBy(desc(workspace.createdAt))
 
-  if (userWorkspaces.length === 0) {
+  if (scope === 'active' && userWorkspaces.length === 0) {
     const defaultWorkspace = await createDefaultWorkspace(session.user.id, session.user.name)
 
     await migrateExistingWorkflows(session.user.id, defaultWorkspace.id)
@@ -48,7 +67,9 @@ export async function GET() {
     return NextResponse.json({ workspaces: [defaultWorkspace] })
   }
 
-  await ensureWorkflowsHaveWorkspace(session.user.id, userWorkspaces[0].workspace.id)
+  if (scope === 'active') {
+    await ensureWorkflowsHaveWorkspace(session.user.id, userWorkspaces[0].workspace.id)
+  }
 
   const workspacesWithPermissions = userWorkspaces.map(
     ({ workspace: workspaceDetails, permissionType }) => ({

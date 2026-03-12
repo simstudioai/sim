@@ -195,7 +195,7 @@ export async function executeSync(
   const kbRows = await db
     .select({ userId: knowledgeBase.userId })
     .from(knowledgeBase)
-    .where(eq(knowledgeBase.id, connector.knowledgeBaseId))
+    .where(and(eq(knowledgeBase.id, connector.knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
     .limit(1)
 
   if (kbRows.length === 0) {

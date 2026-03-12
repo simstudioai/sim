@@ -9,6 +9,7 @@ import {
   listTables,
   TABLE_LIMITS,
   type TableSchema,
+  type TableScope,
 } from '@/lib/table'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { normalizeColumn } from '@/app/api/table/utils'
@@ -70,6 +71,7 @@ const CreateTableSchema = z.object({
 
 const ListTablesSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
+  scope: z.enum(['active', 'archived', 'all']).optional().default('active'),
 })
 
 interface WorkspaceAccessResult {
@@ -201,8 +203,9 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const workspaceId = searchParams.get('workspaceId')
+    const scope = searchParams.get('scope')
 
-    const validation = ListTablesSchema.safeParse({ workspaceId })
+    const validation = ListTablesSchema.safeParse({ workspaceId, scope })
     if (!validation.success) {
       return NextResponse.json(
         { error: 'Validation error', details: validation.error.errors },
@@ -218,7 +221,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    const tables = await listTables(params.workspaceId)
+    const tables = await listTables(params.workspaceId, { scope: params.scope as TableScope })
 
     logger.info(`[${requestId}] Listed ${tables.length} tables in workspace ${params.workspaceId}`)
 

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflowSchedule } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
@@ -56,7 +56,7 @@ async function fetchAndAuthorize(
       sourceWorkspaceId: workflowSchedule.sourceWorkspaceId,
     })
     .from(workflowSchedule)
-    .where(eq(workflowSchedule.id, scheduleId))
+    .where(and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt)))
     .limit(1)
 
   if (!schedule) {

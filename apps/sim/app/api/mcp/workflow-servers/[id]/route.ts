@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
@@ -50,7 +50,7 @@ export const GET = withMcpAuth<RouteParams>('read')(
       const tools = await db
         .select()
         .from(workflowMcpTool)
-        .where(eq(workflowMcpTool.serverId, serverId))
+        .where(and(eq(workflowMcpTool.serverId, serverId), isNull(workflowMcpTool.archivedAt)))
 
       logger.info(
         `[${requestId}] Found workflow MCP server: ${server.name} with ${tools.length} tools`

@@ -432,7 +432,7 @@ export async function processDocumentAsync(
         chunkingConfig: knowledgeBase.chunkingConfig,
       })
       .from(knowledgeBase)
-      .where(eq(knowledgeBase.id, knowledgeBaseId))
+      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
       .limit(1)
 
     if (kb.length === 0) {
@@ -446,7 +446,7 @@ export async function processDocumentAsync(
         processingStartedAt: new Date(),
         processingError: null,
       })
-      .where(eq(document.id, documentId))
+      .where(and(eq(document.id, documentId), isNull(document.deletedAt)))
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 
@@ -526,7 +526,7 @@ export async function processDocumentAsync(
             boolean3: document.boolean3,
           })
           .from(document)
-          .where(eq(document.id, documentId))
+          .where(and(eq(document.id, documentId), isNull(document.deletedAt)))
           .limit(1)
 
         const documentTags = documentRecord[0] || {}

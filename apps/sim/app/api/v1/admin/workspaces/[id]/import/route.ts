@@ -24,7 +24,7 @@
  */
 
 import { db } from '@sim/db'
-import { workflow, workflowFolder, workspace } from '@sim/db/schema'
+import { workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
@@ -34,6 +34,7 @@ import {
   parseWorkflowJson,
 } from '@/lib/workflows/operations/import-export'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -67,11 +68,7 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
   const rootFolderName = url.searchParams.get('rootFolderName')
 
   try {
-    const [workspaceData] = await db
-      .select({ id: workspace.id, ownerId: workspace.ownerId })
-      .from(workspace)
-      .where(eq(workspace.id, workspaceId))
-      .limit(1)
+    const workspaceData = await getWorkspaceWithOwner(workspaceId)
 
     if (!workspaceData) {
       return notFoundResponse('Workspace')

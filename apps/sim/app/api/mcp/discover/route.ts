@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { permissions, workflowMcpServer, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -29,7 +29,14 @@ export async function GET(request: NextRequest) {
     const userWorkspacePermissions = await db
       .select({ entityId: permissions.entityId })
       .from(permissions)
-      .where(and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace')))
+      .innerJoin(workspace, eq(permissions.entityId, workspace.id))
+      .where(
+        and(
+          eq(permissions.userId, userId),
+          eq(permissions.entityType, 'workspace'),
+          isNull(workspace.archivedAt)
+        )
+      )
 
     const workspaceIds = userWorkspacePermissions.map((w) => w.entityId)
 
@@ -49,11 +56,14 @@ export async function GET(request: NextRequest) {
           SELECT COUNT(*)::int 
           FROM "workflow_mcp_tool" 
           WHERE "workflow_mcp_tool"."server_id" = "workflow_mcp_server"."id"
+            AND "workflow_mcp_tool"."archived_at" IS NULL
         )`.as('tool_count'),
       })
       .from(workflowMcpServer)
       .leftJoin(workspace, eq(workflowMcpServer.workspaceId, workspace.id))
-      .where(sql`${workflowMcpServer.workspaceId} IN ${workspaceIds}`)
+      .where(
+        and(sql`${workflowMcpServer.workspaceId} IN ${workspaceIds}`, isNull(workspace.archivedAt))
+      )
       .orderBy(workflowMcpServer.name)
 
     const baseUrl = getBaseUrl()

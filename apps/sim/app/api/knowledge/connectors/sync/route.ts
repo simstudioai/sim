@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { knowledgeConnector } from '@sim/db/schema'
+import { knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, inArray, isNull, lte } from 'drizzle-orm'
+import { and, eq, inArray, isNull, lte } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -32,11 +32,13 @@ export async function GET(request: NextRequest) {
         id: knowledgeConnector.id,
       })
       .from(knowledgeConnector)
+      .innerJoin(knowledgeBase, eq(knowledgeConnector.knowledgeBaseId, knowledgeBase.id))
       .where(
         and(
           inArray(knowledgeConnector.status, ['active', 'error']),
           lte(knowledgeConnector.nextSyncAt, now),
-          isNull(knowledgeConnector.deletedAt)
+          isNull(knowledgeConnector.deletedAt),
+          isNull(knowledgeBase.deletedAt)
         )
       )
 

@@ -80,7 +80,7 @@ export async function PATCH(
 
 /**
  * DELETE /api/workspaces/[id]/files/[fileId]
- * Delete a workspace file (requires write permission)
+ * Archive a workspace file (requires write permission)
  */
 export async function DELETE(
   request: NextRequest,
@@ -106,7 +106,7 @@ export async function DELETE(
 
     await deleteWorkspaceFile(workspaceId, fileId)
 
-    logger.info(`[${requestId}] Deleted workspace file: ${fileId}`)
+    logger.info(`[${requestId}] Archived workspace file: ${fileId}`)
 
     recordAudit({
       workspaceId,
@@ -116,7 +116,7 @@ export async function DELETE(
       action: AuditAction.FILE_DELETED,
       resourceType: AuditResourceType.FILE,
       resourceId: fileId,
-      description: `Deleted file "${fileId}"`,
+      description: `Archived file "${fileId}"`,
       request,
     })
 

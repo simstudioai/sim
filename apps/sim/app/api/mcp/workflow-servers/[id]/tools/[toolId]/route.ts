@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
@@ -43,7 +43,13 @@ export const GET = withMcpAuth<RouteParams>('read')(
       const [tool] = await db
         .select()
         .from(workflowMcpTool)
-        .where(and(eq(workflowMcpTool.id, toolId), eq(workflowMcpTool.serverId, serverId)))
+        .where(
+          and(
+            eq(workflowMcpTool.id, toolId),
+            eq(workflowMcpTool.serverId, serverId),
+            isNull(workflowMcpTool.archivedAt)
+          )
+        )
         .limit(1)
 
       if (!tool) {
@@ -92,7 +98,13 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
       const [existingTool] = await db
         .select({ id: workflowMcpTool.id })
         .from(workflowMcpTool)
-        .where(and(eq(workflowMcpTool.id, toolId), eq(workflowMcpTool.serverId, serverId)))
+        .where(
+          and(
+            eq(workflowMcpTool.id, toolId),
+            eq(workflowMcpTool.serverId, serverId),
+            isNull(workflowMcpTool.archivedAt)
+          )
+        )
         .limit(1)
 
       if (!existingTool) {
@@ -175,8 +187,15 @@ export const DELETE = withMcpAuth<RouteParams>('write')(
       }
 
       const [deletedTool] = await db
-        .delete(workflowMcpTool)
-        .where(and(eq(workflowMcpTool.id, toolId), eq(workflowMcpTool.serverId, serverId)))
+        .update(workflowMcpTool)
+        .set({ archivedAt: new Date(), updatedAt: new Date() })
+        .where(
+          and(
+            eq(workflowMcpTool.id, toolId),
+            eq(workflowMcpTool.serverId, serverId),
+            isNull(workflowMcpTool.archivedAt)
+          )
+        )
         .returning()
 
       if (!deletedTool) {

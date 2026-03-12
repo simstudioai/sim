@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { a2aAgent, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { generateAgentCard, generateSkillsFromWorkflow } from '@/lib/a2a/agent-card'
 import type { AgentCapabilities, AgentSkill } from '@/lib/a2a/types'
@@ -31,8 +31,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
         workflow: workflow,
       })
       .from(a2aAgent)
-      .innerJoin(workflow, eq(a2aAgent.workflowId, workflow.id))
-      .where(eq(a2aAgent.id, agentId))
+      .innerJoin(workflow, and(eq(a2aAgent.workflowId, workflow.id), isNull(workflow.archivedAt)))
+      .where(and(eq(a2aAgent.id, agentId), isNull(a2aAgent.archivedAt)))
       .limit(1)
 
     if (!agent) {
@@ -94,7 +94,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<Ro
     const [existingAgent] = await db
       .select()
       .from(a2aAgent)
-      .where(eq(a2aAgent.id, agentId))
+      .where(and(eq(a2aAgent.id, agentId), isNull(a2aAgent.archivedAt)))
       .limit(1)
 
     if (!existingAgent) {
@@ -164,7 +164,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const [existingAgent] = await db
       .select()
       .from(a2aAgent)
-      .where(eq(a2aAgent.id, agentId))
+      .where(and(eq(a2aAgent.id, agentId), isNull(a2aAgent.archivedAt)))
       .limit(1)
 
     if (!existingAgent) {
@@ -176,7 +176,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    await db.delete(a2aAgent).where(eq(a2aAgent.id, agentId))
+    await db
+      .update(a2aAgent)
+      .set({ archivedAt: new Date(), updatedAt: new Date(), isPublished: false })
+      .where(eq(a2aAgent.id, agentId))
 
     logger.info(`Deleted A2A agent: ${agentId}`)
 
@@ -203,7 +206,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
     const [existingAgent] = await db
       .select()
       .from(a2aAgent)
-      .where(eq(a2aAgent.id, agentId))
+      .where(and(eq(a2aAgent.id, agentId), isNull(a2aAgent.archivedAt)))
       .limit(1)
 
     if (!existingAgent) {

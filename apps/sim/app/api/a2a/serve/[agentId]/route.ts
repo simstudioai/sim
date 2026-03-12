@@ -2,7 +2,7 @@ import type { Artifact, Message, PushNotificationConfig, TaskState } from '@a2a-
 import { db } from '@sim/db'
 import { a2aAgent, a2aPushNotificationConfig, a2aTask, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { A2A_DEFAULT_TIMEOUT, A2A_MAX_HISTORY_LENGTH } from '@/lib/a2a/constants'
@@ -87,7 +87,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<R
         isPublished: a2aAgent.isPublished,
       })
       .from(a2aAgent)
-      .where(eq(a2aAgent.id, agentId))
+      .where(and(eq(a2aAgent.id, agentId), isNull(a2aAgent.archivedAt)))
       .limit(1)
 
     if (!agent) {
@@ -175,7 +175,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
         authentication: a2aAgent.authentication,
       })
       .from(a2aAgent)
-      .where(eq(a2aAgent.id, agentId))
+      .where(and(eq(a2aAgent.id, agentId), isNull(a2aAgent.archivedAt)))
       .limit(1)
 
     if (!agent) {
@@ -222,7 +222,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
     const [wf] = await db
       .select({ isDeployed: workflow.isDeployed })
       .from(workflow)
-      .where(eq(workflow.id, agent.workflowId))
+      .where(and(eq(workflow.id, agent.workflowId), isNull(workflow.archivedAt)))
       .limit(1)
 
     if (!wf?.isDeployed) {
