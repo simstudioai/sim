@@ -798,12 +798,16 @@ export function handleInsertIntoSubflowOperation(
       return
     }
 
-    // Moving existing block into subflow - just update parent
+    // Moving existing block into subflow — update parent and reset position.
+    // Position must be reset because React Flow uses coordinates relative to
+    // the parent container; keeping the old absolute position would place the
+    // block far outside the container's bounds.
     existingBlock.data = {
       ...existingBlock.data,
       parentId: subflowId,
       extent: 'parent' as const,
     }
+    existingBlock.position = { x: 0, y: 0 }
 
     // Update inputs if provided (with validation)
     if (params.inputs) {
@@ -981,12 +985,25 @@ export function handleExtractFromSubflowOperation(
     })
   }
 
-  // Remove parent relationship
+  // Convert from relative (to container) to absolute position so the block
+  // appears at roughly the same visual location after extraction. This avoids
+  // needing targeted layout to reposition it — extracted blocks often lose
+  // their edges to siblings still in the container, making them disconnected
+  // and causing layout to stack them at layer 0.
+  const container = modifiedState.blocks[subflowId]
+  if (container?.position && block.position) {
+    block.position = {
+      x: (container.position.x ?? 0) + (block.position.x ?? 0),
+      y: (container.position.y ?? 0) + (block.position.y ?? 0),
+    }
+  } else {
+    // Fallback to (0,0) which signals to blocksNeedingLayout in index.ts
+    // that this block requires targeted layout repositioning.
+    block.position = { x: 0, y: 0 }
+  }
+
   if (block.data) {
     block.data.parentId = undefined
     block.data.extent = undefined
   }
-
-  // Note: We keep the block and its edges, just remove parent relationship
-  // The block becomes a root-level block
 }

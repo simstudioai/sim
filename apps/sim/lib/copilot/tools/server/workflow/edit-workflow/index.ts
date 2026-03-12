@@ -3,7 +3,11 @@ import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import { applyAutoLayout } from '@/lib/workflows/autolayout'
+import { applyTargetedLayout } from '@/lib/workflows/autolayout'
+import {
+  DEFAULT_HORIZONTAL_SPACING,
+  DEFAULT_VERTICAL_SPACING,
+} from '@/lib/workflows/autolayout/constants'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import {
   loadWorkflowFromNormalizedTables,
@@ -234,21 +238,38 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     // Persist the workflow state to the database
     const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
 
-    // Apply autolayout to position blocks properly
-    const layoutResult = applyAutoLayout(finalWorkflowState.blocks, finalWorkflowState.edges, {
-      horizontalSpacing: 250,
-      verticalSpacing: 100,
-      padding: { x: 100, y: 100 },
+    // Identify blocks that need layout by comparing against the pre-operation
+    // state. New blocks and blocks inserted into subflows (position reset to
+    // 0,0) need repositioning. Extracted blocks are excluded — their handler
+    // already computed valid absolute positions from the container offset.
+    const preOperationBlockIds = new Set(Object.keys(workflowState.blocks || {}))
+    const blocksNeedingLayout = Object.keys(finalWorkflowState.blocks).filter((id) => {
+      if (!preOperationBlockIds.has(id)) return true
+      const prevParent = workflowState.blocks[id]?.data?.parentId ?? null
+      const currParent = finalWorkflowState.blocks[id]?.data?.parentId ?? null
+      if (prevParent === currParent) return false
+      // Parent changed — only needs layout if position was reset to (0,0)
+      // by insert_into_subflow. extract_from_subflow computes absolute
+      // positions directly, so those blocks don't need repositioning.
+      const pos = finalWorkflowState.blocks[id]?.position
+      return pos?.x === 0 && pos?.y === 0
     })
 
-    const layoutedBlocks =
-      layoutResult.success && layoutResult.blocks ? layoutResult.blocks : finalWorkflowState.blocks
+    let layoutedBlocks = finalWorkflowState.blocks
 
-    if (!layoutResult.success) {
-      logger.warn('Autolayout failed, using default positions', {
-        workflowId,
-        error: layoutResult.error,
-      })
+    if (blocksNeedingLayout.length > 0) {
+      try {
+        layoutedBlocks = applyTargetedLayout(finalWorkflowState.blocks, finalWorkflowState.edges, {
+          changedBlockIds: blocksNeedingLayout,
+          horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
+          verticalSpacing: DEFAULT_VERTICAL_SPACING,
+        })
+      } catch (error) {
+        logger.warn('Targeted autolayout failed, using default positions', {
+          workflowId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
     }
 
     const workflowStateForDb = {

@@ -238,6 +238,12 @@ export function applyOperationsToWorkflowState(
       totalEdges: (modifiedState as any).edges?.length,
     })
   }
+  // Remove edges that cross scope boundaries. This runs after all operations
+  // and deferred connections are applied so that every block has its final
+  // parentId. Running it per-operation would incorrectly drop edges between
+  // blocks that are both being moved into the same subflow in one batch.
+  removeInvalidScopeEdges(modifiedState)
+
   // Regenerate loops and parallels after modifications
 
   ;(modifiedState as any).loops = generateLoopBlocks((modifiedState as any).blocks)
@@ -271,4 +277,47 @@ export function applyOperationsToWorkflowState(
   }
 
   return { state: modifiedState, validationErrors, skippedItems }
+}
+
+/**
+ * Removes edges that cross scope boundaries after all operations are applied.
+ * An edge is invalid if:
+ * - Either endpoint no longer exists (dangling reference)
+ * - The source and target are in incompatible scopes
+ * - A child block connects to its own parent container (non-handle edge)
+ *
+ * Valid scope relationships:
+ * - Same scope: both blocks share the same parentId
+ * - Container→child: source is the parent container of the target (start handles)
+ * - Child→container: target is the parent container of the source (end handles)
+ */
+function removeInvalidScopeEdges(modifiedState: any): void {
+  const blocks = modifiedState.blocks || {}
+  const prevCount = modifiedState.edges?.length ?? 0
+
+  modifiedState.edges = (modifiedState.edges || []).filter((edge: any) => {
+    const sourceBlock = blocks[edge.source]
+    const targetBlock = blocks[edge.target]
+    if (!sourceBlock || !targetBlock) return false
+
+    const sourceParent = sourceBlock.data?.parentId ?? null
+    const targetParent = targetBlock.data?.parentId ?? null
+
+    // Same scope — always valid
+    if (sourceParent === targetParent) return true
+
+    // Container→child (e.g., loop-start-source → first child in loop)
+    if (targetParent === edge.source) return true
+
+    // Child→container (e.g., last child → loop-end via loop block edges)
+    if (sourceParent === edge.target) return true
+
+    // Different scopes with no parent-child relationship — invalid
+    return false
+  })
+
+  const removed = prevCount - (modifiedState.edges?.length ?? 0)
+  if (removed > 0) {
+    logger.info('Removed invalid scope-crossing edges', { removed })
+  }
 }
