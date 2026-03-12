@@ -15,7 +15,6 @@ import {
 } from '@/lib/core/utils/browser-storage'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 import { useChatHistory } from '@/hooks/queries/tasks'
-import { useSidebarStore } from '@/stores/sidebar/store'
 import { MessageContent, MothershipView, TemplatePrompts, UserInput } from './components'
 import type { FileAttachmentForApi } from './components/user-input/user-input'
 import { useAutoScroll, useChat } from './hooks'
@@ -194,8 +193,6 @@ export function Home({ chatId }: HomeProps = {}) {
     isSending && prevResourceCountRef.current === 0 && visibleResources.length > 0
   useEffect(() => {
     if (shouldEnterResourcePanel) {
-      const { isCollapsed, toggleCollapsed } = useSidebarStore.getState()
-      if (!isCollapsed) toggleCollapsed()
       setIsResourceAnimatingIn(true)
     }
     prevResourceCountRef.current = visibleResources.length
