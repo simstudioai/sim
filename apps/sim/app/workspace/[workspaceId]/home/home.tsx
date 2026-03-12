@@ -190,7 +190,8 @@ export function Home({ chatId }: HomeProps = {}) {
 
   const visibleResources = isResourceCleanupSettled ? resources : []
   const prevResourceCountRef = useRef(visibleResources.length)
-  const shouldEnterResourcePanel = prevResourceCountRef.current === 0 && visibleResources.length > 0
+  const shouldEnterResourcePanel =
+    isSending && prevResourceCountRef.current === 0 && visibleResources.length > 0
   useEffect(() => {
     if (shouldEnterResourcePanel) {
       const { isCollapsed, toggleCollapsed } = useSidebarStore.getState()
