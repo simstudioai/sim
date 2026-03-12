@@ -228,6 +228,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   const toolArgsMapRef = useRef<Map<string, Record<string, unknown>>>(new Map())
   const streamGenRef = useRef(0)
   const streamingContentRef = useRef('')
+  const streamingBlocksRef = useRef<ContentBlock[]>([])
   const pendingFileResourceIdsRef = useRef<Set<string>>(new Set())
   const pendingTableResourceIdsRef = useRef<Set<string>>(new Set())
   const pendingWorkflowResourceIdsRef = useRef<Set<string>>(new Set())
@@ -445,6 +446,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       let lastContentSource: 'main' | 'subagent' | null = null
 
       streamingContentRef.current = ''
+      streamingBlocksRef.current = []
       toolArgsMapRef.current.clear()
 
       const ensureTextBlock = (): ContentBlock => {
@@ -456,6 +458,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       }
 
       const flush = () => {
+        streamingBlocksRef.current = [...blocks]
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId ? { ...m, content: runningText, contentBlocks: [...blocks] } : m
@@ -776,13 +779,44 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     if (!chatId || !streamId) return
 
     const content = streamingContentRef.current
+
+    const storedBlocks: TaskStoredContentBlock[] = streamingBlocksRef.current.map((block) => {
+      if (block.type === 'tool_call' && block.toolCall) {
+        const isCancelled =
+          block.toolCall.status === 'executing' || block.toolCall.status === 'cancelled'
+        return {
+          type: block.type,
+          content: block.content,
+          toolCall: {
+            id: block.toolCall.id,
+            name: block.toolCall.name,
+            state: isCancelled ? 'cancelled' : block.toolCall.status,
+            result: block.toolCall.result,
+            display: {
+              text: isCancelled ? 'Stopped by user' : block.toolCall.displayTitle,
+            },
+            calledBy: block.toolCall.calledBy,
+          },
+        }
+      }
+      return { type: block.type, content: block.content }
+    })
+
     try {
       const res = await fetch('/api/mothership/chat/stop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId, streamId, content }),
+        body: JSON.stringify({
+          chatId,
+          streamId,
+          content,
+          ...(storedBlocks.length > 0 && { contentBlocks: storedBlocks }),
+        }),
       })
-      if (res.ok) streamingContentRef.current = ''
+      if (res.ok) {
+        streamingContentRef.current = ''
+        streamingBlocksRef.current = []
+      }
     } catch (err) {
       logger.warn('Failed to persist partial response', err)
     }

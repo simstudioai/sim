@@ -8,10 +8,39 @@ import { getSession } from '@/lib/auth'
 
 const logger = createLogger('MothershipChatStopAPI')
 
+const StoredToolCallSchema = z
+  .object({
+    id: z.string().optional(),
+    name: z.string().optional(),
+    state: z.string().optional(),
+    params: z.record(z.unknown()).optional(),
+    result: z
+      .object({
+        success: z.boolean(),
+        output: z.unknown().optional(),
+        error: z.string().optional(),
+      })
+      .optional(),
+    display: z
+      .object({
+        text: z.string().optional(),
+      })
+      .optional(),
+    calledBy: z.string().optional(),
+  })
+  .nullable()
+
+const ContentBlockSchema = z.object({
+  type: z.string(),
+  content: z.string().optional(),
+  toolCall: StoredToolCallSchema.optional(),
+})
+
 const StopSchema = z.object({
   chatId: z.string(),
   streamId: z.string(),
   content: z.string(),
+  contentBlocks: z.array(ContentBlockSchema).optional(),
 })
 
 /**
@@ -26,19 +55,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { chatId, streamId, content } = StopSchema.parse(await req.json())
+    const { chatId, streamId, content, contentBlocks } = StopSchema.parse(await req.json())
 
     const setClause: Record<string, unknown> = {
       conversationId: null,
       updatedAt: new Date(),
     }
 
-    if (content.trim()) {
-      const assistantMessage = {
+    const hasContent = content.trim().length > 0
+    const hasBlocks = Array.isArray(contentBlocks) && contentBlocks.length > 0
+
+    if (hasContent || hasBlocks) {
+      const assistantMessage: Record<string, unknown> = {
         id: crypto.randomUUID(),
         role: 'assistant' as const,
         content,
         timestamp: new Date().toISOString(),
+      }
+      if (hasBlocks) {
+        assistantMessage.contentBlocks = contentBlocks
       }
       setClause.messages = sql`${copilotChats.messages} || ${JSON.stringify([assistantMessage])}::jsonb`
     }
