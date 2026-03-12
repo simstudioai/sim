@@ -19,8 +19,8 @@ export function remapConditionBlockIds(
   const prefix = `${oldBlockId}-`
   for (const condition of conditions) {
     if (typeof condition.id === 'string' && condition.id.startsWith(prefix)) {
-      const suffix = condition.id.slice(oldBlockId.length)
-      condition.id = `${newBlockId}${suffix}`
+      const suffix = condition.id.slice(prefix.length)
+      condition.id = `${newBlockId}-${suffix}`
       changed = true
     }
   }
@@ -49,8 +49,8 @@ export function remapConditionEdgeHandle(
     const innerId = sourceHandle.slice(handlePrefix.length)
     if (!innerId.startsWith(`${oldBlockId}-`)) continue
 
-    const suffix = innerId.slice(oldBlockId.length)
-    return `${handlePrefix}${newBlockId}${suffix}`
+    const suffix = innerId.slice(oldBlockId.length + 1)
+    return `${handlePrefix}${newBlockId}-${suffix}`
   }
 
   return sourceHandle
