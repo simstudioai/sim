@@ -21,9 +21,8 @@ export interface UsageUpgradeTagData {
 
 export interface CredentialTagData {
   value: string
-  type: 'env_key' | 'oauth_key' | 'sim_key' | 'link'
+  type: 'env_key' | 'oauth_key' | 'sim_key' | 'credential_id' | 'link'
   provider?: string
-  credential_id?: string
 }
 
 export type ContentSegment =
