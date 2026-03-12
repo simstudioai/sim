@@ -43,6 +43,7 @@ export interface UseChatReturn {
   sendMessage: (message: string, fileAttachments?: FileAttachmentForApi[]) => Promise<void>
   stopGeneration: () => Promise<void>
   resources: MothershipResource[]
+  isResourceCleanupSettled: boolean
   activeResourceId: string | null
   setActiveResourceId: (id: string | null) => void
 }
@@ -224,6 +225,10 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     [workspaceTables]
   )
   const existingWorkflowIds = useMemo(() => new Set(workflows.map((workflow) => workflow.id)), [workflows])
+  const isResourceCleanupSettled = useMemo(
+    () => !isWorkspaceFilesLoading && !isWorkspaceTablesLoading && !isWorkflowsLoading,
+    [isWorkspaceFilesLoading, isWorkspaceTablesLoading, isWorkflowsLoading]
+  )
 
   const addResource = useCallback((resource: MothershipResource) => {
     setResources((prev) => {
@@ -321,6 +326,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       return areResourcesEqual(prev, next) ? prev : next
     })
   }, [
+    resources,
     existingWorkspaceFileIds,
     existingWorkspaceTableIds,
     existingWorkflowIds,
@@ -827,6 +833,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     sendMessage,
     stopGeneration,
     resources,
+    isResourceCleanupSettled,
     activeResourceId,
     setActiveResourceId,
   }
