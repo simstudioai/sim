@@ -1447,6 +1447,13 @@ export async function createFathomWebhookSubscription(
       throw new Error(userFriendlyMessage)
     }
 
+    if (!responseBody.id) {
+      fathomLogger.error(
+        `[${requestId}] Fathom webhook creation returned success but no webhook ID for ${webhookData.id}.`
+      )
+      throw new Error('Fathom webhook created but no ID returned. Please try again.')
+    }
+
     fathomLogger.info(
       `[${requestId}] Successfully created webhook in Fathom for webhook ${webhookData.id}.`,
       {
