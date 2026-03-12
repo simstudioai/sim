@@ -136,6 +136,7 @@ export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMe
         default_summary: meeting.default_summary ?? null,
         transcript: meeting.transcript ?? null,
         action_items: meeting.action_items ?? null,
+        crm_matches: meeting.crm_matches ?? null,
       })
     )
 

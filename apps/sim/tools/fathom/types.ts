@@ -45,7 +45,20 @@ export interface FathomListMeetingsResponse extends ToolResponse {
         text: string
         timestamp: string
       }> | null
-      action_items: Array<{ text: string }> | null
+      action_items: Array<{
+        description: string
+        user_generated: boolean
+        completed: boolean
+        recording_timestamp: string
+        recording_playback_url: string
+        assignee: { name: string | null; email: string | null; team: string | null }
+      }> | null
+      crm_matches: {
+        contacts: Array<{ name: string; email: string; record_url: string }>
+        companies: Array<{ name: string; record_url: string }>
+        deals: Array<{ name: string; amount: number; record_url: string }>
+        error: string | null
+      } | null
     }>
     next_cursor: string | null
   }
