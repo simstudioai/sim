@@ -1,5 +1,14 @@
 import { airtableWebhookTrigger } from '@/triggers/airtable'
 import {
+  ashbyApplicationSubmitTrigger,
+  ashbyCandidateDeleteTrigger,
+  ashbyCandidateHireTrigger,
+  ashbyCandidateStageChangeTrigger,
+  ashbyJobCreateTrigger,
+  ashbyOfferCreateTrigger,
+  ashbyWebhookTrigger,
+} from '@/triggers/ashby'
+import {
   attioCommentCreatedTrigger,
   attioCommentDeletedTrigger,
   attioCommentResolvedTrigger,
@@ -166,6 +175,13 @@ import { whatsappWebhookTrigger } from '@/triggers/whatsapp'
 export const TRIGGER_REGISTRY: TriggerRegistry = {
   slack_webhook: slackWebhookTrigger,
   airtable_webhook: airtableWebhookTrigger,
+  ashby_application_submit: ashbyApplicationSubmitTrigger,
+  ashby_candidate_stage_change: ashbyCandidateStageChangeTrigger,
+  ashby_candidate_hire: ashbyCandidateHireTrigger,
+  ashby_candidate_delete: ashbyCandidateDeleteTrigger,
+  ashby_job_create: ashbyJobCreateTrigger,
+  ashby_offer_create: ashbyOfferCreateTrigger,
+  ashby_webhook: ashbyWebhookTrigger,
   attio_webhook: attioWebhookTrigger,
   attio_record_created: attioRecordCreatedTrigger,
   attio_record_updated: attioRecordUpdatedTrigger,
