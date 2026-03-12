@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
+import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import {
   asRecord,
   getEventData,

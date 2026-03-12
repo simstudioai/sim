@@ -167,12 +167,14 @@ export function Home({ chatId }: HomeProps = {}) {
     sendMessage,
     stopGeneration,
     resources,
+    isResourceCleanupSettled,
     activeResourceId,
     setActiveResourceId,
   } = useChat(workspaceId, chatId)
 
   const [isResourceCollapsed, setIsResourceCollapsed] = useState(false)
   const [showExpandButton, setShowExpandButton] = useState(false)
+  const [isResourceAnimatingIn, setIsResourceAnimatingIn] = useState(false)
 
   useEffect(() => {
     if (!isResourceCollapsed) {
@@ -186,16 +188,24 @@ export function Home({ chatId }: HomeProps = {}) {
   const collapseResource = useCallback(() => setIsResourceCollapsed(true), [])
   const expandResource = useCallback(() => setIsResourceCollapsed(false), [])
 
-  const prevResourceCountRef = useRef(resources.length)
-  const animateResourcePanel =
-    prevResourceCountRef.current === 0 && resources.length > 0 && isSending
+  const visibleResources = isResourceCleanupSettled ? resources : []
+  const prevResourceCountRef = useRef(visibleResources.length)
+  const shouldEnterResourcePanel =
+    isSending && prevResourceCountRef.current === 0 && visibleResources.length > 0
   useEffect(() => {
-    if (animateResourcePanel) {
+    if (shouldEnterResourcePanel) {
       const { isCollapsed, toggleCollapsed } = useSidebarStore.getState()
       if (!isCollapsed) toggleCollapsed()
+      setIsResourceAnimatingIn(true)
     }
-    prevResourceCountRef.current = resources.length
-  })
+    prevResourceCountRef.current = visibleResources.length
+  }, [shouldEnterResourcePanel, visibleResources.length])
+
+  useEffect(() => {
+    if (!isResourceAnimatingIn) return
+    const timer = setTimeout(() => setIsResourceAnimatingIn(false), 400)
+    return () => clearTimeout(timer)
+  }, [isResourceAnimatingIn])
 
   const handleSubmit = useCallback(
     (text: string, fileAttachments?: FileAttachmentForApi[]) => {
@@ -340,19 +350,19 @@ export function Home({ chatId }: HomeProps = {}) {
         </div>
       </div>
 
-      {resources.length > 0 && (
+      {visibleResources.length > 0 && (
         <MothershipView
           workspaceId={workspaceId}
-          resources={resources}
+          resources={visibleResources}
           activeResourceId={activeResourceId}
           onSelectResource={setActiveResourceId}
           onCollapse={collapseResource}
           isCollapsed={isResourceCollapsed}
-          className={animateResourcePanel ? 'animate-slide-in-right' : undefined}
+          className={isResourceAnimatingIn ? 'animate-slide-in-right' : undefined}
         />
       )}
 
-      {resources.length > 0 && showExpandButton && (
+      {visibleResources.length > 0 && showExpandButton && (
         <div className='absolute top-[8.5px] right-[16px]'>
           <button
             type='button'
