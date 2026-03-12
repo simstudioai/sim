@@ -6,7 +6,6 @@ import {
   CalComIcon,
   ConfluenceIcon,
   DropboxIcon,
-  GithubIcon,
   GmailIcon,
   GoogleBigQueryIcon,
   GoogleCalendarIcon,
@@ -339,21 +338,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'outlook',
-  },
-  github: {
-    name: 'GitHub',
-    icon: GithubIcon,
-    services: {
-      github: {
-        name: 'GitHub',
-        description: 'Manage repositories, issues, and pull requests.',
-        providerId: 'github-repo',
-        icon: GithubIcon,
-        baseProviderIcon: GithubIcon,
-        scopes: ['repo', 'user:email', 'read:user', 'workflow'],
-      },
-    },
-    defaultService: 'github',
   },
   x: {
     name: 'X',
@@ -986,19 +970,6 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: false,
-      }
-    }
-    case 'github': {
-      const { clientId, clientSecret } = getCredentials(
-        env.GITHUB_CLIENT_ID,
-        env.GITHUB_CLIENT_SECRET
-      )
-      return {
-        tokenEndpoint: 'https://github.com/login/oauth/access_token',
-        clientId,
-        clientSecret,
-        useBasicAuth: false,
-        additionalHeaders: { Accept: 'application/json' },
       }
     }
     case 'x': {
