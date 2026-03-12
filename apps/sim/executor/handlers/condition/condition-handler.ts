@@ -166,7 +166,8 @@ export class ConditionBlockHandler implements BlockHandler {
     if (!output || typeof output !== 'object') {
       return output
     }
-    const { _pauseMetadata, error, ...rest } = output
+    const { _pauseMetadata, error, providerTiming, tokens, toolCalls, model, cost, ...rest } =
+      output
     return rest
   }
 
