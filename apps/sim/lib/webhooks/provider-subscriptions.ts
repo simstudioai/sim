@@ -16,6 +16,7 @@ const telegramLogger = createLogger('TelegramWebhook')
 const airtableLogger = createLogger('AirtableWebhook')
 const typeformLogger = createLogger('TypeformWebhook')
 const calendlyLogger = createLogger('CalendlyWebhook')
+const ashbyLogger = createLogger('AshbyWebhook')
 const grainLogger = createLogger('GrainWebhook')
 const fathomLogger = createLogger('FathomWebhook')
 const lemlistLogger = createLogger('LemlistWebhook')
@@ -1974,6 +1975,7 @@ type RecreateCheckInput = {
 /** Providers that create external webhook subscriptions */
 const PROVIDERS_WITH_EXTERNAL_SUBSCRIPTIONS = new Set([
   'airtable',
+  'ashby',
   'attio',
   'calendly',
   'fathom',
@@ -2046,7 +2048,13 @@ export async function createExternalWebhookSubscription(
   let updatedProviderConfig = providerConfig
   let externalSubscriptionCreated = false
 
-  if (provider === 'airtable') {
+  if (provider === 'ashby') {
+    const result = await createAshbyWebhookSubscription(webhookData, requestId)
+    if (result) {
+      updatedProviderConfig = { ...updatedProviderConfig, externalId: result.id }
+      externalSubscriptionCreated = true
+    }
+  } else if (provider === 'airtable') {
     const externalId = await createAirtableWebhookSubscription(userId, webhookData, requestId)
     if (externalId) {
       updatedProviderConfig = { ...updatedProviderConfig, externalId }
@@ -2126,7 +2134,9 @@ export async function cleanupExternalWebhook(
   workflow: any,
   requestId: string
 ): Promise<void> {
-  if (webhook.provider === 'airtable') {
+  if (webhook.provider === 'ashby') {
+    await deleteAshbyWebhook(webhook, requestId)
+  } else if (webhook.provider === 'airtable') {
     await deleteAirtableWebhook(webhook, workflow, requestId)
   } else if (webhook.provider === 'attio') {
     await deleteAttioWebhook(webhook, workflow, requestId)
@@ -2146,5 +2156,162 @@ export async function cleanupExternalWebhook(
     await deleteGrainWebhook(webhook, requestId)
   } else if (webhook.provider === 'lemlist') {
     await deleteLemlistWebhook(webhook, requestId)
+  }
+}
+
+/**
+ * Creates a webhook subscription in Ashby via webhook.create API.
+ * Ashby uses Basic Auth and one webhook per event type (webhookType).
+ */
+export async function createAshbyWebhookSubscription(
+  webhookData: any,
+  requestId: string
+): Promise<{ id: string } | undefined> {
+  try {
+    const { path, providerConfig } = webhookData
+    const { apiKey, triggerId } = providerConfig || {}
+
+    if (!apiKey) {
+      throw new Error(
+        'Ashby API Key is required. Please provide your API Key with apiKeysWrite permission in the trigger configuration.'
+      )
+    }
+
+    if (!triggerId) {
+      throw new Error('Trigger ID is required to create Ashby webhook.')
+    }
+
+    const webhookTypeMap: Record<string, string> = {
+      ashby_application_submit: 'applicationSubmit',
+      ashby_candidate_stage_change: 'candidateStageChange',
+      ashby_candidate_hire: 'candidateHire',
+      ashby_candidate_delete: 'candidateDelete',
+      ashby_job_create: 'jobCreate',
+      ashby_offer_create: 'offerCreate',
+    }
+
+    const webhookType = webhookTypeMap[triggerId]
+    if (!webhookType) {
+      throw new Error(`Unknown Ashby triggerId: ${triggerId}. Add it to webhookTypeMap.`)
+    }
+
+    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+    const authString = Buffer.from(`${apiKey}:`).toString('base64')
+
+    ashbyLogger.info(`[${requestId}] Creating Ashby webhook`, {
+      triggerId,
+      webhookType,
+      webhookId: webhookData.id,
+    })
+
+    const requestBody: Record<string, unknown> = {
+      requestUrl: notificationUrl,
+      webhookType,
+    }
+
+    const ashbyResponse = await fetch('https://api.ashbyhq.com/webhook.create', {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${authString}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    const responseBody = await ashbyResponse.json().catch(() => ({}))
+
+    if (!ashbyResponse.ok || !responseBody.success) {
+      const errorMessage =
+        responseBody.errorInfo?.message || responseBody.message || 'Unknown Ashby API error'
+
+      let userFriendlyMessage = 'Failed to create webhook subscription in Ashby'
+      if (ashbyResponse.status === 401) {
+        userFriendlyMessage =
+          'Invalid Ashby API Key. Please verify your API Key is correct and has apiKeysWrite permission.'
+      } else if (ashbyResponse.status === 403) {
+        userFriendlyMessage =
+          'Access denied. Please ensure your Ashby API Key has the apiKeysWrite permission.'
+      } else if (errorMessage && errorMessage !== 'Unknown Ashby API error') {
+        userFriendlyMessage = `Ashby error: ${errorMessage}`
+      }
+
+      throw new Error(userFriendlyMessage)
+    }
+
+    const externalId = responseBody.results?.id
+    if (!externalId) {
+      throw new Error('Ashby webhook creation succeeded but no webhook ID was returned')
+    }
+
+    ashbyLogger.info(
+      `[${requestId}] Successfully created Ashby webhook subscription ${externalId} for webhook ${webhookData.id}`
+    )
+    return { id: externalId }
+  } catch (error: any) {
+    ashbyLogger.error(
+      `[${requestId}] Exception during Ashby webhook creation for webhook ${webhookData.id}.`,
+      {
+        message: error.message,
+        stack: error.stack,
+      }
+    )
+    throw error
+  }
+}
+
+/**
+ * Deletes an Ashby webhook subscription via webhook.delete API.
+ * Ashby uses POST with webhookId in the body (not DELETE method).
+ */
+export async function deleteAshbyWebhook(webhook: any, requestId: string): Promise<void> {
+  try {
+    const config = getProviderConfig(webhook)
+    const apiKey = config.apiKey as string | undefined
+    const externalId = config.externalId as string | undefined
+
+    if (!apiKey) {
+      ashbyLogger.warn(
+        `[${requestId}] Missing apiKey for Ashby webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
+    if (!externalId) {
+      ashbyLogger.warn(
+        `[${requestId}] Missing externalId for Ashby webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
+    const authString = Buffer.from(`${apiKey}:`).toString('base64')
+
+    const ashbyResponse = await fetch('https://api.ashbyhq.com/webhook.delete', {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${authString}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ webhookId: externalId }),
+    })
+
+    if (ashbyResponse.ok) {
+      await ashbyResponse.body?.cancel()
+      ashbyLogger.info(
+        `[${requestId}] Successfully deleted Ashby webhook subscription ${externalId}`
+      )
+    } else if (ashbyResponse.status === 404) {
+      await ashbyResponse.body?.cancel()
+      ashbyLogger.info(
+        `[${requestId}] Ashby webhook ${externalId} not found during deletion (already removed)`
+      )
+    } else {
+      const responseBody = await ashbyResponse.json().catch(() => ({}))
+      ashbyLogger.warn(
+        `[${requestId}] Failed to delete Ashby webhook (non-fatal): ${ashbyResponse.status}`,
+        { response: responseBody }
+      )
+    }
+  } catch (error) {
+    ashbyLogger.warn(`[${requestId}] Error deleting Ashby webhook (non-fatal)`, error)
   }
 }
