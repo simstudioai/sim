@@ -2,7 +2,7 @@
 
 import type { ContentBlock, OptionItem, SubagentName, ToolCallStatus } from '../../types'
 import { SUBAGENT_LABELS } from '../../types'
-import { AgentGroup, ChatContent, Options } from './components'
+import { AgentGroup, ChatContent, CircleStop, Options } from './components'
 
 interface TextSegment {
   type: 'text'
@@ -29,7 +29,11 @@ interface OptionsSegment {
   items: OptionItem[]
 }
 
-type MessageSegment = TextSegment | AgentGroupSegment | OptionsSegment
+interface StoppedSegment {
+  type: 'stopped'
+}
+
+type MessageSegment = TextSegment | AgentGroupSegment | OptionsSegment | StoppedSegment
 
 const SUBAGENT_KEYS = new Set(Object.keys(SUBAGENT_LABELS))
 
@@ -165,6 +169,15 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
         group = null
       }
       segments.push({ type: 'options', items: block.options })
+      continue
+    }
+
+    if (block.type === 'stopped') {
+      if (group) {
+        segments.push(group)
+        group = null
+      }
+      segments.push({ type: 'stopped' })
     }
   }
 
@@ -212,7 +225,9 @@ export function MessageContent({
           case 'agent_group': {
             const allToolsDone =
               segment.tools.length > 0 &&
-              segment.tools.every((t) => t.status === 'success' || t.status === 'error')
+              segment.tools.every(
+                (t) => t.status === 'success' || t.status === 'error' || t.status === 'cancelled'
+              )
             const hasFollowingText = segments.slice(i + 1).some((s) => s.type === 'text')
             return (
               <div key={segment.id} className={isStreaming ? 'animate-stream-fade-in' : undefined}>
@@ -232,6 +247,15 @@ export function MessageContent({
                 className={isStreaming ? 'animate-stream-fade-in' : undefined}
               >
                 <Options items={segment.items} onSelect={onOptionSelect} />
+              </div>
+            )
+          case 'stopped':
+            return (
+              <div key={`stopped-${i}`} className='flex items-center gap-[8px]'>
+                <CircleStop className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-secondary)]' />
+                <span className='font-[var(--sidebar-font-weight)] text-[14px] text-[var(--text-secondary)]'>
+                  Stopped by user
+                </span>
               </div>
             )
         }

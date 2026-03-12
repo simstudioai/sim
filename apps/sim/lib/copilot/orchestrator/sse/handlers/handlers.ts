@@ -91,6 +91,24 @@ function handleClientCompletion(
     markToolResultSeen(toolCallId)
     return
   }
+  if (completion?.status === 'cancelled') {
+    toolCall.status = 'cancelled'
+    toolCall.endTime = Date.now()
+    markToolComplete(
+      toolCall.id,
+      toolCall.name,
+      499,
+      completion.message || 'Workflow execution was stopped manually by the user.',
+      completion.data
+    ).catch((err) => {
+      logger.error('markToolComplete fire-and-forget failed (client cancelled)', {
+        toolCallId: toolCall.id,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    })
+    markToolResultSeen(toolCallId)
+    return
+  }
   const success = completion?.status === 'success'
   toolCall.status = success ? 'success' : 'error'
   toolCall.endTime = Date.now()
@@ -105,6 +123,36 @@ function handleClientCompletion(
     }
   )
   markToolResultSeen(toolCallId)
+}
+
+/**
+ * Emit a synthetic tool_result SSE event to the client after a client-executable
+ * tool completes. The Go backend's actual tool_result is skipped (markToolResultSeen),
+ * so the client would never learn the outcome without this.
+ */
+async function emitSyntheticToolResult(
+  toolCallId: string,
+  toolName: string,
+  completion: { status: string; message?: string; data?: Record<string, unknown> } | null,
+  options: OrchestratorOptions
+): Promise<void> {
+  const success = completion?.status === 'success'
+  const isCancelled = completion?.status === 'cancelled'
+
+  const resultPayload = isCancelled
+    ? { ...completion?.data, reason: 'user_cancelled', cancelledByUser: true }
+    : completion?.data
+
+  try {
+    await options.onEvent?.({
+      type: 'tool_result',
+      toolCallId,
+      toolName,
+      success,
+      result: resultPayload,
+      error: !success ? completion?.message : undefined,
+    } as SSEEvent)
+  } catch {}
 }
 
 // Normalization + dedupe helpers live in sse-utils to keep server/client in sync.
@@ -280,6 +328,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
           options.abortSignal
         )
         handleClientCompletion(toolCall, toolCallId, completion)
+        await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
         return
       }
       if (options.autoExecuteTools !== false) {
@@ -304,6 +353,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
             options.abortSignal
           )
           handleClientCompletion(toolCall, toolCallId, completion)
+          await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
           return
         }
         fireToolExecution()
@@ -372,6 +422,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
         options.abortSignal
       )
       handleClientCompletion(toolCall, toolCallId, completion)
+      await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
       return
     }
 
@@ -537,6 +588,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
           options.abortSignal
         )
         handleClientCompletion(toolCall, toolCallId, completion)
+        await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
         return
       }
       if (options.autoExecuteTools !== false) {
@@ -560,6 +612,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
             options.abortSignal
           )
           handleClientCompletion(toolCall, toolCallId, completion)
+          await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
           return
         }
         fireToolExecution()
@@ -625,6 +678,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
         options.abortSignal
       )
       handleClientCompletion(toolCall, toolCallId, completion)
+      await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
       return
     }
 

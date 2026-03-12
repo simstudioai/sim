@@ -2,7 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
-import { executeRunToolOnClient } from '@/lib/copilot/client-sse/run-tool-execution'
+import {
+  executeRunToolOnClient,
+  markRunToolManuallyStopped,
+  reportManualRunToolStop,
+} from '@/lib/copilot/client-sse/run-tool-execution'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
 import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
@@ -20,7 +24,10 @@ import {
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { useWorkflows, workflowKeys } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles, workspaceFilesKeys } from '@/hooks/queries/workspace-files'
+import { useExecutionStream } from '@/hooks/use-execution-stream'
+import { useExecutionStore } from '@/stores/execution/store'
 import { useFolderStore } from '@/stores/folders/store'
+import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { FileAttachmentForApi } from '../components/user-input/user-input'
 import type {
@@ -60,6 +67,9 @@ export interface UseChatReturn {
 const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
   success: 'success',
   error: 'error',
+  cancelled: 'cancelled',
+  rejected: 'error',
+  skipped: 'success',
 } as const
 
 function areResourcesEqual(left: MothershipResource[], right: MothershipResource[]): boolean {
@@ -120,11 +130,13 @@ function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
   }
 
   if (block.type === 'tool_call' && block.toolCall) {
+    const resolvedStatus = STATE_TO_STATUS[block.toolCall.state ?? ''] ?? 'error'
     mapped.toolCall = {
       id: block.toolCall.id ?? '',
       name: block.toolCall.name ?? 'unknown',
-      status: STATE_TO_STATUS[block.toolCall.state ?? ''] ?? 'success',
-      displayTitle: block.toolCall.display?.text,
+      status: resolvedStatus,
+      displayTitle:
+        resolvedStatus === 'cancelled' ? 'Stopped by user' : block.toolCall.display?.text,
       calledBy: block.toolCall.calledBy,
       result: block.toolCall.result,
     }
@@ -134,12 +146,14 @@ function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
 }
 
 function mapStoredToolCall(tc: TaskStoredToolCall): ContentBlock {
+  const resolvedStatus = (STATE_TO_STATUS[tc.status] ?? 'error') as ToolCallStatus
   return {
     type: 'tool_call',
     toolCall: {
       id: tc.id,
       name: tc.name,
-      status: (STATE_TO_STATUS[tc.status] ?? 'success') as ToolCallStatus,
+      status: resolvedStatus,
+      displayTitle: resolvedStatus === 'cancelled' ? 'Stopped by user' : undefined,
       result:
         tc.result != null
           ? { success: tc.status === 'success', output: tc.result, error: tc.error }
@@ -245,10 +259,12 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   const toolArgsMapRef = useRef<Map<string, Record<string, unknown>>>(new Map())
   const streamGenRef = useRef(0)
   const streamingContentRef = useRef('')
+  const streamingBlocksRef = useRef<ContentBlock[]>([])
   const pendingFileResourceIdsRef = useRef<Set<string>>(new Set())
   const pendingTableResourceIdsRef = useRef<Set<string>>(new Set())
   const pendingWorkflowResourceIdsRef = useRef<Set<string>>(new Set())
 
+  const executionStream = useExecutionStream()
   const isHomePage = pathname.endsWith('/home')
 
   const { data: chatHistory } = useChatHistory(initialChatId)
@@ -444,6 +460,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       let lastContentSource: 'main' | 'subagent' | null = null
 
       streamingContentRef.current = ''
+      streamingBlocksRef.current = []
       toolArgsMapRef.current.clear()
 
       const ensureTextBlock = (): ContentBlock => {
@@ -455,6 +472,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       }
 
       const flush = () => {
+        streamingBlocksRef.current = [...blocks]
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId ? { ...m, content: runningText, contentBlocks: [...blocks] } : m
@@ -591,7 +609,25 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
               const idx = toolMap.get(id)
               if (idx !== undefined && blocks[idx].toolCall) {
                 const tc = blocks[idx].toolCall!
-                tc.status = parsed.success ? 'success' : 'error'
+
+                const payloadData = getPayloadData(parsed)
+                const resultObj =
+                  parsed.result && typeof parsed.result === 'object'
+                    ? (parsed.result as Record<string, unknown>)
+                    : undefined
+                const isCancelled =
+                  resultObj?.reason === 'user_cancelled' ||
+                  resultObj?.cancelledByUser === true ||
+                  (payloadData as Record<string, unknown> | undefined)?.reason ===
+                    'user_cancelled' ||
+                  (payloadData as Record<string, unknown> | undefined)?.cancelledByUser === true
+
+                if (isCancelled) {
+                  tc.status = 'cancelled'
+                  tc.displayTitle = 'Stopped by user'
+                } else {
+                  tc.status = parsed.success ? 'success' : 'error'
+                }
                 tc.result = {
                   success: !!parsed.success,
                   output: parsed.result ?? getPayloadData(parsed)?.result,
@@ -741,13 +777,48 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     if (!chatId || !streamId) return
 
     const content = streamingContentRef.current
+
+    const storedBlocks: TaskStoredContentBlock[] = streamingBlocksRef.current.map((block) => {
+      if (block.type === 'tool_call' && block.toolCall) {
+        const isCancelled =
+          block.toolCall.status === 'executing' || block.toolCall.status === 'cancelled'
+        return {
+          type: block.type,
+          content: block.content,
+          toolCall: {
+            id: block.toolCall.id,
+            name: block.toolCall.name,
+            state: isCancelled ? 'cancelled' : block.toolCall.status,
+            result: block.toolCall.result,
+            display: {
+              text: isCancelled ? 'Stopped by user' : block.toolCall.displayTitle,
+            },
+            calledBy: block.toolCall.calledBy,
+          },
+        }
+      }
+      return { type: block.type, content: block.content }
+    })
+
+    if (storedBlocks.length > 0) {
+      storedBlocks.push({ type: 'stopped' })
+    }
+
     try {
       const res = await fetch('/api/mothership/chat/stop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId, streamId, content }),
+        body: JSON.stringify({
+          chatId,
+          streamId,
+          content,
+          ...(storedBlocks.length > 0 && { contentBlocks: storedBlocks }),
+        }),
       })
-      if (res.ok) streamingContentRef.current = ''
+      if (res.ok) {
+        streamingContentRef.current = ''
+        streamingBlocksRef.current = []
+      }
     } catch (err) {
       logger.warn('Failed to persist partial response', err)
     }
@@ -922,7 +993,67 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
         body: JSON.stringify({ streamId: sid }),
       }).catch(() => {})
     }
-  }, [invalidateChatQueries, persistPartialResponse])
+
+    setMessages((prev) =>
+      prev.map((msg) => {
+        if (!msg.contentBlocks?.some((b) => b.toolCall?.status === 'executing')) return msg
+        const updated = msg.contentBlocks!.map((block) => {
+          if (block.toolCall?.status !== 'executing') return block
+          return {
+            ...block,
+            toolCall: {
+              ...block.toolCall,
+              status: 'cancelled' as const,
+              displayTitle: 'Stopped by user',
+            },
+          }
+        })
+        updated.push({ type: 'stopped' as const })
+        return { ...msg, contentBlocks: updated }
+      })
+    )
+
+    const execState = useExecutionStore.getState()
+    const consoleStore = useTerminalConsoleStore.getState()
+    for (const [workflowId, wfExec] of execState.workflowExecutions) {
+      if (!wfExec.isExecuting) continue
+
+      markRunToolManuallyStopped(workflowId)
+
+      const executionId = execState.getCurrentExecutionId(workflowId)
+      if (executionId) {
+        execState.setCurrentExecutionId(workflowId, null)
+        fetch(`/api/workflows/${workflowId}/executions/${executionId}/cancel`, {
+          method: 'POST',
+        }).catch(() => {})
+      }
+
+      consoleStore.cancelRunningEntries(workflowId)
+      const now = new Date()
+      consoleStore.addConsole({
+        input: {},
+        output: {},
+        success: false,
+        error: 'Execution was cancelled',
+        durationMs: 0,
+        startedAt: now.toISOString(),
+        executionOrder: Number.MAX_SAFE_INTEGER,
+        endedAt: now.toISOString(),
+        workflowId,
+        blockId: 'cancelled',
+        executionId: executionId ?? undefined,
+        blockName: 'Execution Cancelled',
+        blockType: 'cancelled',
+      })
+
+      executionStream.cancel(workflowId)
+      execState.setIsExecuting(workflowId, false)
+      execState.setIsDebugging(workflowId, false)
+      execState.setActiveBlocks(workflowId, new Set())
+
+      reportManualRunToolStop(workflowId).catch(() => {})
+    }
+  }, [invalidateChatQueries, persistPartialResponse, executionStream])
 
   useEffect(() => {
     return () => {

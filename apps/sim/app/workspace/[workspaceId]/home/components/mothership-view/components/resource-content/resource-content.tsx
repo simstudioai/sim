@@ -7,6 +7,10 @@ import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
 import { BookOpen } from '@/components/emcn/icons'
 import { WorkflowIcon } from '@/components/icons'
 import {
+  markRunToolManuallyStopped,
+  reportManualRunToolStop,
+} from '@/lib/copilot/client-sse/run-tool-execution'
+import {
   FileViewer,
   type PreviewMode,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
@@ -18,7 +22,7 @@ import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/com
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { useCurrentWorkflowExecution } from '@/stores/execution'
+import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const Workflow = lazy(() => import('@/app/workspace/[workspaceId]/w/[workflowId]/workflow'))
@@ -90,7 +94,9 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   const { userPermissions: effectivePermissions } = useWorkspacePermissionsContext()
   const setActiveWorkflow = useWorkflowRegistry((state) => state.setActiveWorkflow)
   const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
-  const { isExecuting } = useCurrentWorkflowExecution()
+  const isExecuting = useExecutionStore(
+    (state) => state.workflowExecutions.get(workflowId)?.isExecuting ?? false
+  )
   const { usageExceeded } = useUsageLimits()
 
   useEffect(() => {
@@ -101,8 +107,12 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
     !isExecuting && !effectivePermissions.canRead && !effectivePermissions.isLoading
 
   const handleRun = useCallback(async () => {
+    setActiveWorkflow(workflowId)
+
     if (isExecuting) {
+      markRunToolManuallyStopped(workflowId)
       await handleCancelExecution()
+      await reportManualRunToolStop(workflowId)
       return
     }
 
@@ -112,7 +122,15 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
     }
 
     await handleRunWorkflow()
-  }, [handleCancelExecution, handleRunWorkflow, isExecuting, navigateToSettings, usageExceeded])
+  }, [
+    handleCancelExecution,
+    handleRunWorkflow,
+    isExecuting,
+    navigateToSettings,
+    setActiveWorkflow,
+    usageExceeded,
+    workflowId,
+  ])
 
   const handleOpenWorkflow = useCallback(() => {
     router.push(`/workspace/${workspaceId}/w/${workflowId}`)

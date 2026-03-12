@@ -96,7 +96,7 @@ export type ToolPhase =
   | 'resource'
   | 'subagent'
 
-export type ToolCallStatus = 'executing' | 'success' | 'error'
+export type ToolCallStatus = 'executing' | 'success' | 'error' | 'cancelled'
 
 export interface ToolCallInfo {
   id: string
@@ -113,7 +113,13 @@ export interface OptionItem {
   label: string
 }
 
-export type ContentBlockType = 'text' | 'tool_call' | 'subagent' | 'subagent_text' | 'options'
+export type ContentBlockType =
+  | 'text'
+  | 'tool_call'
+  | 'subagent'
+  | 'subagent_text'
+  | 'options'
+  | 'stopped'
 
 export interface ContentBlock {
   type: ContentBlockType

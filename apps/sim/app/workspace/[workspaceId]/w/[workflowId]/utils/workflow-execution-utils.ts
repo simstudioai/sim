@@ -86,6 +86,7 @@ export function markOutgoingEdgesFromOutput(
 }
 
 export interface WorkflowExecutionOptions {
+  workflowId?: string
   workflowInput?: any
   onStream?: (se: StreamingExecution) => Promise<void>
   executionId?: string
@@ -107,15 +108,17 @@ export async function executeWorkflowWithFullLogging(
   options: WorkflowExecutionOptions = {}
 ): Promise<ExecutionResult | StreamingExecution> {
   const { activeWorkflowId } = useWorkflowRegistry.getState()
+  const targetWorkflowId = options.workflowId || activeWorkflowId
 
-  if (!activeWorkflowId) {
+  if (!targetWorkflowId) {
     throw new Error('No active workflow')
   }
 
   const executionId = options.executionId || uuidv4()
   const { addConsole } = useTerminalConsoleStore.getState()
-  const { setActiveBlocks, setBlockRunStatus, setEdgeRunStatus } = useExecutionStore.getState()
-  const wfId = activeWorkflowId
+  const { setActiveBlocks, setBlockRunStatus, setEdgeRunStatus, setCurrentExecutionId } =
+    useExecutionStore.getState()
+  const wfId = targetWorkflowId
   const workflowEdges = useWorkflowStore.getState().edges
 
   const activeBlocksSet = new Set<string>()
@@ -138,7 +141,7 @@ export async function executeWorkflowWithFullLogging(
       : {}),
   }
 
-  const response = await fetch(`/api/workflows/${activeWorkflowId}/execute`, {
+  const response = await fetch(`/api/workflows/${targetWorkflowId}/execute`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -183,6 +186,10 @@ export async function executeWorkflowWithFullLogging(
           const event = JSON.parse(data)
 
           switch (event.type) {
+            case 'execution:started': {
+              setCurrentExecutionId(wfId, event.executionId)
+              break
+            }
             case 'block:started': {
               updateActiveBlockRefCount(
                 activeBlockRefCounts,
@@ -220,7 +227,7 @@ export async function executeWorkflowWithFullLogging(
                 startedAt: new Date(Date.now() - event.data.durationMs).toISOString(),
                 executionOrder: event.data.executionOrder,
                 endedAt: new Date().toISOString(),
-                workflowId: activeWorkflowId,
+                workflowId: targetWorkflowId,
                 blockId: event.data.blockId,
                 executionId,
                 blockName: event.data.blockName,
@@ -267,7 +274,7 @@ export async function executeWorkflowWithFullLogging(
                 startedAt: new Date(Date.now() - event.data.durationMs).toISOString(),
                 executionOrder: event.data.executionOrder,
                 endedAt: new Date().toISOString(),
-                workflowId: activeWorkflowId,
+                workflowId: targetWorkflowId,
                 blockId: event.data.blockId,
                 executionId,
                 blockName: event.data.blockName,
@@ -302,6 +309,7 @@ export async function executeWorkflowWithFullLogging(
             }
 
             case 'execution:completed':
+              setCurrentExecutionId(wfId, null)
               executionResult = {
                 success: event.data.success,
                 output: event.data.output,
@@ -314,7 +322,18 @@ export async function executeWorkflowWithFullLogging(
               }
               break
 
+            case 'execution:cancelled':
+              setCurrentExecutionId(wfId, null)
+              executionResult = {
+                success: false,
+                output: {},
+                error: 'Execution was cancelled',
+                logs: [],
+              }
+              break
+
             case 'execution:error':
+              setCurrentExecutionId(wfId, null)
               throw new Error(event.data.error || 'Execution failed')
           }
         } catch (parseError) {
@@ -323,6 +342,7 @@ export async function executeWorkflowWithFullLogging(
       }
     }
   } finally {
+    setCurrentExecutionId(wfId, null)
     reader.releaseLock()
     setActiveBlocks(wfId, new Set())
   }
