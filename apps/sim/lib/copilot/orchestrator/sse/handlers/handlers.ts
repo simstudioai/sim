@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
-import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import {
   asRecord,
   getEventData,
@@ -19,6 +18,7 @@ import type {
   StreamingContext,
   ToolCallState,
 } from '@/lib/copilot/orchestrator/types'
+import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { executeToolAndReport, waitForToolCompletion, waitForToolDecision } from './tool-execution'
 
 const logger = createLogger('CopilotSseHandlers')

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
+import { executeRunToolOnClient } from '@/lib/copilot/client-sse/run-tool-execution'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
 import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
@@ -16,7 +17,6 @@ import {
   useChatHistory,
 } from '@/hooks/queries/tasks'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
-import { executeRunToolOnClient } from '@/lib/copilot/client-sse/run-tool-execution'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { FileAttachmentForApi } from '../components/user-input/user-input'
 import type {
