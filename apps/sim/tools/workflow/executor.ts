@@ -53,15 +53,24 @@ export const workflowExecutorTool: ToolConfig<
   },
   transformResponse: async (response: Response) => {
     const data = await response.json()
-    const outputData = data?.output ?? {}
+
+    // The execute endpoint has two response shapes:
+    // 1. Standard: { success, executionId, output, error, metadata }
+    // 2. Response block: arbitrary user-defined data (no wrapper)
+    // Detect standard format by checking for executionId (always present) + success boolean.
+    const isStandardFormat =
+      typeof data?.success === 'boolean' && typeof data?.executionId === 'string'
+
+    const outputData = isStandardFormat ? (data.output ?? {}) : data
+    const success = isStandardFormat ? data.success : response.ok
 
     return {
-      success: data?.success ?? false,
-      duration: data?.metadata?.duration ?? 0,
+      success,
+      duration: isStandardFormat ? (data?.metadata?.duration ?? 0) : 0,
       childWorkflowId: data?.workflowId ?? '',
       childWorkflowName: data?.workflowName ?? '',
-      output: outputData, // For OpenAI provider
-      result: outputData, // For backwards compatibility
+      output: outputData,
+      result: outputData,
       error: data?.error,
     }
   },

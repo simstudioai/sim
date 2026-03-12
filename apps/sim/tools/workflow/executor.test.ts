@@ -242,6 +242,102 @@ describe('workflowExecutorTool', () => {
     })
   })
 
+  describe('transformResponse', () => {
+    const transformResponse = workflowExecutorTool.transformResponse!
+
+    function mockResponse(body: any, status = 200): Response {
+      return {
+        ok: status >= 200 && status < 300,
+        status,
+        json: async () => body,
+      } as unknown as Response
+    }
+
+    it.concurrent('should parse standard format response', async () => {
+      const body = {
+        success: true,
+        executionId: 'exec-123',
+        output: { result: 'hello' },
+        metadata: { duration: 500 },
+      }
+
+      const result = await transformResponse(mockResponse(body))
+
+      expect(result.success).toBe(true)
+      expect(result.output).toEqual({ result: 'hello' })
+      expect(result.duration).toBe(500)
+      expect(result.error).toBeUndefined()
+    })
+
+    it.concurrent('should parse standard format failure', async () => {
+      const body = {
+        success: false,
+        executionId: 'exec-123',
+        output: {},
+        error: 'Something went wrong',
+      }
+
+      const result = await transformResponse(mockResponse(body))
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Something went wrong')
+    })
+
+    it.concurrent(
+      'should handle Response block format (no success/executionId wrapper)',
+      async () => {
+        const body = { issues: [], total: 0 }
+
+        const result = await transformResponse(mockResponse(body))
+
+        expect(result.success).toBe(true)
+        expect(result.output).toEqual({ issues: [], total: 0 })
+        expect(result.error).toBeUndefined()
+      }
+    )
+
+    it.concurrent(
+      'should not misidentify user data containing success field as standard format',
+      async () => {
+        const body = { success: true, data: [1, 2, 3] }
+
+        const result = await transformResponse(mockResponse(body))
+
+        // No executionId → treated as Response block format
+        expect(result.success).toBe(true)
+        expect(result.output).toEqual({ success: true, data: [1, 2, 3] })
+      }
+    )
+
+    it.concurrent('should handle empty Response block data', async () => {
+      const body = {}
+
+      const result = await transformResponse(mockResponse(body))
+
+      expect(result.success).toBe(true)
+      expect(result.output).toEqual({})
+    })
+
+    it.concurrent('should handle array Response block data', async () => {
+      const body = [1, 2, 3]
+
+      const result = await transformResponse(mockResponse(body))
+
+      expect(result.success).toBe(true)
+      expect(result.output).toEqual([1, 2, 3])
+    })
+
+    it.concurrent('should preserve error field from Response block data', async () => {
+      const body = { results: [], error: 'No results found' }
+
+      const result = await transformResponse(mockResponse(body))
+
+      expect(result.success).toBe(true)
+      expect(result.output).toEqual({ results: [], error: 'No results found' })
+      expect(result.error).toBe('No results found')
+    })
+  })
+
   describe('tool metadata', () => {
     it.concurrent('should have correct id', () => {
       expect(workflowExecutorTool.id).toBe('workflow_executor')
