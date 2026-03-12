@@ -37,15 +37,32 @@ export function executeRunToolOnClient(
 }
 
 /**
+ * Synchronously mark the active run tool for a workflow as manually stopped.
+ * Must be called before issuing the cancellation request so that the
+ * concurrent doExecuteRunTool catch/success paths see the marker and skip
+ * their own completion report.
+ */
+export function markRunToolManuallyStopped(workflowId: string): void {
+  const toolCallId = activeRunToolByWorkflowId.get(workflowId)
+  if (!toolCallId) return
+  manuallyStoppedToolCallIds.add(toolCallId)
+  setToolState(toolCallId, ClientToolCallState.cancelled)
+}
+
+/**
  * Report a manual user-initiated stop for an active client-executed run tool.
  * This lets Copilot know the run was intentionally cancelled by the user.
+ * Call markRunToolManuallyStopped first to prevent race conditions.
  */
 export async function reportManualRunToolStop(workflowId: string): Promise<void> {
   const toolCallId = activeRunToolByWorkflowId.get(workflowId)
   if (!toolCallId) return
 
-  manuallyStoppedToolCallIds.add(toolCallId)
-  setToolState(toolCallId, ClientToolCallState.error)
+  if (!manuallyStoppedToolCallIds.has(toolCallId)) {
+    manuallyStoppedToolCallIds.add(toolCallId)
+    setToolState(toolCallId, ClientToolCallState.cancelled)
+  }
+
   await reportCompletion(
     toolCallId,
     'cancelled',
@@ -117,8 +134,11 @@ async function doExecuteRunTool(
     return undefined
   })()
 
+  const { setCurrentExecutionId } = useExecutionStore.getState()
+
   setIsExecuting(targetWorkflowId, true)
   const executionId = uuidv4()
+  setCurrentExecutionId(targetWorkflowId, executionId)
   const executionStartTime = new Date().toISOString()
 
   logger.info('[RunTool] Starting client-side workflow execution', {
@@ -202,6 +222,8 @@ async function doExecuteRunTool(
     if (activeToolCallId === toolCallId) {
       activeRunToolByWorkflowId.delete(targetWorkflowId)
     }
+    const { setCurrentExecutionId: clearExecId } = useExecutionStore.getState()
+    clearExecId(targetWorkflowId, null)
     setIsExecuting(targetWorkflowId, false)
   }
 }

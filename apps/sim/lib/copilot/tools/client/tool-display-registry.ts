@@ -64,6 +64,7 @@ export enum ClientToolCallState {
   rejected = 'rejected',
   success = 'success',
   error = 'error',
+  cancelled = 'cancelled',
   review = 'review',
   background = 'background',
 }
@@ -1432,6 +1433,7 @@ const META_run_block: ToolMetadata = {
     [ClientToolCallState.executing]: { text: 'Running block', icon: Loader2 },
     [ClientToolCallState.success]: { text: 'Ran block', icon: Play },
     [ClientToolCallState.error]: { text: 'Failed to run block', icon: XCircle },
+    [ClientToolCallState.cancelled]: { text: 'Stopped by user', icon: MinusCircle },
     [ClientToolCallState.rejected]: { text: 'Skipped running block', icon: MinusCircle },
     [ClientToolCallState.aborted]: { text: 'Aborted running block', icon: MinusCircle },
     [ClientToolCallState.background]: { text: 'Running block in background', icon: Play },
@@ -1473,6 +1475,8 @@ const META_run_block: ToolMetadata = {
           return `Run ${name}?`
         case ClientToolCallState.error:
           return `Failed to run ${name}`
+        case ClientToolCallState.cancelled:
+          return `Stopped running ${name}`
         case ClientToolCallState.rejected:
           return `Skipped running ${name}`
         case ClientToolCallState.aborted:
@@ -1492,6 +1496,7 @@ const META_run_from_block: ToolMetadata = {
     [ClientToolCallState.executing]: { text: 'Running from block', icon: Loader2 },
     [ClientToolCallState.success]: { text: 'Ran from block', icon: Play },
     [ClientToolCallState.error]: { text: 'Failed to run from block', icon: XCircle },
+    [ClientToolCallState.cancelled]: { text: 'Stopped by user', icon: MinusCircle },
     [ClientToolCallState.rejected]: { text: 'Skipped running from block', icon: MinusCircle },
     [ClientToolCallState.aborted]: { text: 'Aborted running from block', icon: MinusCircle },
     [ClientToolCallState.background]: { text: 'Running from block in background', icon: Play },
@@ -1533,6 +1538,8 @@ const META_run_from_block: ToolMetadata = {
           return `Run from ${name}?`
         case ClientToolCallState.error:
           return `Failed to run from ${name}`
+        case ClientToolCallState.cancelled:
+          return `Stopped running from ${name}`
         case ClientToolCallState.rejected:
           return `Skipped running from ${name}`
         case ClientToolCallState.aborted:
@@ -1552,6 +1559,7 @@ const META_run_workflow_until_block: ToolMetadata = {
     [ClientToolCallState.executing]: { text: 'Running until block', icon: Loader2 },
     [ClientToolCallState.success]: { text: 'Ran until block', icon: Play },
     [ClientToolCallState.error]: { text: 'Failed to run until block', icon: XCircle },
+    [ClientToolCallState.cancelled]: { text: 'Stopped by user', icon: MinusCircle },
     [ClientToolCallState.rejected]: { text: 'Skipped running until block', icon: MinusCircle },
     [ClientToolCallState.aborted]: { text: 'Aborted running until block', icon: MinusCircle },
     [ClientToolCallState.background]: { text: 'Running until block in background', icon: Play },
@@ -1593,6 +1601,8 @@ const META_run_workflow_until_block: ToolMetadata = {
           return `Run until ${name}?`
         case ClientToolCallState.error:
           return `Failed to run until ${name}`
+        case ClientToolCallState.cancelled:
+          return `Stopped running until ${name}`
         case ClientToolCallState.rejected:
           return `Skipped running until ${name}`
         case ClientToolCallState.aborted:
@@ -1612,6 +1622,7 @@ const META_run_workflow: ToolMetadata = {
     [ClientToolCallState.executing]: { text: 'Running your workflow', icon: Loader2 },
     [ClientToolCallState.success]: { text: 'Executed workflow', icon: Play },
     [ClientToolCallState.error]: { text: 'Errored running workflow', icon: XCircle },
+    [ClientToolCallState.cancelled]: { text: 'Stopped by user', icon: MinusCircle },
     [ClientToolCallState.rejected]: { text: 'Skipped workflow execution', icon: MinusCircle },
     [ClientToolCallState.aborted]: { text: 'Aborted workflow execution', icon: MinusCircle },
     [ClientToolCallState.background]: { text: 'Running in background', icon: Play },
@@ -1679,6 +1690,8 @@ const META_run_workflow: ToolMetadata = {
             return `Run ${workflowName}?`
           case ClientToolCallState.error:
             return `Failed to run ${workflowName}`
+          case ClientToolCallState.cancelled:
+            return `Stopped ${workflowName}`
           case ClientToolCallState.rejected:
             return `Skipped running ${workflowName}`
           case ClientToolCallState.aborted:

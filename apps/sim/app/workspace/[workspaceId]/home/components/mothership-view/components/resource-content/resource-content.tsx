@@ -6,7 +6,10 @@ import { useRouter } from 'next/navigation'
 import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
 import { BookOpen } from '@/components/emcn/icons'
 import { WorkflowIcon } from '@/components/icons'
-import { reportManualRunToolStop } from '@/lib/copilot/client-sse/run-tool-execution'
+import {
+  markRunToolManuallyStopped,
+  reportManualRunToolStop,
+} from '@/lib/copilot/client-sse/run-tool-execution'
 import {
   FileViewer,
   type PreviewMode,
@@ -90,7 +93,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   const { navigateToSettings } = useSettingsNavigation()
   const { userPermissions: effectivePermissions } = useWorkspacePermissionsContext()
   const setActiveWorkflow = useWorkflowRegistry((state) => state.setActiveWorkflow)
-  const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
+  const { handleRunWorkflow, handleCancelExecutionForWorkflow } = useWorkflowExecution()
   const isExecuting = useExecutionStore(
     (state) => state.workflowExecutions.get(workflowId)?.isExecuting ?? false
   )
@@ -107,7 +110,8 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
     setActiveWorkflow(workflowId)
 
     if (isExecuting) {
-      await handleCancelExecution()
+      markRunToolManuallyStopped(workflowId)
+      handleCancelExecutionForWorkflow(workflowId)
       await reportManualRunToolStop(workflowId)
       return
     }
@@ -119,7 +123,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
 
     await handleRunWorkflow()
   }, [
-    handleCancelExecution,
+    handleCancelExecutionForWorkflow,
     handleRunWorkflow,
     isExecuting,
     navigateToSettings,

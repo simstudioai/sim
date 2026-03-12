@@ -137,13 +137,19 @@ async function emitSyntheticToolResult(
   options: OrchestratorOptions
 ): Promise<void> {
   const success = completion?.status === 'success'
+  const isCancelled = completion?.status === 'cancelled'
+
+  const resultPayload = isCancelled
+    ? { ...completion?.data, reason: 'user_cancelled', cancelledByUser: true }
+    : completion?.data
+
   try {
     await options.onEvent?.({
       type: 'tool_result',
       toolCallId,
       toolName,
       success,
-      result: completion?.data,
+      result: resultPayload,
       error: !success ? completion?.message : undefined,
     } as SSEEvent)
   } catch {}
