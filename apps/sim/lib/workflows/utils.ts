@@ -353,14 +353,33 @@ export async function createWorkflowRecord(params: CreateWorkflowInput) {
   const workflowId = crypto.randomUUID()
   const now = new Date()
 
-  const folderCondition = folderId
+  const workflowParentCondition = folderId
     ? eq(workflowTable.folderId, folderId)
     : isNull(workflowTable.folderId)
-  const [minResult] = await db
-    .select({ minOrder: min(workflowTable.sortOrder) })
-    .from(workflowTable)
-    .where(and(eq(workflowTable.workspaceId, workspaceId), folderCondition))
-  const sortOrder = (minResult?.minOrder ?? 0) - 1
+  const folderParentCondition = folderId
+    ? eq(workflowFolder.parentId, folderId)
+    : isNull(workflowFolder.parentId)
+
+  const [[workflowMinResult], [folderMinResult]] = await Promise.all([
+    db
+      .select({ minOrder: min(workflowTable.sortOrder) })
+      .from(workflowTable)
+      .where(and(eq(workflowTable.workspaceId, workspaceId), workflowParentCondition)),
+    db
+      .select({ minOrder: min(workflowFolder.sortOrder) })
+      .from(workflowFolder)
+      .where(and(eq(workflowFolder.workspaceId, workspaceId), folderParentCondition)),
+  ])
+
+  const minSortOrder = [workflowMinResult?.minOrder, folderMinResult?.minOrder].reduce<
+    number | null
+  >((currentMin, candidate) => {
+    if (candidate == null) return currentMin
+    if (currentMin == null) return candidate
+    return Math.min(currentMin, candidate)
+  }, null)
+
+  const sortOrder = minSortOrder != null ? minSortOrder - 1 : 0
 
   await db.insert(workflowTable).values({
     id: workflowId,
