@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import type { ToolCall, TraceSpan } from '@/lib/logs/types'
-import { isWorkflowBlockType, stripCustomToolPrefix } from '@/executor/constants'
+import {
+  isConditionBlockType,
+  isWorkflowBlockType,
+  stripCustomToolPrefix,
+} from '@/executor/constants'
 import type { ExecutionResult } from '@/executor/types'
 import { stripCloneSuffixes } from '@/executor/utils/subflow-utils'
 
@@ -230,6 +234,7 @@ export function buildTraceSpans(result: ExecutionResult): {
 
     if (
       !isWorkflowBlockType(log.blockType) &&
+      !isConditionBlockType(log.blockType) &&
       log.output?.providerTiming?.timeSegments &&
       Array.isArray(log.output.providerTiming.timeSegments)
     ) {
