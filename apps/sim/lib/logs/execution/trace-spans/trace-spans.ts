@@ -168,7 +168,7 @@ export function buildTraceSpans(result: ExecutionResult): {
       ...(log.parentIterations?.length && { parentIterations: log.parentIterations }),
     }
 
-    if (log.output?.providerTiming) {
+    if (!isConditionBlockType(log.blockType) && log.output?.providerTiming) {
       const providerTiming = log.output.providerTiming as {
         duration: number
         startTime: string
@@ -190,7 +190,7 @@ export function buildTraceSpans(result: ExecutionResult): {
       }
     }
 
-    if (log.output?.cost) {
+    if (!isConditionBlockType(log.blockType) && log.output?.cost) {
       span.cost = log.output.cost as {
         input?: number
         output?: number
@@ -198,7 +198,7 @@ export function buildTraceSpans(result: ExecutionResult): {
       }
     }
 
-    if (log.output?.tokens) {
+    if (!isConditionBlockType(log.blockType) && log.output?.tokens) {
       const t = log.output.tokens as
         | number
         | {
@@ -228,7 +228,7 @@ export function buildTraceSpans(result: ExecutionResult): {
       }
     }
 
-    if (log.output?.model) {
+    if (!isConditionBlockType(log.blockType) && log.output?.model) {
       span.model = log.output.model as string
     }
 
