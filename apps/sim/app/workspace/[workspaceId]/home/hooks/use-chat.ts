@@ -15,6 +15,7 @@ import {
   useChatHistory,
 } from '@/hooks/queries/tasks'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
+import { executeRunToolOnClient } from '@/lib/copilot/client-sse/run-tool-execution'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { FileAttachmentForApi } from '../components/user-input/user-input'
 import type {
@@ -377,6 +378,17 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                 }
               }
               flush()
+
+              const WORKFLOW_TOOLS = new Set([
+                'run_workflow',
+                'run_workflow_until_block',
+                'run_block',
+                'run_from_block',
+              ])
+              if (parsed.type === 'tool_call' && ui?.clientExecutable && WORKFLOW_TOOLS.has(name)) {
+                const args = data?.arguments ?? data?.input ?? {}
+                executeRunToolOnClient(id, name, args as Record<string, unknown>)
+              }
               break
             }
             case 'tool_result': {
