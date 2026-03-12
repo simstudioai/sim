@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { executeRunToolOnClient } from '@/lib/copilot/client-sse/run-tool-execution'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
 import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
+import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { tableKeys, useTablesList } from '@/hooks/queries/tables'
 import {
@@ -217,7 +218,7 @@ function ensureWorkflowInRegistry(resourceId: string, title: string, workspaceId
         name: title,
         lastModified: new Date(),
         createdAt: new Date(),
-        color: '#7F2FFF',
+        color: getNextWorkflowColor(),
         workspaceId,
         folderId: null,
         sortOrder,
