@@ -28,9 +28,13 @@ export async function DELETE(request: NextRequest) {
       .where(and(eq(copilotChats.id, parsed.chatId), eq(copilotChats.userId, session.user.id)))
       .returning({ workspaceId: copilotChats.workspaceId })
 
+    if (!deleted) {
+      return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
+    }
+
     logger.info('Chat deleted', { chatId: parsed.chatId })
 
-    if (deleted?.workspaceId) {
+    if (deleted.workspaceId) {
       taskPubSub?.publishStatusChanged({
         workspaceId: deleted.workspaceId,
         chatId: parsed.chatId,

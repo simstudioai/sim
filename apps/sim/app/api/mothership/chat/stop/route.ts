@@ -5,6 +5,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { taskPubSub } from '@/lib/copilot/task-events'
 
 const logger = createLogger('MothershipChatStopAPI')
 
@@ -78,7 +79,7 @@ export async function POST(req: NextRequest) {
       setClause.messages = sql`${copilotChats.messages} || ${JSON.stringify([assistantMessage])}::jsonb`
     }
 
-    await db
+    const [updated] = await db
       .update(copilotChats)
       .set(setClause)
       .where(
@@ -88,6 +89,15 @@ export async function POST(req: NextRequest) {
           eq(copilotChats.conversationId, streamId)
         )
       )
+      .returning({ workspaceId: copilotChats.workspaceId })
+
+    if (updated?.workspaceId) {
+      taskPubSub?.publishStatusChanged({
+        workspaceId: updated.workspaceId,
+        chatId,
+        type: 'completed',
+      })
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {
