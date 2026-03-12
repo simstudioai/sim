@@ -2187,7 +2187,7 @@ export async function createAshbyWebhookSubscription(
       throw new Error('Trigger ID is required to create Ashby webhook.')
     }
 
-    const webhookTypeMap: Record<string, string | undefined> = {
+    const webhookTypeMap: Record<string, string> = {
       ashby_application_submit: 'applicationSubmit',
       ashby_candidate_stage_change: 'candidateStageChange',
       ashby_candidate_hire: 'candidateHire',
@@ -2197,6 +2197,10 @@ export async function createAshbyWebhookSubscription(
     }
 
     const webhookType = webhookTypeMap[triggerId]
+    if (!webhookType) {
+      throw new Error(`Unknown Ashby triggerId: ${triggerId}. Add it to webhookTypeMap.`)
+    }
+
     const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
     const authString = Buffer.from(`${apiKey}:`).toString('base64')
 
@@ -2208,10 +2212,7 @@ export async function createAshbyWebhookSubscription(
 
     const requestBody: Record<string, unknown> = {
       requestUrl: notificationUrl,
-    }
-
-    if (webhookType) {
-      requestBody.webhookType = webhookType
+      webhookType,
     }
 
     const ashbyResponse = await fetch('https://api.ashbyhq.com/webhook.create', {
