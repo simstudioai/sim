@@ -427,6 +427,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       let lastTableId: string | null = null
       let lastWorkflowId: string | null = null
       let runningText = ''
+      let lastContentSource: 'main' | 'subagent' | null = null
 
       streamingContentRef.current = ''
       toolArgsMapRef.current.clear()
@@ -497,9 +498,17 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
             case 'content': {
               const chunk = typeof parsed.data === 'string' ? parsed.data : (parsed.content ?? '')
               if (chunk) {
+                const contentSource: 'main' | 'subagent' = activeSubagent ? 'subagent' : 'main'
+                const needsBoundaryNewline =
+                  lastContentSource !== null &&
+                  lastContentSource !== contentSource &&
+                  runningText.length > 0 &&
+                  !runningText.endsWith('\n')
                 const tb = ensureTextBlock()
-                tb.content = (tb.content ?? '') + chunk
-                runningText += chunk
+                const normalizedChunk = needsBoundaryNewline ? `\n${chunk}` : chunk
+                tb.content = (tb.content ?? '') + normalizedChunk
+                runningText += normalizedChunk
+                lastContentSource = contentSource
                 streamingContentRef.current = runningText
                 flush()
               }
