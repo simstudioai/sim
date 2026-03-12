@@ -261,11 +261,17 @@ export async function executeResponsesProviderRequest(
   const postResponses = async (
     body: Record<string, unknown>
   ): Promise<OpenAI.Responses.Response> => {
+    // Create a 60s timeout signal and combine with any existing abort signal
+    const timeoutSignal = AbortSignal.timeout(60000) // 60 seconds
+    const combinedSignal = request.abortSignal
+      ? AbortSignal.any([timeoutSignal, request.abortSignal])
+      : timeoutSignal
+
     const response = await fetch(config.endpoint, {
       method: 'POST',
       headers: config.headers,
       body: JSON.stringify(body),
-      signal: request.abortSignal,
+      signal: combinedSignal,
     })
 
     if (!response.ok) {
@@ -283,11 +289,17 @@ export async function executeResponsesProviderRequest(
     if (request.stream && (!tools || tools.length === 0)) {
       logger.info(`Using streaming response for ${config.providerLabel} request`)
 
+      // Create a 60s timeout signal and combine with any existing abort signal
+      const timeoutSignal = AbortSignal.timeout(60000) // 60 seconds
+      const combinedSignal = request.abortSignal
+        ? AbortSignal.any([timeoutSignal, request.abortSignal])
+        : timeoutSignal
+
       const streamResponse = await fetch(config.endpoint, {
         method: 'POST',
         headers: config.headers,
         body: JSON.stringify(createRequestBody(initialInput, { stream: true })),
-        signal: request.abortSignal,
+        signal: combinedSignal,
       })
 
       if (!streamResponse.ok) {
@@ -702,11 +714,17 @@ export async function executeResponsesProviderRequest(
         }
       }
 
+      // Create a 60s timeout signal and combine with any existing abort signal
+      const timeoutSignal = AbortSignal.timeout(60000) // 60 seconds
+      const combinedSignal = request.abortSignal
+        ? AbortSignal.any([timeoutSignal, request.abortSignal])
+        : timeoutSignal
+
       const streamResponse = await fetch(config.endpoint, {
         method: 'POST',
         headers: config.headers,
         body: JSON.stringify(createRequestBody(currentInput, streamOverrides)),
-        signal: request.abortSignal,
+        signal: combinedSignal,
       })
 
       if (!streamResponse.ok) {
