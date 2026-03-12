@@ -33,9 +33,7 @@ export function AgentGroup({
   const hasTools = tools.length > 0
   const allDone =
     hasTools &&
-    tools.every(
-      (t) => t.status === 'success' || t.status === 'error' || t.status === 'cancelled'
-    )
+    tools.every((t) => t.status === 'success' || t.status === 'error' || t.status === 'cancelled')
 
   const [expanded, setExpanded] = useState(!allDone)
   const [mounted, setMounted] = useState(!allDone)
