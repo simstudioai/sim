@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
+import { executeRunToolOnClient } from '@/lib/copilot/client-sse/run-tool-execution'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
+import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { tableKeys, useTablesList } from '@/hooks/queries/tables'
 import {
   type TaskChatHistory,
@@ -30,9 +32,12 @@ import type {
 import {
   extractFileResource,
   extractFunctionExecuteResource,
+  extractKnowledgeBaseResource,
+  extractKnowledgeRespondResources,
   extractResourcesFromHistory,
   extractTableResource,
   extractWorkflowResource,
+  GENERIC_TITLES,
   RESOURCE_TOOL_NAMES,
 } from '../utils'
 
@@ -239,7 +244,10 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     () => new Set(workspaceTables.map((table) => table.id)),
     [workspaceTables]
   )
-  const existingWorkflowIds = useMemo(() => new Set(workflows.map((workflow) => workflow.id)), [workflows])
+  const existingWorkflowIds = useMemo(
+    () => new Set(workflows.map((workflow) => workflow.id)),
+    [workflows]
+  )
   const isResourceCleanupSettled = useMemo(
     () => !isWorkspaceFilesLoading && !isWorkspaceTablesLoading && !isWorkflowsLoading,
     [isWorkspaceFilesLoading, isWorkspaceTablesLoading, isWorkflowsLoading]
@@ -257,7 +265,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     setResources((prev) => {
       const existing = prev.find((r) => r.type === resource.type && r.id === resource.id)
       if (existing) {
-        const keepOldTitle = existing.title !== 'Table' && existing.title !== 'File'
+        const keepOldTitle = !GENERIC_TITLES.has(existing.title)
         const title = keepOldTitle ? existing.title : resource.title
         if (title === existing.title) return prev
         return prev.map((r) =>
@@ -537,6 +545,17 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                 }
               }
               flush()
+
+              const WORKFLOW_TOOLS = new Set([
+                'run_workflow',
+                'run_workflow_until_block',
+                'run_block',
+                'run_from_block',
+              ])
+              if (parsed.type === 'tool_call' && ui?.clientExecutable && WORKFLOW_TOOLS.has(name)) {
+                const args = data?.arguments ?? data?.input ?? {}
+                executeRunToolOnClient(id, name, args as Record<string, unknown>)
+              }
               break
             }
             case 'tool_result': {
@@ -639,6 +658,26 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                     } else {
                       registry.loadWorkflowState(resource.id)
                     }
+                  }
+                } else if (toolName === 'knowledge_base') {
+                  resource = extractKnowledgeBaseResource(parsed, storedArgs)
+                  if (resource) {
+                    queryClient.invalidateQueries({
+                      queryKey: knowledgeKeys.detail(resource.id),
+                    })
+                    queryClient.invalidateQueries({
+                      queryKey: knowledgeKeys.list(workspaceId),
+                    })
+                  }
+                } else if (toolName === 'knowledge') {
+                  const kbResources = extractKnowledgeRespondResources(parsed)
+                  for (const r of kbResources) {
+                    addResource(r)
+                  }
+                  if (kbResources.length > 0) {
+                    queryClient.invalidateQueries({
+                      queryKey: knowledgeKeys.list(workspaceId),
+                    })
                   }
                 }
 

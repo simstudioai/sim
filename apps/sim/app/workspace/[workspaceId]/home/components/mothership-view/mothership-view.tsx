@@ -5,7 +5,12 @@ import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
-import { EmbeddedWorkflowActions, ResourceContent, ResourceTabs } from './components'
+import {
+  EmbeddedKnowledgeBaseActions,
+  EmbeddedWorkflowActions,
+  ResourceContent,
+  ResourceTabs,
+} from './components'
 
 const PREVIEWABLE_EXTENSIONS = new Set(['md', 'html', 'htm', 'csv'])
 const PREVIEW_ONLY_EXTENSIONS = new Set(['html', 'htm'])
@@ -27,7 +32,7 @@ interface MothershipViewProps {
 }
 
 /**
- * Split-pane view that renders embedded resources (tables, files, workflows)
+ * Split-pane view that renders embedded resources (tables, files, workflows, knowledge bases)
  * alongside the chat conversation. Composes ResourceTabs for navigation
  * and ResourceContent for rendering the active resource.
  */
@@ -56,6 +61,8 @@ export function MothershipView({
   const headerActions =
     active?.type === 'workflow' ? (
       <EmbeddedWorkflowActions workspaceId={workspaceId} workflowId={active.id} />
+    ) : active?.type === 'knowledgebase' ? (
+      <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={active.id} />
     ) : null
 
   return (

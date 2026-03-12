@@ -21,6 +21,7 @@ export type {
   ResourceCell,
   ResourceColumn,
   ResourceRow,
+  ResourceTableProps,
   SelectableConfig,
 } from './resource/resource'
-export { Resource } from './resource/resource'
+export { Resource, ResourceTable } from './resource/resource'

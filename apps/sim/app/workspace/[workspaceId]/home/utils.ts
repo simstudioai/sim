@@ -8,13 +8,22 @@ export const RESOURCE_TOOL_NAMES = new Set([
   'edit_workflow',
   'function_execute',
   'read',
+  'knowledge_base',
+  'knowledge',
 ])
 
+/**
+ * Resolves the top-level result object from an SSE payload.
+ * The result may arrive at `parsed.result` or nested under `parsed.data.result`.
+ */
+function getTopResult(parsed: SSEPayload): Record<string, unknown> | undefined {
+  return (parsed.result ?? (typeof parsed.data === 'object' ? parsed.data?.result : undefined)) as
+    | Record<string, unknown>
+    | undefined
+}
+
 function getResultData(parsed: SSEPayload): Record<string, unknown> | undefined {
-  const topResult = parsed.result as Record<string, unknown> | undefined
-  const nestedResult =
-    typeof parsed.data === 'object' ? (parsed.data?.result as Record<string, unknown>) : undefined
-  const result = topResult ?? nestedResult
+  const result = getTopResult(parsed)
   return result?.data as Record<string, unknown> | undefined
 }
 
@@ -66,10 +75,7 @@ export function extractFunctionExecuteResource(
   parsed: SSEPayload,
   storedArgs: Record<string, unknown> | undefined
 ): MothershipResource | null {
-  const topResult = (parsed.result ??
-    (typeof parsed.data === 'object' ? parsed.data?.result : undefined)) as
-    | Record<string, unknown>
-    | undefined
+  const topResult = getTopResult(parsed)
 
   if (topResult?.tableId) {
     return {
@@ -94,10 +100,7 @@ export function extractWorkflowResource(
   parsed: SSEPayload,
   fallbackWorkflowId: string | null
 ): MothershipResource | null {
-  const topResult = (parsed.result ??
-    (typeof parsed.data === 'object' ? parsed.data?.result : undefined)) as
-    | Record<string, unknown>
-    | undefined
+  const topResult = getTopResult(parsed)
   const data = topResult?.data as Record<string, unknown> | undefined
 
   const workflowId =
@@ -110,7 +113,53 @@ export function extractWorkflowResource(
   return null
 }
 
-const GENERIC_TITLES = new Set(['Table', 'File', 'Workflow'])
+export function extractKnowledgeBaseResource(
+  parsed: SSEPayload,
+  storedArgs: Record<string, unknown> | undefined
+): MothershipResource | null {
+  const topResult = getTopResult(parsed)
+  const data = topResult?.data as Record<string, unknown> | undefined
+
+  const knowledgeBaseId =
+    (data?.id as string) ??
+    (topResult?.knowledgeBaseId as string) ??
+    (data?.knowledgeBaseId as string) ??
+    (storedArgs?.knowledgeBaseId as string)
+  const knowledgeBaseName =
+    (data?.name as string) ?? (topResult?.knowledgeBaseName as string) ?? 'Knowledge Base'
+
+  if (knowledgeBaseId) {
+    return { type: 'knowledgebase', id: knowledgeBaseId, title: knowledgeBaseName }
+  }
+
+  return null
+}
+
+/**
+ * Extracts knowledge base resources from a `knowledge` subagent respond result.
+ * The Go `knowledge_respond` tool returns a `knowledge_bases` array with `{id, name}` entries.
+ */
+export function extractKnowledgeRespondResources(parsed: SSEPayload): MothershipResource[] {
+  const topResult = getTopResult(parsed)
+  const data = topResult?.data as Record<string, unknown> | undefined
+  const kbArray = data?.knowledge_bases as Array<Record<string, unknown>> | undefined
+  if (!Array.isArray(kbArray)) return []
+
+  const resources: MothershipResource[] = []
+  for (const kb of kbArray) {
+    const id = kb.id as string | undefined
+    if (id) {
+      resources.push({
+        type: 'knowledgebase',
+        id,
+        title: (kb.name as string) || 'Knowledge Base',
+      })
+    }
+  }
+  return resources
+}
+
+export const GENERIC_TITLES = new Set(['Table', 'File', 'Workflow', 'Knowledge Base'])
 
 /**
  * Reconstructs the MothershipResource list from persisted tool calls.
@@ -157,6 +206,17 @@ export function extractResourcesFromHistory(messages: TaskStoredMessage[]): Moth
       } else if (tc.name === 'create_workflow' || tc.name === 'edit_workflow') {
         resource = extractWorkflowResource(payload, lastWorkflowId)
         if (resource) lastWorkflowId = resource.id
+      } else if (tc.name === 'knowledge_base') {
+        resource = extractKnowledgeBaseResource(payload, args)
+      } else if (tc.name === 'knowledge') {
+        const kbResources = extractKnowledgeRespondResources(payload)
+        for (const r of kbResources) {
+          const key = `${r.type}:${r.id}`
+          const existing = resourceMap.get(key)
+          if (!existing || (GENERIC_TITLES.has(existing.title) && !GENERIC_TITLES.has(r.title))) {
+            resourceMap.set(key, r)
+          }
+        }
       }
 
       if (resource) {

@@ -91,6 +91,7 @@ const DOCUMENT_COLUMNS: ResourceColumn[] = [
 interface KnowledgeBaseProps {
   id: string
   knowledgeBaseName?: string
+  workspaceId?: string
 }
 
 const AnimatedLoader = ({ className }: { className?: string }) => (
@@ -185,9 +186,10 @@ function getDocumentTags(doc: DocumentData, definitions: TagDefinition[]): TagVa
 export function KnowledgeBase({
   id,
   knowledgeBaseName: passedKnowledgeBaseName,
+  workspaceId: propWorkspaceId,
 }: KnowledgeBaseProps) {
   const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const { removeKnowledgeBase } = useKnowledgeBasesList(workspaceId, { enabled: false })
   const userPermissions = useUserPermissionsContext()
 
@@ -1053,7 +1055,6 @@ export function KnowledgeBase({
           },
           { label: knowledgeBaseName },
         ]}
-        disableHeaderSort
         columns={DOCUMENT_COLUMNS}
         rows={[]}
         emptyMessage='Error loading knowledge base'
@@ -1068,7 +1069,6 @@ export function KnowledgeBase({
         title='Knowledge Base'
         breadcrumbs={breadcrumbs}
         headerActions={headerActions}
-        disableHeaderSort
         sort={sortConfig}
         search={{
           value: searchQuery,

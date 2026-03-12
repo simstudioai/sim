@@ -1,7 +1,5 @@
 'use client'
-
-import type { ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { ArrowDown, ArrowUp, Button, Checkbox, Loader, Plus, Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -49,7 +47,6 @@ interface ResourceProps {
   create?: CreateAction
   search?: SearchConfig
   defaultSort?: string
-  disableHeaderSort?: boolean
   sort?: SortConfig
   headerActions?: HeaderAction[]
   columns: ResourceColumn[]
@@ -60,7 +57,6 @@ interface ResourceProps {
   onRowHover?: (rowId: string) => void
   onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
   isLoading?: boolean
-  loadingRows?: number
   onContextMenu?: (e: React.MouseEvent) => void
   filter?: ReactNode
   filterTags?: FilterTag[]
@@ -75,6 +71,7 @@ interface ResourceProps {
 }
 
 const EMPTY_CELL_PLACEHOLDER = '-  -  -'
+const SKELETON_ROW_COUNT = 5
 
 /**
  * Shared page shell for resource list pages (tables, files, knowledge, schedules, logs).
@@ -87,7 +84,6 @@ export function Resource({
   create,
   search,
   defaultSort,
-  disableHeaderSort,
   sort: sortOverride,
   headerActions,
   columns,
@@ -98,7 +94,6 @@ export function Resource({
   onRowHover,
   onRowContextMenu,
   isLoading,
-  loadingRows = 5,
   onContextMenu,
   filter,
   filterTags,
@@ -111,10 +106,102 @@ export function Resource({
   contentOverride,
   overlay,
 }: ResourceProps) {
+  return (
+    <div
+      className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'
+      onContextMenu={onContextMenu}
+    >
+      <ResourceHeader
+        icon={icon}
+        title={title}
+        breadcrumbs={breadcrumbs}
+        create={create}
+        actions={headerActions}
+      />
+      <ResourceOptionsBar
+        search={search}
+        sort={sortOverride ?? undefined}
+        filter={filter}
+        filterTags={filterTags}
+        extras={extras}
+      />
+      {contentOverride ? (
+        <div className='relative flex min-h-0 flex-1 flex-col overflow-auto'>
+          {contentOverride}
+          {overlay}
+        </div>
+      ) : (
+        <ResourceTable
+          columns={columns}
+          rows={rows}
+          defaultSort={defaultSort}
+          sort={sortOverride}
+          selectedRowId={selectedRowId}
+          selectable={selectable}
+          onRowClick={onRowClick}
+          onRowHover={onRowHover}
+          onRowContextMenu={onRowContextMenu}
+          isLoading={isLoading}
+          create={create}
+          onLoadMore={onLoadMore}
+          hasMore={hasMore}
+          isLoadingMore={isLoadingMore}
+          pagination={pagination}
+          emptyMessage={emptyMessage}
+          overlay={overlay}
+        />
+      )}
+    </div>
+  )
+}
+
+export interface ResourceTableProps {
+  columns: ResourceColumn[]
+  rows: ResourceRow[]
+  defaultSort?: string
+  sort?: SortConfig
+  selectedRowId?: string | null
+  selectable?: SelectableConfig
+  onRowClick?: (rowId: string) => void
+  onRowHover?: (rowId: string) => void
+  onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
+  isLoading?: boolean
+  create?: CreateAction
+  onLoadMore?: () => void
+  hasMore?: boolean
+  isLoadingMore?: boolean
+  pagination?: PaginationConfig
+  emptyMessage?: string
+  overlay?: ReactNode
+}
+
+/**
+ * Data table body extracted from Resource for independent composition.
+ * Use directly when rendering a table without the Resource header/toolbar.
+ */
+export const ResourceTable = memo(function ResourceTable({
+  columns,
+  rows,
+  defaultSort,
+  sort: externalSort,
+  selectedRowId,
+  selectable,
+  onRowClick,
+  onRowHover,
+  onRowContextMenu,
+  isLoading,
+  create,
+  onLoadMore,
+  hasMore,
+  isLoadingMore,
+  pagination,
+  emptyMessage,
+  overlay,
+}: ResourceTableProps) {
   const headerRef = useRef<HTMLDivElement>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
-  const sortEnabled = defaultSort != null && !disableHeaderSort
-  const [sort, setSort] = useState<{ column: string; direction: 'asc' | 'desc' }>({
+  const sortEnabled = defaultSort != null
+  const [internalSort, setInternalSort] = useState<{ column: string; direction: 'asc' | 'desc' }>({
     column: defaultSort ?? '',
     direction: 'desc',
   })
@@ -126,31 +213,22 @@ export function Resource({
   }, [])
 
   const handleSort = useCallback((column: string, direction: 'asc' | 'desc') => {
-    setSort({ column, direction })
+    setInternalSort({ column, direction })
   }, [])
 
-  const sortConfig = useMemo<SortConfig | undefined>(() => {
-    if (!sortEnabled) return undefined
-    return {
-      options: columns.map((col) => ({ id: col.id, label: col.header })),
-      active: sort,
-      onSort: handleSort,
-    }
-  }, [sortEnabled, columns, sort, handleSort])
-
   const displayRows = useMemo(() => {
-    if (!sortEnabled || sortOverride) return rows
+    if (!sortEnabled || externalSort) return rows
     return [...rows].sort((a, b) => {
-      const col = sort.column
+      const col = internalSort.column
       const aVal = a.sortValues?.[col] ?? a.cells[col]?.label ?? ''
       const bVal = b.sortValues?.[col] ?? b.cells[col]?.label ?? ''
       const cmp =
         typeof aVal === 'number' && typeof bVal === 'number'
           ? aVal - bVal
           : String(aVal).localeCompare(String(bVal))
-      return sort.direction === 'asc' ? -cmp : cmp
+      return internalSort.direction === 'asc' ? -cmp : cmp
     })
-  }, [rows, sort, sortEnabled, sortOverride])
+  }, [rows, internalSort, sortEnabled, externalSort])
 
   useEffect(() => {
     if (!onLoadMore || !hasMore) return
@@ -169,178 +247,166 @@ export function Resource({
   const hasCheckbox = selectable != null
   const totalColSpan = columns.length + (hasCheckbox ? 1 : 0)
 
-  return (
-    <div
-      className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'
-      onContextMenu={onContextMenu}
-    >
-      <ResourceHeader
-        icon={icon}
-        title={title}
-        breadcrumbs={breadcrumbs}
-        create={create}
-        actions={headerActions}
+  if (isLoading) {
+    return (
+      <DataTableSkeleton
+        columns={columns}
+        rowCount={SKELETON_ROW_COUNT}
+        hasCheckbox={hasCheckbox}
       />
-      <ResourceOptionsBar
-        search={search}
-        sort={sortOverride ?? sortConfig}
-        filter={filter}
-        filterTags={filterTags}
-        extras={extras}
-      />
+    )
+  }
 
-      {contentOverride ? (
-        <div className='min-h-0 flex-1 overflow-auto'>{contentOverride}</div>
-      ) : isLoading ? (
-        <DataTableSkeleton columns={columns} rowCount={loadingRows} hasCheckbox={hasCheckbox} />
-      ) : rows.length === 0 && emptyMessage ? (
-        <div className='flex min-h-0 flex-1 items-center justify-center'>
-          <span className='text-[13px] text-[var(--text-secondary)]'>{emptyMessage}</span>
-        </div>
-      ) : (
-        <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
-          <div ref={headerRef} className='overflow-hidden'>
-            <table className='w-full table-fixed text-[13px]'>
-              <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
-              <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
-                <tr>
+  if (rows.length === 0 && emptyMessage) {
+    return (
+      <div className='flex min-h-0 flex-1 items-center justify-center'>
+        <span className='text-[13px] text-[var(--text-secondary)]'>{emptyMessage}</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
+      <div ref={headerRef} className='overflow-hidden'>
+        <table className='w-full table-fixed text-[13px]'>
+          <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
+          <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
+            <tr>
+              {hasCheckbox && (
+                <th className='h-10 w-[52px] py-[6px] pr-0 pl-[20px] text-left align-middle'>
+                  <Checkbox
+                    size='sm'
+                    checked={selectable.isAllSelected}
+                    onCheckedChange={(checked) => selectable.onSelectAll(checked as boolean)}
+                    disabled={selectable.disabled}
+                    aria-label='Select all'
+                  />
+                </th>
+              )}
+              {columns.map((col) => {
+                if (!sortEnabled) {
+                  return (
+                    <th
+                      key={col.id}
+                      className='h-10 px-[24px] py-[6px] text-left align-middle font-base text-[12px] text-[var(--text-muted)]'
+                    >
+                      {col.header}
+                    </th>
+                  )
+                }
+                const isActive = internalSort.column === col.id
+                const SortIcon = internalSort.direction === 'asc' ? ArrowUp : ArrowDown
+                return (
+                  <th key={col.id} className='h-10 px-[16px] py-[6px] text-left align-middle'>
+                    <Button
+                      variant='subtle'
+                      className='px-[8px] py-[4px] font-base text-[var(--text-muted)] hover:text-[var(--text-muted)]'
+                      onClick={() =>
+                        handleSort(
+                          col.id,
+                          isActive ? (internalSort.direction === 'desc' ? 'asc' : 'desc') : 'desc'
+                        )
+                      }
+                    >
+                      {col.header}
+                      {isActive && (
+                        <SortIcon className='ml-[4px] h-[12px] w-[12px] text-[var(--text-icon)]' />
+                      )}
+                    </Button>
+                  </th>
+                )
+              })}
+            </tr>
+          </thead>
+        </table>
+      </div>
+      <div className='min-h-0 flex-1 overflow-auto' onScroll={handleBodyScroll}>
+        <table className='w-full table-fixed text-[13px]'>
+          <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
+          <tbody>
+            {displayRows.map((row) => {
+              const isSelected = selectable?.selectedIds.has(row.id) ?? false
+              return (
+                <tr
+                  key={row.id}
+                  data-resource-row
+                  data-row-id={row.id}
+                  className={cn(
+                    'transition-colors hover:bg-[var(--surface-3)]',
+                    onRowClick && 'cursor-pointer',
+                    (selectedRowId === row.id || isSelected) && 'bg-[var(--surface-3)]'
+                  )}
+                  onClick={() => onRowClick?.(row.id)}
+                  onMouseEnter={onRowHover ? () => onRowHover(row.id) : undefined}
+                  onContextMenu={(e) => onRowContextMenu?.(e, row.id)}
+                >
                   {hasCheckbox && (
-                    <th className='h-10 w-[52px] py-[6px] pr-0 pl-[20px] text-left align-middle'>
+                    <td className='w-[52px] py-[10px] pr-0 pl-[20px] align-middle'>
                       <Checkbox
                         size='sm'
-                        checked={selectable.isAllSelected}
-                        onCheckedChange={(checked) => selectable.onSelectAll(checked as boolean)}
+                        checked={isSelected}
+                        onCheckedChange={(checked) =>
+                          selectable.onSelectRow(row.id, checked as boolean)
+                        }
                         disabled={selectable.disabled}
-                        aria-label='Select all'
+                        aria-label='Select row'
+                        onClick={(e) => e.stopPropagation()}
                       />
-                    </th>
+                    </td>
                   )}
-                  {columns.map((col) => {
-                    if (disableHeaderSort || !sortEnabled) {
-                      return (
-                        <th
-                          key={col.id}
-                          className='h-10 px-[24px] py-[6px] text-left align-middle font-base text-[12px] text-[var(--text-muted)]'
-                        >
-                          {col.header}
-                        </th>
-                      )
-                    }
-                    const isActive = sort.column === col.id
-                    const SortIcon = sort.direction === 'asc' ? ArrowUp : ArrowDown
+                  {columns.map((col, colIdx) => {
+                    const cell = row.cells[col.id]
                     return (
-                      <th key={col.id} className='h-10 px-[16px] py-[6px] text-left align-middle'>
-                        <Button
-                          variant='subtle'
-                          className='px-[8px] py-[4px] font-base text-[var(--text-muted)] hover:text-[var(--text-muted)]'
-                          onClick={() =>
-                            handleSort(
-                              col.id,
-                              isActive ? (sort.direction === 'desc' ? 'asc' : 'desc') : 'desc'
-                            )
-                          }
-                        >
-                          {col.header}
-                          {isActive && (
-                            <SortIcon className='ml-[4px] h-[12px] w-[12px] text-[var(--text-icon)]' />
-                          )}
-                        </Button>
-                      </th>
+                      <td key={col.id} className='px-[24px] py-[10px] align-middle'>
+                        <CellContent
+                          cell={{ ...cell, label: cell?.label || EMPTY_CELL_PLACEHOLDER }}
+                          primary={colIdx === 0}
+                        />
+                      </td>
                     )
                   })}
                 </tr>
-              </thead>
-            </table>
-          </div>
-          <div className='min-h-0 flex-1 overflow-auto' onScroll={handleBodyScroll}>
-            <table className='w-full table-fixed text-[13px]'>
-              <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
-              <tbody>
-                {displayRows.map((row) => {
-                  const isSelected = selectable?.selectedIds.has(row.id) ?? false
-                  return (
-                    <tr
-                      key={row.id}
-                      data-resource-row
-                      data-row-id={row.id}
-                      className={cn(
-                        'transition-colors hover:bg-[var(--surface-3)]',
-                        onRowClick && 'cursor-pointer',
-                        (selectedRowId === row.id || isSelected) && 'bg-[var(--surface-3)]'
-                      )}
-                      onClick={() => onRowClick?.(row.id)}
-                      onMouseEnter={onRowHover ? () => onRowHover(row.id) : undefined}
-                      onContextMenu={(e) => onRowContextMenu?.(e, row.id)}
-                    >
-                      {hasCheckbox && (
-                        <td className='w-[52px] py-[10px] pr-0 pl-[20px] align-middle'>
-                          <Checkbox
-                            size='sm'
-                            checked={isSelected}
-                            onCheckedChange={(checked) =>
-                              selectable.onSelectRow(row.id, checked as boolean)
-                            }
-                            disabled={selectable.disabled}
-                            aria-label='Select row'
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </td>
-                      )}
-                      {columns.map((col, colIdx) => {
-                        const cell = row.cells[col.id]
-                        return (
-                          <td key={col.id} className='px-[24px] py-[10px] align-middle'>
-                            <CellContent
-                              cell={{ ...cell, label: cell?.label || EMPTY_CELL_PLACEHOLDER }}
-                              primary={colIdx === 0}
-                            />
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  )
-                })}
-                {create && (
-                  <tr
-                    className={cn(
-                      'transition-colors',
-                      create.disabled
-                        ? 'cursor-not-allowed'
-                        : 'cursor-pointer hover:bg-[var(--surface-3)]'
-                    )}
-                    onClick={create.disabled ? undefined : create.onClick}
-                  >
-                    <td colSpan={totalColSpan} className='px-[24px] py-[10px] align-middle'>
-                      <span className='flex items-center gap-[12px] font-medium text-[14px] text-[var(--text-secondary)]'>
-                        <Plus className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
-                        {create.label}
-                      </span>
-                    </td>
-                  </tr>
+              )
+            })}
+            {create && (
+              <tr
+                className={cn(
+                  'transition-colors',
+                  create.disabled
+                    ? 'cursor-not-allowed'
+                    : 'cursor-pointer hover:bg-[var(--surface-3)]'
                 )}
-              </tbody>
-            </table>
-            {hasMore && (
-              <div ref={loadMoreRef} className='flex items-center justify-center py-[12px]'>
-                {isLoadingMore && (
-                  <Loader className='h-[16px] w-[16px] text-[var(--text-secondary)]' animate />
-                )}
-              </div>
+                onClick={create.disabled ? undefined : create.onClick}
+              >
+                <td colSpan={totalColSpan} className='px-[24px] py-[10px] align-middle'>
+                  <span className='flex items-center gap-[12px] font-medium text-[14px] text-[var(--text-secondary)]'>
+                    <Plus className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
+                    {create.label}
+                  </span>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        {hasMore && (
+          <div ref={loadMoreRef} className='flex items-center justify-center py-[12px]'>
+            {isLoadingMore && (
+              <Loader className='h-[16px] w-[16px] text-[var(--text-secondary)]' animate />
             )}
           </div>
-          {overlay}
-          {pagination && pagination.totalPages > 1 && (
-            <Pagination
-              currentPage={pagination.currentPage}
-              totalPages={pagination.totalPages}
-              onPageChange={pagination.onPageChange}
-            />
-          )}
-        </div>
+        )}
+      </div>
+      {overlay}
+      {pagination && pagination.totalPages > 1 && (
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalPages={pagination.totalPages}
+          onPageChange={pagination.onPageChange}
+        />
       )}
     </div>
   )
-}
+})
 
 function Pagination({
   currentPage,

@@ -62,6 +62,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useDeleteTask, useDeleteTasks, useRenameTask, useTasks } from '@/hooks/queries/tasks'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
@@ -218,6 +219,7 @@ export const Sidebar = memo(function Sidebar() {
   const { data: sessionData, isPending: sessionLoading } = useSession()
   const { canEdit } = useUserPermissionsContext()
   const { config: permissionConfig, filterBlocks } = usePermissionConfig()
+  const { navigateToSettings } = useSettingsNavigation()
   const initializeSearchData = useSearchModalStore((state) => state.initializeData)
 
   useEffect(() => {
@@ -497,10 +499,10 @@ export const Sidebar = memo(function Sidebar() {
         id: 'settings',
         label: 'Settings',
         icon: Settings,
-        href: `/workspace/${workspaceId}/settings/general`,
+        onClick: () => navigateToSettings(),
       },
     ],
-    [workspaceId]
+    [workspaceId, navigateToSettings]
   )
 
   const { data: fetchedTasks = [], isLoading: tasksLoading } = useTasks(workspaceId)

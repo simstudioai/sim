@@ -22,6 +22,13 @@ import { executeToolAndReport, waitForToolCompletion, waitForToolDecision } from
 
 const logger = createLogger('CopilotSseHandlers')
 
+const CLIENT_WORKFLOW_TOOLS = new Set([
+  'run_workflow',
+  'run_workflow_until_block',
+  'run_block',
+  'run_from_block',
+])
+
 /**
  * Extract the `ui` object from a Go SSE event. The Go backend enriches
  * tool_call events with `ui: { requiresConfirmation, clientExecutable, ... }`.
@@ -265,9 +272,17 @@ export const sseHandlers: Record<string, SSEHandler> = {
       })
     }
 
-    // Non-interactive mode (Mothership/MCP): skip confirmation & client gates,
-    // execute server-side directly.
     if (options.interactive === false) {
+      if (clientExecutable && CLIENT_WORKFLOW_TOOLS.has(toolName)) {
+        toolCall.status = 'executing'
+        const completion = await waitForToolCompletion(
+          toolCallId,
+          options.timeout || STREAM_TIMEOUT_MS,
+          options.abortSignal
+        )
+        handleClientCompletion(toolCall, toolCallId, completion)
+        return
+      }
       if (options.autoExecuteTools !== false) {
         fireToolExecution()
       }
@@ -514,9 +529,17 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
       })
     }
 
-    // Non-interactive mode (Mothership/MCP): skip confirmation & client gates,
-    // execute server-side directly.
     if (options.interactive === false) {
+      if (clientExecutable && CLIENT_WORKFLOW_TOOLS.has(toolName)) {
+        toolCall.status = 'executing'
+        const completion = await waitForToolCompletion(
+          toolCallId,
+          options.timeout || STREAM_TIMEOUT_MS,
+          options.abortSignal
+        )
+        handleClientCompletion(toolCall, toolCallId, completion)
+        return
+      }
       if (options.autoExecuteTools !== false) {
         fireToolExecution()
       }

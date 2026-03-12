@@ -4,12 +4,14 @@ import { lazy, Suspense, useCallback, useEffect, useMemo } from 'react'
 import { Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
+import { BookOpen } from '@/components/emcn/icons'
 import { WorkflowIcon } from '@/components/icons'
 import {
   FileViewer,
   type PreviewMode,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/components'
 import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
@@ -60,6 +62,16 @@ export function ResourceContent({ workspaceId, resource, previewMode }: Resource
         <Suspense fallback={LOADING_SKELETON}>
           <Workflow key={resource.id} workspaceId={workspaceId} workflowId={resource.id} embedded />
         </Suspense>
+      )
+
+    case 'knowledgebase':
+      return (
+        <KnowledgeBase
+          key={resource.id}
+          id={resource.id}
+          knowledgeBaseName={resource.title}
+          workspaceId={workspaceId}
+        />
       )
 
     default:
@@ -144,6 +156,40 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
         </Tooltip.Content>
       </Tooltip.Root>
     </>
+  )
+}
+
+interface EmbeddedKnowledgeBaseActionsProps {
+  workspaceId: string
+  knowledgeBaseId: string
+}
+
+export function EmbeddedKnowledgeBaseActions({
+  workspaceId,
+  knowledgeBaseId,
+}: EmbeddedKnowledgeBaseActionsProps) {
+  const router = useRouter()
+
+  const handleOpenKnowledgeBase = useCallback(() => {
+    router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`)
+  }, [router, workspaceId, knowledgeBaseId])
+
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <Button
+          variant='subtle'
+          onClick={handleOpenKnowledgeBase}
+          className='shrink-0 bg-transparent px-[8px] py-[5px] text-[12px]'
+          aria-label='Open knowledge base'
+        >
+          <BookOpen className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+        </Button>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='bottom'>
+        <p>Open Knowledge Base</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
   )
 }
 

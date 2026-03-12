@@ -49,6 +49,7 @@ const TOOL_ICONS: Record<MothershipToolName | SubagentName | 'mothership', IconC
   deploy: Rocket,
   auth: Integration,
   knowledge: Database,
+  knowledge_base: Database,
   table: TableIcon,
   job: Calendar,
   agent: BubbleChatPreview,

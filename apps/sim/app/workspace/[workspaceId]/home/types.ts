@@ -57,6 +57,7 @@ export type MothershipToolName =
   | 'deploy'
   | 'auth'
   | 'knowledge'
+  | 'knowledge_base'
   | 'table'
   | 'job'
   | 'agent'
@@ -184,6 +185,7 @@ export const TOOL_UI_METADATA: Partial<Record<MothershipToolName, ToolUIMetadata
   deploy: { title: 'Deploying', phaseLabel: 'Deploy', phase: 'subagent' },
   auth: { title: 'Connecting credentials', phaseLabel: 'Auth', phase: 'subagent' },
   knowledge: { title: 'Managing knowledge', phaseLabel: 'Knowledge', phase: 'subagent' },
+  knowledge_base: { title: 'Managing knowledge base', phaseLabel: 'Resource', phase: 'resource' },
   table: { title: 'Managing tables', phaseLabel: 'Table', phase: 'subagent' },
   job: { title: 'Managing jobs', phaseLabel: 'Job', phase: 'subagent' },
   agent: { title: 'Agent action', phaseLabel: 'Agent', phase: 'subagent' },
@@ -200,6 +202,7 @@ export interface SSEPayloadUI {
   phaseLabel?: string
   icon?: string
   internal?: boolean
+  clientExecutable?: boolean
 }
 
 export interface SSEPayloadData {
@@ -227,7 +230,7 @@ export interface SSEPayload {
   subagent?: string
 }
 
-export type MothershipResourceType = 'table' | 'file' | 'workflow'
+export type MothershipResourceType = 'table' | 'file' | 'workflow' | 'knowledgebase'
 
 export interface MothershipResource {
   type: MothershipResourceType

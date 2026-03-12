@@ -1054,7 +1054,6 @@ export default function Logs() {
       <Resource
         icon={Library}
         title='Logs'
-        disableHeaderSort
         headerActions={headerActions}
         search={searchConfig}
         filter={<LogsFilterPanel searchQuery={searchQuery} onSearchQueryChange={setSearchQuery} />}

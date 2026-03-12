@@ -2,7 +2,6 @@
 
 import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { ChevronDown, Skeleton, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
@@ -23,6 +22,7 @@ import { useOrganizations } from '@/hooks/queries/organization'
 import { prefetchSubscriptionData, useSubscriptionData } from '@/hooks/queries/subscription'
 import { useSuperUserStatus } from '@/hooks/queries/user-profile'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 interface SettingsSidebarProps {
   isCollapsed?: boolean
@@ -167,9 +167,11 @@ export function SettingsSidebar({
     [queryClient, workspaceId]
   )
 
-  const handleBack = () => {
-    router.push(`/workspace/${workspaceId}/home`)
-  }
+  const { popSettingsReturnUrl, getSettingsHref } = useSettingsNavigation()
+
+  const handleBack = useCallback(() => {
+    router.push(popSettingsReturnUrl(`/workspace/${workspaceId}/home`))
+  }, [router, popSettingsReturnUrl, workspaceId])
 
   return (
     <>
@@ -256,14 +258,20 @@ export function SettingsSidebar({
                           {content}
                         </a>
                       ) : (
-                        <Link
-                          href={`/workspace/${workspaceId}/settings/${item.id}`}
+                        <button
+                          type='button'
                           className={itemClassName}
                           onMouseEnter={() => handlePrefetch(item.id)}
                           onFocus={() => handlePrefetch(item.id)}
+                          onClick={() =>
+                            router.replace(
+                              getSettingsHref({ section: item.id as SettingsSection }),
+                              { scroll: false }
+                            )
+                          }
                         >
                           {content}
-                        </Link>
+                        </button>
                       )
 
                       return (

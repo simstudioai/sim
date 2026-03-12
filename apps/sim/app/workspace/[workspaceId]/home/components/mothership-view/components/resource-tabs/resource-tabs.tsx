@@ -8,7 +8,7 @@ import {
   useCallback,
 } from 'react'
 import { Button, Tooltip } from '@/components/emcn'
-import { PanelLeft, Table as TableIcon } from '@/components/emcn/icons'
+import { BookOpen, PanelLeft, Table as TableIcon } from '@/components/emcn/icons'
 import { WorkflowIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { cn } from '@/lib/core/utils/cn'
@@ -60,6 +60,7 @@ interface ResourceTabsProps {
 const RESOURCE_ICONS: Record<Exclude<MothershipResourceType, 'file'>, ElementType> = {
   table: TableIcon,
   workflow: WorkflowIcon,
+  knowledgebase: BookOpen,
 }
 
 function getResourceIcon(resource: MothershipResource): ElementType {
