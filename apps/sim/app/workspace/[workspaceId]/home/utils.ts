@@ -8,6 +8,7 @@ export const RESOURCE_TOOL_NAMES = new Set([
   'edit_workflow',
   'function_execute',
   'read',
+  'knowledge_base',
   'knowledge',
 ])
 
@@ -134,6 +135,30 @@ export function extractKnowledgeBaseResource(
   return null
 }
 
+/**
+ * Extracts knowledge base resources from a `knowledge` subagent respond result.
+ * The Go `knowledge_respond` tool returns a `knowledge_bases` array with `{id, name}` entries.
+ */
+export function extractKnowledgeRespondResources(parsed: SSEPayload): MothershipResource[] {
+  const topResult = getTopResult(parsed)
+  const data = topResult?.data as Record<string, unknown> | undefined
+  const kbArray = data?.knowledge_bases as Array<Record<string, unknown>> | undefined
+  if (!Array.isArray(kbArray)) return []
+
+  const resources: MothershipResource[] = []
+  for (const kb of kbArray) {
+    const id = kb.id as string | undefined
+    if (id) {
+      resources.push({
+        type: 'knowledgebase',
+        id,
+        title: (kb.name as string) || 'Knowledge Base',
+      })
+    }
+  }
+  return resources
+}
+
 export const GENERIC_TITLES = new Set(['Table', 'File', 'Workflow', 'Knowledge Base'])
 
 /**
@@ -181,8 +206,17 @@ export function extractResourcesFromHistory(messages: TaskStoredMessage[]): Moth
       } else if (tc.name === 'create_workflow' || tc.name === 'edit_workflow') {
         resource = extractWorkflowResource(payload, lastWorkflowId)
         if (resource) lastWorkflowId = resource.id
-      } else if (tc.name === 'knowledge') {
+      } else if (tc.name === 'knowledge_base') {
         resource = extractKnowledgeBaseResource(payload, args)
+      } else if (tc.name === 'knowledge') {
+        const kbResources = extractKnowledgeRespondResources(payload)
+        for (const r of kbResources) {
+          const key = `${r.type}:${r.id}`
+          const existing = resourceMap.get(key)
+          if (!existing || (GENERIC_TITLES.has(existing.title) && !GENERIC_TITLES.has(r.title))) {
+            resourceMap.set(key, r)
+          }
+        }
       }
 
       if (resource) {

@@ -300,13 +300,11 @@ export function Document({
 
   const isInEditorView = selectedChunkId !== null || isCreatingNewChunk
 
-  // Derive selected chunk from displayChunks (memoized)
   const selectedChunk = useMemo(
     () => (selectedChunkId ? (displayChunks.find((c) => c.id === selectedChunkId) ?? null) : null),
     [selectedChunkId, displayChunks]
   )
 
-  // Chunk navigation helpers (memoized)
   const currentChunkIndex = useMemo(
     () => (selectedChunk ? displayChunks.findIndex((c) => c.id === selectedChunk.id) : -1),
     [selectedChunk, displayChunks]
@@ -365,7 +363,6 @@ export function Document({
     }
   }, [pendingAction, closeEditor])
 
-  // Cmd+S keyboard shortcut
   useEffect(() => {
     if (!isInEditorView) return
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -378,7 +375,6 @@ export function Document({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isInEditorView, handleSave])
 
-  // beforeunload guard
   useEffect(() => {
     if (!isDirty) return
     const handler = (e: BeforeUnloadEvent) => {
@@ -908,9 +904,8 @@ export function Document({
     }))
   }, [isCompleted, documentData?.processingStatus, displayChunks, searchQuery])
 
-  const emptyMessage = isCompleted ? (searchQuery ? 'No chunks found' : 'No chunks yet') : undefined
+  const emptyMessage = combinedError ? 'Error loading document' : undefined
 
-  // Save button label
   const saveLabel =
     saveStatus === 'saving'
       ? isCreatingNewChunk
@@ -1066,7 +1061,6 @@ export function Document({
     )
   }
 
-  // Inline edit chunk view
   if (selectedChunkId) {
     if (!selectedChunk || !documentData) {
       return (
@@ -1113,7 +1107,6 @@ export function Document({
     )
   }
 
-  // Default table view
   return (
     <>
       <Resource
@@ -1122,7 +1115,6 @@ export function Document({
         breadcrumbs={breadcrumbs}
         create={createAction}
         search={combinedError ? undefined : searchConfig}
-        disableHeaderSort
         columns={CHUNK_COLUMNS}
         rows={combinedError ? [] : chunkRows}
         selectable={combinedError ? undefined : selectableConfig}
@@ -1131,7 +1123,7 @@ export function Document({
         onContextMenu={handleEmptyContextMenu}
         isLoading={isLoadingDocument || isFetchingNewDoc}
         pagination={paginationConfig}
-        emptyMessage={combinedError ? 'Error loading document' : emptyMessage}
+        emptyMessage={emptyMessage}
         filter={combinedError ? undefined : filterContent}
         filterTags={combinedError ? undefined : filterTags}
       />
