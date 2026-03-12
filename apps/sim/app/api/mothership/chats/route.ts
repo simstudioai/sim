@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { workspaceId } = CreateChatSchema.parse(body)
 
+    const now = new Date()
     const [chat] = await db
       .insert(copilotChats)
       .values({
@@ -82,7 +83,8 @@ export async function POST(request: NextRequest) {
         title: null,
         model: 'claude-opus-4-5',
         messages: [],
-        lastSeenAt: new Date(),
+        updatedAt: now,
+        lastSeenAt: now,
       })
       .returning({ id: copilotChats.id })
 

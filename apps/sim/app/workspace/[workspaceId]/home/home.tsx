@@ -175,6 +175,7 @@ export function Home({ chatId }: HomeProps = {}) {
   } = useChat(workspaceId, chatId)
 
   useEffect(() => {
+    wasSendingRef.current = false
     if (chatId) markRead(chatId)
   }, [chatId, markRead])
 
