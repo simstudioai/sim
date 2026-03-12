@@ -5,7 +5,7 @@ import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { checkEnterprisePlan, checkTeamPlan } from '@/lib/billing/subscriptions/utils'
-import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
+import { getInlineJobQueue, getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { isProd } from '@/lib/core/config/feature-flags'
 import { safeCompare } from '@/lib/core/security/encryption'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
@@ -29,6 +29,7 @@ import {
 import { executeWebhookJob } from '@/background/webhook-execution'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { isConfluencePayloadMatch } from '@/triggers/confluence/utils'
+import { isPollingWebhookProvider } from '@/triggers/constants'
 import { isGitHubEventMatch } from '@/triggers/github/utils'
 import { isHubSpotContactEventMatch } from '@/triggers/hubspot/utils'
 import { isJiraEventMatch } from '@/triggers/jira/utils'
@@ -1116,15 +1117,24 @@ export async function queueWebhookExecution(
       ...(credentialId ? { credentialId } : {}),
     }
 
-    const jobQueue = await getJobQueue()
-    const jobId = await jobQueue.enqueue('webhook-execution', payload, {
-      metadata: { workflowId: foundWorkflow.id, userId: actorUserId },
-    })
-    logger.info(
-      `[${options.requestId}] Queued webhook execution task ${jobId} for ${foundWebhook.provider} webhook`
-    )
+    const isPolling = isPollingWebhookProvider(payload.provider)
 
-    if (shouldExecuteInline()) {
+    if (isPolling && !shouldExecuteInline()) {
+      const jobQueue = await getJobQueue()
+      const jobId = await jobQueue.enqueue('webhook-execution', payload, {
+        metadata: { workflowId: foundWorkflow.id, userId: actorUserId },
+      })
+      logger.info(
+        `[${options.requestId}] Queued polling webhook execution task ${jobId} for ${foundWebhook.provider} webhook via job queue`
+      )
+    } else {
+      const jobQueue = await getInlineJobQueue()
+      const jobId = await jobQueue.enqueue('webhook-execution', payload, {
+        metadata: { workflowId: foundWorkflow.id, userId: actorUserId },
+      })
+      logger.info(
+        `[${options.requestId}] Executing ${foundWebhook.provider} webhook ${jobId} inline`
+      )
       void (async () => {
         try {
           await jobQueue.startJob(jobId)

@@ -35,3 +35,15 @@ export const TRIGGER_RUNTIME_SUBBLOCK_IDS: string[] = [
  * This prevents runaway errors from continuously executing failing workflows.
  */
 export const MAX_CONSECUTIVE_FAILURES = 100
+
+/**
+ * Set of webhook provider names that use polling-based triggers.
+ * Mirrors the `polling: true` flag on TriggerConfig entries.
+ * Used to route execution: polling providers use the full job queue
+ * (Trigger.dev), non-polling providers execute inline.
+ */
+export const POLLING_PROVIDERS = new Set(['gmail', 'outlook', 'rss', 'imap'])
+
+export function isPollingWebhookProvider(provider: string): boolean {
+  return POLLING_PROVIDERS.has(provider)
+}

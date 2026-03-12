@@ -30,6 +30,7 @@ export const gmailPollingTrigger: TriggerConfig = {
   description: 'Triggers when new emails are received in Gmail (requires Gmail credentials)',
   version: '1.0.0',
   icon: GmailIcon,
+  polling: true,
 
   subBlocks: [
     {

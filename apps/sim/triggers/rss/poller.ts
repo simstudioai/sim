@@ -8,6 +8,7 @@ export const rssPollingTrigger: TriggerConfig = {
   description: 'Triggers when new items are published to an RSS feed',
   version: '1.0.0',
   icon: RssIcon,
+  polling: true,
 
   subBlocks: [
     {
