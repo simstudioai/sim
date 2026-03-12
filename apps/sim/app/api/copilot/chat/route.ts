@@ -444,6 +444,7 @@ export async function GET(req: NextRequest) {
           planArtifact: copilotChats.planArtifact,
           config: copilotChats.config,
           conversationId: copilotChats.conversationId,
+          resources: copilotChats.resources,
           createdAt: copilotChats.createdAt,
           updatedAt: copilotChats.updatedAt,
         })
@@ -464,6 +465,7 @@ export async function GET(req: NextRequest) {
         planArtifact: chat.planArtifact || null,
         config: chat.config || null,
         conversationId: chat.conversationId || null,
+        resources: Array.isArray(chat.resources) ? chat.resources : [],
         createdAt: chat.createdAt,
         updatedAt: chat.updatedAt,
       }

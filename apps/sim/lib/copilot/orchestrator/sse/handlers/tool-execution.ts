@@ -21,6 +21,11 @@ import type {
   StreamingContext,
   ToolCallResult,
 } from '@/lib/copilot/orchestrator/types'
+import {
+  extractResourcesFromToolResult,
+  isResourceToolName,
+  persistChatResources,
+} from '@/lib/copilot/resources'
 import { getTableById } from '@/lib/table/service'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
@@ -508,6 +513,29 @@ export async function executeToolAndReport(
       },
     }
     await options?.onEvent?.(resultEvent)
+
+    if (result.success && isResourceToolName(toolCall.name) && execContext.chatId) {
+      const resources = extractResourcesFromToolResult(
+        toolCall.name,
+        toolCall.params,
+        result.output
+      )
+      if (resources.length > 0) {
+        persistChatResources(execContext.chatId, resources).catch((err) => {
+          logger.warn('Failed to persist chat resources', {
+            chatId: execContext.chatId,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        })
+
+        for (const resource of resources) {
+          await options?.onEvent?.({
+            type: 'resource_added',
+            resource: { type: resource.type, id: resource.id, title: resource.title },
+          })
+        }
+      }
+    }
   } catch (error) {
     toolCall.status = 'error'
     toolCall.error = error instanceof Error ? error.message : String(error)

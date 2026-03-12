@@ -4,13 +4,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
-import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
-import {
-  EmbeddedKnowledgeBaseActions,
-  EmbeddedWorkflowActions,
-  ResourceContent,
-  ResourceTabs,
-} from './components'
+import type {
+  MothershipResource,
+  MothershipResourceType,
+} from '@/app/workspace/[workspaceId]/home/types'
+import { ResourceActions, ResourceContent, ResourceTabs } from './components'
 
 const PREVIEWABLE_EXTENSIONS = new Set(['md', 'html', 'htm', 'csv'])
 const PREVIEW_ONLY_EXTENSIONS = new Set(['html', 'htm'])
@@ -23,24 +21,25 @@ const PREVIEW_CYCLE: Record<PreviewMode, PreviewMode> = {
 
 interface MothershipViewProps {
   workspaceId: string
+  chatId?: string
   resources: MothershipResource[]
   activeResourceId: string | null
   onSelectResource: (id: string) => void
+  onAddResource: (resource: MothershipResource) => void
+  onRemoveResource: (resourceType: MothershipResourceType, resourceId: string) => void
   onCollapse: () => void
   isCollapsed: boolean
   className?: string
 }
 
-/**
- * Split-pane view that renders embedded resources (tables, files, workflows, knowledge bases)
- * alongside the chat conversation. Composes ResourceTabs for navigation
- * and ResourceContent for rendering the active resource.
- */
 export function MothershipView({
   workspaceId,
+  chatId,
   resources,
   activeResourceId,
   onSelectResource,
+  onAddResource,
+  onRemoveResource,
   onCollapse,
   isCollapsed,
   className,
@@ -58,13 +57,6 @@ export function MothershipView({
   const isActivePreviewable =
     active?.type === 'file' && PREVIEWABLE_EXTENSIONS.has(getFileExtension(active.title))
 
-  const headerActions =
-    active?.type === 'workflow' ? (
-      <EmbeddedWorkflowActions workspaceId={workspaceId} workflowId={active.id} />
-    ) : active?.type === 'knowledgebase' ? (
-      <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={active.id} />
-    ) : null
-
   return (
     <div
       className={cn(
@@ -75,21 +67,29 @@ export function MothershipView({
     >
       <div className='flex min-h-0 min-w-[400px] flex-1 flex-col'>
         <ResourceTabs
+          workspaceId={workspaceId}
+          chatId={chatId}
           resources={resources}
           activeId={active?.id ?? null}
           onSelect={onSelectResource}
+          onAddResource={onAddResource}
+          onRemoveResource={onRemoveResource}
           onCollapse={onCollapse}
-          actions={headerActions}
+          actions={active ? <ResourceActions workspaceId={workspaceId} resource={active} /> : null}
           previewMode={isActivePreviewable ? previewMode : undefined}
           onCyclePreviewMode={isActivePreviewable ? handleCyclePreview : undefined}
         />
         <div className='min-h-0 flex-1 overflow-hidden'>
-          {active && (
+          {active ? (
             <ResourceContent
               workspaceId={workspaceId}
               resource={active}
               previewMode={isActivePreviewable ? previewMode : undefined}
             />
+          ) : (
+            <div className='flex h-full items-center justify-center'>
+              <p className='text-[13px] text-[var(--text-tertiary)]'>No resources yet</p>
+            </div>
           )}
         </div>
       </div>

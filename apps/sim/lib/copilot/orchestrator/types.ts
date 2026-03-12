@@ -8,6 +8,7 @@ export type SSEEventType =
   | 'tool_generating'
   | 'tool_result'
   | 'tool_error'
+  | 'resource_added'
   | 'subagent_start'
   | 'subagent_end'
   | 'structured_result'
@@ -38,6 +39,8 @@ export interface SSEEvent {
   phase?: string
   /** UI metadata from copilot (title, icon, phaseLabel) */
   ui?: Record<string, unknown>
+  /** Set on resource_added events */
+  resource?: { type: string; id: string; title: string }
 }
 
 export type ToolCallStatus =

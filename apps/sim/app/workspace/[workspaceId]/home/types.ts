@@ -18,6 +18,7 @@ export type SSEEventType =
   | 'tool_generating'
   | 'tool_result'
   | 'tool_error'
+  | 'resource_added'
   | 'subagent_start'
   | 'subagent_end'
   | 'structured_result'
@@ -235,6 +236,7 @@ export interface SSEPayload {
   result?: unknown
   error?: string
   subagent?: string
+  resource?: { type: MothershipResourceType; id: string; title: string }
 }
 
 export type MothershipResourceType = 'table' | 'file' | 'workflow' | 'knowledgebase'
