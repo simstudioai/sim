@@ -12,7 +12,7 @@ interface UseShiftSelectionLockResult {
   /** Computed ReactFlow props based on current selection state */
   selectionProps: {
     selectionOnDrag: boolean
-    panOnDrag: [number, number] | false
+    panOnDrag: number[]
     selectionKeyCode: string | null
   }
 }
@@ -55,7 +55,7 @@ export function useShiftSelectionLock({
 
   const selectionProps = {
     selectionOnDrag: !isHandMode || isShiftSelecting,
-    panOnDrag: (isHandMode && !isShiftSelecting ? [0, 1] : false) as [number, number] | false,
+    panOnDrag: isHandMode && !isShiftSelecting ? [0, 1] : [1],
     selectionKeyCode: isShiftSelecting ? null : 'Shift',
   }
 
