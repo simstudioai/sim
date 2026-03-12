@@ -2,7 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
-import { executeRunToolOnClient } from '@/lib/copilot/client-sse/run-tool-execution'
+import {
+  executeRunToolOnClient,
+  markRunToolManuallyStopped,
+  reportManualRunToolStop,
+} from '@/lib/copilot/client-sse/run-tool-execution'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
 import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
@@ -18,6 +22,9 @@ import {
 } from '@/hooks/queries/tasks'
 import { useWorkflows, workflowKeys } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles, workspaceFilesKeys } from '@/hooks/queries/workspace-files'
+import { useExecutionStream } from '@/hooks/use-execution-stream'
+import { useExecutionStore } from '@/stores/execution/store'
+import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { FileAttachmentForApi } from '../components/user-input/user-input'
 import type {
@@ -225,6 +232,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   const pendingTableResourceIdsRef = useRef<Set<string>>(new Set())
   const pendingWorkflowResourceIdsRef = useRef<Set<string>>(new Set())
 
+  const executionStream = useExecutionStream()
   const isHomePage = pathname.endsWith('/home')
 
   const { data: chatHistory } = useChatHistory(initialChatId)
@@ -949,7 +957,68 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
         body: JSON.stringify({ streamId: sid }),
       }).catch(() => {})
     }
-  }, [invalidateChatQueries, persistPartialResponse])
+
+    setMessages((prev) =>
+      prev.map((msg) => {
+        if (!msg.contentBlocks?.some((b) => b.toolCall?.status === 'executing')) return msg
+        return {
+          ...msg,
+          contentBlocks: msg.contentBlocks!.map((block) => {
+            if (block.toolCall?.status !== 'executing') return block
+            return {
+              ...block,
+              toolCall: {
+                ...block.toolCall,
+                status: 'cancelled' as const,
+                displayTitle: 'Stopped by user',
+              },
+            }
+          }),
+        }
+      })
+    )
+
+    const execState = useExecutionStore.getState()
+    const consoleStore = useTerminalConsoleStore.getState()
+    for (const [workflowId, wfExec] of execState.workflowExecutions) {
+      if (!wfExec.isExecuting) continue
+
+      markRunToolManuallyStopped(workflowId)
+
+      const executionId = execState.getCurrentExecutionId(workflowId)
+      if (executionId) {
+        execState.setCurrentExecutionId(workflowId, null)
+        fetch(`/api/workflows/${workflowId}/executions/${executionId}/cancel`, {
+          method: 'POST',
+        }).catch(() => {})
+      }
+
+      consoleStore.cancelRunningEntries(workflowId)
+      const now = new Date()
+      consoleStore.addConsole({
+        input: {},
+        output: {},
+        success: false,
+        error: 'Execution was cancelled',
+        durationMs: 0,
+        startedAt: now.toISOString(),
+        executionOrder: Number.MAX_SAFE_INTEGER,
+        endedAt: now.toISOString(),
+        workflowId,
+        blockId: 'cancelled',
+        executionId: executionId ?? undefined,
+        blockName: 'Execution Cancelled',
+        blockType: 'cancelled',
+      })
+
+      executionStream.cancel(workflowId)
+      execState.setIsExecuting(workflowId, false)
+      execState.setIsDebugging(workflowId, false)
+      execState.setActiveBlocks(workflowId, new Set())
+
+      reportManualRunToolStop(workflowId).catch(() => {})
+    }
+  }, [invalidateChatQueries, persistPartialResponse, executionStream])
 
   useEffect(() => {
     return () => {
