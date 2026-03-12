@@ -495,17 +495,18 @@ export class WorkflowDiffEngine {
       logger.info('Applying autolayout to proposed workflow state')
       try {
         const baselineBlockIds = new Set(Object.keys(mergedBaseline.blocks))
-        const hasExistingBaseline = baselineBlockIds.size > 0
 
         // Identify blocks that need positioning: genuinely new blocks AND
-        // existing blocks whose parent container changed (moved into/out of
-        // a subflow). Parent changes require repositioning because React Flow
-        // uses coordinates relative to the parent container.
+        // blocks inserted into subflows (position reset to 0,0). Extracted
+        // blocks are excluded — the server computes valid absolute positions
+        // from the container offset, so they don't need repositioning.
         const blocksNeedingLayout = Object.keys(finalBlocks).filter((id) => {
           if (!baselineBlockIds.has(id)) return true
           const baselineParent = mergedBaseline.blocks[id]?.data?.parentId ?? null
           const proposedParent = finalBlocks[id]?.data?.parentId ?? null
-          return baselineParent !== proposedParent
+          if (baselineParent === proposedParent) return false
+          const pos = finalBlocks[id]?.position
+          return pos?.x === 0 && pos?.y === 0
         })
 
         const totalBlocks = Object.keys(finalBlocks).length

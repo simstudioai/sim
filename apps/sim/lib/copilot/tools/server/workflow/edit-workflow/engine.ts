@@ -283,8 +283,13 @@ export function applyOperationsToWorkflowState(
  * Removes edges that cross scope boundaries after all operations are applied.
  * An edge is invalid if:
  * - Either endpoint no longer exists (dangling reference)
- * - The source and target are in different scopes (different parentId)
- * - A child block connects to its own parent container
+ * - The source and target are in incompatible scopes
+ * - A child block connects to its own parent container (non-handle edge)
+ *
+ * Valid scope relationships:
+ * - Same scope: both blocks share the same parentId
+ * - Container→child: source is the parent container of the target (start handles)
+ * - Child→container: target is the parent container of the source (end handles)
  */
 function removeInvalidScopeEdges(modifiedState: any): void {
   const blocks = modifiedState.blocks || {}
@@ -298,13 +303,17 @@ function removeInvalidScopeEdges(modifiedState: any): void {
     const sourceParent = sourceBlock.data?.parentId ?? null
     const targetParent = targetBlock.data?.parentId ?? null
 
-    // Both blocks must be in the same scope
-    if (sourceParent !== targetParent) return false
+    // Same scope — always valid
+    if (sourceParent === targetParent) return true
 
-    // A child must not connect to its own parent container
-    if (edge.target === sourceParent || edge.source === targetParent) return false
+    // Container→child (e.g., loop-start-source → first child in loop)
+    if (targetParent === edge.source) return true
 
-    return true
+    // Child→container (e.g., last child → loop-end via loop block edges)
+    if (sourceParent === edge.target) return true
+
+    // Different scopes with no parent-child relationship — invalid
+    return false
   })
 
   const removed = prevCount - (modifiedState.edges?.length ?? 0)
