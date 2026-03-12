@@ -169,10 +169,6 @@ export interface UpdateWorkflowParams {
   description?: string
 }
 
-export interface DeleteWorkflowParams {
-  workflowId: string
-}
-
 export interface MoveWorkflowParams {
   workflowId: string
   folderId: string | null
@@ -186,10 +182,6 @@ export interface MoveFolderParams {
 export interface RenameFolderParams {
   folderId: string
   name: string
-}
-
-export interface DeleteFolderParams {
-  folderId: string
 }
 
 export interface UpdateWorkspaceMcpServerParams {

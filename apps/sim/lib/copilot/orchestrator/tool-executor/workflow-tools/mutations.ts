@@ -11,8 +11,6 @@ import {
 import {
   createFolderRecord,
   createWorkflowRecord,
-  deleteFolderRecord,
-  deleteWorkflowRecord,
   setWorkflowVariables,
   updateFolderRecord,
   updateWorkflowRecord,
@@ -70,8 +68,6 @@ function buildExecutionError(error: unknown): ToolCallResult {
 import type {
   CreateFolderParams,
   CreateWorkflowParams,
-  DeleteFolderParams,
-  DeleteWorkflowParams,
   GenerateApiKeyParams,
   MoveFolderParams,
   MoveWorkflowParams,
@@ -550,28 +546,6 @@ export async function executeUpdateWorkflow(
   }
 }
 
-export async function executeDeleteWorkflow(
-  params: DeleteWorkflowParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workflowId = params.workflowId
-    if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
-    }
-
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
-    await deleteWorkflowRecord(workflowId)
-
-    return {
-      success: true,
-      output: { workflowId, name: workflowRecord.name, deleted: true },
-    }
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
-  }
-}
-
 export async function executeRenameFolder(
   params: RenameFolderParams,
   context: ExecutionContext
@@ -592,27 +566,6 @@ export async function executeRenameFolder(
     await updateFolderRecord(folderId, { name })
 
     return { success: true, output: { folderId, name } }
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
-  }
-}
-
-export async function executeDeleteFolder(
-  params: DeleteFolderParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const folderId = params.folderId
-    if (!folderId) {
-      return { success: false, error: 'folderId is required' }
-    }
-
-    const deleted = await deleteFolderRecord(folderId)
-    if (!deleted) {
-      return { success: false, error: 'Folder not found' }
-    }
-
-    return { success: true, output: { folderId, deleted: true } }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
