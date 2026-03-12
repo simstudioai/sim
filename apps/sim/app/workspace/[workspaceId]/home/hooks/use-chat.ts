@@ -16,8 +16,10 @@ import {
   taskKeys,
   useChatHistory,
 } from '@/hooks/queries/tasks'
+import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { useWorkflows, workflowKeys } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles, workspaceFilesKeys } from '@/hooks/queries/workspace-files'
+import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { FileAttachmentForApi } from '../components/user-input/user-input'
 import type {
@@ -351,6 +353,12 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
         if (resource.type !== 'workflow') continue
         const registry = useWorkflowRegistry.getState()
         if (!registry.workflows[resource.id]) {
+          const sortOrder = getTopInsertionSortOrder(
+            registry.workflows,
+            useFolderStore.getState().folders,
+            workspaceId,
+            null
+          )
           useWorkflowRegistry.setState((state) => ({
             workflows: {
               ...state.workflows,
@@ -362,7 +370,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                 color: '#7F2FFF',
                 workspaceId,
                 folderId: null,
-                sortOrder: 0,
+                sortOrder,
               },
             },
           }))
@@ -652,6 +660,12 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                     queryClient.invalidateQueries({ queryKey: workflowKeys.list(workspaceId) })
                     const registry = useWorkflowRegistry.getState()
                     if (!registry.workflows[resource.id]) {
+                      const sortOrder = getTopInsertionSortOrder(
+                        registry.workflows,
+                        useFolderStore.getState().folders,
+                        workspaceId,
+                        null
+                      )
                       useWorkflowRegistry.setState((state) => ({
                         workflows: {
                           ...state.workflows,
@@ -663,7 +677,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                             color: '#7F2FFF',
                             workspaceId,
                             folderId: null,
-                            sortOrder: 0,
+                            sortOrder,
                           },
                         },
                       }))
