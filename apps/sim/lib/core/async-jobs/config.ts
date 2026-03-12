@@ -7,6 +7,7 @@ const logger = createLogger('AsyncJobsConfig')
 
 let cachedBackend: JobQueueBackend | null = null
 let cachedBackendType: AsyncBackendType | null = null
+let cachedInlineBackend: JobQueueBackend | null = null
 
 /**
  * Determines which async backend to use based on environment configuration.
@@ -72,6 +73,31 @@ export function getCurrentBackendType(): AsyncBackendType | null {
 }
 
 /**
+ * Gets a job queue backend that bypasses Trigger.dev (Redis -> Database).
+ * Used for non-polling webhooks that should always execute inline.
+ */
+export async function getInlineJobQueue(): Promise<JobQueueBackend> {
+  if (cachedInlineBackend) {
+    return cachedInlineBackend
+  }
+
+  const redis = getRedisClient()
+  let type: string
+  if (redis) {
+    const { RedisJobQueue } = await import('@/lib/core/async-jobs/backends/redis')
+    cachedInlineBackend = new RedisJobQueue(redis)
+    type = 'redis'
+  } else {
+    const { DatabaseJobQueue } = await import('@/lib/core/async-jobs/backends/database')
+    cachedInlineBackend = new DatabaseJobQueue()
+    type = 'database'
+  }
+
+  logger.info(`Inline job backend initialized: ${type}`)
+  return cachedInlineBackend
+}
+
+/**
  * Checks if jobs should be executed inline (fire-and-forget).
  * For Redis/DB backends, we execute inline. Trigger.dev handles execution itself.
  */
@@ -85,4 +111,5 @@ export function shouldExecuteInline(): boolean {
 export function resetJobQueueCache(): void {
   cachedBackend = null
   cachedBackendType = null
+  cachedInlineBackend = null
 }

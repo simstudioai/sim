@@ -5,7 +5,7 @@ import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { checkEnterprisePlan, checkTeamPlan } from '@/lib/billing/subscriptions/utils'
-import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
+import { getInlineJobQueue, getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { isProd } from '@/lib/core/config/feature-flags'
 import { safeCompare } from '@/lib/core/security/encryption'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
@@ -29,6 +29,7 @@ import {
 import { executeWebhookJob } from '@/background/webhook-execution'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { isConfluencePayloadMatch } from '@/triggers/confluence/utils'
+import { isPollingWebhookProvider } from '@/triggers/constants'
 import { isGitHubEventMatch } from '@/triggers/github/utils'
 import { isHubSpotContactEventMatch } from '@/triggers/hubspot/utils'
 import { isJiraEventMatch } from '@/triggers/jira/utils'
@@ -1049,7 +1050,7 @@ export async function queueWebhookExecution(
       }
     }
 
-    const headers = Object.fromEntries(request.headers.entries())
+    const { 'x-sim-idempotency-key': _, ...headers } = Object.fromEntries(request.headers.entries())
 
     // For Microsoft Teams Graph notifications, extract unique identifiers for idempotency
     if (
@@ -1067,9 +1068,20 @@ export async function queueWebhookExecution(
       }
     }
 
-    // Extract credentialId from webhook config
-    // Note: Each webhook now has its own credentialId (credential sets are fanned out at save time)
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+
+    if (foundWebhook.provider === 'generic') {
+      const idempotencyField = providerConfig.idempotencyField as string | undefined
+      if (idempotencyField && body) {
+        const value = idempotencyField
+          .split('.')
+          .reduce((acc: any, key: string) => acc?.[key], body)
+        if (value !== undefined && value !== null && typeof value !== 'object') {
+          headers['x-sim-idempotency-key'] = String(value)
+        }
+      }
+    }
+
     const credentialId = providerConfig.credentialId as string | undefined
 
     // credentialSetId is a direct field on webhook table, not in providerConfig
@@ -1105,15 +1117,24 @@ export async function queueWebhookExecution(
       ...(credentialId ? { credentialId } : {}),
     }
 
-    const jobQueue = await getJobQueue()
-    const jobId = await jobQueue.enqueue('webhook-execution', payload, {
-      metadata: { workflowId: foundWorkflow.id, userId: actorUserId },
-    })
-    logger.info(
-      `[${options.requestId}] Queued webhook execution task ${jobId} for ${foundWebhook.provider} webhook`
-    )
+    const isPolling = isPollingWebhookProvider(payload.provider)
 
-    if (shouldExecuteInline()) {
+    if (isPolling && !shouldExecuteInline()) {
+      const jobQueue = await getJobQueue()
+      const jobId = await jobQueue.enqueue('webhook-execution', payload, {
+        metadata: { workflowId: foundWorkflow.id, userId: actorUserId },
+      })
+      logger.info(
+        `[${options.requestId}] Queued polling webhook execution task ${jobId} for ${foundWebhook.provider} webhook via job queue`
+      )
+    } else {
+      const jobQueue = await getInlineJobQueue()
+      const jobId = await jobQueue.enqueue('webhook-execution', payload, {
+        metadata: { workflowId: foundWorkflow.id, userId: actorUserId },
+      })
+      logger.info(
+        `[${options.requestId}] Executing ${foundWebhook.provider} webhook ${jobId} inline`
+      )
       void (async () => {
         try {
           await jobQueue.startJob(jobId)
@@ -1191,6 +1212,26 @@ export async function queueWebhookExecution(
           'Content-Type': 'text/xml; charset=utf-8',
         },
       })
+    }
+
+    if (foundWebhook.provider === 'generic' && providerConfig.responseMode === 'custom') {
+      const rawCode = Number(providerConfig.responseStatusCode) || 200
+      const statusCode = rawCode >= 100 && rawCode <= 599 ? rawCode : 200
+      const responseBody = (providerConfig.responseBody as string | undefined)?.trim()
+
+      if (!responseBody) {
+        return new NextResponse(null, { status: statusCode })
+      }
+
+      try {
+        const parsed = JSON.parse(responseBody)
+        return NextResponse.json(parsed, { status: statusCode })
+      } catch {
+        return new NextResponse(responseBody, {
+          status: statusCode,
+          headers: { 'Content-Type': 'text/plain' },
+        })
+      }
     }
 
     return NextResponse.json({ message: 'Webhook processed' })

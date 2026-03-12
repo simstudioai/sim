@@ -295,6 +295,19 @@ function generateBoundary(): string {
 }
 
 /**
+ * Encode a header value using RFC 2047 Base64 encoding if it contains non-ASCII characters.
+ * This matches Google's own Gmail API sample: `=?utf-8?B?${Buffer.from(subject).toString('base64')}?=`
+ * @see https://github.com/googleapis/google-api-nodejs-client/blob/main/samples/gmail/send.js
+ */
+export function encodeRfc2047(value: string): string {
+  // eslint-disable-next-line no-control-regex
+  if (/^[\x00-\x7F]*$/.test(value)) {
+    return value
+  }
+  return `=?UTF-8?B?${Buffer.from(value, 'utf-8').toString('base64')}?=`
+}
+
+/**
  * Encode string or buffer to base64url format (URL-safe base64)
  * Gmail API requires base64url encoding for the raw message field
  */
@@ -333,7 +346,7 @@ export function buildSimpleEmailMessage(params: {
     emailHeaders.push(`Bcc: ${bcc}`)
   }
 
-  emailHeaders.push(`Subject: ${subject || ''}`)
+  emailHeaders.push(`Subject: ${encodeRfc2047(subject || '')}`)
 
   if (inReplyTo) {
     emailHeaders.push(`In-Reply-To: ${inReplyTo}`)
@@ -380,7 +393,7 @@ export function buildMimeMessage(params: BuildMimeMessageParams): string {
   if (bcc) {
     messageParts.push(`Bcc: ${bcc}`)
   }
-  messageParts.push(`Subject: ${subject || ''}`)
+  messageParts.push(`Subject: ${encodeRfc2047(subject || '')}`)
 
   if (inReplyTo) {
     messageParts.push(`In-Reply-To: ${inReplyTo}`)
