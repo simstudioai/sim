@@ -3,7 +3,11 @@ import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import { applyAutoLayout } from '@/lib/workflows/autolayout'
+import { applyAutoLayout, applyTargetedLayout } from '@/lib/workflows/autolayout'
+import {
+  DEFAULT_HORIZONTAL_SPACING,
+  DEFAULT_VERTICAL_SPACING,
+} from '@/lib/workflows/autolayout/constants'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import {
   loadWorkflowFromNormalizedTables,
@@ -234,21 +238,55 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     // Persist the workflow state to the database
     const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
 
-    // Apply autolayout to position blocks properly
-    const layoutResult = applyAutoLayout(finalWorkflowState.blocks, finalWorkflowState.edges, {
-      horizontalSpacing: 250,
-      verticalSpacing: 100,
-      padding: { x: 100, y: 100 },
-    })
+    // Identify blocks that need layout (newly added blocks at default position 0,0)
+    const blocksNeedingLayout = Object.entries(finalWorkflowState.blocks)
+      .filter(([_, block]: [string, any]) => block.position?.x === 0 && block.position?.y === 0)
+      .map(([id]) => id)
 
-    const layoutedBlocks =
-      layoutResult.success && layoutResult.blocks ? layoutResult.blocks : finalWorkflowState.blocks
+    let layoutedBlocks = finalWorkflowState.blocks
 
-    if (!layoutResult.success) {
-      logger.warn('Autolayout failed, using default positions', {
-        workflowId,
-        error: layoutResult.error,
-      })
+    if (blocksNeedingLayout.length > 0) {
+      const totalBlocks = Object.keys(finalWorkflowState.blocks).length
+
+      if (blocksNeedingLayout.length === totalBlocks) {
+        // All blocks need layout (brand new workflow) — use full autolayout
+        const layoutResult = applyAutoLayout(finalWorkflowState.blocks, finalWorkflowState.edges, {
+          horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
+          verticalSpacing: DEFAULT_VERTICAL_SPACING,
+          padding: { x: 100, y: 100 },
+        })
+
+        layoutedBlocks =
+          layoutResult.success && layoutResult.blocks
+            ? layoutResult.blocks
+            : finalWorkflowState.blocks
+
+        if (!layoutResult.success) {
+          logger.warn('Full autolayout failed, using default positions', {
+            workflowId,
+            error: layoutResult.error,
+          })
+        }
+      } else {
+        // Only some blocks need layout — use targeted autolayout to preserve
+        // existing block positions and only reposition new blocks
+        try {
+          layoutedBlocks = applyTargetedLayout(
+            finalWorkflowState.blocks,
+            finalWorkflowState.edges,
+            {
+              changedBlockIds: blocksNeedingLayout,
+              horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
+              verticalSpacing: DEFAULT_VERTICAL_SPACING,
+            }
+          )
+        } catch (error) {
+          logger.warn('Targeted autolayout failed, using default positions', {
+            workflowId,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
+      }
     }
 
     const workflowStateForDb = {

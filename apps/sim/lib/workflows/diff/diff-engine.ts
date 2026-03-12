@@ -599,8 +599,10 @@ export class WorkflowDiffEngine {
               ...existingBlock,
               ...proposedBlock,
               id: finalId,
-              // Preserve position from proposed or fallback to existing
-              position: proposedBlock.position || existingBlock.position,
+              // Preserve the user's existing position so targeted layout can
+              // anchor unchanged blocks correctly. The server may have applied
+              // full autolayout which overwrites all positions.
+              position: existingBlock.position,
             }
           : {
               ...proposedBlock,
@@ -686,49 +688,28 @@ export class WorkflowDiffEngine {
       // Apply autolayout to the proposed state
       logger.info('Applying autolayout to proposed workflow state')
       try {
-        // Compute diff analysis if not already provided to determine changed blocks
-        let tempComputed = diffAnalysis
-        if (!tempComputed) {
-          const currentIds = new Set(Object.keys(mergedBaseline.blocks))
-          const newBlocks: string[] = []
-          const editedBlocks: string[] = []
+        const baselineBlockIds = new Set(Object.keys(mergedBaseline.blocks))
+        const hasExistingBaseline = baselineBlockIds.size > 0
 
-          for (const [id, block] of Object.entries(finalBlocks)) {
-            if (!currentIds.has(id)) {
-              newBlocks.push(id)
-            } else {
-              const currentBlock = mergedBaseline.blocks[id]
-              if (hasBlockChanged(currentBlock, block)) {
-                editedBlocks.push(id)
-              }
-            }
-          }
+        // Identify genuinely new blocks (not in baseline) that need positioning
+        const newBlockIds = Object.keys(finalBlocks).filter((id) => !baselineBlockIds.has(id))
 
-          tempComputed = { new_blocks: newBlocks, edited_blocks: editedBlocks, deleted_blocks: [] }
-        }
-
-        const { impactedBlockIds } = computeStructuralLayoutImpact({
-          baselineBlocks: mergedBaseline.blocks,
-          baselineEdges: mergedBaseline.edges as Edge[],
-          proposedBlocks: finalBlocks,
-          proposedEdges: finalEdges,
-        })
-
-        const impactedBlockArray = Array.from(impactedBlockIds)
         const totalBlocks = Object.keys(finalBlocks).length
-        const unchangedBlocks = totalBlocks - impactedBlockArray.length
 
-        if (impactedBlockArray.length === 0) {
-          logger.info('No structural changes detected; skipping autolayout', {
+        if (newBlockIds.length === 0 && hasExistingBaseline) {
+          logger.info('No new blocks detected; skipping autolayout', {
             totalBlocks,
           })
-        } else if (unchangedBlocks > 0) {
-          // Use targeted layout - preserves positions of unchanged blocks
-          logger.info('Using targeted layout for copilot edits (has unchanged blocks)', {
-            changedBlocks: impactedBlockArray.length,
-            unchangedBlocks: unchangedBlocks,
-            totalBlocks: totalBlocks,
-            percentChanged: Math.round((impactedBlockArray.length / totalBlocks) * 100),
+        } else if (hasExistingBaseline) {
+          // Baseline exists — use targeted layout to position ONLY new blocks.
+          // Existing blocks keep their user-set positions as anchors.
+          // computeStructuralLayoutImpact is too aggressive for layout decisions
+          // because edge changes mark all connected blocks as "impacted," even
+          // though only genuinely new blocks need positioning.
+          logger.info('Using targeted layout for copilot edits (baseline exists)', {
+            newBlocks: newBlockIds.length,
+            existingBlocks: baselineBlockIds.size,
+            totalBlocks,
           })
 
           const { applyTargetedLayout } = await import('@/lib/workflows/autolayout')
@@ -737,7 +718,7 @@ export class WorkflowDiffEngine {
           )
 
           const layoutedBlocks = applyTargetedLayout(finalBlocks, fullyCleanedState.edges, {
-            changedBlockIds: impactedBlockArray,
+            changedBlockIds: newBlockIds,
             horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
             verticalSpacing: DEFAULT_VERTICAL_SPACING,
           })
@@ -768,13 +749,12 @@ export class WorkflowDiffEngine {
 
           logger.info('Successfully applied targeted layout to proposed state', {
             blocksLayouted: Object.keys(layoutedBlocks).length,
-            changedBlocks: impactedBlockArray.length,
+            newBlocks: newBlockIds.length,
           })
         } else {
-          // Use full autolayout only when copilot built 100% of the workflow from scratch
-          logger.info('Using full autolayout (copilot built 100% of workflow)', {
-            totalBlocks: totalBlocks,
-            allBlocksAreNew: impactedBlockArray.length === totalBlocks,
+          // No baseline — copilot built the entire workflow from scratch
+          logger.info('Using full autolayout (no baseline, building from scratch)', {
+            totalBlocks,
           })
 
           const { applyAutoLayout: applyNativeAutoLayout } = await import(
