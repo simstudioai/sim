@@ -155,7 +155,6 @@ export function ResourceTabs({
       >
         {resources.map((resource) => {
           const config = getResourceConfig(resource.type)
-          const Icon = config.getTabIcon(resource)
           const isActive = activeId === resource.id
           const isHovered = hoveredTabId === resource.id
 
@@ -172,7 +171,7 @@ export function ResourceTabs({
                     isActive && 'bg-[var(--surface-4)]'
                   )}
                 >
-                  <Icon className={cn('mr-[6px] h-[14px] w-[14px] text-[var(--text-icon)]')} />
+                  {config.renderTabIcon(resource, 'mr-[6px] h-[14px] w-[14px]')}
                   {resource.title}
                   {(isHovered || isActive) && chatId && (
                     <span

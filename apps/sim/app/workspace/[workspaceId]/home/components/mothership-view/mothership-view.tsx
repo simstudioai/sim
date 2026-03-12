@@ -87,8 +87,11 @@ export function MothershipView({
               previewMode={isActivePreviewable ? previewMode : undefined}
             />
           ) : (
-            <div className='flex h-full items-center justify-center'>
-              <p className='text-[13px] text-[var(--text-tertiary)]'>No resources yet</p>
+            <div className='flex h-full flex-col items-center justify-center gap-[4px] px-[24px]'>
+              <p className='text-[13px] text-[var(--text-secondary)]'>No resources open</p>
+              <p className='text-[12px] text-[var(--text-tertiary)]'>
+                Click the <span className='font-medium text-[var(--text-secondary)]'>+</span> button above to add a resource to this task
+              </p>
             </div>
           )}
         </div>

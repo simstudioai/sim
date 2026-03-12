@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo } from 'react'
 import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
 import { BookOpen, Database, File as FileIcon, SquareArrowUpRight, Table as TableIcon } from '@/components/emcn/icons'
 import { WorkflowIcon } from '@/components/icons'
+import { cn } from '@/lib/core/utils/cn'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import {
   markRunToolManuallyStopped,
@@ -59,10 +60,24 @@ export interface ResourceTypeConfig {
   type: MothershipResourceType
   label: string
   icon: ElementType
-  getTabIcon: (resource: MothershipResource) => ElementType
+  renderTabIcon: (resource: MothershipResource, className: string) => ReactNode
   renderContent: (props: ContentProps) => ReactNode
   renderActions?: (props: ActionsProps) => ReactNode
   renderDropdownItem: (props: DropdownItemRenderProps) => ReactNode
+}
+
+function WorkflowTabSquare({ workflowId, className }: { workflowId: string; className?: string }) {
+  const color = useWorkflowRegistry((state) => state.workflows[workflowId]?.color ?? '#888')
+  return (
+    <div
+      className={cn('flex-shrink-0 rounded-[3px] border-[2px]', className)}
+      style={{
+        backgroundColor: color,
+        borderColor: `${color}60`,
+        backgroundClip: 'padding-box',
+      }}
+    />
+  )
 }
 
 function WorkflowContent({ workspaceId, resource }: ContentProps) {
@@ -167,7 +182,7 @@ function WorkflowDropdownItem({ item }: DropdownItemRenderProps) {
   return (
     <>
       <div
-        className='mr-[8px] h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
+        className='mr-[0px] h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
         style={{
           backgroundColor: color,
           borderColor: `${color}60`,
@@ -271,7 +286,9 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     type: 'workflow',
     label: 'Workflows',
     icon: WorkflowIcon,
-    getTabIcon: () => WorkflowIcon,
+    renderTabIcon: (resource, className) => (
+      <WorkflowTabSquare workflowId={resource.id} className={className} />
+    ),
     renderContent: (props) => <WorkflowContent {...props} />,
     renderActions: (props) => <WorkflowActions {...props} />,
     renderDropdownItem: (props) => <WorkflowDropdownItem {...props} />,
@@ -280,7 +297,7 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     type: 'table',
     label: 'Tables',
     icon: TableIcon,
-    getTabIcon: () => TableIcon,
+    renderTabIcon: (_resource, className) => <TableIcon className={cn(className, 'text-[var(--text-icon)]')} />,
     renderContent: (props) => <TableContent {...props} />,
     renderDropdownItem: (props) => <DefaultDropdownItem {...props} />,
   },
@@ -288,7 +305,10 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     type: 'file',
     label: 'Files',
     icon: FileIcon,
-    getTabIcon: (resource) => getDocumentIcon('', resource.title),
+    renderTabIcon: (resource, className) => {
+      const DocIcon = getDocumentIcon('', resource.title)
+      return <DocIcon className={cn(className, 'text-[var(--text-icon)]')} />
+    },
     renderContent: (props) => <FileContent {...props} />,
     renderDropdownItem: (props) => <FileDropdownItem {...props} />,
   },
@@ -296,7 +316,7 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     type: 'knowledgebase',
     label: 'Knowledge Bases',
     icon: Database,
-    getTabIcon: () => Database,
+    renderTabIcon: (_resource, className) => <Database className={cn(className, 'text-[var(--text-icon)]')} />,
     renderContent: (props) => <KnowledgeBaseContent {...props} />,
     renderActions: (props) => <KnowledgeBaseActions {...props} />,
     renderDropdownItem: (props) => <DefaultDropdownItem {...props} />,
