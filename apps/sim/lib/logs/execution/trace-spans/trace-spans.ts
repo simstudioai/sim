@@ -322,7 +322,7 @@ export function buildTraceSpans(result: ExecutionResult): {
           }
         }
       )
-    } else {
+    } else if (!isConditionBlockType(log.blockType)) {
       let toolCallsList = null
 
       try {
