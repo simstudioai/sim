@@ -2,7 +2,6 @@ import { createLogger } from '@sim/logger'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import type { WorkspaceFileArgs, WorkspaceFileResult } from '@/lib/copilot/tools/shared/schemas'
 import {
-  deleteWorkspaceFile,
   getWorkspaceFile,
   renameWorkspaceFile,
   updateWorkspaceFileContent,
@@ -159,36 +158,10 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           }
         }
 
-        case 'delete': {
-          const fileId = (args as Record<string, unknown>).fileId as string | undefined
-          if (!fileId) {
-            return { success: false, message: 'fileId is required for delete operation' }
-          }
-
-          const fileRecord = await getWorkspaceFile(workspaceId, fileId)
-          if (!fileRecord) {
-            return { success: false, message: `File with ID "${fileId}" not found` }
-          }
-
-          await deleteWorkspaceFile(workspaceId, fileId)
-
-          logger.info('Workspace file deleted via copilot', {
-            fileId,
-            name: fileRecord.name,
-            userId: context.userId,
-          })
-
-          return {
-            success: true,
-            message: `File "${fileRecord.name}" deleted successfully`,
-            data: { id: fileId, name: fileRecord.name },
-          }
-        }
-
         default:
           return {
             success: false,
-            message: `Unknown operation: ${operation}. Supported: write, update, rename, delete. Use the filesystem to list/read files.`,
+            message: `Unknown operation: ${operation}. Supported: write, update, rename. Use the filesystem to list/read files.`,
           }
       }
     } catch (error) {
