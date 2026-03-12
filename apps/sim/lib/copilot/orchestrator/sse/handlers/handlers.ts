@@ -19,6 +19,7 @@ import type {
   StreamingContext,
   ToolCallState,
 } from '@/lib/copilot/orchestrator/types'
+import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { executeToolAndReport, waitForToolCompletion, waitForToolDecision } from './tool-execution'
 
 const logger = createLogger('CopilotSseHandlers')
