@@ -8,206 +8,6 @@ import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/type
 
 const logger = createLogger('WorkflowDiffEngine')
 
-type ParentIdentifier = string | null
-
-function getParentId(block?: BlockState): ParentIdentifier {
-  return block?.data?.parentId ?? null
-}
-
-function buildEdgeKey(edge: Edge): string {
-  const sourceHandle = edge.sourceHandle ?? ''
-  const targetHandle = edge.targetHandle ?? ''
-  const edgeType = edge.type ?? ''
-  return `${edge.source}|${sourceHandle}->${edge.target}|${targetHandle}|${edgeType}`
-}
-
-function groupBlocksByParent(blocks: Record<string, BlockState>): {
-  root: string[]
-  children: Map<string, string[]>
-} {
-  const root: string[] = []
-  const children = new Map<string, string[]>()
-
-  for (const [id, block] of Object.entries(blocks)) {
-    const parentId = getParentId(block)
-
-    if (!parentId) {
-      root.push(id)
-      continue
-    }
-
-    if (!children.has(parentId)) {
-      children.set(parentId, [])
-    }
-
-    children.get(parentId)!.push(id)
-  }
-
-  return { root, children }
-}
-
-function buildAdjacency(edges: Edge[]): Map<string, Set<string>> {
-  const adjacency = new Map<string, Set<string>>()
-
-  for (const edge of edges) {
-    if (!adjacency.has(edge.source)) {
-      adjacency.set(edge.source, new Set())
-    }
-    adjacency.get(edge.source)!.add(edge.target)
-  }
-
-  return adjacency
-}
-
-function expandImpactedBlocks(
-  seeds: Set<string>,
-  proposedBlocks: Record<string, BlockState>,
-  adjacency: Map<string, Set<string>>
-): Set<string> {
-  const impacted = new Set<string>()
-
-  // Only expand to direct downstream neighbors (targets of impacted blocks)
-  // This ensures we make space for new/moved blocks without relocating unaffected ones
-  for (const seed of seeds) {
-    if (!proposedBlocks[seed]) continue
-    impacted.add(seed)
-
-    const seedBlock = proposedBlocks[seed]
-    const seedParent = getParentId(seedBlock)
-    const neighbors = adjacency.get(seed)
-
-    if (neighbors) {
-      for (const next of neighbors) {
-        const nextBlock = proposedBlocks[next]
-        if (!nextBlock) continue
-        // Only expand within same parent
-        if (getParentId(nextBlock) !== seedParent) continue
-        impacted.add(next)
-      }
-    }
-  }
-
-  return impacted
-}
-
-function computeStructuralLayoutImpact(params: {
-  baselineBlocks: Record<string, BlockState>
-  baselineEdges: Edge[]
-  proposedBlocks: Record<string, BlockState>
-  proposedEdges: Edge[]
-}): {
-  impactedBlockIds: Set<string>
-  parentsToRelayout: Set<ParentIdentifier>
-} {
-  const { baselineBlocks, baselineEdges, proposedBlocks, proposedEdges } = params
-  const impactedBlocks = new Set<string>()
-  const parentsToRelayout = new Set<ParentIdentifier>()
-
-  const baselineIds = new Set(Object.keys(baselineBlocks))
-  const proposedIds = new Set(Object.keys(proposedBlocks))
-
-  for (const id of proposedIds) {
-    if (!baselineIds.has(id)) {
-      impactedBlocks.add(id)
-      parentsToRelayout.add(getParentId(proposedBlocks[id]))
-    }
-  }
-
-  for (const id of baselineIds) {
-    if (!proposedIds.has(id)) {
-      parentsToRelayout.add(getParentId(baselineBlocks[id]))
-    }
-  }
-
-  for (const id of proposedIds) {
-    if (!baselineIds.has(id)) {
-      continue
-    }
-
-    const baselineBlock = baselineBlocks[id]
-    const proposedBlock = proposedBlocks[id]
-
-    const baselineParent = getParentId(baselineBlock)
-    const proposedParent = getParentId(proposedBlock)
-
-    if (baselineParent !== proposedParent) {
-      impactedBlocks.add(id)
-      parentsToRelayout.add(baselineParent)
-      parentsToRelayout.add(proposedParent)
-    }
-  }
-
-  const baselineEdgeMap = new Map<string, Edge>()
-  for (const edge of baselineEdges) {
-    baselineEdgeMap.set(buildEdgeKey(edge), edge)
-  }
-
-  const proposedEdgeMap = new Map<string, Edge>()
-  for (const edge of proposedEdges) {
-    proposedEdgeMap.set(buildEdgeKey(edge), edge)
-  }
-
-  for (const [key, edge] of proposedEdgeMap) {
-    if (baselineEdgeMap.has(key)) {
-      continue
-    }
-
-    if (proposedBlocks[edge.source]) {
-      impactedBlocks.add(edge.source)
-    }
-    if (proposedBlocks[edge.target]) {
-      impactedBlocks.add(edge.target)
-    }
-  }
-
-  for (const [key, edge] of baselineEdgeMap) {
-    if (proposedEdgeMap.has(key)) {
-      continue
-    }
-
-    if (proposedBlocks[edge.source]) {
-      impactedBlocks.add(edge.source)
-    }
-    if (proposedBlocks[edge.target]) {
-      impactedBlocks.add(edge.target)
-    }
-
-    parentsToRelayout.add(getParentId(baselineBlocks[edge.source]))
-    parentsToRelayout.add(getParentId(baselineBlocks[edge.target]))
-  }
-
-  const adjacency = buildAdjacency(proposedEdges)
-
-  const seedBlocks = new Set<string>()
-  for (const id of impactedBlocks) {
-    if (proposedBlocks[id]) {
-      seedBlocks.add(id)
-    }
-  }
-
-  const expandedImpacts = expandImpactedBlocks(seedBlocks, proposedBlocks, adjacency)
-
-  // Add parent containers to impacted set so their updated dimensions get transferred
-  const parentsWithImpactedChildren = new Set<string>()
-  for (const blockId of expandedImpacts) {
-    const block = proposedBlocks[blockId]
-    if (!block) continue
-    const parentId = getParentId(block)
-    if (parentId && proposedBlocks[parentId]) {
-      parentsWithImpactedChildren.add(parentId)
-    }
-  }
-
-  for (const parentId of parentsWithImpactedChildren) {
-    expandedImpacts.add(parentId)
-  }
-
-  return {
-    impactedBlockIds: expandedImpacts,
-    parentsToRelayout,
-  }
-}
-
 // Helper function to check if a block has changed
 function hasBlockChanged(currentBlock: BlockState, proposedBlock: BlockState): boolean {
   // Compare key fields that indicate a change
@@ -691,23 +491,26 @@ export class WorkflowDiffEngine {
         const baselineBlockIds = new Set(Object.keys(mergedBaseline.blocks))
         const hasExistingBaseline = baselineBlockIds.size > 0
 
-        // Identify genuinely new blocks (not in baseline) that need positioning
-        const newBlockIds = Object.keys(finalBlocks).filter((id) => !baselineBlockIds.has(id))
+        // Identify blocks that need positioning: genuinely new blocks AND
+        // existing blocks whose parent container changed (moved into/out of
+        // a subflow). Parent changes require repositioning because React Flow
+        // uses coordinates relative to the parent container.
+        const blocksNeedingLayout = Object.keys(finalBlocks).filter((id) => {
+          if (!baselineBlockIds.has(id)) return true
+          const baselineParent = mergedBaseline.blocks[id]?.data?.parentId ?? null
+          const proposedParent = finalBlocks[id]?.data?.parentId ?? null
+          return baselineParent !== proposedParent
+        })
 
         const totalBlocks = Object.keys(finalBlocks).length
 
-        if (newBlockIds.length === 0 && hasExistingBaseline) {
-          logger.info('No new blocks detected; skipping autolayout', {
+        if (blocksNeedingLayout.length === 0 && hasExistingBaseline) {
+          logger.info('No blocks need layout; skipping autolayout', {
             totalBlocks,
           })
         } else if (hasExistingBaseline) {
-          // Baseline exists — use targeted layout to position ONLY new blocks.
-          // Existing blocks keep their user-set positions as anchors.
-          // computeStructuralLayoutImpact is too aggressive for layout decisions
-          // because edge changes mark all connected blocks as "impacted," even
-          // though only genuinely new blocks need positioning.
           logger.info('Using targeted layout for copilot edits (baseline exists)', {
-            newBlocks: newBlockIds.length,
+            blocksNeedingLayout: blocksNeedingLayout.length,
             existingBlocks: baselineBlockIds.size,
             totalBlocks,
           })
@@ -718,7 +521,7 @@ export class WorkflowDiffEngine {
           )
 
           const layoutedBlocks = applyTargetedLayout(finalBlocks, fullyCleanedState.edges, {
-            changedBlockIds: newBlockIds,
+            changedBlockIds: blocksNeedingLayout,
             horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
             verticalSpacing: DEFAULT_VERTICAL_SPACING,
           })
@@ -749,7 +552,7 @@ export class WorkflowDiffEngine {
 
           logger.info('Successfully applied targeted layout to proposed state', {
             blocksLayouted: Object.keys(layoutedBlocks).length,
-            newBlocks: newBlockIds.length,
+            blocksNeedingLayout: blocksNeedingLayout.length,
           })
         } else {
           // No baseline — copilot built the entire workflow from scratch

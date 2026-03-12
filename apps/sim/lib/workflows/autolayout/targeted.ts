@@ -10,7 +10,6 @@ import {
   filterLayoutEligibleBlockIds,
   getBlockMetrics,
   getBlocksByParent,
-  isContainerType,
   prepareContainerDimensions,
   shouldSkipAutoLayout,
   snapPositionToGrid,
@@ -90,7 +89,39 @@ export function applyTargetedLayout(
 }
 
 /**
- * Layouts a group of blocks (either root level or within a container)
+ * Selects the best anchor block for offset computation.
+ * Prefers an unchanged block that is a direct edge-neighbor of a block
+ * that needs layout, so the offset aligns new blocks relative to their
+ * actual graph neighbors rather than an arbitrary/outlier block.
+ */
+function selectBestAnchor(
+  eligibleIds: string[],
+  needsLayoutSet: Set<string>,
+  edges: Edge[],
+  layoutPositions: Map<string, { x: number; y: number }>
+): string | undefined {
+  const candidates = eligibleIds.filter((id) => !needsLayoutSet.has(id) && layoutPositions.has(id))
+  if (candidates.length === 0) return undefined
+  if (candidates.length === 1) return candidates[0]
+
+  const candidateSet = new Set(candidates)
+
+  for (const edge of edges) {
+    if (needsLayoutSet.has(edge.source) && candidateSet.has(edge.target)) {
+      return edge.target
+    }
+    if (needsLayoutSet.has(edge.target) && candidateSet.has(edge.source)) {
+      return edge.source
+    }
+  }
+
+  return candidates[0]
+}
+
+/**
+ * Layouts a group of blocks (either root level or within a container).
+ * Only repositions blocks in `changedSet` or those with invalid positions;
+ * all other blocks act as anchors.
  */
 function layoutGroup(
   parentId: string | null,
@@ -119,24 +150,20 @@ function layoutGroup(
   const requestedLayout = layoutEligibleChildIds.filter((id) => {
     const block = blocks[id]
     if (!block) return false
-    if (isContainerType(block.type)) {
-      return changedSet.has(id) && isDefaultPosition(block)
-    }
     return changedSet.has(id)
   })
-  const missingPositions = layoutEligibleChildIds.filter((id) => {
+  const invalidPositions = layoutEligibleChildIds.filter((id) => {
     const block = blocks[id]
     if (!block) return false
-    return !hasPosition(block) || isDefaultPosition(block)
+    return !hasPosition(block)
   })
-  const needsLayoutSet = new Set([...requestedLayout, ...missingPositions])
+  const needsLayoutSet = new Set([...requestedLayout, ...invalidPositions])
   const needsLayout = Array.from(needsLayoutSet)
 
-  if (parentBlock) {
-    updateContainerDimensions(parentBlock, childIds, blocks)
-  }
-
   if (needsLayout.length === 0) {
+    if (parentBlock) {
+      updateContainerDimensions(parentBlock, childIds, blocks)
+    }
     return
   }
 
@@ -168,9 +195,7 @@ function layoutGroup(
   let offsetX = 0
   let offsetY = 0
 
-  const anchorId = layoutEligibleChildIds.find(
-    (id) => !needsLayout.includes(id) && layoutPositions.has(id)
-  )
+  const anchorId = selectBestAnchor(layoutEligibleChildIds, needsLayoutSet, edges, layoutPositions)
 
   if (anchorId) {
     const oldPos = oldPositions.get(anchorId)
@@ -186,6 +211,10 @@ function layoutGroup(
     const newPos = layoutPositions.get(id)
     if (!block || !newPos) continue
     block.position = snapPositionToGrid({ x: newPos.x + offsetX, y: newPos.y + offsetY }, gridSize)
+  }
+
+  if (parentBlock) {
+    updateContainerDimensions(parentBlock, childIds, blocks)
   }
 }
 
@@ -304,20 +333,11 @@ function updateContainerDimensions(
 }
 
 /**
- * Checks if a block has a valid position
+ * Checks if a block has a valid, finite position.
+ * Returns false for missing, undefined, NaN, or Infinity coordinates.
  */
 function hasPosition(block: BlockState): boolean {
   if (!block.position) return false
   const { x, y } = block.position
   return Number.isFinite(x) && Number.isFinite(y)
-}
-
-/**
- * Checks if a block is at the default/uninitialized position (0, 0).
- * New blocks typically start at this position before being laid out.
- */
-function isDefaultPosition(block: BlockState): boolean {
-  if (!block.position) return true
-  const { x, y } = block.position
-  return x === 0 && y === 0
 }
