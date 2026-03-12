@@ -1816,55 +1816,46 @@ export function useWorkflowExecution() {
   }, [resetDebugState])
 
   /**
-   * Cancel a specific workflow by ID. Safe from stale-closure issues
-   * because it reads store state directly instead of relying on hook closures.
-   */
-  const handleCancelExecutionForWorkflow = useCallback(
-    (workflowId: string) => {
-      logger.info('Workflow execution cancellation requested', { workflowId })
-
-      const storedExecutionId = getCurrentExecutionId(workflowId)
-
-      if (storedExecutionId) {
-        setCurrentExecutionId(workflowId, null)
-        fetch(`/api/workflows/${workflowId}/executions/${storedExecutionId}/cancel`, {
-          method: 'POST',
-        }).catch(() => {})
-        handleExecutionCancelledConsole({
-          workflowId,
-          executionId: storedExecutionId,
-        })
-      }
-
-      executionStream.cancel(workflowId)
-      setIsExecuting(workflowId, false)
-      setIsDebugging(workflowId, false)
-      setActiveBlocks(workflowId, new Set())
-    },
-    [
-      executionStream,
-      setIsExecuting,
-      setIsDebugging,
-      setActiveBlocks,
-      getCurrentExecutionId,
-      setCurrentExecutionId,
-      handleExecutionCancelledConsole,
-    ]
-  )
-
-  /**
-   * Handles cancelling the current workflow execution (legacy wrapper).
+   * Handles cancelling the current workflow execution
    */
   const handleCancelExecution = useCallback(() => {
     if (!activeWorkflowId) return
+    logger.info('Workflow execution cancellation requested')
 
-    handleCancelExecutionForWorkflow(activeWorkflowId)
+    const storedExecutionId = getCurrentExecutionId(activeWorkflowId)
+
+    if (storedExecutionId) {
+      setCurrentExecutionId(activeWorkflowId, null)
+      fetch(`/api/workflows/${activeWorkflowId}/executions/${storedExecutionId}/cancel`, {
+        method: 'POST',
+      }).catch(() => {})
+      handleExecutionCancelledConsole({
+        workflowId: activeWorkflowId,
+        executionId: storedExecutionId,
+      })
+    }
+
+    executionStream.cancel(activeWorkflowId)
     currentChatExecutionIdRef.current = null
+    setIsExecuting(activeWorkflowId, false)
+    setIsDebugging(activeWorkflowId, false)
+    setActiveBlocks(activeWorkflowId, new Set())
 
     if (isDebugging) {
       resetDebugState()
     }
-  }, [activeWorkflowId, isDebugging, resetDebugState, handleCancelExecutionForWorkflow])
+  }, [
+    executionStream,
+    isDebugging,
+    resetDebugState,
+    setIsExecuting,
+    setIsDebugging,
+    setActiveBlocks,
+    activeWorkflowId,
+    getCurrentExecutionId,
+    setCurrentExecutionId,
+    handleExecutionCancelledConsole,
+  ])
 
   /**
    * Handles running workflow from a specific block using cached outputs
@@ -2342,7 +2333,6 @@ export function useWorkflowExecution() {
     handleResumeDebug,
     handleCancelDebug,
     handleCancelExecution,
-    handleCancelExecutionForWorkflow,
     handleRunFromBlock,
     handleRunUntilBlock,
   }

@@ -93,7 +93,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   const { navigateToSettings } = useSettingsNavigation()
   const { userPermissions: effectivePermissions } = useWorkspacePermissionsContext()
   const setActiveWorkflow = useWorkflowRegistry((state) => state.setActiveWorkflow)
-  const { handleRunWorkflow, handleCancelExecutionForWorkflow } = useWorkflowExecution()
+  const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
   const isExecuting = useExecutionStore(
     (state) => state.workflowExecutions.get(workflowId)?.isExecuting ?? false
   )
@@ -111,7 +111,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
 
     if (isExecuting) {
       markRunToolManuallyStopped(workflowId)
-      handleCancelExecutionForWorkflow(workflowId)
+      await handleCancelExecution()
       await reportManualRunToolStop(workflowId)
       return
     }
@@ -123,7 +123,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
 
     await handleRunWorkflow()
   }, [
-    handleCancelExecutionForWorkflow,
+    handleCancelExecution,
     handleRunWorkflow,
     isExecuting,
     navigateToSettings,
