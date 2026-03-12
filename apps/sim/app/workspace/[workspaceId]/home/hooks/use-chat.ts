@@ -199,6 +199,34 @@ function getPayloadData(payload: SSEPayload): SSEPayloadData | undefined {
   return typeof payload.data === 'object' ? payload.data : undefined
 }
 
+/** Adds a workflow to the registry with a top-insertion sort order if it doesn't already exist. */
+function ensureWorkflowInRegistry(resourceId: string, title: string, workspaceId: string): boolean {
+  const registry = useWorkflowRegistry.getState()
+  if (registry.workflows[resourceId]) return false
+  const sortOrder = getTopInsertionSortOrder(
+    registry.workflows,
+    useFolderStore.getState().folders,
+    workspaceId,
+    null
+  )
+  useWorkflowRegistry.setState((state) => ({
+    workflows: {
+      ...state.workflows,
+      [resourceId]: {
+        id: resourceId,
+        name: title,
+        lastModified: new Date(),
+        createdAt: new Date(),
+        color: '#7F2FFF',
+        workspaceId,
+        folderId: null,
+        sortOrder,
+      },
+    },
+  }))
+  return true
+}
+
 export function useChat(workspaceId: string, initialChatId?: string): UseChatReturn {
   const pathname = usePathname()
   const queryClient = useQueryClient()
@@ -351,30 +379,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
 
       for (const resource of restored) {
         if (resource.type !== 'workflow') continue
-        const registry = useWorkflowRegistry.getState()
-        if (!registry.workflows[resource.id]) {
-          const sortOrder = getTopInsertionSortOrder(
-            registry.workflows,
-            useFolderStore.getState().folders,
-            workspaceId,
-            null
-          )
-          useWorkflowRegistry.setState((state) => ({
-            workflows: {
-              ...state.workflows,
-              [resource.id]: {
-                id: resource.id,
-                name: resource.title,
-                lastModified: new Date(),
-                createdAt: new Date(),
-                color: '#7F2FFF',
-                workspaceId,
-                folderId: null,
-                sortOrder,
-              },
-            },
-          }))
-        }
+        ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)
       }
     }
   }, [chatHistory, workspaceId])
@@ -657,34 +662,12 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                   resource = extractWorkflowResource(parsed, lastWorkflowId, storedArgs)
                   if (resource) {
                     lastWorkflowId = resource.id
-                    queryClient.invalidateQueries({ queryKey: workflowKeys.list(workspaceId) })
-                    const registry = useWorkflowRegistry.getState()
-                    if (!registry.workflows[resource.id]) {
-                      const sortOrder = getTopInsertionSortOrder(
-                        registry.workflows,
-                        useFolderStore.getState().folders,
-                        workspaceId,
-                        null
-                      )
-                      useWorkflowRegistry.setState((state) => ({
-                        workflows: {
-                          ...state.workflows,
-                          [resource!.id]: {
-                            id: resource!.id,
-                            name: resource!.title,
-                            lastModified: new Date(),
-                            createdAt: new Date(),
-                            color: '#7F2FFF',
-                            workspaceId,
-                            folderId: null,
-                            sortOrder,
-                          },
-                        },
-                      }))
-                      registry.setActiveWorkflow(resource.id)
+                    if (ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)) {
+                      useWorkflowRegistry.getState().setActiveWorkflow(resource.id)
                     } else {
-                      registry.loadWorkflowState(resource.id)
+                      useWorkflowRegistry.getState().loadWorkflowState(resource.id)
                     }
+                    queryClient.invalidateQueries({ queryKey: workflowKeys.list(workspaceId) })
                   }
                 } else if (toolName === 'knowledge_base') {
                   resource = extractKnowledgeBaseResource(parsed, storedArgs)

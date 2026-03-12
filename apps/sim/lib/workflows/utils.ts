@@ -2,7 +2,7 @@ import crypto from 'crypto'
 import { db } from '@sim/db'
 import { permissions, userStats, workflowFolder, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, inArray, isNull, max } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, max, min } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
@@ -356,11 +356,11 @@ export async function createWorkflowRecord(params: CreateWorkflowInput) {
   const folderCondition = folderId
     ? eq(workflowTable.folderId, folderId)
     : isNull(workflowTable.folderId)
-  const [maxResult] = await db
-    .select({ maxOrder: max(workflowTable.sortOrder) })
+  const [minResult] = await db
+    .select({ minOrder: min(workflowTable.sortOrder) })
     .from(workflowTable)
     .where(and(eq(workflowTable.workspaceId, workspaceId), folderCondition))
-  const sortOrder = (maxResult?.maxOrder ?? 0) + 1
+  const sortOrder = (minResult?.minOrder ?? 0) - 1
 
   await db.insert(workflowTable).values({
     id: workflowId,
