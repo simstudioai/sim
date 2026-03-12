@@ -98,15 +98,22 @@ export function extractFunctionExecuteResource(
 
 export function extractWorkflowResource(
   parsed: SSEPayload,
-  fallbackWorkflowId: string | null
+  fallbackWorkflowId: string | null,
+  storedArgs?: Record<string, unknown>
 ): MothershipResource | null {
   const topResult = getTopResult(parsed)
   const data = topResult?.data as Record<string, unknown> | undefined
 
   const workflowId =
-    (topResult?.workflowId as string) ?? (data?.workflowId as string) ?? fallbackWorkflowId
+    (topResult?.workflowId as string) ??
+    (data?.workflowId as string) ??
+    (storedArgs?.workflowId as string) ??
+    fallbackWorkflowId
   const workflowName =
-    (topResult?.workflowName as string) ?? (data?.workflowName as string) ?? 'Workflow'
+    (topResult?.workflowName as string) ??
+    (data?.workflowName as string) ??
+    (storedArgs?.workflowName as string) ??
+    'Workflow'
 
   if (workflowId) return { type: 'workflow', id: workflowId, title: workflowName }
 
@@ -204,7 +211,7 @@ export function extractResourcesFromHistory(messages: TaskStoredMessage[]): Moth
         resource = extractFunctionExecuteResource(payload, args)
         if (resource?.type === 'table') lastTableId = resource.id
       } else if (tc.name === 'create_workflow' || tc.name === 'edit_workflow') {
-        resource = extractWorkflowResource(payload, lastWorkflowId)
+        resource = extractWorkflowResource(payload, lastWorkflowId, args)
         if (resource) lastWorkflowId = resource.id
       } else if (tc.name === 'knowledge_base') {
         resource = extractKnowledgeBaseResource(payload, args)

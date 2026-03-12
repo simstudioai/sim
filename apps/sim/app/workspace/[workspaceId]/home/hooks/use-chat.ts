@@ -463,7 +463,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                     queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(resource.id) })
                   }
                 } else if (toolName === 'create_workflow' || toolName === 'edit_workflow') {
-                  resource = extractWorkflowResource(parsed, lastWorkflowId)
+                  resource = extractWorkflowResource(parsed, lastWorkflowId, storedArgs)
                   if (resource) {
                     lastWorkflowId = resource.id
                     const registry = useWorkflowRegistry.getState()

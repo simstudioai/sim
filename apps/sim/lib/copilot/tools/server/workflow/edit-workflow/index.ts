@@ -137,17 +137,18 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     // Add credential validation errors
     validationErrors.push(...credentialErrors)
 
-    // Get workspaceId for selector validation
     let workspaceId: string | undefined
+    let workflowName: string | undefined
     try {
       const [workflowRecord] = await db
-        .select({ workspaceId: workflowTable.workspaceId })
+        .select({ workspaceId: workflowTable.workspaceId, name: workflowTable.name })
         .from(workflowTable)
         .where(eq(workflowTable.id, workflowId))
         .limit(1)
       workspaceId = workflowRecord?.workspaceId ?? undefined
+      workflowName = workflowRecord?.name ?? undefined
     } catch (error) {
-      logger.warn('Failed to get workspaceId for selector validation', { error, workflowId })
+      logger.warn('Failed to get workflow metadata for validation', { error, workflowId })
     }
 
     // Validate selector IDs exist in the database
@@ -279,16 +280,15 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
 
     logger.info('Workflow state persisted to database', { workflowId })
 
-    // Return the modified workflow state with autolayout applied
     return {
       success: true,
+      workflowId,
+      workflowName: workflowName ?? 'Workflow',
       workflowState: { ...finalWorkflowState, blocks: layoutedBlocks },
-      // Include input validation errors so the LLM can see what was rejected
       ...(inputErrors && {
         inputValidationErrors: inputErrors,
         inputValidationMessage: `${inputErrors.length} input(s) were rejected due to validation errors. The workflow was still updated with valid inputs only. Errors: ${inputErrors.join('; ')}`,
       }),
-      // Include skipped items so the LLM can see what operations were skipped
       ...(skippedMessages && {
         skippedItems: skippedMessages,
         skippedItemsMessage: `${skippedItems.length} operation(s) were skipped due to invalid references. Details: ${skippedMessages.join('; ')}`,
