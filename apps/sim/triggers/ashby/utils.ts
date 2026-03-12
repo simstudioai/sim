@@ -140,8 +140,8 @@ export function buildCandidateStageChangeOutputs(): Record<string, TriggerOutput
 /**
  * Build outputs for candidateHire events.
  * Payload: { action, data: { application: { id, createdAt, updatedAt, status,
- *   candidate: { id, name }, currentInterviewStage: { id, title, type },
- *   job: { id, title }, hiringTeam: [...] } } }
+ *   candidate: { id, name }, currentInterviewStage: { id, title },
+ *   job: { id, title } } } }
  */
 export function buildCandidateHireOutputs(): Record<string, TriggerOutput> {
   return {

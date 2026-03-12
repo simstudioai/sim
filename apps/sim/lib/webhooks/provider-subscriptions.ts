@@ -2172,18 +2172,12 @@ export async function createAshbyWebhookSubscription(
     const { apiKey, triggerId } = providerConfig || {}
 
     if (!apiKey) {
-      ashbyLogger.warn(`[${requestId}] Missing apiKey for Ashby webhook creation.`, {
-        webhookId: webhookData.id,
-      })
       throw new Error(
         'Ashby API Key is required. Please provide your API Key with apiKeysWrite permission in the trigger configuration.'
       )
     }
 
     if (!triggerId) {
-      ashbyLogger.warn(`[${requestId}] Missing triggerId for Ashby webhook creation.`, {
-        webhookId: webhookData.id,
-      })
       throw new Error('Trigger ID is required to create Ashby webhook.')
     }
 
@@ -2229,10 +2223,6 @@ export async function createAshbyWebhookSubscription(
     if (!ashbyResponse.ok || !responseBody.success) {
       const errorMessage =
         responseBody.errorInfo?.message || responseBody.message || 'Unknown Ashby API error'
-      ashbyLogger.error(
-        `[${requestId}] Failed to create webhook in Ashby for webhook ${webhookData.id}. Status: ${ashbyResponse.status}`,
-        { message: errorMessage, response: responseBody }
-      )
 
       let userFriendlyMessage = 'Failed to create webhook subscription in Ashby'
       if (ashbyResponse.status === 401) {
@@ -2250,10 +2240,6 @@ export async function createAshbyWebhookSubscription(
 
     const externalId = responseBody.results?.id
     if (!externalId) {
-      ashbyLogger.error(
-        `[${requestId}] Ashby webhook created but no ID returned for webhook ${webhookData.id}`,
-        { response: responseBody }
-      )
       throw new Error('Ashby webhook creation succeeded but no webhook ID was returned')
     }
 
