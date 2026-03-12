@@ -399,16 +399,22 @@ export class WorkflowDiffEngine {
         const key = `${proposedBlock.type}:${proposedBlock.name}`
         const existingBlock = existingBlockMap[key]?.block
 
-        // Merge with existing block if found, otherwise use proposed
+        // Merge with existing block if found, otherwise use proposed.
+        // Position strategy depends on whether the block's scope changed:
+        // - Same scope (parentId unchanged): preserve existing position so
+        //   unchanged blocks anchor correctly for targeted layout.
+        // - Different scope (parentId changed): use proposed position because
+        //   the coordinate system changed (absolute ↔ relative-to-container).
+        const existingParent = existingBlock?.data?.parentId ?? null
+        const proposedParent = proposedBlock.data?.parentId ?? null
+        const scopeChanged = existingBlock ? existingParent !== proposedParent : false
+
         const finalBlock: BlockState & BlockWithDiff = existingBlock
           ? {
               ...existingBlock,
               ...proposedBlock,
               id: finalId,
-              // Preserve the user's existing position so targeted layout can
-              // anchor unchanged blocks correctly. The server may have applied
-              // full autolayout which overwrites all positions.
-              position: existingBlock.position,
+              position: scopeChanged ? proposedBlock.position : existingBlock.position,
             }
           : {
               ...proposedBlock,
