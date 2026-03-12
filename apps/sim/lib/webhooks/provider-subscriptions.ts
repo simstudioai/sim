@@ -2308,15 +2308,19 @@ export async function deleteAshbyWebhook(webhook: any, requestId: string): Promi
       body: JSON.stringify({ webhookId: externalId }),
     })
 
-    if (!ashbyResponse.ok && ashbyResponse.status !== 404) {
+    if (ashbyResponse.ok) {
+      ashbyLogger.info(
+        `[${requestId}] Successfully deleted Ashby webhook subscription ${externalId}`
+      )
+    } else if (ashbyResponse.status === 404) {
+      ashbyLogger.info(
+        `[${requestId}] Ashby webhook ${externalId} not found during deletion (already removed)`
+      )
+    } else {
       const responseBody = await ashbyResponse.json().catch(() => ({}))
       ashbyLogger.warn(
         `[${requestId}] Failed to delete Ashby webhook (non-fatal): ${ashbyResponse.status}`,
         { response: responseBody }
-      )
-    } else {
-      ashbyLogger.info(
-        `[${requestId}] Successfully deleted Ashby webhook subscription ${externalId}`
       )
     }
   } catch (error) {

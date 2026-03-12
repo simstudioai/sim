@@ -66,7 +66,9 @@ const coreOutputs = {
 
 /**
  * Build outputs for applicationSubmit events.
- * Payload: { action, data: { application: { id, createdAt, updatedAt, status } } }
+ * Payload: { action, data: { application: { id, createdAt, updatedAt, status,
+ *   candidate: { id, name }, currentInterviewStage: { id, title },
+ *   job: { id, title } } } }
  */
 export function buildApplicationSubmitOutputs(): Record<string, TriggerOutput> {
   return {
@@ -81,6 +83,18 @@ export function buildApplicationSubmitOutputs(): Record<string, TriggerOutput> {
       status: {
         type: 'string',
         description: 'Application status (Active, Hired, Archived, Lead)',
+      },
+      candidate: {
+        id: { type: 'string', description: 'Candidate UUID' },
+        name: { type: 'string', description: 'Candidate name' },
+      },
+      currentInterviewStage: {
+        id: { type: 'string', description: 'Current interview stage UUID' },
+        title: { type: 'string', description: 'Current interview stage title' },
+      },
+      job: {
+        id: { type: 'string', description: 'Job UUID' },
+        title: { type: 'string', description: 'Job title' },
       },
     },
   } as Record<string, TriggerOutput>
