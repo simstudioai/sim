@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
 import { executeRunToolOnClient } from '@/lib/copilot/client-sse/run-tool-execution'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
+import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { tableKeys, useTablesList } from '@/hooks/queries/tables'
 import {
@@ -546,13 +547,11 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
               }
               flush()
 
-              const WORKFLOW_TOOLS = new Set([
-                'run_workflow',
-                'run_workflow_until_block',
-                'run_block',
-                'run_from_block',
-              ])
-              if (parsed.type === 'tool_call' && ui?.clientExecutable && WORKFLOW_TOOLS.has(name)) {
+              if (
+                parsed.type === 'tool_call' &&
+                ui?.clientExecutable &&
+                isWorkflowToolName(name)
+              ) {
                 const args = data?.arguments ?? data?.input ?? {}
                 executeRunToolOnClient(id, name, args as Record<string, unknown>)
               }
