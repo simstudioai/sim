@@ -6,7 +6,6 @@ import {
   ashbyCandidateStageChangeTrigger,
   ashbyJobCreateTrigger,
   ashbyOfferCreateTrigger,
-  ashbyWebhookTrigger,
 } from '@/triggers/ashby'
 import {
   attioCommentCreatedTrigger,
@@ -181,7 +180,6 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   ashby_candidate_delete: ashbyCandidateDeleteTrigger,
   ashby_job_create: ashbyJobCreateTrigger,
   ashby_offer_create: ashbyOfferCreateTrigger,
-  ashby_webhook: ashbyWebhookTrigger,
   attio_webhook: attioWebhookTrigger,
   attio_record_created: attioRecordCreatedTrigger,
   attio_record_updated: attioRecordUpdatedTrigger,

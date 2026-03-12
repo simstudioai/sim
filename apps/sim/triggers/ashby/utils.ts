@@ -11,7 +11,6 @@ export const ashbyTriggerOptions = [
   { label: 'Candidate Deleted', id: 'ashby_candidate_delete' },
   { label: 'Job Created', id: 'ashby_job_create' },
   { label: 'Offer Created', id: 'ashby_offer_create' },
-  { label: 'Generic Webhook (All Events)', id: 'ashby_webhook' },
 ]
 
 /**
@@ -215,16 +214,5 @@ export function buildOfferCreateOutputs(): Record<string, TriggerOutput> {
         id: { type: 'string', description: 'Latest offer version UUID' },
       },
     },
-  } as Record<string, TriggerOutput>
-}
-
-/**
- * Build outputs for generic webhook (all events).
- * Includes the action field and full data as JSON since payload varies by event type.
- */
-export function buildAshbyWebhookOutputs(): Record<string, TriggerOutput> {
-  return {
-    ...coreOutputs,
-    data: { type: 'json', description: 'Full event data payload (structure varies by event type)' },
   } as Record<string, TriggerOutput>
 }

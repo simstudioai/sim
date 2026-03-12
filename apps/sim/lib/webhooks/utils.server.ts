@@ -1246,8 +1246,8 @@ export async function formatWebhookInput(
 
   if (foundWebhook.provider === 'ashby') {
     return {
-      action: body.action,
       ...(body.data || {}),
+      action: body.action,
       data: body.data || {},
     }
   }

@@ -2194,7 +2194,6 @@ export async function createAshbyWebhookSubscription(
       ashby_candidate_delete: 'candidateDelete',
       ashby_job_create: 'jobCreate',
       ashby_offer_create: 'offerCreate',
-      ashby_webhook: undefined,
     }
 
     const webhookType = webhookTypeMap[triggerId]

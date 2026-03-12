@@ -23,7 +23,6 @@ export const AshbyBlock: BlockConfig = {
       'ashby_candidate_delete',
       'ashby_job_create',
       'ashby_offer_create',
-      'ashby_webhook',
     ],
   },
 
@@ -159,6 +158,7 @@ export const AshbyBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Updated full name',
       condition: { field: 'operation', value: 'update_candidate' },
+      mode: 'advanced',
     },
     {
       id: 'websiteUrl',
@@ -387,7 +387,6 @@ Output only the ISO 8601 timestamp string, nothing else.`,
     ...getTrigger('ashby_candidate_delete').subBlocks,
     ...getTrigger('ashby_job_create').subBlocks,
     ...getTrigger('ashby_offer_create').subBlocks,
-    ...getTrigger('ashby_webhook').subBlocks,
   ],
 
   tools: {
