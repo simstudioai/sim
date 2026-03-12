@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
-import { tableKeys } from '@/hooks/queries/tables'
+import { tableKeys, useTablesList } from '@/hooks/queries/tables'
 import {
   type TaskChatHistory,
   type TaskStoredContentBlock,
@@ -13,6 +13,7 @@ import {
   taskKeys,
   useChatHistory,
 } from '@/hooks/queries/tasks'
+import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles, workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { FileAttachmentForApi } from '../components/user-input/user-input'
@@ -64,11 +65,25 @@ function areResourcesEqual(left: MothershipResource[], right: MothershipResource
 function sanitizeResources(
   resources: MothershipResource[],
   existingFileIds: Set<string>,
-  shouldFilterMissingFiles: boolean
+  existingTableIds: Set<string>,
+  existingWorkflowIds: Set<string>,
+  shouldFilterMissingFiles: boolean,
+  shouldFilterMissingTables: boolean,
+  shouldFilterMissingWorkflows: boolean
 ): MothershipResource[] {
   return resources.filter((resource) => {
     if (resource.type === 'file') {
       if (shouldFilterMissingFiles && !existingFileIds.has(resource.id)) {
+        return false
+      }
+    }
+    if (resource.type === 'table') {
+      if (shouldFilterMissingTables && !existingTableIds.has(resource.id)) {
+        return false
+      }
+    }
+    if (resource.type === 'workflow') {
+      if (shouldFilterMissingWorkflows && !existingWorkflowIds.has(resource.id)) {
         return false
       }
     }
@@ -184,12 +199,31 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   const isHomePage = pathname.endsWith('/home')
 
   const { data: chatHistory } = useChatHistory(initialChatId)
-  const { data: workspaceFiles = [], isLoading: isWorkspaceFilesLoading } = useWorkspaceFiles(workspaceId)
+  const {
+    data: workspaceFiles = [],
+    isLoading: isWorkspaceFilesLoading,
+    isError: isWorkspaceFilesError,
+  } = useWorkspaceFiles(workspaceId)
+  const {
+    data: workspaceTables = [],
+    isLoading: isWorkspaceTablesLoading,
+    isError: isWorkspaceTablesError,
+  } = useTablesList(workspaceId)
+  const {
+    data: workflows = [],
+    isLoading: isWorkflowsLoading,
+    isError: isWorkflowsError,
+  } = useWorkflows(workspaceId, { syncRegistry: false })
 
   const existingWorkspaceFileIds = useMemo(
     () => new Set(workspaceFiles.map((file) => file.id)),
     [workspaceFiles]
   )
+  const existingWorkspaceTableIds = useMemo(
+    () => new Set(workspaceTables.map((table) => table.id)),
+    [workspaceTables]
+  )
+  const existingWorkflowIds = useMemo(() => new Set(workflows.map((workflow) => workflow.id)), [workflows])
 
   const addResource = useCallback((resource: MothershipResource) => {
     setResources((prev) => {
@@ -272,10 +306,31 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
 
   useEffect(() => {
     setResources((prev) => {
-      const next = sanitizeResources(prev, existingWorkspaceFileIds, !isWorkspaceFilesLoading)
+      const shouldFilterMissingFiles = !isWorkspaceFilesLoading && !isWorkspaceFilesError
+      const shouldFilterMissingTables = !isWorkspaceTablesLoading && !isWorkspaceTablesError
+      const shouldFilterMissingWorkflows = !isWorkflowsLoading && !isWorkflowsError
+      const next = sanitizeResources(
+        prev,
+        existingWorkspaceFileIds,
+        existingWorkspaceTableIds,
+        existingWorkflowIds,
+        shouldFilterMissingFiles,
+        shouldFilterMissingTables,
+        shouldFilterMissingWorkflows
+      )
       return areResourcesEqual(prev, next) ? prev : next
     })
-  }, [existingWorkspaceFileIds, isWorkspaceFilesLoading])
+  }, [
+    existingWorkspaceFileIds,
+    existingWorkspaceTableIds,
+    existingWorkflowIds,
+    isWorkspaceFilesError,
+    isWorkspaceFilesLoading,
+    isWorkspaceTablesError,
+    isWorkspaceTablesLoading,
+    isWorkflowsError,
+    isWorkflowsLoading,
+  ])
 
   useEffect(() => {
     if (resources.length === 0) {
