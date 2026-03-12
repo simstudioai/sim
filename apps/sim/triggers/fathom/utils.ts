@@ -83,6 +83,8 @@ export function buildMeetingOutputs(): Record<string, TriggerOutput> {
       description: 'Domain type: only_internal or one_or_more_external',
     },
     recorded_by: {
+      type: 'object',
+      description: 'Recorder details',
       name: { type: 'string', description: 'Name of the recorder' },
       email: { type: 'string', description: 'Email of the recorder' },
     },
@@ -91,6 +93,8 @@ export function buildMeetingOutputs(): Record<string, TriggerOutput> {
       description: 'Array of calendar invitees with name and email',
     },
     default_summary: {
+      type: 'object',
+      description: 'Meeting summary',
       template_name: { type: 'string', description: 'Summary template name' },
       markdown_formatted: { type: 'string', description: 'Markdown-formatted summary' },
     },

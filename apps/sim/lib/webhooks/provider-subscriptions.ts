@@ -1399,13 +1399,18 @@ export async function createFathomWebhookSubscription(
 
     const triggeredForValue = triggeredFor || 'my_recordings'
 
+    const toBool = (val: unknown, fallback: boolean): boolean => {
+      if (val === undefined) return fallback
+      return val === true || val === 'true'
+    }
+
     const requestBody: Record<string, any> = {
       destination_url: notificationUrl,
       triggered_for: [triggeredForValue],
-      include_summary: includeSummary !== undefined ? Boolean(includeSummary) : true,
-      include_transcript: includeTranscript !== undefined ? Boolean(includeTranscript) : false,
-      include_action_items: includeActionItems !== undefined ? Boolean(includeActionItems) : false,
-      include_crm_matches: includeCrmMatches !== undefined ? Boolean(includeCrmMatches) : false,
+      include_summary: toBool(includeSummary, true),
+      include_transcript: toBool(includeTranscript, false),
+      include_action_items: toBool(includeActionItems, false),
+      include_crm_matches: toBool(includeCrmMatches, false),
     }
 
     fathomLogger.info(`[${requestId}] Creating Fathom webhook`, {
