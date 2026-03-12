@@ -66,11 +66,6 @@ describe('getAllOAuthServices', () => {
   it.concurrent('should include single-service providers', () => {
     const services = getAllOAuthServices()
 
-    const githubService = services.find((s) => s.providerId === 'github-repo')
-    expect(githubService).toBeDefined()
-    expect(githubService?.name).toBe('GitHub')
-    expect(githubService?.baseProvider).toBe('github')
-
     const slackService = services.find((s) => s.providerId === 'slack')
     expect(slackService).toBeDefined()
     expect(slackService?.name).toBe('Slack')
@@ -145,14 +140,6 @@ describe('getServiceByProviderAndId', () => {
     expect(service.name).toBe('Microsoft Excel')
   })
 
-  it.concurrent('should work with single-service providers', () => {
-    const service = getServiceByProviderAndId('github')
-
-    expect(service).toBeDefined()
-    expect(service.providerId).toBe('github-repo')
-    expect(service.name).toBe('GitHub')
-  })
-
   it.concurrent('should include scopes in returned service config', () => {
     const service = getServiceByProviderAndId('google', 'gmail')
 
@@ -180,12 +167,6 @@ describe('getProviderIdFromServiceId', () => {
     const providerId = getProviderIdFromServiceId('outlook')
 
     expect(providerId).toBe('outlook')
-  })
-
-  it.concurrent('should return correct providerId for GitHub', () => {
-    const providerId = getProviderIdFromServiceId('github')
-
-    expect(providerId).toBe('github-repo')
   })
 
   it.concurrent('should return correct providerId for Microsoft Excel', () => {
@@ -262,14 +243,6 @@ describe('getServiceConfigByProviderId', () => {
     expect(excelService?.name).toBe('Microsoft Excel')
   })
 
-  it.concurrent('should work for GitHub', () => {
-    const service = getServiceConfigByProviderId('github-repo')
-
-    expect(service).toBeDefined()
-    expect(service?.providerId).toBe('github-repo')
-    expect(service?.name).toBe('GitHub')
-  })
-
   it.concurrent('should work for Slack', () => {
     const service = getServiceConfigByProviderId('slack')
 
@@ -338,14 +311,6 @@ describe('getCanonicalScopesForProvider', () => {
     expect(excelScopes).toContain('Files.Read')
   })
 
-  it.concurrent('should return scopes for GitHub', () => {
-    const scopes = getCanonicalScopesForProvider('github-repo')
-
-    expect(scopes.length).toBeGreaterThan(0)
-    expect(scopes).toContain('repo')
-    expect(scopes).toContain('user:email')
-  })
-
   it.concurrent('should handle providers with empty scopes array', () => {
     const scopes = getCanonicalScopesForProvider('notion')
 
@@ -395,13 +360,6 @@ describe('parseProvider', () => {
     const teamsConfig = parseProvider('microsoft-teams' as OAuthProvider)
     expect(teamsConfig.baseProvider).toBe('microsoft')
     expect(teamsConfig.featureType).toBe('microsoft-teams')
-  })
-
-  it.concurrent('should parse GitHub provider', () => {
-    const config = parseProvider('github-repo' as OAuthProvider)
-
-    expect(config.baseProvider).toBe('github')
-    expect(config.featureType).toBe('github')
   })
 
   it.concurrent('should parse Slack provider', () => {
