@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
         workflowDescription: workflow.description,
       })
       .from(workflowExecutionLogs)
-      .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+      .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
       .innerJoin(
         permissions,
         and(
@@ -168,8 +168,8 @@ export async function GET(request: NextRequest) {
       if (params.details === 'full') {
         result.workflow = {
           id: log.workflowId,
-          name: log.workflowName,
-          description: log.workflowDescription,
+          name: log.workflowName ?? 'Deleted Workflow',
+          description: log.workflowDescription ?? null,
         }
 
         if (log.cost) {
