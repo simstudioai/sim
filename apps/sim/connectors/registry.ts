@@ -5,6 +5,7 @@ import { dropboxConnector } from '@/connectors/dropbox'
 import { evernoteConnector } from '@/connectors/evernote'
 import { firefliesConnector } from '@/connectors/fireflies'
 import { githubConnector } from '@/connectors/github'
+import { gmailConnector } from '@/connectors/gmail'
 import { googleDocsConnector } from '@/connectors/google-docs'
 import { googleDriveConnector } from '@/connectors/google-drive'
 import { hubspotConnector } from '@/connectors/hubspot'
@@ -28,6 +29,7 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   evernote: evernoteConnector,
   fireflies: firefliesConnector,
   github: githubConnector,
+  gmail: gmailConnector,
   google_docs: googleDocsConnector,
   google_drive: googleDriveConnector,
   hubspot: hubspotConnector,
