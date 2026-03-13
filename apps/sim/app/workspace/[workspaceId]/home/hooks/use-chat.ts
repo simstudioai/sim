@@ -146,6 +146,15 @@ function mapStoredMessage(msg: TaskStoredMessage): ChatMessage {
     mapped.attachments = msg.fileAttachments.map(toDisplayAttachment)
   }
 
+  if (Array.isArray(msg.contexts) && msg.contexts.length > 0) {
+    mapped.contexts = msg.contexts.map((c) => ({
+      kind: c.kind,
+      label: c.label,
+      ...(c.workflowId && { workflowId: c.workflowId }),
+      ...(c.knowledgeId && { knowledgeId: c.knowledgeId }),
+    }))
+  }
+
   return mapped
 }
 
@@ -258,6 +267,18 @@ export function useChat(
       return [...prev, resource]
     })
     setActiveResourceId(resource.id)
+
+    // Persist to database if we have a chat ID
+    const currentChatId = chatIdRef.current
+    if (currentChatId) {
+      fetch('/api/copilot/chat/resources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId: currentChatId, resource }),
+      }).catch((err) => {
+        logger.warn('Failed to persist resource', err)
+      })
+    }
   }, [])
 
   const removeResource = useCallback((resourceType: MothershipResourceType, resourceId: string) => {

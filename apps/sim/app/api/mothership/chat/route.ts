@@ -162,6 +162,15 @@ export async function POST(req: NextRequest) {
               size: f.size,
             })),
           }),
+        ...(contexts &&
+          contexts.length > 0 && {
+            contexts: contexts.map((c) => ({
+              kind: c.kind,
+              label: c.label,
+              ...(c.workflowId && { workflowId: c.workflowId }),
+              ...(c.knowledgeId && { knowledgeId: c.knowledgeId }),
+            })),
+          }),
       }
 
       const [updated] = await db

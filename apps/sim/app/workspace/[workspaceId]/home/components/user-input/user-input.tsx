@@ -31,8 +31,8 @@ type WindowWithSpeech = Window & {
   webkitSpeechRecognition?: SpeechRecognitionStatic
 }
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowUp, AtSign, Loader2, Mic, Paperclip, Plus, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowUp, AtSign, ChevronRight, Folder, Loader2, Mic, Paperclip, Plus, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import {
@@ -40,9 +40,17 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
   Tooltip,
 } from '@/components/emcn'
+import { Search } from '@/components/emcn/icons'
 import {
   AudioIcon,
   CsvIcon,
@@ -58,17 +66,11 @@ import {
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
-import {
-  type MentionFolderNav,
-  MentionMenu,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/components'
 import { ContextPills } from './components'
 import {
+  useCaretViewport,
   useContextManagement,
   useFileAttachments,
-  useMentionData,
-  useMentionInsertHandlers,
-  useMentionKeyboard,
   useMentionMenu,
   useMentionTokens,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
@@ -77,6 +79,15 @@ import {
   extractContextTokens,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import type { ChatContext } from '@/stores/panel'
+import {
+  useAvailableResources,
+  type AvailableItem,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
+import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import type { MothershipResource, MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
+import { useFolders } from '@/hooks/queries/folders'
+import { useFolderStore } from '@/stores/folders/store'
+import type { FolderTreeNode } from '@/stores/folders/types'
 import { useAnimatedPlaceholder } from '../../hooks'
 
 const TEXTAREA_BASE_CLASSES = cn(
@@ -122,6 +133,441 @@ function autoResizeTextarea(e: React.FormEvent<HTMLTextAreaElement>, maxHeight: 
   target.style.height = `${Math.min(target.scrollHeight, maxHeight)}px`
 }
 
+function mapResourceToContext(resource: MothershipResource): ChatContext {
+  switch (resource.type) {
+    case 'workflow':
+      return { kind: 'workflow', workflowId: resource.id, label: resource.title }
+    case 'knowledgebase':
+      return { kind: 'knowledge', knowledgeId: resource.id, label: resource.title }
+    case 'table':
+      return { kind: 'docs', label: resource.title }
+    case 'file':
+      return { kind: 'docs', label: resource.title }
+    default:
+      return { kind: 'docs', label: resource.title }
+  }
+}
+
+interface ResourceMentionMenuProps {
+  workspaceId: string
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>
+  message: string
+  caretPos: number
+  availableResources: ReturnType<typeof useAvailableResources>
+  onSelect: (resource: MothershipResource, fromMentionMenu: boolean) => void
+  onClose: () => void
+  query: string
+}
+
+function ResourceMentionMenu({
+  workspaceId,
+  textareaRef,
+  message,
+  caretPos,
+  availableResources,
+  onSelect,
+  onClose,
+  query,
+}: ResourceMentionMenuProps) {
+  const { caretViewport, side } = useCaretViewport({ textareaRef, message, caretPos })
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [activeIndex, setActiveIndex] = useState(0)
+
+  // Flatten all items for keyboard navigation, filtered by query
+  const flatItems = useMemo(() => {
+    const searchQuery = query.trim().toLowerCase()
+    if (searchQuery) {
+      return availableResources.flatMap(({ type, items }) =>
+        items
+          .filter((item) => item.name.toLowerCase().includes(searchQuery))
+          .map((item) => ({ type, item }))
+      )
+    }
+    // When no query, show all items flat
+    return availableResources.flatMap(({ type, items }) =>
+      items.map((item) => ({ type, item }))
+    )
+  }, [availableResources, query])
+
+  // Reset active index when query changes
+  useEffect(() => {
+    setActiveIndex(0)
+  }, [query])
+
+  const handleSelect = useCallback(
+    (resource: MothershipResource) => {
+      onSelect(resource, true)
+      onClose()
+    },
+    [onSelect, onClose]
+  )
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setActiveIndex((prev) => Math.min(prev + 1, flatItems.length - 1))
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setActiveIndex((prev) => Math.max(prev - 1, 0))
+      } else if (e.key === 'Tab' || e.key === 'Enter') {
+        e.preventDefault()
+        if (flatItems.length > 0 && flatItems[activeIndex]) {
+          const { type, item } = flatItems[activeIndex]
+          handleSelect({ type, id: item.id, title: item.name })
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [flatItems, activeIndex, handleSelect, onClose])
+
+  if (!caretViewport) return null
+
+  return (
+    <Popover open={true} onOpenChange={(open) => !open && onClose()}>
+      <PopoverAnchor asChild>
+        <div
+          style={{
+            position: 'fixed',
+            top: `${caretViewport.top}px`,
+            left: `${caretViewport.left}px`,
+            width: '1px',
+            height: '1px',
+            pointerEvents: 'none',
+          }}
+        />
+      </PopoverAnchor>
+      <PopoverContent
+        ref={menuRef}
+        side={side}
+        align='start'
+        collisionPadding={6}
+        className='pointer-events-auto w-[240px] p-0'
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        <div className='max-h-[280px] overflow-y-auto'>
+          {flatItems.length > 0 ? (
+            flatItems.map(({ type, item }, index) => {
+              const config = getResourceConfig(type)
+              return (
+                <div
+                  key={`${type}:${item.id}`}
+                  role='button'
+                  onClick={() => handleSelect({ type, id: item.id, title: item.name })}
+                  className={cn(
+                    'flex cursor-pointer items-center gap-[8px] px-[8px] py-[6px] text-[13px]',
+                    index === activeIndex ? 'bg-[var(--surface-active)]' : 'hover:bg-[var(--surface-active)]'
+                  )}
+                >
+                  {config.renderDropdownItem({ item })}
+                  <span className='ml-auto pl-[8px] text-[11px] text-[var(--text-tertiary)]'>
+                    {config.label}
+                  </span>
+                </div>
+              )
+            })
+          ) : (
+            <div className='px-[8px] py-[6px] text-[13px] text-[var(--text-tertiary)]'>
+              No results
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+interface ResourceTypeFolderProps {
+  type: MothershipResourceType
+  items: AvailableItem[]
+  config: ReturnType<typeof getResourceConfig>
+  workspaceId: string
+  onSelect: (resource: MothershipResource) => void
+}
+
+function ResourceTypeFolder({ type, items, config, workspaceId, onSelect }: ResourceTypeFolderProps) {
+  const [expanded, setExpanded] = useState(false)
+  const Icon = config.icon
+
+  if (items.length === 0) {
+    return (
+      <div className='flex items-center gap-[8px] px-[8px] py-[6px] text-[13px] text-[var(--text-tertiary)]'>
+        <Icon className='h-[14px] w-[14px]' />
+        <span>{config.label}</span>
+        <span className='ml-auto text-[11px]'>None</span>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <div
+        role='button'
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setExpanded(!expanded)
+        }}
+        className='flex cursor-pointer items-center gap-[8px] px-[8px] py-[6px] text-[13px] hover:bg-[var(--surface-active)]'
+      >
+        <ChevronRight
+          className={cn(
+            'h-[12px] w-[12px] shrink-0 text-[var(--text-tertiary)] transition-transform duration-100',
+            expanded && 'rotate-90'
+          )}
+        />
+        <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+        <span className='text-[var(--text-primary)]'>{config.label}</span>
+        <span className='ml-auto text-[11px] text-[var(--text-tertiary)]'>{items.length}</span>
+      </div>
+      {expanded && (
+        <div className='pl-[20px]'>
+          {type === 'workflow' ? (
+            <WorkflowFolderContent
+              workspaceId={workspaceId}
+              items={items}
+              config={config}
+              onSelect={(item) => onSelect({ type, id: item.id, title: item.name })}
+            />
+          ) : (
+            items.map((item) => (
+              <div
+                key={item.id}
+                role='button'
+                onClick={() => onSelect({ type, id: item.id, title: item.name })}
+                className='flex cursor-pointer items-center gap-[8px] px-[8px] py-[6px] text-[13px] hover:bg-[var(--surface-active)]'
+              >
+                {config.renderDropdownItem({ item })}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </>
+  )
+}
+
+function WorkflowFolderContent({
+  workspaceId,
+  items,
+  config,
+  onSelect,
+}: {
+  workspaceId: string
+  items: AvailableItem[]
+  config: ReturnType<typeof getResourceConfig>
+  onSelect: (item: AvailableItem) => void
+}) {
+  useFolders(workspaceId)
+  const folders = useFolderStore((state) => state.folders)
+  const getFolderTree = useFolderStore((state) => state.getFolderTree)
+  const folderTree = useMemo(
+    () => getFolderTree(workspaceId),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [folders, getFolderTree, workspaceId]
+  )
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+
+  const toggleFolder = useCallback((id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const workflowsByFolder = useMemo(() => {
+    const grouped: Record<string, AvailableItem[]> = {}
+    for (const item of items) {
+      const fId = (item.folderId as string | null) ?? 'root'
+      if (!grouped[fId]) grouped[fId] = []
+      grouped[fId].push(item)
+    }
+    return grouped
+  }, [items])
+
+  const rootWorkflows = workflowsByFolder.root ?? []
+
+  const folderTreeHasItems = useCallback(
+    (folder: FolderTreeNode): boolean => {
+      if (workflowsByFolder[folder.id]?.length) return true
+      return folder.children.some(folderTreeHasItems)
+    },
+    [workflowsByFolder]
+  )
+
+  const visibleFolders = useMemo(
+    () => folderTree.filter(folderTreeHasItems),
+    [folderTree, folderTreeHasItems]
+  )
+
+  const renderFolder = (folder: FolderTreeNode, level: number) => {
+    const folderWorkflows = workflowsByFolder[folder.id] ?? []
+    const isExpanded = expanded.has(folder.id)
+    const indent = level * 12
+
+    return (
+      <div key={folder.id}>
+        <div
+          role='button'
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            toggleFolder(folder.id)
+          }}
+          className='flex cursor-pointer items-center gap-[6px] px-[8px] py-[6px] text-[13px] hover:bg-[var(--surface-active)]'
+          style={{ paddingLeft: `${8 + indent}px` }}
+        >
+          <ChevronRight
+            className={cn(
+              'h-[12px] w-[12px] shrink-0 text-[var(--text-tertiary)] transition-transform duration-100',
+              isExpanded && 'rotate-90'
+            )}
+          />
+          <Folder className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+          <span className='truncate text-[var(--text-primary)]'>{folder.name}</span>
+        </div>
+        {isExpanded && (
+          <>
+            {folder.children.map((child) => renderFolder(child, level + 1))}
+            {folderWorkflows.map((item) => (
+              <div
+                key={item.id}
+                role='button'
+                onClick={() => onSelect(item)}
+                className='flex cursor-pointer items-center gap-[8px] px-[8px] py-[6px] text-[13px] hover:bg-[var(--surface-active)]'
+                style={{ paddingLeft: `${8 + (level + 1) * 12}px` }}
+              >
+                {config.renderDropdownItem({ item })}
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {visibleFolders.map((folder) => renderFolder(folder, 0))}
+      {rootWorkflows.map((item) => (
+        <div
+          key={item.id}
+          role='button'
+          onClick={() => onSelect(item)}
+          className='flex cursor-pointer items-center gap-[8px] px-[8px] py-[6px] text-[13px] hover:bg-[var(--surface-active)]'
+        >
+          {config.renderDropdownItem({ item })}
+        </div>
+      ))}
+    </>
+  )
+}
+
+interface ResourcesSubmenuContentProps {
+  workspaceId: string
+  availableResources: ReturnType<typeof useAvailableResources>
+  onSelect: (resource: MothershipResource) => void
+}
+
+function ResourcesSubmenuContent({
+  workspaceId,
+  availableResources,
+  onSelect,
+}: ResourcesSubmenuContentProps) {
+  const [search, setSearch] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  const query = search.trim().toLowerCase()
+  const filtered = useMemo(() => {
+    if (!query) return null
+    return availableResources.flatMap(({ type, items }) =>
+      items
+        .filter((item) => item.name.toLowerCase().includes(query))
+        .map((item) => ({ type, item }))
+    )
+  }, [availableResources, query])
+
+  const handleSelect = useCallback(
+    (resource: MothershipResource) => {
+      onSelect(resource)
+    },
+    [onSelect]
+  )
+
+  return (
+    <>
+      <div
+        className='flex items-center gap-[8px] px-[8px] py-[6px]'
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Search className='h-[14px] w-[14px] shrink-0 text-[var(--text-tertiary)]' />
+        <input
+          ref={inputRef}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => e.stopPropagation()}
+          placeholder='Search resources…'
+          className='h-[20px] w-full bg-transparent text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]'
+        />
+      </div>
+      <DropdownMenuSeparator className='my-0' />
+      <div className='max-h-[280px] overflow-y-auto'>
+        {filtered ? (
+          filtered.length > 0 ? (
+            filtered.map(({ type, item }) => {
+              const config = getResourceConfig(type)
+              return (
+                <div
+                  key={`${type}:${item.id}`}
+                  role='button'
+                  onClick={() => handleSelect({ type, id: item.id, title: item.name })}
+                  className='flex cursor-pointer items-center gap-[8px] px-[8px] py-[6px] text-[13px] hover:bg-[var(--surface-active)]'
+                >
+                  {config.renderDropdownItem({ item })}
+                  <span className='ml-auto pl-[8px] text-[11px] text-[var(--text-tertiary)]'>
+                    {config.label}
+                  </span>
+                </div>
+              )
+            })
+          ) : (
+            <div className='px-[8px] py-[6px] text-[13px] text-[var(--text-tertiary)]'>
+              No results
+            </div>
+          )
+        ) : (
+          availableResources.map(({ type, items }) => {
+            const config = getResourceConfig(type)
+            return (
+              <ResourceTypeFolder
+                key={type}
+                type={type}
+                items={items}
+                config={config}
+                workspaceId={workspaceId}
+                onSelect={handleSelect}
+              />
+            )
+          })
+        )}
+      </div>
+    </>
+  )
+}
+
 export interface FileAttachmentForApi {
   id: string
   key: string
@@ -152,7 +598,6 @@ export function UserInput({
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { data: session } = useSession()
   const [value, setValue] = useState(defaultValue)
-  const [mentionFolderNav, setMentionFolderNav] = useState<MentionFolderNav | null>(null)
   const [plusMenuOpen, setPlusMenuOpen] = useState(false)
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -176,6 +621,17 @@ export function UserInput({
     [contextManagement, onContextAdd]
   )
 
+  const existingResourceKeys = useMemo(() => {
+    const keys = new Set<string>()
+    for (const ctx of contextManagement.selectedContexts) {
+      if (ctx.kind === 'workflow' && ctx.workflowId) keys.add(`workflow:${ctx.workflowId}`)
+      if (ctx.kind === 'knowledge' && ctx.knowledgeId) keys.add(`knowledgebase:${ctx.knowledgeId}`)
+    }
+    return keys
+  }, [contextManagement.selectedContexts])
+
+  const availableResources = useAvailableResources(workspaceId, existingResourceKeys)
+
   const mentionMenu = useMentionMenu({
     message: value,
     selectedContexts: contextManagement.selectedContexts,
@@ -189,26 +645,6 @@ export function UserInput({
     mentionMenu,
     setMessage: setValue,
     setSelectedContexts: contextManagement.setSelectedContexts,
-  })
-
-  const mentionData = useMentionData({
-    workflowId: null,
-    workspaceId,
-  })
-
-  const insertHandlers = useMentionInsertHandlers({
-    mentionMenu,
-    workflowId: null,
-    selectedContexts: contextManagement.selectedContexts,
-    onContextAdd: handleContextAdd,
-    mentionFolderNav,
-  })
-
-  const mentionKeyboard = useMentionKeyboard({
-    mentionMenu,
-    mentionData,
-    insertHandlers,
-    mentionFolderNav,
   })
 
   const canSubmit = (value.trim().length > 0 || hasFiles) && !isSending
@@ -226,6 +662,38 @@ export function UserInput({
   const textareaRef = mentionMenu.textareaRef
   const wasSendingRef = useRef(false)
 
+  const handleResourceSelect = useCallback(
+    (resource: MothershipResource, fromMentionMenu = false) => {
+      if (fromMentionMenu) {
+        // Use replaceActiveMentionWith to replace @query with @label
+        mentionMenu.replaceActiveMentionWith(resource.title)
+      } else {
+        // Insert fresh @mention (from + menu)
+        const textarea = textareaRef.current
+        if (textarea) {
+          textarea.focus()
+          const start = textarea.selectionStart ?? value.length
+          const needsSpaceBefore = start > 0 && !/\s/.test(value.charAt(start - 1))
+          const insertText = `${needsSpaceBefore ? ' ' : ''}@${resource.title} `
+          const before = value.slice(0, start)
+          const after = value.slice(start)
+          setValue(`${before}${insertText}${after}`)
+
+          setTimeout(() => {
+            const newPos = before.length + insertText.length
+            textarea.setSelectionRange(newPos, newPos)
+            textarea.focus()
+          }, 0)
+        }
+      }
+
+      const context = mapResourceToContext(resource)
+      handleContextAdd(context)
+      setPlusMenuOpen(false)
+    },
+    [textareaRef, value, handleContextAdd, mentionMenu]
+  )
+
   useEffect(() => {
     if (wasSendingRef.current && !isSending) {
       textareaRef.current?.focus()
@@ -238,38 +706,6 @@ export function UserInput({
       textareaRef.current?.focus()
     }
   }, [isInitialView, textareaRef])
-
-  // Load mention data when menu is shown
-  useEffect(() => {
-    if (!mentionMenu.showMentionMenu || mentionFolderNav?.isInFolder) {
-      return
-    }
-
-    const q = mentionMenu
-      .getActiveMentionQueryAtPosition(mentionMenu.getCaretPos())
-      ?.query.trim()
-      .toLowerCase()
-
-    if (q && q.length > 0) {
-      void mentionData.ensurePastChatsLoaded()
-      void mentionData.ensureKnowledgeLoaded()
-      void mentionData.ensureBlocksLoaded()
-      void mentionData.ensureTemplatesLoaded()
-      void mentionData.ensureLogsLoaded()
-
-      mentionMenu.setSubmenuActiveIndex(0)
-      requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(0))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mentionMenu.showMentionMenu, mentionFolderNav?.isInFolder, value])
-
-  useEffect(() => {
-    if (mentionFolderNav?.isInFolder) {
-      mentionMenu.setSubmenuActiveIndex(0)
-      requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(0))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mentionFolderNav?.isInFolder])
 
   const handleContainerClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('button')) return
@@ -306,25 +742,14 @@ export function UserInput({
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === 'Escape' && mentionMenu.showMentionMenu) {
         e.preventDefault()
-        if (mentionFolderNav?.isInFolder) {
-          mentionFolderNav.closeFolder()
-          mentionMenu.setSubmenuQueryStart(null)
-        } else {
-          mentionMenu.closeMentionMenu()
-        }
+        mentionMenu.closeMentionMenu()
         return
       }
 
-      if (mentionKeyboard.handleArrowNavigation(e)) return
-      if (mentionKeyboard.handleArrowRight(e)) return
-      if (mentionKeyboard.handleArrowLeft(e)) return
-
       if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
         e.preventDefault()
-        if (!mentionMenu.showMentionMenu) {
-          if (!isSending) handleSubmit()
-        } else {
-          mentionKeyboard.handleEnterSelection(e)
+        if (!mentionMenu.showMentionMenu && !isSending) {
+          handleSubmit()
         }
         return
       }
@@ -393,7 +818,7 @@ export function UserInput({
         }
       }
     },
-    [handleSubmit, isSending, mentionMenu, mentionKeyboard, mentionTokensWithContext, value, textareaRef, mentionFolderNav]
+    [handleSubmit, isSending, mentionMenu, mentionTokensWithContext, value, textareaRef]
   )
 
   const handleInputChange = useCallback(
@@ -406,20 +831,11 @@ export function UserInput({
 
       if (activeMention) {
         mentionMenu.setShowMentionMenu(true)
-        mentionMenu.setInAggregated(false)
-        if (mentionFolderNav?.isInFolder) {
-          mentionMenu.setSubmenuActiveIndex(0)
-        } else {
-          mentionMenu.setMentionActiveIndex(0)
-          mentionMenu.setSubmenuActiveIndex(0)
-        }
       } else {
         mentionMenu.setShowMentionMenu(false)
-        mentionMenu.setOpenSubmenuFor(null)
-        mentionMenu.setSubmenuQueryStart(null)
       }
     },
-    [mentionMenu, mentionFolderNav]
+    [mentionMenu]
   )
 
   const handleSelectAdjust = useCallback(() => {
@@ -448,41 +864,6 @@ export function UserInput({
     [isInitialView]
   )
 
-  const insertTriggerAndOpenMenu = useCallback(() => {
-    if (isSending) return
-    const textarea = textareaRef.current
-    if (!textarea) return
-
-    textarea.focus()
-    const start = textarea.selectionStart ?? value.length
-    const end = textarea.selectionEnd ?? value.length
-    const needsSpaceBefore = start > 0 && !/\s/.test(value.charAt(start - 1))
-
-    const insertText = needsSpaceBefore ? ' @' : '@'
-    const before = value.slice(0, start)
-    const after = value.slice(end)
-    setValue(`${before}${insertText}${after}`)
-
-    setTimeout(() => {
-      const newPos = before.length + insertText.length
-      textarea.setSelectionRange(newPos, newPos)
-      textarea.focus()
-    }, 0)
-
-    mentionMenu.setShowMentionMenu(true)
-    mentionMenu.setOpenSubmenuFor(null)
-    mentionMenu.setMentionActiveIndex(0)
-    mentionMenu.setSubmenuActiveIndex(0)
-  }, [isSending, textareaRef, value, mentionMenu])
-
-  const handlePlusMenuSelect = useCallback((action: 'attachments' | 'resources') => {
-    setPlusMenuOpen(false)
-    if (action === 'attachments') {
-      files.handleFileSelect()
-    } else {
-      insertTriggerAndOpenMenu()
-    }
-  }, [files, insertTriggerAndOpenMenu])
 
   const toggleListening = useCallback(() => {
     if (isListening) {
@@ -694,15 +1075,20 @@ export function UserInput({
           className={cn(TEXTAREA_BASE_CLASSES, isInitialView ? 'max-h-[30vh]' : 'max-h-[200px]')}
         />
 
-        {/* Mention Menu Portal */}
+        {/* Resource Mention Menu Portal */}
         {mentionMenu.showMentionMenu &&
           createPortal(
-            <MentionMenu
-              mentionMenu={mentionMenu}
-              mentionData={mentionData}
+            <ResourceMentionMenu
+              workspaceId={workspaceId}
+              textareaRef={textareaRef}
               message={value}
-              insertHandlers={insertHandlers}
-              onFolderNavChange={setMentionFolderNav}
+              caretPos={mentionMenu.getCaretPos()}
+              availableResources={availableResources}
+              onSelect={handleResourceSelect}
+              onClose={() => {
+                mentionMenu.closeMentionMenu()
+              }}
+              query={mentionMenu.getActiveMentionQueryAtPosition(mentionMenu.getCaretPos())?.query ?? ''}
             />,
             document.body
           )}
@@ -728,14 +1114,31 @@ export function UserInput({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='start' side='top' sideOffset={8}>
-              <DropdownMenuItem onClick={() => handlePlusMenuSelect('attachments')}>
+              <DropdownMenuItem
+                onClick={() => {
+                  setPlusMenuOpen(false)
+                  files.handleFileSelect()
+                }}
+              >
                 <Paperclip className='h-[14px] w-[14px]' strokeWidth={2} />
                 <span>Attachments</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handlePlusMenuSelect('resources')}>
-                <AtSign className='h-[14px] w-[14px]' strokeWidth={2} />
-                <span>Resources</span>
-              </DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <AtSign className='h-[14px] w-[14px]' strokeWidth={2} />
+                  <span>Resources</span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className='w-[240px] p-0'>
+                  <ResourcesSubmenuContent
+                    workspaceId={workspaceId}
+                    availableResources={availableResources}
+                    onSelect={(resource) => {
+                      handleResourceSelect(resource, false)
+                      setPlusMenuOpen(false)
+                    }}
+                  />
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

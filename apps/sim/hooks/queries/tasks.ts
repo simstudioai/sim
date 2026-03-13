@@ -35,6 +35,13 @@ export interface TaskStoredFileAttachment {
   size: number
 }
 
+export interface TaskStoredMessageContext {
+  kind: string
+  label: string
+  workflowId?: string
+  knowledgeId?: string
+}
+
 export interface TaskStoredMessage {
   id: string
   role: 'user' | 'assistant'
@@ -42,6 +49,7 @@ export interface TaskStoredMessage {
   toolCalls?: TaskStoredToolCall[]
   contentBlocks?: TaskStoredContentBlock[]
   fileAttachments?: TaskStoredFileAttachment[]
+  contexts?: TaskStoredMessageContext[]
 }
 
 export interface TaskStoredContentBlock {
