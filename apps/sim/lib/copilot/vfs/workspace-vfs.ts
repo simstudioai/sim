@@ -391,12 +391,21 @@ export class WorkspaceVFS {
 
     if (fileName.endsWith('/meta.json') || path.endsWith('/meta.json')) return null
 
-    const files = await listWorkspaceFiles(this._workspaceId)
-    const record = files.find(
-      (f) => f.name === fileName || f.name.normalize('NFC') === fileName.normalize('NFC')
-    )
-    if (!record) return null
-    return readFileRecord(record)
+    try {
+      const files = await listWorkspaceFiles(this._workspaceId)
+      const record = files.find(
+        (f) => f.name === fileName || f.name.normalize('NFC') === fileName.normalize('NFC')
+      )
+      if (!record) return null
+      return readFileRecord(record)
+    } catch (err) {
+      logger.warn('Failed to list workspace files for readFileContent', {
+        workspaceId: this._workspaceId,
+        path,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return null
+    }
   }
 
   /**
