@@ -13,6 +13,7 @@ import {
   createWorkflowRecord,
   deleteFolderRecord,
   deleteWorkflowRecord,
+  listFolders,
   setWorkflowVariables,
   updateFolderRecord,
   updateWorkflowRecord,
@@ -574,12 +575,22 @@ export async function executeDeleteWorkflow(
 
 export async function executeDeleteFolder(
   params: DeleteFolderParams,
-  _context: ExecutionContext
+  context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
     const folderId = params.folderId
     if (!folderId) {
       return { success: false, error: 'folderId is required' }
+    }
+
+    const workspaceId =
+      context.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    await ensureWorkspaceAccess(workspaceId, context.userId, true)
+
+    const folders = await listFolders(workspaceId)
+    const folder = folders.find((f) => f.folderId === folderId)
+    if (!folder) {
+      return { success: false, error: 'Folder not found' }
     }
 
     const deleted = await deleteFolderRecord(folderId)

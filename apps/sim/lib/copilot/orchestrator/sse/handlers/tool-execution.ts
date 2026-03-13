@@ -24,7 +24,7 @@ import type {
 import {
   extractDeletedResourcesFromToolResult,
   extractResourcesFromToolResult,
-  isDeleteToolName,
+  hasDeleteCapability,
   isResourceToolName,
   persistChatResources,
   removeChatResources,
@@ -541,7 +541,7 @@ export async function executeToolAndReport(
         }
       }
 
-      if (isDeleteToolName(toolCall.name)) {
+      if (hasDeleteCapability(toolCall.name)) {
         const deleted = extractDeletedResourcesFromToolResult(
           toolCall.name,
           toolCall.params,

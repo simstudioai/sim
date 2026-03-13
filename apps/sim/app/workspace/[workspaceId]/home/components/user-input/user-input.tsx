@@ -748,6 +748,7 @@ export function UserInput({
         } catch {
           // Invalid JSON — ignore
         }
+        return
       }
       files.handleDrop(e)
     },

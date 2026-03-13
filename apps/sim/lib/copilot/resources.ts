@@ -2,13 +2,14 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
+import type { MothershipResource, MothershipResourceType } from '@/lib/copilot/resource-types'
 
 const logger = createLogger('CopilotResources')
 
-export type {
-  MothershipResource as ChatResource,
-  MothershipResourceType as ResourceType,
-} from '@/lib/copilot/resource-types'
+export type { MothershipResource as ChatResource, MothershipResourceType as ResourceType }
+
+type ChatResource = MothershipResource
+type ResourceType = MothershipResourceType
 
 const RESOURCE_TOOL_NAMES = new Set([
   'user_table',
@@ -167,6 +168,17 @@ export function extractResourcesFromToolResult(
   }
 }
 
+const DELETE_CAPABLE_TOOL_RESOURCE_TYPE: Record<string, ResourceType> = {
+  delete_workflow: 'workflow',
+  workspace_file: 'file',
+  user_table: 'table',
+  knowledge_base: 'knowledgebase',
+}
+
+export function hasDeleteCapability(toolName: string): boolean {
+  return toolName in DELETE_CAPABLE_TOOL_RESOURCE_TYPE
+}
+
 /**
  * Extracts resource descriptors from a tool execution result when the tool
  * performed a deletion. Returns one or more deleted resources for tools that
@@ -177,6 +189,9 @@ export function extractDeletedResourcesFromToolResult(
   params: Record<string, unknown> | undefined,
   output: unknown
 ): ChatResource[] {
+  const resourceType = DELETE_CAPABLE_TOOL_RESOURCE_TYPE[toolName]
+  if (!resourceType) return []
+
   const result = asRecord(output)
   const data = asRecord(result.data)
   const args = asRecord(params?.args)
@@ -186,7 +201,9 @@ export function extractDeletedResourcesFromToolResult(
     case 'delete_workflow': {
       const workflowId = (result.workflowId as string) ?? (params?.workflowId as string)
       if (workflowId && result.deleted) {
-        return [{ type: 'workflow', id: workflowId, title: (result.name as string) || 'Workflow' }]
+        return [
+          { type: resourceType, id: workflowId, title: (result.name as string) || 'Workflow' },
+        ]
       }
       return []
     }
@@ -195,7 +212,7 @@ export function extractDeletedResourcesFromToolResult(
       if (operation !== 'delete') return []
       const fileId = (data.id as string) ?? (args.fileId as string)
       if (fileId) {
-        return [{ type: 'file', id: fileId, title: (data.name as string) || 'File' }]
+        return [{ type: resourceType, id: fileId, title: (data.name as string) || 'File' }]
       }
       return []
     }
@@ -204,7 +221,7 @@ export function extractDeletedResourcesFromToolResult(
       if (operation !== 'delete') return []
       const tableId = (args.tableId as string) ?? (params?.tableId as string)
       if (tableId) {
-        return [{ type: 'table', id: tableId, title: 'Table' }]
+        return [{ type: resourceType, id: tableId, title: 'Table' }]
       }
       return []
     }
@@ -213,9 +230,7 @@ export function extractDeletedResourcesFromToolResult(
       if (operation !== 'delete') return []
       const kbId = (data.id as string) ?? (args.knowledgeBaseId as string)
       if (kbId) {
-        return [
-          { type: 'knowledgebase', id: kbId, title: (data.name as string) || 'Knowledge Base' },
-        ]
+        return [{ type: resourceType, id: kbId, title: (data.name as string) || 'Knowledge Base' }]
       }
       return []
     }
@@ -223,17 +238,6 @@ export function extractDeletedResourcesFromToolResult(
     default:
       return []
   }
-}
-
-const DELETE_TOOL_NAMES = new Set([
-  'delete_workflow',
-  'workspace_file',
-  'user_table',
-  'knowledge_base',
-])
-
-export function isDeleteToolName(toolName: string): boolean {
-  return DELETE_TOOL_NAMES.has(toolName)
 }
 
 /**
