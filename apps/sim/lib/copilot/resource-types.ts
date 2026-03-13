@@ -12,10 +12,3 @@ export const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {
   workflows: 'workflow',
   knowledgebases: 'knowledgebase',
 } as const
-
-export const RESOURCE_TYPE_TO_DIR: Record<MothershipResourceType, string> = {
-  table: 'tables',
-  file: 'files',
-  workflow: 'workflows',
-  knowledgebase: 'knowledgebases',
-} as const
