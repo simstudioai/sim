@@ -62,12 +62,18 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    let workflows
+    const pageParam = url.searchParams.get('page')
+    const limitParam = url.searchParams.get('limit')
+    const page = pageParam ? parseInt(pageParam, 10) : undefined
+    const limit = limitParam ? parseInt(limitParam, 10) : undefined
 
+    let workflows
     const orderByClause = [asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id)]
 
+    let baseQuery: any
+
     if (workspaceId) {
-      workflows = await db
+      baseQuery = db
         .select()
         .from(workflow)
         .where(eq(workflow.workspaceId, workspaceId))
@@ -77,16 +83,28 @@ export async function GET(request: NextRequest) {
         .select({ workspaceId: permissions.entityId })
         .from(permissions)
         .where(and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace')))
+
       const workspaceIds = workspacePermissionRows.map((row) => row.workspaceId)
+
       if (workspaceIds.length === 0) {
         return NextResponse.json({ data: [] }, { status: 200 })
       }
-      workflows = await db
+
+      baseQuery = db
         .select()
         .from(workflow)
         .where(inArray(workflow.workspaceId, workspaceIds))
         .orderBy(...orderByClause)
     }
+
+    if (limit && !isNaN(limit) && limit > 0) {
+      baseQuery = baseQuery.limit(limit)
+      if (page && !isNaN(page) && page > 1) {
+        baseQuery = baseQuery.offset((page - 1) * limit)
+      }
+    }
+
+    workflows = await baseQuery
 
     return NextResponse.json({ data: workflows }, { status: 200 })
   } catch (error: any) {
