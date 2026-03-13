@@ -132,6 +132,9 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
           </div>
           {task.id !== 'new' && (
             <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
+              {isActive && !isCurrentRoute && (
+                <span className='absolute h-[7px] w-[7px] animate-ping rounded-full bg-[#33C482] opacity-30 group-hover:hidden' />
+              )}
               {(isActive || isUnread) && !isCurrentRoute && (
                 <span className='absolute h-[7px] w-[7px] rounded-full bg-[#33C482] group-hover:hidden' />
               )}

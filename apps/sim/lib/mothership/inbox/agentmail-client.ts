@@ -52,11 +52,13 @@ export async function createInbox(opts: {
   username?: string
   displayName?: string
 }): Promise<AgentMailInbox> {
+  const domain = env.AGENTMAIL_DOMAIN
   return request<AgentMailInbox>('/inboxes', {
     method: 'POST',
     body: JSON.stringify({
       username: opts.username,
       display_name: opts.displayName,
+      ...(domain ? { domain } : {}),
     }),
   })
 }
