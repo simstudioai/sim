@@ -125,10 +125,8 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
             if (task.id === 'new') return
             if (e.shiftKey || e.metaKey || e.ctrlKey) {
               e.preventDefault()
-              onMultiSelectClick(task.id, e.shiftKey, e.metaKey || e.ctrlKey)
-            } else {
-              useFolderStore.getState().clearTaskSelection()
             }
+            onMultiSelectClick(task.id, e.shiftKey, e.metaKey || e.ctrlKey)
           }}
           onContextMenu={task.id !== 'new' ? (e) => onContextMenu(e, task.id) : undefined}
         >
