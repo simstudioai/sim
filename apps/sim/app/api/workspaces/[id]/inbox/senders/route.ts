@@ -39,7 +39,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const [senders, members] = await Promise.all([
     db
-      .select()
+      .select({
+        id: mothershipInboxAllowedSender.id,
+        email: mothershipInboxAllowedSender.email,
+        label: mothershipInboxAllowedSender.label,
+        createdAt: mothershipInboxAllowedSender.createdAt,
+      })
       .from(mothershipInboxAllowedSender)
       .where(eq(mothershipInboxAllowedSender.workspaceId, workspaceId))
       .orderBy(mothershipInboxAllowedSender.createdAt),

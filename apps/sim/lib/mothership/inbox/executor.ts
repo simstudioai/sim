@@ -47,7 +47,11 @@ export async function executeInboxTask(taskId: string): Promise<void> {
   }
 
   const [ws] = await db
-    .select()
+    .select({
+      id: workspace.id,
+      ownerId: workspace.ownerId,
+      inboxProviderId: workspace.inboxProviderId,
+    })
     .from(workspace)
     .where(eq(workspace.id, inboxTask.workspaceId))
     .limit(1)

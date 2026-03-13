@@ -219,7 +219,7 @@ export function useAddInboxSender() {
           senders: [
             ...previous.senders,
             {
-              id: `optimistic-${Date.now()}`,
+              id: `optimistic-${crypto.randomUUID()}`,
               email,
               label: label || null,
               createdAt: new Date().toISOString(),

@@ -1,12 +1,8 @@
-import type { copilotChats, mothershipInboxTask, workspace } from '@sim/db'
+import type { mothershipInboxTask } from '@sim/db'
 
 export type InboxTask = typeof mothershipInboxTask.$inferSelect
-export type InboxTaskInsert = typeof mothershipInboxTask.$inferInsert
 export type InboxTaskStatus = 'received' | 'processing' | 'completed' | 'failed' | 'rejected'
 export type RejectionReason = 'sender_not_allowed' | 'automated_sender' | 'rate_limit_exceeded'
-
-export type Workspace = typeof workspace.$inferSelect
-export type CopilotChat = typeof copilotChats.$inferSelect
 
 export interface InboxConfig {
   enabled: boolean
