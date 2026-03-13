@@ -100,6 +100,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const body = patchSchema.parse(await req.json())
 
     if (body.enabled === true) {
+      const [current] = await db
+        .select({ inboxEnabled: workspace.inboxEnabled })
+        .from(workspace)
+        .where(eq(workspace.id, workspaceId))
+        .limit(1)
+      if (current?.inboxEnabled) {
+        return NextResponse.json({ error: 'Inbox is already enabled' }, { status: 409 })
+      }
       const config = await enableInbox(workspaceId, { username: body.username })
       return NextResponse.json(config)
     }
