@@ -15,11 +15,17 @@ import {
 } from '@/lib/core/utils/browser-storage'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 import { useChatHistory, useMarkTaskRead } from '@/hooks/queries/tasks'
-import { MessageContent, MothershipView, TemplatePrompts, UserInput, UserMessageContent } from './components'
-import type { FileAttachmentForApi } from './components/user-input/user-input'
 import type { ChatContext } from '@/stores/panel'
-import type { MothershipResource, MothershipResourceType } from './types'
+import {
+  MessageContent,
+  MothershipView,
+  TemplatePrompts,
+  UserInput,
+  UserMessageContent,
+} from './components'
+import type { FileAttachmentForApi } from './components/user-input/user-input'
 import { useAutoScroll, useChat } from './hooks'
+import type { MothershipResource, MothershipResourceType } from './types'
 
 const logger = createLogger('Home')
 
@@ -245,7 +251,7 @@ export function Home({ chatId }: HomeProps = {}) {
     (context: ChatContext) => {
       let resourceType: MothershipResourceType | null = null
       let resourceId: string | null = null
-      let resourceTitle: string = context.label
+      const resourceTitle: string = context.label
 
       switch (context.kind) {
         case 'workflow':

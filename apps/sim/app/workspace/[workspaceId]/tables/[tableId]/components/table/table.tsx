@@ -1238,7 +1238,7 @@ export function Table({
       <div className='flex h-full flex-col items-center justify-center gap-[12px]'>
         <TableX className='h-[32px] w-[32px] text-[var(--text-muted)]' />
         <div className='flex flex-col items-center gap-[4px]'>
-          <h2 className='text-[20px] font-medium text-[var(--text-secondary)]'>Table not found</h2>
+          <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>Table not found</h2>
           <p className='text-[13px] text-[var(--text-muted)]'>
             This table may have been deleted or moved
           </p>

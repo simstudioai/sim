@@ -213,7 +213,9 @@ export function extractDeletedResourcesFromToolResult(
       if (operation !== 'delete') return []
       const kbId = (data.id as string) ?? (args.knowledgeBaseId as string)
       if (kbId) {
-        return [{ type: 'knowledgebase', id: kbId, title: (data.name as string) || 'Knowledge Base' }]
+        return [
+          { type: 'knowledgebase', id: kbId, title: (data.name as string) || 'Knowledge Base' },
+        ]
       }
       return []
     }
@@ -286,10 +288,7 @@ export async function persistChatResources(
 /**
  * Removes resources from a chat's JSONB resources column by type+id.
  */
-export async function removeChatResources(
-  chatId: string,
-  toRemove: ChatResource[]
-): Promise<void> {
+export async function removeChatResources(chatId: string, toRemove: ChatResource[]): Promise<void> {
   if (toRemove.length === 0) return
 
   try {

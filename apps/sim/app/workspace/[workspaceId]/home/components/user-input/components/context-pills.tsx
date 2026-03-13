@@ -31,19 +31,9 @@ function getContextIcon(ctx: ChatContext) {
   switch (ctx.kind) {
     case 'workflow':
     case 'current_workflow':
-      return (
-        <WorkflowPillIcon
-          workflowId={ctx.workflowId}
-          className='mr-[4px] h-[10px] w-[10px]'
-        />
-      )
+      return <WorkflowPillIcon workflowId={ctx.workflowId} className='mr-[4px] h-[10px] w-[10px]' />
     case 'workflow_block':
-      return (
-        <WorkflowPillIcon
-          workflowId={ctx.workflowId}
-          className='mr-[4px] h-[10px] w-[10px]'
-        />
-      )
+      return <WorkflowPillIcon workflowId={ctx.workflowId} className='mr-[4px] h-[10px] w-[10px]' />
     case 'knowledge':
       return <Database className='mr-[4px] h-[10px] w-[10px] text-[var(--text-icon)]' />
     case 'templates':

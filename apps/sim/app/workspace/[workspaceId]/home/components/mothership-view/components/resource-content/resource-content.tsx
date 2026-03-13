@@ -62,11 +62,7 @@ export function ResourceContent({ workspaceId, resource, previewMode }: Resource
 
     case 'workflow':
       return (
-        <EmbeddedWorkflow
-          key={resource.id}
-          workspaceId={workspaceId}
-          workflowId={resource.id}
-        />
+        <EmbeddedWorkflow key={resource.id} workspaceId={workspaceId} workflowId={resource.id} />
       )
 
     case 'knowledgebase':
@@ -240,8 +236,7 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
   const hydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
   const hydrationWorkflowId = useWorkflowRegistry((state) => state.hydration.workflowId)
   const isMetadataLoaded = hydrationPhase !== 'idle' && hydrationPhase !== 'metadata-loading'
-  const hasLoadError =
-    hydrationPhase === 'error' && hydrationWorkflowId === workflowId
+  const hasLoadError = hydrationPhase === 'error' && hydrationWorkflowId === workflowId
 
   if (!isMetadataLoaded) return LOADING_SKELETON
 
@@ -250,7 +245,7 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
       <div className='flex h-full flex-col items-center justify-center gap-[12px]'>
         <WorkflowX className='h-[32px] w-[32px] text-[var(--text-muted)]' />
         <div className='flex flex-col items-center gap-[4px]'>
-          <h2 className='text-[20px] font-medium text-[var(--text-secondary)]'>
+          <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>
             Workflow not found
           </h2>
           <p className='text-[13px] text-[var(--text-muted)]'>
@@ -285,7 +280,7 @@ function EmbeddedFile({ workspaceId, fileId, previewMode }: EmbeddedFileProps) {
       <div className='flex h-full flex-col items-center justify-center gap-[12px]'>
         <FileX className='h-[32px] w-[32px] text-[var(--text-muted)]' />
         <div className='flex flex-col items-center gap-[4px]'>
-          <h2 className='text-[20px] font-medium text-[var(--text-secondary)]'>File not found</h2>
+          <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>File not found</h2>
           <p className='text-[13px] text-[var(--text-muted)]'>
             This file may have been deleted or moved
           </p>
