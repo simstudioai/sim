@@ -31,12 +31,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return challengeResponse
   }
 
-  return handlePreLookupWebhookVerification(
-    request.method,
-    undefined,
-    requestId,
-    path
-  ) as NextResponse
+  return (
+    (await handlePreLookupWebhookVerification(request.method, undefined, requestId, path)) ||
+    new NextResponse('Method not allowed', { status: 405 })
+  )
 }
 
 export async function POST(
@@ -70,7 +68,7 @@ export async function POST(
   const webhooksForPath = await findAllWebhooksForPath({ requestId, path })
 
   if (webhooksForPath.length === 0) {
-    const verificationResponse = handlePreLookupWebhookVerification(
+    const verificationResponse = await handlePreLookupWebhookVerification(
       request.method,
       body,
       requestId,

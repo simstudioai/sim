@@ -10,6 +10,11 @@ import { isProd } from '@/lib/core/config/feature-flags'
 import { safeCompare } from '@/lib/core/security/encryption'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
+import {
+  getPendingWebhookVerification,
+  matchesPendingWebhookVerificationProbe,
+  requiresPendingWebhookVerification,
+} from '@/lib/webhooks/pending-verification'
 import { convertSquareBracketsToTwiML } from '@/lib/webhooks/utils'
 import {
   handleSlackChallenge,
@@ -194,23 +199,23 @@ export async function handleProviderChallenges(
  * Returns a verification response for provider reachability probes that happen
  * before a webhook row exists and therefore before provider lookup is possible.
  */
-export function handlePreLookupWebhookVerification(
+export async function handlePreLookupWebhookVerification(
   method: string,
   body: Record<string, unknown> | undefined,
   requestId: string,
   path: string
-): NextResponse | null {
-  const isVerificationProbe =
-    method === 'GET' ||
-    method === 'HEAD' ||
-    (method === 'POST' && (!body || Object.keys(body).length === 0 || !body.type))
+): Promise<NextResponse | null> {
+  const pendingVerification = await getPendingWebhookVerification(path)
+  if (!pendingVerification) {
+    return null
+  }
 
-  if (!isVerificationProbe) {
+  if (!matchesPendingWebhookVerificationProbe(pendingVerification, { method, body })) {
     return null
   }
 
   logger.info(
-    `[${requestId}] Returning 200 for pre-lookup webhook verification probe on path: ${path}`
+    `[${requestId}] Returning 200 for pending ${pendingVerification.provider} webhook verification on path: ${path}`
   )
 
   return NextResponse.json({ status: 'ok', message: 'Webhook endpoint verified' })
@@ -309,15 +314,12 @@ export function shouldSkipWebhookEvent(webhook: any, body: any, requestId: strin
   return false
 }
 
-/** Providers that validate webhook URLs during creation, before workflow deployment */
-const PROVIDERS_WITH_PRE_DEPLOYMENT_VERIFICATION = new Set(['grain'])
-
 /** Returns 200 OK for providers that validate URLs before the workflow is deployed */
 export function handlePreDeploymentVerification(
   webhook: any,
   requestId: string
 ): NextResponse | null {
-  if (PROVIDERS_WITH_PRE_DEPLOYMENT_VERIFICATION.has(webhook.provider)) {
+  if (requiresPendingWebhookVerification(webhook.provider)) {
     logger.info(
       `[${requestId}] ${webhook.provider} webhook - block not in deployment, returning 200 OK for URL validation`
     )
