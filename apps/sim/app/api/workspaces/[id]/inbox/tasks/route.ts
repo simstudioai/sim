@@ -42,7 +42,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   if (cursor) {
-    conditions.push(lt(mothershipInboxTask.createdAt, new Date(cursor)))
+    const cursorDate = new Date(cursor)
+    if (Number.isNaN(cursorDate.getTime())) {
+      return NextResponse.json({ error: 'Invalid cursor value' }, { status: 400 })
+    }
+    conditions.push(lt(mothershipInboxTask.createdAt, cursorDate))
   }
 
   const tasks = await db

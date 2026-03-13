@@ -80,7 +80,10 @@ const EMAIL_STYLES = `
 `
 
 function stripRawHtml(text: string): string {
-  return text.replace(/<\/?[a-z][^>]*>/gi, '')
+  return text
+    .split(/(```[\s\S]*?```)/g)
+    .map((segment, i) => (i % 2 === 0 ? segment.replace(/<\/?[a-z][^>]*>/gi, '') : segment))
+    .join('')
 }
 
 function renderEmailHtml(markdown: string, chatUrl: string): string {
