@@ -61,6 +61,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
   }
 
   let chatId = inboxTask.chatId
+  let responseSent = false
 
   try {
     const [[claimed], userId] = await Promise.all([
@@ -192,6 +193,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       { success: result.success, content: cleanContent, error: errorStr },
       { inboxProviderId: ws.inboxProviderId, workspaceId: ws.id }
     )
+    responseSent = true
 
     await db
       .update(mothershipInboxTask)
@@ -221,18 +223,20 @@ export async function executeInboxTask(taskId: string): Promise<void> {
 
     await markTaskFailed(taskId, error instanceof Error ? error.message : 'Execution failed')
 
-    try {
-      await sendInboxResponse(
-        { ...inboxTask, chatId },
-        {
-          success: false,
-          content: '',
-          error: error instanceof Error ? error.message : 'Execution failed',
-        },
-        { inboxProviderId: ws.inboxProviderId, workspaceId: ws.id }
-      )
-    } catch (emailError) {
-      logger.error('Failed to send error email', { taskId, emailError })
+    if (!responseSent) {
+      try {
+        await sendInboxResponse(
+          { ...inboxTask, chatId },
+          {
+            success: false,
+            content: '',
+            error: error instanceof Error ? error.message : 'Execution failed',
+          },
+          { inboxProviderId: ws.inboxProviderId, workspaceId: ws.id }
+        )
+      } catch (emailError) {
+        logger.error('Failed to send error email', { taskId, emailError })
+      }
     }
   }
 }

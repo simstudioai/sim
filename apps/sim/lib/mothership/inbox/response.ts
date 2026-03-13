@@ -79,8 +79,12 @@ const EMAIL_STYLES = `
   .signature a { color: #1a1a1a; text-decoration: underline; text-decoration-style: dashed; text-underline-offset: 2px; }
 `
 
+function stripRawHtml(text: string): string {
+  return text.replace(/<\/?[a-z][^>]*>/gi, '')
+}
+
 function renderEmailHtml(markdown: string, chatUrl: string): string {
-  const bodyHtml = marked.parse(markdown, { async: false }) as string
+  const bodyHtml = marked.parse(stripRawHtml(markdown), { async: false }) as string
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${EMAIL_STYLES}</style></head>
 <body>

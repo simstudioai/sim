@@ -10,7 +10,7 @@ import {
 } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { tasks } from '@trigger.dev/sdk'
-import { and, eq, gt, sql } from 'drizzle-orm'
+import { and, eq, gt, ne, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
@@ -275,7 +275,8 @@ async function getRecentTaskCount(workspaceId: string): Promise<number> {
     .where(
       and(
         eq(mothershipInboxTask.workspaceId, workspaceId),
-        gt(mothershipInboxTask.createdAt, oneHourAgo)
+        gt(mothershipInboxTask.createdAt, oneHourAgo),
+        ne(mothershipInboxTask.status, 'rejected')
       )
     )
   return result?.count ?? 0
