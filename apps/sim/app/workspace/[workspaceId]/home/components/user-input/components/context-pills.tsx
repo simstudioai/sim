@@ -54,6 +54,10 @@ function getContextIcon(ctx: ChatContext) {
       return <FileIcon className='mr-[4px] h-[10px] w-[10px] text-[var(--text-icon)]' />
     case 'blocks':
       return <TableIcon className='mr-[4px] h-[10px] w-[10px] text-[var(--text-icon)]' />
+    case 'table':
+      return <TableIcon className='mr-[4px] h-[10px] w-[10px] text-[var(--text-icon)]' />
+    case 'file':
+      return <FileIcon className='mr-[4px] h-[10px] w-[10px] text-[var(--text-icon)]' />
     case 'docs':
       return <FileIcon className='mr-[4px] h-[10px] w-[10px] text-[var(--text-icon)]' />
     default:
