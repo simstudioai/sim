@@ -5,6 +5,7 @@ title: Variables
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
 
 The Variables block updates workflow variables during execution. Variables must first be initialized in your workflow's Variables section, then you can use this block to update their values as your workflow runs.
 
@@ -73,7 +74,7 @@ API (Fetch Profile) → Variables (userId, userTier) → Agent (Personalize)
 
 ## Outputs
 
-- **`<variables.assignments>`**: JSON object with all variable assignments from this block
+The Variables block does not produce traditional block outputs. Variables are accessed globally via `<variable.variableName>` syntax from any block in the workflow, not through block output connections.
 
 ## Best Practices
 
@@ -81,3 +82,12 @@ API (Fetch Profile) → Variables (userId, userTier) → Agent (Personalize)
 - **Update dynamically**: Use Variables blocks to update values based on block outputs or calculations
 - **Use in loops**: Perfect for tracking state across iterations
 - **Name descriptively**: Use clear names like `currentIndex`, `totalProcessed`, or `lastError`
+
+<FAQ items={[
+  { question: "Do variables persist between workflow executions?", answer: "No. Variables are workflow-scoped and only persist for the duration of a single execution. Each new execution starts with the initial values defined in your workflow's Variables section." },
+  { question: "Can multiple Variables blocks update the same variable?", answer: "Yes. All Variables blocks share the same namespace. A later Variables block can overwrite a value set by an earlier one by using the same variable name." },
+  { question: "How do I reference a variable in other blocks?", answer: "Use the <variable.variableName> syntax in any block's input field. For example, <variable.retryCount> or <variable.customerEmail>." },
+  { question: "Do Variables blocks produce outputs I can wire to other blocks?", answer: "Variables do not appear as traditional block outputs in the connection UI. Instead, they are accessed globally via the <variable.variableName> prefix from any block in the workflow." },
+  { question: "What naming convention should I use for variables?", answer: "Use descriptive names in camelCase or snake_case. Variable names are case-sensitive, so 'retryCount' and 'RetryCount' are treated as different variables." },
+  { question: "Can I use block outputs to set variable values?", answer: "Yes. You can reference any block output when setting a variable value, such as setting customerEmail to <api.email> or incrementing a counter based on previous values." },
+]} />

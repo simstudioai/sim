@@ -9,13 +9,24 @@ body {
   overscroll-behavior: none;
 }
 
-/* Reserve scrollbar space to prevent layout jitter between pages */
-html {
-  scrollbar-gutter: stable;
+/* Prevent modals/dialogs from shifting layout via scroll-lock compensation */
+html,
+body {
+  padding-right: 0 !important;
+  margin-right: 0 !important;
 }
 
 @theme {
-  --color-fd-primary: #33c482;
+  --color-fd-primary: var(--color-fd-foreground);
+}
+
+/* Match landing page dark background (#1b1b1b) */
+.dark {
+  --color-fd-background: hsl(0, 0%, 10.6%) !important;
+  --color-fd-card: hsl(0, 0%, 13%) !important;
+  --color-fd-popover: hsl(0, 0%, 14%) !important;
+  --color-fd-secondary: hsl(0, 0%, 15.5%) !important;
+  --color-fd-muted: hsl(0, 0%, 18%) !important;
 }
 
 /* Font family utilities */
@@ -32,7 +43,7 @@ html {
 :root {
   --fd-border: transparent !important;
   --fd-border-sidebar: transparent !important;
-  --fd-nav-height: 94px; /* Custom navbar height (52px top + 42px tabs) */
+  --fd-nav-height: 93px; /* Custom navbar height (52px top + 1px divider + 40px tabs) */
   /* Content container width used to center main content */
   --spacing-fd-container: 1400px;
   /* Edge gutter = leftover space on each side of centered container */
@@ -48,27 +59,25 @@ html {
   --content-gap: 1.75rem;
 }
 
-/* Light mode navbar and search styling */
+/* Light mode navbar background */
 :root:not(.dark) nav {
   background-color: hsla(0, 0%, 96%, 0.85) !important;
 }
 
-:root:not(.dark) nav button[type="button"] {
-  background-color: hsla(0, 0%, 93%, 0.85) !important;
+/* Dark mode navbar background */
+:root.dark nav {
+  background-color: hsla(0, 0%, 10.6%, 0.92) !important;
+}
+
+:root.dark nav button[type="button"] {
+  background-color: hsla(0, 0%, 15%, 0.85) !important;
   backdrop-filter: blur(33px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(33px) saturate(180%) !important;
-  color: rgba(0, 0, 0, 0.6) !important;
+  color: rgba(255, 255, 255, 0.5) !important;
 }
 
-:root:not(.dark) nav button[type="button"] kbd {
-  color: rgba(0, 0, 0, 0.6) !important;
-}
-
-/* Dark mode navbar and search styling */
-:root.dark nav {
-  background-color: hsla(0, 0%, 7.04%, 0.92) !important;
-  backdrop-filter: blur(25px) saturate(180%) brightness(0.6) !important;
-  -webkit-backdrop-filter: blur(25px) saturate(180%) brightness(0.6) !important;
+:root.dark nav button[type="button"] kbd {
+  color: rgba(255, 255, 255, 0.4) !important;
 }
 
 /* Floating sidebar appearance - remove background */
@@ -121,11 +130,11 @@ aside#nd-sidebar {
 /* On mobile, let fumadocs handle the layout natively */
 @media (min-width: 1024px) {
   :root {
-    --fd-banner-height: 94px !important; /* 52px top + 42px tabs */
+    --fd-banner-height: 93px !important; /* 52px top + 1px divider + 40px tabs */
   }
 
   #nd-docs-layout {
-    --fd-docs-height: calc(100dvh - 94px) !important; /* 52px top + 42px tabs */
+    --fd-docs-height: calc(100dvh - 93px) !important; /* 52px top + 1px divider + 40px tabs */
     --fd-sidebar-width: 300px !important;
     margin-left: var(--sidebar-offset) !important;
     margin-right: var(--toc-offset) !important;

@@ -10,6 +10,7 @@ import {
   SidebarSeparator,
 } from '@/components/docs-layout/sidebar-components'
 import { Navbar } from '@/components/navbar/navbar'
+import { AnimatedBlocks } from '@/components/ui/animated-blocks'
 import { SimLogoFull } from '@/components/ui/sim-logo'
 import { i18n } from '@/lib/i18n'
 import { source } from '@/lib/source'
@@ -102,6 +103,7 @@ export default async function Layout({ children, params }: LayoutProps) {
       </head>
       <body className='flex min-h-screen flex-col font-sans'>
         <Script src='https://assets.onedollarstats.com/stonks.js' strategy='lazyOnload' />
+        <AnimatedBlocks />
         <RootProvider i18n={provider(lang)}>
           <Navbar />
           <DocsLayout

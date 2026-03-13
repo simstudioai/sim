@@ -592,3 +592,15 @@ app.listen(3000, () => {
   console.log('Webhook server listening on port 3000');
 });
 ```
+
+import { FAQ } from '@/components/ui/faq'
+
+<FAQ items={[
+  { question: "How do I trigger async execution via the API?", answer: "Set the X-Execution-Mode header to 'async' on your POST request to /api/workflows/{id}/execute. The API returns a 202 response with a jobId, executionId, and a statusUrl you can poll to check when the job completes. Async mode does not support draft state, workflow overrides, or selective output options." },
+  { question: "What authentication methods does the API support?", answer: "The API supports two authentication methods: API keys passed in the x-api-key header, and session-based authentication for logged-in users. API keys can be generated from Settings > Sim Keys in the platform. Workflows with public API access enabled can also be called without authentication." },
+  { question: "How does the webhook retry policy work?", answer: "Failed webhook deliveries are retried up to 5 times with exponential backoff: 5 seconds, 15 seconds, 1 minute, 3 minutes, and 10 minutes, plus up to 10% jitter. Only HTTP 5xx and 429 responses trigger retries. Each delivery times out after 30 seconds." },
+  { question: "What rate limits apply to the Logs API?", answer: "Rate limits use a token bucket algorithm. Free plans get 30 requests/minute with 60 burst capacity, Pro gets 100/200, Team gets 200/400, and Enterprise gets 500/1000. These are separate from workflow execution rate limits, which are shown in the response body." },
+  { question: "How do I verify that a webhook is from Sim?", answer: "Configure a webhook secret when setting up notifications. Sim signs each delivery with HMAC-SHA256 using the format 't={timestamp},v1={signature}' in the sim-signature header. Compute the HMAC of '{timestamp}.{body}' with your secret and compare it to the signature value." },
+  { question: "What alert rules are available for notifications?", answer: "You can configure alerts for consecutive failures, failure rate thresholds, latency thresholds, latency spikes (percentage above average), cost thresholds, no-activity periods, and error counts within a time window. All alert types include a 1-hour cooldown to prevent notification spam." },
+  { question: "Can I filter which executions trigger notifications?", answer: "Yes. You can filter notifications by specific workflows (or select all), log level (info or error), and trigger type (api, webhook, schedule, manual, chat). You can also choose whether to include final output, trace spans, rate limits, and usage data in the notification payload." },
+]} />

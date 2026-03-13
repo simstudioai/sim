@@ -5,6 +5,7 @@ title: Condition
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
 
 The Condition block branches workflow execution based on boolean expressions. Evaluate conditions using previous block outputs and route to different paths without requiring an LLM.
 
@@ -60,10 +61,9 @@ Conditions use JavaScript syntax and can reference input values from previous bl
 
 After a condition evaluates, you can access its outputs:
 
-- **`<condition.result>`**: Boolean result of the condition evaluation
-- **`<condition.matched_condition>`**: ID of the condition that was matched
-- **`<condition.content>`**: Description of the evaluation result
-- **`<condition.path>`**: Details of the chosen routing destination
+- **`<condition.conditionResult>`**: Boolean result of the condition evaluation
+- **`<condition.selectedOption>`**: ID of the condition that was matched
+- **`<condition.selectedPath>`**: Details of the chosen routing destination
 
 ## Advanced Features
 
@@ -102,18 +102,13 @@ true
 
 ### Error Handling
 
-Conditions automatically handle:
-- Undefined or null values with safe evaluation
-- Type mismatches with appropriate fallbacks
-- Invalid expressions with error logging
-- Missing variables with default values
+If a condition expression references an undefined variable or throws a runtime error, the block will throw an error and the execution will fail (or follow the error path if one is connected). Use optional chaining (`?.`) or explicit null checks in your expressions to handle missing values safely.
 
 ## Outputs
 
-- **`<condition.result>`**: Boolean result of the evaluation
-- **`<condition.matched_condition>`**: ID of the matched condition
-- **`<condition.content>`**: Description of the evaluation result
-- **`<condition.path>`**: Details of the chosen routing destination
+- **`<condition.conditionResult>`**: Boolean result of the evaluation
+- **`<condition.selectedOption>`**: ID of the matched condition
+- **`<condition.selectedPath>`**: Details of the chosen routing destination
 
 ## Example Use Cases
 
@@ -139,3 +134,11 @@ Function (Process) → Condition (account_type === 'enterprise') → Advanced or
 - **Keep expressions simple**: Use clear, straightforward boolean expressions for better readability and easier debugging
 - **Document your conditions**: Add descriptions to explain the purpose of each condition for better team collaboration and maintenance
 - **Test edge cases**: Verify conditions handle boundary values correctly by testing with values at the edges of your condition ranges
+
+<FAQ items={[
+  { question: "Does the Condition block use an LLM?", answer: "No. The Condition block evaluates boolean expressions using JavaScript syntax directly — it does not call any AI model. This makes it fast, deterministic, and free of API costs. If you need AI-powered routing decisions, use the Router block instead." },
+  { question: "What happens if no condition matches?", answer: "If none of your defined conditions evaluate to true, the workflow follows the else branch. If the else branch is not connected to any downstream block, that workflow path ends gracefully without an error. Add a fallback condition of simply true as the last condition to guarantee a match." },
+  { question: "In what order are conditions evaluated?", answer: "Conditions are evaluated from top to bottom in the order they are defined. The first condition that evaluates to true determines the execution path. Subsequent conditions are not evaluated after a match is found, so place more specific conditions before general ones." },
+  { question: "What JavaScript features can I use in condition expressions?", answer: "You can use standard JavaScript operators and methods including comparison operators (===, !==, >, <), logical operators (&&, ||, !), string methods (.includes(), .endsWith(), .toLowerCase()), array methods (.includes(), .length), mathematical operations, and Date comparisons. Reference block outputs using <blockName.output> syntax." },
+  { question: "How does the Condition block handle null or undefined values?", answer: "If a condition expression references an undefined variable or throws a runtime error, the Condition block will throw an error and the execution will fail (or follow the error path if one is connected). Use optional chaining (?.) or explicit null checks in your expressions to handle missing values safely." },
+]} />

@@ -583,8 +583,7 @@ export async function executeDeleteFolder(
       return { success: false, error: 'folderId is required' }
     }
 
-    const workspaceId =
-      context.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
     await ensureWorkspaceAccess(workspaceId, context.userId, true)
 
     const folders = await listFolders(workspaceId)

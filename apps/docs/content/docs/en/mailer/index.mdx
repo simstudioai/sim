@@ -4,6 +4,7 @@ description: Send emails to your workspace and let Sim handle them as tasks.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
 
 Sim Mailer gives your workspace a dedicated email address. Forward or send emails to it and Sim will process them as tasks — reading the subject, body, and any attachments, then replying to the thread with the result.
 
@@ -64,3 +65,12 @@ Every email becomes a task you can track in **Settings** → **Inbox**:
 ## Conversations
 
 Each email task creates a conversation in your workspace. You can continue the conversation from the Sim chat interface, and any follow-up emails in the same thread are linked to the same conversation.
+
+<FAQ items={[
+  { question: "Can I use my own email domain?", answer: "Not currently. All inbox addresses use the @mothership.sim.ai domain. You can customize the prefix (e.g., acme@mothership.sim.ai) but not the domain itself." },
+  { question: "What happens if I send from an unauthorized email?", answer: "The email is automatically rejected. Only workspace members and manually added external senders can create tasks." },
+  { question: "Is there a size limit for attachments?", answer: "Yes, each attachment can be up to 10 MB. Images, PDFs, and common document formats are supported." },
+  { question: "Can I reply to Sim's email responses?", answer: "Yes. Replies in the same email thread are linked to the original conversation, so you can continue the interaction from your email client." },
+  { question: "How long does it take to process an email?", answer: "Most emails are processed within a few seconds. Emails with large attachments or complex tasks may take slightly longer." },
+  { question: "Can multiple people in my workspace use the same inbox?", answer: "Yes. All workspace members can send to the shared inbox address. Each email creates its own task and conversation." },
+]} />

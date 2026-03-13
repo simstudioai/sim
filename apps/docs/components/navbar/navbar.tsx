@@ -32,7 +32,7 @@ export function Navbar() {
       <div className='hidden w-full flex-col lg:flex'>
         {/* Top row: logo, search, controls */}
         <div
-          className='flex h-[52px] w-full items-center justify-between'
+          className='relative flex h-[52px] w-full items-center justify-between'
           style={{
             paddingLeft: 'calc(var(--sidebar-offset) + 32px)',
             paddingRight: 'calc(var(--toc-offset) + 60px)',
@@ -64,7 +64,7 @@ export function Navbar() {
 
         {/* Bottom row: navigation tabs — border on row, tabs overlap it */}
         <div
-          className='flex h-[42px] items-stretch gap-6 border-border/20 border-b'
+          className='flex h-[40px] items-stretch gap-6 border-border/20 border-b'
           style={{
             paddingLeft: 'calc(var(--sidebar-offset) + 32px)',
           }}

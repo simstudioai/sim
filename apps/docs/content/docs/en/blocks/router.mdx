@@ -4,6 +4,7 @@ title: Router
 
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
 
 The Router block uses AI to intelligently route workflows based on content analysis. Unlike Condition blocks that use simple rules, Routers understand context and intent. Each route you define creates a separate output port, allowing you to connect different paths to different downstream blocks.
 
@@ -54,12 +55,12 @@ Each route you add creates a **separate output port** on the Router block. Conne
 Choose an AI model to power the routing decision:
 
 - **OpenAI**: GPT-4o, o1, o3, o4-mini, gpt-4.1
-- **Anthropic**: Claude 3.7 Sonnet
+- **Anthropic**: Claude Sonnet 4.5
 - **Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
 - **Other Providers**: Groq, Cerebras, xAI, DeepSeek
 - **Local Models**: Ollama or VLLM compatible models
 
-Use models with strong reasoning capabilities like GPT-4o or Claude 3.7 Sonnet for best results.
+Use models with strong reasoning capabilities like GPT-4o or Claude Sonnet 4.5 for best results.
 
 ### API Key
 
@@ -68,11 +69,12 @@ Your API key for the selected LLM provider. This is securely stored and used for
 ## Outputs
 
 - **`<router.context>`**: The context that was analyzed
-- **`<router.selectedRoute>`**: The ID of the selected route
-- **`<router.selected_path>`**: Details of the chosen destination block
+- **`<router.model>`**: Model used for decision-making
 - **`<router.tokens>`**: Token usage statistics
 - **`<router.cost>`**: Estimated routing cost
-- **`<router.model>`**: Model used for decision-making
+- **`<router.selectedRoute>`**: The ID of the selected route
+- **`<router.reasoning>`**: Explanation of why this route was chosen
+- **`<router.selectedPath>`**: Details of the chosen destination block
 
 ## Example Use Cases
 
@@ -117,3 +119,12 @@ When the Router cannot determine an appropriate route for the given context, it 
 - **Test with diverse inputs**: Ensure the Router handles various input types, edge cases, and unexpected content.
 - **Monitor routing performance**: Review routing decisions regularly and refine route descriptions based on actual usage patterns.
 - **Choose appropriate models**: Use models with strong reasoning capabilities for complex routing decisions.
+
+<FAQ items={[
+  { question: "How does the Router decide which route to take?", answer: "The Router sends your context and all route descriptions to an LLM, which analyzes the input and selects the route whose description best matches. The LLM is prompted to be deterministic: it always prefers selecting a route over returning no match, and only reports NO_MATCH if the context is completely unrelated to every route description." },
+  { question: "What happens when the Router cannot match any route?", answer: "When the LLM determines that the context does not match any defined route, it returns NO_MATCH and the Router directs execution to the error path. Connect an error handler to this path for graceful fallback behavior rather than letting the workflow fail silently." },
+  { question: "Does the Router cost money to run?", answer: "Yes. The Router uses an LLM API call for every routing decision, which consumes tokens and incurs costs. You can monitor this via the <router.tokens> and <router.cost> outputs. If your routing logic can be expressed as simple boolean conditions, use the Condition block instead — it is free and faster." },
+  { question: "Can I see why the Router chose a particular route?", answer: "Yes. The Router V2 block outputs a reasoning field (<router.reasoning>) that contains a brief 1-2 sentence explanation of why the selected route was chosen. This is useful for debugging and understanding routing decisions." },
+  { question: "What models work best for routing?", answer: "Models with strong reasoning capabilities like GPT-4o or Claude Sonnet 4.5 tend to produce the most accurate routing decisions. For simpler routing scenarios with clearly distinct routes, a faster and cheaper model like GPT-4o-mini or Gemini Flash may be sufficient." },
+  { question: "How many routes can I define?", answer: "There is no hard limit on the number of routes. Each route you define creates a separate output port on the block. However, keep in mind that more routes with overlapping descriptions make it harder for the LLM to distinguish between them, so aim for clear, mutually exclusive route descriptions." },
+]} />

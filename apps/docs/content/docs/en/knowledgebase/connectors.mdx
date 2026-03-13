@@ -5,21 +5,24 @@ description: Automatically sync documents from external sources into your knowle
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { FAQ } from '@/components/ui/faq'
 
 Connectors let you pull documents directly from external services into your knowledge base. Instead of manually uploading files, a connector continuously syncs content from sources like Notion, Google Drive, GitHub, Slack, and more — keeping your knowledge base up to date automatically.
 
 ## Available Connectors
 
-Sim ships with 20+ built-in connectors spanning productivity tools, cloud storage, development platforms, and more.
+Sim ships with 30 built-in connectors spanning productivity tools, cloud storage, development platforms, and more.
 
 | Category | Connectors |
 |----------|-----------|
-| **Productivity** | Notion, Confluence, Asana, Linear, Jira |
+| **Productivity** | Notion, Confluence, Asana, Linear, Jira, Google Calendar, Google Sheets |
 | **Cloud Storage** | Google Drive, Dropbox, OneDrive, SharePoint |
 | **Documents** | Google Docs, WordPress, Webflow |
 | **Development** | GitHub |
-| **Communication** | Slack |
+| **Communication** | Slack, Discord, Microsoft Teams, Reddit |
+| **Email** | Gmail, Outlook |
 | **CRM** | HubSpot, Salesforce |
+| **Support** | Intercom, ServiceNow, Zendesk |
 | **Data** | Airtable |
 | **Note-taking** | Evernote, Obsidian |
 | **Meetings** | Fireflies |
@@ -141,3 +144,13 @@ Each connector manages its own documents independently. Metadata tag slots are s
 - **Engineering assistant**: Sync a GitHub repository and Jira or Linear issues so an AI agent can reference code, specs, and ticket history when answering developer questions
 - **Meeting intelligence**: Pull in Fireflies transcripts alongside Slack conversations to build a searchable archive of decisions and discussions
 - **Research and notes**: Sync Evernote notebooks or an Obsidian vault to make your personal notes available to AI workflows
+
+<FAQ items={[
+  { question: "How often do connectors sync?", answer: "You can choose from hourly, every 6 hours, daily (default), weekly, or manual-only sync frequencies. Each connector can have its own schedule." },
+  { question: "What happens if a source document is deleted?", answer: "On the next sync, the connector detects that the document no longer exists in the source and removes it from your knowledge base automatically." },
+  { question: "Can I connect multiple services to one knowledge base?", answer: "Yes. You can add as many connectors as you need to a single knowledge base. Each connector manages its documents independently." },
+  { question: "Do I need to re-authenticate connectors?", answer: "OAuth-based connectors refresh tokens automatically. API key-based connectors (Evernote, Obsidian, Fireflies) need manual updates if you rotate the key." },
+  { question: "What if a connector sync fails?", answer: "If a single document fails, the rest of the sync continues. If the entire sync fails (e.g., service is down), the connector backs off and retries automatically." },
+  { question: "Can I exclude specific documents from syncing?", answer: "Yes. You can manually exclude documents from any connector. Excluded documents are skipped on every subsequent sync, even if they change in the source." },
+  { question: "Do metadata tags count against a limit?", answer: "Tag slots are shared across all documents in a knowledge base. If you have multiple connectors, their metadata tags draw from the same pool of available slots." },
+]} />

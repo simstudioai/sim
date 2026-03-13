@@ -5,6 +5,7 @@ title: Basics
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
 
 ## How Connections Work
 
@@ -47,3 +48,13 @@ The flow of data through connections follows these principles:
   Deleting a connection will immediately stop data flow between the blocks. Make sure this is
   intended before removing connections.
 </Callout>
+
+<FAQ items={[
+  { question: "How does Sim determine the order blocks execute in?", answer: "Sim builds a directed acyclic graph (DAG) from your connections. Blocks with no unresolved incoming edges execute first. Once a block completes, the engine removes its edge from downstream blocks and queues any block whose incoming edges are all satisfied. This means execution order is entirely determined by how you wire your connections." },
+  { question: "Can a block have multiple incoming connections?", answer: "Yes. A block with multiple incoming connections will wait until all source blocks have completed before it executes. The engine tracks incoming edges and only marks a block as ready when every incoming edge has been resolved." },
+  { question: "Can a block send its output to multiple downstream blocks?", answer: "Yes. A single block can have outgoing connections to multiple destination blocks. When the source block completes, all connected downstream blocks that are ready (all their other incoming edges are satisfied) will be queued for execution." },
+  { question: "What happens to downstream blocks when a Condition or Router block picks a specific path?", answer: "The engine activates only the edge matching the selected condition or route. Edges on unselected paths are deactivated, and any blocks reachable only through those deactivated edges are cascadingly skipped for that execution." },
+  { question: "Are connections between blocks inside a Loop or Parallel block handled differently?", answer: "Yes. The engine inserts sentinel nodes (start and end) around Loop and Parallel subflows. Connections that cross a loop boundary are redirected through these sentinels, and Loop back-edges are wired automatically so blocks inside the loop re-execute on each iteration." },
+  { question: "Is there an error-handling path for connections?", answer: "Yes. Connections can use an error source handle. If a block produces an error, only edges marked with the error handle are activated, while the normal source edges are deactivated. This lets you route errors to a dedicated error-handling branch in your workflow." },
+]} />
+

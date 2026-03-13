@@ -142,11 +142,11 @@ Sim has two paid plan tiers — **Pro** and **Max**. Either can be used individu
 | Plan | Price | Credits Included | Daily Refresh |
 |------|-------|------------------|---------------|
 | **Community** | $0 | 1,000 (one-time) | — |
-| **Pro** | $25/mo | 5,000/mo | +50/day |
-| **Max** | $100/mo | 20,000/mo | +200/day |
+| **Pro** | $25/mo | 6,000/mo | +50/day |
+| **Max** | $100/mo | 25,000/mo | +200/day |
 | **Enterprise** | Custom | Custom | — |
 
-To use Pro or Max with a team, select **Get For Team** in subscription settings and choose the tier and number of seats. Credits are pooled across the organization at the per-seat rate (e.g. Max for Teams with 3 seats = 60,000 credits/mo pooled).
+To use Pro or Max with a team, select **Get For Team** in subscription settings and choose the tier and number of seats. Credits are pooled across the organization at the per-seat rate (e.g. Max for Teams with 3 seats = 75,000 credits/mo pooled).
 
 ### Daily Refresh Credits
 
@@ -165,7 +165,7 @@ All paid plans are available with annual billing at a **15% discount**. Switch b
 
 | Plan | Monthly | Annual (per month) | Annual Total |
 |------|---------|-------------------|--------------|
-| **Pro** | $25/mo | $21/mo | $255/yr |
+| **Pro** | $25/mo | $21.25/mo | $255/yr |
 | **Max** | $100/mo | $85/mo | $1,020/yr |
 
 Team plans follow the same pricing per seat.
@@ -226,11 +226,11 @@ Sim uses a **base subscription + overage** billing model:
 
 ### How It Works
 
-**Pro Plan ($25/month — 5,000 credits):**
-- Monthly subscription includes 5,000 credits of usage
-- Usage under 5,000 credits → No additional charges
-- Usage over 5,000 credits (with on-demand enabled) → Pay the overage at month end
-- Example: 7,000 credits used = $25 (subscription) + $10 (overage for 2,000 extra credits)
+**Pro Plan ($25/month — 6,000 credits):**
+- Monthly subscription includes 6,000 credits of usage
+- Usage under 6,000 credits → No additional charges
+- Usage over 6,000 credits (with on-demand enabled) → Pay the overage at month end
+- Example: 7,000 credits used = $25 (subscription) + $5 (overage for 1,000 extra credits at $0.005/credit)
 
 **Team Plans:**
 - Usage is pooled across all team members in the organization
@@ -331,3 +331,15 @@ curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" htt
 - Learn about [Logging](/execution/logging) to track execution details
 - Explore the [External API](/execution/api) for programmatic cost monitoring
 - Check out [workflow optimization techniques](/blocks) to reduce costs
+
+import { FAQ } from '@/components/ui/faq'
+
+<FAQ items={[
+  { question: "How much does a single workflow execution cost?", answer: "Every execution incurs a base charge of 1 credit ($0.005). On top of that, any AI model usage is billed based on token consumption. Workflows that do not use AI blocks only pay the base execution charge." },
+  { question: "What is the credit-to-dollar conversion rate?", answer: "1 credit equals $0.005. All plan limits, usage meters, and billing thresholds in the Sim UI are displayed in credits." },
+  { question: "Do unused daily refresh credits carry over?", answer: "No. Daily refresh credits reset every 24 hours and do not accumulate. If you do not use them within the day, they are lost." },
+  { question: "What happens when I exceed my plan's credit limit?", answer: "By default, your usage is capped at your plan's included credits and executions will stop. If you enable on-demand billing or manually raise your usage limit in Settings, you can continue running workflows and pay for the overage at the end of the billing period." },
+  { question: "How does the 1.1x hosted model multiplier work?", answer: "When you use Sim's hosted API keys (instead of bringing your own), a 1.1x multiplier is applied to the base model pricing for Agent blocks. This covers infrastructure and API management costs. You can avoid this multiplier by using your own API keys via the BYOK feature." },
+  { question: "Are there any free options for AI models?", answer: "Yes. If you run local models through Ollama or VLLM, there are no API costs for those model calls. You still pay the base execution charge of 1 credit per execution." },
+  { question: "When does threshold billing trigger?", answer: "When on-demand billing is enabled and your unbilled overage reaches $50, Sim automatically bills the full unbilled amount. This spreads large charges throughout the month instead of accumulating one large bill at period end." },
+]} />
