@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getEffectiveCurrentPeriodCost } from '@/lib/billing/core/usage'
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
     const userSubscription = await getHighestPrioritySubscription(authenticatedUserId)
     const rateLimiter = new RateLimiter()
-    const triggerType = auth.authType === 'api_key' ? 'api' : 'manual'
+    const triggerType = auth.authType === AuthType.API_KEY ? 'api' : 'manual'
     const [syncStatus, asyncStatus] = await Promise.all([
       rateLimiter.getRateLimitStatusWithSubscription(
         authenticatedUserId,

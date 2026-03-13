@@ -45,6 +45,7 @@ export * from './assertions'
 export * from './builders'
 export * from './factories'
 export {
+  AuthTypeMock,
   auditMock,
   clearRedisMocks,
   createEnvMock,

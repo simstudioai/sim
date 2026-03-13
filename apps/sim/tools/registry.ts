@@ -729,6 +729,14 @@ import {
 } from '@/tools/gong'
 import { googleSearchTool } from '@/tools/google'
 import {
+  googleAdsAdPerformanceTool,
+  googleAdsCampaignPerformanceTool,
+  googleAdsListAdGroupsTool,
+  googleAdsListCampaignsTool,
+  googleAdsListCustomersTool,
+  googleAdsSearchTool,
+} from '@/tools/google_ads'
+import {
   googleBigQueryGetTableTool,
   googleBigQueryInsertRowsTool,
   googleBigQueryListDatasetsTool,
@@ -925,6 +933,7 @@ import {
   grainListMeetingTypesTool,
   grainListRecordingsTool,
   grainListTeamsTool,
+  grainListViewsTool,
 } from '@/tools/grain'
 import {
   greenhouseGetApplicationTool,
@@ -3154,6 +3163,7 @@ export const tools: Record<string, ToolConfig> = {
   grain_get_transcript: grainGetTranscriptTool,
   grain_list_teams: grainListTeamsTool,
   grain_list_meeting_types: grainListMeetingTypesTool,
+  grain_list_views: grainListViewsTool,
   grain_create_hook: grainCreateHookTool,
   grain_list_hooks: grainListHooksTool,
   grain_delete_hook: grainDeleteHookTool,
@@ -4038,6 +4048,12 @@ export const tools: Record<string, ToolConfig> = {
   wordpress_list_users: wordpressListUsersTool,
   wordpress_get_user: wordpressGetUserTool,
   wordpress_search_content: wordpressSearchContentTool,
+  google_ads_list_customers: googleAdsListCustomersTool,
+  google_ads_search: googleAdsSearchTool,
+  google_ads_list_campaigns: googleAdsListCampaignsTool,
+  google_ads_campaign_performance: googleAdsCampaignPerformanceTool,
+  google_ads_list_ad_groups: googleAdsListAdGroupsTool,
+  google_ads_ad_performance: googleAdsAdPerformanceTool,
   google_bigquery_query: googleBigQueryQueryTool,
   google_bigquery_list_datasets: googleBigQueryListDatasetsTool,
   google_bigquery_list_tables: googleBigQueryListTablesTool,

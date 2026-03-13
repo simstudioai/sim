@@ -16,6 +16,7 @@ const telegramLogger = createLogger('TelegramWebhook')
 const airtableLogger = createLogger('AirtableWebhook')
 const typeformLogger = createLogger('TypeformWebhook')
 const calendlyLogger = createLogger('CalendlyWebhook')
+const ashbyLogger = createLogger('AshbyWebhook')
 const grainLogger = createLogger('GrainWebhook')
 const fathomLogger = createLogger('FathomWebhook')
 const lemlistLogger = createLogger('LemlistWebhook')
@@ -768,14 +769,13 @@ export async function deleteGrainWebhook(webhook: any, requestId: string): Promi
       return
     }
 
-    const grainApiUrl = `https://api.grain.com/_/public-api/v2/hooks/${externalId}`
+    const grainApiUrl = `https://api.grain.com/_/public-api/hooks/${externalId}`
 
     const grainResponse = await fetch(grainApiUrl, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'Public-Api-Version': '2025-10-31',
       },
     })
 
@@ -1236,8 +1236,7 @@ export async function createGrainWebhookSubscription(
 ): Promise<{ id: string; eventTypes: string[] } | undefined> {
   try {
     const { path, providerConfig } = webhookData
-    const { apiKey, triggerId, includeHighlights, includeParticipants, includeAiSummary } =
-      providerConfig || {}
+    const { apiKey, triggerId, viewId } = providerConfig || {}
 
     if (!apiKey) {
       grainLogger.warn(`[${requestId}] Missing apiKey for Grain webhook creation.`, {
@@ -1248,32 +1247,39 @@ export async function createGrainWebhookSubscription(
       )
     }
 
-    const hookTypeMap: Record<string, string> = {
-      grain_webhook: 'recording_added',
-      grain_recording_created: 'recording_added',
-      grain_recording_updated: 'recording_added',
-      grain_highlight_created: 'recording_added',
-      grain_highlight_updated: 'recording_added',
-      grain_story_created: 'recording_added',
-      grain_upload_status: 'upload_status',
+    if (!viewId) {
+      grainLogger.warn(`[${requestId}] Missing viewId for Grain webhook creation.`, {
+        webhookId: webhookData.id,
+        triggerId,
+      })
+      throw new Error(
+        'Grain view ID is required. Please provide the Grain view ID from GET /_/public-api/views in the trigger configuration.'
+      )
+    }
+
+    const actionMap: Record<string, Array<'added' | 'updated' | 'removed'>> = {
+      grain_recording_created: ['added'],
+      grain_recording_updated: ['updated'],
+      grain_highlight_created: ['added'],
+      grain_highlight_updated: ['updated'],
+      grain_story_created: ['added'],
     }
 
     const eventTypeMap: Record<string, string[]> = {
       grain_webhook: [],
       grain_recording_created: ['recording_added'],
       grain_recording_updated: ['recording_updated'],
-      grain_highlight_created: ['highlight_created'],
+      grain_highlight_created: ['highlight_added'],
       grain_highlight_updated: ['highlight_updated'],
-      grain_story_created: ['story_created'],
-      grain_upload_status: ['upload_status'],
+      grain_story_created: ['story_added'],
     }
 
-    const hookType = hookTypeMap[triggerId] ?? 'recording_added'
+    const actions = actionMap[triggerId] ?? []
     const eventTypes = eventTypeMap[triggerId] ?? []
 
-    if (!hookTypeMap[triggerId]) {
+    if (!triggerId || (!(triggerId in actionMap) && triggerId !== 'grain_webhook')) {
       grainLogger.warn(
-        `[${requestId}] Unknown triggerId for Grain: ${triggerId}, defaulting to recording_added`,
+        `[${requestId}] Unknown triggerId for Grain: ${triggerId}, defaulting to all actions`,
         {
           webhookId: webhookData.id,
         }
@@ -1282,32 +1288,23 @@ export async function createGrainWebhookSubscription(
 
     grainLogger.info(`[${requestId}] Creating Grain webhook`, {
       triggerId,
-      hookType,
+      viewId,
+      actions,
       eventTypes,
       webhookId: webhookData.id,
     })
 
     const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
 
-    const grainApiUrl = 'https://api.grain.com/_/public-api/v2/hooks/create'
+    const grainApiUrl = 'https://api.grain.com/_/public-api/hooks'
 
     const requestBody: Record<string, any> = {
+      version: 2,
       hook_url: notificationUrl,
-      hook_type: hookType,
+      view_id: viewId,
     }
-
-    const include: Record<string, boolean> = {}
-    if (includeHighlights) {
-      include.highlights = true
-    }
-    if (includeParticipants) {
-      include.participants = true
-    }
-    if (includeAiSummary) {
-      include.ai_summary = true
-    }
-    if (Object.keys(include).length > 0) {
-      requestBody.include = include
+    if (actions.length > 0) {
+      requestBody.actions = actions
     }
 
     const grainResponse = await fetch(grainApiUrl, {
@@ -1315,7 +1312,6 @@ export async function createGrainWebhookSubscription(
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'Public-Api-Version': '2025-10-31',
       },
       body: JSON.stringify(requestBody),
     })
@@ -1348,15 +1344,29 @@ export async function createGrainWebhookSubscription(
       throw new Error(userFriendlyMessage)
     }
 
+    const grainWebhookId = responseBody.id
+
+    if (!grainWebhookId) {
+      grainLogger.error(
+        `[${requestId}] Grain webhook creation response missing id for webhook ${webhookData.id}.`,
+        {
+          response: responseBody,
+        }
+      )
+      throw new Error(
+        'Grain webhook created but no webhook ID was returned in the response. Cannot track subscription.'
+      )
+    }
+
     grainLogger.info(
       `[${requestId}] Successfully created webhook in Grain for webhook ${webhookData.id}.`,
       {
-        grainWebhookId: responseBody.id,
+        grainWebhookId,
         eventTypes,
       }
     )
 
-    return { id: responseBody.id, eventTypes }
+    return { id: grainWebhookId, eventTypes }
   } catch (error: any) {
     grainLogger.error(
       `[${requestId}] Exception during Grain webhook creation for webhook ${webhookData.id}.`,
@@ -1974,6 +1984,7 @@ type RecreateCheckInput = {
 /** Providers that create external webhook subscriptions */
 const PROVIDERS_WITH_EXTERNAL_SUBSCRIPTIONS = new Set([
   'airtable',
+  'ashby',
   'attio',
   'calendly',
   'fathom',
@@ -2046,7 +2057,13 @@ export async function createExternalWebhookSubscription(
   let updatedProviderConfig = providerConfig
   let externalSubscriptionCreated = false
 
-  if (provider === 'airtable') {
+  if (provider === 'ashby') {
+    const result = await createAshbyWebhookSubscription(webhookData, requestId)
+    if (result) {
+      updatedProviderConfig = { ...updatedProviderConfig, externalId: result.id }
+      externalSubscriptionCreated = true
+    }
+  } else if (provider === 'airtable') {
     const externalId = await createAirtableWebhookSubscription(userId, webhookData, requestId)
     if (externalId) {
       updatedProviderConfig = { ...updatedProviderConfig, externalId }
@@ -2126,7 +2143,9 @@ export async function cleanupExternalWebhook(
   workflow: any,
   requestId: string
 ): Promise<void> {
-  if (webhook.provider === 'airtable') {
+  if (webhook.provider === 'ashby') {
+    await deleteAshbyWebhook(webhook, requestId)
+  } else if (webhook.provider === 'airtable') {
     await deleteAirtableWebhook(webhook, workflow, requestId)
   } else if (webhook.provider === 'attio') {
     await deleteAttioWebhook(webhook, workflow, requestId)
@@ -2146,5 +2165,162 @@ export async function cleanupExternalWebhook(
     await deleteGrainWebhook(webhook, requestId)
   } else if (webhook.provider === 'lemlist') {
     await deleteLemlistWebhook(webhook, requestId)
+  }
+}
+
+/**
+ * Creates a webhook subscription in Ashby via webhook.create API.
+ * Ashby uses Basic Auth and one webhook per event type (webhookType).
+ */
+export async function createAshbyWebhookSubscription(
+  webhookData: any,
+  requestId: string
+): Promise<{ id: string } | undefined> {
+  try {
+    const { path, providerConfig } = webhookData
+    const { apiKey, triggerId } = providerConfig || {}
+
+    if (!apiKey) {
+      throw new Error(
+        'Ashby API Key is required. Please provide your API Key with apiKeysWrite permission in the trigger configuration.'
+      )
+    }
+
+    if (!triggerId) {
+      throw new Error('Trigger ID is required to create Ashby webhook.')
+    }
+
+    const webhookTypeMap: Record<string, string> = {
+      ashby_application_submit: 'applicationSubmit',
+      ashby_candidate_stage_change: 'candidateStageChange',
+      ashby_candidate_hire: 'candidateHire',
+      ashby_candidate_delete: 'candidateDelete',
+      ashby_job_create: 'jobCreate',
+      ashby_offer_create: 'offerCreate',
+    }
+
+    const webhookType = webhookTypeMap[triggerId]
+    if (!webhookType) {
+      throw new Error(`Unknown Ashby triggerId: ${triggerId}. Add it to webhookTypeMap.`)
+    }
+
+    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+    const authString = Buffer.from(`${apiKey}:`).toString('base64')
+
+    ashbyLogger.info(`[${requestId}] Creating Ashby webhook`, {
+      triggerId,
+      webhookType,
+      webhookId: webhookData.id,
+    })
+
+    const requestBody: Record<string, unknown> = {
+      requestUrl: notificationUrl,
+      webhookType,
+    }
+
+    const ashbyResponse = await fetch('https://api.ashbyhq.com/webhook.create', {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${authString}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    const responseBody = await ashbyResponse.json().catch(() => ({}))
+
+    if (!ashbyResponse.ok || !responseBody.success) {
+      const errorMessage =
+        responseBody.errorInfo?.message || responseBody.message || 'Unknown Ashby API error'
+
+      let userFriendlyMessage = 'Failed to create webhook subscription in Ashby'
+      if (ashbyResponse.status === 401) {
+        userFriendlyMessage =
+          'Invalid Ashby API Key. Please verify your API Key is correct and has apiKeysWrite permission.'
+      } else if (ashbyResponse.status === 403) {
+        userFriendlyMessage =
+          'Access denied. Please ensure your Ashby API Key has the apiKeysWrite permission.'
+      } else if (errorMessage && errorMessage !== 'Unknown Ashby API error') {
+        userFriendlyMessage = `Ashby error: ${errorMessage}`
+      }
+
+      throw new Error(userFriendlyMessage)
+    }
+
+    const externalId = responseBody.results?.id
+    if (!externalId) {
+      throw new Error('Ashby webhook creation succeeded but no webhook ID was returned')
+    }
+
+    ashbyLogger.info(
+      `[${requestId}] Successfully created Ashby webhook subscription ${externalId} for webhook ${webhookData.id}`
+    )
+    return { id: externalId }
+  } catch (error: any) {
+    ashbyLogger.error(
+      `[${requestId}] Exception during Ashby webhook creation for webhook ${webhookData.id}.`,
+      {
+        message: error.message,
+        stack: error.stack,
+      }
+    )
+    throw error
+  }
+}
+
+/**
+ * Deletes an Ashby webhook subscription via webhook.delete API.
+ * Ashby uses POST with webhookId in the body (not DELETE method).
+ */
+export async function deleteAshbyWebhook(webhook: any, requestId: string): Promise<void> {
+  try {
+    const config = getProviderConfig(webhook)
+    const apiKey = config.apiKey as string | undefined
+    const externalId = config.externalId as string | undefined
+
+    if (!apiKey) {
+      ashbyLogger.warn(
+        `[${requestId}] Missing apiKey for Ashby webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
+    if (!externalId) {
+      ashbyLogger.warn(
+        `[${requestId}] Missing externalId for Ashby webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
+    const authString = Buffer.from(`${apiKey}:`).toString('base64')
+
+    const ashbyResponse = await fetch('https://api.ashbyhq.com/webhook.delete', {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${authString}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ webhookId: externalId }),
+    })
+
+    if (ashbyResponse.ok) {
+      await ashbyResponse.body?.cancel()
+      ashbyLogger.info(
+        `[${requestId}] Successfully deleted Ashby webhook subscription ${externalId}`
+      )
+    } else if (ashbyResponse.status === 404) {
+      await ashbyResponse.body?.cancel()
+      ashbyLogger.info(
+        `[${requestId}] Ashby webhook ${externalId} not found during deletion (already removed)`
+      )
+    } else {
+      const responseBody = await ashbyResponse.json().catch(() => ({}))
+      ashbyLogger.warn(
+        `[${requestId}] Failed to delete Ashby webhook (non-fatal): ${ashbyResponse.status}`,
+        { response: responseBody }
+      )
+    }
+  } catch (error) {
+    ashbyLogger.warn(`[${requestId}] Error deleting Ashby webhook (non-fatal)`, error)
   }
 }

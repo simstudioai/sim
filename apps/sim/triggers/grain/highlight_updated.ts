@@ -26,6 +26,19 @@ export const grainHighlightUpdatedTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'viewId',
+      title: 'View ID',
+      type: 'short-input',
+      placeholder: 'Enter Grain highlight view UUID',
+      description: 'Required by Grain to create the webhook subscription.',
+      required: true,
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'grain_highlight_updated',
+      },
+    },
+    {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',

@@ -1244,6 +1244,14 @@ export async function formatWebhookInput(
     return extractPageData(body)
   }
 
+  if (foundWebhook.provider === 'ashby') {
+    return {
+      ...(body.data || {}),
+      action: body.action,
+      data: body.data || {},
+    }
+  }
+
   if (foundWebhook.provider === 'stripe') {
     return body
   }

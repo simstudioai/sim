@@ -2,13 +2,13 @@ import { db } from '@sim/db'
 import { account, credential, credentialMember, workflow as workflowTable } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 export interface CredentialAccessResult {
   ok: boolean
   error?: string
-  authType?: 'session' | 'internal_jwt'
+  authType?: typeof AuthType.SESSION | typeof AuthType.INTERNAL_JWT
   requesterUserId?: string
   credentialOwnerUserId?: string
   workspaceId?: string
@@ -39,7 +39,7 @@ export async function authorizeCredentialUse(
     return { ok: false, error: auth.error || 'Authentication required' }
   }
 
-  const actingUserId = auth.authType === 'internal_jwt' ? callerUserId : auth.userId
+  const actingUserId = auth.authType === AuthType.INTERNAL_JWT ? callerUserId : auth.userId
 
   const [workflowContext] = workflowId
     ? await db
@@ -217,7 +217,7 @@ export async function authorizeCredentialUse(
     return { ok: false, error: 'Credential not found' }
   }
 
-  if (auth.authType === 'internal_jwt') {
+  if (auth.authType === AuthType.INTERNAL_JWT) {
     return { ok: false, error: 'workflowId is required' }
   }
 

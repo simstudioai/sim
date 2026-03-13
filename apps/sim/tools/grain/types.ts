@@ -94,33 +94,27 @@ export interface GrainRecording {
 export interface GrainHook {
   id: string
   enabled: boolean
+  version?: number
   hook_url: string
-  hook_type: 'recording_added' | 'upload_status'
-  filter: GrainRecordingFilter
-  include: GrainRecordingInclude
+  view_id?: string
+  actions?: Array<'added' | 'updated' | 'removed'>
   inserted_at: string
 }
 
-export interface GrainRecordingFilter {
-  before_datetime?: string
-  after_datetime?: string
-  attendance?: 'hosted' | 'attended'
-  participant_scope?: 'internal' | 'external'
-  title_search?: string
-  team?: string
-  meeting_type?: string
+export interface GrainView {
+  id: string
+  name?: string
+  type?: 'recordings' | 'highlights' | 'stories'
 }
 
-export interface GrainRecordingInclude {
-  highlights?: boolean
-  participants?: boolean
-  ai_summary?: boolean
-  private_notes?: boolean
-  calendar_event?: boolean
-  hubspot?: boolean
-  ai_template_sections?: {
-    format?: 'json' | 'markdown' | 'text'
-    allowed_sections?: string[]
+export interface GrainListViewsParams {
+  apiKey: string
+  typeFilter?: 'recordings' | 'highlights' | 'stories'
+}
+
+export interface GrainListViewsResponse extends ToolResponse {
+  output: {
+    views: GrainView[]
   }
 }
 
@@ -193,15 +187,8 @@ export interface GrainListMeetingTypesResponse extends ToolResponse {
 export interface GrainCreateHookParams {
   apiKey: string
   hookUrl: string
-  hookType: 'recording_added' | 'upload_status'
-  filterBeforeDatetime?: string
-  filterAfterDatetime?: string
-  filterParticipantScope?: 'internal' | 'external'
-  filterTeamId?: string
-  filterMeetingTypeId?: string
-  includeHighlights?: boolean
-  includeParticipants?: boolean
-  includeAiSummary?: boolean
+  viewId: string
+  actions?: Array<'added' | 'updated' | 'removed'>
 }
 
 export interface GrainCreateHookResponse extends ToolResponse {

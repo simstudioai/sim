@@ -1,5 +1,6 @@
 import { AshbyIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { getTrigger } from '@/triggers'
 
 export const AshbyBlock: BlockConfig = {
   type: 'ashby',
@@ -12,6 +13,18 @@ export const AshbyBlock: BlockConfig = {
   bgColor: '#5D4ED6',
   icon: AshbyIcon,
   authMode: AuthMode.ApiKey,
+
+  triggers: {
+    enabled: true,
+    available: [
+      'ashby_application_submit',
+      'ashby_candidate_stage_change',
+      'ashby_candidate_hire',
+      'ashby_candidate_delete',
+      'ashby_job_create',
+      'ashby_offer_create',
+    ],
+  },
 
   subBlocks: [
     {
@@ -366,6 +379,14 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       },
       mode: 'advanced',
     },
+
+    // Trigger subBlocks
+    ...getTrigger('ashby_application_submit').subBlocks,
+    ...getTrigger('ashby_candidate_stage_change').subBlocks,
+    ...getTrigger('ashby_candidate_hire').subBlocks,
+    ...getTrigger('ashby_candidate_delete').subBlocks,
+    ...getTrigger('ashby_job_create').subBlocks,
+    ...getTrigger('ashby_offer_create').subBlocks,
   ],
 
   tools: {
