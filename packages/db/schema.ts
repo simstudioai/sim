@@ -1055,6 +1055,9 @@ export const workspace = pgTable('workspace', {
     .notNull()
     .references(() => user.id, { onDelete: 'no action' }),
   allowPersonalApiKeys: boolean('allow_personal_api_keys').notNull().default(true),
+  inboxEnabled: boolean('inbox_enabled').notNull().default(false),
+  inboxAddress: text('inbox_address'),
+  inboxProviderId: text('inbox_provider_id'),
   archivedAt: timestamp('archived_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -2682,4 +2685,71 @@ export const jwks = pgTable('jwks', {
   publicKey: text('public_key').notNull(),
   privateKey: text('private_key').notNull(),
   createdAt: timestamp('created_at').notNull(),
+})
+
+export const mothershipInboxAllowedSender = pgTable(
+  'mothership_inbox_allowed_sender',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    label: text('label'),
+    addedBy: text('added_by')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    wsEmailIdx: uniqueIndex('inbox_sender_ws_email_idx').on(table.workspaceId, table.email),
+  })
+)
+
+export const mothershipInboxTask = pgTable(
+  'mothership_inbox_task',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    fromEmail: text('from_email').notNull(),
+    fromName: text('from_name'),
+    subject: text('subject').notNull(),
+    bodyPreview: text('body_preview'),
+    bodyText: text('body_text'),
+    bodyHtml: text('body_html'),
+    emailMessageId: text('email_message_id'),
+    inReplyTo: text('in_reply_to'),
+    responseMessageId: text('response_message_id'),
+    agentmailMessageId: text('agentmail_message_id'),
+    status: text('status').notNull().default('received'),
+    chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'set null' }),
+    triggerJobId: text('trigger_job_id'),
+    resultSummary: text('result_summary'),
+    errorMessage: text('error_message'),
+    rejectionReason: text('rejection_reason'),
+    hasAttachments: boolean('has_attachments').notNull().default(false),
+    ccRecipients: text('cc_recipients'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    processingStartedAt: timestamp('processing_started_at'),
+    completedAt: timestamp('completed_at'),
+  },
+  (table) => ({
+    wsCreatedAtIdx: index('inbox_task_ws_created_at_idx').on(table.workspaceId, table.createdAt),
+    wsStatusIdx: index('inbox_task_ws_status_idx').on(table.workspaceId, table.status),
+    responseMsgIdIdx: index('inbox_task_response_msg_id_idx').on(table.responseMessageId),
+    emailMsgIdIdx: index('inbox_task_email_msg_id_idx').on(table.emailMessageId),
+  })
+)
+
+export const mothershipInboxWebhook = pgTable('mothership_inbox_webhook', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id')
+    .notNull()
+    .unique()
+    .references(() => workspace.id, { onDelete: 'cascade' }),
+  webhookId: text('webhook_id').notNull(),
+  secret: text('secret').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 })

@@ -1205,6 +1205,13 @@
       "when": 1773390821375,
       "tag": "0172_silky_magma",
       "breakpoints": true
+    },
+    {
+      "idx": 173,
+      "version": "7",
+      "when": 1773395340207,
+      "tag": "0173_bored_zeigeist",
+      "breakpoints": true
     }
   ]
 }

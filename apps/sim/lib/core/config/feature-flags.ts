@@ -1,7 +1,7 @@
 /**
  * Environment utility functions for consistent environment detection across the application
  */
-import { env, isFalsy, isTruthy } from './env'
+import { env, getEnv, isFalsy, isTruthy } from './env'
 
 /**
  * Is the application running in production mode
@@ -21,7 +21,9 @@ export const isTest = env.NODE_ENV === 'test'
 /**
  * Is this the hosted version of the application
  */
-export const isHosted = true
+export const isHosted =
+  getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.sim.ai' ||
+  getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.staging.sim.ai'
 
 /**
  * Is billing enforcement enabled
@@ -97,6 +99,12 @@ export const isAccessControlEnabled = isTruthy(env.ACCESS_CONTROL_ENABLED)
  */
 export const isOrganizationsEnabled =
   isBillingEnabled || isTruthy(env.ORGANIZATIONS_ENABLED) || isAccessControlEnabled
+
+/**
+ * Is inbox (Sim Mailer) enabled via env var override
+ * This bypasses hosted requirements for self-hosted deployments
+ */
+export const isInboxEnabled = isTruthy(env.INBOX_ENABLED)
 
 /**
  * Is E2B enabled for remote code execution

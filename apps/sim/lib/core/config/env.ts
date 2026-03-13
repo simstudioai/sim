@@ -298,6 +298,10 @@ export const env = createEnv({
     ATTIO_CLIENT_ID:                       z.string().optional(),                  // Attio OAuth client ID
     ATTIO_CLIENT_SECRET:                   z.string().optional(),                  // Attio OAuth client secret
 
+    // AgentMail - Mothership Email Inbox
+    AGENTMAIL_API_KEY:                     z.string().min(1).optional(),           // AgentMail API key for mothership email inbox
+    INBOX_ENABLED:                         z.boolean().optional(),                 // Enable inbox (Sim Mailer) on self-hosted (bypasses hosted requirements)
+
     // E2B Remote Code Execution
     E2B_ENABLED:                           z.string().optional(),                  // Enable E2B remote code execution
     E2B_API_KEY:                           z.string().optional(),                  // E2B API key for sandbox creation
@@ -400,6 +404,7 @@ export const env = createEnv({
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED:     z.boolean().optional(),                   // Enable organizations on self-hosted (bypasses plan requirements)
     NEXT_PUBLIC_DISABLE_INVITATIONS:       z.boolean().optional(),                   // Disable workspace invitations globally (for self-hosted deployments)
     NEXT_PUBLIC_DISABLE_PUBLIC_API:        z.boolean().optional(),                   // Disable public API access UI toggle globally
+    NEXT_PUBLIC_INBOX_ENABLED:             z.boolean().optional(),                   // Enable inbox (Sim Mailer) on self-hosted
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: z.boolean().optional().default(true), // Control visibility of email/password login forms
   },
 
@@ -432,6 +437,7 @@ export const env = createEnv({
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED: process.env.NEXT_PUBLIC_ORGANIZATIONS_ENABLED,
     NEXT_PUBLIC_DISABLE_INVITATIONS: process.env.NEXT_PUBLIC_DISABLE_INVITATIONS,
     NEXT_PUBLIC_DISABLE_PUBLIC_API: process.env.NEXT_PUBLIC_DISABLE_PUBLIC_API,
+    NEXT_PUBLIC_INBOX_ENABLED: process.env.NEXT_PUBLIC_INBOX_ENABLED,
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: process.env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED,
     NEXT_PUBLIC_E2B_ENABLED: process.env.NEXT_PUBLIC_E2B_ENABLED,
     NEXT_PUBLIC_COPILOT_TRAINING_ENABLED: process.env.NEXT_PUBLIC_COPILOT_TRAINING_ENABLED,
