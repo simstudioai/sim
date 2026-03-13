@@ -39,7 +39,11 @@ import type {
   ResourceRow,
   SearchConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { Resource } from '@/app/workspace/[workspaceId]/components'
+import {
+  ResourceHeader,
+  ResourceOptionsBar,
+  ResourceTable,
+} from '@/app/workspace/[workspaceId]/components'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
 import type { Suggestion } from '@/app/workspace/[workspaceId]/logs/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -685,24 +689,6 @@ export default function Logs() {
     [logs]
   )
 
-  const dashboardContent = useMemo(() => {
-    if (!isDashboardView) return undefined
-    return (
-      <div className='flex min-h-0 flex-1 flex-col px-[24px]'>
-        <Dashboard
-          stats={dashboardStatsQuery.data}
-          isLoading={dashboardStatsQuery.isLoading}
-          error={dashboardStatsQuery.error}
-        />
-      </div>
-    )
-  }, [
-    isDashboardView,
-    dashboardStatsQuery.data,
-    dashboardStatsQuery.isLoading,
-    dashboardStatsQuery.error,
-  ])
-
   const sidebarOverlay = useMemo(
     () => (
       <LogDetails
@@ -1051,27 +1037,43 @@ export default function Logs() {
 
   return (
     <>
-      <Resource
-        icon={Library}
-        title='Logs'
-        headerActions={headerActions}
-        search={searchConfig}
-        filter={<LogsFilterPanel searchQuery={searchQuery} onSearchQueryChange={setSearchQuery} />}
-        filterTags={filterTags}
-        columns={LOG_COLUMNS}
-        rows={rows}
-        selectedRowId={selectedLogId}
-        onRowClick={handleLogClick}
-        onRowHover={handleLogHover}
-        onRowContextMenu={handleLogContextMenu}
-        isLoading={!logsQuery.data}
-        onLoadMore={loadMoreLogs}
-        hasMore={logsQuery.hasNextPage ?? false}
-        isLoadingMore={logsQuery.isFetchingNextPage}
-        emptyMessage='No logs found'
-        contentOverride={dashboardContent}
-        overlay={sidebarOverlay}
-      />
+      <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
+        <ResourceHeader icon={Library} title='Logs' actions={headerActions} />
+        <ResourceOptionsBar
+          search={searchConfig}
+          filter={
+            <LogsFilterPanel searchQuery={searchQuery} onSearchQueryChange={setSearchQuery} />
+          }
+          filterTags={filterTags}
+        />
+        {isDashboardView ? (
+          <div className='relative flex min-h-0 flex-1 flex-col overflow-auto'>
+            <div className='flex min-h-0 flex-1 flex-col px-[24px]'>
+              <Dashboard
+                stats={dashboardStatsQuery.data}
+                isLoading={dashboardStatsQuery.isLoading}
+                error={dashboardStatsQuery.error}
+              />
+            </div>
+            {sidebarOverlay}
+          </div>
+        ) : (
+          <ResourceTable
+            columns={LOG_COLUMNS}
+            rows={rows}
+            selectedRowId={selectedLogId}
+            onRowClick={handleLogClick}
+            onRowHover={handleLogHover}
+            onRowContextMenu={handleLogContextMenu}
+            isLoading={!logsQuery.data}
+            onLoadMore={loadMoreLogs}
+            hasMore={logsQuery.hasNextPage ?? false}
+            isLoadingMore={logsQuery.isFetchingNextPage}
+            emptyMessage='No logs found'
+            overlay={sidebarOverlay}
+          />
+        )}
+      </div>
 
       <NotificationSettings
         workspaceId={workspaceId}

@@ -38,11 +38,8 @@ import {
 } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { ColumnDefinition, Filter, SortDirection, TableRow as TableRowType } from '@/lib/table'
+import type { ColumnOption, SortConfig } from '@/app/workspace/[workspaceId]/components'
 import { ResourceHeader, ResourceOptionsBar } from '@/app/workspace/[workspaceId]/components'
-import type {
-  ColumnOption,
-  SortConfig,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options-bar'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   useAddTableColumn,

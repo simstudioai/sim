@@ -61,12 +61,8 @@ interface ResourceProps {
   filter?: ReactNode
   filterTags?: FilterTag[]
   extras?: ReactNode
-  onLoadMore?: () => void
-  hasMore?: boolean
-  isLoadingMore?: boolean
   pagination?: PaginationConfig
   emptyMessage?: string
-  contentOverride?: ReactNode
   overlay?: ReactNode
 }
 
@@ -98,12 +94,8 @@ export function Resource({
   filter,
   filterTags,
   extras,
-  onLoadMore,
-  hasMore,
-  isLoadingMore,
   pagination,
   emptyMessage,
-  contentOverride,
   overlay,
 }: ResourceProps) {
   return (
@@ -125,32 +117,22 @@ export function Resource({
         filterTags={filterTags}
         extras={extras}
       />
-      {contentOverride ? (
-        <div className='relative flex min-h-0 flex-1 flex-col overflow-auto'>
-          {contentOverride}
-          {overlay}
-        </div>
-      ) : (
-        <ResourceTable
-          columns={columns}
-          rows={rows}
-          defaultSort={defaultSort}
-          sort={sortOverride}
-          selectedRowId={selectedRowId}
-          selectable={selectable}
-          onRowClick={onRowClick}
-          onRowHover={onRowHover}
-          onRowContextMenu={onRowContextMenu}
-          isLoading={isLoading}
-          create={create}
-          onLoadMore={onLoadMore}
-          hasMore={hasMore}
-          isLoadingMore={isLoadingMore}
-          pagination={pagination}
-          emptyMessage={emptyMessage}
-          overlay={overlay}
-        />
-      )}
+      <ResourceTable
+        columns={columns}
+        rows={rows}
+        defaultSort={defaultSort}
+        sort={sortOverride}
+        selectedRowId={selectedRowId}
+        selectable={selectable}
+        onRowClick={onRowClick}
+        onRowHover={onRowHover}
+        onRowContextMenu={onRowContextMenu}
+        isLoading={isLoading}
+        create={create}
+        pagination={pagination}
+        emptyMessage={emptyMessage}
+        overlay={overlay}
+      />
     </div>
   )
 }

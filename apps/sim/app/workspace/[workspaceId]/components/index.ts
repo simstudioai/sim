@@ -10,6 +10,7 @@ export type {
 } from './resource/components/resource-header'
 export { ResourceHeader } from './resource/components/resource-header'
 export type {
+  ColumnOption,
   FilterTag,
   SearchConfig,
   SortConfig,
