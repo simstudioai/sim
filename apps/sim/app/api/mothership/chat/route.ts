@@ -10,6 +10,7 @@ import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
 import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/copilot/chat-streaming'
 import type { OrchestratorResult } from '@/lib/copilot/orchestrator/types'
 import { createRequestTracker, createUnauthorizedResponse } from '@/lib/copilot/request-helpers'
+import { taskPubSub } from '@/lib/copilot/task-events'
 import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -146,6 +147,7 @@ export async function POST(req: NextRequest) {
       if (updated) {
         const freshMessages: any[] = Array.isArray(updated.messages) ? updated.messages : []
         conversationHistory = freshMessages.filter((m: any) => m.id !== userMessageId)
+        taskPubSub?.publishStatusChanged({ workspaceId, chatId: actualChatId, type: 'started' })
       }
     }
 
@@ -182,6 +184,7 @@ export async function POST(req: NextRequest) {
       message,
       titleModel: 'claude-opus-4-5',
       requestId: tracker.requestId,
+      workspaceId,
       orchestrateOptions: {
         userId: authenticatedUserId,
         workspaceId,
@@ -243,8 +246,15 @@ export async function POST(req: NextRequest) {
                 .set({
                   messages: sql`${copilotChats.messages} || ${JSON.stringify([assistantMessage])}::jsonb`,
                   conversationId: sql`CASE WHEN ${copilotChats.conversationId} = ${userMessageId} THEN NULL ELSE ${copilotChats.conversationId} END`,
+                  updatedAt: new Date(),
                 })
                 .where(eq(copilotChats.id, actualChatId))
+
+              taskPubSub?.publishStatusChanged({
+                workspaceId,
+                chatId: actualChatId,
+                type: 'completed',
+              })
             }
           } catch (error) {
             logger.error(`[${tracker.requestId}] Failed to persist chat messages`, {
