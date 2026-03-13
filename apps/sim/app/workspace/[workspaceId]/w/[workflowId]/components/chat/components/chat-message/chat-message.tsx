@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { safeRenderValue } from '@/lib/core/utils/safe-render'
 import { StreamingIndicator } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/smooth-streaming'
 
 interface ChatAttachment {
@@ -94,10 +95,7 @@ const WordWrap = ({ text }: { text: string }) => {
  */
 export function ChatMessage({ message }: ChatMessageProps) {
   const formattedContent = useMemo(() => {
-    if (typeof message.content === 'object' && message.content !== null) {
-      return JSON.stringify(message.content, null, 2)
-    }
-    return String(message.content || '')
+    return safeRenderValue(message.content)
   }, [message.content])
 
   const handleAttachmentClick = (attachment: ChatAttachment) => {

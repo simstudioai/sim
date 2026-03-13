@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { safeRenderValue } from '@/lib/core/utils/safe-render'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import type { ChatFile, ChatMessage } from '@/app/chat/components/message/message'
 import { CHAT_ERROR_MESSAGES } from '@/app/chat/constants'
@@ -84,12 +85,12 @@ export function useChatStreaming() {
 
         // Only modify if the last message is from the assistant (as expected)
         if (lastMessage && lastMessage.type === 'assistant') {
-          // Append a note that the response was stopped
+          // Safely convert content to string before concatenation to prevent
+          // React error #31 when content is a structured object
+          const existingContent = safeRenderValue(lastMessage.content)
           const updatedContent =
-            lastMessage.content +
-            (lastMessage.content
-              ? '\n\n_Response stopped by user._'
-              : '_Response stopped by user._')
+            existingContent +
+            (existingContent ? '\n\n_Response stopped by user._' : '_Response stopped by user._')
 
           return [
             ...prev.slice(0, -1),
