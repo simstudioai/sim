@@ -20,6 +20,7 @@ import {
   taskKeys,
   useChatHistory,
 } from '@/hooks/queries/tasks'
+import type { ChatContext } from '@/stores/panel'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
@@ -45,7 +46,7 @@ export interface UseChatReturn {
   isSending: boolean
   error: string | null
   resolvedChatId: string | undefined
-  sendMessage: (message: string, fileAttachments?: FileAttachmentForApi[]) => Promise<void>
+  sendMessage: (message: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => Promise<void>
   stopGeneration: () => Promise<void>
   resources: MothershipResource[]
   activeResourceId: string | null
@@ -695,7 +696,7 @@ export function useChat(
   }, [chatHistory?.activeStreamId, processSSEStream, finalize])
 
   const sendMessage = useCallback(
-    async (message: string, fileAttachments?: FileAttachmentForApi[]) => {
+    async (message: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
       if (!message.trim() || !workspaceId) return
 
       if (sendingRef.current) {
@@ -746,9 +747,22 @@ export function useChat(
 
       const userAttachments = storedAttachments?.map(toDisplayAttachment)
 
+      const messageContexts = contexts?.map((c) => ({
+        kind: c.kind,
+        label: c.label,
+        ...('workflowId' in c && c.workflowId ? { workflowId: c.workflowId } : {}),
+        ...('knowledgeId' in c && c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
+      }))
+
       setMessages((prev) => [
         ...prev,
-        { id: userMessageId, role: 'user', content: message, attachments: userAttachments },
+        {
+          id: userMessageId,
+          role: 'user',
+          content: message,
+          attachments: userAttachments,
+          ...(messageContexts && messageContexts.length > 0 ? { contexts: messageContexts } : {}),
+        },
         { id: assistantId, role: 'assistant', content: '', contentBlocks: [] },
       ])
 
@@ -776,6 +790,7 @@ export function useChat(
             ...(chatIdRef.current ? { chatId: chatIdRef.current } : {}),
             ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
             ...(resourceAttachments ? { resourceAttachments } : {}),
+            ...(contexts && contexts.length > 0 ? { contexts } : {}),
             userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
           signal: abortController.signal,

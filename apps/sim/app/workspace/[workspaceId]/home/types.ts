@@ -141,12 +141,20 @@ export interface ChatMessageAttachment {
   previewUrl?: string
 }
 
+export interface ChatMessageContext {
+  kind: string
+  label: string
+  workflowId?: string
+  knowledgeId?: string
+}
+
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
   contentBlocks?: ContentBlock[]
   attachments?: ChatMessageAttachment[]
+  contexts?: ChatMessageContext[]
 }
 
 export const SUBAGENT_LABELS: Record<SubagentName, string> = {
