@@ -300,7 +300,6 @@ export const env = createEnv({
 
     // AgentMail - Mothership Email Inbox
     AGENTMAIL_API_KEY:                     z.string().min(1).optional(),           // AgentMail API key for mothership email inbox
-    AGENTMAIL_WEBHOOK_SECRET:              z.string().min(1).optional(),           // Shared secret for verifying AgentMail webhook requests (Bearer token)
     INBOX_ENABLED:                         z.boolean().optional(),                 // Enable inbox (Sim Mailer) on self-hosted (bypasses hosted requirements)
 
     // E2B Remote Code Execution

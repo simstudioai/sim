@@ -1,8 +1,9 @@
-import { timingSafeEqual } from 'crypto'
+import { createHmac, timingSafeEqual } from 'crypto'
 import {
   db,
   mothershipInboxAllowedSender,
   mothershipInboxTask,
+  mothershipInboxWebhook,
   permissions,
   user,
   workspace,
@@ -12,7 +13,6 @@ import { tasks } from '@trigger.dev/sdk'
 import { and, eq, gt, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
-import { env } from '@/lib/core/config/env'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { executeInboxTask } from '@/lib/mothership/inbox/executor'
 import type { AgentMailWebhookPayload, RejectionReason } from '@/lib/mothership/inbox/types'
@@ -21,22 +21,16 @@ const logger = createLogger('AgentMailWebhook')
 
 const AUTOMATED_SENDERS = ['mailer-daemon@', 'noreply@', 'no-reply@', 'postmaster@']
 const MAX_EMAILS_PER_HOUR = 20
+const TIMESTAMP_TOLERANCE_SECONDS = 300
 
 export async function POST(req: Request) {
   try {
-    const webhookSecret = env.AGENTMAIL_WEBHOOK_SECRET
-    if (webhookSecret) {
-      const authHeader = req.headers.get('authorization') ?? ''
-      const expected = `Bearer ${webhookSecret}`
-      const authBuf = Buffer.from(authHeader)
-      const expectedBuf = Buffer.from(expected)
-      if (authBuf.length !== expectedBuf.length || !timingSafeEqual(authBuf, expectedBuf)) {
-        logger.warn('Invalid webhook authorization')
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-    }
+    const rawBody = await req.text()
+    const svixId = req.headers.get('svix-id')
+    const svixTimestamp = req.headers.get('svix-timestamp')
+    const svixSignature = req.headers.get('svix-signature')
 
-    const payload = (await req.json()) as AgentMailWebhookPayload
+    const payload = JSON.parse(rawBody) as AgentMailWebhookPayload
 
     if (payload.event_type !== 'message.received') {
       return NextResponse.json({ ok: true })
@@ -48,32 +42,51 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true })
     }
 
-    const [ws] = await db
-      .select()
+    const [result] = await db
+      .select({
+        id: workspace.id,
+        inboxEnabled: workspace.inboxEnabled,
+        inboxAddress: workspace.inboxAddress,
+        inboxProviderId: workspace.inboxProviderId,
+        webhookSecret: mothershipInboxWebhook.secret,
+      })
       .from(workspace)
+      .leftJoin(mothershipInboxWebhook, eq(mothershipInboxWebhook.workspaceId, workspace.id))
       .where(eq(workspace.inboxProviderId, inboxId))
       .limit(1)
 
-    if (!ws) {
+    if (!result) {
       logger.warn('No workspace found for inbox', { inboxId })
       return NextResponse.json({ ok: true })
     }
 
-    if (!ws.inboxEnabled) {
-      logger.info('Inbox disabled, rejecting', { workspaceId: ws.id })
+    if (result.webhookSecret && svixId && svixTimestamp && svixSignature) {
+      if (
+        !verifySvixSignature(rawBody, svixId, svixTimestamp, svixSignature, result.webhookSecret)
+      ) {
+        logger.warn('Webhook signature verification failed', { workspaceId: result.id })
+        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+      }
+    } else if (result.webhookSecret) {
+      logger.warn('Webhook missing Svix headers, rejecting', { workspaceId: result.id })
+      return NextResponse.json({ error: 'Missing signature headers' }, { status: 401 })
+    }
+
+    if (!result.inboxEnabled) {
+      logger.info('Inbox disabled, rejecting', { workspaceId: result.id })
       return NextResponse.json({ ok: true })
     }
 
     const fromEmail = extractSenderEmail(message.from_) || ''
-    logger.info('Webhook received', { fromEmail, from_raw: message.from_, workspaceId: ws.id })
+    logger.info('Webhook received', { fromEmail, from_raw: message.from_, workspaceId: result.id })
 
-    if (ws.inboxAddress && fromEmail === ws.inboxAddress.toLowerCase()) {
-      logger.info('Skipping email from inbox itself', { workspaceId: ws.id })
+    if (result.inboxAddress && fromEmail === result.inboxAddress.toLowerCase()) {
+      logger.info('Skipping email from inbox itself', { workspaceId: result.id })
       return NextResponse.json({ ok: true })
     }
 
     if (AUTOMATED_SENDERS.some((prefix) => fromEmail.startsWith(prefix))) {
-      await createRejectedTask(ws.id, message, 'automated_sender')
+      await createRejectedTask(result.id, message, 'automated_sender')
       return NextResponse.json({ ok: true })
     }
 
@@ -88,8 +101,8 @@ export async function POST(req: Request) {
             .where(eq(mothershipInboxTask.emailMessageId, emailMessageId))
             .limit(1)
         : Promise.resolve([]),
-      isSenderAllowed(fromEmail, ws.id),
-      getRecentTaskCount(ws.id),
+      isSenderAllowed(fromEmail, result.id),
+      getRecentTaskCount(result.id),
       inReplyTo
         ? db
             .select({ chatId: mothershipInboxTask.chatId })
@@ -105,12 +118,12 @@ export async function POST(req: Request) {
     }
 
     if (!isAllowed) {
-      await createRejectedTask(ws.id, message, 'sender_not_allowed')
+      await createRejectedTask(result.id, message, 'sender_not_allowed')
       return NextResponse.json({ ok: true })
     }
 
     if (recentCount >= MAX_EMAILS_PER_HOUR) {
-      await createRejectedTask(ws.id, message, 'rate_limit_exceeded')
+      await createRejectedTask(result.id, message, 'rate_limit_exceeded')
       return NextResponse.json({ ok: true })
     }
 
@@ -125,7 +138,7 @@ export async function POST(req: Request) {
 
     await db.insert(mothershipInboxTask).values({
       id: taskId,
-      workspaceId: ws.id,
+      workspaceId: result.id,
       fromEmail,
       fromName,
       subject: message.subject || '(no subject)',
@@ -177,6 +190,49 @@ export async function POST(req: Request) {
     })
     return NextResponse.json({ ok: true })
   }
+}
+
+/**
+ * Verify Svix webhook signature (HMAC-SHA256).
+ * AgentMail uses Svix for webhook delivery. The signed content is:
+ *   `${svixId}.${svixTimestamp}.${rawBody}`
+ * The secret is prefixed with `whsec_` followed by a base64-encoded key.
+ */
+function verifySvixSignature(
+  rawBody: string,
+  svixId: string,
+  svixTimestamp: string,
+  svixSignature: string,
+  secret: string
+): boolean {
+  const ts = Number.parseInt(svixTimestamp, 10)
+  if (Number.isNaN(ts)) return false
+
+  const now = Math.floor(Date.now() / 1000)
+  if (Math.abs(now - ts) > TIMESTAMP_TOLERANCE_SECONDS) {
+    logger.warn('Webhook timestamp outside tolerance', { svixTimestamp, now })
+    return false
+  }
+
+  const secretKey = secret.startsWith('whsec_') ? secret.slice(6) : secret
+  const secretBytes = Buffer.from(secretKey, 'base64')
+
+  const signedContent = `${svixId}.${svixTimestamp}.${rawBody}`
+  const computed = createHmac('sha256', secretBytes).update(signedContent).digest('base64')
+
+  const signatures = svixSignature.split(' ')
+  for (const sig of signatures) {
+    const parts = sig.split(',')
+    if (parts.length < 2) continue
+    const sigValue = parts.slice(1).join(',')
+    const sigBuf = Buffer.from(sigValue)
+    const computedBuf = Buffer.from(computed)
+    if (sigBuf.length === computedBuf.length && timingSafeEqual(sigBuf, computedBuf)) {
+      return true
+    }
+  }
+
+  return false
 }
 
 async function isSenderAllowed(email: string, workspaceId: string): Promise<boolean> {
