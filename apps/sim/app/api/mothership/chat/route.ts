@@ -55,6 +55,8 @@ const MothershipMessageSchema = z.object({
           'knowledge',
           'templates',
           'docs',
+          'table',
+          'file',
         ]),
         label: z.string(),
         chatId: z.string().optional(),
@@ -64,6 +66,8 @@ const MothershipMessageSchema = z.object({
         blockIds: z.array(z.string()).optional(),
         templateId: z.string().optional(),
         executionId: z.string().optional(),
+        tableId: z.string().optional(),
+        fileId: z.string().optional(),
       })
     )
     .optional(),
@@ -160,6 +164,17 @@ export async function POST(req: NextRequest) {
               filename: f.filename,
               media_type: f.media_type,
               size: f.size,
+            })),
+          }),
+        ...(contexts &&
+          contexts.length > 0 && {
+            contexts: contexts.map((c) => ({
+              kind: c.kind,
+              label: c.label,
+              ...(c.workflowId && { workflowId: c.workflowId }),
+              ...(c.knowledgeId && { knowledgeId: c.knowledgeId }),
+              ...(c.tableId && { tableId: c.tableId }),
+              ...(c.fileId && { fileId: c.fileId }),
             })),
           }),
       }

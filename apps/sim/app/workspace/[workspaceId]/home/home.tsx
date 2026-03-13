@@ -15,8 +15,10 @@ import {
 } from '@/lib/core/utils/browser-storage'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 import { useChatHistory, useMarkTaskRead } from '@/hooks/queries/tasks'
-import { MessageContent, MothershipView, TemplatePrompts, UserInput } from './components'
+import { MessageContent, MothershipView, TemplatePrompts, UserInput, UserMessageContent } from './components'
 import type { FileAttachmentForApi } from './components/user-input/user-input'
+import type { ChatContext } from '@/stores/panel'
+import type { MothershipResource, MothershipResourceType } from './types'
 import { useAutoScroll, useChat } from './hooks'
 
 const logger = createLogger('Home')
@@ -231,12 +233,59 @@ export function Home({ chatId }: HomeProps = {}) {
   }, [skipResourceTransition])
 
   const handleSubmit = useCallback(
-    (text: string, fileAttachments?: FileAttachmentForApi[]) => {
+    (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
       const trimmed = text.trim()
       if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
-      sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments)
+      sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
     },
     [sendMessage]
+  )
+
+  const handleContextAdd = useCallback(
+    (context: ChatContext) => {
+      let resourceType: MothershipResourceType | null = null
+      let resourceId: string | null = null
+      let resourceTitle: string = context.label
+
+      switch (context.kind) {
+        case 'workflow':
+        case 'current_workflow':
+          resourceType = 'workflow'
+          resourceId = context.workflowId
+          break
+        case 'knowledge':
+          if (context.knowledgeId) {
+            resourceType = 'knowledgebase'
+            resourceId = context.knowledgeId
+          }
+          break
+        case 'table':
+          if (context.tableId) {
+            resourceType = 'table'
+            resourceId = context.tableId
+          }
+          break
+        case 'file':
+          if (context.fileId) {
+            resourceType = 'file'
+            resourceId = context.fileId
+          }
+          break
+        default:
+          break
+      }
+
+      if (resourceType && resourceId) {
+        const resource: MothershipResource = {
+          type: resourceType,
+          id: resourceId,
+          title: resourceTitle,
+        }
+        addResource(resource)
+        handleResourceEvent()
+      }
+    },
+    [addResource, handleResourceEvent]
   )
 
   const scrollContainerRef = useAutoScroll(isSending)
@@ -268,6 +317,7 @@ export function Home({ chatId }: HomeProps = {}) {
           onStopGeneration={stopGeneration}
           isInitialView={false}
           userId={session?.user?.id}
+          onContextAdd={handleContextAdd}
         />
       </ChatSkeleton>
     )
@@ -288,6 +338,7 @@ export function Home({ chatId }: HomeProps = {}) {
               isSending={isSending}
               onStopGeneration={stopGeneration}
               userId={session?.user?.id}
+              onContextAdd={handleContextAdd}
             />
           </div>
         </div>
@@ -337,9 +388,7 @@ export function Home({ chatId }: HomeProps = {}) {
                       </div>
                     )}
                     <div className='max-w-[70%] rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2'>
-                      <p className='whitespace-pre-wrap font-[430] font-[family-name:var(--font-inter)] text-[15px] text-[var(--text-primary)] leading-[23px] tracking-[0] antialiased'>
-                        {msg.content}
-                      </p>
+                      <UserMessageContent content={msg.content} contexts={msg.contexts} />
                     </div>
                   </div>
                 )
@@ -384,6 +433,7 @@ export function Home({ chatId }: HomeProps = {}) {
               onStopGeneration={stopGeneration}
               isInitialView={false}
               userId={session?.user?.id}
+              onContextAdd={handleContextAdd}
             />
           </div>
         </div>
