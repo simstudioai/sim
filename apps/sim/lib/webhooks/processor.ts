@@ -203,7 +203,7 @@ export function handlePreLookupWebhookVerification(
   const isVerificationProbe =
     method === 'GET' ||
     method === 'HEAD' ||
-    (method === 'POST' && (!body || Object.keys(body).length === 0))
+    (method === 'POST' && (!body || Object.keys(body).length === 0 || !body.type))
 
   if (!isVerificationProbe) {
     return null
