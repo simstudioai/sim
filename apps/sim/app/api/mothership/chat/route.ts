@@ -114,7 +114,9 @@ export async function POST(req: NextRequest) {
 
     if (Array.isArray(resourceAttachments) && resourceAttachments.length > 0) {
       const results = await Promise.allSettled(
-        resourceAttachments.map((r) => resolveActiveResourceContext(r.type, r.id, workspaceId))
+        resourceAttachments.map((r) =>
+          resolveActiveResourceContext(r.type, r.id, workspaceId, authenticatedUserId)
+        )
       )
       for (const result of results) {
         if (result.status === 'fulfilled' && result.value) {

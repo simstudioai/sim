@@ -1,17 +1,10 @@
 import { db } from '@sim/db'
-import {
-  copilotChats,
-  document,
-  knowledgeBase,
-  templates,
-  userTableDefinitions,
-  userTableRows,
-} from '@sim/db/schema'
+import { copilotChats, document, knowledgeBase, templates } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, isNull } from 'drizzle-orm'
-import { readFileRecord } from '@/lib/copilot/vfs/file-reader'
+import { and, eq, isNull } from 'drizzle-orm'
+import { RESOURCE_TYPE_TO_DIR } from '@/lib/copilot/resource-types'
+import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
-import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { isHiddenFromDisplay } from '@/blocks/types'
@@ -553,147 +546,93 @@ async function processExecutionLogFromDb(
 }
 
 // ---------------------------------------------------------------------------
-// Active resource context resolution
+// Active resource context resolution (VFS-backed, workspace-scoped)
 // ---------------------------------------------------------------------------
 
-type ActiveResourceType = 'workflow' | 'table' | 'file' | 'knowledgebase'
-
-const MAX_TABLE_PREVIEW_ROWS = 50
-
-async function resolveWorkflowResource(resourceId: string): Promise<AgentContext | null> {
-  const normalized = await loadWorkflowFromNormalizedTables(resourceId)
-  if (!normalized) return null
-  const sanitized = sanitizeForCopilot({
-    blocks: normalized.blocks || {},
-    edges: normalized.edges || [],
-    loops: normalized.loops || {},
-    parallels: normalized.parallels || {},
-  })
-  return {
-    type: 'active_resource',
-    tag: '@active_resource',
-    content: JSON.stringify({ resourceType: 'workflow', id: resourceId, ...sanitized }, null, 2),
-  }
-}
-
-async function resolveTableResource(
-  resourceId: string,
-  workspaceId: string
-): Promise<AgentContext | null> {
-  const [tableDef] = await db
-    .select()
-    .from(userTableDefinitions)
-    .where(
-      and(eq(userTableDefinitions.id, resourceId), eq(userTableDefinitions.workspaceId, workspaceId))
-    )
-    .limit(1)
-  if (!tableDef) return null
-
-  const rows = await db
-    .select({ id: userTableRows.id, data: userTableRows.data })
-    .from(userTableRows)
-    .where(eq(userTableRows.tableId, resourceId))
-    .orderBy(asc(userTableRows.position))
-    .limit(MAX_TABLE_PREVIEW_ROWS)
-
-  return {
-    type: 'active_resource',
-    tag: '@active_resource',
-    content: JSON.stringify(
-      {
-        resourceType: 'table',
-        id: tableDef.id,
-        name: tableDef.name,
-        description: tableDef.description,
-        schema: tableDef.schema,
-        rowCount: tableDef.rowCount,
-        sampleRows: rows.map((r) => r.data),
-      },
-      null,
-      2
-    ),
-  }
-}
-
-async function resolveFileResource(
-  resourceId: string,
-  workspaceId: string
-): Promise<AgentContext | null> {
-  const file = await getWorkspaceFile(workspaceId, resourceId)
-  if (!file) return null
-
-  const result = await readFileRecord(file)
-  const content = result?.content || `[Could not read ${file.name}]`
-
-  return {
-    type: 'active_resource',
-    tag: '@active_resource',
-    content: JSON.stringify(
-      { resourceType: 'file', id: file.id, name: file.name, fileType: file.type, content },
-      null,
-      2
-    ),
-  }
-}
-
-async function resolveKBResource(
-  resourceId: string,
-  workspaceId: string
-): Promise<AgentContext | null> {
-  const [kb] = await db
-    .select({ id: knowledgeBase.id, name: knowledgeBase.name })
-    .from(knowledgeBase)
-    .where(
-      and(
-        eq(knowledgeBase.id, resourceId),
-        eq(knowledgeBase.workspaceId, workspaceId),
-        isNull(knowledgeBase.deletedAt)
-      )
-    )
-    .limit(1)
-  if (!kb) return null
-
-  const docs = await db
-    .select({ filename: document.filename })
-    .from(document)
-    .where(and(eq(document.knowledgeBaseId, resourceId), isNull(document.deletedAt)))
-    .limit(30)
-
-  return {
-    type: 'active_resource',
-    tag: '@active_resource',
-    content: JSON.stringify({
-      resourceType: 'knowledgebase',
-      id: kb.id,
-      name: kb.name,
-      documents: docs.map((d) => d.filename).filter(Boolean),
-    }),
-  }
-}
-
 /**
- * Resolves the content of the currently active resource tab so the agent
- * receives it as inline context without needing to read it via tools.
- * Returns null if the resource cannot be resolved.
+ * Resolves the content of the currently active resource tab by reading it
+ * from the workspace VFS. The VFS is materialized per-workspace so lookups
+ * are inherently scoped — no separate workspace-id filter needed.
  */
 export async function resolveActiveResourceContext(
-  resourceType: ActiveResourceType,
+  resourceType: string,
   resourceId: string,
-  workspaceId: string
+  workspaceId: string,
+  userId: string
 ): Promise<AgentContext | null> {
   try {
-    switch (resourceType) {
-      case 'workflow':
-        return await resolveWorkflowResource(resourceId)
-      case 'table':
-        return await resolveTableResource(resourceId, workspaceId)
-      case 'file':
-        return await resolveFileResource(resourceId, workspaceId)
-      case 'knowledgebase':
-        return await resolveKBResource(resourceId, workspaceId)
-      default:
-        return null
+    const dirPrefix = RESOURCE_TYPE_TO_DIR[resourceType as keyof typeof RESOURCE_TYPE_TO_DIR]
+    if (!dirPrefix) return null
+
+    const vfs = await getOrMaterializeVFS(workspaceId, userId)
+
+    // For files, read actual content via readFileContent
+    if (resourceType === 'file') {
+      const entries = vfs.list(dirPrefix)
+      for (const entry of entries) {
+        const metaPath = `${dirPrefix}/${entry.name}/meta.json`
+        const meta = vfs.read(metaPath)
+        if (!meta) continue
+        try {
+          const parsed = JSON.parse(meta.content)
+          if (parsed?.id !== resourceId) continue
+          const fileContent = await vfs.readFileContent(`${dirPrefix}/${entry.name}`)
+          return {
+            type: 'active_resource',
+            tag: '@active_resource',
+            content: JSON.stringify(
+              {
+                resourceType: 'file',
+                id: parsed.id,
+                name: parsed.name,
+                fileType: parsed.type,
+                content: fileContent?.content || `[Could not read ${parsed.name}]`,
+              },
+              null,
+              2
+            ),
+          }
+        } catch {
+          continue
+        }
+      }
+      return null
     }
+
+    // For other resource types, collect all VFS files under the matching entry
+    const entries = vfs.list(dirPrefix)
+    for (const entry of entries) {
+      const metaPath = `${dirPrefix}/${entry.name}/meta.json`
+      const meta = vfs.read(metaPath)
+      if (!meta) continue
+      try {
+        const parsed = JSON.parse(meta.content)
+        if (parsed?.id !== resourceId) continue
+
+        const prefix = `${dirPrefix}/${entry.name}/`
+        const allFiles = vfs.glob(`${prefix}*`)
+        const combined: Record<string, unknown> = { resourceType, id: resourceId }
+        for (const filePath of allFiles) {
+          const result = vfs.read(filePath)
+          if (!result) continue
+          const key = filePath.slice(prefix.length).replace(/\.json$/, '')
+          try {
+            combined[key] = JSON.parse(result.content)
+          } catch {
+            combined[key] = result.content
+          }
+        }
+        return {
+          type: 'active_resource',
+          tag: '@active_resource',
+          content: JSON.stringify(combined, null, 2),
+        }
+      } catch {
+        continue
+      }
+    }
+
+    return null
   } catch (error) {
     logger.error('Failed to resolve active resource context', { resourceType, resourceId, error })
     return null
