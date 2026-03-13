@@ -1,7 +1,7 @@
 import { TelegramIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, normalizeFileOrUrlInput } from '@/blocks/utils'
 import type { TelegramResponse } from '@/tools/telegram/types'
 import { getTrigger } from '@/triggers'
 
@@ -270,7 +270,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
             }
           case 'telegram_send_photo': {
             // photo is the canonical param for both basic (photoFile) and advanced modes
-            const photoSource = normalizeFileInput(params.photo, {
+            const photoSource = normalizeFileOrUrlInput(params.photo, {
               single: true,
             })
             if (!photoSource) {
@@ -284,7 +284,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
           }
           case 'telegram_send_video': {
             // video is the canonical param for both basic (videoFile) and advanced modes
-            const videoSource = normalizeFileInput(params.video, {
+            const videoSource = normalizeFileOrUrlInput(params.video, {
               single: true,
             })
             if (!videoSource) {
@@ -298,7 +298,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
           }
           case 'telegram_send_audio': {
             // audio is the canonical param for both basic (audioFile) and advanced modes
-            const audioSource = normalizeFileInput(params.audio, {
+            const audioSource = normalizeFileOrUrlInput(params.audio, {
               single: true,
             })
             if (!audioSource) {
@@ -312,7 +312,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
           }
           case 'telegram_send_animation': {
             // animation is the canonical param for both basic (animationFile) and advanced modes
-            const animationSource = normalizeFileInput(params.animation, {
+            const animationSource = normalizeFileOrUrlInput(params.animation, {
               single: true,
             })
             if (!animationSource) {

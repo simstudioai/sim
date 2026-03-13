@@ -4,7 +4,7 @@ import type {
   TelegramSendMediaResponse,
   TelegramSendVideoParams,
 } from '@/tools/telegram/types'
-import { convertMarkdownToHTML } from '@/tools/telegram/utils'
+import { convertMarkdownToHTML, normalizeTelegramMediaParam } from '@/tools/telegram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const telegramSendVideoTool: ToolConfig<TelegramSendVideoParams, TelegramSendMediaResponse> =
@@ -50,9 +50,14 @@ export const telegramSendVideoTool: ToolConfig<TelegramSendVideoParams, Telegram
         'Content-Type': 'application/json',
       }),
       body: (params: TelegramSendVideoParams) => {
+        const video = normalizeTelegramMediaParam(params.video, { single: true })
+        if (typeof video !== 'string' || !video) {
+          throw new Error('Video is required.')
+        }
+
         const body: Record<string, any> = {
           chat_id: params.chatId,
-          video: params.video,
+          video,
         }
 
         if (params.caption) {

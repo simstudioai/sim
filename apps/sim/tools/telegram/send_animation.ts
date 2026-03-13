@@ -4,7 +4,7 @@ import type {
   TelegramSendAnimationParams,
   TelegramSendMediaResponse,
 } from '@/tools/telegram/types'
-import { convertMarkdownToHTML } from '@/tools/telegram/utils'
+import { convertMarkdownToHTML, normalizeTelegramMediaParam } from '@/tools/telegram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const telegramSendAnimationTool: ToolConfig<
@@ -52,9 +52,14 @@ export const telegramSendAnimationTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params: TelegramSendAnimationParams) => {
+      const animation = normalizeTelegramMediaParam(params.animation, { single: true })
+      if (typeof animation !== 'string' || !animation) {
+        throw new Error('Animation is required.')
+      }
+
       const body: Record<string, any> = {
         chat_id: params.chatId,
-        animation: params.animation,
+        animation,
       }
 
       if (params.caption) {

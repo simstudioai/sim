@@ -4,7 +4,7 @@ import type {
   TelegramSendAudioParams,
   TelegramSendAudioResponse,
 } from '@/tools/telegram/types'
-import { convertMarkdownToHTML } from '@/tools/telegram/utils'
+import { convertMarkdownToHTML, normalizeTelegramMediaParam } from '@/tools/telegram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const telegramSendAudioTool: ToolConfig<TelegramSendAudioParams, TelegramSendAudioResponse> =
@@ -50,9 +50,14 @@ export const telegramSendAudioTool: ToolConfig<TelegramSendAudioParams, Telegram
         'Content-Type': 'application/json',
       }),
       body: (params: TelegramSendAudioParams) => {
+        const audio = normalizeTelegramMediaParam(params.audio, { single: true })
+        if (typeof audio !== 'string' || !audio) {
+          throw new Error('Audio is required.')
+        }
+
         const body: Record<string, any> = {
           chat_id: params.chatId,
-          audio: params.audio,
+          audio,
         }
 
         if (params.caption) {
