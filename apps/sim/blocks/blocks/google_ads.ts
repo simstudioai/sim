@@ -1,4 +1,5 @@
 import { GoogleAdsIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 
@@ -37,7 +38,7 @@ export const GoogleAdsBlock: BlockConfig = {
       mode: 'basic',
       required: true,
       serviceId: 'google-ads',
-      requiredScopes: ['https://www.googleapis.com/auth/adwords'],
+      requiredScopes: getScopesForService('google-ads'),
       placeholder: 'Select Google Ads account',
     },
     {

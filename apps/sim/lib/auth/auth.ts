@@ -1015,11 +1015,7 @@ export const auth = betterAuth({
           clientSecret: env.GOOGLE_CLIENT_SECRET as string,
           discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
           accessType: 'offline',
-          scopes: [
-            'https://www.googleapis.com/auth/userinfo.email',
-            'https://www.googleapis.com/auth/userinfo.profile',
-            'https://www.googleapis.com/auth/adwords',
-          ],
+          scopes: getCanonicalScopesForProvider('google-ads'),
           prompt: 'consent',
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-ads`,
           getUserInfo: async (tokens) => {
