@@ -21,7 +21,7 @@ import {
   Tooltip,
   Trash,
 } from '@/components/emcn'
-import { Database } from '@/components/emcn/icons'
+import { Database, DatabaseX } from '@/components/emcn/icons'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { cn } from '@/lib/core/utils/cn'
 import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
@@ -1029,20 +1029,17 @@ export function KnowledgeBase({
 
   if (error && !knowledgeBase) {
     return (
-      <Resource
-        icon={Database}
-        title='Knowledge Base'
-        breadcrumbs={[
-          {
-            label: 'Knowledge Base',
-            onClick: () => router.push(`/workspace/${workspaceId}/knowledge`),
-          },
-          { label: knowledgeBaseName },
-        ]}
-        columns={DOCUMENT_COLUMNS}
-        rows={[]}
-        emptyMessage='Error loading knowledge base'
-      />
+      <div className='flex h-full flex-col items-center justify-center gap-[12px]'>
+        <DatabaseX className='h-[32px] w-[32px] text-[var(--text-muted)]' />
+        <div className='flex flex-col items-center gap-[4px]'>
+          <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>
+            Knowledge base not found
+          </h2>
+          <p className='text-[13px] text-[var(--text-muted)]'>
+            This knowledge base may have been deleted or moved
+          </p>
+        </div>
+      </div>
     )
   }
 

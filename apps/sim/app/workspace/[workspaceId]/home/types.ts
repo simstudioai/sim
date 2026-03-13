@@ -23,6 +23,7 @@ export type SSEEventType =
   | 'tool_result'
   | 'tool_error'
   | 'resource_added'
+  | 'resource_deleted'
   | 'subagent_start'
   | 'subagent_end'
   | 'structured_result'

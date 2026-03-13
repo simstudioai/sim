@@ -168,8 +168,8 @@ export async function processContextsServer(
         if (!result) return null
         return { type: 'table', tag: ctx.label ? `@${ctx.label}` : '@', content: result.content }
       }
-      if (ctx.kind === 'file' && ctx.fileId && workspaceId) {
-        const result = await resolveFileResource(ctx.fileId, workspaceId)
+      if (ctx.kind === 'file' && ctx.fileId && currentWorkspaceId) {
+        const result = await resolveFileResource(ctx.fileId, currentWorkspaceId)
         if (!result) return null
         return { type: 'file', tag: ctx.label ? `@${ctx.label}` : '@', content: result.content }
       }
@@ -314,6 +314,8 @@ async function processWorkflowFromDb(
   currentWorkspaceId?: string
 ): Promise<AgentContext | null> {
   try {
+    let workflowName: string | undefined
+
     if (userId) {
       const authorization = await authorizeWorkflowByWorkspacePermission({
         workflowId,
@@ -326,6 +328,7 @@ async function processWorkflowFromDb(
       if (currentWorkspaceId && authorization.workflow?.workspaceId !== currentWorkspaceId) {
         return null
       }
+      workflowName = authorization.workflow?.name ?? undefined
     }
 
     const normalized = await loadWorkflowFromNormalizedTables(workflowId)
@@ -333,21 +336,32 @@ async function processWorkflowFromDb(
       logger.warn('No normalized workflow data found', { workflowId })
       return null
     }
+
+    if (!workflowName) {
+      const record = await getActiveWorkflowRecord(workflowId)
+      workflowName = record?.name ?? undefined
+    }
+
     const workflowState = {
       blocks: normalized.blocks || {},
       edges: normalized.edges || [],
       loops: normalized.loops || {},
       parallels: normalized.parallels || {},
     }
-    // Sanitize workflow state for copilot (remove UI-specific data like positions)
     const sanitizedState = sanitizeForCopilot(workflowState)
-    // Match get-user-workflow format: just the workflow state JSON
-    const content = JSON.stringify(sanitizedState, null, 2)
+    const content = JSON.stringify(
+      {
+        workflowId,
+        workflowName: workflowName || undefined,
+        state: sanitizedState,
+      },
+      null,
+      2
+    )
     logger.info('Processed sanitized workflow context', {
       workflowId,
       blocks: Object.keys(sanitizedState.blocks || {}).length,
     })
-    // Use the provided kind for the type
     return { type: kind, tag, content }
   } catch (error) {
     logger.error('Error processing workflow context', { workflowId, error })

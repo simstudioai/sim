@@ -723,6 +723,38 @@ export function UserInput({
     [textareaRef, value, handleContextAdd, mentionMenu]
   )
 
+  const handleContainerDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (e.dataTransfer.types.includes('application/x-sim-resource')) {
+        e.preventDefault()
+        e.stopPropagation()
+        e.dataTransfer.dropEffect = 'copy'
+        return
+      }
+      files.handleDragOver(e)
+    },
+    [files]
+  )
+
+  const handleContainerDrop = useCallback(
+    (e: React.DragEvent) => {
+      const resourceJson = e.dataTransfer.getData('application/x-sim-resource')
+      if (resourceJson) {
+        e.preventDefault()
+        e.stopPropagation()
+        try {
+          const resource = JSON.parse(resourceJson) as MothershipResource
+          handleResourceSelect(resource, false)
+        } catch {
+          // Invalid JSON — ignore
+        }
+        return
+      }
+      files.handleDrop(e)
+    },
+    [handleResourceSelect, files]
+  )
+
   useEffect(() => {
     if (wasSendingRef.current && !isSending) {
       textareaRef.current?.focus()
@@ -1006,8 +1038,8 @@ export function UserInput({
       )}
       onDragEnter={files.handleDragEnter}
       onDragLeave={files.handleDragLeave}
-      onDragOver={files.handleDragOver}
-      onDrop={files.handleDrop}
+      onDragOver={handleContainerDragOver}
+      onDrop={handleContainerDrop}
     >
       {/* Context pills row */}
       {contextManagement.selectedContexts.length > 0 && (

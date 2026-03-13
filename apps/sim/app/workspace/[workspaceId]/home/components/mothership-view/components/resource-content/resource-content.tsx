@@ -4,7 +4,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo } from 'react'
 import { Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
-import { BookOpen, SquareArrowUpRight } from '@/components/emcn/icons'
+import { BookOpen, FileX, SquareArrowUpRight, WorkflowX } from '@/components/emcn/icons'
 import {
   markRunToolManuallyStopped,
   reportManualRunToolStop,
@@ -62,9 +62,7 @@ export function ResourceContent({ workspaceId, resource, previewMode }: Resource
 
     case 'workflow':
       return (
-        <Suspense fallback={LOADING_SKELETON}>
-          <Workflow key={resource.id} workspaceId={workspaceId} workflowId={resource.id} embedded />
-        </Suspense>
+        <EmbeddedWorkflow key={resource.id} workspaceId={workspaceId} workflowId={resource.id} />
       )
 
     case 'knowledgebase':
@@ -228,6 +226,43 @@ export function EmbeddedKnowledgeBaseActions({
   )
 }
 
+interface EmbeddedWorkflowProps {
+  workspaceId: string
+  workflowId: string
+}
+
+function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
+  const workflowExists = useWorkflowRegistry((state) => Boolean(state.workflows[workflowId]))
+  const hydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
+  const hydrationWorkflowId = useWorkflowRegistry((state) => state.hydration.workflowId)
+  const isMetadataLoaded = hydrationPhase !== 'idle' && hydrationPhase !== 'metadata-loading'
+  const hasLoadError = hydrationPhase === 'error' && hydrationWorkflowId === workflowId
+
+  if (!isMetadataLoaded) return LOADING_SKELETON
+
+  if (!workflowExists || hasLoadError) {
+    return (
+      <div className='flex h-full flex-col items-center justify-center gap-[12px]'>
+        <WorkflowX className='h-[32px] w-[32px] text-[var(--text-muted)]' />
+        <div className='flex flex-col items-center gap-[4px]'>
+          <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>
+            Workflow not found
+          </h2>
+          <p className='text-[13px] text-[var(--text-muted)]'>
+            This workflow may have been deleted or moved
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <Suspense fallback={LOADING_SKELETON}>
+      <Workflow workspaceId={workspaceId} workflowId={workflowId} embedded />
+    </Suspense>
+  )
+}
+
 interface EmbeddedFileProps {
   workspaceId: string
   fileId: string
@@ -242,8 +277,14 @@ function EmbeddedFile({ workspaceId, fileId, previewMode }: EmbeddedFileProps) {
 
   if (!file) {
     return (
-      <div className='flex h-full items-center justify-center'>
-        <span className='text-[13px] text-[var(--text-muted)]'>File not found</span>
+      <div className='flex h-full flex-col items-center justify-center gap-[12px]'>
+        <FileX className='h-[32px] w-[32px] text-[var(--text-muted)]' />
+        <div className='flex flex-col items-center gap-[4px]'>
+          <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>File not found</h2>
+          <p className='text-[13px] text-[var(--text-muted)]'>
+            This file may have been deleted or moved
+          </p>
+        </div>
       </div>
     )
   }

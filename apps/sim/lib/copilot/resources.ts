@@ -2,13 +2,14 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
+import type { MothershipResource, MothershipResourceType } from '@/lib/copilot/resource-types'
 
 const logger = createLogger('CopilotResources')
 
-export type {
-  MothershipResource as ChatResource,
-  MothershipResourceType as ResourceType,
-} from '@/lib/copilot/resource-types'
+export type { MothershipResource as ChatResource, MothershipResourceType as ResourceType }
+
+type ChatResource = MothershipResource
+type ResourceType = MothershipResourceType
 
 const RESOURCE_TOOL_NAMES = new Set([
   'user_table',
@@ -167,6 +168,78 @@ export function extractResourcesFromToolResult(
   }
 }
 
+const DELETE_CAPABLE_TOOL_RESOURCE_TYPE: Record<string, ResourceType> = {
+  delete_workflow: 'workflow',
+  workspace_file: 'file',
+  user_table: 'table',
+  knowledge_base: 'knowledgebase',
+}
+
+export function hasDeleteCapability(toolName: string): boolean {
+  return toolName in DELETE_CAPABLE_TOOL_RESOURCE_TYPE
+}
+
+/**
+ * Extracts resource descriptors from a tool execution result when the tool
+ * performed a deletion. Returns one or more deleted resources for tools that
+ * destroy workspace entities.
+ */
+export function extractDeletedResourcesFromToolResult(
+  toolName: string,
+  params: Record<string, unknown> | undefined,
+  output: unknown
+): ChatResource[] {
+  const resourceType = DELETE_CAPABLE_TOOL_RESOURCE_TYPE[toolName]
+  if (!resourceType) return []
+
+  const result = asRecord(output)
+  const data = asRecord(result.data)
+  const args = asRecord(params?.args)
+  const operation = (args.operation ?? params?.operation) as string | undefined
+
+  switch (toolName) {
+    case 'delete_workflow': {
+      const workflowId = (result.workflowId as string) ?? (params?.workflowId as string)
+      if (workflowId && result.deleted) {
+        return [
+          { type: resourceType, id: workflowId, title: (result.name as string) || 'Workflow' },
+        ]
+      }
+      return []
+    }
+
+    case 'workspace_file': {
+      if (operation !== 'delete') return []
+      const fileId = (data.id as string) ?? (args.fileId as string)
+      if (fileId) {
+        return [{ type: resourceType, id: fileId, title: (data.name as string) || 'File' }]
+      }
+      return []
+    }
+
+    case 'user_table': {
+      if (operation !== 'delete') return []
+      const tableId = (args.tableId as string) ?? (params?.tableId as string)
+      if (tableId) {
+        return [{ type: resourceType, id: tableId, title: 'Table' }]
+      }
+      return []
+    }
+
+    case 'knowledge_base': {
+      if (operation !== 'delete') return []
+      const kbId = (data.id as string) ?? (args.knowledgeBaseId as string)
+      if (kbId) {
+        return [{ type: resourceType, id: kbId, title: (data.name as string) || 'Knowledge Base' }]
+      }
+      return []
+    }
+
+    default:
+      return []
+  }
+}
+
 /**
  * Appends resources to a chat's JSONB resources column, deduplicating by type+id.
  * Updates the title of existing resources if the new title is more specific.
@@ -210,6 +283,39 @@ export async function persistChatResources(
       .where(eq(copilotChats.id, chatId))
   } catch (err) {
     logger.warn('Failed to persist chat resources', {
+      chatId,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+}
+
+/**
+ * Removes resources from a chat's JSONB resources column by type+id.
+ */
+export async function removeChatResources(chatId: string, toRemove: ChatResource[]): Promise<void> {
+  if (toRemove.length === 0) return
+
+  try {
+    const [chat] = await db
+      .select({ resources: copilotChats.resources })
+      .from(copilotChats)
+      .where(eq(copilotChats.id, chatId))
+      .limit(1)
+
+    if (!chat) return
+
+    const existing = Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
+    const removeKeys = new Set(toRemove.map((r) => `${r.type}:${r.id}`))
+    const filtered = existing.filter((r) => !removeKeys.has(`${r.type}:${r.id}`))
+
+    if (filtered.length === existing.length) return
+
+    await db
+      .update(copilotChats)
+      .set({ resources: sql`${JSON.stringify(filtered)}::jsonb` })
+      .where(eq(copilotChats.id, chatId))
+  } catch (err) {
+    logger.warn('Failed to remove chat resources', {
       chatId,
       error: err instanceof Error ? err.message : String(err),
     })

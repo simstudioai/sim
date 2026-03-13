@@ -55,7 +55,7 @@ export interface UseChatReturn {
   resources: MothershipResource[]
   activeResourceId: string | null
   setActiveResourceId: (id: string | null) => void
-  addResource: (resource: MothershipResource) => void
+  addResource: (resource: MothershipResource) => boolean
   removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
   reorderResources: (resources: MothershipResource[]) => void
 }
@@ -266,7 +266,11 @@ export function useChat(
 
   const { data: chatHistory } = useChatHistory(initialChatId)
 
-  const addResource = useCallback((resource: MothershipResource) => {
+  const addResource = useCallback((resource: MothershipResource): boolean => {
+    if (resourcesRef.current.some((r) => r.type === resource.type && r.id === resource.id)) {
+      return false
+    }
+
     setResources((prev) => {
       const exists = prev.some((r) => r.type === resource.type && r.id === resource.id)
       if (exists) return prev
@@ -274,7 +278,6 @@ export function useChat(
     })
     setActiveResourceId(resource.id)
 
-    // Persist to database if we have a chat ID
     const currentChatId = chatIdRef.current
     if (currentChatId) {
       fetch('/api/copilot/chat/resources', {
@@ -285,6 +288,7 @@ export function useChat(
         logger.warn('Failed to persist resource', err)
       })
     }
+    return true
   }, [])
 
   const removeResource = useCallback((resourceType: MothershipResourceType, resourceId: string) => {
@@ -552,7 +556,6 @@ export function useChat(
                   )
                   if (resource) {
                     addResource(resource)
-                    invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
                     onResourceEventRef.current?.()
                   }
                 }
@@ -565,6 +568,7 @@ export function useChat(
               if (resource?.type && resource?.id) {
                 addResource(resource)
                 invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
+
                 onResourceEventRef.current?.()
                 if (resource.type === 'workflow') {
                   if (ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)) {
@@ -573,6 +577,20 @@ export function useChat(
                     useWorkflowRegistry.getState().loadWorkflowState(resource.id)
                   }
                 }
+              }
+              break
+            }
+            case 'resource_deleted': {
+              const resource = parsed.resource
+              if (resource?.type && resource?.id) {
+                removeResource(resource.type as MothershipResourceType, resource.id)
+                invalidateResourceQueries(
+                  queryClient,
+                  workspaceId,
+                  resource.type as MothershipResourceType,
+                  resource.id
+                )
+                onResourceEventRef.current?.()
               }
               break
             }
@@ -612,7 +630,7 @@ export function useChat(
         }
       }
     },
-    [workspaceId, queryClient, addResource]
+    [workspaceId, queryClient, addResource, removeResource]
   )
 
   const persistPartialResponse = useCallback(async () => {

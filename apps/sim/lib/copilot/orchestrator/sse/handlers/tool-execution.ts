@@ -22,9 +22,12 @@ import type {
   ToolCallResult,
 } from '@/lib/copilot/orchestrator/types'
 import {
+  extractDeletedResourcesFromToolResult,
   extractResourcesFromToolResult,
+  hasDeleteCapability,
   isResourceToolName,
   persistChatResources,
+  removeChatResources,
 } from '@/lib/copilot/resources'
 import { getTableById } from '@/lib/table/service'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -515,26 +518,54 @@ export async function executeToolAndReport(
     await options?.onEvent?.(resultEvent)
 
     if (result.success && execContext.chatId) {
-      const resources =
-        result.resources && result.resources.length > 0
-          ? result.resources
-          : isResourceToolName(toolCall.name)
-            ? extractResourcesFromToolResult(toolCall.name, toolCall.params, result.output)
-            : []
+      let isDeleteOp = false
 
-      if (resources.length > 0) {
-        persistChatResources(execContext.chatId, resources).catch((err) => {
-          logger.warn('Failed to persist chat resources', {
-            chatId: execContext.chatId,
-            error: err instanceof Error ? err.message : String(err),
+      if (hasDeleteCapability(toolCall.name)) {
+        const deleted = extractDeletedResourcesFromToolResult(
+          toolCall.name,
+          toolCall.params,
+          result.output
+        )
+        if (deleted.length > 0) {
+          isDeleteOp = true
+          removeChatResources(execContext.chatId, deleted).catch((err) => {
+            logger.warn('Failed to remove chat resources after deletion', {
+              chatId: execContext.chatId,
+              error: err instanceof Error ? err.message : String(err),
+            })
           })
-        })
 
-        for (const resource of resources) {
-          await options?.onEvent?.({
-            type: 'resource_added',
-            resource: { type: resource.type, id: resource.id, title: resource.title },
+          for (const resource of deleted) {
+            await options?.onEvent?.({
+              type: 'resource_deleted',
+              resource: { type: resource.type, id: resource.id, title: resource.title },
+            })
+          }
+        }
+      }
+
+      if (!isDeleteOp) {
+        const resources =
+          result.resources && result.resources.length > 0
+            ? result.resources
+            : isResourceToolName(toolCall.name)
+              ? extractResourcesFromToolResult(toolCall.name, toolCall.params, result.output)
+              : []
+
+        if (resources.length > 0) {
+          persistChatResources(execContext.chatId, resources).catch((err) => {
+            logger.warn('Failed to persist chat resources', {
+              chatId: execContext.chatId,
+              error: err instanceof Error ? err.message : String(err),
+            })
           })
+
+          for (const resource of resources) {
+            await options?.onEvent?.({
+              type: 'resource_added',
+              resource: { type: resource.type, id: resource.id, title: resource.title },
+            })
+          }
         }
       }
     }

@@ -41,6 +41,7 @@ const WRITE_ACTIONS: Record<string, string[]> = {
     'create',
     'create_from_file',
     'import_file',
+    'delete',
     'insert_row',
     'batch_insert_rows',
     'update_row',
@@ -56,7 +57,7 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   manage_mcp_tool: ['add', 'edit', 'delete'],
   manage_skill: ['add', 'edit', 'delete'],
   manage_credential: ['rename', 'delete'],
-  workspace_file: ['write', 'update', 'rename'],
+  workspace_file: ['write', 'update', 'delete', 'rename'],
 }
 
 function isActionAllowed(toolName: string, action: string, userPermission: string): boolean {

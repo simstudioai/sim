@@ -160,12 +160,22 @@ export function ResourceTabs({
     [chatId, onRemoveResource]
   )
 
-  const handleDragStart = useCallback((e: React.DragEvent, idx: number) => {
-    dragStartIdx.current = idx
-    setDraggedIdx(idx)
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', String(idx))
-  }, [])
+  const handleDragStart = useCallback(
+    (e: React.DragEvent, idx: number) => {
+      dragStartIdx.current = idx
+      setDraggedIdx(idx)
+      e.dataTransfer.effectAllowed = 'copyMove'
+      e.dataTransfer.setData('text/plain', String(idx))
+      const resource = resources[idx]
+      if (resource) {
+        e.dataTransfer.setData(
+          'application/x-sim-resource',
+          JSON.stringify({ type: resource.type, id: resource.id, title: resource.title })
+        )
+      }
+    },
+    [resources]
+  )
 
   const handleDragOver = useCallback((e: React.DragEvent, idx: number) => {
     e.preventDefault()

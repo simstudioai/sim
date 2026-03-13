@@ -12,6 +12,7 @@ import {
   deleteRow,
   deleteRowsByFilter,
   deleteRowsByIds,
+  deleteTable,
   getRowById,
   getTableById,
   insertRow,
@@ -271,6 +272,31 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             success: true,
             message: `Schema for "${table.name}"`,
             data: { name: table.name, columns: table.schema.columns },
+          }
+        }
+
+        case 'delete': {
+          if (!args.tableId) {
+            return { success: false, message: 'Table ID is required' }
+          }
+          if (!workspaceId) {
+            return { success: false, message: 'Workspace ID is required' }
+          }
+
+          const table = await getTableById(args.tableId)
+          if (!table) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
+          if (table.workspaceId !== workspaceId) {
+            return { success: false, message: 'Table not found' }
+          }
+
+          const requestId = crypto.randomUUID().slice(0, 8)
+          await deleteTable(args.tableId, requestId)
+
+          return {
+            success: true,
+            message: `Deleted table ${args.tableId}`,
           }
         }
 

@@ -11,6 +11,9 @@ import {
 import {
   createFolderRecord,
   createWorkflowRecord,
+  deleteFolderRecord,
+  deleteWorkflowRecord,
+  listFolders,
   setWorkflowVariables,
   updateFolderRecord,
   updateWorkflowRecord,
@@ -68,6 +71,8 @@ function buildExecutionError(error: unknown): ToolCallResult {
 import type {
   CreateFolderParams,
   CreateWorkflowParams,
+  DeleteFolderParams,
+  DeleteWorkflowParams,
   GenerateApiKeyParams,
   MoveFolderParams,
   MoveWorkflowParams,
@@ -541,6 +546,59 @@ export async function executeUpdateWorkflow(
       success: true,
       output: { workflowId, ...updates },
     }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeDeleteWorkflow(
+  params: DeleteWorkflowParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workflowId = params.workflowId
+    if (!workflowId) {
+      return { success: false, error: 'workflowId is required' }
+    }
+
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
+    await deleteWorkflowRecord(workflowId)
+
+    return {
+      success: true,
+      output: { workflowId, name: workflowRecord.name, deleted: true },
+    }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeDeleteFolder(
+  params: DeleteFolderParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const folderId = params.folderId
+    if (!folderId) {
+      return { success: false, error: 'folderId is required' }
+    }
+
+    const workspaceId =
+      context.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    await ensureWorkspaceAccess(workspaceId, context.userId, true)
+
+    const folders = await listFolders(workspaceId)
+    const folder = folders.find((f) => f.folderId === folderId)
+    if (!folder) {
+      return { success: false, error: 'Folder not found' }
+    }
+
+    const deleted = await deleteFolderRecord(folderId)
+    if (!deleted) {
+      return { success: false, error: 'Folder not found' }
+    }
+
+    return { success: true, output: { folderId, deleted: true } }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
