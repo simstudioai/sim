@@ -92,7 +92,9 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
     case 'workflow':
       return <EmbeddedWorkflowActions workspaceId={workspaceId} workflowId={resource.id} />
     case 'knowledgebase':
-      return <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
+      return (
+        <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
+      )
     default:
       return null
   }

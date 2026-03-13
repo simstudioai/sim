@@ -72,22 +72,6 @@ import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
 
-type TaskStatus = 'running' | 'unread' | 'idle'
-
-function TaskStatusIcon({ status }: { status: TaskStatus }) {
-  return (
-    <div className='relative h-[16px] w-[16px] flex-shrink-0'>
-      <Blimp className='h-[16px] w-[16px] text-[var(--text-icon)]' />
-      {status === 'running' && (
-        <span className='-bottom-[1px] -right-[1px] absolute h-[7px] w-[7px] animate-pulse rounded-full border border-[var(--surface-1)] bg-[var(--brand-tertiary-2)]' />
-      )}
-      {status === 'unread' && (
-        <span className='-bottom-[1px] -right-[1px] absolute h-[7px] w-[7px] rounded-full border border-[var(--surface-1)] bg-[var(--brand-tertiary)]' />
-      )}
-    </div>
-  )
-}
-
 function SidebarItemSkeleton() {
   return (
     <div className='mx-[2px] flex h-[30px] items-center px-[8px]'>
@@ -100,18 +84,22 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   task,
   isCurrentRoute,
   isSelected,
-  status,
+  isActive,
   showCollapsedContent,
   onMultiSelectClick,
   onContextMenu,
+  onMorePointerDown,
+  onMoreClick,
 }: {
   task: { id: string; href: string; name: string }
   isCurrentRoute: boolean
   isSelected: boolean
-  status: TaskStatus
+  isActive: boolean
   showCollapsedContent: boolean
   onMultiSelectClick: (taskId: string, shiftKey: boolean, metaKey: boolean) => void
   onContextMenu: (e: React.MouseEvent, taskId: string) => void
+  onMorePointerDown: () => void
+  onMoreClick: (e: React.MouseEvent<HTMLButtonElement>, taskId: string) => void
 }) {
   return (
     <Tooltip.Root>
@@ -119,7 +107,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
         <Link
           href={task.href}
           className={cn(
-            'mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
+            'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
             (isCurrentRoute || isSelected) && 'bg-[var(--surface-active)]'
           )}
           onClick={(e) => {
@@ -136,8 +124,30 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
           }}
           onContextMenu={task.id !== 'new' ? (e) => onContextMenu(e, task.id) : undefined}
         >
-          <TaskStatusIcon status={status} />
-          <div className='min-w-0 truncate font-base text-[var(--text-body)]'>{task.name}</div>
+          <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+          <div className='min-w-0 flex-1 truncate font-base text-[var(--text-body)]'>
+            {task.name}
+          </div>
+          {task.id !== 'new' && (
+            <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
+              {isActive && (
+                <span className='absolute h-[7px] w-[7px] rounded-full bg-[#33C482] group-hover:hidden' />
+              )}
+              <button
+                type='button'
+                aria-label='Task options'
+                onPointerDown={onMorePointerDown}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onMoreClick(e, task.id)
+                }}
+                className='flex h-[18px] w-[18px] items-center justify-center rounded-[4px] opacity-0 hover:bg-[var(--surface-7)] group-hover:opacity-100'
+              >
+                <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+              </button>
+            </div>
+          )}
         </Link>
       </Tooltip.Trigger>
       {showCollapsedContent && (
@@ -390,6 +400,7 @@ export const Sidebar = memo(function Sidebar() {
     menuRef: taskMenuRef,
     handleContextMenu: handleTaskContextMenuBase,
     closeMenu: closeTaskContextMenu,
+    preventDismiss: preventTaskDismiss,
   } = useContextMenu()
 
   const contextMenuSelectionRef = useRef<{ taskIds: string[]; names: string[] }>({
@@ -397,21 +408,49 @@ export const Sidebar = memo(function Sidebar() {
     names: [],
   })
 
+  const captureTaskSelection = useCallback((taskId: string) => {
+    const { selectedTasks, selectTaskOnly } = useFolderStore.getState()
+    if (selectedTasks.size > 0 && selectedTasks.has(taskId)) {
+      contextMenuSelectionRef.current = {
+        taskIds: Array.from(selectedTasks),
+        names: [],
+      }
+    } else {
+      selectTaskOnly(taskId)
+      contextMenuSelectionRef.current = { taskIds: [taskId], names: [] }
+    }
+  }, [])
+
   const handleTaskContextMenu = useCallback(
     (e: React.MouseEvent, taskId: string) => {
-      const { selectedTasks, selectTaskOnly } = useFolderStore.getState()
-      if (selectedTasks.size > 0 && selectedTasks.has(taskId)) {
-        contextMenuSelectionRef.current = {
-          taskIds: Array.from(selectedTasks),
-          names: [],
-        }
-      } else {
-        selectTaskOnly(taskId)
-        contextMenuSelectionRef.current = { taskIds: [taskId], names: [] }
-      }
+      captureTaskSelection(taskId)
       handleTaskContextMenuBase(e)
     },
-    [handleTaskContextMenuBase]
+    [captureTaskSelection, handleTaskContextMenuBase]
+  )
+
+  const handleTaskMorePointerDown = useCallback(() => {
+    if (isTaskContextMenuOpen) {
+      preventTaskDismiss()
+    }
+  }, [isTaskContextMenuOpen, preventTaskDismiss])
+
+  const handleTaskMoreClick = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>, taskId: string) => {
+      if (isTaskContextMenuOpen) {
+        closeTaskContextMenu()
+        return
+      }
+      captureTaskSelection(taskId)
+      const rect = e.currentTarget.getBoundingClientRect()
+      handleTaskContextMenuBase({
+        preventDefault: () => {},
+        stopPropagation: () => {},
+        clientX: rect.right,
+        clientY: rect.top,
+      } as React.MouseEvent)
+    },
+    [isTaskContextMenuOpen, closeTaskContextMenu, captureTaskSelection, handleTaskContextMenuBase]
   )
 
   const { handleDuplicateWorkspace: duplicateWorkspace } = useDuplicateWorkspace({
@@ -1048,13 +1087,6 @@ export const Sidebar = memo(function Sidebar() {
                           const isCurrentRoute = task.id !== 'new' && pathname === task.href
                           const isRenaming = renamingTaskId === task.id
                           const isSelected = task.id !== 'new' && selectedTasks.has(task.id)
-                          const status: TaskStatus = isCurrentRoute
-                            ? 'idle'
-                            : task.isActive
-                              ? 'running'
-                              : task.isUnread
-                                ? 'unread'
-                                : 'idle'
 
                           if (!isCollapsed && isRenaming) {
                             return (
@@ -1062,7 +1094,7 @@ export const Sidebar = memo(function Sidebar() {
                                 key={task.id}
                                 className='mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] bg-[var(--surface-active)] px-[8px] text-[14px]'
                               >
-                                <TaskStatusIcon status={status} />
+                                <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
                                 <input
                                   ref={renameInputRef}
                                   value={renameValue}
@@ -1081,10 +1113,12 @@ export const Sidebar = memo(function Sidebar() {
                               task={task}
                               isCurrentRoute={isCurrentRoute}
                               isSelected={isSelected}
-                              status={status}
+                              isActive={!!task.isActive}
                               showCollapsedContent={showCollapsedContent}
                               onMultiSelectClick={handleTaskClick}
                               onContextMenu={handleTaskContextMenu}
+                              onMorePointerDown={handleTaskMorePointerDown}
+                              onMoreClick={handleTaskMoreClick}
                             />
                           )
                         })}

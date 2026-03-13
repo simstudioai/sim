@@ -4,7 +4,6 @@ export const WORKSPACE_COLORS = [
   '#22c55e', // Green
   '#FFCC02', // Yellow
   '#a855f7', // Purple
-  '#4aea7f', // Mint
   '#f97316', // Orange
   '#14b8a6', // Teal
   '#ff6b6b', // Coral

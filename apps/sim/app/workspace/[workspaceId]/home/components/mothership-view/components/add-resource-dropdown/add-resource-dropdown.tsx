@@ -1,11 +1,7 @@
 'use client'
 
-import {
-  type RefCallback,
-  useCallback,
-  useMemo,
-  useState,
-} from 'react'
+import { type RefCallback, useCallback, useMemo, useState } from 'react'
+import { ChevronRight, Folder } from 'lucide-react'
 import {
   Button,
   DropdownMenu,
@@ -19,20 +15,19 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { Plus, Search } from '@/components/emcn/icons'
-import { ChevronRight, Folder } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
-import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
+import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import type {
+  MothershipResource,
+  MothershipResourceType,
+} from '@/app/workspace/[workspaceId]/home/types'
 import { useFolders } from '@/hooks/queries/folders'
+import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
-import type {
-  MothershipResource,
-  MothershipResourceType,
-} from '@/app/workspace/[workspaceId]/home/types'
-import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 
 export interface AddResourceDropdownProps {
   workspaceId: string
@@ -54,34 +49,54 @@ const EMPTY_SUBMENU = (
   </DropdownMenuItem>
 )
 
-export function useAvailableResources(workspaceId: string, existingKeys: Set<string>): AvailableItemsByType[] {
+export function useAvailableResources(
+  workspaceId: string,
+  existingKeys: Set<string>
+): AvailableItemsByType[] {
   const { data: workflows = [] } = useWorkflows(workspaceId, { syncRegistry: false })
   const { data: tables = [] } = useTablesList(workspaceId)
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
   const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId)
 
-  return useMemo(() => [
-    {
-      type: 'workflow' as const,
-      items: workflows
-        .map((w) => ({ id: w.id, name: w.name, color: w.color, folderId: w.folderId, isOpen: existingKeys.has(`workflow:${w.id}`) })),
-    },
-    {
-      type: 'table' as const,
-      items: tables
-        .map((t) => ({ id: t.id, name: t.name, isOpen: existingKeys.has(`table:${t.id}`) })),
-    },
-    {
-      type: 'file' as const,
-      items: files
-        .map((f) => ({ id: f.id, name: f.name, isOpen: existingKeys.has(`file:${f.id}`) })),
-    },
-    {
-      type: 'knowledgebase' as const,
-      items: (knowledgeBases ?? [])
-        .map((kb) => ({ id: kb.id, name: kb.name, isOpen: existingKeys.has(`knowledgebase:${kb.id}`) })),
-    },
-  ], [workflows, tables, files, knowledgeBases, existingKeys])
+  return useMemo(
+    () => [
+      {
+        type: 'workflow' as const,
+        items: workflows.map((w) => ({
+          id: w.id,
+          name: w.name,
+          color: w.color,
+          folderId: w.folderId,
+          isOpen: existingKeys.has(`workflow:${w.id}`),
+        })),
+      },
+      {
+        type: 'table' as const,
+        items: tables.map((t) => ({
+          id: t.id,
+          name: t.name,
+          isOpen: existingKeys.has(`table:${t.id}`),
+        })),
+      },
+      {
+        type: 'file' as const,
+        items: files.map((f) => ({
+          id: f.id,
+          name: f.name,
+          isOpen: existingKeys.has(`file:${f.id}`),
+        })),
+      },
+      {
+        type: 'knowledgebase' as const,
+        items: (knowledgeBases ?? []).map((kb) => ({
+          id: kb.id,
+          name: kb.name,
+          isOpen: existingKeys.has(`knowledgebase:${kb.id}`),
+        })),
+      },
+    ],
+    [workflows, tables, files, knowledgeBases, existingKeys]
+  )
 }
 
 function CollapsibleFolder({
@@ -101,9 +116,7 @@ function CollapsibleFolder({
   config: ReturnType<typeof getResourceConfig>
   level: number
 }) {
-  const folderWorkflows = workflows.filter(
-    (w) => (w.folderId as string | null) === folder.id
-  )
+  const folderWorkflows = workflows.filter((w) => (w.folderId as string | null) === folder.id)
   const isExpanded = expanded.has(folder.id)
   const indent = level * 12
 
@@ -112,8 +125,13 @@ function CollapsibleFolder({
       <div
         role='button'
         tabIndex={0}
-        onClick={(e) => { e.preventDefault(); onToggle(folder.id) }}
-        onKeyDown={(e) => { if (e.key === 'Enter') onToggle(folder.id) }}
+        onClick={(e) => {
+          e.preventDefault()
+          onToggle(folder.id)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onToggle(folder.id)
+        }}
         className='flex cursor-pointer items-center gap-[6px] rounded-sm px-[8px] py-[6px] text-[13px] hover:bg-[var(--surface-active)]'
         style={{ paddingLeft: `${8 + indent}px` }}
       >
@@ -169,7 +187,10 @@ function WorkflowSubmenuContent({
   useFolders(workspaceId)
   const folders = useFolderStore((state) => state.folders)
   const getFolderTree = useFolderStore((state) => state.getFolderTree)
-  const folderTree = useMemo(() => getFolderTree(workspaceId), [folders, getFolderTree, workspaceId])
+  const folderTree = useMemo(
+    () => getFolderTree(workspaceId),
+    [folders, getFolderTree, workspaceId]
+  )
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   const toggleFolder = useCallback((id: string) => {
@@ -231,7 +252,12 @@ function WorkflowSubmenuContent({
   )
 }
 
-export function AddResourceDropdown({ workspaceId, existingKeys, onAdd, onSwitch }: AddResourceDropdownProps) {
+export function AddResourceDropdown({
+  workspaceId,
+  existingKeys,
+  onAdd,
+  onSwitch,
+}: AddResourceDropdownProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const available = useAvailableResources(workspaceId, existingKeys)
@@ -338,7 +364,9 @@ export function AddResourceDropdown({ workspaceId, existingKeys, onAdd, onSwitch
                       workspaceId={workspaceId}
                       items={items}
                       config={config}
-                      onSelect={(item) => select({ type, id: item.id, title: item.name }, item.isOpen)}
+                      onSelect={(item) =>
+                        select({ type, id: item.id, title: item.name }, item.isOpen)
+                      }
                     />
                   ) : items.length > 0 ? (
                     items.map((item) => (

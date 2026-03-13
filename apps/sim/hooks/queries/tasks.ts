@@ -242,7 +242,9 @@ export function useAddChatResource(chatId?: string) {
       await queryClient.cancelQueries({ queryKey: taskKeys.detail(chatId) })
       const previous = queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(chatId))
       if (previous) {
-        const exists = previous.resources.some((r) => r.type === resource.type && r.id === resource.id)
+        const exists = previous.resources.some(
+          (r) => r.type === resource.type && r.id === resource.id
+        )
         if (!exists) {
           queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(chatId), {
             ...previous,

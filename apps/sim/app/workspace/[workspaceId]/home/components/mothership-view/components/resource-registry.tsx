@@ -1,19 +1,19 @@
 'use client'
 
-import { type ElementType, type ReactNode } from 'react'
+import type { ElementType, ReactNode } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import { Database, File as FileIcon, Table as TableIcon } from '@/components/emcn/icons'
 import { WorkflowIcon } from '@/components/icons'
-import { cn } from '@/lib/core/utils/cn'
 import { getDocumentIcon } from '@/components/icons/document-icons'
-import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
-import { tableKeys } from '@/hooks/queries/tables'
-import { workflowKeys } from '@/hooks/queries/workflows'
-import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
+import { cn } from '@/lib/core/utils/cn'
 import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
+import { tableKeys } from '@/hooks/queries/tables'
+import { workflowKeys } from '@/hooks/queries/workflows'
+import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface DropdownItemRenderProps {
@@ -87,7 +87,9 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     type: 'table',
     label: 'Tables',
     icon: TableIcon,
-    renderTabIcon: (_resource, className) => <TableIcon className={cn(className, 'text-[var(--text-icon)]')} />,
+    renderTabIcon: (_resource, className) => (
+      <TableIcon className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
     renderDropdownItem: (props) => <DefaultDropdownItem {...props} />,
   },
   file: {
@@ -104,7 +106,9 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     type: 'knowledgebase',
     label: 'Knowledge Bases',
     icon: Database,
-    renderTabIcon: (_resource, className) => <Database className={cn(className, 'text-[var(--text-icon)]')} />,
+    renderTabIcon: (_resource, className) => (
+      <Database className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
     renderDropdownItem: (props) => <DefaultDropdownItem {...props} />,
   },
 } as const

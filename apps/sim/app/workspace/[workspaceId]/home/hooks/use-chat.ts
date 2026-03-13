@@ -8,6 +8,7 @@ import {
   reportManualRunToolStop,
 } from '@/lib/copilot/client-sse/run-tool-execution'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
+import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resource-types'
 import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import {
@@ -25,7 +26,6 @@ import { useExecutionStore } from '@/stores/execution/store'
 import { useFolderStore } from '@/stores/folders/store'
 import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resource-types'
 import { invalidateResourceQueries } from '../components/mothership-view/components/resource-registry'
 import type { FileAttachmentForApi } from '../components/user-input/user-input'
 import type {
@@ -192,8 +192,7 @@ function extractResourceFromReadResult(
   const resourceType = VFS_DIR_TO_RESOURCE[segments[0]]
   if (!resourceType || !segments[1]) return null
 
-  const obj =
-    output && typeof output === 'object' ? (output as Record<string, unknown>) : undefined
+  const obj = output && typeof output === 'object' ? (output as Record<string, unknown>) : undefined
   if (!obj) return null
 
   let id = obj.id as string | undefined
@@ -256,12 +255,9 @@ export function useChat(
     setActiveResourceId(resource.id)
   }, [])
 
-  const removeResource = useCallback(
-    (resourceType: MothershipResourceType, resourceId: string) => {
-      setResources((prev) => prev.filter((r) => !(r.type === resourceType && r.id === resourceId)))
-    },
-    []
-  )
+  const removeResource = useCallback((resourceType: MothershipResourceType, resourceId: string) => {
+    setResources((prev) => prev.filter((r) => !(r.type === resourceType && r.id === resourceId)))
+  }, [])
 
   const reorderResources = useCallback((newOrder: MothershipResource[]) => {
     setResources(newOrder)
@@ -524,12 +520,7 @@ export function useChat(
                   )
                   if (resource) {
                     addResource(resource)
-                    invalidateResourceQueries(
-                      queryClient,
-                      workspaceId,
-                      resource.type,
-                      resource.id
-                    )
+                    invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
                     onResourceEventRef.current?.()
                   }
                 }

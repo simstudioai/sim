@@ -11,10 +11,7 @@ const logger = createLogger('VfsTools')
  * Resolves a VFS resource path to its resource descriptor by reading the
  * sibling meta.json (already in memory) for the resource ID and name.
  */
-function resolveVfsResource(
-  vfs: WorkspaceVFS,
-  path: string
-): MothershipResource | null {
+function resolveVfsResource(vfs: WorkspaceVFS, path: string): MothershipResource | null {
   const segments = path.split('/')
   const resourceType = VFS_DIR_TO_RESOURCE[segments[0]]
   if (!resourceType || !segments[1]) return null

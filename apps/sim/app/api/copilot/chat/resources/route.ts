@@ -4,7 +4,6 @@ import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import type { ChatResource, ResourceType } from '@/lib/copilot/resources'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -12,6 +11,7 @@ import {
   createNotFoundResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
+import type { ChatResource, ResourceType } from '@/lib/copilot/resources'
 
 const logger = createLogger('CopilotChatResourcesAPI')
 
@@ -75,7 +75,9 @@ export async function POST(req: NextRequest) {
     let merged: ChatResource[]
     if (prev) {
       if (GENERIC_TITLES.has(prev.title) && !GENERIC_TITLES.has(resource.title)) {
-        merged = existing.map((r) => (`${r.type}:${r.id}` === key ? { ...r, title: resource.title } : r))
+        merged = existing.map((r) =>
+          `${r.type}:${r.id}` === key ? { ...r, title: resource.title } : r
+        )
       } else {
         merged = existing
       }

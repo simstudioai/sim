@@ -5,8 +5,10 @@ import { eq, sql } from 'drizzle-orm'
 
 const logger = createLogger('CopilotResources')
 
-export type { MothershipResourceType as ResourceType } from '@/lib/copilot/resource-types'
-export type { MothershipResource as ChatResource } from '@/lib/copilot/resource-types'
+export type {
+  MothershipResource as ChatResource,
+  MothershipResourceType as ResourceType,
+} from '@/lib/copilot/resource-types'
 
 const RESOURCE_TOOL_NAMES = new Set([
   'user_table',
@@ -45,22 +47,29 @@ export function extractResourcesFromToolResult(
     case 'user_table': {
       if (result.tableId) {
         return [
-          { type: 'table', id: result.tableId as string, title: (result.tableName as string) || 'Table' },
+          {
+            type: 'table',
+            id: result.tableId as string,
+            title: (result.tableName as string) || 'Table',
+          },
         ]
       }
       if (result.fileId) {
         return [
-          { type: 'file', id: result.fileId as string, title: (result.fileName as string) || 'File' },
+          {
+            type: 'file',
+            id: result.fileId as string,
+            title: (result.fileName as string) || 'File',
+          },
         ]
       }
       const table = asRecord(data.table)
       if (table.id) {
-        return [
-          { type: 'table', id: table.id as string, title: (table.name as string) || 'Table' },
-        ]
+        return [{ type: 'table', id: table.id as string, title: (table.name as string) || 'Table' }]
       }
       const args = asRecord(params?.args)
-      const tableId = (data.tableId as string) ?? (args.tableId as string) ?? (params?.tableId as string)
+      const tableId =
+        (data.tableId as string) ?? (args.tableId as string) ?? (params?.tableId as string)
       if (tableId) {
         return [
           { type: 'table', id: tableId as string, title: (data.tableName as string) || 'Table' },
@@ -72,9 +81,7 @@ export function extractResourcesFromToolResult(
     case 'workspace_file': {
       const file = asRecord(data.file)
       if (file.id) {
-        return [
-          { type: 'file', id: file.id as string, title: (file.name as string) || 'File' },
-        ]
+        return [{ type: 'file', id: file.id as string, title: (file.name as string) || 'File' }]
       }
       const fileId = (data.fileId as string) ?? (data.id as string)
       if (fileId) {
@@ -88,12 +95,20 @@ export function extractResourcesFromToolResult(
     case 'read': {
       if (result.tableId) {
         return [
-          { type: 'table', id: result.tableId as string, title: (result.tableName as string) || 'Table' },
+          {
+            type: 'table',
+            id: result.tableId as string,
+            title: (result.tableName as string) || 'Table',
+          },
         ]
       }
       if (result.fileId) {
         return [
-          { type: 'file', id: result.fileId as string, title: (result.fileName as string) || 'File' },
+          {
+            type: 'file',
+            id: result.fileId as string,
+            title: (result.fileName as string) || 'File',
+          },
         ]
       }
       return []
@@ -101,10 +116,16 @@ export function extractResourcesFromToolResult(
 
     case 'create_workflow':
     case 'edit_workflow': {
-      const workflowId = (result.workflowId as string) ?? (data.workflowId as string) ?? (params?.workflowId as string)
+      const workflowId =
+        (result.workflowId as string) ??
+        (data.workflowId as string) ??
+        (params?.workflowId as string)
       if (workflowId) {
         const workflowName =
-          (result.workflowName as string) ?? (data.workflowName as string) ?? (params?.workflowName as string) ?? 'Workflow'
+          (result.workflowName as string) ??
+          (data.workflowName as string) ??
+          (params?.workflowName as string) ??
+          'Workflow'
         return [{ type: 'workflow', id: workflowId, title: workflowName }]
       }
       return []
@@ -112,9 +133,13 @@ export function extractResourcesFromToolResult(
 
     case 'knowledge_base': {
       const kbId =
-        (data.id as string) ?? (result.knowledgeBaseId as string) ?? (data.knowledgeBaseId as string) ?? (params?.knowledgeBaseId as string)
+        (data.id as string) ??
+        (result.knowledgeBaseId as string) ??
+        (data.knowledgeBaseId as string) ??
+        (params?.knowledgeBaseId as string)
       if (kbId) {
-        const kbName = (data.name as string) ?? (result.knowledgeBaseName as string) ?? 'Knowledge Base'
+        const kbName =
+          (data.name as string) ?? (result.knowledgeBaseName as string) ?? 'Knowledge Base'
         return [{ type: 'knowledgebase', id: kbId, title: kbName }]
       }
       return []
@@ -127,7 +152,11 @@ export function extractResourcesFromToolResult(
       for (const kb of kbArray) {
         const id = kb.id as string | undefined
         if (id) {
-          resources.push({ type: 'knowledgebase', id, title: (kb.name as string) || 'Knowledge Base' })
+          resources.push({
+            type: 'knowledgebase',
+            id,
+            title: (kb.name as string) || 'Knowledge Base',
+          })
         }
       }
       return resources
@@ -142,7 +171,10 @@ export function extractResourcesFromToolResult(
  * Appends resources to a chat's JSONB resources column, deduplicating by type+id.
  * Updates the title of existing resources if the new title is more specific.
  */
-export async function persistChatResources(chatId: string, newResources: ChatResource[]): Promise<void> {
+export async function persistChatResources(
+  chatId: string,
+  newResources: ChatResource[]
+): Promise<void> {
   if (newResources.length === 0) return
 
   try {

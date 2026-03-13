@@ -316,8 +316,8 @@ export const OutputPanel = React.memo(function OutputPanel({
             <Button
               variant='ghost'
               className={clsx(
-                'px-[8px] py-[6px] text-[12px]',
-                !showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-tertiary)]'
+                'px-[8px] py-[6px] text-small',
+                !showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-icon)]'
               )}
               onClick={handleOutputButtonClick}
               aria-label='Show output'
@@ -328,8 +328,8 @@ export const OutputPanel = React.memo(function OutputPanel({
               <Button
                 variant='ghost'
                 className={clsx(
-                  'px-[8px] py-[6px] text-[12px]',
-                  showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-tertiary)]'
+                  'px-[8px] py-[6px] text-small',
+                  showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-icon)]'
                 )}
                 onClick={handleInputButtonClick}
                 aria-label='Show input'
@@ -361,7 +361,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                     aria-label='Close search'
                     className='!p-1.5 -m-1.5'
                   >
-                    <X className='h-[12px] w-[12px]' />
+                    <X className='h-3.5 w-3.5' />
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
@@ -377,7 +377,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                     aria-label='Search in output'
                     className='!p-1.5 -m-1.5'
                   >
-                    <Search className='h-[12px] w-[12px]' />
+                    <Search className='h-3.5 w-3.5' />
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
@@ -395,7 +395,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                       aria-label='Component Playground'
                       className='!p-1.5 -m-1.5'
                     >
-                      <Palette className='h-[12px] w-[12px]' />
+                      <Palette className='h-3.5 w-3.5' />
                     </Button>
                   </Link>
                 </Tooltip.Trigger>
@@ -418,9 +418,9 @@ export const OutputPanel = React.memo(function OutputPanel({
                     )}
                   >
                     {isTraining ? (
-                      <Pause className='h-[12px] w-[12px]' />
+                      <Pause className='h-3.5 w-3.5' />
                     ) : (
-                      <Database className='h-[12px] w-[12px]' />
+                      <Database className='h-3.5 w-3.5' />
                     )}
                   </Button>
                 </Tooltip.Trigger>
@@ -439,9 +439,9 @@ export const OutputPanel = React.memo(function OutputPanel({
                   className='!p-1.5 -m-1.5'
                 >
                   {showCopySuccess ? (
-                    <Check className='h-[12px] w-[12px]' />
+                    <Check className='h-3.5 w-3.5' />
                   ) : (
-                    <Clipboard className='h-[12px] w-[12px]' />
+                    <Clipboard className='h-3.5 w-3.5' />
                   )}
                 </Button>
               </Tooltip.Trigger>
@@ -459,7 +459,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                       aria-label='Download console CSV'
                       className='!p-1.5 -m-1.5'
                     >
-                      <ArrowDownToLine className='h-3 w-3' />
+                      <ArrowDownToLine className='h-3.5 w-3.5' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
@@ -474,7 +474,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                       aria-label='Clear console'
                       className='!p-1.5 -m-1.5'
                     >
-                      <Trash2 className='h-3 w-3' />
+                      <Trash2 className='h-3.5 w-3.5' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
@@ -557,7 +557,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               className='!p-1.5 -m-1.5'
               disabled={matchCount === 0}
             >
-              <ArrowUp className='h-[12px] w-[12px]' />
+              <ArrowUp className='h-3.5 w-3.5' />
             </Button>
             <Button
               variant='ghost'
@@ -566,7 +566,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               className='!p-1.5 -m-1.5'
               disabled={matchCount === 0}
             >
-              <ArrowDown className='h-[12px] w-[12px]' />
+              <ArrowDown className='h-3.5 w-3.5' />
             </Button>
             <Button
               variant='ghost'
@@ -574,7 +574,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               aria-label='Close search'
               className='!p-1.5 -m-1.5'
             >
-              <X className='h-[12px] w-[12px]' />
+              <X className='h-3.5 w-3.5' />
             </Button>
           </div>
         )}

@@ -1,31 +1,31 @@
 import {
   type ReactNode,
-  type RefCallback,
-  type SVGProps,  
+  type SVGProps,
   useCallback,
-  useMemo,  
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react'
-import {
-  Button,
-  Tooltip,
-} from '@/components/emcn'
+import { Button, Tooltip } from '@/components/emcn'
 import { PanelLeft } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
-import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
-import { useTablesList } from '@/hooks/queries/tables'
-import { useAddChatResource, useRemoveChatResource, useReorderChatResources } from '@/hooks/queries/tasks'
-import { useWorkflows } from '@/hooks/queries/workflows'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
+import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
-import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
+import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
+import { useTablesList } from '@/hooks/queries/tables'
+import {
+  useAddChatResource,
+  useRemoveChatResource,
+  useReorderChatResources,
+} from '@/hooks/queries/tasks'
+import { useWorkflows } from '@/hooks/queries/workflows'
+import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
 const LEFT_HALF =
   'M10.25 0.75H3.25C1.86929 0.75 0.75 1.86929 0.75 3.25V16.25C0.75 17.6307 1.86929 18.75 3.25 18.75H10.25V0.75Z'
@@ -301,13 +301,21 @@ export function ResourceTabs({
           const isActive = activeId === resource.id
           const isHovered = hoveredTabId === resource.id
           const isDragging = draggedIdx === idx
-          const showGapBefore = dropGapIdx === idx && draggedIdx !== null && draggedIdx !== idx && draggedIdx !== idx - 1
-          const showGapAfter = idx === resources.length - 1 && dropGapIdx === resources.length && draggedIdx !== null && draggedIdx !== idx
+          const showGapBefore =
+            dropGapIdx === idx &&
+            draggedIdx !== null &&
+            draggedIdx !== idx &&
+            draggedIdx !== idx - 1
+          const showGapAfter =
+            idx === resources.length - 1 &&
+            dropGapIdx === resources.length &&
+            draggedIdx !== null &&
+            draggedIdx !== idx
 
           return (
             <div key={resource.id} className='relative flex shrink-0 items-center'>
               {showGapBefore && (
-                <div className='pointer-events-none absolute top-1/2 left-0 z-10 h-[16px] w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--text-subtle)]' />
+                <div className='-translate-x-1/2 -translate-y-1/2 pointer-events-none absolute top-1/2 left-0 z-10 h-[16px] w-[2px] rounded-full bg-[var(--text-subtle)]' />
               )}
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
@@ -340,11 +348,22 @@ export function ResourceTabs({
                         role='button'
                         tabIndex={-1}
                         onClick={(e) => handleRemove(e, resource)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleRemove(e as unknown as React.MouseEvent, resource) }}
-                        className='absolute right-[4px] top-1/2 flex -translate-y-1/2 items-center justify-center rounded-[4px] p-[1px] hover:bg-[var(--surface-5)]'
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter')
+                            handleRemove(e as unknown as React.MouseEvent, resource)
+                        }}
+                        className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center justify-center rounded-[4px] p-[1px] hover:bg-[var(--surface-5)]'
                         aria-label={`Close ${displayName}`}
                       >
-                        <svg className='h-[10px] w-[10px] text-[var(--text-tertiary)]' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'>
+                        <svg
+                          className='h-[10px] w-[10px] text-[var(--text-tertiary)]'
+                          viewBox='0 0 24 24'
+                          fill='none'
+                          stroke='currentColor'
+                          strokeWidth='2.5'
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                        >
                           <path d='M18 6 6 18M6 6l12 12' />
                         </svg>
                       </span>
@@ -356,7 +375,7 @@ export function ResourceTabs({
                 </Tooltip.Content>
               </Tooltip.Root>
               {showGapAfter && (
-                <div className='pointer-events-none absolute top-1/2 right-0 z-10 h-[16px] w-[2px] translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--text-subtle)]' />
+                <div className='-translate-y-1/2 pointer-events-none absolute top-1/2 right-0 z-10 h-[16px] w-[2px] translate-x-1/2 rounded-full bg-[var(--text-subtle)]' />
               )}
             </div>
           )
@@ -398,4 +417,3 @@ export function ResourceTabs({
     </div>
   )
 }
-

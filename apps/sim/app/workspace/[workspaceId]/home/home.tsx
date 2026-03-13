@@ -400,7 +400,13 @@ export function Home({ chatId }: HomeProps = {}) {
         onReorderResources={reorderResources}
         onCollapse={collapseResource}
         isCollapsed={isResourceCollapsed}
-        className={isResourceAnimatingIn ? 'animate-slide-in-right' : skipResourceTransition ? '!transition-none' : undefined}
+        className={
+          isResourceAnimatingIn
+            ? 'animate-slide-in-right'
+            : skipResourceTransition
+              ? '!transition-none'
+              : undefined
+        }
       />
 
       {isResourceCollapsed && (
