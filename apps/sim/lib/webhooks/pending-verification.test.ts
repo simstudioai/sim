@@ -72,6 +72,44 @@ describe('pending webhook verification', () => {
     ).toBe(false)
   })
 
+  it('does not register generic pending verification unless verifyTestEvents is enabled', async () => {
+    await registerPendingWebhookVerification({
+      path: 'grain-path-3',
+      provider: 'generic',
+      metadata: { verifyTestEvents: false },
+    })
+
+    expect(await getPendingWebhookVerification('grain-path-3')).toBeNull()
+  })
+
+  it('registers generic pending verification when verifyTestEvents is enabled', async () => {
+    await registerPendingWebhookVerification({
+      path: 'grain-path-3',
+      provider: 'generic',
+      metadata: { verifyTestEvents: true },
+    })
+
+    const entry = await getPendingWebhookVerification('grain-path-3')
+
+    expect(entry).toMatchObject({
+      path: 'grain-path-3',
+      provider: 'generic',
+      metadata: { verifyTestEvents: true },
+    })
+    expect(
+      matchesPendingWebhookVerificationProbe(entry!, {
+        method: 'POST',
+        body: {},
+      })
+    ).toBe(true)
+    expect(
+      matchesPendingWebhookVerificationProbe(entry!, {
+        method: 'POST',
+        body: { message: 'real event' },
+      })
+    ).toBe(false)
+  })
+
   it('clears tracked pending verifications after a successful lifecycle', async () => {
     const tracker = new PendingWebhookVerificationTracker()
 

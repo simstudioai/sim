@@ -1343,15 +1343,29 @@ export async function createGrainWebhookSubscription(
       throw new Error(userFriendlyMessage)
     }
 
+    const grainWebhookId = responseBody.id
+
+    if (!grainWebhookId) {
+      grainLogger.error(
+        `[${requestId}] Grain webhook creation response missing id for webhook ${webhookData.id}.`,
+        {
+          response: responseBody,
+        }
+      )
+      throw new Error(
+        'Grain webhook created but no webhook ID was returned in the response. Cannot track subscription.'
+      )
+    }
+
     grainLogger.info(
       `[${requestId}] Successfully created webhook in Grain for webhook ${webhookData.id}.`,
       {
-        grainWebhookId: responseBody.id ?? responseBody.hook?.id,
+        grainWebhookId,
         eventTypes,
       }
     )
 
-    return { id: responseBody.id ?? responseBody.hook?.id, eventTypes }
+    return { id: grainWebhookId, eventTypes }
   } catch (error: any) {
     grainLogger.error(
       `[${requestId}] Exception during Grain webhook creation for webhook ${webhookData.id}.`,

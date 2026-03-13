@@ -65,9 +65,13 @@ export const grainCreateHookTool: ToolConfig<GrainCreateHookParams, GrainCreateH
       throw new Error(data.error || data.message || 'Failed to create webhook')
     }
 
+    if (!data?.id) {
+      throw new Error('Grain webhook created but response did not include a webhook id')
+    }
+
     return {
       success: true,
-      output: data.hook || data,
+      output: data,
     }
   },
 

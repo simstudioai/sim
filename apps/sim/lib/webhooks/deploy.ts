@@ -602,6 +602,7 @@ export async function saveTriggerWebhooksForDeploy({
         provider,
         workflowId,
         blockId: block.id,
+        metadata: providerConfig,
       })
 
       const result = await createExternalWebhookSubscription(

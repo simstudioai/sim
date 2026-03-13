@@ -71,6 +71,15 @@ export const genericWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
+      id: 'verifyTestEvents',
+      title: 'Verify Test Events',
+      type: 'switch',
+      description:
+        'Return a temporary 200 response for test or verification probes on this webhook URL during setup.',
+      defaultValue: false,
+      mode: 'trigger',
+    },
+    {
       id: 'responseStatusCode',
       title: 'Response Status Code',
       type: 'short-input',
@@ -120,6 +129,7 @@ export const genericWebhookTrigger: TriggerConfig = {
         'All request data (headers, body, query parameters) will be available in your workflow.',
         'If authentication is enabled, include the token in requests using either the custom header or "Authorization: Bearer TOKEN".',
         'To deduplicate incoming events, set the Deduplication Field to the dot-notation path of a unique identifier in the payload (e.g. "event.id"). Duplicate values within 7 days will be skipped.',
+        'Enable "Verify Test Events" only if the sending service needs a temporary 200 response while validating the webhook URL.',
       ]
         .map(
           (instruction, index) =>

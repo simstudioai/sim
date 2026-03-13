@@ -31,10 +31,22 @@ interface PendingWebhookVerificationProbe {
   body: Record<string, unknown> | undefined
 }
 
+type PendingWebhookVerificationRegistrationMatcher = (
+  registration: PendingWebhookVerificationRegistration
+) => boolean
+
 type PendingWebhookVerificationProbeMatcher = (
   probe: PendingWebhookVerificationProbe,
   entry: PendingWebhookVerification
 ) => boolean
+
+const pendingWebhookVerificationRegistrationMatchers: Record<
+  string,
+  PendingWebhookVerificationRegistrationMatcher
+> = {
+  grain: () => true,
+  generic: (registration) => registration.metadata?.verifyTestEvents === true,
+}
 
 const pendingWebhookVerificationProbeMatchers: Record<
   string,
@@ -44,6 +56,10 @@ const pendingWebhookVerificationProbeMatchers: Record<
     method === 'GET' ||
     method === 'HEAD' ||
     (method === 'POST' && (!body || Object.keys(body).length === 0 || !body.type)),
+  generic: ({ method, body }) =>
+    method === 'GET' ||
+    method === 'HEAD' ||
+    (method === 'POST' && (!body || Object.keys(body).length === 0)),
 }
 
 function getRedisKey(path: string): string {
@@ -68,14 +84,27 @@ function getInMemoryPendingWebhookVerification(path: string): PendingWebhookVeri
   return entry
 }
 
-export function requiresPendingWebhookVerification(provider: string): boolean {
-  return provider in pendingWebhookVerificationProbeMatchers
+export function requiresPendingWebhookVerification(
+  provider: string,
+  metadata?: Record<string, unknown>
+): boolean {
+  const registrationMatcher = pendingWebhookVerificationRegistrationMatchers[provider]
+  if (!registrationMatcher) {
+    return false
+  }
+
+  return registrationMatcher({
+    path: '',
+    provider,
+    metadata,
+  })
 }
 
 export async function registerPendingWebhookVerification(
   registration: PendingWebhookVerificationRegistration
 ): Promise<void> {
-  if (!requiresPendingWebhookVerification(registration.provider)) {
+  const registrationMatcher = pendingWebhookVerificationRegistrationMatchers[registration.provider]
+  if (!registrationMatcher || !registrationMatcher(registration)) {
     return
   }
 
@@ -160,7 +189,9 @@ export class PendingWebhookVerificationTracker {
   private readonly registeredPaths = new Set<string>()
 
   async register(registration: PendingWebhookVerificationRegistration): Promise<void> {
-    if (!requiresPendingWebhookVerification(registration.provider)) {
+    const registrationMatcher =
+      pendingWebhookVerificationRegistrationMatchers[registration.provider]
+    if (!registrationMatcher || !registrationMatcher(registration)) {
       return
     }
 
