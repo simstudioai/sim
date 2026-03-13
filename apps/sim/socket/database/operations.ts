@@ -1,12 +1,13 @@
 import * as schema from '@sim/db'
 import { webhook, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { env } from '@/lib/core/config/env'
 import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
+import { getActiveWorkflowContext } from '@/lib/workflows/active-context'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { mergeSubBlockValues } from '@/lib/workflows/subblocks'
 import {
@@ -174,7 +175,7 @@ export async function getWorkflowState(workflowId: string) {
     const workflowData = await db
       .select()
       .from(workflow)
-      .where(eq(workflow.id, workflowId))
+      .where(and(eq(workflow.id, workflowId), isNull(workflow.archivedAt)))
       .limit(1)
 
     if (!workflowData.length) {
@@ -216,6 +217,11 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
   const startTime = Date.now()
   try {
     const { operation: op, target, payload, timestamp, userId } = operation
+
+    const activeWorkflow = await getActiveWorkflowContext(workflowId)
+    if (!activeWorkflow) {
+      throw new Error(`Workflow ${workflowId} is archived or unavailable`)
+    }
 
     if (op === BLOCK_OPERATIONS.UPDATE_POSITION && Math.random() < 0.01) {
       logger.debug('Socket DB operation sample:', {

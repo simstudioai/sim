@@ -4,13 +4,16 @@ import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 
 const logger = createLogger('WorkspaceFilesQuery')
 
+type WorkspaceFileQueryScope = 'active' | 'archived' | 'all'
+
 /**
  * Query key factories for workspace files
  */
 export const workspaceFilesKeys = {
   all: ['workspaceFiles'] as const,
   lists: () => [...workspaceFilesKeys.all, 'list'] as const,
-  list: (workspaceId: string) => [...workspaceFilesKeys.lists(), workspaceId] as const,
+  list: (workspaceId: string, scope: WorkspaceFileQueryScope = 'active') =>
+    [...workspaceFilesKeys.lists(), workspaceId, scope] as const,
   contents: () => [...workspaceFilesKeys.all, 'content'] as const,
   content: (workspaceId: string, fileId: string) =>
     [...workspaceFilesKeys.contents(), workspaceId, fileId] as const,
@@ -32,9 +35,10 @@ export interface StorageInfo {
  */
 async function fetchWorkspaceFiles(
   workspaceId: string,
+  scope: WorkspaceFileQueryScope = 'active',
   signal?: AbortSignal
 ): Promise<WorkspaceFileRecord[]> {
-  const response = await fetch(`/api/workspaces/${workspaceId}/files`, { signal })
+  const response = await fetch(`/api/workspaces/${workspaceId}/files?scope=${scope}`, { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch workspace files')
@@ -48,10 +52,10 @@ async function fetchWorkspaceFiles(
 /**
  * Hook to fetch workspace files
  */
-export function useWorkspaceFiles(workspaceId: string) {
+export function useWorkspaceFiles(workspaceId: string, scope: WorkspaceFileQueryScope = 'active') {
   return useQuery({
-    queryKey: workspaceFilesKeys.list(workspaceId),
-    queryFn: ({ signal }) => fetchWorkspaceFiles(workspaceId, signal),
+    queryKey: workspaceFilesKeys.list(workspaceId, scope),
+    queryFn: ({ signal }) => fetchWorkspaceFiles(workspaceId, scope, signal),
     enabled: !!workspaceId,
     staleTime: 30 * 1000, // 30 seconds - files can change frequently
     placeholderData: keepPreviousData, // Show cached data immediately
@@ -157,7 +161,7 @@ export function useUploadWorkspaceFile() {
     },
     onSuccess: (_data, variables) => {
       // Invalidate files list to refetch
-      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.list(variables.workspaceId) })
+      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
       // Invalidate storage info to update usage
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
@@ -199,7 +203,7 @@ export function useUpdateWorkspaceFileContent() {
       queryClient.invalidateQueries({
         queryKey: workspaceFilesKeys.content(variables.workspaceId, variables.fileId),
       })
-      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.list(variables.workspaceId) })
+      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
     onError: (error) => {
@@ -242,7 +246,7 @@ export function useRenameWorkspaceFile() {
       return data
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.list(variables.workspaceId) })
+      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
     },
   })
 }
@@ -253,7 +257,6 @@ export function useRenameWorkspaceFile() {
 interface DeleteFileParams {
   workspaceId: string
   fileId: string
-  fileSize: number
 }
 
 export function useDeleteWorkspaceFile() {
@@ -273,52 +276,36 @@ export function useDeleteWorkspaceFile() {
 
       return data
     },
-    onMutate: async ({ workspaceId, fileId, fileSize }) => {
-      await Promise.all([
-        queryClient.cancelQueries({ queryKey: workspaceFilesKeys.list(workspaceId) }),
-        queryClient.cancelQueries({ queryKey: workspaceFilesKeys.storageInfo() }),
-      ])
+    onMutate: async ({ workspaceId, fileId }) => {
+      await queryClient.cancelQueries({ queryKey: workspaceFilesKeys.lists() })
 
       const previousFiles = queryClient.getQueryData<WorkspaceFileRecord[]>(
-        workspaceFilesKeys.list(workspaceId)
-      )
-      const previousStorage = queryClient.getQueryData<StorageInfo>(
-        workspaceFilesKeys.storageInfo()
+        workspaceFilesKeys.list(workspaceId, 'active')
       )
 
       if (previousFiles) {
         queryClient.setQueryData<WorkspaceFileRecord[]>(
-          workspaceFilesKeys.list(workspaceId),
+          workspaceFilesKeys.list(workspaceId, 'active'),
           previousFiles.filter((f) => f.id !== fileId)
         )
       }
 
-      if (previousStorage) {
-        const newUsedBytes = Math.max(0, previousStorage.usedBytes - fileSize)
-        const newPercentUsed = (newUsedBytes / previousStorage.limitBytes) * 100
-        queryClient.setQueryData<StorageInfo>(workspaceFilesKeys.storageInfo(), {
-          ...previousStorage,
-          usedBytes: newUsedBytes,
-          percentUsed: newPercentUsed,
-        })
-      }
-
-      return { previousFiles, previousStorage }
+      return { previousFiles }
     },
     onError: (_err, variables, context) => {
       if (context?.previousFiles) {
         queryClient.setQueryData(
-          workspaceFilesKeys.list(variables.workspaceId),
+          workspaceFilesKeys.list(variables.workspaceId, 'active'),
           context.previousFiles
         )
-      }
-      if (context?.previousStorage) {
-        queryClient.setQueryData(workspaceFilesKeys.storageInfo(), context.previousStorage)
       }
       logger.error('Failed to delete file')
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.list(variables.workspaceId) })
+      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
+      queryClient.removeQueries({
+        queryKey: workspaceFilesKeys.content(variables.workspaceId, variables.fileId),
+      })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
   })

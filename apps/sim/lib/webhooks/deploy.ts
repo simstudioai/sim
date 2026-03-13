@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import type { NextRequest } from 'next/server'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
@@ -368,7 +368,7 @@ export async function saveTriggerWebhooksForDeploy({
   const allWorkflowWebhooks = await db
     .select()
     .from(webhook)
-    .where(eq(webhook.workflowId, workflowId))
+    .where(and(eq(webhook.workflowId, workflowId), isNull(webhook.archivedAt)))
 
   // Separate webhooks by version: current deployment vs others
   const existingWebhooks: typeof allWorkflowWebhooks = []
@@ -765,9 +765,10 @@ export async function cleanupWebhooksForWorkflow(
       deploymentVersionId
         ? and(
             eq(webhook.workflowId, workflowId),
-            eq(webhook.deploymentVersionId, deploymentVersionId)
+            eq(webhook.deploymentVersionId, deploymentVersionId),
+            isNull(webhook.archivedAt)
           )
-        : eq(webhook.workflowId, workflowId)
+        : and(eq(webhook.workflowId, workflowId), isNull(webhook.archivedAt))
     )
 
   if (existingWebhooks.length === 0) {
@@ -829,7 +830,7 @@ export async function restorePreviousVersionWebhooks(params: {
   const previousWebhooks = await db
     .select()
     .from(webhook)
-    .where(eq(webhook.deploymentVersionId, previousVersionId))
+    .where(and(eq(webhook.deploymentVersionId, previousVersionId), isNull(webhook.archivedAt)))
 
   if (previousWebhooks.length === 0) {
     return
@@ -841,7 +842,7 @@ export async function restorePreviousVersionWebhooks(params: {
 
   for (const wh of previousWebhooks) {
     try {
-      await createExternalWebhookSubscription(
+      const result = await createExternalWebhookSubscription(
         request,
         {
           id: wh.id,
@@ -853,6 +854,13 @@ export async function restorePreviousVersionWebhooks(params: {
         userId,
         requestId
       )
+      await db
+        .update(webhook)
+        .set({
+          providerConfig: result.updatedProviderConfig,
+          updatedAt: new Date(),
+        })
+        .where(eq(webhook.id, wh.id))
       logger.info(`[${requestId}] Restored external subscription for webhook ${wh.id}`)
     } catch (restoreError) {
       logger.error(

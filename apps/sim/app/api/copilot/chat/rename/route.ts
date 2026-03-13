@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { getAccessibleCopilotChat } from '@/lib/copilot/chat-lifecycle'
 import { taskPubSub } from '@/lib/copilot/task-events'
 
 const logger = createLogger('RenameChatAPI')
@@ -23,6 +24,11 @@ export async function PATCH(request: NextRequest) {
 
     const body = await request.json()
     const { chatId, title } = RenameChatSchema.parse(body)
+
+    const chat = await getAccessibleCopilotChat(chatId, session.user.id)
+    if (!chat) {
+      return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
+    }
 
     const now = new Date()
     const [updated] = await db

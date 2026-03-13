@@ -8,7 +8,10 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, min } from 'drizzle-orm'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+import {
+  authorizeWorkflowByWorkspacePermission,
+  deduplicateWorkflowName,
+} from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import type { Variable } from '@/stores/panel/variables/types'
 import type { LoopConfig, ParallelConfig } from '@/stores/workflows/workflow/types'
@@ -168,14 +171,15 @@ export async function duplicateWorkflow(
     // Mapping from old variable IDs to new variable IDs (populated during variable duplication)
     const varIdMapping = new Map<string, string>()
 
-    // Create the new workflow first (required for foreign key constraints)
+    const deduplicatedName = await deduplicateWorkflowName(name, targetWorkspaceId, targetFolderId)
+
     await tx.insert(workflow).values({
       id: newWorkflowId,
       userId,
       workspaceId: targetWorkspaceId,
       folderId: targetFolderId,
       sortOrder,
-      name,
+      name: deduplicatedName,
       description: description || source.description,
       color: color || source.color,
       lastSynced: now,
@@ -380,7 +384,7 @@ export async function duplicateWorkflow(
 
     return {
       id: newWorkflowId,
-      name,
+      name: deduplicatedName,
       description: description || source.description,
       color: color || source.color,
       workspaceId: finalWorkspaceId,

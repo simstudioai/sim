@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflow, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
@@ -33,7 +33,11 @@ export const GET = withMcpAuth<RouteParams>('read')(
         .select({ id: workflowMcpServer.id })
         .from(workflowMcpServer)
         .where(
-          and(eq(workflowMcpServer.id, serverId), eq(workflowMcpServer.workspaceId, workspaceId))
+          and(
+            eq(workflowMcpServer.id, serverId),
+            eq(workflowMcpServer.workspaceId, workspaceId),
+            isNull(workflowMcpServer.deletedAt)
+          )
         )
         .limit(1)
 
@@ -56,8 +60,11 @@ export const GET = withMcpAuth<RouteParams>('read')(
           isDeployed: workflow.isDeployed,
         })
         .from(workflowMcpTool)
-        .leftJoin(workflow, eq(workflowMcpTool.workflowId, workflow.id))
-        .where(eq(workflowMcpTool.serverId, serverId))
+        .leftJoin(
+          workflow,
+          and(eq(workflowMcpTool.workflowId, workflow.id), isNull(workflow.archivedAt))
+        )
+        .where(and(eq(workflowMcpTool.serverId, serverId), isNull(workflowMcpTool.archivedAt)))
 
       logger.info(`[${requestId}] Found ${tools.length} tools for server ${serverId}`)
 
@@ -102,7 +109,11 @@ export const POST = withMcpAuth<RouteParams>('write')(
         .select({ id: workflowMcpServer.id })
         .from(workflowMcpServer)
         .where(
-          and(eq(workflowMcpServer.id, serverId), eq(workflowMcpServer.workspaceId, workspaceId))
+          and(
+            eq(workflowMcpServer.id, serverId),
+            eq(workflowMcpServer.workspaceId, workspaceId),
+            isNull(workflowMcpServer.deletedAt)
+          )
         )
         .limit(1)
 
@@ -119,7 +130,7 @@ export const POST = withMcpAuth<RouteParams>('write')(
           workspaceId: workflow.workspaceId,
         })
         .from(workflow)
-        .where(eq(workflow.id, body.workflowId))
+        .where(and(eq(workflow.id, body.workflowId), isNull(workflow.archivedAt)))
         .limit(1)
 
       if (!workflowRecord) {
@@ -157,7 +168,8 @@ export const POST = withMcpAuth<RouteParams>('write')(
         .where(
           and(
             eq(workflowMcpTool.serverId, serverId),
-            eq(workflowMcpTool.workflowId, body.workflowId)
+            eq(workflowMcpTool.workflowId, body.workflowId),
+            isNull(workflowMcpTool.archivedAt)
           )
         )
         .limit(1)

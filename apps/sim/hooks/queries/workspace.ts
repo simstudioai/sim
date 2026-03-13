@@ -4,10 +4,13 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
  * Query key factory for workspace-related queries.
  * Provides hierarchical cache keys for workspaces, settings, and permissions.
  */
+type WorkspaceQueryScope = 'active' | 'archived' | 'all'
+
 export const workspaceKeys = {
   all: ['workspace'] as const,
   lists: () => [...workspaceKeys.all, 'list'] as const,
-  list: () => [...workspaceKeys.lists(), 'user'] as const,
+  list: (scope: WorkspaceQueryScope = 'active') =>
+    [...workspaceKeys.lists(), 'user', scope] as const,
   details: () => [...workspaceKeys.all, 'detail'] as const,
   detail: (id: string) => [...workspaceKeys.details(), id] as const,
   settings: (id: string) => [...workspaceKeys.detail(id), 'settings'] as const,
@@ -28,8 +31,11 @@ export interface Workspace {
   permissions?: 'admin' | 'write' | 'read' | null
 }
 
-async function fetchWorkspaces(signal?: AbortSignal): Promise<Workspace[]> {
-  const response = await fetch('/api/workspaces', { signal })
+async function fetchWorkspaces(
+  scope: WorkspaceQueryScope = 'active',
+  signal?: AbortSignal
+): Promise<Workspace[]> {
+  const response = await fetch(`/api/workspaces?scope=${scope}`, { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch workspaces')
@@ -43,10 +49,10 @@ async function fetchWorkspaces(signal?: AbortSignal): Promise<Workspace[]> {
  * Fetches the current user's workspaces.
  * @param enabled - Whether the query should execute (defaults to true)
  */
-export function useWorkspacesQuery(enabled = true) {
+export function useWorkspacesQuery(enabled = true, scope: WorkspaceQueryScope = 'active') {
   return useQuery({
-    queryKey: workspaceKeys.list(),
-    queryFn: ({ signal }) => fetchWorkspaces(signal),
+    queryKey: workspaceKeys.list(scope),
+    queryFn: ({ signal }) => fetchWorkspaces(scope, signal),
     enabled,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
@@ -80,8 +86,12 @@ export function useCreateWorkspace() {
       const data = await response.json()
       return data.workspace as Workspace
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.all })
+      queryClient.removeQueries({ queryKey: workspaceKeys.detail(variables.workspaceId) })
+      queryClient.removeQueries({ queryKey: workspaceKeys.settings(variables.workspaceId) })
+      queryClient.removeQueries({ queryKey: workspaceKeys.permissions(variables.workspaceId) })
+      queryClient.removeQueries({ queryKey: workspaceKeys.members(variables.workspaceId) })
     },
   })
 }

@@ -10,9 +10,12 @@ import type {
 
 const logger = createLogger('KnowledgeQueries')
 
+type KnowledgeQueryScope = 'active' | 'archived' | 'all'
+
 export const knowledgeKeys = {
   all: ['knowledge'] as const,
-  list: (workspaceId?: string) => [...knowledgeKeys.all, 'list', workspaceId ?? 'all'] as const,
+  list: (workspaceId?: string, scope: KnowledgeQueryScope = 'active') =>
+    [...knowledgeKeys.all, 'list', workspaceId ?? 'all', scope] as const,
   detail: (knowledgeBaseId?: string) =>
     [...knowledgeKeys.all, 'detail', knowledgeBaseId ?? ''] as const,
   tagDefinitions: (knowledgeBaseId: string) =>
@@ -29,9 +32,12 @@ export const knowledgeKeys = {
 
 export async function fetchKnowledgeBases(
   workspaceId?: string,
+  scope: KnowledgeQueryScope = 'active',
   signal?: AbortSignal
 ): Promise<KnowledgeBaseData[]> {
-  const url = workspaceId ? `/api/knowledge?workspaceId=${workspaceId}` : '/api/knowledge'
+  const url = workspaceId
+    ? `/api/knowledge?workspaceId=${workspaceId}&scope=${scope}`
+    : `/api/knowledge?scope=${scope}`
   const response = await fetch(url, { signal })
 
   if (!response.ok) {
@@ -228,11 +234,13 @@ export function useKnowledgeBasesQuery(
   workspaceId?: string,
   options?: {
     enabled?: boolean
+    scope?: KnowledgeQueryScope
   }
 ) {
+  const scope = options?.scope ?? 'active'
   return useQuery({
-    queryKey: knowledgeKeys.list(workspaceId),
-    queryFn: ({ signal }) => fetchKnowledgeBases(workspaceId, signal),
+    queryKey: knowledgeKeys.list(workspaceId, scope),
+    queryFn: ({ signal }) => fetchKnowledgeBases(workspaceId, scope, signal),
     enabled: options?.enabled ?? true,
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
@@ -721,7 +729,7 @@ export function useCreateKnowledgeBase(workspaceId?: string) {
     mutationFn: createKnowledgeBase,
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.list(workspaceId),
+        queryKey: knowledgeKeys.all,
       })
     },
   })
@@ -769,7 +777,7 @@ export function useUpdateKnowledgeBase(workspaceId?: string) {
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.list(workspaceId),
+        queryKey: knowledgeKeys.all,
       })
     },
   })
@@ -804,7 +812,7 @@ export function useDeleteKnowledgeBase(workspaceId?: string) {
     mutationFn: deleteKnowledgeBase,
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.list(workspaceId),
+        queryKey: knowledgeKeys.all,
       })
     },
   })

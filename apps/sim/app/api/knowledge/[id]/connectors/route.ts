@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { knowledgeBaseTagDefinitions, knowledgeConnector } from '@sim/db/schema'
+import { knowledgeBase, knowledgeBaseTagDefinitions, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { encryptApiKey } from '@/lib/api-key/crypto'
@@ -49,6 +49,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .where(
         and(
           eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+          isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt)
         )
       )
@@ -182,6 +183,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       syncIntervalMinutes > 0 ? new Date(now.getTime() + syncIntervalMinutes * 60 * 1000) : null
 
     await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+
+      const activeKb = await tx
+        .select({ id: knowledgeBase.id })
+        .from(knowledgeBase)
+        .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+        .limit(1)
+
+      if (activeKb.length === 0) {
+        throw new Error('Knowledge base not found')
+      }
+
       for (const [semanticId, slot] of Object.entries(tagSlotMapping)) {
         const td = connectorConfig.tagDefinitions!.find((d) => d.id === semanticId)!
         await createTagDefinition(
@@ -229,6 +242,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { encryptedApiKey: _, ...createdData } = created[0]
     return NextResponse.json({ success: true, data: createdData }, { status: 201 })
   } catch (error) {
+    if (error instanceof Error && error.message === 'Knowledge base not found') {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
     logger.error(`[${requestId}] Error creating connector`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

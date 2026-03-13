@@ -195,7 +195,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
           }
         }
 
-        await queryClient.invalidateQueries({ queryKey: workflowKeys.list(workspaceId) })
+        await queryClient.invalidateQueries({ queryKey: workflowKeys.lists() })
         await queryClient.invalidateQueries({ queryKey: folderKeys.list(workspaceId) })
 
         logger.info(`Import complete. Imported ${importedWorkflowIds.length} workflow(s)`)

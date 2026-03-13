@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { StorageContext } from '../shared/types'
 
 const logger = createLogger('FileMetadata')
@@ -15,6 +15,7 @@ export interface FileMetadataRecord {
   originalName: string
   contentType: string
   size: number
+  deletedAt?: Date | null
   uploadedAt: Date
 }
 
@@ -44,10 +45,45 @@ export async function insertFileMetadata(
 ): Promise<FileMetadataRecord> {
   const { key, userId, workspaceId, context, originalName, contentType, size, id } = options
 
-  const existing = await db
+  const existingDeleted = await db
     .select()
     .from(workspaceFiles)
     .where(eq(workspaceFiles.key, key))
+    .limit(1)
+
+  if (existingDeleted.length > 0 && existingDeleted[0].deletedAt) {
+    await db
+      .update(workspaceFiles)
+      .set({
+        userId,
+        workspaceId: workspaceId || null,
+        context,
+        originalName,
+        contentType,
+        size,
+        deletedAt: null,
+        uploadedAt: new Date(),
+      })
+      .where(eq(workspaceFiles.id, existingDeleted[0].id))
+
+    return {
+      id: existingDeleted[0].id,
+      key,
+      userId,
+      workspaceId: workspaceId || null,
+      context,
+      originalName,
+      contentType,
+      size,
+      deletedAt: null,
+      uploadedAt: new Date(),
+    }
+  }
+
+  const existing = await db
+    .select()
+    .from(workspaceFiles)
+    .where(and(eq(workspaceFiles.key, key), isNull(workspaceFiles.deletedAt)))
     .limit(1)
 
   if (existing.length > 0) {
@@ -60,6 +96,7 @@ export async function insertFileMetadata(
       originalName: existing[0].originalName,
       contentType: existing[0].contentType,
       size: existing[0].size,
+      deletedAt: existing[0].deletedAt,
       uploadedAt: existing[0].uploadedAt,
     }
   }
@@ -76,6 +113,7 @@ export async function insertFileMetadata(
       originalName,
       contentType,
       size,
+      deletedAt: null,
       uploadedAt: new Date(),
     })
 
@@ -88,6 +126,7 @@ export async function insertFileMetadata(
       originalName,
       contentType,
       size,
+      deletedAt: null,
       uploadedAt: new Date(),
     }
   } catch (error) {
@@ -98,7 +137,7 @@ export async function insertFileMetadata(
       const existingAfterError = await db
         .select()
         .from(workspaceFiles)
-        .where(eq(workspaceFiles.key, key))
+        .where(and(eq(workspaceFiles.key, key), isNull(workspaceFiles.deletedAt)))
         .limit(1)
 
       if (existingAfterError.length > 0) {
@@ -111,6 +150,7 @@ export async function insertFileMetadata(
           originalName: existingAfterError[0].originalName,
           contentType: existingAfterError[0].contentType,
           size: existingAfterError[0].size,
+          deletedAt: existingAfterError[0].deletedAt,
           uploadedAt: existingAfterError[0].uploadedAt,
         }
       }
@@ -126,12 +166,18 @@ export async function insertFileMetadata(
  */
 export async function getFileMetadataByKey(
   key: string,
-  context?: StorageContext
+  context?: StorageContext,
+  options?: { includeDeleted?: boolean }
 ): Promise<FileMetadataRecord | null> {
+  const { includeDeleted = false } = options ?? {}
   const conditions = [eq(workspaceFiles.key, key)]
 
   if (context) {
     conditions.push(eq(workspaceFiles.context, context))
+  }
+
+  if (!includeDeleted) {
+    conditions.push(isNull(workspaceFiles.deletedAt))
   }
 
   const [record] = await db
@@ -153,6 +199,7 @@ export async function getFileMetadataByKey(
     originalName: record.originalName,
     contentType: record.contentType,
     size: record.size,
+    deletedAt: record.deletedAt,
     uploadedAt: record.uploadedAt,
   }
 }
@@ -162,7 +209,7 @@ export async function getFileMetadataByKey(
  */
 export async function getFileMetadataByContext(
   context: StorageContext,
-  options?: FileMetadataQueryOptions
+  options?: FileMetadataQueryOptions & { includeDeleted?: boolean }
 ): Promise<FileMetadataRecord[]> {
   const conditions = [eq(workspaceFiles.context, context)]
 
@@ -172,6 +219,10 @@ export async function getFileMetadataByContext(
 
   if (options?.userId) {
     conditions.push(eq(workspaceFiles.userId, options.userId))
+  }
+
+  if (!options?.includeDeleted) {
+    conditions.push(isNull(workspaceFiles.deletedAt))
   }
 
   const records = await db
@@ -189,6 +240,7 @@ export async function getFileMetadataByContext(
     originalName: record.originalName,
     contentType: record.contentType,
     size: record.size,
+    deletedAt: record.deletedAt,
     uploadedAt: record.uploadedAt,
   }))
 }
@@ -197,6 +249,9 @@ export async function getFileMetadataByContext(
  * Delete file metadata by key
  */
 export async function deleteFileMetadata(key: string): Promise<boolean> {
-  await db.delete(workspaceFiles).where(eq(workspaceFiles.key, key))
+  await db
+    .update(workspaceFiles)
+    .set({ deletedAt: new Date() })
+    .where(and(eq(workspaceFiles.key, key), isNull(workspaceFiles.deletedAt)))
   return true
 }

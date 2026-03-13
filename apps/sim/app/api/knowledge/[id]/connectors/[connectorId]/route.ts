@@ -1,17 +1,19 @@
 import { db } from '@sim/db'
 import {
   document,
+  embedding,
   knowledgeBase,
   knowledgeConnector,
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { deleteDocumentStorageFiles } from '@/lib/knowledge/documents/service'
 import { cleanupUnusedTagDefinitions } from '@/lib/knowledge/tags/service'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
@@ -53,6 +55,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         and(
           eq(knowledgeConnector.id, connectorId),
           eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+          isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt)
         )
       )
@@ -119,6 +122,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
           and(
             eq(knowledgeConnector.id, connectorId),
             eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+            isNull(knowledgeConnector.archivedAt),
             isNull(knowledgeConnector.deletedAt)
           )
         )
@@ -210,6 +214,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         and(
           eq(knowledgeConnector.id, connectorId),
           eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+          isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt)
         )
       )
@@ -221,6 +226,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         and(
           eq(knowledgeConnector.id, connectorId),
           eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+          isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt)
         )
       )
@@ -235,7 +241,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 }
 
 /**
- * DELETE /api/knowledge/[id]/connectors/[connectorId] - Soft-delete a connector
+ * DELETE /api/knowledge/[id]/connectors/[connectorId] - Hard-delete a connector
  */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   const requestId = generateRequestId()
@@ -253,31 +259,69 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: status === 404 ? 'Not found' : 'Unauthorized' }, { status })
     }
 
-    const now = new Date()
-
-    await db
-      .update(knowledgeConnector)
-      .set({ deletedAt: now, status: 'paused', updatedAt: now })
+    const existingConnector = await db
+      .select({ id: knowledgeConnector.id })
+      .from(knowledgeConnector)
       .where(
         and(
           eq(knowledgeConnector.id, connectorId),
           eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+          isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt)
         )
       )
+      .limit(1)
 
-    // Soft-delete all documents belonging to this connector
-    await db
-      .update(document)
-      .set({ deletedAt: now })
-      .where(and(eq(document.connectorId, connectorId), isNull(document.deletedAt)))
+    if (existingConnector.length === 0) {
+      return NextResponse.json({ error: 'Connector not found' }, { status: 404 })
+    }
 
-    // Reclaim tag slots that are no longer used by any active connector
+    const connectorDocuments = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT 1 FROM knowledge_connector WHERE id = ${connectorId} FOR UPDATE`)
+
+      const docs = await tx
+        .select({ id: document.id, fileUrl: document.fileUrl })
+        .from(document)
+        .where(
+          and(
+            eq(document.connectorId, connectorId),
+            isNull(document.archivedAt),
+            isNull(document.deletedAt)
+          )
+        )
+
+      const documentIds = docs.map((doc) => doc.id)
+      if (documentIds.length > 0) {
+        await tx.delete(embedding).where(inArray(embedding.documentId, documentIds))
+        await tx.delete(document).where(inArray(document.id, documentIds))
+      }
+
+      const deletedConnectors = await tx
+        .delete(knowledgeConnector)
+        .where(
+          and(
+            eq(knowledgeConnector.id, connectorId),
+            eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+            isNull(knowledgeConnector.archivedAt),
+            isNull(knowledgeConnector.deletedAt)
+          )
+        )
+        .returning({ id: knowledgeConnector.id })
+
+      if (deletedConnectors.length === 0) {
+        throw new Error('Connector not found')
+      }
+
+      return docs
+    })
+
+    await deleteDocumentStorageFiles(connectorDocuments, requestId)
+
     await cleanupUnusedTagDefinitions(knowledgeBaseId, requestId).catch((error) => {
       logger.warn(`[${requestId}] Failed to cleanup tag definitions`, error)
     })
 
-    logger.info(`[${requestId}] Soft-deleted connector ${connectorId} and its documents`)
+    logger.info(`[${requestId}] Hard-deleted connector ${connectorId} and its documents`)
 
     return NextResponse.json({ success: true })
   } catch (error) {

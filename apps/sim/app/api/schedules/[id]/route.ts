@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflowSchedule } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
@@ -56,7 +56,7 @@ async function fetchAndAuthorize(
       sourceWorkspaceId: workflowSchedule.sourceWorkspaceId,
     })
     .from(workflowSchedule)
-    .where(eq(workflowSchedule.id, scheduleId))
+    .where(and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt)))
     .limit(1)
 
   if (!schedule) {
@@ -68,8 +68,9 @@ async function fetchAndAuthorize(
     if (!schedule.sourceWorkspaceId) {
       return NextResponse.json({ error: 'Job has no workspace' }, { status: 400 })
     }
-    const allowed = await verifyWorkspaceMembership(userId, schedule.sourceWorkspaceId)
-    if (!allowed) {
+    const permission = await verifyWorkspaceMembership(userId, schedule.sourceWorkspaceId)
+    const canWrite = permission === 'admin' || permission === 'write'
+    if (!permission || (action === 'write' && !canWrite)) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
     }
     return { schedule, workspaceId: schedule.sourceWorkspaceId }
@@ -135,7 +136,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       await db
         .update(workflowSchedule)
         .set({ status: 'disabled', nextRunAt: null, updatedAt: new Date() })
-        .where(eq(workflowSchedule.id, scheduleId))
+        .where(and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt)))
 
       logger.info(`[${requestId}] Disabled schedule: ${scheduleId}`)
 
@@ -192,7 +193,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         }
       }
 
-      await db.update(workflowSchedule).set(setFields).where(eq(workflowSchedule.id, scheduleId))
+      await db
+        .update(workflowSchedule)
+        .set(setFields)
+        .where(and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt)))
 
       logger.info(`[${requestId}] Updated job schedule: ${scheduleId}`)
 
@@ -234,7 +238,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     await db
       .update(workflowSchedule)
       .set({ status: 'active', failedCount: 0, updatedAt: now, nextRunAt })
-      .where(eq(workflowSchedule.id, scheduleId))
+      .where(and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt)))
 
     logger.info(`[${requestId}] Reactivated schedule: ${scheduleId}`)
 

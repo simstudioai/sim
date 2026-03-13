@@ -24,11 +24,22 @@ vi.mock('@sim/db', () => databaseMock)
 
 vi.mock('@sim/db/schema', () => ({
   workflow: { id: 'id', userId: 'userId', workspaceId: 'workspaceId' },
-  workflowSchedule: { id: 'id', workflowId: 'workflowId', status: 'status' },
+  workflowSchedule: {
+    id: 'id',
+    workflowId: 'workflowId',
+    status: 'status',
+    cronExpression: 'cronExpression',
+    timezone: 'timezone',
+    sourceType: 'sourceType',
+    sourceWorkspaceId: 'sourceWorkspaceId',
+    archivedAt: 'archivedAt',
+  },
 }))
 
 vi.mock('drizzle-orm', () => ({
+  and: vi.fn(),
   eq: vi.fn(),
+  isNull: vi.fn(),
 }))
 
 vi.mock('@/lib/core/utils/request', () => requestUtilsMock)

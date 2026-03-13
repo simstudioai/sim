@@ -10,7 +10,7 @@
 import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq, gt, gte, inArray, sql } from 'drizzle-orm'
+import { and, count, eq, gt, gte, inArray, isNull, sql } from 'drizzle-orm'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { buildFilterClause, buildSortClause } from './sql'
 import type {
@@ -50,17 +50,27 @@ import {
 
 const logger = createLogger('TableService')
 
+export type TableScope = 'active' | 'archived' | 'all'
+
 /**
  * Gets a table by ID with full details.
  *
  * @param tableId - Table ID to fetch
  * @returns Table definition or null if not found
  */
-export async function getTableById(tableId: string): Promise<TableDefinition | null> {
+export async function getTableById(
+  tableId: string,
+  options?: { includeArchived?: boolean }
+): Promise<TableDefinition | null> {
+  const { includeArchived = false } = options ?? {}
   const results = await db
     .select()
     .from(userTableDefinitions)
-    .where(eq(userTableDefinitions.id, tableId))
+    .where(
+      includeArchived
+        ? eq(userTableDefinitions.id, tableId)
+        : and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.archivedAt))
+    )
     .limit(1)
 
   if (results.length === 0) return null
@@ -76,6 +86,7 @@ export async function getTableById(tableId: string): Promise<TableDefinition | n
     maxRows: table.maxRows,
     workspaceId: table.workspaceId,
     createdBy: table.createdBy,
+    archivedAt: table.archivedAt,
     createdAt: table.createdAt,
     updatedAt: table.updatedAt,
   }
@@ -91,11 +102,20 @@ export async function countTables(workspaceId: string): Promise<number> {
   const [result] = await db
     .select({ count: count() })
     .from(userTableDefinitions)
-    .where(eq(userTableDefinitions.workspaceId, workspaceId))
+    .where(
+      and(
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        isNull(userTableDefinitions.archivedAt)
+      )
+    )
   return result.count
 }
 
-export async function listTables(workspaceId: string): Promise<TableDefinition[]> {
+export async function listTables(
+  workspaceId: string,
+  options?: { scope?: TableScope }
+): Promise<TableDefinition[]> {
+  const { scope = 'active' } = options ?? {}
   const tables = await db
     .select({
       id: userTableDefinitions.id,
@@ -106,13 +126,26 @@ export async function listTables(workspaceId: string): Promise<TableDefinition[]
       maxRows: userTableDefinitions.maxRows,
       workspaceId: userTableDefinitions.workspaceId,
       createdBy: userTableDefinitions.createdBy,
+      archivedAt: userTableDefinitions.archivedAt,
       createdAt: userTableDefinitions.createdAt,
       updatedAt: userTableDefinitions.updatedAt,
       rowCount: sql<number>`coalesce(${count(userTableRows.id)}, 0)`.mapWith(Number),
     })
     .from(userTableDefinitions)
     .leftJoin(userTableRows, eq(userTableRows.tableId, userTableDefinitions.id))
-    .where(eq(userTableDefinitions.workspaceId, workspaceId))
+    .where(
+      scope === 'all'
+        ? eq(userTableDefinitions.workspaceId, workspaceId)
+        : scope === 'archived'
+          ? and(
+              eq(userTableDefinitions.workspaceId, workspaceId),
+              sql`${userTableDefinitions.archivedAt} IS NOT NULL`
+            )
+          : and(
+              eq(userTableDefinitions.workspaceId, workspaceId),
+              isNull(userTableDefinitions.archivedAt)
+            )
+    )
     .groupBy(userTableDefinitions.id)
     .orderBy(userTableDefinitions.createdAt)
 
@@ -126,6 +159,7 @@ export async function listTables(workspaceId: string): Promise<TableDefinition[]
     maxRows: t.maxRows,
     workspaceId: t.workspaceId,
     createdBy: t.createdBy,
+    archivedAt: t.archivedAt,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   }))
@@ -170,6 +204,7 @@ export async function createTable(
     workspaceId: data.workspaceId,
     createdBy: data.userId,
     maxRows,
+    archivedAt: null,
     createdAt: now,
     updatedAt: now,
   }
@@ -182,7 +217,12 @@ export async function createTable(
     const [{ count: existingCount }] = await trx
       .select({ count: count() })
       .from(userTableDefinitions)
-      .where(eq(userTableDefinitions.workspaceId, data.workspaceId))
+      .where(
+        and(
+          eq(userTableDefinitions.workspaceId, data.workspaceId),
+          isNull(userTableDefinitions.archivedAt)
+        )
+      )
 
     if (Number(existingCount) >= maxTables) {
       throw new Error(`Workspace has reached maximum table limit (${maxTables})`)
@@ -194,7 +234,8 @@ export async function createTable(
       .where(
         and(
           eq(userTableDefinitions.workspaceId, data.workspaceId),
-          eq(userTableDefinitions.name, data.name)
+          eq(userTableDefinitions.name, data.name),
+          isNull(userTableDefinitions.archivedAt)
         )
       )
       .limit(1)
@@ -232,6 +273,7 @@ export async function createTable(
     maxRows: newTable.maxRows,
     workspaceId: newTable.workspaceId,
     createdBy: newTable.createdBy,
+    archivedAt: newTable.archivedAt,
     createdAt: newTable.createdAt,
     updatedAt: newTable.updatedAt,
   }
@@ -376,18 +418,18 @@ export async function updateTableMetadata(
 }
 
 /**
- * Deletes a table (hard delete).
+ * Archives a table.
  *
  * @param tableId - Table ID to delete
  * @param requestId - Request ID for logging
  */
 export async function deleteTable(tableId: string, requestId: string): Promise<void> {
-  await db.transaction(async (trx) => {
-    await trx.delete(userTableRows).where(eq(userTableRows.tableId, tableId))
-    await trx.delete(userTableDefinitions).where(eq(userTableDefinitions.id, tableId))
-  })
+  await db
+    .update(userTableDefinitions)
+    .set({ archivedAt: new Date(), updatedAt: new Date() })
+    .where(eq(userTableDefinitions.id, tableId))
 
-  logger.info(`[${requestId}] Deleted table ${tableId}`)
+  logger.info(`[${requestId}] Archived table ${tableId}`)
 }
 
 /**

@@ -39,6 +39,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         and(
           eq(knowledgeConnector.id, connectorId),
           eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+          isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt)
         )
       )
@@ -65,6 +66,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       .where(
         and(
           eq(document.connectorId, connectorId),
+          isNull(document.archivedAt),
           isNull(document.deletedAt),
           eq(document.userExcluded, false)
         )
@@ -88,6 +90,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             and(
               eq(document.connectorId, connectorId),
               eq(document.userExcluded, true),
+              isNull(document.archivedAt),
               isNull(document.deletedAt)
             )
           )
@@ -143,6 +146,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         and(
           eq(knowledgeConnector.id, connectorId),
           eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+          isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt)
         )
       )
@@ -166,12 +170,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (operation === 'restore') {
       const updated = await db
         .update(document)
-        .set({ userExcluded: false, deletedAt: null, enabled: true })
+        .set({ userExcluded: false, enabled: true })
         .where(
           and(
             eq(document.connectorId, connectorId),
             inArray(document.id, documentIds),
             eq(document.userExcluded, true),
+            isNull(document.archivedAt),
             isNull(document.deletedAt)
           )
         )
@@ -187,12 +192,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     const updated = await db
       .update(document)
-      .set({ userExcluded: true })
+      .set({ userExcluded: true, enabled: false })
       .where(
         and(
           eq(document.connectorId, connectorId),
           inArray(document.id, documentIds),
           eq(document.userExcluded, false),
+          isNull(document.archivedAt),
           isNull(document.deletedAt)
         )
       )

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { form, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest, NextResponse } from 'next/server'
 import {
   isEmailAllowed,
@@ -57,7 +57,7 @@ export async function checkFormAccess(
     .select({ form: form, workflowWorkspaceId: workflow.workspaceId })
     .from(form)
     .innerJoin(workflow, eq(form.workflowId, workflow.id))
-    .where(eq(form.id, formId))
+    .where(and(eq(form.id, formId), isNull(form.archivedAt)))
     .limit(1)
 
   if (formData.length === 0) {

@@ -316,6 +316,8 @@ export async function findWebhookAndWorkflow(
         and(
           eq(webhook.id, options.webhookId),
           eq(webhook.isActive, true),
+          isNull(webhook.archivedAt),
+          isNull(workflow.archivedAt),
           or(
             eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
             and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
@@ -351,6 +353,8 @@ export async function findWebhookAndWorkflow(
         and(
           eq(webhook.path, options.path),
           eq(webhook.isActive, true),
+          isNull(webhook.archivedAt),
+          isNull(workflow.archivedAt),
           or(
             eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
             and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
@@ -399,6 +403,8 @@ export async function findAllWebhooksForPath(
       and(
         eq(webhook.path, options.path),
         eq(webhook.isActive, true),
+        isNull(webhook.archivedAt),
+        isNull(workflow.archivedAt),
         or(
           eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
           and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))

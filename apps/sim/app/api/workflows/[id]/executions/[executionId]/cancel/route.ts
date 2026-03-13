@@ -33,6 +33,16 @@ export async function POST(
       )
     }
 
+    if (
+      auth.apiKeyType === 'workspace' &&
+      workflowAuthorization.workflow?.workspaceId !== auth.workspaceId
+    ) {
+      return NextResponse.json(
+        { error: 'API key is not authorized for this workspace' },
+        { status: 403 }
+      )
+    }
+
     logger.info('Cancel execution requested', { workflowId, executionId, userId: auth.userId })
 
     const marked = await markExecutionCancelled(executionId)

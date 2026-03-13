@@ -17,6 +17,7 @@ const logger = createLogger('ScheduledExecuteAPI')
 
 const dueFilter = (queuedAt: Date) =>
   and(
+    isNull(workflowSchedule.archivedAt),
     lte(workflowSchedule.nextRunAt, queuedAt),
     not(eq(workflowSchedule.status, 'disabled')),
     ne(workflowSchedule.status, 'completed'),
@@ -104,35 +105,48 @@ export async function GET(request: NextRequest) {
         )
 
         if (shouldExecuteInline()) {
-          void (async () => {
-            try {
-              await jobQueue.startJob(jobId)
-              const output = await executeScheduleJob(payload)
-              await jobQueue.completeJob(jobId, output)
-            } catch (error) {
-              const errorMessage = error instanceof Error ? error.message : String(error)
-              logger.error(
-                `[${requestId}] Schedule execution failed for workflow ${schedule.workflowId}`,
-                { jobId, error: errorMessage }
-              )
-              try {
-                await jobQueue.markJobFailed(jobId, errorMessage)
-              } catch (markFailedError) {
-                logger.error(`[${requestId}] Failed to mark job as failed`, {
-                  jobId,
-                  error:
-                    markFailedError instanceof Error
-                      ? markFailedError.message
-                      : String(markFailedError),
-                })
+          try {
+            await jobQueue.startJob(jobId)
+            const output = await executeScheduleJob(payload)
+            await jobQueue.completeJob(jobId, output)
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error)
+            logger.error(
+              `[${requestId}] Schedule execution failed for workflow ${schedule.workflowId}`,
+              {
+                jobId,
+                error: errorMessage,
               }
+            )
+            try {
+              await jobQueue.markJobFailed(jobId, errorMessage)
+            } catch (markFailedError) {
+              logger.error(`[${requestId}] Failed to mark job as failed`, {
+                jobId,
+                error:
+                  markFailedError instanceof Error
+                    ? markFailedError.message
+                    : String(markFailedError),
+              })
             }
-          })()
+            await releaseScheduleLock(
+              schedule.id,
+              requestId,
+              queuedAt,
+              `Failed to release lock for schedule ${schedule.id} after inline execution failure`
+            )
+          }
         }
       } catch (error) {
         logger.error(
           `[${requestId}] Failed to queue schedule execution for workflow ${schedule.workflowId}`,
           error
+        )
+        await releaseScheduleLock(
+          schedule.id,
+          requestId,
+          queuedAt,
+          `Failed to release lock for schedule ${schedule.id} after queue failure`
         )
       }
     })
@@ -147,21 +161,19 @@ export async function GET(request: NextRequest) {
         now: queueTime.toISOString(),
       }
 
-      void (async () => {
-        try {
-          await executeJobInline(payload)
-        } catch (error) {
-          logger.error(`[${requestId}] Job execution failed for ${job.id}`, {
-            error: error instanceof Error ? error.message : String(error),
-          })
-          await releaseScheduleLock(
-            job.id,
-            requestId,
-            queuedAt,
-            `Failed to release lock for job ${job.id}`
-          )
-        }
-      })()
+      try {
+        await executeJobInline(payload)
+      } catch (error) {
+        logger.error(`[${requestId}] Job execution failed for ${job.id}`, {
+          error: error instanceof Error ? error.message : String(error),
+        })
+        await releaseScheduleLock(
+          job.id,
+          requestId,
+          queuedAt,
+          `Failed to release lock for job ${job.id}`
+        )
+      }
     })
 
     await Promise.allSettled([...schedulePromises, ...jobPromises])

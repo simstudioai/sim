@@ -7,7 +7,7 @@
 import { db } from '@sim/db'
 import { a2aAgent, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { generateSkillsFromWorkflow } from '@/lib/a2a/agent-card'
@@ -72,8 +72,8 @@ export async function GET(request: NextRequest) {
         )`.as('task_count'),
       })
       .from(a2aAgent)
-      .leftJoin(workflow, eq(a2aAgent.workflowId, workflow.id))
-      .where(eq(a2aAgent.workspaceId, workspaceId))
+      .leftJoin(workflow, and(eq(a2aAgent.workflowId, workflow.id), isNull(workflow.archivedAt)))
+      .where(and(eq(a2aAgent.workspaceId, workspaceId), isNull(a2aAgent.archivedAt)))
       .orderBy(a2aAgent.createdAt)
 
     logger.info(`Listed ${agents.length} A2A agents for workspace ${workspaceId}`)
@@ -123,7 +123,13 @@ export async function POST(request: NextRequest) {
         isDeployed: workflow.isDeployed,
       })
       .from(workflow)
-      .where(and(eq(workflow.id, workflowId), eq(workflow.workspaceId, workspaceId)))
+      .where(
+        and(
+          eq(workflow.id, workflowId),
+          eq(workflow.workspaceId, workspaceId),
+          isNull(workflow.archivedAt)
+        )
+      )
       .limit(1)
 
     if (!wf) {
@@ -144,7 +150,13 @@ export async function POST(request: NextRequest) {
     const [existing] = await db
       .select({ id: a2aAgent.id })
       .from(a2aAgent)
-      .where(and(eq(a2aAgent.workspaceId, workspaceId), eq(a2aAgent.workflowId, workflowId)))
+      .where(
+        and(
+          eq(a2aAgent.workspaceId, workspaceId),
+          eq(a2aAgent.workflowId, workflowId),
+          isNull(a2aAgent.archivedAt)
+        )
+      )
       .limit(1)
 
     if (existing) {

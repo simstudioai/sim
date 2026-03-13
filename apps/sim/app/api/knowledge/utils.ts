@@ -293,7 +293,15 @@ export async function checkDocumentWriteAccess(
       externalId: document.externalId,
     })
     .from(document)
-    .where(and(eq(document.id, documentId), isNull(document.deletedAt)))
+    .where(
+      and(
+        eq(document.id, documentId),
+        eq(document.knowledgeBaseId, knowledgeBaseId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
     .limit(1)
 
   if (doc.length === 0) {
@@ -333,6 +341,8 @@ export async function checkDocumentAccess(
       and(
         eq(document.id, documentId),
         eq(document.knowledgeBaseId, knowledgeBaseId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
         isNull(document.deletedAt)
       )
     )
@@ -376,6 +386,8 @@ export async function checkChunkAccess(
       and(
         eq(document.id, documentId),
         eq(document.knowledgeBaseId, knowledgeBaseId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
         isNull(document.deletedAt)
       )
     )

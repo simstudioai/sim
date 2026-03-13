@@ -6,12 +6,17 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { isTriggerAvailable, processDocumentAsync } from '@/lib/knowledge/documents/service'
+import {
+  hardDeleteDocuments,
+  isTriggerAvailable,
+  processDocumentAsync,
+} from '@/lib/knowledge/documents/service'
 import { StorageService } from '@/lib/uploads'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
+import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { knowledgeConnectorSync } from '@/background/knowledge-connector-sync'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
@@ -33,6 +38,7 @@ class ConnectorDeletedException extends Error {
 
 const SYNC_BATCH_SIZE = 5
 const MAX_PAGES = 500
+type KnowledgeBaseLockingTx = Pick<typeof db, 'execute' | 'select'>
 
 type DocOp =
   | { type: 'add'; extDoc: ExternalDocument }
@@ -40,11 +46,35 @@ type DocOp =
 
 async function isConnectorDeleted(connectorId: string): Promise<boolean> {
   const rows = await db
-    .select({ deletedAt: knowledgeConnector.deletedAt })
+    .select({ archivedAt: knowledgeConnector.archivedAt, deletedAt: knowledgeConnector.deletedAt })
     .from(knowledgeConnector)
     .where(eq(knowledgeConnector.id, connectorId))
     .limit(1)
+  return rows.length === 0 || rows[0].archivedAt !== null || rows[0].deletedAt !== null
+}
+
+async function isKnowledgeBaseDeleted(knowledgeBaseId: string): Promise<boolean> {
+  const rows = await db
+    .select({ deletedAt: knowledgeBase.deletedAt })
+    .from(knowledgeBase)
+    .where(eq(knowledgeBase.id, knowledgeBaseId))
+    .limit(1)
   return rows.length === 0 || rows[0].deletedAt !== null
+}
+
+async function isKnowledgeBaseActiveInTx(
+  tx: KnowledgeBaseLockingTx,
+  knowledgeBaseId: string
+): Promise<boolean> {
+  await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+
+  const rows = await tx
+    .select({ id: knowledgeBase.id })
+    .from(knowledgeBase)
+    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+    .limit(1)
+
+  return rows.length > 0
 }
 
 function calculateNextSyncTime(syncIntervalMinutes: number): Date | null {
@@ -178,7 +208,13 @@ export async function executeSync(
   const connectorRows = await db
     .select()
     .from(knowledgeConnector)
-    .where(and(eq(knowledgeConnector.id, connectorId), isNull(knowledgeConnector.deletedAt)))
+    .where(
+      and(
+        eq(knowledgeConnector.id, connectorId),
+        isNull(knowledgeConnector.archivedAt),
+        isNull(knowledgeConnector.deletedAt)
+      )
+    )
     .limit(1)
 
   if (connectorRows.length === 0) {
@@ -195,7 +231,7 @@ export async function executeSync(
   const kbRows = await db
     .select({ userId: knowledgeBase.userId })
     .from(knowledgeBase)
-    .where(eq(knowledgeBase.id, connector.knowledgeBaseId))
+    .where(and(eq(knowledgeBase.id, connector.knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
     .limit(1)
 
   if (kbRows.length === 0) {
@@ -218,6 +254,7 @@ export async function executeSync(
       and(
         eq(knowledgeConnector.id, connectorId),
         ne(knowledgeConnector.status, 'syncing'),
+        isNull(knowledgeConnector.archivedAt),
         isNull(knowledgeConnector.deletedAt)
       )
     )
@@ -286,7 +323,13 @@ export async function executeSync(
           contentHash: document.contentHash,
         })
         .from(document)
-        .where(and(eq(document.connectorId, connectorId), isNull(document.deletedAt))),
+        .where(
+          and(
+            eq(document.connectorId, connectorId),
+            isNull(document.archivedAt),
+            isNull(document.deletedAt)
+          )
+        ),
       db
         .select({ externalId: document.externalId })
         .from(document)
@@ -294,6 +337,7 @@ export async function executeSync(
           and(
             eq(document.connectorId, connectorId),
             eq(document.userExcluded, true),
+            isNull(document.archivedAt),
             isNull(document.deletedAt)
           )
         ),
@@ -320,7 +364,13 @@ export async function executeSync(
           consecutiveFailures: 0,
           updatedAt: now,
         })
-        .where(and(eq(knowledgeConnector.id, connectorId), isNull(knowledgeConnector.deletedAt)))
+        .where(
+          and(
+            eq(knowledgeConnector.id, connectorId),
+            isNull(knowledgeConnector.archivedAt),
+            isNull(knowledgeConnector.deletedAt)
+          )
+        )
 
       return result
     }
@@ -361,6 +411,9 @@ export async function executeSync(
     for (let i = 0; i < pendingOps.length; i += SYNC_BATCH_SIZE) {
       if (await isConnectorDeleted(connectorId)) {
         throw new ConnectorDeletedException(connectorId)
+      }
+      if (await isKnowledgeBaseDeleted(connector.knowledgeBaseId)) {
+        throw new Error(`Knowledge base ${connector.knowledgeBaseId} was deleted during sync`)
       }
 
       const batch = pendingOps.slice(i, i + SYNC_BATCH_SIZE)
@@ -410,10 +463,7 @@ export async function executeSync(
         .map((d) => d.id)
 
       if (removedIds.length > 0) {
-        await db
-          .update(document)
-          .set({ deletedAt: new Date() })
-          .where(inArray(document.id, removedIds))
+        await hardDeleteDocuments(removedIds, syncLogId)
         result.docsDeleted += removedIds.length
       }
     }
@@ -421,6 +471,9 @@ export async function executeSync(
     // Check if connector was deleted before retrying stuck documents
     if (await isConnectorDeleted(connectorId)) {
       throw new ConnectorDeletedException(connectorId)
+    }
+    if (await isKnowledgeBaseDeleted(connector.knowledgeBaseId)) {
+      throw new Error(`Knowledge base ${connector.knowledgeBaseId} was deleted during sync`)
     }
 
     // Retry stuck documents that failed or never completed processing
@@ -436,6 +489,8 @@ export async function executeSync(
         and(
           eq(document.connectorId, connectorId),
           inArray(document.processingStatus, ['pending', 'failed']),
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
           isNull(document.deletedAt)
         )
       )
@@ -476,7 +531,13 @@ export async function executeSync(
         consecutiveFailures: 0,
         updatedAt: now,
       })
-      .where(and(eq(knowledgeConnector.id, connectorId), isNull(knowledgeConnector.deletedAt)))
+      .where(
+        and(
+          eq(knowledgeConnector.id, connectorId),
+          isNull(knowledgeConnector.archivedAt),
+          isNull(knowledgeConnector.deletedAt)
+        )
+      )
 
     logger.info('Sync completed', { connectorId, ...result })
     return result
@@ -485,11 +546,21 @@ export async function executeSync(
       logger.info('Connector deleted during sync, cleaning up', { connectorId })
 
       try {
-        const cleanupTime = new Date()
-        await db
-          .update(document)
-          .set({ deletedAt: cleanupTime })
-          .where(and(eq(document.connectorId, connectorId), isNull(document.deletedAt)))
+        const connectorDocs = await db
+          .select({ id: document.id })
+          .from(document)
+          .where(
+            and(
+              eq(document.connectorId, connectorId),
+              isNull(document.archivedAt),
+              isNull(document.deletedAt)
+            )
+          )
+
+        await hardDeleteDocuments(
+          connectorDocs.map((doc) => doc.id),
+          syncLogId
+        )
 
         await completeSyncLog(syncLogId, 'failed', result, 'Connector deleted during sync')
       } catch (cleanupError) {
@@ -524,7 +595,13 @@ export async function executeSync(
           consecutiveFailures: failures,
           updatedAt: now,
         })
-        .where(and(eq(knowledgeConnector.id, connectorId), isNull(knowledgeConnector.deletedAt)))
+        .where(
+          and(
+            eq(knowledgeConnector.id, connectorId),
+            isNull(knowledgeConnector.archivedAt),
+            isNull(knowledgeConnector.deletedAt)
+          )
+        )
     } catch (recoveryError) {
       logger.error('Failed to record sync failure', {
         connectorId,
@@ -548,6 +625,9 @@ async function addDocument(
   extDoc: ExternalDocument,
   sourceConfig?: Record<string, unknown>
 ): Promise<void> {
+  if (await isKnowledgeBaseDeleted(knowledgeBaseId)) {
+    throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
+  }
   const documentId = crypto.randomUUID()
   const contentBuffer = Buffer.from(extDoc.content, 'utf-8')
   const safeTitle = extDoc.title.replace(/[^a-zA-Z0-9.-]/g, '_')
@@ -570,25 +650,41 @@ async function addDocument(
 
   const processingFilename = `${safeTitle}.txt`
 
-  await db.insert(document).values({
-    id: documentId,
-    knowledgeBaseId,
-    filename: extDoc.title,
-    fileUrl,
-    fileSize: contentBuffer.length,
-    mimeType: 'text/plain',
-    chunkCount: 0,
-    tokenCount: 0,
-    characterCount: 0,
-    processingStatus: 'pending',
-    enabled: true,
-    connectorId,
-    externalId: extDoc.externalId,
-    contentHash: extDoc.contentHash,
-    sourceUrl: extDoc.sourceUrl ?? null,
-    ...tagValues,
-    uploadedAt: new Date(),
-  })
+  try {
+    await db.transaction(async (tx) => {
+      const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
+      if (!isActive) {
+        throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
+      }
+
+      await tx.insert(document).values({
+        id: documentId,
+        knowledgeBaseId,
+        filename: extDoc.title,
+        fileUrl,
+        fileSize: contentBuffer.length,
+        mimeType: 'text/plain',
+        chunkCount: 0,
+        tokenCount: 0,
+        characterCount: 0,
+        processingStatus: 'pending',
+        enabled: true,
+        connectorId,
+        externalId: extDoc.externalId,
+        contentHash: extDoc.contentHash,
+        sourceUrl: extDoc.sourceUrl ?? null,
+        ...tagValues,
+        uploadedAt: new Date(),
+      })
+    })
+  } catch (error) {
+    const urlPath = new URL(fileUrl, 'http://localhost').pathname
+    const storageKey = extractStorageKey(urlPath)
+    if (storageKey && storageKey !== urlPath) {
+      await deleteFile({ key: storageKey, context: 'knowledge-base' }).catch(() => undefined)
+    }
+    throw error
+  }
 
   processDocumentAsync(
     knowledgeBaseId,
@@ -621,6 +717,9 @@ async function updateDocument(
   extDoc: ExternalDocument,
   sourceConfig?: Record<string, unknown>
 ): Promise<void> {
+  if (await isKnowledgeBaseDeleted(knowledgeBaseId)) {
+    throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
+  }
   // Fetch old file URL before uploading replacement
   const existingRows = await db
     .select({ fileUrl: document.fileUrl })
@@ -650,25 +749,53 @@ async function updateDocument(
 
   const processingFilename = `${safeTitle}.txt`
 
-  await db
-    .update(document)
-    .set({
-      filename: extDoc.title,
-      fileUrl,
-      fileSize: contentBuffer.length,
-      contentHash: extDoc.contentHash,
-      sourceUrl: extDoc.sourceUrl ?? null,
-      ...tagValues,
-      processingStatus: 'pending',
-      uploadedAt: new Date(),
+  try {
+    await db.transaction(async (tx) => {
+      const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
+      if (!isActive) {
+        throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
+      }
+
+      await tx
+        .update(document)
+        .set({
+          filename: extDoc.title,
+          fileUrl,
+          fileSize: contentBuffer.length,
+          contentHash: extDoc.contentHash,
+          sourceUrl: extDoc.sourceUrl ?? null,
+          ...tagValues,
+          processingStatus: 'pending',
+          uploadedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(document.id, existingDocId),
+            isNull(document.archivedAt),
+            isNull(document.deletedAt)
+          )
+        )
+        .returning({ id: document.id })
+        .then((rows) => {
+          if (rows.length === 0) {
+            throw new Error(`Document ${existingDocId} is no longer active`)
+          }
+        })
     })
-    .where(eq(document.id, existingDocId))
+  } catch (error) {
+    const urlPath = new URL(fileUrl, 'http://localhost').pathname
+    const storageKey = extractStorageKey(urlPath)
+    if (storageKey && storageKey !== urlPath) {
+      await deleteFile({ key: storageKey, context: 'knowledge-base' }).catch(() => undefined)
+    }
+    throw error
+  }
 
   // Clean up old storage file
   if (oldFileUrl) {
     try {
       const urlPath = new URL(oldFileUrl, 'http://localhost').pathname
-      const storageKey = urlPath.replace(/^\/api\/uploads\//, '')
+      const storageKey = extractStorageKey(urlPath)
       if (storageKey && storageKey !== urlPath) {
         await deleteFile({ key: storageKey, context: 'knowledge-base' })
       }

@@ -38,6 +38,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         and(
           eq(knowledgeConnector.id, connectorId),
           eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+          isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt)
         )
       )

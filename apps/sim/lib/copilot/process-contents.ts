@@ -1,14 +1,18 @@
 import { db } from '@sim/db'
-import { copilotChats, document, knowledgeBase, templates } from '@sim/db/schema'
+import { document, knowledgeBase, templates } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { readFileRecord } from '@/lib/copilot/vfs/file-reader'
 import { serializeTableMeta } from '@/lib/copilot/vfs/serializers'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
 import { getTableById } from '@/lib/table/service'
+import { canAccessTemplate } from '@/lib/templates/permissions'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 import { isHiddenFromDisplay } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { escapeRegExp } from '@/executor/constants'
@@ -48,24 +52,37 @@ export async function processContexts(
       if ((ctx.kind === 'workflow' || ctx.kind === 'current_workflow') && ctx.workflowId) {
         return await processWorkflowFromDb(
           ctx.workflowId,
+          undefined,
           ctx.label ? `@${ctx.label}` : '@',
           ctx.kind
         )
       }
       if (ctx.kind === 'knowledge' && ctx.knowledgeId) {
-        return await processKnowledgeFromDb(ctx.knowledgeId, ctx.label ? `@${ctx.label}` : '@')
+        return await processKnowledgeFromDb(
+          ctx.knowledgeId,
+          undefined,
+          ctx.label ? `@${ctx.label}` : '@'
+        )
       }
       if (ctx.kind === 'blocks' && ctx.blockIds?.length > 0) {
         return await processBlockMetadata(ctx.blockIds[0], ctx.label ? `@${ctx.label}` : '@')
       }
       if (ctx.kind === 'templates' && ctx.templateId) {
-        return await processTemplateFromDb(ctx.templateId, ctx.label ? `@${ctx.label}` : '@')
+        return await processTemplateFromDb(
+          ctx.templateId,
+          undefined,
+          ctx.label ? `@${ctx.label}` : '@'
+        )
       }
       if (ctx.kind === 'logs' && ctx.executionId) {
-        return await processExecutionLogFromDb(ctx.executionId, ctx.label ? `@${ctx.label}` : '@')
+        return await processExecutionLogFromDb(
+          ctx.executionId,
+          undefined,
+          ctx.label ? `@${ctx.label}` : '@'
+        )
       }
       if (ctx.kind === 'workflow_block' && ctx.workflowId && ctx.blockId) {
-        return await processWorkflowBlockFromDb(ctx.workflowId, ctx.blockId, ctx.label)
+        return await processWorkflowBlockFromDb(ctx.workflowId, undefined, ctx.blockId, ctx.label)
       }
       // Other kinds can be added here: workflow, blocks, logs, knowledge, templates, docs
       return null
@@ -84,26 +101,34 @@ export async function processContextsServer(
   contexts: ChatContext[] | undefined,
   userId: string,
   userMessage?: string,
-  workspaceId?: string
+  currentWorkspaceId?: string
 ): Promise<AgentContext[]> {
   if (!Array.isArray(contexts) || contexts.length === 0) return []
   const tasks = contexts.map(async (ctx) => {
     try {
       if (ctx.kind === 'past_chat' && ctx.chatId) {
-        return await processPastChatFromDb(ctx.chatId, userId, ctx.label ? `@${ctx.label}` : '@')
+        return await processPastChatFromDb(
+          ctx.chatId,
+          userId,
+          ctx.label ? `@${ctx.label}` : '@',
+          currentWorkspaceId
+        )
       }
       if ((ctx.kind === 'workflow' || ctx.kind === 'current_workflow') && ctx.workflowId) {
         return await processWorkflowFromDb(
           ctx.workflowId,
+          userId,
           ctx.label ? `@${ctx.label}` : '@',
-          ctx.kind
+          ctx.kind,
+          currentWorkspaceId
         )
       }
       if (ctx.kind === 'knowledge' && ctx.knowledgeId) {
         return await processKnowledgeFromDb(
           ctx.knowledgeId,
+          userId,
           ctx.label ? `@${ctx.label}` : '@',
-          workspaceId
+          currentWorkspaceId
         )
       }
       if (ctx.kind === 'blocks' && ctx.blockIds?.length > 0) {
@@ -114,13 +139,29 @@ export async function processContextsServer(
         )
       }
       if (ctx.kind === 'templates' && ctx.templateId) {
-        return await processTemplateFromDb(ctx.templateId, ctx.label ? `@${ctx.label}` : '@')
+        return await processTemplateFromDb(
+          ctx.templateId,
+          userId,
+          ctx.label ? `@${ctx.label}` : '@',
+          currentWorkspaceId
+        )
       }
       if (ctx.kind === 'logs' && ctx.executionId) {
-        return await processExecutionLogFromDb(ctx.executionId, ctx.label ? `@${ctx.label}` : '@')
+        return await processExecutionLogFromDb(
+          ctx.executionId,
+          userId,
+          ctx.label ? `@${ctx.label}` : '@',
+          currentWorkspaceId
+        )
       }
       if (ctx.kind === 'workflow_block' && ctx.workflowId && ctx.blockId) {
-        return await processWorkflowBlockFromDb(ctx.workflowId, ctx.blockId, ctx.label)
+        return await processWorkflowBlockFromDb(
+          ctx.workflowId,
+          userId,
+          ctx.blockId,
+          ctx.label,
+          currentWorkspaceId
+        )
       }
       if (ctx.kind === 'table' && ctx.tableId) {
         const result = await resolveTableResource(ctx.tableId)
@@ -215,15 +256,28 @@ function sanitizeMessageForDocs(rawMessage: string, contexts: ChatContext[] | un
 async function processPastChatFromDb(
   chatId: string,
   userId: string,
-  tag: string
+  tag: string,
+  currentWorkspaceId?: string
 ): Promise<AgentContext | null> {
   try {
-    const rows = await db
-      .select({ messages: copilotChats.messages })
-      .from(copilotChats)
-      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
-      .limit(1)
-    const messages = Array.isArray(rows?.[0]?.messages) ? (rows[0] as any).messages : []
+    const { getAccessibleCopilotChat } = await import('@/lib/copilot/chat-lifecycle')
+    const chat = await getAccessibleCopilotChat(chatId, userId)
+    if (!chat) {
+      return null
+    }
+
+    if (currentWorkspaceId) {
+      if (chat.workspaceId && chat.workspaceId !== currentWorkspaceId) {
+        return null
+      }
+      if (chat.workflowId) {
+        const activeWorkflow = await getActiveWorkflowRecord(chat.workflowId)
+        if (!activeWorkflow || activeWorkflow.workspaceId !== currentWorkspaceId) {
+          return null
+        }
+      }
+    }
+    const messages = Array.isArray(chat.messages) ? (chat as any).messages : []
     const content = messages
       .map((m: any) => {
         const role = m.role || 'user'
@@ -254,10 +308,26 @@ async function processPastChatFromDb(
 
 async function processWorkflowFromDb(
   workflowId: string,
+  userId: string | undefined,
   tag: string,
-  kind: 'workflow' | 'current_workflow' = 'workflow'
+  kind: 'workflow' | 'current_workflow' = 'workflow',
+  currentWorkspaceId?: string
 ): Promise<AgentContext | null> {
   try {
+    if (userId) {
+      const authorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId,
+        userId,
+        action: 'read',
+      })
+      if (!authorization.allowed) {
+        return null
+      }
+      if (currentWorkspaceId && authorization.workflow?.workspaceId !== currentWorkspaceId) {
+        return null
+      }
+    }
+
     const normalized = await loadWorkflowFromNormalizedTables(workflowId)
     if (!normalized) {
       logger.warn('No normalized workflow data found', { workflowId })
@@ -327,13 +397,24 @@ async function processPastChatViaApi(chatId: string, tag?: string) {
 
 async function processKnowledgeFromDb(
   knowledgeBaseId: string,
+  userId: string | undefined,
   tag: string,
-  workspaceId?: string
+  currentWorkspaceId?: string
 ): Promise<AgentContext | null> {
   try {
+    if (userId) {
+      const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, userId)
+      if (!accessCheck.hasAccess) {
+        return null
+      }
+      if (currentWorkspaceId && accessCheck.knowledgeBase?.workspaceId !== currentWorkspaceId) {
+        return null
+      }
+    }
+
     const conditions = [eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)]
-    if (workspaceId) {
-      conditions.push(eq(knowledgeBase.workspaceId, workspaceId))
+    if (currentWorkspaceId) {
+      conditions.push(eq(knowledgeBase.workspaceId, currentWorkspaceId))
     }
     const kbRows = await db
       .select({
@@ -351,7 +432,14 @@ async function processKnowledgeFromDb(
     const docRows = await db
       .select({ filename: document.filename })
       .from(document)
-      .where(and(eq(document.knowledgeBaseId, knowledgeBaseId), isNull(document.deletedAt)))
+      .where(
+        and(
+          eq(document.knowledgeBaseId, knowledgeBaseId),
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
+      )
       .limit(20)
 
     const sampleDocuments = docRows.map((d: any) => d.filename).filter(Boolean)
@@ -447,9 +535,25 @@ async function processBlockMetadata(
 
 async function processTemplateFromDb(
   templateId: string,
-  tag: string
+  userId: string | undefined,
+  tag: string,
+  currentWorkspaceId?: string
 ): Promise<AgentContext | null> {
   try {
+    const access = await canAccessTemplate(templateId, userId)
+    if (!access.allowed) {
+      return null
+    }
+
+    if (currentWorkspaceId && access.template?.workflowId) {
+      const workflowRecord = await getActiveWorkflowRecord(access.template.workflowId)
+      if (!workflowRecord || workflowRecord.workspaceId !== currentWorkspaceId) {
+        return null
+      }
+    } else if (currentWorkspaceId) {
+      return null
+    }
+
     const rows = await db
       .select({
         id: templates.id,
@@ -481,10 +585,26 @@ async function processTemplateFromDb(
 
 async function processWorkflowBlockFromDb(
   workflowId: string,
+  userId: string | undefined,
   blockId: string,
-  label?: string
+  label?: string,
+  currentWorkspaceId?: string
 ): Promise<AgentContext | null> {
   try {
+    if (userId) {
+      const authorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId,
+        userId,
+        action: 'read',
+      })
+      if (!authorization.allowed) {
+        return null
+      }
+      if (currentWorkspaceId && authorization.workflow?.workspaceId !== currentWorkspaceId) {
+        return null
+      }
+    }
+
     const normalized = await loadWorkflowFromNormalizedTables(workflowId)
     if (!normalized) return null
     const block = (normalized.blocks as any)[blockId]
@@ -505,7 +625,9 @@ async function processWorkflowBlockFromDb(
 
 async function processExecutionLogFromDb(
   executionId: string,
-  tag: string
+  userId: string | undefined,
+  tag: string,
+  currentWorkspaceId?: string
 ): Promise<AgentContext | null> {
   try {
     const { workflowExecutionLogs, workflow } = await import('@sim/db/schema')
@@ -531,6 +653,20 @@ async function processExecutionLogFromDb(
 
     const log = rows?.[0] as any
     if (!log) return null
+
+    if (userId) {
+      const authorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId: log.workflowId,
+        userId,
+        action: 'read',
+      })
+      if (!authorization.allowed) {
+        return null
+      }
+      if (currentWorkspaceId && authorization.workflow?.workspaceId !== currentWorkspaceId) {
+        return null
+      }
+    }
 
     const summary = {
       id: log.id,
@@ -577,12 +713,17 @@ export async function resolveActiveResourceContext(
   try {
     switch (resourceType) {
       case 'workflow': {
-        const ctx = await processWorkflowFromDb(resourceId, '@active_resource')
+        const ctx = await processWorkflowFromDb(resourceId, undefined, '@active_resource')
         if (!ctx) return null
         return { type: 'active_resource', tag: '@active_resource', content: ctx.content }
       }
       case 'knowledgebase': {
-        const ctx = await processKnowledgeFromDb(resourceId, '@active_resource', workspaceId)
+        const ctx = await processKnowledgeFromDb(
+          resourceId,
+          undefined,
+          '@active_resource',
+          workspaceId
+        )
         if (!ctx) return null
         return { type: 'active_resource', tag: '@active_resource', content: ctx.content }
       }

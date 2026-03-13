@@ -73,6 +73,8 @@ export async function GET(request: NextRequest, { params }: DocumentDetailRouteP
         and(
           eq(document.id, documentId),
           eq(document.knowledgeBaseId, knowledgeBaseId),
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
           isNull(document.deletedAt)
         )
       )
@@ -144,6 +146,8 @@ export async function DELETE(request: NextRequest, { params }: DocumentDetailRou
         and(
           eq(document.id, documentId),
           eq(document.knowledgeBaseId, knowledgeBaseId),
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
           isNull(document.deletedAt)
         )
       )

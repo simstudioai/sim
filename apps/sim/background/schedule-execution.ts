@@ -2,7 +2,7 @@ import { db, jobExecutionLogs, workflow, workflowSchedule } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { Cron } from 'croner'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
@@ -21,6 +21,7 @@ import {
   getSubBlockValue,
   validateCronExpression,
 } from '@/lib/workflows/schedules/utils'
+import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
@@ -45,7 +46,10 @@ async function applyScheduleUpdate(
   context: string
 ) {
   try {
-    await db.update(workflowSchedule).set(updates).where(eq(workflowSchedule.id, scheduleId))
+    await db
+      .update(workflowSchedule)
+      .set(updates)
+      .where(and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt)))
   } catch (error) {
     logger.error(`[${requestId}] ${context}`, error)
   }
@@ -317,6 +321,37 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
   })
 
   try {
+    const [scheduleRecord] = await db
+      .select({
+        id: workflowSchedule.id,
+        workflowId: workflowSchedule.workflowId,
+        status: workflowSchedule.status,
+        archivedAt: workflowSchedule.archivedAt,
+      })
+      .from(workflowSchedule)
+      .where(eq(workflowSchedule.id, payload.scheduleId))
+      .limit(1)
+
+    if (!scheduleRecord) {
+      logger.info(`[${requestId}] Schedule no longer exists, skipping execution`, {
+        scheduleId: payload.scheduleId,
+      })
+      return
+    }
+
+    if (scheduleRecord.archivedAt || scheduleRecord.status === 'disabled') {
+      logger.info(`[${requestId}] Schedule is archived or disabled, skipping execution`, {
+        scheduleId: payload.scheduleId,
+      })
+      await releaseScheduleLock(
+        payload.scheduleId,
+        requestId,
+        now,
+        `Failed to release schedule ${payload.scheduleId} after archive/disabled check`
+      )
+      return
+    }
+
     const loggingSession = new LoggingSession(
       payload.workflowId,
       executionId,
@@ -482,12 +517,17 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
       })
 
       if (executionResult.status === 'skip') {
-        await releaseScheduleLock(
+        await applyScheduleUpdate(
           payload.scheduleId,
+          {
+            updatedAt: now,
+            lastQueuedAt: null,
+            lastFailedAt: now,
+            status: 'disabled',
+            nextRunAt: null,
+          },
           requestId,
-          now,
-          `Failed to release schedule ${payload.scheduleId} after skip`,
-          scheduledFor ?? now
+          `Failed to disable schedule ${payload.scheduleId} after skip`
         )
         return
       }
@@ -788,7 +828,7 @@ export async function executeJobInline(payload: JobExecutionPayload) {
   const [jobRecord] = await db
     .select()
     .from(workflowSchedule)
-    .where(eq(workflowSchedule.id, payload.scheduleId))
+    .where(and(eq(workflowSchedule.id, payload.scheduleId), isNull(workflowSchedule.archivedAt)))
     .limit(1)
 
   if (!jobRecord || !jobRecord.prompt || !jobRecord.sourceUserId || !jobRecord.sourceWorkspaceId) {
@@ -800,6 +840,20 @@ export async function executeJobInline(payload: JobExecutionPayload) {
       requestId,
       now,
       `Failed to release job ${payload.scheduleId} after missing fields`
+    )
+    return
+  }
+
+  const activeWorkspace = await getWorkspaceById(jobRecord.sourceWorkspaceId)
+  if (!activeWorkspace || jobRecord.status === 'disabled') {
+    logger.info(`[${requestId}] Job is archived, disabled, or workspace is inactive`, {
+      scheduleId: payload.scheduleId,
+    })
+    await releaseScheduleLock(
+      payload.scheduleId,
+      requestId,
+      now,
+      `Failed to release job ${payload.scheduleId} after archive/disabled check`
     )
     return
   }

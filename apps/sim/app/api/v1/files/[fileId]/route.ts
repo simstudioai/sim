@@ -89,7 +89,7 @@ export async function GET(request: NextRequest, { params }: FileRouteParams) {
   }
 }
 
-/** DELETE /api/v1/files/[fileId] — Delete a file. */
+/** DELETE /api/v1/files/[fileId] — Archive a file. */
 export async function DELETE(request: NextRequest, { params }: FileRouteParams) {
   const requestId = generateRequestId()
 
@@ -131,7 +131,7 @@ export async function DELETE(request: NextRequest, { params }: FileRouteParams) 
     await deleteWorkspaceFile(workspaceId, fileId)
 
     logger.info(
-      `[${requestId}] Deleted file: ${fileRecord.name} (${fileId}) from workspace ${workspaceId}`
+      `[${requestId}] Archived file: ${fileRecord.name} (${fileId}) from workspace ${workspaceId}`
     )
 
     recordAudit({
@@ -141,14 +141,14 @@ export async function DELETE(request: NextRequest, { params }: FileRouteParams) 
       resourceType: AuditResourceType.FILE,
       resourceId: fileId,
       resourceName: fileRecord.name,
-      description: `Deleted file "${fileRecord.name}" via API`,
+      description: `Archived file "${fileRecord.name}" via API`,
       request,
     })
 
     return NextResponse.json({
       success: true,
       data: {
-        message: 'File deleted successfully',
+        message: 'File archived successfully',
       },
     })
   } catch (error) {

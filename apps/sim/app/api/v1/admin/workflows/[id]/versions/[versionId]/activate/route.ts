@@ -1,9 +1,10 @@
-import { db, workflow, workflowDeploymentVersion } from '@sim/db'
+import { db, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import { restorePreviousVersionWebhooks, saveTriggerWebhooksForDeploy } from '@/lib/webhooks/deploy'
+import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
 import { activateWorkflowVersion } from '@/lib/workflows/persistence/utils'
 import {
   cleanupDeploymentVersion,
@@ -31,11 +32,7 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
   const { id: workflowId, versionId } = await context.params
 
   try {
-    const [workflowRecord] = await db
-      .select()
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .limit(1)
+    const workflowRecord = await getActiveWorkflowRecord(workflowId)
 
     if (!workflowRecord) {
       return notFoundResponse('Workflow')

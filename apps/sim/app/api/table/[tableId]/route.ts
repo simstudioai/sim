@@ -144,7 +144,7 @@ export async function PATCH(request: NextRequest, { params }: TableRouteParams) 
   }
 }
 
-/** DELETE /api/table/[tableId] - Deletes a table and all its rows. */
+/** DELETE /api/table/[tableId] - Archives a table. */
 export async function DELETE(request: NextRequest, { params }: TableRouteParams) {
   const requestId = generateRequestId()
   const { tableId } = await params
@@ -175,7 +175,7 @@ export async function DELETE(request: NextRequest, { params }: TableRouteParams)
     return NextResponse.json({
       success: true,
       data: {
-        message: 'Table deleted successfully',
+        message: 'Table archived successfully',
       },
     })
   } catch (error) {

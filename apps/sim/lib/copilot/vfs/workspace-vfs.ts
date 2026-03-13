@@ -17,6 +17,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, isNull, ne } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
+import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
 import type { DirEntry, GrepMatch, GrepOptions, ReadResult } from '@/lib/copilot/vfs/operations'
 import * as ops from '@/lib/copilot/vfs/operations'
 import type { DeploymentData } from '@/lib/copilot/vfs/serializers'
@@ -56,14 +57,17 @@ import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { listTables } from '@/lib/table/service'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { readFileRecord, type FileReadResult } from '@/lib/copilot/vfs/file-reader'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { listSkills } from '@/lib/workflows/skills/operations'
 import { listWorkflows } from '@/lib/workflows/utils'
-import { getUsersWithPermissions, getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
+import {
+  assertActiveWorkspaceAccess,
+  getUsersWithPermissions,
+  getWorkspaceWithOwner,
+} from '@/lib/workspaces/permissions/utils'
 import { getAllBlocks } from '@/blocks/registry'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import { tools as toolRegistry } from '@/tools/registry'
@@ -547,7 +551,14 @@ export class WorkspaceVFS {
               uploadedAt: document.uploadedAt,
             })
             .from(document)
-            .where(and(eq(document.knowledgeBaseId, kb.id), isNull(document.deletedAt)))
+            .where(
+              and(
+                eq(document.knowledgeBaseId, kb.id),
+                eq(document.userExcluded, false),
+                isNull(document.archivedAt),
+                isNull(document.deletedAt)
+              )
+            )
 
           if (docRows.length > 0) {
             this.files.set(`${prefix}documents.json`, serializeDocuments(docRows))
@@ -578,6 +589,7 @@ export class WorkspaceVFS {
             .where(
               and(
                 eq(knowledgeConnector.knowledgeBaseId, kb.id),
+                isNull(knowledgeConnector.archivedAt),
                 isNull(knowledgeConnector.deletedAt)
               )
             )
@@ -1004,6 +1016,7 @@ export class WorkspaceVFS {
           and(
             eq(workflowSchedule.sourceWorkspaceId, workspaceId),
             eq(workflowSchedule.sourceType, 'job'),
+            isNull(workflowSchedule.archivedAt),
             ne(workflowSchedule.status, 'completed')
           )
         )
@@ -1153,6 +1166,7 @@ export async function getOrMaterializeVFS(
   workspaceId: string,
   userId: string
 ): Promise<WorkspaceVFS> {
+  await assertActiveWorkspaceAccess(workspaceId, userId)
   const vfs = new WorkspaceVFS()
   await vfs.materialize(workspaceId, userId)
   return vfs

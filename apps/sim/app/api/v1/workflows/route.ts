@@ -1,9 +1,10 @@
 import { db } from '@sim/db'
-import { permissions, workflow } from '@sim/db/schema'
+import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, gt, or } from 'drizzle-orm'
+import { and, asc, eq, gt, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
 
@@ -69,12 +70,12 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    const conditions = [
-      eq(workflow.workspaceId, params.workspaceId),
-      eq(permissions.entityType, 'workspace'),
-      eq(permissions.entityId, params.workspaceId),
-      eq(permissions.userId, userId),
-    ]
+    const permission = await getUserEntityPermissions(userId, 'workspace', params.workspaceId)
+    if (!permission) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    const conditions = [eq(workflow.workspaceId, params.workspaceId), isNull(workflow.archivedAt)]
 
     if (params.folderId) {
       conditions.push(eq(workflow.folderId, params.folderId))
@@ -124,14 +125,6 @@ export async function GET(request: NextRequest) {
         updatedAt: workflow.updatedAt,
       })
       .from(workflow)
-      .innerJoin(
-        permissions,
-        and(
-          eq(permissions.entityType, 'workspace'),
-          eq(permissions.entityId, params.workspaceId),
-          eq(permissions.userId, userId)
-        )
-      )
       .where(and(...conditions))
       .orderBy(...orderByClause)
       .limit(params.limit + 1)

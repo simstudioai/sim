@@ -1,10 +1,5 @@
 import { db } from '@sim/db'
-import {
-  permissions,
-  workflow,
-  workflowExecutionLogs,
-  workflowExecutionSnapshots,
-} from '@sim/db/schema'
+import { permissions, workflowExecutionLogs, workflowExecutionSnapshots } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -31,15 +26,13 @@ export async function GET(
     const rows = await db
       .select({
         log: workflowExecutionLogs,
-        workflow: workflow,
       })
       .from(workflowExecutionLogs)
-      .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
       .innerJoin(
         permissions,
         and(
           eq(permissions.entityType, 'workspace'),
-          eq(permissions.entityId, workflow.workspaceId),
+          eq(permissions.entityId, workflowExecutionLogs.workspaceId),
           eq(permissions.userId, userId)
         )
       )

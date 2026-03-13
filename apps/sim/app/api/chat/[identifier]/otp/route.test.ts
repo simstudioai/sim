@@ -93,9 +93,12 @@ vi.mock('@sim/db', () => ({
 vi.mock('@sim/db/schema', () => ({
   chat: {
     id: 'id',
+    identifier: 'identifier',
     authType: 'authType',
     allowedEmails: 'allowedEmails',
     title: 'title',
+    isActive: 'isActive',
+    archivedAt: 'archivedAt',
   },
   verification: {
     id: 'id',
@@ -112,6 +115,7 @@ vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
   gt: vi.fn((field: string, value: string) => ({ field, value, type: 'gt' })),
   lt: vi.fn((field: string, value: string) => ({ field, value, type: 'lt' })),
+  isNull: vi.fn((field: unknown) => ({ field, type: 'isNull' })),
 }))
 
 vi.mock('@/lib/core/storage', () => ({

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { form } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
@@ -73,7 +73,10 @@ export async function GET(request: NextRequest) {
       return createErrorResponse('Unauthorized', 401)
     }
 
-    const deployments = await db.select().from(form).where(eq(form.userId, session.user.id))
+    const deployments = await db
+      .select()
+      .from(form)
+      .where(and(eq(form.userId, session.user.id), isNull(form.archivedAt)))
 
     return createSuccessResponse({ deployments })
   } catch (error: any) {
@@ -120,7 +123,11 @@ export async function POST(request: NextRequest) {
 
       // Check identifier availability and workflow access in parallel
       const [existingIdentifier, { hasAccess, workflow: workflowRecord }] = await Promise.all([
-        db.select().from(form).where(eq(form.identifier, identifier)).limit(1),
+        db
+          .select()
+          .from(form)
+          .where(and(eq(form.identifier, identifier), isNull(form.archivedAt)))
+          .limit(1),
         checkWorkflowAccessForFormCreation(workflowId, session.user.id),
       ])
 

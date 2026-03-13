@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 import { getHostedModels } from '@/providers/models'
 import { useProvidersStore } from '@/stores/providers/store'
 import type { BYOKProviderId } from '@/tools/types'
@@ -25,6 +26,11 @@ export async function getBYOKKey(
   }
 
   try {
+    const activeWorkspace = await getWorkspaceById(workspaceId)
+    if (!activeWorkspace) {
+      return null
+    }
+
     const result = await db
       .select({ encryptedApiKey: workspaceBYOKKeys.encryptedApiKey })
       .from(workspaceBYOKKeys)

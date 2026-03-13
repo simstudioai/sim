@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
-import { document, knowledgeBase, knowledgeConnector, permissions } from '@sim/db/schema'
+import { document, knowledgeBase, knowledgeConnector, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type {
@@ -12,13 +12,23 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('KnowledgeBaseService')
 
+export type KnowledgeBaseScope = 'active' | 'archived' | 'all'
+
 /**
  * Get knowledge bases that a user can access
  */
 export async function getKnowledgeBases(
   userId: string,
-  workspaceId?: string | null
+  workspaceId?: string | null,
+  scope: KnowledgeBaseScope = 'active'
 ): Promise<KnowledgeBaseWithCounts[]> {
+  const scopeCondition =
+    scope === 'all'
+      ? undefined
+      : scope === 'archived'
+        ? sql`${knowledgeBase.deletedAt} IS NOT NULL`
+        : isNull(knowledgeBase.deletedAt)
+
   const knowledgeBasesWithCounts = await db
     .select({
       id: knowledgeBase.id,
@@ -37,7 +47,12 @@ export async function getKnowledgeBases(
     .from(knowledgeBase)
     .leftJoin(
       document,
-      and(eq(document.knowledgeBaseId, knowledgeBase.id), isNull(document.deletedAt))
+      and(
+        eq(document.knowledgeBaseId, knowledgeBase.id),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
     )
     .leftJoin(
       permissions,
@@ -47,14 +62,19 @@ export async function getKnowledgeBases(
         eq(permissions.userId, userId)
       )
     )
+    .leftJoin(workspace, eq(knowledgeBase.workspaceId, workspace.id))
     .where(
       and(
-        isNull(knowledgeBase.deletedAt),
+        scopeCondition,
         workspaceId
           ? // When filtering by workspace
             or(
               // Knowledge bases belonging to the specified workspace (user must have workspace permissions)
-              and(eq(knowledgeBase.workspaceId, workspaceId), isNotNull(permissions.userId)),
+              and(
+                eq(knowledgeBase.workspaceId, workspaceId),
+                isNotNull(permissions.userId),
+                isNull(workspace.archivedAt)
+              ),
               // Fallback: User-owned knowledge bases without workspace (legacy)
               and(eq(knowledgeBase.userId, userId), isNull(knowledgeBase.workspaceId))
             )
@@ -63,7 +83,7 @@ export async function getKnowledgeBases(
               // User owns the knowledge base directly
               eq(knowledgeBase.userId, userId),
               // User has permissions on the knowledge base's workspace
-              isNotNull(permissions.userId)
+              and(isNotNull(permissions.userId), isNull(workspace.archivedAt))
             )
       )
     )
@@ -83,6 +103,7 @@ export async function getKnowledgeBases(
           .where(
             and(
               inArray(knowledgeConnector.knowledgeBaseId, kbIds),
+              isNull(knowledgeConnector.archivedAt),
               isNull(knowledgeConnector.deletedAt)
             )
           )
@@ -199,7 +220,10 @@ export async function updateKnowledgeBase(
     updateData.embeddingDimension = 1536
   }
 
-  await db.update(knowledgeBase).set(updateData).where(eq(knowledgeBase.id, knowledgeBaseId))
+  await db
+    .update(knowledgeBase)
+    .set(updateData)
+    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
 
   const updatedKb = await db
     .select({
@@ -219,9 +243,14 @@ export async function updateKnowledgeBase(
     .from(knowledgeBase)
     .leftJoin(
       document,
-      and(eq(document.knowledgeBaseId, knowledgeBase.id), isNull(document.deletedAt))
+      and(
+        eq(document.knowledgeBaseId, knowledgeBase.id),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
     )
-    .where(eq(knowledgeBase.id, knowledgeBaseId))
+    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
     .groupBy(knowledgeBase.id)
     .limit(1)
 
@@ -263,7 +292,12 @@ export async function getKnowledgeBaseById(
     .from(knowledgeBase)
     .leftJoin(
       document,
-      and(eq(document.knowledgeBaseId, knowledgeBase.id), isNull(document.deletedAt))
+      and(
+        eq(document.knowledgeBaseId, knowledgeBase.id),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
     )
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
     .groupBy(knowledgeBase.id)
@@ -290,13 +324,45 @@ export async function deleteKnowledgeBase(
 ): Promise<void> {
   const now = new Date()
 
-  await db
-    .update(knowledgeBase)
-    .set({
-      deletedAt: now,
-      updatedAt: now,
-    })
-    .where(eq(knowledgeBase.id, knowledgeBaseId))
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+
+    await tx
+      .update(knowledgeBase)
+      .set({
+        deletedAt: now,
+        updatedAt: now,
+      })
+      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+
+    await tx
+      .update(document)
+      .set({
+        archivedAt: now,
+      })
+      .where(
+        and(
+          eq(document.knowledgeBaseId, knowledgeBaseId),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
+      )
+
+    await tx
+      .update(knowledgeConnector)
+      .set({
+        archivedAt: now,
+        status: 'paused',
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+          isNull(knowledgeConnector.archivedAt),
+          isNull(knowledgeConnector.deletedAt)
+        )
+      )
+  })
 
   logger.info(`[${requestId}] Soft deleted knowledge base: ${knowledgeBaseId}`)
 }

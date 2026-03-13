@@ -22,10 +22,11 @@
  */
 
 import { db } from '@sim/db'
-import { permissions, user, workspace } from '@sim/db/schema'
+import { permissions, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { revokeWorkspaceCredentialMemberships } from '@/lib/credentials/access'
+import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -46,11 +47,7 @@ export const GET = withAdminAuthParams<RouteParams>(async (_, context) => {
   const { id: workspaceId, memberId } = await context.params
 
   try {
-    const [workspaceData] = await db
-      .select({ id: workspace.id })
-      .from(workspace)
-      .where(eq(workspace.id, workspaceId))
-      .limit(1)
+    const workspaceData = await getWorkspaceById(workspaceId)
 
     if (!workspaceData) {
       return notFoundResponse('Workspace')
@@ -113,11 +110,7 @@ export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) =
       return badRequestResponse('permissions must be "admin", "write", or "read"')
     }
 
-    const [workspaceData] = await db
-      .select({ id: workspace.id })
-      .from(workspace)
-      .where(eq(workspace.id, workspaceId))
-      .limit(1)
+    const workspaceData = await getWorkspaceById(workspaceId)
 
     if (!workspaceData) {
       return notFoundResponse('Workspace')
@@ -185,11 +178,7 @@ export const DELETE = withAdminAuthParams<RouteParams>(async (_, context) => {
   const { id: workspaceId, memberId } = await context.params
 
   try {
-    const [workspaceData] = await db
-      .select({ id: workspace.id })
-      .from(workspace)
-      .where(eq(workspace.id, workspaceId))
-      .limit(1)
+    const workspaceData = await getWorkspaceById(workspaceId)
 
     if (!workspaceData) {
       return notFoundResponse('Workspace')

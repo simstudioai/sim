@@ -2,9 +2,10 @@ import crypto from 'crypto'
 import { db } from '@sim/db'
 import { permissions, userStats, workflowFolder, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, inArray, isNull, max, min } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, max, min, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { getActiveWorkflowContext } from '@/lib/workflows/active-context'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -14,24 +15,99 @@ import type { ExecutionResult } from '@/executor/types'
 
 const logger = createLogger('WorkflowUtils')
 
-export async function getWorkflowById(id: string) {
-  const rows = await db.select().from(workflowTable).where(eq(workflowTable.id, id)).limit(1)
+export type WorkflowScope = 'active' | 'archived' | 'all'
+
+export async function getWorkflowById(id: string, options?: { includeArchived?: boolean }) {
+  const { includeArchived = false } = options ?? {}
+  const rows = await db
+    .select()
+    .from(workflowTable)
+    .where(
+      includeArchived
+        ? eq(workflowTable.id, id)
+        : and(eq(workflowTable.id, id), isNull(workflowTable.archivedAt))
+    )
+    .limit(1)
 
   return rows[0]
 }
 
-export async function listWorkflows(workspaceId: string) {
+export async function listWorkflows(workspaceId: string, options?: { scope?: WorkflowScope }) {
+  const { scope = 'active' } = options ?? {}
   return db
     .select()
     .from(workflowTable)
-    .where(eq(workflowTable.workspaceId, workspaceId))
+    .where(
+      scope === 'all'
+        ? eq(workflowTable.workspaceId, workspaceId)
+        : scope === 'archived'
+          ? and(
+              eq(workflowTable.workspaceId, workspaceId),
+              sql`${workflowTable.archivedAt} IS NOT NULL`
+            )
+          : and(eq(workflowTable.workspaceId, workspaceId), isNull(workflowTable.archivedAt))
+    )
     .orderBy(asc(workflowTable.sortOrder), asc(workflowTable.createdAt))
+}
+
+/**
+ * Generates a unique workflow name within a workspace+folder scope.
+ * If the name already exists among active workflows, appends (2), (3), etc.
+ */
+export async function deduplicateWorkflowName(
+  name: string,
+  workspaceId: string,
+  folderId: string | null | undefined
+): Promise<string> {
+  const folderCondition = folderId
+    ? eq(workflowTable.folderId, folderId)
+    : isNull(workflowTable.folderId)
+
+  const [existing] = await db
+    .select({ id: workflowTable.id })
+    .from(workflowTable)
+    .where(
+      and(
+        eq(workflowTable.workspaceId, workspaceId),
+        folderCondition,
+        eq(workflowTable.name, name),
+        isNull(workflowTable.archivedAt)
+      )
+    )
+    .limit(1)
+
+  if (!existing) {
+    return name
+  }
+
+  for (let i = 2; i < 100; i++) {
+    const candidate = `${name} (${i})`
+    const [dup] = await db
+      .select({ id: workflowTable.id })
+      .from(workflowTable)
+      .where(
+        and(
+          eq(workflowTable.workspaceId, workspaceId),
+          folderCondition,
+          eq(workflowTable.name, candidate),
+          isNull(workflowTable.archivedAt)
+        )
+      )
+      .limit(1)
+
+    if (!dup) {
+      return candidate
+    }
+  }
+
+  return `${name} (${crypto.randomUUID().slice(0, 6)})`
 }
 
 export async function resolveWorkflowIdForUser(
   userId: string,
   workflowId?: string,
-  workflowName?: string
+  workflowName?: string,
+  workspaceId?: string
 ): Promise<{ workflowId: string; workflowName?: string } | null> {
   if (workflowId) {
     const authorization = await authorizeWorkflowByWorkspacePermission({
@@ -52,14 +128,19 @@ export async function resolveWorkflowIdForUser(
     .where(and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace')))
 
   const workspaceIdList = workspaceIds.map((row) => row.entityId)
-  if (workspaceIdList.length === 0) {
+  const allowedWorkspaceIds = workspaceId
+    ? workspaceIdList.filter((candidateWorkspaceId) => candidateWorkspaceId === workspaceId)
+    : workspaceIdList
+  if (allowedWorkspaceIds.length === 0) {
     return null
   }
 
   const workflows = await db
     .select()
     .from(workflowTable)
-    .where(inArray(workflowTable.workspaceId, workspaceIdList))
+    .where(
+      and(inArray(workflowTable.workspaceId, allowedWorkspaceIds), isNull(workflowTable.archivedAt))
+    )
     .orderBy(asc(workflowTable.sortOrder), asc(workflowTable.createdAt), asc(workflowTable.id))
 
   if (workflows.length === 0) {
@@ -259,8 +340,8 @@ export async function authorizeWorkflowByWorkspacePermission(params: {
 }): Promise<WorkflowWorkspaceAuthorizationResult> {
   const { workflowId, userId, action = 'read' } = params
 
-  const workflow = await getWorkflowById(workflowId)
-  if (!workflow) {
+  const activeContext = await getActiveWorkflowContext(workflowId)
+  if (!activeContext) {
     return {
       allowed: false,
       status: 404,
@@ -269,6 +350,8 @@ export async function authorizeWorkflowByWorkspacePermission(params: {
       workspacePermission: null,
     }
   }
+
+  const workflow = activeContext.workflow
 
   if (!workflow.workspaceId) {
     return {
@@ -364,7 +447,13 @@ export async function createWorkflowRecord(params: CreateWorkflowInput) {
     db
       .select({ minOrder: min(workflowTable.sortOrder) })
       .from(workflowTable)
-      .where(and(eq(workflowTable.workspaceId, workspaceId), workflowParentCondition)),
+      .where(
+        and(
+          eq(workflowTable.workspaceId, workspaceId),
+          workflowParentCondition,
+          isNull(workflowTable.archivedAt)
+        )
+      ),
     db
       .select({ minOrder: min(workflowFolder.sortOrder) })
       .from(workflowFolder)
@@ -420,7 +509,11 @@ export async function updateWorkflowRecord(
 }
 
 export async function deleteWorkflowRecord(workflowId: string) {
-  await db.delete(workflowTable).where(eq(workflowTable.id, workflowId))
+  const { archiveWorkflow } = await import('@/lib/workflows/lifecycle')
+  await archiveWorkflow(workflowId, {
+    requestId: `workflow-record-${workflowId}`,
+    notifySocket: false,
+  })
 }
 
 export async function setWorkflowVariables(workflowId: string, variables: Record<string, unknown>) {

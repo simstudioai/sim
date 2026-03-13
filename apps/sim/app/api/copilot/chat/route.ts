@@ -5,7 +5,7 @@ import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
+import { getAccessibleCopilotChat, resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
 import {
   createSSEStream,
@@ -21,8 +21,14 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
-import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import {
+  authorizeWorkflowByWorkspacePermission,
+  resolveWorkflowIdForUser,
+} from '@/lib/workflows/utils'
+import {
+  assertActiveWorkspaceAccess,
+  getUserEntityPermissions,
+} from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CopilotChatAPI')
 
@@ -101,6 +107,7 @@ export async function POST(req: NextRequest) {
       userMessageId,
       chatId,
       workflowId: providedWorkflowId,
+      workspaceId: requestedWorkspaceId,
       workflowName,
       model,
       mode,
@@ -133,7 +140,8 @@ export async function POST(req: NextRequest) {
     const resolved = await resolveWorkflowIdForUser(
       authenticatedUserId,
       providedWorkflowId,
-      workflowName
+      workflowName,
+      requestedWorkspaceId
     )
     if (!resolved) {
       return createBadRequestResponse(
@@ -218,6 +226,10 @@ export async function POST(req: NextRequest) {
       conversationHistory = Array.isArray(chatResult.conversationHistory)
         ? chatResult.conversationHistory
         : []
+
+      if (chatId && !currentChat) {
+        return createBadRequestResponse('Chat not found')
+      }
     }
 
     const effectiveMode = mode === 'agent' ? 'build' : mode
@@ -436,22 +448,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (chatId) {
-      const [chat] = await db
-        .select({
-          id: copilotChats.id,
-          title: copilotChats.title,
-          model: copilotChats.model,
-          messages: copilotChats.messages,
-          planArtifact: copilotChats.planArtifact,
-          config: copilotChats.config,
-          conversationId: copilotChats.conversationId,
-          resources: copilotChats.resources,
-          createdAt: copilotChats.createdAt,
-          updatedAt: copilotChats.updatedAt,
-        })
-        .from(copilotChats)
-        .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, authenticatedUserId)))
-        .limit(1)
+      const chat = await getAccessibleCopilotChat(chatId, authenticatedUserId)
 
       if (!chat) {
         return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
@@ -477,6 +474,21 @@ export async function GET(req: NextRequest) {
 
     if (!workflowId && !workspaceId) {
       return createBadRequestResponse('workflowId, workspaceId, or chatId is required')
+    }
+
+    if (workspaceId) {
+      await assertActiveWorkspaceAccess(workspaceId, authenticatedUserId)
+    }
+
+    if (workflowId) {
+      const authorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId,
+        userId: authenticatedUserId,
+        action: 'read',
+      })
+      if (!authorization.allowed) {
+        return createUnauthorizedResponse()
+      }
     }
 
     const scopeFilter = workflowId

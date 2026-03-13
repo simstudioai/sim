@@ -18,10 +18,13 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowQueries')
 
+type WorkflowQueryScope = 'active' | 'archived' | 'all'
+
 export const workflowKeys = {
   all: ['workflows'] as const,
   lists: () => [...workflowKeys.all, 'list'] as const,
-  list: (workspaceId: string | undefined) => [...workflowKeys.lists(), workspaceId ?? ''] as const,
+  list: (workspaceId: string | undefined, scope: WorkflowQueryScope = 'active') =>
+    [...workflowKeys.lists(), workspaceId ?? '', scope] as const,
   deploymentStatus: (workflowId: string | undefined) =>
     [...workflowKeys.all, 'deploymentStatus', workflowId ?? ''] as const,
   deploymentVersions: () => [...workflowKeys.all, 'deploymentVersion'] as const,
@@ -78,9 +81,12 @@ function mapWorkflow(workflow: any): WorkflowMetadata {
 
 async function fetchWorkflows(
   workspaceId: string,
+  scope: WorkflowQueryScope = 'active',
   signal?: AbortSignal
 ): Promise<WorkflowMetadata[]> {
-  const response = await fetch(`/api/workflows?workspaceId=${workspaceId}`, { signal })
+  const response = await fetch(`/api/workflows?workspaceId=${workspaceId}&scope=${scope}`, {
+    signal,
+  })
 
   if (!response.ok) {
     throw new Error('Failed to fetch workflows')
@@ -90,39 +96,48 @@ async function fetchWorkflows(
   return data.map(mapWorkflow)
 }
 
-export function useWorkflows(workspaceId?: string, options?: { syncRegistry?: boolean }) {
-  const { syncRegistry = true } = options || {}
+export function useWorkflows(
+  workspaceId?: string,
+  options?: { syncRegistry?: boolean; scope?: WorkflowQueryScope }
+) {
+  const { syncRegistry = true, scope = 'active' } = options || {}
   const beginMetadataLoad = useWorkflowRegistry((state) => state.beginMetadataLoad)
   const completeMetadataLoad = useWorkflowRegistry((state) => state.completeMetadataLoad)
   const failMetadataLoad = useWorkflowRegistry((state) => state.failMetadataLoad)
 
   const query = useQuery({
-    queryKey: workflowKeys.list(workspaceId),
-    queryFn: ({ signal }) => fetchWorkflows(workspaceId as string, signal),
+    queryKey: workflowKeys.list(workspaceId, scope),
+    queryFn: ({ signal }) => fetchWorkflows(workspaceId as string, scope, signal),
     enabled: Boolean(workspaceId),
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
   })
 
   useEffect(() => {
-    if (syncRegistry && workspaceId && query.status === 'pending') {
+    if (syncRegistry && scope === 'active' && workspaceId && query.status === 'pending') {
       beginMetadataLoad(workspaceId)
     }
-  }, [syncRegistry, workspaceId, query.status, beginMetadataLoad])
+  }, [syncRegistry, scope, workspaceId, query.status, beginMetadataLoad])
 
   useEffect(() => {
-    if (syncRegistry && workspaceId && query.status === 'success' && query.data) {
+    if (
+      syncRegistry &&
+      scope === 'active' &&
+      workspaceId &&
+      query.status === 'success' &&
+      query.data
+    ) {
       completeMetadataLoad(workspaceId, query.data)
     }
-  }, [syncRegistry, workspaceId, query.status, query.data, completeMetadataLoad])
+  }, [syncRegistry, scope, workspaceId, query.status, query.data, completeMetadataLoad])
 
   useEffect(() => {
-    if (syncRegistry && workspaceId && query.status === 'error') {
+    if (syncRegistry && scope === 'active' && workspaceId && query.status === 'error') {
       const message =
         query.error instanceof Error ? query.error.message : 'Failed to fetch workflows'
       failMetadataLoad(workspaceId, message)
     }
-  }, [syncRegistry, workspaceId, query.status, query.error, failMetadataLoad])
+  }, [syncRegistry, scope, workspaceId, query.status, query.error, failMetadataLoad])
 
   return query
 }
@@ -185,7 +200,7 @@ function createWorkflowMutationHandlers<TVariables extends { workspaceId: string
     WorkflowMetadata
   >(queryClient, {
     name,
-    getQueryKey: (variables) => workflowKeys.list(variables.workspaceId),
+    getQueryKey: (variables) => workflowKeys.list(variables.workspaceId, 'active'),
     getSnapshot: () => ({ ...useWorkflowRegistry.getState().workflows }),
     generateTempId: customGenerateTempId ?? (() => generateTempId('temp-workflow')),
     createOptimisticItem: createOptimisticWorkflow,
@@ -542,7 +557,7 @@ export function useReorderWorkflows() {
       }
     },
     onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey: workflowKeys.list(variables.workspaceId) })
+      await queryClient.cancelQueries({ queryKey: workflowKeys.lists() })
 
       const snapshot = { ...useWorkflowRegistry.getState().workflows }
 
@@ -569,7 +584,7 @@ export function useReorderWorkflows() {
       }
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: workflowKeys.list(variables.workspaceId) })
+      queryClient.invalidateQueries({ queryKey: workflowKeys.lists() })
     },
   })
 }
@@ -748,7 +763,7 @@ export function useImportWorkflow() {
       return data
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: workflowKeys.list(variables.targetWorkspaceId) })
+      queryClient.invalidateQueries({ queryKey: workflowKeys.lists() })
     },
   })
 }

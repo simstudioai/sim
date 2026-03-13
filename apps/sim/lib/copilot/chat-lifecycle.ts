@@ -2,6 +2,12 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
+import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+import {
+  assertActiveWorkspaceAccess,
+  checkWorkspaceAccess,
+} from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CopilotChatLifecycle')
 
@@ -10,6 +16,36 @@ export interface ChatLoadResult {
   chat: typeof copilotChats.$inferSelect | null
   conversationHistory: unknown[]
   isNew: boolean
+}
+
+export async function getAccessibleCopilotChat(chatId: string, userId: string) {
+  const [chat] = await db
+    .select()
+    .from(copilotChats)
+    .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
+    .limit(1)
+
+  if (!chat) {
+    return null
+  }
+
+  if (chat.workflowId) {
+    const authorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId: chat.workflowId,
+      userId,
+      action: 'read',
+    })
+    if (!authorization.allowed || !authorization.workflow) {
+      return null
+    }
+  } else if (chat.workspaceId) {
+    const access = await checkWorkspaceAccess(chat.workspaceId, userId)
+    if (!access.exists || !access.hasAccess) {
+      return null
+    }
+  }
+
+  return chat
 }
 
 /**
@@ -27,12 +63,29 @@ export async function resolveOrCreateChat(params: {
 }): Promise<ChatLoadResult> {
   const { chatId, userId, workflowId, workspaceId, model, type } = params
 
+  if (workspaceId) {
+    await assertActiveWorkspaceAccess(workspaceId, userId)
+  }
+
   if (chatId) {
-    const [chat] = await db
-      .select()
-      .from(copilotChats)
-      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
-      .limit(1)
+    const chat = await getAccessibleCopilotChat(chatId, userId)
+
+    if (chat) {
+      if (workflowId && chat.workflowId !== workflowId) {
+        return { chatId, chat: null, conversationHistory: [], isNew: false }
+      }
+
+      if (workspaceId && chat.workspaceId !== workspaceId) {
+        return { chatId, chat: null, conversationHistory: [], isNew: false }
+      }
+
+      if (chat.workflowId) {
+        const activeWorkflow = await getActiveWorkflowRecord(chat.workflowId)
+        if (!activeWorkflow) {
+          return { chatId, chat: null, conversationHistory: [], isNew: false }
+        }
+      }
+    }
 
     return {
       chatId,

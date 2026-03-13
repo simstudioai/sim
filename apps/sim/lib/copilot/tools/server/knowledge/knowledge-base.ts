@@ -557,6 +557,12 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
         }
 
         case 'delete_tag': {
+          if (!args.knowledgeBaseId) {
+            return {
+              success: false,
+              message: 'knowledgeBaseId is required for delete_tag operation',
+            }
+          }
           if (!args.tagDefinitionId) {
             return {
               success: false,
@@ -565,7 +571,11 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           const requestId = crypto.randomUUID().slice(0, 8)
-          const deleted = await deleteTagDefinition(args.tagDefinitionId, requestId)
+          const deleted = await deleteTagDefinition(
+            args.knowledgeBaseId,
+            args.tagDefinitionId,
+            requestId
+          )
 
           logger.info('Tag definition deleted via copilot', {
             tagId: args.tagDefinitionId,
@@ -833,7 +843,13 @@ async function resolveKnowledgeBaseId(connectorId: string): Promise<string | nul
   const rows = await db
     .select({ knowledgeBaseId: knowledgeConnector.knowledgeBaseId })
     .from(knowledgeConnector)
-    .where(and(eq(knowledgeConnector.id, connectorId), isNull(knowledgeConnector.deletedAt)))
+    .where(
+      and(
+        eq(knowledgeConnector.id, connectorId),
+        isNull(knowledgeConnector.archivedAt),
+        isNull(knowledgeConnector.deletedAt)
+      )
+    )
     .limit(1)
 
   return rows[0]?.knowledgeBaseId ?? null

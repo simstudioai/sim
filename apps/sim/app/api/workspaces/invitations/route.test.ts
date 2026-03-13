@@ -15,6 +15,7 @@ const {
   mockGetEmailDomain,
   mockValidateInvitationsAllowed,
   mockRandomUUID,
+  mockGetWorkspaceById,
 } = vi.hoisted(() => {
   const mockGetSession = vi.fn()
   const mockInsertValues = vi.fn().mockResolvedValue(undefined)
@@ -24,6 +25,7 @@ const {
   const mockGetEmailDomain = vi.fn().mockReturnValue('sim.ai')
   const mockValidateInvitationsAllowed = vi.fn().mockResolvedValue(undefined)
   const mockRandomUUID = vi.fn().mockReturnValue('mock-uuid-1234')
+  const mockGetWorkspaceById = vi.fn()
 
   const mockDbResults: { value: any[] } = { value: [] }
 
@@ -52,6 +54,7 @@ const {
     mockGetEmailDomain,
     mockValidateInvitationsAllowed,
     mockRandomUUID,
+    mockGetWorkspaceById,
   }
 })
 
@@ -111,6 +114,10 @@ vi.mock('@/lib/core/config/env', async () => {
   return createEnvMock()
 })
 
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  getWorkspaceById: mockGetWorkspaceById,
+}))
+
 vi.mock('@/lib/core/utils/urls', () => ({
   getEmailDomain: mockGetEmailDomain,
 }))
@@ -135,6 +142,7 @@ vi.mock('drizzle-orm', () => ({
   inArray: vi
     .fn()
     .mockImplementation((field: any, values: any) => ({ type: 'inArray', field, values })),
+  isNull: vi.fn().mockImplementation((field: any) => ({ type: 'isNull', field })),
 }))
 
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
@@ -176,6 +184,7 @@ describe('Workspace Invitations API Route', () => {
     mockRender.mockResolvedValue('<html>email content</html>')
     mockGetEmailDomain.mockReturnValue('sim.ai')
     mockValidateInvitationsAllowed.mockResolvedValue(undefined)
+    mockGetWorkspaceById.mockResolvedValue({ id: 'workspace-1', name: 'Test Workspace' })
   })
 
   describe('GET /api/workspaces/invitations', () => {
@@ -291,9 +300,9 @@ describe('Workspace Invitations API Route', () => {
 
     it('should return 404 when workspace is not found', async () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      mockGetWorkspaceById.mockResolvedValueOnce(null)
       mockDbResults.value = [
         [{ permissionType: 'admin' }], // User has admin permissions
-        [], // Workspace not found
       ]
 
       const req = createMockRequest('POST', {

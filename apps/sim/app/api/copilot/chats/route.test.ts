@@ -13,6 +13,8 @@ const {
   mockAuthenticate,
   mockCreateUnauthorizedResponse,
   mockCreateInternalServerErrorResponse,
+  mockGetActiveWorkflowRecord,
+  mockCheckWorkspaceAccess,
 } = vi.hoisted(() => ({
   mockSelect: vi.fn(),
   mockFrom: vi.fn(),
@@ -21,6 +23,8 @@ const {
   mockAuthenticate: vi.fn(),
   mockCreateUnauthorizedResponse: vi.fn(),
   mockCreateInternalServerErrorResponse: vi.fn(),
+  mockGetActiveWorkflowRecord: vi.fn(),
+  mockCheckWorkspaceAccess: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({
@@ -51,6 +55,14 @@ vi.mock('@/lib/copilot/request-helpers', () => ({
   createInternalServerErrorResponse: mockCreateInternalServerErrorResponse,
 }))
 
+vi.mock('@/lib/workflows/active-context', () => ({
+  getActiveWorkflowRecord: mockGetActiveWorkflowRecord,
+}))
+
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  checkWorkspaceAccess: mockCheckWorkspaceAccess,
+}))
+
 import { GET } from '@/app/api/copilot/chats/route'
 
 describe('Copilot Chats List API Route', () => {
@@ -68,6 +80,8 @@ describe('Copilot Chats List API Route', () => {
     mockCreateInternalServerErrorResponse.mockImplementation(
       (message: string) => new Response(JSON.stringify({ error: message }), { status: 500 })
     )
+    mockGetActiveWorkflowRecord.mockResolvedValue({ id: 'workflow-1' })
+    mockCheckWorkspaceAccess.mockResolvedValue({ exists: true, hasAccess: true })
   })
 
   afterEach(() => {
