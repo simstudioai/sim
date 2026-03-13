@@ -1,4 +1,13 @@
-import type { DataPart, FilePart, Message, Part, Task, TaskState, TextPart } from '@a2a-js/sdk'
+import type {
+  Artifact,
+  DataPart,
+  FilePart,
+  Message,
+  Part,
+  Task,
+  TaskState,
+  TextPart,
+} from '@a2a-js/sdk'
 import {
   type BeforeArgs,
   type CallInterceptor,
@@ -247,6 +256,10 @@ export interface ParsedSSEChunk {
   finalContent?: string
   /** Final success flag if this chunk contains the final event */
   finalSuccess?: boolean
+  /** Terminal task state if known */
+  terminalState?: 'completed' | 'failed' | 'canceled'
+  /** Final artifacts if present on terminal event */
+  finalArtifacts?: Artifact[]
   /** Whether this chunk indicates the stream is done */
   isDone: boolean
 }
@@ -294,21 +307,31 @@ export function parseWorkflowSSEChunk(chunk: string): ParsedSSEChunk {
         }
       } else if (parsed.event === 'error' || parsed.type === 'execution:error') {
         result.finalSuccess = false
+        result.terminalState = 'failed'
         result.isDone = true
       } else if (parsed.type === 'execution:completed') {
         if (parsed.data?.output?.content) {
           result.finalContent = parsed.data.output.content
+        } else if (parsed.data?.output) {
+          result.finalContent = JSON.stringify(parsed.data.output)
         }
+        result.finalArtifacts = (parsed.data?.output?.artifacts as Artifact[] | undefined) || []
         result.finalSuccess = parsed.data?.success !== false
+        result.terminalState = result.finalSuccess ? 'completed' : 'failed'
         result.isDone = true
       } else if (parsed.type === 'execution:cancelled') {
         result.finalSuccess = false
+        result.terminalState = 'canceled'
         result.isDone = true
       } else if (parsed.event === 'final') {
         if (parsed.data?.output?.content) {
           result.finalContent = parsed.data.output.content
+        } else if (parsed.data?.output) {
+          result.finalContent = JSON.stringify(parsed.data.output)
         }
+        result.finalArtifacts = (parsed.data?.output?.artifacts as Artifact[] | undefined) || []
         result.finalSuccess = parsed.data?.success !== false
+        result.terminalState = result.finalSuccess ? 'completed' : 'failed'
         result.isDone = true
       }
     } catch {

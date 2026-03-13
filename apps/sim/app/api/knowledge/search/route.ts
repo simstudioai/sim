@@ -136,6 +136,14 @@ export async function POST(request: NextRequest) {
           for (const filter of validatedData.tagFilters) {
             const current = perKbMap.get(filter.tagName)
             if (!current) {
+              if (accessibleKbIds.length > 1) {
+                return NextResponse.json(
+                  {
+                    error: `Tag "${filter.tagName}" does not exist in all selected knowledge bases. Search those knowledge bases separately.`,
+                  },
+                  { status: 400 }
+                )
+              }
               continue
             }
 
@@ -202,7 +210,7 @@ export async function POST(request: NextRequest) {
         // Build structured filters with validated data
         structuredFilters = validatedData.tagFilters.map((filter) => {
           const tagDef = displayNameToTagDef[filter.tagName]!
-          const tagSlot = filter.tagSlot || tagDef.tagSlot
+          const tagSlot = tagDef.tagSlot
           const fieldType = tagDef.fieldType
 
           logger.debug(

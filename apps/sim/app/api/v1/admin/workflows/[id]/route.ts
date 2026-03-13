@@ -13,7 +13,7 @@
  */
 
 import { db } from '@sim/db'
-import { workflowBlocks, workflowEdges } from '@sim/db/schema'
+import { templates, workflowBlocks, workflowEdges } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
@@ -78,6 +78,8 @@ export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) 
     if (!workflowData) {
       return notFoundResponse('Workflow')
     }
+
+    await db.update(templates).set({ workflowId: null }).where(eq(templates.workflowId, workflowId))
 
     await archiveWorkflow(workflowId, {
       requestId: `admin-workflow-${workflowId}`,

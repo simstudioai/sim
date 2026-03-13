@@ -52,7 +52,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const workspaceWorkflows = await db
         .select({ id: workflow.id })
         .from(workflow)
-        .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt)))
+        .where(eq(workflow.workspaceId, workspaceId))
 
       if (workspaceWorkflows.length === 0) {
         return NextResponse.json({ hasPublishedTemplates: false, publishedTemplates: [] })
@@ -249,7 +249,7 @@ export async function DELETE(
     const workspaceWorkflows = await db
       .select({ id: workflow.id })
       .from(workflow)
-      .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt)))
+      .where(eq(workflow.workspaceId, workspaceId))
 
     const workflowIds = workspaceWorkflows.map((entry) => entry.id)
 

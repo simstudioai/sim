@@ -339,6 +339,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       runFromBlock: rawRunFromBlock,
     } = validation.data
 
+    if (isPublicApiAccess && isClientSession) {
+      return NextResponse.json(
+        { error: 'Public API callers cannot set isClientSession' },
+        { status: 400 }
+      )
+    }
+
     if (auth.authType === 'api_key') {
       if (isClientSession) {
         return NextResponse.json(

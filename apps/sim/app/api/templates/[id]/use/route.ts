@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { canAccessTemplate } from '@/lib/templates/permissions'
+import { canAccessTemplate, verifyTemplateOwnership } from '@/lib/templates/permissions'
 import {
   type RegenerateStateInput,
   regenerateWorkflowStateIds,
@@ -65,6 +65,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!templateAccess.allowed) {
       logger.warn(`[${requestId}] Template not found: ${id}`)
       return NextResponse.json({ error: 'Template not found' }, { status: 404 })
+    }
+
+    if (connectToTemplate) {
+      const ownership = await verifyTemplateOwnership(id, session.user.id, 'admin')
+      if (!ownership.authorized) {
+        return NextResponse.json(
+          { error: ownership.error || 'Access denied' },
+          { status: ownership.status || 403 }
+        )
+      }
     }
 
     const template = await db
