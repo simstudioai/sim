@@ -399,18 +399,14 @@ export async function hasAccessControlAccess(userId: string): Promise<boolean> {
 /**
  * Check if user has access to inbox (Sim Mailer) feature
  * Returns true if:
- * - INBOX_ENABLED env var is set (self-hosted override), OR
+ * - INBOX_ENABLED env var is set, OR
+ * - Non-production environment, OR
  * - User has a Max plan (credits >= 25000) or enterprise plan
- *
- * In non-production environments, returns true for convenience.
  */
 export async function hasInboxAccess(userId: string): Promise<boolean> {
   try {
-    if (isInboxEnabled && !isHosted) {
+    if (isInboxEnabled) {
       return true
-    }
-    if (!isHosted) {
-      return false
     }
     if (!isProd) {
       return true
