@@ -158,7 +158,11 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         requestChatTitle({ message, model: titleModel, provider: titleProvider })
           .then(async (title) => {
             if (title) {
-              await db.update(copilotChats).set({ title }).where(eq(copilotChats.id, chatId!))
+              const now = new Date()
+              await db
+                .update(copilotChats)
+                .set({ title, updatedAt: now, lastSeenAt: now })
+                .where(eq(copilotChats.id, chatId!))
               await pushEvent({ type: 'title_updated', title })
               if (workspaceId) {
                 taskPubSub?.publishStatusChanged({ workspaceId, chatId: chatId!, type: 'renamed' })

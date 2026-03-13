@@ -147,9 +147,8 @@ export async function POST(req: NextRequest) {
       if (updated) {
         const freshMessages: any[] = Array.isArray(updated.messages) ? updated.messages : []
         conversationHistory = freshMessages.filter((m: any) => m.id !== userMessageId)
+        taskPubSub?.publishStatusChanged({ workspaceId, chatId: actualChatId, type: 'started' })
       }
-
-      taskPubSub?.publishStatusChanged({ workspaceId, chatId: actualChatId, type: 'started' })
     }
 
     const [workspaceContext, userPermission] = await Promise.all([
