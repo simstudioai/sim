@@ -8,6 +8,7 @@ import {
   ChevronDown,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Modal,
@@ -384,7 +385,7 @@ export function WorkspaceHeader({
                 </div>
               ) : (
                 <>
-                  <div className='flex items-center gap-[8px] px-[2px] py-[2px]'>
+                  <div className='flex items-center gap-[8px] px-[2px] py-[4px]'>
                     <div
                       className='flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center rounded-[6px] font-medium text-[12px] text-white'
                       style={{
@@ -403,10 +404,113 @@ export function WorkspaceHeader({
                     </div>
                   </div>
 
-                  <DropdownMenuSeparator />
+                  <DropdownMenuGroup className='mt-[4px]'>
+                    <div className='flex max-h-[130px] flex-col gap-[2px] overflow-y-auto'>
+                      {workspaces.map((workspace) => (
+                        <div key={workspace.id}>
+                          {editingWorkspaceId === workspace.id ? (
+                            <div className='flex items-center gap-[8px] rounded-[5px] bg-[var(--surface-active)] px-[8px] py-[5px]'>
+                              <input
+                                ref={(el) => {
+                                  if (el && !hasInputFocusedRef.current) {
+                                    hasInputFocusedRef.current = true
+                                    el.focus()
+                                    el.select()
+                                  }
+                                }}
+                                value={editingName}
+                                onChange={(e) => setEditingName(e.target.value)}
+                                onKeyDown={async (e) => {
+                                  e.stopPropagation()
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    setIsListRenaming(true)
+                                    try {
+                                      await onRenameWorkspace(workspace.id, editingName.trim())
+                                      setEditingWorkspaceId(null)
+                                    } finally {
+                                      setIsListRenaming(false)
+                                    }
+                                  } else if (e.key === 'Escape') {
+                                    e.preventDefault()
+                                    setEditingWorkspaceId(null)
+                                  }
+                                }}
+                                onBlur={async () => {
+                                  if (!editingWorkspaceId) return
+                                  const trimmedName = editingName.trim()
+                                  if (trimmedName && trimmedName !== workspace.name) {
+                                    setIsListRenaming(true)
+                                    try {
+                                      await onRenameWorkspace(workspace.id, trimmedName)
+                                    } finally {
+                                      setIsListRenaming(false)
+                                    }
+                                  }
+                                  setEditingWorkspaceId(null)
+                                }}
+                                className='w-full border-0 bg-transparent p-0 font-medium text-[12px] text-[var(--text-primary)] outline-none selection:bg-[#add6ff] selection:text-[#1b1b1b] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:selection:bg-[#264f78] dark:selection:text-white'
+                                maxLength={100}
+                                autoComplete='off'
+                                autoCorrect='off'
+                                autoCapitalize='off'
+                                spellCheck='false'
+                                disabled={isListRenaming}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <div
+                              className={cn(
+                                'group flex cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover:bg-[var(--surface-active)]',
+                                workspace.id === workspaceId && 'bg-[var(--surface-active)]'
+                              )}
+                              onClick={() => onWorkspaceSwitch(workspace)}
+                              onContextMenu={(e) => handleContextMenu(e, workspace)}
+                            >
+                              <span className='min-w-0 flex-1 truncate'>{workspace.name}</span>
+                              <button
+                                type='button'
+                                aria-label='Workspace options'
+                                onMouseDown={() => {
+                                  isContextMenuOpeningRef.current = true
+                                }}
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  const rect = e.currentTarget.getBoundingClientRect()
+                                  openContextMenuAt(workspace, rect.right, rect.top)
+                                }}
+                                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)] group-hover:opacity-100'
+                              >
+                                <MoreHorizontal className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      type='button'
+                      className='flex w-full cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover:bg-[var(--surface-active)] disabled:pointer-events-none disabled:opacity-50'
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setIsWorkspaceMenuOpen(false)
+                        setIsCreateModalOpen(true)
+                      }}
+                      disabled={isCreatingWorkspace}
+                    >
+                      <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+                      Create new workspace
+                    </button>
+                  </DropdownMenuGroup>
 
                   {!isInvitationsDisabled && (
                     <>
+                      <DropdownMenuSeparator />
                       <button
                         type='button'
                         className='flex w-full cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover:bg-[var(--surface-active)]'
@@ -418,116 +522,8 @@ export function WorkspaceHeader({
                         <UserPlus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
                         Invite members
                       </button>
-                      <DropdownMenuSeparator />
                     </>
                   )}
-
-                  <div className='px-[8px] py-[5px] font-medium text-[11px] text-[var(--text-icon)]'>
-                    All workspaces
-                  </div>
-                  <div className='flex max-h-[130px] flex-col gap-[2px] overflow-y-auto'>
-                    {workspaces.map((workspace) => (
-                      <div key={workspace.id}>
-                        {editingWorkspaceId === workspace.id ? (
-                          <div className='flex items-center gap-[8px] rounded-[5px] bg-[var(--surface-active)] px-[8px] py-[5px]'>
-                            <input
-                              ref={(el) => {
-                                if (el && !hasInputFocusedRef.current) {
-                                  hasInputFocusedRef.current = true
-                                  el.focus()
-                                  el.select()
-                                }
-                              }}
-                              value={editingName}
-                              onChange={(e) => setEditingName(e.target.value)}
-                              onKeyDown={async (e) => {
-                                e.stopPropagation()
-                                if (e.key === 'Enter') {
-                                  e.preventDefault()
-                                  setIsListRenaming(true)
-                                  try {
-                                    await onRenameWorkspace(workspace.id, editingName.trim())
-                                    setEditingWorkspaceId(null)
-                                  } finally {
-                                    setIsListRenaming(false)
-                                  }
-                                } else if (e.key === 'Escape') {
-                                  e.preventDefault()
-                                  setEditingWorkspaceId(null)
-                                }
-                              }}
-                              onBlur={async () => {
-                                if (!editingWorkspaceId) return
-                                const trimmedName = editingName.trim()
-                                if (trimmedName && trimmedName !== workspace.name) {
-                                  setIsListRenaming(true)
-                                  try {
-                                    await onRenameWorkspace(workspace.id, trimmedName)
-                                  } finally {
-                                    setIsListRenaming(false)
-                                  }
-                                }
-                                setEditingWorkspaceId(null)
-                              }}
-                              className='w-full border-0 bg-transparent p-0 font-medium text-[12px] text-[var(--text-primary)] outline-none selection:bg-[#add6ff] selection:text-[#1b1b1b] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:selection:bg-[#264f78] dark:selection:text-white'
-                              maxLength={100}
-                              autoComplete='off'
-                              autoCorrect='off'
-                              autoCapitalize='off'
-                              spellCheck='false'
-                              disabled={isListRenaming}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                              }}
-                            />
-                          </div>
-                        ) : (
-                          <div
-                            className={cn(
-                              'group flex cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover:bg-[var(--surface-active)]',
-                              workspace.id === workspaceId && 'bg-[var(--surface-active)]'
-                            )}
-                            onClick={() => onWorkspaceSwitch(workspace)}
-                            onContextMenu={(e) => handleContextMenu(e, workspace)}
-                          >
-                            <span className='min-w-0 flex-1 truncate'>{workspace.name}</span>
-                            <button
-                              type='button'
-                              aria-label='Workspace options'
-                              onMouseDown={() => {
-                                isContextMenuOpeningRef.current = true
-                              }}
-                              onClick={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                const rect = e.currentTarget.getBoundingClientRect()
-                                openContextMenuAt(workspace, rect.right, rect.top)
-                              }}
-                              className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)] group-hover:opacity-100'
-                            >
-                              <MoreHorizontal className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  <DropdownMenuSeparator />
-
-                  <button
-                    type='button'
-                    className='flex w-full cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover:bg-[var(--surface-active)] disabled:pointer-events-none disabled:opacity-50'
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setIsWorkspaceMenuOpen(false)
-                      setIsCreateModalOpen(true)
-                    }}
-                    disabled={isCreatingWorkspace}
-                  >
-                    <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-                    Create new workspace
-                  </button>
                 </>
               )}
             </DropdownMenuContent>
