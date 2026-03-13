@@ -153,7 +153,11 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'google-ads',
         icon: GoogleAdsIcon,
         baseProviderIcon: GoogleIcon,
-        scopes: ['https://www.googleapis.com/auth/adwords'],
+        scopes: [
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
+          'https://www.googleapis.com/auth/adwords',
+        ],
       },
       'google-bigquery': {
         name: 'Google BigQuery',
