@@ -372,7 +372,7 @@ export function Home({ chatId }: HomeProps = {}) {
 
       <MothershipView
         workspaceId={workspaceId}
-        chatId={chatId}
+        chatId={resolvedChatId}
         resources={visibleResources}
         activeResourceId={activeResourceId}
         onSelectResource={setActiveResourceId}
