@@ -11,6 +11,7 @@ import { CredentialsSkeleton } from '@/app/workspace/[workspaceId]/settings/comp
 import { CustomToolsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tool-skeleton'
 import { DebugSkeleton } from '@/app/workspace/[workspaceId]/settings/components/debug/debug-skeleton'
 import { GeneralSkeleton } from '@/app/workspace/[workspaceId]/settings/components/general/general-skeleton'
+import { InboxSkeleton } from '@/app/workspace/[workspaceId]/settings/components/inbox/inbox-skeleton'
 import { McpSkeleton } from '@/app/workspace/[workspaceId]/settings/components/mcp/mcp-skeleton'
 import { SkillsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/skills/skill-skeleton'
 import { WorkflowMcpServersSkeleton } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/workflow-mcp-servers-skeleton'
@@ -124,6 +125,11 @@ const WorkflowMcpServers = dynamic(
     ).then((m) => m.WorkflowMcpServers),
   { loading: () => <WorkflowMcpServersSkeleton /> }
 )
+const Inbox = dynamic(
+  () =>
+    import('@/app/workspace/[workspaceId]/settings/components/inbox/inbox').then((m) => m.Inbox),
+  { loading: () => <InboxSkeleton /> }
+)
 const Debug = dynamic(
   () =>
     import('@/app/workspace/[workspaceId]/settings/components/debug/debug').then((m) => m.Debug),
@@ -170,6 +176,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'custom-tools' && <CustomTools />}
       {effectiveSection === 'skills' && <Skills />}
       {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
+      {effectiveSection === 'inbox' && <Inbox />}
       {effectiveSection === 'debug' && <Debug />}
     </div>
   )

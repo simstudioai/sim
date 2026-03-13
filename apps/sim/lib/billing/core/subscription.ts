@@ -17,6 +17,7 @@ import {
   isAccessControlEnabled,
   isCredentialSetsEnabled,
   isHosted,
+  isInboxEnabled,
   isProd,
   isSsoEnabled,
 } from '@/lib/core/config/feature-flags'
@@ -388,6 +389,19 @@ export async function hasAccessControlAccess(userId: string): Promise<boolean> {
     logger.error('Error checking access control access', { error, userId })
     return false
   }
+}
+
+/**
+ * Check if user has access to inbox (Sim Mailer) feature
+ * Returns true if:
+ * - INBOX_ENABLED env var is set (self-hosted override), OR
+ * - Running on hosted (sim.ai) environment
+ */
+export function hasInboxAccess(): boolean {
+  if (isInboxEnabled && !isHosted) {
+    return true
+  }
+  return isHosted
 }
 
 /**

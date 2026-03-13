@@ -36,6 +36,7 @@ export type SettingsSection =
   | 'custom-tools'
   | 'skills'
   | 'workflow-mcp-servers'
+  | 'inbox'
   | 'docs'
   | 'debug'
 
@@ -64,6 +65,7 @@ export interface NavigationItem {
 const isSSOEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
 const isCredentialSetsEnabled = isTruthy(getEnv('NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED'))
 const isAccessControlEnabled = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
+const isInboxEnabled = isTruthy(getEnv('NEXT_PUBLIC_INBOX_ENABLED'))
 
 export const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
@@ -124,6 +126,14 @@ export const allNavigationItems: NavigationItem[] = [
     icon: HexSimple,
     section: 'system',
     requiresHosted: true,
+  },
+  {
+    id: 'inbox',
+    label: 'Sim Mailer',
+    icon: Mail,
+    section: 'system',
+    requiresHosted: true,
+    selfHostedOverride: isInboxEnabled,
   },
   {
     id: 'credential-sets',

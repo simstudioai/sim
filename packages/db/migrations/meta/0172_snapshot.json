@@ -1,5 +1,5 @@
 {
-  "id": "d2304a4b-0b0f-4cb9-b325-0fa29ee60d13",
+  "id": "3423d6df-9e7e-4ac2-880c-3c7a40e40197",
   "prevId": "ffa08eb3-e03d-4418-880d-8fdc17091fa5",
   "version": "7",
   "dialect": "postgresql",
@@ -92,12 +92,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -161,22 +155,6 @@
             }
           ],
           "isUnique": true,
-          "where": "\"a2a_agent\".\"archived_at\" IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "a2a_agent_archived_at_idx": {
-          "name": "a2a_agent_archived_at_idx",
-          "columns": [
-            {
-              "expression": "archived_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -1212,12 +1190,6 @@
           "notNull": false,
           "default": "'[]'"
         },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -1245,22 +1217,6 @@
             }
           ],
           "isUnique": true,
-          "where": "\"chat\".\"archived_at\" IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "chat_archived_at_idx": {
-          "name": "chat_archived_at_idx",
-          "columns": [
-            {
-              "expression": "archived_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -1372,13 +1328,6 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
-        },
-        "resources": {
-          "name": "resources",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'"
         },
         "last_seen_at": {
           "name": "last_seen_at",
@@ -3085,12 +3034,6 @@
           "notNull": true,
           "default": true
         },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
         "deleted_at": {
           "name": "deleted_at",
           "type": "timestamp",
@@ -3317,36 +3260,6 @@
           "columns": [
             {
               "expression": "connector_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "doc_archived_at_idx": {
-          "name": "doc_archived_at_idx",
-          "columns": [
-            {
-              "expression": "archived_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "doc_deleted_at_idx": {
-          "name": "doc_deleted_at_idx",
-          "columns": [
-            {
-              "expression": "deleted_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3629,7 +3542,7 @@
           "tableTo": "knowledge_connector",
           "columnsFrom": ["connector_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -4421,12 +4334,6 @@
           "notNull": true,
           "default": true
         },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -4454,7 +4361,6 @@
             }
           ],
           "isUnique": true,
-          "where": "\"form\".\"archived_at\" IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -4479,21 +4385,6 @@
           "columns": [
             {
               "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "form_archived_at_idx": {
-          "name": "form_archived_at_idx",
-          "columns": [
-            {
-              "expression": "archived_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -5317,12 +5208,6 @@
           "notNull": true,
           "default": "now()"
         },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
         "deleted_at": {
           "name": "deleted_at",
           "type": "timestamp",
@@ -5357,36 +5242,6 @@
             },
             {
               "expression": "next_sync_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "kc_archived_at_idx": {
-          "name": "kc_archived_at_idx",
-          "columns": [
-            {
-              "expression": "archived_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "kc_deleted_at_idx": {
-          "name": "kc_deleted_at_idx",
-          "columns": [
-            {
-              "expression": "deleted_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -5952,6 +5807,403 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mothership_inbox_allowed_sender": {
+      "name": "mothership_inbox_allowed_sender",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "added_by": {
+          "name": "added_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "inbox_sender_ws_email_idx": {
+          "name": "inbox_sender_ws_email_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mothership_inbox_allowed_sender_workspace_id_workspace_id_fk": {
+          "name": "mothership_inbox_allowed_sender_workspace_id_workspace_id_fk",
+          "tableFrom": "mothership_inbox_allowed_sender",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "mothership_inbox_allowed_sender_added_by_user_id_fk": {
+          "name": "mothership_inbox_allowed_sender_added_by_user_id_fk",
+          "tableFrom": "mothership_inbox_allowed_sender",
+          "tableTo": "user",
+          "columnsFrom": ["added_by"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mothership_inbox_task": {
+      "name": "mothership_inbox_task",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_email": {
+          "name": "from_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_name": {
+          "name": "from_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subject": {
+          "name": "subject",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body_preview": {
+          "name": "body_preview",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "body_text": {
+          "name": "body_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "body_html": {
+          "name": "body_html",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email_message_id": {
+          "name": "email_message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "in_reply_to": {
+          "name": "in_reply_to",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "response_message_id": {
+          "name": "response_message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "agentmail_message_id": {
+          "name": "agentmail_message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'received'"
+        },
+        "chat_id": {
+          "name": "chat_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trigger_job_id": {
+          "name": "trigger_job_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "result_summary": {
+          "name": "result_summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_message": {
+          "name": "error_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rejection_reason": {
+          "name": "rejection_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "has_attachments": {
+          "name": "has_attachments",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "cc_recipients": {
+          "name": "cc_recipients",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "processing_started_at": {
+          "name": "processing_started_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "inbox_task_ws_created_at_idx": {
+          "name": "inbox_task_ws_created_at_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inbox_task_ws_status_idx": {
+          "name": "inbox_task_ws_status_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inbox_task_response_msg_id_idx": {
+          "name": "inbox_task_response_msg_id_idx",
+          "columns": [
+            {
+              "expression": "response_message_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inbox_task_email_msg_id_idx": {
+          "name": "inbox_task_email_msg_id_idx",
+          "columns": [
+            {
+              "expression": "email_message_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mothership_inbox_task_workspace_id_workspace_id_fk": {
+          "name": "mothership_inbox_task_workspace_id_workspace_id_fk",
+          "tableFrom": "mothership_inbox_task",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "mothership_inbox_task_chat_id_copilot_chats_id_fk": {
+          "name": "mothership_inbox_task_chat_id_copilot_chats_id_fk",
+          "tableFrom": "mothership_inbox_task",
+          "tableTo": "copilot_chats",
+          "columnsFrom": ["chat_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mothership_inbox_webhook": {
+      "name": "mothership_inbox_webhook",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "webhook_id": {
+          "name": "webhook_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "secret": {
+          "name": "secret",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "mothership_inbox_webhook_workspace_id_workspace_id_fk": {
+          "name": "mothership_inbox_webhook_workspace_id_workspace_id_fk",
+          "tableFrom": "mothership_inbox_webhook",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "mothership_inbox_webhook_workspace_id_unique": {
+          "name": "mothership_inbox_webhook_workspace_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["workspace_id"]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -9350,12 +9602,6 @@
           "notNull": true,
           "default": 0
         },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_by": {
           "name": "created_by",
           "type": "text",
@@ -9410,22 +9656,6 @@
             }
           ],
           "isUnique": true,
-          "where": "\"user_table_definitions\".\"archived_at\" IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "user_table_def_archived_at_idx": {
-          "name": "user_table_def_archived_at_idx",
-          "columns": [
-            {
-              "expression": "archived_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -9826,12 +10056,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -9865,7 +10089,6 @@
             }
           ],
           "isUnique": true,
-          "where": "\"webhook\".\"archived_at\" IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -9917,21 +10140,6 @@
           "columns": [
             {
               "expression": "credential_set_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "webhook_archived_at_idx": {
-          "name": "webhook_archived_at_idx",
-          "columns": [
-            {
-              "expression": "archived_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -10089,12 +10297,6 @@
           "primaryKey": false,
           "notNull": false,
           "default": "'{}'"
-        },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -10149,34 +10351,6 @@
           "method": "btree",
           "with": {}
         },
-        "workflow_workspace_folder_name_active_unique": {
-          "name": "workflow_workspace_folder_name_active_unique",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "coalesce(\"folder_id\", '')",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "name",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"workflow\".\"archived_at\" IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "workflow_folder_sort_idx": {
           "name": "workflow_folder_sort_idx",
           "columns": [
@@ -10188,21 +10362,6 @@
             },
             {
               "expression": "sort_order",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workflow_archived_at_idx": {
-          "name": "workflow_archived_at_idx",
-          "columns": [
-            {
-              "expression": "archived_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -11563,12 +11722,6 @@
           "notNull": true,
           "default": false
         },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -11605,21 +11758,6 @@
           "columns": [
             {
               "expression": "created_by",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workflow_mcp_server_deleted_at_idx": {
-          "name": "workflow_mcp_server_deleted_at_idx",
-          "columns": [
-            {
-              "expression": "deleted_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -11698,12 +11836,6 @@
           "notNull": true,
           "default": "'{}'"
         },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -11767,22 +11899,6 @@
             }
           ],
           "isUnique": true,
-          "where": "\"workflow_mcp_tool\".\"archived_at\" IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workflow_mcp_tool_archived_at_idx": {
-          "name": "workflow_mcp_tool_archived_at_idx",
-          "columns": [
-            {
-              "expression": "archived_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -11974,12 +12090,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -12019,7 +12129,6 @@
             }
           ],
           "isUnique": true,
-          "where": "\"workflow_schedule\".\"archived_at\" IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -12035,21 +12144,6 @@
             },
             {
               "expression": "deployment_version_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workflow_schedule_archived_at_idx": {
-          "name": "workflow_schedule_archived_at_idx",
-          "columns": [
-            {
-              "expression": "archived_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -12246,9 +12340,22 @@
           "notNull": true,
           "default": true
         },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "timestamp",
+        "inbox_enabled": {
+          "name": "inbox_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "inbox_address": {
+          "name": "inbox_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inbox_provider_id": {
+          "name": "inbox_provider_id",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -12525,12 +12632,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
         "uploaded_at": {
           "name": "uploaded_at",
           "type": "timestamp",
@@ -12560,21 +12661,6 @@
           "columns": [
             {
               "expression": "key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workspace_file_deleted_at_idx": {
-          "name": "workspace_file_deleted_at_idx",
-          "columns": [
-            {
-              "expression": "deleted_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -12670,12 +12756,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
         "uploaded_at": {
           "name": "uploaded_at",
           "type": "timestamp",
@@ -12685,22 +12765,6 @@
         }
       },
       "indexes": {
-        "workspace_files_key_active_unique": {
-          "name": "workspace_files_key_active_unique",
-          "columns": [
-            {
-              "expression": "key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"workspace_files\".\"deleted_at\" IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "workspace_files_key_idx": {
           "name": "workspace_files_key_idx",
           "columns": [
@@ -12760,21 +12824,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "workspace_files_deleted_at_idx": {
-          "name": "workspace_files_deleted_at_idx",
-          "columns": [
-            {
-              "expression": "deleted_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -12798,7 +12847,13 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "workspace_files_key_unique": {
+          "name": "workspace_files_key_unique",
+          "nullsNotDistinct": false,
+          "columns": ["key"]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
