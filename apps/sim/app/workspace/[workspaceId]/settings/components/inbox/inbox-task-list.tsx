@@ -136,7 +136,15 @@ export function InboxTaskList() {
                   className={`flex flex-col gap-[4px] rounded-[8px] border border-[var(--border)] p-[12px] transition-colors ${
                     isClickable ? 'cursor-pointer hover:bg-[var(--surface-2)]' : ''
                   }`}
+                  role={isClickable ? 'button' : undefined}
+                  tabIndex={isClickable ? 0 : undefined}
                   onClick={() => handleTaskClick(task)}
+                  onKeyDown={(e) => {
+                    if (isClickable && (e.key === 'Enter' || e.key === ' ')) {
+                      e.preventDefault()
+                      handleTaskClick(task)
+                    }
+                  }}
                 >
                   <div className='flex items-center justify-between'>
                     <span className='max-w-[70%] truncate font-medium text-[14px] text-[var(--text-primary)]'>
