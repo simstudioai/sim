@@ -32,7 +32,7 @@ html {
 :root {
   --fd-border: transparent !important;
   --fd-border-sidebar: transparent !important;
-  --fd-nav-height: 65px; /* Custom navbar height (h-16 = 64px + 1px border) */
+  --fd-nav-height: 94px; /* Custom navbar height (52px top + 42px tabs) */
   /* Content container width used to center main content */
   --spacing-fd-container: 1400px;
   /* Edge gutter = leftover space on each side of centered container */
@@ -97,7 +97,7 @@ aside#nd-sidebar {
   display: none !important;
 }
 
-/* Mobile only: Reduce gap between navbar and content */
+/* Mobile only: Reduce gap between navbar and content (custom navbar hidden on mobile) */
 @media (max-width: 1023px) {
   #nd-docs-layout {
     margin-top: -25px;
@@ -121,11 +121,11 @@ aside#nd-sidebar {
 /* On mobile, let fumadocs handle the layout natively */
 @media (min-width: 1024px) {
   :root {
-    --fd-banner-height: 65px !important; /* 64px navbar + 1px border */
+    --fd-banner-height: 94px !important; /* 52px top + 42px tabs */
   }
 
   #nd-docs-layout {
-    --fd-docs-height: calc(100dvh - 65px) !important; /* 64px navbar + 1px border */
+    --fd-docs-height: calc(100dvh - 94px) !important; /* 52px top + 42px tabs */
     --fd-sidebar-width: 300px !important;
     margin-left: var(--sidebar-offset) !important;
     margin-right: var(--toc-offset) !important;

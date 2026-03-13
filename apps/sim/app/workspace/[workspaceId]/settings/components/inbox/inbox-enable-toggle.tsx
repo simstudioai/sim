@@ -25,6 +25,7 @@ export function InboxEnableToggle() {
   const toggleInbox = useToggleInbox()
 
   const [isEnableOpen, setIsEnableOpen] = useState(false)
+  const [isDisableOpen, setIsDisableOpen] = useState(false)
   const [enableUsername, setEnableUsername] = useState('')
 
   const handleToggle = useCallback(
@@ -33,14 +34,19 @@ export function InboxEnableToggle() {
         setIsEnableOpen(true)
         return
       }
-      try {
-        await toggleInbox.mutateAsync({ workspaceId, enabled: false })
-      } catch (error) {
-        logger.error('Failed to disable inbox', { error })
-      }
+      setIsDisableOpen(true)
     },
     [workspaceId]
   )
+
+  const handleDisable = useCallback(async () => {
+    try {
+      await toggleInbox.mutateAsync({ workspaceId, enabled: false })
+      setIsDisableOpen(false)
+    } catch (error) {
+      logger.error('Failed to disable inbox', { error })
+    }
+  }, [workspaceId])
 
   const handleEnable = useCallback(async () => {
     try {
@@ -104,6 +110,36 @@ export function InboxEnableToggle() {
             </Button>
             <Button variant='tertiary' onClick={handleEnable} disabled={toggleInbox.isPending}>
               {toggleInbox.isPending ? 'Enabling...' : 'Enable'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal open={isDisableOpen} onOpenChange={setIsDisableOpen}>
+        <ModalContent size='sm'>
+          <ModalHeader>Disable email inbox</ModalHeader>
+          <ModalBody>
+            <p className='text-[var(--text-secondary)]'>
+              Are you sure you want to disable the inbox
+              {config?.address && (
+                <>
+                  {' '}
+                  <span className='font-medium text-[var(--text-primary)]'>{config.address}</span>
+                </>
+              )}
+              ? Any emails sent to this address after disabling will not be delivered.{' '}
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            </p>
+            <p className='mt-[8px] text-[var(--text-secondary)]'>
+              Your existing conversations and task history will be preserved.
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant='default' onClick={() => setIsDisableOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant='destructive' onClick={handleDisable} disabled={toggleInbox.isPending}>
+              {toggleInbox.isPending ? 'Disabling...' : 'Disable inbox'}
             </Button>
           </ModalFooter>
         </ModalContent>
