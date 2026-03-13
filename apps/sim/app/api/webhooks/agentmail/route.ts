@@ -191,7 +191,7 @@ export async function POST(req: Request) {
     logger.error('AgentMail webhook error', {
       error: error instanceof Error ? error.message : 'Unknown error',
     })
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
