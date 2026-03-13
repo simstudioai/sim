@@ -1,6 +1,6 @@
+import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { validateEdges } from './edge-validation'
 
 export interface NormalizationResult {
   state: WorkflowState

@@ -909,9 +909,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
                 },
               },
             },
-            edges: [...state.edges],
-            loops: { ...state.loops },
-            parallels: { ...state.parallels },
           }
         })
       },

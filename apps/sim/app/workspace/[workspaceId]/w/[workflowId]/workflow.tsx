@@ -3628,7 +3628,7 @@ const WorkflowContent = React.memo(() => {
         return hasConflict ? resolved : updated
       })
     },
-    [setNodes, blocks]
+    [setNodes]
   )
 
   /** Handles edge selection with container context tracking and Shift-click multi-selection. */

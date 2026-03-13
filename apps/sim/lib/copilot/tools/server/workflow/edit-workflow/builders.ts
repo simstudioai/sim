@@ -303,10 +303,9 @@ export function normalizeConditionRouterIds(blockId: string, key: string, value:
 
     let canonicalId: string
     if (key === 'conditions') {
-      const title = typeof item.title === 'string' ? item.title.toLowerCase() : ''
-      if (index === 0 || title === 'if') {
+      if (index === 0) {
         canonicalId = `${blockId}-if`
-      } else if (index === parsed.length - 1 || title === 'else') {
+      } else if (index === parsed.length - 1) {
         canonicalId = `${blockId}-else`
       } else {
         canonicalId = `${blockId}-else-if-${elseIfCounter}`

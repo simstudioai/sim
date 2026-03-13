@@ -199,9 +199,9 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
 
         {/*
          * Subflow body background. Uses pointer-events: none so that edges rendered
-         * inside the subflow remain clickable. Subflow selection when clicking the
-         * empty body area is handled by React Flow's native onNodeClick which fires
-         * on the node wrapper element surrounding this component.
+         * inside the subflow remain clickable. The subflow node wrapper also has
+         * pointer-events: none (set in workflow.tsx), so body-area clicks pass
+         * through to the pane. Subflow selection is done via the header above.
          */}
         <div
           className='absolute inset-0 top-[44px] rounded-b-[8px]'

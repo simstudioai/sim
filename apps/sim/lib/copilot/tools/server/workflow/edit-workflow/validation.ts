@@ -393,69 +393,6 @@ export function validateValueForSubBlockType(
   }
 }
 
-export function validateWorkflowBranchIds(workflowState: any): ValidationError[] {
-  const errors: ValidationError[] = []
-
-  for (const [blockId, rawBlock] of Object.entries(workflowState.blocks || {})) {
-    const block = rawBlock as any
-    if (!block?.type || !block?.subBlocks) continue
-
-    if (block.type === 'condition') {
-      const subBlock = block.subBlocks.conditions
-      if (!subBlock) continue
-
-      if (subBlock.type !== 'condition-input') {
-        errors.push({
-          blockId,
-          blockType: block.type,
-          field: 'conditions',
-          value: subBlock.type,
-          error: `Condition block has invalid subblock type "${subBlock.type}" for "conditions" - expected "condition-input"`,
-        })
-      }
-
-      const validation = validateValueForSubBlockType(
-        { id: 'conditions', type: 'condition-input' } as SubBlockConfig,
-        subBlock.value,
-        'conditions',
-        block.type,
-        blockId
-      )
-      if (!validation.valid && validation.error) {
-        errors.push(validation.error)
-      }
-    }
-
-    if (block.type === 'router_v2') {
-      const subBlock = block.subBlocks.routes
-      if (!subBlock) continue
-
-      if (subBlock.type !== 'router-input') {
-        errors.push({
-          blockId,
-          blockType: block.type,
-          field: 'routes',
-          value: subBlock.type,
-          error: `Router block has invalid subblock type "${subBlock.type}" for "routes" - expected "router-input"`,
-        })
-      }
-
-      const validation = validateValueForSubBlockType(
-        { id: 'routes', type: 'router-input' } as SubBlockConfig,
-        subBlock.value,
-        'routes',
-        block.type,
-        blockId
-      )
-      if (!validation.valid && validation.error) {
-        errors.push(validation.error)
-      }
-    }
-  }
-
-  return errors
-}
-
 /**
  * Validates source handle is valid for the block type
  */
