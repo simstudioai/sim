@@ -85,6 +85,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   isCurrentRoute,
   isSelected,
   isActive,
+  isUnread,
   showCollapsedContent,
   onMultiSelectClick,
   onContextMenu,
@@ -95,6 +96,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   isCurrentRoute: boolean
   isSelected: boolean
   isActive: boolean
+  isUnread: boolean
   showCollapsedContent: boolean
   onMultiSelectClick: (taskId: string, shiftKey: boolean, metaKey: boolean) => void
   onContextMenu: (e: React.MouseEvent, taskId: string) => void
@@ -130,7 +132,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
           </div>
           {task.id !== 'new' && (
             <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
-              {isActive && (
+              {(isActive || isUnread) && !isCurrentRoute && (
                 <span className='absolute h-[7px] w-[7px] rounded-full bg-[#33C482] group-hover:hidden' />
               )}
               <button
@@ -1114,6 +1116,7 @@ export const Sidebar = memo(function Sidebar() {
                               isCurrentRoute={isCurrentRoute}
                               isSelected={isSelected}
                               isActive={!!task.isActive}
+                              isUnread={!!task.isUnread}
                               showCollapsedContent={showCollapsedContent}
                               onMultiSelectClick={handleTaskClick}
                               onContextMenu={handleTaskContextMenu}
