@@ -523,8 +523,9 @@ function WorkflowSubmenuContent({
   onSelect: (item: AvailableItem) => void
 }) {
   useFolders(workspaceId)
+  const folders = useFolderStore((state) => state.folders)
   const getFolderTree = useFolderStore((state) => state.getFolderTree)
-  const folderTree = useMemo(() => getFolderTree(workspaceId), [getFolderTree, workspaceId])
+  const folderTree = useMemo(() => getFolderTree(workspaceId), [folders, getFolderTree, workspaceId])
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   const toggleFolder = useCallback((id: string) => {

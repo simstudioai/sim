@@ -5,13 +5,8 @@ import { eq, sql } from 'drizzle-orm'
 
 const logger = createLogger('CopilotResources')
 
-export type ResourceType = 'table' | 'file' | 'workflow' | 'knowledgebase'
-
-export interface ChatResource {
-  type: ResourceType
-  id: string
-  title: string
-}
+export type { MothershipResourceType as ResourceType } from '@/lib/copilot/resource-types'
+export type { MothershipResource as ChatResource } from '@/lib/copilot/resource-types'
 
 const RESOURCE_TOOL_NAMES = new Set([
   'user_table',

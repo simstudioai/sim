@@ -1,3 +1,5 @@
+import type { MothershipResource } from '@/lib/copilot/resource-types'
+
 export type SSEEventType =
   | 'chat_id'
   | 'title_updated'
@@ -67,6 +69,7 @@ export interface ToolCallResult<T = unknown> {
   success: boolean
   output?: T
   error?: string
+  resources?: MothershipResource[]
 }
 
 export type ContentBlockType = 'text' | 'thinking' | 'tool_call' | 'subagent_text' | 'subagent'

@@ -514,12 +514,14 @@ export async function executeToolAndReport(
     }
     await options?.onEvent?.(resultEvent)
 
-    if (result.success && isResourceToolName(toolCall.name) && execContext.chatId) {
-      const resources = extractResourcesFromToolResult(
-        toolCall.name,
-        toolCall.params,
-        result.output
-      )
+    if (result.success && execContext.chatId) {
+      const resources =
+        result.resources && result.resources.length > 0
+          ? result.resources
+          : isResourceToolName(toolCall.name)
+            ? extractResourcesFromToolResult(toolCall.name, toolCall.params, result.output)
+            : []
+
       if (resources.length > 0) {
         persistChatResources(execContext.chatId, resources).catch((err) => {
           logger.warn('Failed to persist chat resources', {
