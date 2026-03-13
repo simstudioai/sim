@@ -99,7 +99,6 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   task,
   isCurrentRoute,
   isSelected,
-  selectedCount,
   status,
   showCollapsedContent,
   onMultiSelectClick,
@@ -108,7 +107,6 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   task: { id: string; href: string; name: string }
   isCurrentRoute: boolean
   isSelected: boolean
-  selectedCount: number
   status: TaskStatus
   showCollapsedContent: boolean
   onMultiSelectClick: (taskId: string, shiftKey: boolean, metaKey: boolean) => void
@@ -121,15 +119,19 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
           href={task.href}
           className={cn(
             'mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
-            isCurrentRoute && 'bg-[var(--surface-active)]',
-            isSelected && selectedCount > 1 && !isCurrentRoute && 'bg-[var(--surface-active)]'
+            (isCurrentRoute || isSelected) && 'bg-[var(--surface-active)]'
           )}
           onClick={(e) => {
             if (task.id === 'new') return
             if (e.shiftKey || e.metaKey || e.ctrlKey) {
               e.preventDefault()
+              onMultiSelectClick(task.id, e.shiftKey, e.metaKey || e.ctrlKey)
+            } else {
+              useFolderStore.setState({
+                selectedTasks: new Set<string>(),
+                lastSelectedTaskId: task.id,
+              })
             }
-            onMultiSelectClick(task.id, e.shiftKey, e.metaKey || e.ctrlKey)
           }}
           onContextMenu={task.id !== 'new' ? (e) => onContextMenu(e, task.id) : undefined}
         >
@@ -1084,7 +1086,6 @@ export const Sidebar = memo(function Sidebar() {
                               task={task}
                               isCurrentRoute={isCurrentRoute}
                               isSelected={isSelected}
-                              selectedCount={selectedTasks.size}
                               status={status}
                               showCollapsedContent={showCollapsedContent}
                               onMultiSelectClick={handleTaskClick}
