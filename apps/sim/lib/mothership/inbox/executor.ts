@@ -13,6 +13,7 @@ import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { formatEmailAsMessage } from '@/lib/mothership/inbox/format'
 import { sendInboxResponse } from '@/lib/mothership/inbox/response'
 import type { AgentMailAttachment } from '@/lib/mothership/inbox/types'
+import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { createFileContent, type MessageContent } from '@/lib/uploads/utils/file-utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -146,13 +147,14 @@ export async function executeInboxTask(taskId: string): Promise<void> {
           logger.warn('Failed to fetch attachment metadata', { taskId, attachErr })
         }
       }
-      const fileAttachments = await downloadAttachmentContents(
+      const downloaded = await downloadAttachmentContents(
         attachments,
         ws.inboxProviderId,
         inboxTask.agentmailMessageId,
-        taskId
+        taskId,
+        userId
       )
-      return { attachments, fileAttachments }
+      return { attachments, ...downloaded }
     }
 
     const [attachmentResult, workspaceContext, integrationTools, userPermission] =
@@ -162,7 +164,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
         buildIntegrationToolSchemas(userId),
         getUserEntityPermissions(userId, 'workspace', ws.id).catch(() => null),
       ])
-    const { attachments, fileAttachments } = attachmentResult
+    const { attachments, fileAttachments, storedAttachments } = attachmentResult
 
     const truncatedTask = {
       ...inboxTask,
@@ -197,10 +199,17 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     const cleanContent = stripThinkingTags(result.content || '')
 
     if (chatId) {
-      await persistChatMessages(chatId, userId, userMessageId, messageContent, {
-        ...result,
-        content: cleanContent,
-      })
+      await persistChatMessages(
+        chatId,
+        userId,
+        userMessageId,
+        messageContent,
+        {
+          ...result,
+          content: cleanContent,
+        },
+        storedAttachments
+      )
     }
 
     const finalStatus = result.success ? 'completed' : 'failed'
@@ -295,7 +304,8 @@ async function persistChatMessages(
   userId: string,
   userMessageId: string,
   userContent: string,
-  result: OrchestratorResult
+  result: OrchestratorResult,
+  storedAttachments: StoredAttachment[] = []
 ): Promise<void> {
   try {
     const now = new Date().toISOString()
@@ -305,6 +315,7 @@ async function persistChatMessages(
       role: 'user' as const,
       content: userContent,
       timestamp: now,
+      ...(storedAttachments.length > 0 ? { fileAttachments: storedAttachments } : {}),
     }
 
     const assistantMessage = {
@@ -351,17 +362,33 @@ async function markTaskFailed(taskId: string, errorMessage: string): Promise<voi
 
 const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024
 
+interface StoredAttachment {
+  id: string
+  key: string
+  filename: string
+  media_type: string
+  size: number
+}
+
+interface DownloadedAttachments {
+  fileAttachments: Array<MessageContent & { filename: string }>
+  storedAttachments: StoredAttachment[]
+}
+
 /**
- * Download attachment content from AgentMail and convert to file content objects
- * that the orchestrator can pass to the LLM as multimodal content.
+ * Download attachment content from AgentMail, convert to file content objects
+ * for the LLM, and upload to copilot storage for chat display.
  */
 async function downloadAttachmentContents(
   attachments: AgentMailAttachment[],
   inboxProviderId: string | null,
   messageId: string | null,
-  taskId: string
-): Promise<Array<MessageContent & { filename: string }>> {
-  if (!inboxProviderId || !messageId || attachments.length === 0) return []
+  taskId: string,
+  userId: string
+): Promise<DownloadedAttachments> {
+  if (!inboxProviderId || !messageId || attachments.length === 0) {
+    return { fileAttachments: [], storedAttachments: [] }
+  }
 
   const eligible = attachments.filter((a) => {
     if (a.size > MAX_ATTACHMENT_SIZE) {
@@ -381,15 +408,37 @@ async function downloadAttachmentContents(
       const buffer = Buffer.from(arrayBuffer)
       const fileContent = createFileContent(buffer, attachment.content_type)
       if (!fileContent) return null
-      return { ...fileContent, filename: attachment.filename }
+
+      const storageKey = `copilot/${Date.now()}-${attachment.attachment_id}-${attachment.filename}`
+      const uploaded = await uploadFile({
+        file: buffer,
+        fileName: attachment.filename,
+        contentType: attachment.content_type,
+        context: 'copilot',
+        customKey: storageKey,
+        preserveKey: true,
+        metadata: { userId, originalName: attachment.filename },
+      })
+
+      const stored: StoredAttachment = {
+        id: attachment.attachment_id,
+        key: uploaded.key,
+        filename: attachment.filename,
+        media_type: attachment.content_type,
+        size: buffer.length,
+      }
+
+      return { fileContent: { ...fileContent, filename: attachment.filename }, stored }
     })
   )
 
-  const results: Array<MessageContent & { filename: string }> = []
+  const fileAttachments: Array<MessageContent & { filename: string }> = []
+  const storedAttachments: StoredAttachment[] = []
   for (let i = 0; i < settled.length; i++) {
     const outcome = settled[i]
     if (outcome.status === 'fulfilled' && outcome.value) {
-      results.push(outcome.value)
+      fileAttachments.push(outcome.value.fileContent)
+      storedAttachments.push(outcome.value.stored)
     } else if (outcome.status === 'rejected') {
       const attachment = eligible[i]
       logger.warn('Failed to download attachment', {
@@ -404,8 +453,8 @@ async function downloadAttachmentContents(
   logger.info('Downloaded attachment contents', {
     taskId,
     total: attachments.length,
-    downloaded: results.length,
+    downloaded: fileAttachments.length,
   })
 
-  return results
+  return { fileAttachments, storedAttachments }
 }

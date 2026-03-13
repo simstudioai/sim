@@ -122,28 +122,21 @@ export async function getMessage(inboxId: string, messageId: string): Promise<Ag
   )
 }
 
+interface AttachmentMetadata {
+  download_url: string
+}
+
 export async function getAttachment(
   inboxId: string,
   messageId: string,
   attachmentId: string
 ): Promise<ArrayBuffer> {
   const path = `/inboxes/${encodeURIComponent(inboxId)}/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`
-  return requestRaw(path)
-}
+  const metadata = await request<AttachmentMetadata>(path)
 
-async function requestRaw(path: string): Promise<ArrayBuffer> {
-  const url = `${BASE_URL}${path}`
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${getApiKey()}`,
-    },
-  })
-
+  const response = await fetch(metadata.download_url)
   if (!response.ok) {
-    const body = await response.text().catch(() => '')
-    logger.error('AgentMail API error', { status: response.status, path, body })
-    throw new Error(`AgentMail API error: ${response.status} ${body}`)
+    throw new Error(`Failed to download attachment from presigned URL: ${response.status}`)
   }
-
   return response.arrayBuffer()
 }
