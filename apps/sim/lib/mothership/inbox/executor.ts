@@ -262,7 +262,7 @@ async function resolveUserId(
       and(
         eq(permissions.entityType, 'workspace'),
         eq(permissions.entityId, ws.id),
-        eq(user.email, senderEmail.toLowerCase())
+        sql`lower(${user.email}) = ${senderEmail.toLowerCase()}`
       )
     )
     .limit(1)
