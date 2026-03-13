@@ -158,6 +158,25 @@ export function Home({ chatId }: HomeProps = {}) {
 
   const { isLoading: isLoadingHistory } = useChatHistory(chatId)
 
+  const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
+  const [isResourceAnimatingIn, setIsResourceAnimatingIn] = useState(false)
+  const [skipResourceTransition, setSkipResourceTransition] = useState(false)
+  const isResourceCollapsedRef = useRef(isResourceCollapsed)
+  isResourceCollapsedRef.current = isResourceCollapsed
+
+  const collapseResource = useCallback(() => setIsResourceCollapsed(true), [])
+  const expandResource = useCallback(() => {
+    setIsResourceCollapsed(false)
+    setIsResourceAnimatingIn(true)
+  }, [])
+
+  const handleResourceEvent = useCallback(() => {
+    if (isResourceCollapsedRef.current) {
+      setIsResourceCollapsed(false)
+      setIsResourceAnimatingIn(true)
+    }
+  }, [])
+
   const {
     messages,
     isSending,
@@ -169,31 +188,28 @@ export function Home({ chatId }: HomeProps = {}) {
     addResource,
     removeResource,
     reorderResources,
-  } = useChat(workspaceId, chatId)
-
-  const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
-  const [isResourceAnimatingIn, setIsResourceAnimatingIn] = useState(false)
-
-  const collapseResource = useCallback(() => setIsResourceCollapsed(true), [])
-  const expandResource = useCallback(() => setIsResourceCollapsed(false), [])
+  } = useChat(workspaceId, chatId, { onResourceEvent: handleResourceEvent })
 
   const visibleResources = resources
-  const prevResourceCountRef = useRef(visibleResources.length)
-  const shouldEnterResourcePanel =
-    isSending && prevResourceCountRef.current === 0 && visibleResources.length > 0
-  useEffect(() => {
-    if (shouldEnterResourcePanel) {
-      setIsResourceCollapsed(false)
-      setIsResourceAnimatingIn(true)
-    }
-    prevResourceCountRef.current = visibleResources.length
-  }, [shouldEnterResourcePanel, visibleResources.length])
 
   useEffect(() => {
     if (!isResourceAnimatingIn) return
     const timer = setTimeout(() => setIsResourceAnimatingIn(false), 400)
     return () => clearTimeout(timer)
   }, [isResourceAnimatingIn])
+
+  useEffect(() => {
+    if (resources.length > 0 && isResourceCollapsedRef.current) {
+      setSkipResourceTransition(true)
+      setIsResourceCollapsed(false)
+    }
+  }, [resources])
+
+  useEffect(() => {
+    if (!skipResourceTransition) return
+    const id = requestAnimationFrame(() => setSkipResourceTransition(false))
+    return () => cancelAnimationFrame(id)
+  }, [skipResourceTransition])
 
   const handleSubmit = useCallback(
     (text: string, fileAttachments?: FileAttachmentForApi[]) => {
@@ -349,7 +365,7 @@ export function Home({ chatId }: HomeProps = {}) {
         onReorderResources={reorderResources}
         onCollapse={collapseResource}
         isCollapsed={isResourceCollapsed}
-        className={isResourceAnimatingIn ? 'animate-slide-in-right' : undefined}
+        className={isResourceAnimatingIn ? 'animate-slide-in-right' : skipResourceTransition ? '!transition-none' : undefined}
       />
 
       {isResourceCollapsed && (

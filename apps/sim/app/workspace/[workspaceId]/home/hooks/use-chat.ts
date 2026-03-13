@@ -10,8 +10,6 @@ import {
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
 import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
-import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
-import { tableKeys } from '@/hooks/queries/tables'
 import {
   type TaskChatHistory,
   type TaskStoredContentBlock,
@@ -22,13 +20,12 @@ import {
   useChatHistory,
 } from '@/hooks/queries/tasks'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
-import { workflowKeys } from '@/hooks/queries/workflows'
-import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useFolderStore } from '@/stores/folders/store'
 import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { invalidateResourceQueries } from '../components/mothership-view/components/resource-registry'
 import type { FileAttachmentForApi } from '../components/user-input/user-input'
 import type {
   ChatMessage,
@@ -41,7 +38,6 @@ import type {
   SSEPayloadData,
   ToolCallStatus,
 } from '../types'
-import { RESOURCE_TOOL_NAMES } from '../utils'
 
 export interface UseChatReturn {
   messages: ChatMessage[]
@@ -184,7 +180,15 @@ function ensureWorkflowInRegistry(resourceId: string, title: string, workspaceId
   return true
 }
 
-export function useChat(workspaceId: string, initialChatId?: string): UseChatReturn {
+export interface UseChatOptions {
+  onResourceEvent?: () => void
+}
+
+export function useChat(
+  workspaceId: string,
+  initialChatId?: string,
+  options?: UseChatOptions
+): UseChatReturn {
   const pathname = usePathname()
   const queryClient = useQueryClient()
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -192,13 +196,15 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
   const [error, setError] = useState<string | null>(null)
   const [resources, setResources] = useState<MothershipResource[]>([])
   const [activeResourceId, setActiveResourceId] = useState<string | null>(null)
+  const onResourceEventRef = useRef(options?.onResourceEvent)
+  onResourceEventRef.current = options?.onResourceEvent
+
   const abortControllerRef = useRef<AbortController | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
   const appliedChatIdRef = useRef<string | undefined>(undefined)
   const pendingUserMsgRef = useRef<{ id: string; content: string } | null>(null)
   const streamIdRef = useRef<string | undefined>(undefined)
   const sendingRef = useRef(false)
-  const toolArgsMapRef = useRef<Map<string, Record<string, unknown>>>(new Map())
   const streamGenRef = useRef(0)
   const streamingContentRef = useRef('')
   const streamingBlocksRef = useRef<ContentBlock[]>([])
@@ -298,7 +304,6 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
 
       streamingContentRef.current = ''
       streamingBlocksRef.current = []
-      toolArgsMapRef.current.clear()
 
       const ensureTextBlock = (): ContentBlock => {
         const last = blocks[blocks.length - 1]
@@ -392,13 +397,6 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
               const isPartial = data?.partial === true
               if (!id) break
 
-              if (RESOURCE_TOOL_NAMES.has(name)) {
-                const args = data?.arguments ?? data?.input
-                if (args) {
-                  toolArgsMapRef.current.set(id, args)
-                }
-              }
-
               if (name.endsWith('_respond')) break
               const ui = parsed.ui || data?.ui
               if (ui?.hidden) break
@@ -474,23 +472,14 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                 flush()
               }
 
-              const toolName = parsed.toolName || getPayloadData(parsed)?.name
-              if (toolName && parsed.success && RESOURCE_TOOL_NAMES.has(toolName)) {
-                if (toolName === 'user_table' || toolName === 'workspace_file' || toolName === 'function_execute' || toolName === 'read') {
-                  queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.list(workspaceId) })
-                  queryClient.invalidateQueries({ queryKey: tableKeys.list(workspaceId) })
-                } else if (toolName === 'create_workflow' || toolName === 'edit_workflow') {
-                  queryClient.invalidateQueries({ queryKey: workflowKeys.list(workspaceId) })
-                } else if (toolName === 'knowledge_base' || toolName === 'knowledge') {
-                  queryClient.invalidateQueries({ queryKey: knowledgeKeys.list(workspaceId) })
-                }
-              }
               break
             }
             case 'resource_added': {
               const resource = parsed.resource
               if (resource?.type && resource?.id) {
                 addResource(resource)
+                invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
+                onResourceEventRef.current?.()
                 if (resource.type === 'workflow') {
                   if (ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)) {
                     useWorkflowRegistry.getState().setActiveWorkflow(resource.id)

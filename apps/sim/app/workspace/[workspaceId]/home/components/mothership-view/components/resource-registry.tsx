@@ -1,6 +1,7 @@
 'use client'
 
 import { type ElementType, type ReactNode, Suspense, lazy } from 'react'
+import type { QueryClient } from '@tanstack/react-query'
 import { Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -9,6 +10,10 @@ import { BookOpen, Database, File as FileIcon, SquareArrowUpRight, Table as Tabl
 import { WorkflowIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
+import { tableKeys } from '@/hooks/queries/tables'
+import { workflowKeys } from '@/hooks/queries/workflows'
+import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 import {
   markRunToolManuallyStopped,
   reportManualRunToolStop,
@@ -327,4 +332,43 @@ export const RESOURCE_TYPES = Object.values(RESOURCE_REGISTRY)
 
 export function getResourceConfig(type: MothershipResourceType): ResourceTypeConfig {
   return RESOURCE_REGISTRY[type]
+}
+
+// ---------------------------------------------------------------------------
+// Resource query invalidation
+// ---------------------------------------------------------------------------
+
+const RESOURCE_INVALIDATORS: Record<
+  MothershipResourceType,
+  (qc: QueryClient, workspaceId: string, resourceId: string) => void
+> = {
+  table: (qc, wId, id) => {
+    qc.invalidateQueries({ queryKey: tableKeys.list(wId) })
+    qc.invalidateQueries({ queryKey: tableKeys.detail(id) })
+  },
+  file: (qc, wId, id) => {
+    qc.invalidateQueries({ queryKey: workspaceFilesKeys.list(wId) })
+    qc.invalidateQueries({ queryKey: workspaceFilesKeys.content(wId, id) })
+  },
+  workflow: (qc, wId) => {
+    qc.invalidateQueries({ queryKey: workflowKeys.list(wId) })
+  },
+  knowledgebase: (qc, wId, id) => {
+    qc.invalidateQueries({ queryKey: knowledgeKeys.list(wId) })
+    qc.invalidateQueries({ queryKey: knowledgeKeys.detail(id) })
+  },
+}
+
+/**
+ * Invalidate list and detail queries for a specific resource.
+ * Called when a `resource_added` event arrives so the embedded view refreshes
+ * and the add-resource dropdown stays up to date.
+ */
+export function invalidateResourceQueries(
+  queryClient: QueryClient,
+  workspaceId: string,
+  resourceType: MothershipResourceType,
+  resourceId: string
+): void {
+  RESOURCE_INVALIDATORS[resourceType](queryClient, workspaceId, resourceId)
 }

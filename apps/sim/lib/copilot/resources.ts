@@ -64,7 +64,8 @@ export function extractResourcesFromToolResult(
           { type: 'table', id: table.id as string, title: (table.name as string) || 'Table' },
         ]
       }
-      const tableId = (data.tableId as string) ?? params?.tableId
+      const args = asRecord(params?.args)
+      const tableId = (data.tableId as string) ?? (args.tableId as string) ?? (params?.tableId as string)
       if (tableId) {
         return [
           { type: 'table', id: tableId as string, title: (data.tableName as string) || 'Table' },
