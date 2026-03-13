@@ -1058,6 +1058,7 @@ export const workspace = pgTable('workspace', {
   inboxEnabled: boolean('inbox_enabled').notNull().default(false),
   inboxAddress: text('inbox_address'),
   inboxProviderId: text('inbox_provider_id'),
+  archivedAt: timestamp('archived_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
