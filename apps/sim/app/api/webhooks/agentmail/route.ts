@@ -218,7 +218,7 @@ async function isSenderAllowed(email: string, workspaceId: string): Promise<bool
         and(
           eq(permissions.entityType, 'workspace'),
           eq(permissions.entityId, workspaceId),
-          eq(user.email, email)
+          sql`lower(${user.email}) = ${email}`
         )
       )
       .limit(1),

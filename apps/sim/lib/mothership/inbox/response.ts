@@ -86,8 +86,12 @@ function stripRawHtml(text: string): string {
     .join('')
 }
 
+function stripUnsafeUrls(html: string): string {
+  return html.replace(/href\s*=\s*"(javascript|vbscript|data):[^"]*"/gi, 'href="#"')
+}
+
 function renderEmailHtml(markdown: string, chatUrl: string): string {
-  const bodyHtml = marked.parse(stripRawHtml(markdown), { async: false }) as string
+  const bodyHtml = stripUnsafeUrls(marked.parse(stripRawHtml(markdown), { async: false }) as string)
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${EMAIL_STYLES}</style></head>
 <body>
