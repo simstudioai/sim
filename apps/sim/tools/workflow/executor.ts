@@ -46,7 +46,7 @@ export const workflowExecutorTool: ToolConfig<
       const isDeployedContext = params._context?.isDeployedContext
       return {
         input: inputData,
-        triggerType: 'api',
+        triggerType: 'workflow',
         useDraftState: !isDeployedContext,
       }
     },
