@@ -40,6 +40,7 @@ import {
 } from '@/lib/knowledge/tags/utils'
 import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
+import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import type { DocumentProcessingPayload } from '@/background/knowledge-processing'
 
 const logger = createLogger('DocumentService')
@@ -1854,7 +1855,7 @@ function getKnowledgeBaseStorageKey(fileUrl: string | null): string | null {
 
   try {
     const urlPath = new URL(fileUrl, 'http://localhost').pathname
-    const storageKey = urlPath.replace(/^\/api\/uploads\//, '')
+    const storageKey = extractStorageKey(urlPath)
     return storageKey !== urlPath ? storageKey : null
   } catch {
     return null

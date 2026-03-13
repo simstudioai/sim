@@ -1,8 +1,10 @@
 import { db } from '@sim/db'
-import { copilotChats, document, knowledgeBase, templates } from '@sim/db/schema'
+import { document, knowledgeBase, templates } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
+import { canAccessTemplate } from '@/lib/templates/permissions'
+import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
@@ -59,7 +61,11 @@ export async function processContexts(
         return await processBlockMetadata(ctx.blockIds[0], ctx.label ? `@${ctx.label}` : '@')
       }
       if (ctx.kind === 'templates' && ctx.templateId) {
-        return await processTemplateFromDb(ctx.templateId, ctx.label ? `@${ctx.label}` : '@')
+        return await processTemplateFromDb(
+          ctx.templateId,
+          undefined,
+          ctx.label ? `@${ctx.label}` : '@'
+        )
       }
       if (ctx.kind === 'logs' && ctx.executionId) {
         return await processExecutionLogFromDb(
@@ -87,27 +93,35 @@ export async function processContexts(
 export async function processContextsServer(
   contexts: ChatContext[] | undefined,
   userId: string,
-  userMessage?: string
+  userMessage?: string,
+  currentWorkspaceId?: string
 ): Promise<AgentContext[]> {
   if (!Array.isArray(contexts) || contexts.length === 0) return []
   const tasks = contexts.map(async (ctx) => {
     try {
       if (ctx.kind === 'past_chat' && ctx.chatId) {
-        return await processPastChatFromDb(ctx.chatId, userId, ctx.label ? `@${ctx.label}` : '@')
+        return await processPastChatFromDb(
+          ctx.chatId,
+          userId,
+          ctx.label ? `@${ctx.label}` : '@',
+          currentWorkspaceId
+        )
       }
       if ((ctx.kind === 'workflow' || ctx.kind === 'current_workflow') && ctx.workflowId) {
         return await processWorkflowFromDb(
           ctx.workflowId,
           userId,
           ctx.label ? `@${ctx.label}` : '@',
-          ctx.kind
+          ctx.kind,
+          currentWorkspaceId
         )
       }
       if (ctx.kind === 'knowledge' && ctx.knowledgeId) {
         return await processKnowledgeFromDb(
           ctx.knowledgeId,
           userId,
-          ctx.label ? `@${ctx.label}` : '@'
+          ctx.label ? `@${ctx.label}` : '@',
+          currentWorkspaceId
         )
       }
       if (ctx.kind === 'blocks' && ctx.blockIds?.length > 0) {
@@ -118,17 +132,29 @@ export async function processContextsServer(
         )
       }
       if (ctx.kind === 'templates' && ctx.templateId) {
-        return await processTemplateFromDb(ctx.templateId, ctx.label ? `@${ctx.label}` : '@')
+        return await processTemplateFromDb(
+          ctx.templateId,
+          userId,
+          ctx.label ? `@${ctx.label}` : '@',
+          currentWorkspaceId
+        )
       }
       if (ctx.kind === 'logs' && ctx.executionId) {
         return await processExecutionLogFromDb(
           ctx.executionId,
           userId,
-          ctx.label ? `@${ctx.label}` : '@'
+          ctx.label ? `@${ctx.label}` : '@',
+          currentWorkspaceId
         )
       }
       if (ctx.kind === 'workflow_block' && ctx.workflowId && ctx.blockId) {
-        return await processWorkflowBlockFromDb(ctx.workflowId, userId, ctx.blockId, ctx.label)
+        return await processWorkflowBlockFromDb(
+          ctx.workflowId,
+          userId,
+          ctx.blockId,
+          ctx.label,
+          currentWorkspaceId
+        )
       }
       if (ctx.kind === 'docs') {
         try {
@@ -213,15 +239,28 @@ function sanitizeMessageForDocs(rawMessage: string, contexts: ChatContext[] | un
 async function processPastChatFromDb(
   chatId: string,
   userId: string,
-  tag: string
+  tag: string,
+  currentWorkspaceId?: string
 ): Promise<AgentContext | null> {
   try {
-    const rows = await db
-      .select({ messages: copilotChats.messages })
-      .from(copilotChats)
-      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
-      .limit(1)
-    const messages = Array.isArray(rows?.[0]?.messages) ? (rows[0] as any).messages : []
+    const { getAccessibleCopilotChat } = await import('@/lib/copilot/chat-lifecycle')
+    const chat = await getAccessibleCopilotChat(chatId, userId)
+    if (!chat) {
+      return null
+    }
+
+    if (currentWorkspaceId) {
+      if (chat.workspaceId && chat.workspaceId !== currentWorkspaceId) {
+        return null
+      }
+      if (chat.workflowId) {
+        const activeWorkflow = await getActiveWorkflowRecord(chat.workflowId)
+        if (!activeWorkflow || activeWorkflow.workspaceId !== currentWorkspaceId) {
+          return null
+        }
+      }
+    }
+    const messages = Array.isArray(chat.messages) ? (chat as any).messages : []
     const content = messages
       .map((m: any) => {
         const role = m.role || 'user'
@@ -254,7 +293,8 @@ async function processWorkflowFromDb(
   workflowId: string,
   userId: string | undefined,
   tag: string,
-  kind: 'workflow' | 'current_workflow' = 'workflow'
+  kind: 'workflow' | 'current_workflow' = 'workflow',
+  currentWorkspaceId?: string
 ): Promise<AgentContext | null> {
   try {
     if (userId) {
@@ -264,6 +304,9 @@ async function processWorkflowFromDb(
         action: 'read',
       })
       if (!authorization.allowed) {
+        return null
+      }
+      if (currentWorkspaceId && authorization.workflow?.workspaceId !== currentWorkspaceId) {
         return null
       }
     }
@@ -338,12 +381,16 @@ async function processPastChatViaApi(chatId: string, tag?: string) {
 async function processKnowledgeFromDb(
   knowledgeBaseId: string,
   userId: string | undefined,
-  tag: string
+  tag: string,
+  currentWorkspaceId?: string
 ): Promise<AgentContext | null> {
   try {
     if (userId) {
       const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, userId)
       if (!accessCheck.hasAccess) {
+        return null
+      }
+      if (currentWorkspaceId && accessCheck.knowledgeBase?.workspaceId !== currentWorkspaceId) {
         return null
       }
     }
@@ -468,9 +515,25 @@ async function processBlockMetadata(
 
 async function processTemplateFromDb(
   templateId: string,
-  tag: string
+  userId: string | undefined,
+  tag: string,
+  currentWorkspaceId?: string
 ): Promise<AgentContext | null> {
   try {
+    const access = await canAccessTemplate(templateId, userId)
+    if (!access.allowed) {
+      return null
+    }
+
+    if (currentWorkspaceId && access.template?.workflowId) {
+      const workflowRecord = await getActiveWorkflowRecord(access.template.workflowId)
+      if (!workflowRecord || workflowRecord.workspaceId !== currentWorkspaceId) {
+        return null
+      }
+    } else if (currentWorkspaceId) {
+      return null
+    }
+
     const rows = await db
       .select({
         id: templates.id,
@@ -504,7 +567,8 @@ async function processWorkflowBlockFromDb(
   workflowId: string,
   userId: string | undefined,
   blockId: string,
-  label?: string
+  label?: string,
+  currentWorkspaceId?: string
 ): Promise<AgentContext | null> {
   try {
     if (userId) {
@@ -514,6 +578,9 @@ async function processWorkflowBlockFromDb(
         action: 'read',
       })
       if (!authorization.allowed) {
+        return null
+      }
+      if (currentWorkspaceId && authorization.workflow?.workspaceId !== currentWorkspaceId) {
         return null
       }
     }
@@ -539,7 +606,8 @@ async function processWorkflowBlockFromDb(
 async function processExecutionLogFromDb(
   executionId: string,
   userId: string | undefined,
-  tag: string
+  tag: string,
+  currentWorkspaceId?: string
 ): Promise<AgentContext | null> {
   try {
     const { workflowExecutionLogs, workflow } = await import('@sim/db/schema')
@@ -573,6 +641,9 @@ async function processExecutionLogFromDb(
         action: 'read',
       })
       if (!authorization.allowed) {
+        return null
+      }
+      if (currentWorkspaceId && authorization.workflow?.workspaceId !== currentWorkspaceId) {
         return null
       }
     }

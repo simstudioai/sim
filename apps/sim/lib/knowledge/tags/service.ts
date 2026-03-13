@@ -375,7 +375,6 @@ export async function cleanupUnusedTagDefinitions(
       .where(
         and(
           eq(document.knowledgeBaseId, knowledgeBaseId),
-          eq(document.userExcluded, false),
           isNull(document.archivedAt),
           isNull(document.deletedAt),
           sql`${sql.raw(tagSlot)} IS NOT NULL`
@@ -389,7 +388,6 @@ export async function cleanupUnusedTagDefinitions(
       .where(
         and(
           eq(embedding.knowledgeBaseId, knowledgeBaseId),
-          eq(document.userExcluded, false),
           isNull(document.archivedAt),
           isNull(document.deletedAt),
           sql`${sql.raw(`embedding.${tagSlot}`)} IS NOT NULL`

@@ -438,6 +438,22 @@ async function handleMessageSend(
     try {
       const workflowInput = extractWorkflowInput(message)
       if (!workflowInput) {
+        await db
+          .update(a2aTask)
+          .set({
+            status: 'failed',
+            completedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(a2aTask.id, taskId))
+
+        notifyTaskStateChange(taskId, 'failed').catch((err) => {
+          logger.error('Failed to trigger push notification for invalid input', {
+            taskId,
+            error: err,
+          })
+        })
+
         return NextResponse.json(
           createError(
             id,
@@ -680,6 +696,22 @@ async function handleMessageStream(
 
         const workflowInput = extractWorkflowInput(message)
         if (!workflowInput) {
+          await db
+            .update(a2aTask)
+            .set({
+              status: 'failed',
+              completedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(a2aTask.id, taskId))
+
+          notifyTaskStateChange(taskId, 'failed').catch((err) => {
+            logger.error('Failed to trigger push notification for invalid streamed input', {
+              taskId,
+              error: err,
+            })
+          })
+
           sendEvent('error', {
             code: A2A_ERROR_CODES.INVALID_PARAMS,
             message: 'Message must contain at least one part with content',
@@ -713,6 +745,7 @@ async function handleMessageStream(
         }
 
         const contentType = response.headers.get('content-type') || ''
+        const streamingExecutionId = response.headers.get('X-Execution-Id') || undefined
         const isStreamingResponse =
           contentType.includes('text/event-stream') || contentType.includes('text/plain')
 
@@ -721,14 +754,42 @@ async function handleMessageStream(
           const decoder = new TextDecoder()
           const contentChunks: string[] = []
           let finalContent: string | undefined
+          let sseBuffer = ''
 
           while (true) {
             const { done, value } = await reader.read()
             if (done) break
 
-            const rawChunk = decoder.decode(value, { stream: true })
-            const parsed = parseWorkflowSSEChunk(rawChunk)
+            sseBuffer += decoder.decode(value, { stream: true })
+            const frames = sseBuffer.split('\n\n')
+            sseBuffer = frames.pop() ?? ''
 
+            for (const frame of frames) {
+              const parsed = parseWorkflowSSEChunk(frame)
+
+              if (parsed.content) {
+                contentChunks.push(parsed.content)
+                sendEvent('message', {
+                  kind: 'message',
+                  taskId,
+                  contextId,
+                  role: 'agent',
+                  parts: [{ kind: 'text', text: parsed.content }],
+                  final: false,
+                })
+              }
+
+              if (parsed.finalContent) {
+                finalContent = parsed.finalContent
+              }
+              if (parsed.finalSuccess === false) {
+                throw new Error('Workflow execution failed')
+              }
+            }
+          }
+
+          if (sseBuffer.trim().length > 0) {
+            const parsed = parseWorkflowSSEChunk(sseBuffer)
             if (parsed.content) {
               contentChunks.push(parsed.content)
               sendEvent('message', {
@@ -740,7 +801,6 @@ async function handleMessageStream(
                 final: false,
               })
             }
-
             if (parsed.finalContent) {
               finalContent = parsed.finalContent
             }
@@ -764,6 +824,7 @@ async function handleMessageStream(
             .set({
               status: 'completed',
               messages: history,
+              executionId: streamingExecutionId,
               completedAt: new Date(),
               updatedAt: new Date(),
             })

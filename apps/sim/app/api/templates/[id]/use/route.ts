@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { canAccessTemplate } from '@/lib/templates/permissions'
 import {
   type RegenerateStateInput,
   regenerateWorkflowStateIds,
@@ -60,6 +61,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     )
 
     // Get the template
+    const templateAccess = await canAccessTemplate(id, session.user.id)
+    if (!templateAccess.allowed) {
+      logger.warn(`[${requestId}] Template not found: ${id}`)
+      return NextResponse.json({ error: 'Template not found' }, { status: 404 })
+    }
+
     const template = await db
       .select({
         id: templates.id,
@@ -71,11 +78,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .from(templates)
       .where(eq(templates.id, id))
       .limit(1)
-
-    if (template.length === 0) {
-      logger.warn(`[${requestId}] Template not found: ${id}`)
-      return NextResponse.json({ error: 'Template not found' }, { status: 404 })
-    }
 
     const templateData = template[0]
 

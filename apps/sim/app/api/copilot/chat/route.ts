@@ -21,7 +21,10 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
-import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
+import {
+  authorizeWorkflowByWorkspacePermission,
+  resolveWorkflowIdForUser,
+} from '@/lib/workflows/utils'
 import {
   assertActiveWorkspaceAccess,
   getUserEntityPermissions,
@@ -104,6 +107,7 @@ export async function POST(req: NextRequest) {
       userMessageId,
       chatId,
       workflowId: providedWorkflowId,
+      workspaceId: requestedWorkspaceId,
       workflowName,
       model,
       mode,
@@ -136,7 +140,8 @@ export async function POST(req: NextRequest) {
     const resolved = await resolveWorkflowIdForUser(
       authenticatedUserId,
       providedWorkflowId,
-      workflowName
+      workflowName,
+      requestedWorkspaceId
     )
     if (!resolved) {
       return createBadRequestResponse(
@@ -181,7 +186,8 @@ export async function POST(req: NextRequest) {
         const processed = await processContextsServer(
           normalizedContexts as any,
           authenticatedUserId,
-          message
+          message,
+          resolvedWorkspaceId
         )
         agentContexts = processed
         logger.info(`[${tracker.requestId}] Contexts processed for request`, {
@@ -220,6 +226,10 @@ export async function POST(req: NextRequest) {
       conversationHistory = Array.isArray(chatResult.conversationHistory)
         ? chatResult.conversationHistory
         : []
+
+      if (chatId && !currentChat) {
+        return createBadRequestResponse('Chat not found')
+      }
     }
 
     const effectiveMode = mode === 'agent' ? 'build' : mode
@@ -469,6 +479,17 @@ export async function GET(req: NextRequest) {
       await assertActiveWorkspaceAccess(workspaceId, authenticatedUserId)
     }
 
+    if (workflowId) {
+      const authorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId,
+        userId: authenticatedUserId,
+        action: 'read',
+      })
+      if (!authorization.allowed) {
+        return createUnauthorizedResponse()
+      }
+    }
+
     const scopeFilter = workflowId
       ? eq(copilotChats.workflowId, workflowId)
       : eq(copilotChats.workspaceId, workspaceId!)
@@ -488,7 +509,18 @@ export async function GET(req: NextRequest) {
       .where(and(eq(copilotChats.userId, authenticatedUserId), scopeFilter))
       .orderBy(desc(copilotChats.updatedAt))
 
-    const transformedChats = chats.map((chat) => ({
+    const visibleChats = workflowId
+      ? (
+          await Promise.all(
+            chats.map(async (chat) => {
+              const scopedChat = await getAccessibleCopilotChat(chat.id, authenticatedUserId)
+              return scopedChat ? chat : null
+            })
+          )
+        ).filter((chat): chat is (typeof chats)[number] => chat !== null)
+      : chats
+
+    const transformedChats = visibleChats.map((chat) => ({
       id: chat.id,
       title: chat.title,
       model: chat.model,

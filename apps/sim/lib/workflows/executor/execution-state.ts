@@ -34,6 +34,24 @@ export async function getExecutionState(
   return extractExecutionState(row?.executionData)
 }
 
+export async function getExecutionStateForWorkflow(
+  executionId: string,
+  workflowId: string
+): Promise<SerializableExecutionState | null> {
+  const [row] = await db
+    .select({ executionData: workflowExecutionLogs.executionData })
+    .from(workflowExecutionLogs)
+    .where(
+      and(
+        eq(workflowExecutionLogs.executionId, executionId),
+        eq(workflowExecutionLogs.workflowId, workflowId)
+      )
+    )
+    .limit(1)
+
+  return extractExecutionState(row?.executionData)
+}
+
 export async function getLatestExecutionState(
   workflowId: string
 ): Promise<SerializableExecutionState | null> {

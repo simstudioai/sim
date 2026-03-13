@@ -16,6 +16,7 @@ import {
 } from '@/lib/knowledge/documents/service'
 import { StorageService } from '@/lib/uploads'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
+import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { knowledgeConnectorSync } from '@/background/knowledge-connector-sync'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
@@ -678,7 +679,7 @@ async function addDocument(
     })
   } catch (error) {
     const urlPath = new URL(fileUrl, 'http://localhost').pathname
-    const storageKey = urlPath.replace(/^\/api\/uploads\//, '')
+    const storageKey = extractStorageKey(urlPath)
     if (storageKey && storageKey !== urlPath) {
       await deleteFile({ key: storageKey, context: 'knowledge-base' }).catch(() => undefined)
     }
@@ -783,7 +784,7 @@ async function updateDocument(
     })
   } catch (error) {
     const urlPath = new URL(fileUrl, 'http://localhost').pathname
-    const storageKey = urlPath.replace(/^\/api\/uploads\//, '')
+    const storageKey = extractStorageKey(urlPath)
     if (storageKey && storageKey !== urlPath) {
       await deleteFile({ key: storageKey, context: 'knowledge-base' }).catch(() => undefined)
     }
@@ -794,7 +795,7 @@ async function updateDocument(
   if (oldFileUrl) {
     try {
       const urlPath = new URL(oldFileUrl, 'http://localhost').pathname
-      const storageKey = urlPath.replace(/^\/api\/uploads\//, '')
+      const storageKey = extractStorageKey(urlPath)
       if (storageKey && storageKey !== urlPath) {
         await deleteFile({ key: storageKey, context: 'knowledge-base' })
       }

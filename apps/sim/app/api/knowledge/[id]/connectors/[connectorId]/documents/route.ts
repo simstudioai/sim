@@ -170,7 +170,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (operation === 'restore') {
       const updated = await db
         .update(document)
-        .set({ userExcluded: false })
+        .set({ userExcluded: false, enabled: true })
         .where(
           and(
             eq(document.connectorId, connectorId),
@@ -192,7 +192,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     const updated = await db
       .update(document)
-      .set({ userExcluded: true })
+      .set({ userExcluded: true, enabled: false })
       .where(
         and(
           eq(document.connectorId, connectorId),

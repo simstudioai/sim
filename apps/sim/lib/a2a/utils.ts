@@ -284,8 +284,26 @@ export function parseWorkflowSSEChunk(chunk: string): ParsedSSEChunk {
     try {
       const parsed = JSON.parse(dataContent)
 
-      if (parsed.event === 'chunk' && parsed.data?.content) {
-        result.content += parsed.data.content
+      if (
+        (parsed.event === 'chunk' && parsed.data?.content) ||
+        (parsed.type === 'stream:chunk' && parsed.data?.chunk)
+      ) {
+        const chunkText = parsed.data?.content ?? parsed.data?.chunk
+        if (chunkText) {
+          result.content += chunkText
+        }
+      } else if (parsed.event === 'error' || parsed.type === 'execution:error') {
+        result.finalSuccess = false
+        result.isDone = true
+      } else if (parsed.type === 'execution:completed') {
+        if (parsed.data?.output?.content) {
+          result.finalContent = parsed.data.output.content
+        }
+        result.finalSuccess = parsed.data?.success !== false
+        result.isDone = true
+      } else if (parsed.type === 'execution:cancelled') {
+        result.finalSuccess = false
+        result.isDone = true
       } else if (parsed.event === 'final') {
         if (parsed.data?.output?.content) {
           result.finalContent = parsed.data.output.content

@@ -12,6 +12,7 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowCheckpointsAPI')
 
@@ -43,7 +44,6 @@ export async function POST(req: NextRequest) {
       workflowId,
       chatId,
       messageId,
-      fullRequestBody: body,
       parsedData: { workflowId, chatId, messageId },
       messageIdType: typeof messageId,
       messageIdExists: !!messageId,
@@ -54,6 +54,19 @@ export async function POST(req: NextRequest) {
 
     if (!chat) {
       return createBadRequestResponse('Chat not found or unauthorized')
+    }
+
+    if (chat.workflowId !== workflowId) {
+      return createBadRequestResponse('Chat does not belong to the requested workflow')
+    }
+
+    const authorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId,
+      userId,
+      action: 'write',
+    })
+    if (!authorization.allowed) {
+      return createUnauthorizedResponse()
     }
 
     // Parse the workflow state to validate it's valid JSON
