@@ -166,19 +166,29 @@ type AsyncExecutionParams = {
 async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextResponse> {
   const { requestId, workflowId, userId, input, triggerType, executionId, callChain } = params
 
+  const correlation = {
+    executionId,
+    requestId,
+    source: 'workflow' as const,
+    workflowId,
+    triggerType,
+  }
+
   const payload: WorkflowExecutionPayload = {
     workflowId,
     userId,
     input,
     triggerType,
     executionId,
+    requestId,
+    correlation,
     callChain,
   }
 
   try {
     const jobQueue = await getJobQueue()
     const jobId = await jobQueue.enqueue('workflow-execution', payload, {
-      metadata: { workflowId, userId },
+      metadata: { workflowId, userId, correlation },
     })
 
     logger.info(`[${requestId}] Queued async workflow execution`, {

@@ -1,6 +1,6 @@
 import { databaseMock, loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
-import { ExecutionLogger } from '@/lib/logs/execution/logger'
+import { ExecutionLogger } from './logger'
 
 vi.mock('@sim/db', () => databaseMock)
 
@@ -110,6 +110,57 @@ describe('ExecutionLogger', () => {
 
     test('should have getWorkflowExecution method', () => {
       expect(typeof logger.getWorkflowExecution).toBe('function')
+    })
+
+    test('preserves start correlation data when execution completes', () => {
+      const loggerInstance = new ExecutionLogger() as any
+
+      const completedData = loggerInstance.buildCompletedExecutionData({
+        existingExecutionData: {
+          environment: {
+            variables: {},
+            workflowId: 'workflow-123',
+            executionId: 'execution-123',
+            userId: 'user-123',
+            workspaceId: 'workspace-123',
+          },
+          trigger: {
+            type: 'webhook',
+            source: 'webhook',
+            timestamp: '2025-01-01T00:00:00.000Z',
+            data: {
+              correlation: {
+                executionId: 'execution-123',
+                requestId: 'req-1234',
+                source: 'webhook',
+                workflowId: 'workflow-123',
+                webhookId: 'webhook-123',
+                path: 'incoming/slack',
+                triggerType: 'webhook',
+              },
+            },
+          },
+        },
+        traceSpans: [],
+        finalOutput: { ok: true },
+        executionCost: {
+          tokens: { input: 0, output: 0, total: 0 },
+          models: {},
+        },
+      })
+
+      expect(completedData.environment?.workflowId).toBe('workflow-123')
+      expect(completedData.trigger?.data?.correlation).toEqual({
+        executionId: 'execution-123',
+        requestId: 'req-1234',
+        source: 'webhook',
+        workflowId: 'workflow-123',
+        webhookId: 'webhook-123',
+        path: 'incoming/slack',
+        triggerType: 'webhook',
+      })
+      expect(completedData.correlation).toEqual(completedData.trigger?.data?.correlation)
+      expect(completedData.finalOutput).toEqual({ ok: true })
     })
   })
 

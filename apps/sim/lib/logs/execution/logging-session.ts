@@ -19,13 +19,19 @@ import type {
 } from '@/lib/logs/types'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 
+type TriggerData = Record<string, unknown> & {
+  correlation?: NonNullable<ExecutionTrigger['data']>['correlation']
+}
+
 const logger = createLogger('LoggingSession')
+
+type CompletionAttempt = 'complete' | 'error' | 'cancelled' | 'paused'
 
 export interface SessionStartParams {
   userId?: string
   workspaceId: string
   variables?: Record<string, string>
-  triggerData?: Record<string, unknown>
+  triggerData?: TriggerData
   skipLogCreation?: boolean // For resume executions - reuse existing log entry
   deploymentVersionId?: string // ID of the deployment version used (null for manual/editor executions)
 }
@@ -87,12 +93,15 @@ export class LoggingSession {
   private trigger?: ExecutionTrigger
   private environment?: ExecutionEnvironment
   private workflowState?: WorkflowState
+  private correlation?: NonNullable<ExecutionTrigger['data']>['correlation']
   private isResume = false
   private completed = false
   /** Synchronous flag to prevent concurrent completion attempts (race condition guard) */
   private completing = false
   /** Tracks the in-flight completion promise so callers can await it */
   private completionPromise: Promise<void> | null = null
+  private completionAttempt: CompletionAttempt | null = null
+  private completionAttemptFailed = false
   private accumulatedCost: AccumulatedCost = {
     total: BASE_EXECUTION_CHARGE,
     input: 0,
@@ -216,6 +225,7 @@ export class LoggingSession {
 
     try {
       this.trigger = createTriggerObject(this.triggerType, triggerData)
+      this.correlation = triggerData?.correlation
       this.environment = createEnvironmentObject(
         this.workflowId,
         this.executionId,
@@ -399,6 +409,8 @@ export class LoggingSession {
         costSummary,
         finalOutput: { error: message },
         traceSpans: spans,
+        level: 'error',
+        status: 'failed',
       })
 
       this.completed = true
@@ -539,6 +551,11 @@ export class LoggingSession {
   }
 
   async completeWithPause(params: SessionPausedParams = {}): Promise<void> {
+    if (this.completed || this.completing) {
+      return
+    }
+    this.completing = true
+
     try {
       const { endedAt, totalDurationMs, traceSpans, workflowInput } = params
 
@@ -569,6 +586,8 @@ export class LoggingSession {
         workflowInput,
         status: 'pending',
       })
+
+      this.completed = true
 
       try {
         const { PlatformEvents, createOTelSpansForWorkflowExecution } = await import(
@@ -606,6 +625,7 @@ export class LoggingSession {
         )
       }
     } catch (pauseError) {
+      this.completing = false
       logger.error(`Failed to complete paused logging for execution ${this.executionId}:`, {
         requestId: this.requestId,
         workflowId: this.workflowId,
@@ -633,6 +653,7 @@ export class LoggingSession {
       try {
         const { userId, workspaceId, variables, triggerData, deploymentVersionId } = params
         this.trigger = createTriggerObject(this.triggerType, triggerData)
+        this.correlation = triggerData?.correlation
         this.environment = createEnvironmentObject(
           this.workflowId,
           this.executionId,
@@ -688,10 +709,34 @@ export class LoggingSession {
     }
   }
 
-  async safeComplete(params: SessionCompleteParams = {}): Promise<void> {
-    if (this.completionPromise) return this.completionPromise
-    this.completionPromise = this._safeCompleteImpl(params)
+  hasCompleted(): boolean {
+    return this.completed
+  }
+
+  private shouldStartNewCompletionAttempt(attempt: CompletionAttempt): boolean {
+    return this.completionAttemptFailed && this.completionAttempt !== 'error' && attempt === 'error'
+  }
+
+  private runCompletionAttempt(
+    attempt: CompletionAttempt,
+    run: () => Promise<void>
+  ): Promise<void> {
+    if (this.completionPromise && !this.shouldStartNewCompletionAttempt(attempt)) {
+      return this.completionPromise
+    }
+
+    this.completionAttempt = attempt
+    this.completionAttemptFailed = false
+    this.completionPromise = run().catch((error) => {
+      this.completionAttemptFailed = true
+      throw error
+    })
+
     return this.completionPromise
+  }
+
+  async safeComplete(params: SessionCompleteParams = {}): Promise<void> {
+    return this.runCompletionAttempt('complete', () => this._safeCompleteImpl(params))
   }
 
   private async _safeCompleteImpl(params: SessionCompleteParams = {}): Promise<void> {
@@ -714,9 +759,7 @@ export class LoggingSession {
   }
 
   async safeCompleteWithError(params?: SessionErrorCompleteParams): Promise<void> {
-    if (this.completionPromise) return this.completionPromise
-    this.completionPromise = this._safeCompleteWithErrorImpl(params)
-    return this.completionPromise
+    return this.runCompletionAttempt('error', () => this._safeCompleteWithErrorImpl(params))
   }
 
   private async _safeCompleteWithErrorImpl(params?: SessionErrorCompleteParams): Promise<void> {
@@ -741,9 +784,9 @@ export class LoggingSession {
   }
 
   async safeCompleteWithCancellation(params?: SessionCancelledParams): Promise<void> {
-    if (this.completionPromise) return this.completionPromise
-    this.completionPromise = this._safeCompleteWithCancellationImpl(params)
-    return this.completionPromise
+    return this.runCompletionAttempt('cancelled', () =>
+      this._safeCompleteWithCancellationImpl(params)
+    )
   }
 
   private async _safeCompleteWithCancellationImpl(params?: SessionCancelledParams): Promise<void> {
@@ -767,9 +810,7 @@ export class LoggingSession {
   }
 
   async safeCompleteWithPause(params?: SessionPausedParams): Promise<void> {
-    if (this.completionPromise) return this.completionPromise
-    this.completionPromise = this._safeCompleteWithPauseImpl(params)
-    return this.completionPromise
+    return this.runCompletionAttempt('paused', () => this._safeCompleteWithPauseImpl(params))
   }
 
   private async _safeCompleteWithPauseImpl(params?: SessionPausedParams): Promise<void> {
@@ -880,6 +921,7 @@ export class LoggingSession {
       )
     } catch (fallbackError) {
       this.completing = false
+      this.completionAttemptFailed = true
       logger.error(
         `[${this.requestId || 'unknown'}] Cost-only fallback also failed for execution ${this.executionId}:`,
         { error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError) }

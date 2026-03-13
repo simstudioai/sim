@@ -2,6 +2,7 @@ import { db, workflowDeploymentVersion, workflowSchedule } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, lt, lte, not, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { v4 as uuidv4 } from 'uuid'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -57,10 +58,23 @@ export async function GET(request: NextRequest) {
 
     const queuePromises = dueSchedules.map(async (schedule) => {
       const queueTime = schedule.lastQueuedAt ?? queuedAt
+      const executionId = uuidv4()
+      const correlation = {
+        executionId,
+        requestId,
+        source: 'schedule' as const,
+        workflowId: schedule.workflowId,
+        scheduleId: schedule.id,
+        triggerType: 'schedule',
+        scheduledFor: schedule.nextRunAt?.toISOString(),
+      }
 
       const payload = {
         scheduleId: schedule.id,
         workflowId: schedule.workflowId,
+        executionId,
+        requestId,
+        correlation,
         blockId: schedule.blockId || undefined,
         cronExpression: schedule.cronExpression || undefined,
         lastRanAt: schedule.lastRanAt?.toISOString(),
@@ -71,7 +85,7 @@ export async function GET(request: NextRequest) {
 
       try {
         const jobId = await jobQueue.enqueue('schedule-execution', payload, {
-          metadata: { workflowId: schedule.workflowId },
+          metadata: { workflowId: schedule.workflowId, correlation },
         })
         logger.info(
           `[${requestId}] Queued schedule execution task ${jobId} for workflow ${schedule.workflowId}`

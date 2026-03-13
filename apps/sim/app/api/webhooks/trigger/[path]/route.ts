@@ -144,6 +144,8 @@ export async function POST(
       requestId,
       path,
       actorUserId: preprocessResult.actorUserId,
+      executionId: preprocessResult.executionId,
+      correlation: preprocessResult.correlation,
     })
     responses.push(response)
   }

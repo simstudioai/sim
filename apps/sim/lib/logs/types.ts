@@ -1,4 +1,5 @@
 import type { Edge } from 'reactflow'
+import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import type { ParentIteration, SerializableExecutionState } from '@/executor/execution/types'
 import type { BlockLog, NormalizedBlockOutput } from '@/executor/types'
 import type { DeploymentStatus } from '@/stores/workflows/registry/types'
@@ -57,7 +58,9 @@ import type { CoreTriggerType } from '@/stores/logs/filters/types'
 export interface ExecutionTrigger {
   type: CoreTriggerType | string
   source: string
-  data?: Record<string, unknown>
+  data?: Record<string, unknown> & {
+    correlation?: AsyncExecutionCorrelation
+  }
   timestamp: string
 }
 
@@ -101,6 +104,7 @@ export interface WorkflowExecutionLog {
   executionData: {
     environment?: ExecutionEnvironment
     trigger?: ExecutionTrigger
+    correlation?: AsyncExecutionCorrelation
     traceSpans?: TraceSpan[]
     tokens?: { input?: number; output?: number; total?: number }
     models?: Record<

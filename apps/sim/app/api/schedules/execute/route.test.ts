@@ -107,7 +107,11 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-import { GET } from '@/app/api/schedules/execute/route'
+vi.mock('uuid', () => ({
+  v4: vi.fn().mockReturnValue('schedule-execution-1'),
+}))
+
+import { GET } from './route'
 
 const SINGLE_SCHEDULE = [
   {
@@ -203,5 +207,45 @@ describe('Scheduled Workflow Execution API Route', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data).toHaveProperty('executedCount', 2)
+  })
+
+  it('should enqueue preassigned correlation metadata for schedules', async () => {
+    mockDbReturning.mockReturnValue(SINGLE_SCHEDULE)
+
+    const response = await GET(createMockRequest())
+
+    expect(response.status).toBe(200)
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'schedule-execution',
+      expect.objectContaining({
+        scheduleId: 'schedule-1',
+        workflowId: 'workflow-1',
+        executionId: 'schedule-execution-1',
+        requestId: 'test-request-id',
+        correlation: {
+          executionId: 'schedule-execution-1',
+          requestId: 'test-request-id',
+          source: 'schedule',
+          workflowId: 'workflow-1',
+          scheduleId: 'schedule-1',
+          triggerType: 'schedule',
+          scheduledFor: '2025-01-01T00:00:00.000Z',
+        },
+      }),
+      {
+        metadata: {
+          workflowId: 'workflow-1',
+          correlation: {
+            executionId: 'schedule-execution-1',
+            requestId: 'test-request-id',
+            source: 'schedule',
+            workflowId: 'workflow-1',
+            scheduleId: 'schedule-1',
+            triggerType: 'schedule',
+            scheduledFor: '2025-01-01T00:00:00.000Z',
+          },
+        },
+      }
+    )
   })
 })

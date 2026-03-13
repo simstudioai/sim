@@ -8,7 +8,7 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getExecutionTimeout } from '@/lib/core/execution-limits'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
-import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { LoggingSession, type SessionStartParams } from '@/lib/logs/execution/logging-session'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
@@ -36,6 +36,7 @@ export interface PreprocessExecutionOptions {
   // Context information
   workspaceId?: string // If known, used for billing resolution
   loggingSession?: LoggingSession // If provided, will be used for error logging
+  triggerData?: SessionStartParams['triggerData']
   isResumeContext?: boolean // Deprecated: no billing fallback is allowed
   useAuthenticatedUserAsActor?: boolean // If true, use the authenticated userId as actorUserId (for client-side executions and personal API keys)
   /** @deprecated No longer used - background/async executions always use deployed state */
@@ -85,6 +86,7 @@ export async function preprocessExecution(
     skipUsageLimits = false,
     workspaceId: providedWorkspaceId,
     loggingSession: providedLoggingSession,
+    triggerData,
     isResumeContext: _isResumeContext = false,
     useAuthenticatedUserAsActor = false,
     workflowRecord: prefetchedWorkflowRecord,
@@ -125,6 +127,7 @@ export async function preprocessExecution(
           errorMessage:
             'Workflow not found. The workflow may have been deleted or is no longer accessible.',
           loggingSession: providedLoggingSession,
+          triggerData,
         })
 
         return {
@@ -150,6 +153,7 @@ export async function preprocessExecution(
         workspaceId: providedWorkspaceId || '',
         errorMessage: 'Internal error while fetching workflow',
         loggingSession: providedLoggingSession,
+        triggerData,
       })
 
       return {
@@ -229,6 +233,7 @@ export async function preprocessExecution(
         workspaceId,
         errorMessage: BILLING_ERROR_MESSAGES.BILLING_REQUIRED,
         loggingSession: providedLoggingSession,
+        triggerData,
       })
 
       return {
@@ -252,6 +257,7 @@ export async function preprocessExecution(
       workspaceId,
       errorMessage: BILLING_ERROR_MESSAGES.BILLING_ERROR_GENERIC,
       loggingSession: providedLoggingSession,
+      triggerData,
     })
 
     return {
@@ -293,6 +299,7 @@ export async function preprocessExecution(
             usageCheck.message ||
             `Usage limit exceeded: $${usageCheck.currentUsage?.toFixed(2)} used of $${usageCheck.limit?.toFixed(2)} limit. Please upgrade your plan to continue.`,
           loggingSession: providedLoggingSession,
+          triggerData,
         })
 
         return {
@@ -321,6 +328,7 @@ export async function preprocessExecution(
         errorMessage:
           'Unable to determine usage limits. Execution blocked for security. Please contact support.',
         loggingSession: providedLoggingSession,
+        triggerData,
       })
 
       return {
@@ -363,6 +371,7 @@ export async function preprocessExecution(
           workspaceId,
           errorMessage: `Rate limit exceeded. ${rateLimitInfo.remaining} requests remaining. Resets at ${rateLimitInfo.resetAt.toISOString()}.`,
           loggingSession: providedLoggingSession,
+          triggerData,
         })
 
         return {
@@ -386,6 +395,7 @@ export async function preprocessExecution(
         workspaceId,
         errorMessage: 'Error checking rate limits. Execution blocked for safety.',
         loggingSession: providedLoggingSession,
+        triggerData,
       })
 
       return {
@@ -434,6 +444,7 @@ async function logPreprocessingError(params: {
   workspaceId: string
   errorMessage: string
   loggingSession?: LoggingSession
+  triggerData?: SessionStartParams['triggerData']
 }): Promise<void> {
   const {
     workflowId,
@@ -444,6 +455,7 @@ async function logPreprocessingError(params: {
     workspaceId,
     errorMessage,
     loggingSession,
+    triggerData,
   } = params
 
   if (!workspaceId) {
@@ -463,6 +475,7 @@ async function logPreprocessingError(params: {
       userId,
       workspaceId,
       variables: {},
+      triggerData,
     })
 
     await session.safeCompleteWithError({

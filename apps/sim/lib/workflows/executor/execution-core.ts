@@ -112,6 +112,137 @@ function parseVariableValueByType(value: unknown, type: string): unknown {
   return typeof value === 'string' ? value : String(value)
 }
 
+type ExecutionErrorWithFinalizationFlag = Error & {
+  executionFinalizedByCore?: boolean
+}
+
+export const FINALIZED_EXECUTION_ID_TTL_MS = 5 * 60 * 1000
+
+const finalizedExecutionIds = new Map<string, number>()
+
+function cleanupExpiredFinalizedExecutionIds(now = Date.now()): void {
+  for (const [executionId, expiresAt] of finalizedExecutionIds.entries()) {
+    if (expiresAt <= now) {
+      finalizedExecutionIds.delete(executionId)
+    }
+  }
+}
+
+function rememberFinalizedExecutionId(executionId: string): void {
+  const now = Date.now()
+
+  cleanupExpiredFinalizedExecutionIds(now)
+  finalizedExecutionIds.set(executionId, now + FINALIZED_EXECUTION_ID_TTL_MS)
+}
+
+async function clearExecutionCancellationSafely(
+  executionId: string,
+  requestId: string
+): Promise<void> {
+  try {
+    await clearExecutionCancellation(executionId)
+  } catch (error) {
+    logger.error(`[${requestId}] Failed to clear execution cancellation`, { error, executionId })
+  }
+}
+
+function markExecutionFinalizedByCore(error: unknown, executionId: string): void {
+  rememberFinalizedExecutionId(executionId)
+
+  if (error instanceof Error) {
+    ;(error as ExecutionErrorWithFinalizationFlag).executionFinalizedByCore = true
+  }
+}
+
+export function wasExecutionFinalizedByCore(error: unknown, executionId?: string): boolean {
+  cleanupExpiredFinalizedExecutionIds()
+
+  if (executionId && finalizedExecutionIds.has(executionId)) {
+    return true
+  }
+
+  return (
+    error instanceof Error &&
+    (error as ExecutionErrorWithFinalizationFlag).executionFinalizedByCore === true
+  )
+}
+
+async function finalizeExecutionOutcome(params: {
+  result: ExecutionResult
+  loggingSession: LoggingSession
+  executionId: string
+  requestId: string
+  workflowInput: unknown
+}): Promise<void> {
+  const { result, loggingSession, executionId, requestId, workflowInput } = params
+  const { traceSpans, totalDuration } = buildTraceSpans(result)
+  const endedAt = new Date().toISOString()
+
+  try {
+    if (result.status === 'cancelled') {
+      await loggingSession.safeCompleteWithCancellation({
+        endedAt,
+        totalDurationMs: totalDuration || 0,
+        traceSpans: traceSpans || [],
+      })
+      return
+    }
+
+    if (result.status === 'paused') {
+      await loggingSession.safeCompleteWithPause({
+        endedAt,
+        totalDurationMs: totalDuration || 0,
+        traceSpans: traceSpans || [],
+        workflowInput,
+      })
+      return
+    }
+
+    await loggingSession.safeComplete({
+      endedAt,
+      totalDurationMs: totalDuration || 0,
+      finalOutput: result.output || {},
+      traceSpans: traceSpans || [],
+      workflowInput,
+      executionState: result.executionState,
+    })
+  } finally {
+    await clearExecutionCancellationSafely(executionId, requestId)
+  }
+}
+
+async function finalizeExecutionError(params: {
+  error: unknown
+  loggingSession: LoggingSession
+  executionId: string
+  requestId: string
+}): Promise<boolean> {
+  const { error, loggingSession, executionId, requestId } = params
+  const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
+  const { traceSpans } = executionResult ? buildTraceSpans(executionResult) : { traceSpans: [] }
+
+  try {
+    await loggingSession.safeCompleteWithError({
+      endedAt: new Date().toISOString(),
+      totalDurationMs: executionResult?.metadata?.duration || 0,
+      error: {
+        message: error instanceof Error ? error.message : 'Execution failed',
+        stackTrace: error instanceof Error ? error.stack : undefined,
+      },
+      traceSpans,
+    })
+
+    return loggingSession.hasCompleted()
+  } catch (postExecError) {
+    logger.error(`[${requestId}] Post-execution error logging failed`, {
+      error: postExecError,
+    })
+    return false
+  } finally {
+    await clearExecutionCancellationSafely(executionId, requestId)
+  }
+}
+
 export async function executeWorkflowCore(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
@@ -137,13 +268,14 @@ export async function executeWorkflowCore(
   }
 
   let processedInput = input || {}
+  let deploymentVersionId: string | undefined
+  let loggingStarted = false
 
   try {
     let blocks
     let edges: Edge[]
     let loops
     let parallels
-    let deploymentVersionId: string | undefined
 
     // Use workflowStateOverride if provided (for diff workflows)
     if (metadata.workflowStateOverride) {
@@ -200,10 +332,11 @@ export async function executeWorkflowCore(
     // Use already-decrypted values for execution (no redundant decryption)
     const decryptedEnvVars: Record<string, string> = { ...personalDecrypted, ...workspaceDecrypted }
 
-    await loggingSession.safeStart({
+    loggingStarted = await loggingSession.safeStart({
       userId,
       workspaceId: providedWorkspaceId,
       variables,
+      triggerData: metadata.correlation ? { correlation: metadata.correlation } : undefined,
       skipLogCreation,
       deploymentVersionId,
     })
@@ -360,48 +493,21 @@ export async function executeWorkflowCore(
         )) as ExecutionResult)
       : ((await executorInstance.execute(workflowId, resolvedTriggerBlockId)) as ExecutionResult)
 
-    // Fire-and-forget: post-execution logging, billing, and cleanup
-    void (async () => {
+    await finalizeExecutionOutcome({
+      result,
+      loggingSession,
+      executionId,
+      requestId,
+      workflowInput: processedInput,
+    })
+
+    if (result.success && result.status !== 'paused') {
       try {
-        const { traceSpans, totalDuration } = buildTraceSpans(result)
-
-        if (result.success && result.status !== 'paused') {
-          try {
-            await updateWorkflowRunCounts(workflowId)
-          } catch (runCountError) {
-            logger.error(`[${requestId}] Failed to update run counts`, { error: runCountError })
-          }
-        }
-
-        if (result.status === 'cancelled') {
-          await loggingSession.safeCompleteWithCancellation({
-            endedAt: new Date().toISOString(),
-            totalDurationMs: totalDuration || 0,
-            traceSpans: traceSpans || [],
-          })
-        } else if (result.status === 'paused') {
-          await loggingSession.safeCompleteWithPause({
-            endedAt: new Date().toISOString(),
-            totalDurationMs: totalDuration || 0,
-            traceSpans: traceSpans || [],
-            workflowInput: processedInput,
-          })
-        } else {
-          await loggingSession.safeComplete({
-            endedAt: new Date().toISOString(),
-            totalDurationMs: totalDuration || 0,
-            finalOutput: result.output || {},
-            traceSpans: traceSpans || [],
-            workflowInput: processedInput,
-            executionState: result.executionState,
-          })
-        }
-
-        await clearExecutionCancellation(executionId)
-      } catch (postExecError) {
-        logger.error(`[${requestId}] Post-execution logging failed`, { error: postExecError })
+        await updateWorkflowRunCounts(workflowId)
+      } catch (runCountError) {
+        logger.error(`[${requestId}] Failed to update run counts`, { error: runCountError })
       }
-    })()
+    }
 
     logger.info(`[${requestId}] Workflow execution completed`, {
       success: result.success,
@@ -413,31 +519,29 @@ export async function executeWorkflowCore(
   } catch (error: unknown) {
     logger.error(`[${requestId}] Execution failed:`, error)
 
-    // Fire-and-forget: error logging and cleanup
-    void (async () => {
-      try {
-        const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
-        const { traceSpans } = executionResult
-          ? buildTraceSpans(executionResult)
-          : { traceSpans: [] }
+    if (!loggingStarted) {
+      loggingStarted = await loggingSession.safeStart({
+        userId,
+        workspaceId: providedWorkspaceId,
+        variables: {},
+        triggerData: metadata.correlation ? { correlation: metadata.correlation } : undefined,
+        skipLogCreation,
+        deploymentVersionId,
+      })
+    }
 
-        await loggingSession.safeCompleteWithError({
-          endedAt: new Date().toISOString(),
-          totalDurationMs: executionResult?.metadata?.duration || 0,
-          error: {
-            message: error instanceof Error ? error.message : 'Execution failed',
-            stackTrace: error instanceof Error ? error.stack : undefined,
-          },
-          traceSpans,
+    const finalized = loggingStarted
+      ? await finalizeExecutionError({
+          error,
+          loggingSession,
+          executionId,
+          requestId,
         })
+      : false
 
-        await clearExecutionCancellation(executionId)
-      } catch (postExecError) {
-        logger.error(`[${requestId}] Post-execution error logging failed`, {
-          error: postExecError,
-        })
-      }
-    })()
+    if (finalized) {
+      markExecutionFinalizedByCore(error, executionId)
+    }
 
     throw error
   }
