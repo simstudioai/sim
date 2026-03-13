@@ -1,8 +1,37 @@
 import { createLogger } from '@sim/logger'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
+import type { MothershipResource } from '@/lib/copilot/resource-types'
+import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resource-types'
+import type { WorkspaceVFS } from '@/lib/copilot/vfs'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
 
 const logger = createLogger('VfsTools')
+
+/**
+ * Resolves a VFS resource path to its resource descriptor by reading the
+ * sibling meta.json (already in memory) for the resource ID and name.
+ */
+function resolveVfsResource(
+  vfs: WorkspaceVFS,
+  path: string
+): MothershipResource | null {
+  const segments = path.split('/')
+  const resourceType = VFS_DIR_TO_RESOURCE[segments[0]]
+  if (!resourceType || !segments[1]) return null
+
+  const metaPath = `${segments[0]}/${segments[1]}/meta.json`
+  const meta = vfs.read(metaPath)
+  if (!meta) return null
+
+  try {
+    const parsed = JSON.parse(meta.content)
+    const id = parsed?.id as string | undefined
+    if (!id) return null
+    return { type: resourceType, id, title: (parsed.name as string) || segments[1] }
+  } catch {
+    return null
+  }
+}
 
 export async function executeVfsGrep(
   params: Record<string, unknown>,
@@ -103,7 +132,13 @@ export async function executeVfsRead(
           path,
           totalLines: fileContent.totalLines,
         })
-        return { success: true, output: fileContent }
+        // Appends metadata of resource to tool response
+        const resource = resolveVfsResource(vfs, path)
+        return {
+          success: true,
+          output: fileContent,
+          ...(resource && { resources: [resource] }),
+        }
       }
 
       const suggestions = vfs.suggestSimilar(path)
@@ -115,7 +150,13 @@ export async function executeVfsRead(
       return { success: false, error: `File not found: ${path}.${hint}` }
     }
     logger.debug('vfs_read result', { path, totalLines: result.totalLines })
-    return { success: true, output: result }
+    // Appends metadata of resource to tool response
+    const resource = resolveVfsResource(vfs, path)
+    return {
+      success: true,
+      output: result,
+      ...(resource && { resources: [resource] }),
+    }
   } catch (err) {
     logger.error('vfs_read failed', {
       path,
