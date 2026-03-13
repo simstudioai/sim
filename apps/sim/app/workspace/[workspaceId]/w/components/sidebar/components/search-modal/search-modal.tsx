@@ -447,7 +447,7 @@ export function SearchModal({
                         backgroundClip: 'padding-box',
                       }}
                     />
-                    <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
+                    <span className='truncate font-base text-[var(--text-body)]'>
                       {workflow.name}
                       {workflow.isCurrent && ' (current)'}
                     </span>
@@ -471,9 +471,7 @@ export function SearchModal({
                     <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
                       <Blimp className='h-[14px] w-[14px] text-[var(--text-icon)]' />
                     </div>
-                    <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
-                      {task.name}
-                    </span>
+                    <span className='truncate font-base text-[var(--text-body)]'>{task.name}</span>
                   </Command.Item>
                 ))}
               </Command.Group>
@@ -505,7 +503,7 @@ export function SearchModal({
                     onSelect={() => handleWorkspaceSelect(workspace)}
                     className='group flex h-[30px] w-full cursor-pointer items-center gap-[8px] rounded-[8px] border border-transparent px-[8px] text-left text-[14px] aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
                   >
-                    <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
+                    <span className='truncate font-base text-[var(--text-body)]'>
                       {workspace.name}
                       {workspace.isCurrent && ' (current)'}
                     </span>
@@ -545,7 +543,7 @@ export function SearchModal({
                       <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
                         <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
                       </div>
-                      <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
+                      <span className='truncate font-base text-[var(--text-body)]'>
                         {page.name}
                       </span>
                       {page.shortcut && (
@@ -608,9 +606,7 @@ const MemoizedCommandItem = memo(
             )}
           />
         </div>
-        <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
-          {children}
-        </span>
+        <span className='truncate font-base text-[var(--text-body)]'>{children}</span>
       </Command.Item>
     )
   },

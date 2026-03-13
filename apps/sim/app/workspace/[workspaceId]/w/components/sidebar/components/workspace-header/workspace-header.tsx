@@ -199,8 +199,9 @@ export function WorkspaceHeader({
     contextMenuClosedRef.current = true
 
     setIsContextMenuOpen(false)
+    const isOpeningAnother = isContextMenuOpeningRef.current
     isContextMenuOpeningRef.current = false
-    if (!isRenamingRef.current) {
+    if (!isRenamingRef.current && !isOpeningAnother) {
       setIsWorkspaceMenuOpen(false)
     }
     isRenamingRef.current = false
@@ -497,6 +498,9 @@ export function WorkspaceHeader({
                             <button
                               type='button'
                               aria-label='Workspace options'
+                              onMouseDown={() => {
+                                isContextMenuOpeningRef.current = true
+                              }}
                               onClick={(e) => {
                                 e.preventDefault()
                                 e.stopPropagation()

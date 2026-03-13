@@ -9,11 +9,11 @@ import {
   Combobox,
   type ComboboxOption,
   Download,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
   Library,
   Loader,
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
 } from '@/components/emcn'
 import { DatePicker } from '@/components/emcn/components/date-picker/date-picker'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
@@ -1082,7 +1082,6 @@ export default function Logs() {
       <LogRowContextMenu
         isOpen={contextMenuOpen}
         position={contextMenuPosition}
-        menuRef={contextMenuRef}
         onClose={handleCloseContextMenu}
         log={contextMenuLog}
         onCopyExecutionId={handleCopyExecutionId}
@@ -1393,8 +1392,8 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
 
       <div className='flex flex-col gap-[6px]'>
         <span className='font-medium text-[12px] text-[var(--text-secondary)]'>Time Range</span>
-        <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-          <PopoverAnchor asChild>
+        <DropdownMenu open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+          <DropdownMenuTrigger asChild>
             <div>
               <Combobox
                 options={TIME_RANGE_OPTIONS as unknown as ComboboxOption[]}
@@ -1408,8 +1407,8 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
                 className='h-[32px] w-full rounded-[6px]'
               />
             </div>
-          </PopoverAnchor>
-          <PopoverContent
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
             side='bottom'
             align='end'
             sideOffset={4}
@@ -1424,8 +1423,8 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
               onCancel={handleDatePickerCancel}
               inline
             />
-          </PopoverContent>
-        </Popover>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {filtersActive && (

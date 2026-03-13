@@ -6,6 +6,11 @@ import { useParams } from 'next/navigation'
 import {
   Button,
   Download,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Eye,
   Modal,
   ModalBody,
@@ -13,11 +18,6 @@ import {
   ModalFooter,
   ModalHeader,
   Pencil,
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverDivider,
-  PopoverItem,
   Skeleton,
   Trash,
   Upload,
@@ -52,6 +52,7 @@ import {
   isPreviewable,
   isTextEditable,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
@@ -148,9 +149,15 @@ export function Files() {
   const {
     isOpen: isContextMenuOpen,
     position: contextMenuPosition,
-    menuRef: contextMenuRef,
     handleContextMenu: openContextMenu,
     closeMenu: closeContextMenu,
+  } = useContextMenu()
+
+  const {
+    isOpen: isListContextMenuOpen,
+    position: listContextMenuPosition,
+    handleContextMenu: handleListContextMenu,
+    closeMenu: closeListContextMenu,
   } = useContextMenu()
 
   if (error) {
@@ -466,6 +473,25 @@ export function Files() {
     closeContextMenu()
   }, [contextMenuFile, closeContextMenu])
 
+  const handleContentContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (
+        target.closest('[data-resource-row]') ||
+        target.closest('button, input, a, [role="button"]')
+      ) {
+        return
+      }
+      handleListContextMenu(e)
+    },
+    [handleListContextMenu]
+  )
+
+  const handleListUploadFile = useCallback(() => {
+    fileInputRef.current?.click()
+    closeListContextMenu()
+  }, [closeListContextMenu])
+
   useEffect(() => {
     if (justCreatedFileIdRef.current && selectedFileId !== justCreatedFileIdRef.current) {
       justCreatedFileIdRef.current = null
@@ -660,35 +686,67 @@ export function Files() {
         }}
         onRowContextMenu={handleRowContextMenu}
         isLoading={isLoading}
+        onContextMenu={handleContentContextMenu}
       />
 
-      <Popover
+      <FilesListContextMenu
+        isOpen={isListContextMenuOpen}
+        position={listContextMenuPosition}
+        onClose={closeListContextMenu}
+        onCreateFile={handleCreateFile}
+        onUploadFile={handleListUploadFile}
+        disableCreate={uploading || creatingFile || userPermissions.canEdit !== true}
+        disableUpload={uploading || userPermissions.canEdit !== true}
+      />
+
+      <DropdownMenu
         open={isContextMenuOpen}
         onOpenChange={(open) => !open && closeContextMenu()}
-        variant='secondary'
-        size='sm'
+        modal={false}
       >
-        <PopoverAnchor
-          style={{
-            position: 'fixed',
-            left: `${contextMenuPosition.x}px`,
-            top: `${contextMenuPosition.y}px`,
-            width: '1px',
-            height: '1px',
-          }}
-        />
-        <PopoverContent ref={contextMenuRef} align='start' side='bottom' sideOffset={4}>
-          <PopoverItem onClick={handleContextMenuOpen}>Open</PopoverItem>
-          <PopoverItem onClick={handleContextMenuDownload}>Download</PopoverItem>
+        <DropdownMenuTrigger asChild>
+          <div
+            style={{
+              position: 'fixed',
+              left: `${contextMenuPosition.x}px`,
+              top: `${contextMenuPosition.y}px`,
+              width: '1px',
+              height: '1px',
+              pointerEvents: 'none',
+            }}
+            tabIndex={-1}
+            aria-hidden
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align='start'
+          side='bottom'
+          sideOffset={4}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+        >
+          <DropdownMenuItem onSelect={handleContextMenuOpen}>
+            <Eye />
+            Open
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={handleContextMenuDownload}>
+            <Download />
+            Download
+          </DropdownMenuItem>
           {userPermissions.canEdit === true && (
             <>
-              <PopoverDivider />
-              <PopoverItem onClick={handleContextMenuRename}>Rename</PopoverItem>
-              <PopoverItem onClick={handleContextMenuDelete}>Delete</PopoverItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={handleContextMenuRename}>
+                <Pencil />
+                Rename
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleContextMenuDelete}>
+                <Trash />
+                Delete
+              </DropdownMenuItem>
             </>
           )}
-        </PopoverContent>
-      </Popover>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <DeleteConfirmModal
         open={showDeleteConfirm}

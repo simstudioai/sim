@@ -6,23 +6,27 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Plus } from '@/components/emcn/icons'
+import { Plus, Upload } from '@/components/emcn/icons'
 
-interface TablesListContextMenuProps {
+interface FilesListContextMenuProps {
   isOpen: boolean
   position: { x: number; y: number }
   onClose: () => void
-  onCreateTable?: () => void
+  onCreateFile?: () => void
+  onUploadFile?: () => void
   disableCreate?: boolean
+  disableUpload?: boolean
 }
 
-export function TablesListContextMenu({
+export function FilesListContextMenu({
   isOpen,
   position,
   onClose,
-  onCreateTable,
+  onCreateFile,
+  onUploadFile,
   disableCreate = false,
-}: TablesListContextMenuProps) {
+  disableUpload = false,
+}: FilesListContextMenuProps) {
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
@@ -45,10 +49,16 @@ export function TablesListContextMenu({
         sideOffset={4}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        {onCreateTable && (
-          <DropdownMenuItem disabled={disableCreate} onSelect={onCreateTable}>
+        {onCreateFile && (
+          <DropdownMenuItem disabled={disableCreate} onSelect={onCreateFile}>
             <Plus />
-            Create table
+            New file
+          </DropdownMenuItem>
+        )}
+        {onUploadFile && (
+          <DropdownMenuItem disabled={disableUpload} onSelect={onUploadFile}>
+            <Upload />
+            Upload file
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

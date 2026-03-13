@@ -7,10 +7,10 @@ import {
   CheckCircle2,
   ChevronDown,
   Clipboard,
-  Download,
   Eye,
   Send,
   Trash2,
+  Upload,
   X,
   XCircle,
 } from 'lucide-react'
@@ -493,7 +493,7 @@ export function TrainingModal() {
                         onClick={handleExportAll}
                         disabled={datasets.length === 0}
                       >
-                        <Download className='mr-[6px] h-[12px] w-[12px]' />
+                        <Upload className='mr-[6px] h-[12px] w-[12px]' />
                         Export
                       </Button>
                       <Button

@@ -65,8 +65,8 @@ export function ToolCallItem({ toolName, displayTitle, status }: ToolCallItemPro
       <span
         className={
           status === 'cancelled'
-            ? 'font-[var(--sidebar-font-weight)] text-[14px] text-[var(--text-secondary)]'
-            : 'font-[var(--sidebar-font-weight)] text-[14px] text-[var(--text-body)]'
+            ? 'font-base text-[14px] text-[var(--text-secondary)]'
+            : 'font-base text-[14px] text-[var(--text-body)]'
         }
       >
         {displayTitle}

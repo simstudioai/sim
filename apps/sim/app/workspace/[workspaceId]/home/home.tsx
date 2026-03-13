@@ -84,6 +84,9 @@ export function Home({ chatId }: HomeProps = {}) {
   const { data: session } = useSession()
   const [initialPrompt, setInitialPrompt] = useState('')
   const hasCheckedLandingStorageRef = useRef(false)
+  const initialViewInputRef = useRef<HTMLDivElement>(null)
+  const templateRef = useRef<HTMLDivElement>(null)
+  const baseInputHeightRef = useRef<number | null>(null)
 
   const createWorkflowFromLandingSeed = useCallback(
     async (seed: LandingWorkflowSeed) => {
@@ -240,6 +243,22 @@ export function Home({ chatId }: HomeProps = {}) {
 
   const hasMessages = messages.length > 0
 
+  useEffect(() => {
+    if (hasMessages) return
+    const input = initialViewInputRef.current
+    const templates = templateRef.current
+    if (!input || !templates) return
+
+    const ro = new ResizeObserver((entries) => {
+      const height = entries[0].contentRect.height
+      if (baseInputHeightRef.current === null) baseInputHeightRef.current = height
+      const delta = Math.max(0, (height - baseInputHeightRef.current) / 2)
+      templates.style.marginTop = delta > 0 ? `calc(-30vh + ${delta}px)` : ''
+    })
+    ro.observe(input)
+    return () => ro.disconnect()
+  }, [hasMessages])
+
   if (!hasMessages && chatId && isLoadingHistory) {
     return (
       <ChatSkeleton>
@@ -258,20 +277,22 @@ export function Home({ chatId }: HomeProps = {}) {
     return (
       <div className='h-full overflow-y-auto bg-[var(--bg)]'>
         <div className='flex min-h-full flex-col items-center justify-center px-[24px] pb-[2vh]'>
-          <h1 className='mb-[24px] max-w-[42rem] font-[440] font-season text-[32px] text-[var(--text-primary)] tracking-[-0.02em]'>
+          <h1 className='mb-[24px] max-w-[42rem] font-[430] font-season text-[32px] text-[var(--text-primary)] tracking-[-0.02em]'>
             What should we get done
             {session?.user?.name ? `, ${session.user.name.split(' ')[0]}` : ''}?
           </h1>
-          <UserInput
-            defaultValue={initialPrompt}
-            onSubmit={handleSubmit}
-            isSending={isSending}
-            onStopGeneration={stopGeneration}
-            userId={session?.user?.id}
-          />
+          <div ref={initialViewInputRef} className='w-full'>
+            <UserInput
+              defaultValue={initialPrompt}
+              onSubmit={handleSubmit}
+              isSending={isSending}
+              onStopGeneration={stopGeneration}
+              userId={session?.user?.id}
+            />
+          </div>
         </div>
-        <div className='-mt-[30vh] mx-auto w-full max-w-[42rem] px-[16px] pb-[32px]'>
-          <TemplatePrompts onSelect={(prompt) => handleSubmit(prompt)} />
+        <div ref={templateRef} className='-mt-[30vh] mx-auto w-full max-w-[42rem] pb-[32px]'>
+          <TemplatePrompts onSelect={handleSubmit} />
         </div>
       </div>
     )
@@ -332,9 +353,7 @@ export function Home({ chatId }: HomeProps = {}) {
                 return (
                   <div key={msg.id} className='flex items-center gap-[8px] py-[8px]'>
                     <ThinkingIndicator />
-                    <span className='font-[var(--sidebar-font-weight)] text-[14px] text-[var(--text-body)]'>
-                      Thinking…
-                    </span>
+                    <span className='font-base text-[14px] text-[var(--text-body)]'>Thinking…</span>
                   </div>
                 )
               }

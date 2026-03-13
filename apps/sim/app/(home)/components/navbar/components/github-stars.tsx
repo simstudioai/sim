@@ -7,7 +7,7 @@ import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
 
 const logger = createLogger('github-stars')
 
-const INITIAL_STARS = '26.4k'
+const INITIAL_STARS = '27k'
 
 /**
  * Client component that displays GitHub stars count.

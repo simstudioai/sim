@@ -187,9 +187,7 @@ export function SettingsSidebar({
               <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'>
                 <ChevronDown className='h-[10px] w-[10px] rotate-90' />
               </div>
-              <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
-                Back
-              </span>
+              <span className='truncate font-base text-[var(--text-body)]'>Back</span>
             </button>
           </Tooltip.Trigger>
           {showCollapsedContent && (
@@ -242,7 +240,7 @@ export function SettingsSidebar({
                       const content = (
                         <>
                           <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                          <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
+                          <span className='truncate font-base text-[var(--text-body)]'>
                             {item.label}
                           </span>
                         </>

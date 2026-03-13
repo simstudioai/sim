@@ -6,15 +6,16 @@ import { createPortal } from 'react-dom'
 import {
   Button,
   Code,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Eye,
   Input,
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverDivider,
-  PopoverItem,
   Tooltip,
 } from '@/components/emcn'
+import { Copy as CopyIcon, Search as SearchIcon } from '@/components/emcn/icons'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { cn } from '@/lib/core/utils/cn'
@@ -207,28 +208,38 @@ const WorkflowOutputSection = memo(
         {/* Context Menu - rendered in portal to avoid transform/overflow clipping */}
         {typeof document !== 'undefined' &&
           createPortal(
-            <Popover
-              open={isContextMenuOpen}
-              onOpenChange={closeContextMenu}
-              variant='secondary'
-              size='sm'
-              colorScheme='inverted'
-            >
-              <PopoverAnchor
-                style={{
-                  position: 'fixed',
-                  left: `${contextMenuPosition.x}px`,
-                  top: `${contextMenuPosition.y}px`,
-                  width: '1px',
-                  height: '1px',
-                }}
-              />
-              <PopoverContent align='start' side='bottom' sideOffset={4}>
-                <PopoverItem onClick={handleCopy}>Copy</PopoverItem>
-                <PopoverDivider />
-                <PopoverItem onClick={handleSearch}>Search</PopoverItem>
-              </PopoverContent>
-            </Popover>,
+            <DropdownMenu open={isContextMenuOpen} onOpenChange={closeContextMenu} modal={false}>
+              <DropdownMenuTrigger asChild>
+                <div
+                  style={{
+                    position: 'fixed',
+                    left: `${contextMenuPosition.x}px`,
+                    top: `${contextMenuPosition.y}px`,
+                    width: '1px',
+                    height: '1px',
+                    pointerEvents: 'none',
+                  }}
+                  tabIndex={-1}
+                  aria-hidden
+                />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align='start'
+                side='bottom'
+                sideOffset={4}
+                onCloseAutoFocus={(e) => e.preventDefault()}
+              >
+                <DropdownMenuItem onSelect={handleCopy}>
+                  <CopyIcon />
+                  Copy
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={handleSearch}>
+                  <SearchIcon />
+                  Search
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>,
             document.body
           )}
       </div>

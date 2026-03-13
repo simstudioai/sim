@@ -8,21 +8,21 @@ import {
 } from '@/components/emcn'
 import { Plus } from '@/components/emcn/icons'
 
-interface TablesListContextMenuProps {
+interface ScheduleListContextMenuProps {
   isOpen: boolean
   position: { x: number; y: number }
   onClose: () => void
-  onCreateTable?: () => void
+  onCreateSchedule?: () => void
   disableCreate?: boolean
 }
 
-export function TablesListContextMenu({
+export function ScheduleListContextMenu({
   isOpen,
   position,
   onClose,
-  onCreateTable,
+  onCreateSchedule,
   disableCreate = false,
-}: TablesListContextMenuProps) {
+}: ScheduleListContextMenuProps) {
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
@@ -45,10 +45,10 @@ export function TablesListContextMenu({
         sideOffset={4}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        {onCreateTable && (
-          <DropdownMenuItem disabled={disableCreate} onSelect={onCreateTable}>
+        {onCreateSchedule && (
+          <DropdownMenuItem disabled={disableCreate} onSelect={onCreateSchedule}>
             <Plus />
-            Create table
+            New scheduled task
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

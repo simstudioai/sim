@@ -215,7 +215,6 @@ export function Knowledge() {
       <KnowledgeListContextMenu
         isOpen={isListContextMenuOpen}
         position={listContextMenuPosition}
-        menuRef={listMenuRef}
         onClose={closeListContextMenu}
         onAddKnowledgeBase={handleAddKnowledgeBase}
         disableAdd={userPermissions.canEdit !== true}
@@ -225,7 +224,6 @@ export function Knowledge() {
         <KnowledgeBaseContextMenu
           isOpen={isRowContextMenuOpen}
           position={rowContextMenuPosition}
-          menuRef={rowMenuRef}
           onClose={closeRowContextMenu}
           onOpenInNewTab={() => {
             const urlParams = new URLSearchParams({ kbName: activeKnowledgeBase.name })

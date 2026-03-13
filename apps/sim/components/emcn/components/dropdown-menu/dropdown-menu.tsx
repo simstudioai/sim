@@ -59,7 +59,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
   <DropdownMenuPrimitive.SubTrigger
     ref={ref}
     className={cn(
-      'flex cursor-default select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-secondary)] outline-none transition-colors focus:bg-[var(--surface-4)] focus:text-[var(--text-primary)] data-[state=open]:bg-[var(--surface-4)] data-[state=open]:text-[var(--text-primary)] [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0',
+      'flex cursor-default select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors focus:bg-[var(--surface-active)] data-[state=open]:bg-[var(--surface-active)] [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
       inset && 'pl-[28px]',
       className
     )}
@@ -79,7 +79,7 @@ const DropdownMenuSubContent = React.forwardRef<
     ref={ref}
     className={cn(
       ANIMATION_CLASSES,
-      'z-50 min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] p-[6px] text-[var(--text-secondary)] shadow-sm',
+      'z-50 min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] p-[6px] text-[var(--text-body)] shadow-sm',
       className
     )}
     {...props}
@@ -97,7 +97,7 @@ const DropdownMenuContent = React.forwardRef<
       sideOffset={sideOffset}
       className={cn(
         ANIMATION_CLASSES,
-        'z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] p-[6px] text-[var(--text-secondary)] shadow-sm',
+        'z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] p-[6px] text-[var(--text-body)] shadow-sm',
         className
       )}
       {...props}
@@ -115,7 +115,7 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-secondary)] outline-none transition-colors focus:bg-[var(--surface-4)] focus:text-[var(--text-primary)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0',
+      'relative flex cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
       inset && 'pl-[28px]',
       className
     )}
@@ -131,7 +131,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      'relative flex cursor-default select-none items-center rounded-[5px] py-[5px] pr-[8px] pl-[28px] font-medium text-[12px] text-[var(--text-secondary)] outline-none transition-colors focus:bg-[var(--surface-4)] focus:text-[var(--text-primary)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'relative flex cursor-default select-none items-center rounded-[5px] py-[5px] pr-[8px] pl-[28px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
       className
     )}
     checked={checked}
@@ -154,7 +154,7 @@ const DropdownMenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      'relative flex cursor-default select-none items-center rounded-[5px] py-[5px] pr-[8px] pl-[28px] font-medium text-[12px] text-[var(--text-secondary)] outline-none transition-colors focus:bg-[var(--surface-4)] focus:text-[var(--text-primary)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'relative flex cursor-default select-none items-center rounded-[5px] py-[5px] pr-[8px] pl-[28px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
       className
     )}
     {...props}

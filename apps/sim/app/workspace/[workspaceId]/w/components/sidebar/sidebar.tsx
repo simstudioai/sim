@@ -9,14 +9,14 @@ import {
   Blimp,
   Button,
   Download,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   FolderPlus,
   Home,
   Library,
   Loader,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverTrigger,
   Skeleton,
   Tooltip,
 } from '@/components/emcn'
@@ -29,6 +29,7 @@ import {
   Plus,
   Search,
   Settings,
+  Sim,
   Table,
 } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
@@ -136,9 +137,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
           onContextMenu={task.id !== 'new' ? (e) => onContextMenu(e, task.id) : undefined}
         >
           <TaskStatusIcon status={status} />
-          <div className='min-w-0 truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
-            {task.name}
-          </div>
+          <div className='min-w-0 truncate font-base text-[var(--text-body)]'>{task.name}</div>
         </Link>
       </Tooltip.Trigger>
       {showCollapsedContent && (
@@ -182,9 +181,7 @@ const SidebarNavItem = memo(function SidebarNavItem({
       onClick={item.onClick}
     >
       <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
-        {item.label}
-      </span>
+      <span className='truncate font-base text-[var(--text-body)]'>{item.label}</span>
     </button>
   ) : (
     <Link
@@ -194,9 +191,7 @@ const SidebarNavItem = memo(function SidebarNavItem({
       onContextMenu={onContextMenu ? (e) => onContextMenu(e, item.href!) : undefined}
     >
       <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
-        {item.label}
-      </span>
+      <span className='truncate font-base text-[var(--text-body)]'>{item.label}</span>
     </Link>
   )
 
@@ -897,7 +892,7 @@ export const Sidebar = memo(function Sidebar() {
                     className='group flex h-[30px] w-[30px] items-center justify-center rounded-[8px] hover:bg-[var(--surface-active)]'
                     aria-label='Expand sidebar'
                   >
-                    <Blimp className='h-[18px] w-[18px] text-[var(--text-icon)] group-hover:hidden' />
+                    <Sim className='h-[16px] w-[16px] text-[var(--text-icon)] group-hover:hidden' />
                     <PanelLeft className='hidden h-[16px] w-[16px] rotate-180 text-[var(--text-icon)] group-hover:block' />
                   </button>
                 ) : (
@@ -905,7 +900,7 @@ export const Sidebar = memo(function Sidebar() {
                     href={`/workspace/${workspaceId}/home`}
                     className='flex h-[30px] w-[30px] items-center justify-center rounded-[8px] hover:bg-[var(--surface-active)]'
                   >
-                    <Blimp className='h-[18px] w-[18px] text-[var(--text-icon)]' />
+                    <Sim className='h-[16px] w-[16px] text-[var(--text-icon)]' />
                   </Link>
                 )}
               </Tooltip.Trigger>
@@ -1100,7 +1095,7 @@ export const Sidebar = memo(function Sidebar() {
                             className='mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] text-[var(--text-icon)] hover:bg-[var(--surface-active)]'
                           >
                             <MoreHorizontal className='h-[16px] w-[16px] flex-shrink-0' />
-                            <span className='font-[var(--sidebar-font-weight)]'>See more</span>
+                            <span className='font-base'>See more</span>
                           </button>
                         )}
                       </>
@@ -1117,10 +1112,10 @@ export const Sidebar = memo(function Sidebar() {
                           Workflows
                         </div>
                         <div className='flex items-center justify-center gap-[8px]'>
-                          <Popover>
+                          <DropdownMenu>
                             <Tooltip.Root>
                               <Tooltip.Trigger asChild>
-                                <PopoverTrigger asChild>
+                                <DropdownMenuTrigger asChild>
                                   <Button
                                     variant='ghost'
                                     className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
@@ -1132,31 +1127,33 @@ export const Sidebar = memo(function Sidebar() {
                                       <MoreHorizontal className='h-[16px] w-[16px]' />
                                     )}
                                   </Button>
-                                </PopoverTrigger>
+                                </DropdownMenuTrigger>
                               </Tooltip.Trigger>
                               <Tooltip.Content>
                                 <p>More actions</p>
                               </Tooltip.Content>
                             </Tooltip.Root>
-                            <PopoverContent align='end' sideOffset={8} minWidth={160}>
-                              <PopoverItem
-                                onClick={handleImportWorkflow}
+                            <DropdownMenuContent
+                              align='start'
+                              sideOffset={8}
+                              className='min-w-[160px]'
+                            >
+                              <DropdownMenuItem
+                                onSelect={handleImportWorkflow}
                                 disabled={!canEdit || isImporting}
                               >
-                                <Download className='h-[16px] w-[16px]' />
-                                <span>{isImporting ? 'Importing...' : 'Import workflow'}</span>
-                              </PopoverItem>
-                              <PopoverItem
-                                onClick={handleCreateFolder}
+                                <Download />
+                                {isImporting ? 'Importing...' : 'Import workflow'}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={handleCreateFolder}
                                 disabled={!canEdit || isCreatingFolder}
                               >
-                                <FolderPlus className='h-[16px] w-[16px]' />
-                                <span>
-                                  {isCreatingFolder ? 'Creating folder...' : 'Create folder'}
-                                </span>
-                              </PopoverItem>
-                            </PopoverContent>
-                          </Popover>
+                                <FolderPlus />
+                                {isCreatingFolder ? 'Creating folder...' : 'Create folder'}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                           <Tooltip.Root>
                             <Tooltip.Trigger asChild>
                               <Button

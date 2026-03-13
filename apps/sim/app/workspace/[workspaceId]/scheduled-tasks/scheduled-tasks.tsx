@@ -11,6 +11,7 @@ import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/
 import { Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
 import { ScheduleModal } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/create-schedule-modal'
 import { ScheduleContextMenu } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-context-menu'
+import { ScheduleListContextMenu } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-list-context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import type { WorkspaceScheduleData } from '@/hooks/queries/schedules'
 import {
@@ -58,6 +59,13 @@ export function ScheduledTasks() {
     menuRef: rowMenuRef,
     handleContextMenu: handleRowCtxMenu,
     closeMenu: closeRowContextMenu,
+  } = useContextMenu()
+
+  const {
+    isOpen: isListContextMenuOpen,
+    position: listContextMenuPosition,
+    handleContextMenu: handleListContextMenu,
+    closeMenu: closeListContextMenu,
   } = useContextMenu()
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -114,6 +122,20 @@ export function ScheduledTasks() {
     [itemById, handleRowCtxMenu]
   )
 
+  const handleContentContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (
+        target.closest('[data-resource-row]') ||
+        target.closest('button, input, a, [role="button"]')
+      ) {
+        return
+      }
+      handleListContextMenu(e)
+    },
+    [handleListContextMenu]
+  )
+
   const handleDelete = async () => {
     if (!activeTask) return
     try {
@@ -167,12 +189,19 @@ export function ScheduledTasks() {
         rows={rows}
         onRowContextMenu={handleRowContextMenu}
         isLoading={isLoading}
+        onContextMenu={handleContentContextMenu}
+      />
+
+      <ScheduleListContextMenu
+        isOpen={isListContextMenuOpen}
+        position={listContextMenuPosition}
+        onClose={closeListContextMenu}
+        onCreateSchedule={() => setIsCreateModalOpen(true)}
       />
 
       <ScheduleContextMenu
         isOpen={isRowContextMenuOpen}
         position={rowContextMenuPosition}
-        menuRef={rowMenuRef}
         onClose={closeRowContextMenu}
         isActive={activeTask?.status === 'active'}
         onEdit={() => setIsEditModalOpen(true)}

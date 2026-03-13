@@ -13,10 +13,10 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  PopoverItem,
   Trash,
 } from '@/components/emcn'
 import { SearchHighlight } from '@/components/ui/search-highlight'
+import { cn } from '@/lib/core/utils/cn'
 import type { ChunkData } from '@/lib/knowledge/types'
 import { formatTokenCount } from '@/lib/tokenization'
 import type {
@@ -571,36 +571,23 @@ export function Document({
         <span className='font-medium text-[12px] text-[var(--text-secondary)]'>Status</span>
       </div>
       <div className='flex flex-col gap-[2px] px-[12px] py-[8px]'>
-        <PopoverItem
-          active={enabledFilter === 'all'}
-          onClick={() => {
-            setEnabledFilter('all')
-            setSelectedChunks(new Set())
-            void goToPage(1)
-          }}
-        >
-          All
-        </PopoverItem>
-        <PopoverItem
-          active={enabledFilter === 'enabled'}
-          onClick={() => {
-            setEnabledFilter('enabled')
-            setSelectedChunks(new Set())
-            void goToPage(1)
-          }}
-        >
-          Enabled
-        </PopoverItem>
-        <PopoverItem
-          active={enabledFilter === 'disabled'}
-          onClick={() => {
-            setEnabledFilter('disabled')
-            setSelectedChunks(new Set())
-            void goToPage(1)
-          }}
-        >
-          Disabled
-        </PopoverItem>
+        {(['all', 'enabled', 'disabled'] as const).map((value) => (
+          <button
+            key={value}
+            type='button'
+            className={cn(
+              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-secondary)] outline-none transition-colors hover:bg-[var(--surface-active)]',
+              enabledFilter === value && 'bg-[var(--surface-active)]'
+            )}
+            onClick={() => {
+              setEnabledFilter(value)
+              setSelectedChunks(new Set())
+              void goToPage(1)
+            }}
+          >
+            {value.charAt(0).toUpperCase() + value.slice(1)}
+          </button>
+        ))}
       </div>
     </div>
   )
@@ -1200,7 +1187,6 @@ export function Document({
       <ChunkContextMenu
         isOpen={isContextMenuOpen}
         position={contextMenuPosition}
-        menuRef={menuRef}
         onClose={handleContextMenuClose}
         hasChunk={contextMenuChunk !== null}
         isChunkEnabled={contextMenuChunk?.enabled ?? true}

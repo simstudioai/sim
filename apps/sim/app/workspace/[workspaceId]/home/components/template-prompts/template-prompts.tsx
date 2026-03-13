@@ -1,7 +1,7 @@
 import type { ComponentType, SVGProps } from 'react'
 import Image from 'next/image'
-import { Calendar, Search, Table } from '@/components/emcn/icons'
-import { GmailIcon } from '@/components/icons'
+import { Search, Table } from '@/components/emcn/icons'
+import { GmailIcon, GoogleCalendarIcon } from '@/components/icons'
 import { MarkdownIcon } from '@/components/icons/document-icons'
 
 interface TemplatePrompt {
@@ -20,10 +20,11 @@ const TEMPLATES: TemplatePrompt[] = [
     image: '/templates/crm-light.png',
   },
   {
-    icon: GmailIcon,
-    title: 'Auto-reply agent',
-    prompt: 'Create a Gmail agent that drafts responses to relevant emails automatically.',
-    image: '/templates/gmail-agent-dark.png',
+    icon: GoogleCalendarIcon,
+    title: 'Meeting prep agent',
+    prompt:
+      'Create an agent that checks my calendar each morning, pulls context on every attendee and topic, and prepares a brief for each meeting so I walk in fully prepared.',
+    image: '/templates/meeting-prep-dark.png',
   },
   {
     icon: MarkdownIcon,
@@ -40,11 +41,10 @@ const TEMPLATES: TemplatePrompt[] = [
     image: '/templates/research-assistant-dark.png',
   },
   {
-    icon: Calendar,
-    title: 'Meeting prep agent',
-    prompt:
-      'Create an agent that checks my calendar each morning, pulls context on every attendee and topic, and prepares a brief for each meeting so I walk in fully prepared.',
-    image: '/templates/meeting-prep-dark.png',
+    icon: GmailIcon,
+    title: 'Auto-reply agent',
+    prompt: 'Create a Gmail agent that drafts responses to relevant emails automatically.',
+    image: '/templates/gmail-agent-dark.png',
   },
   {
     icon: Table,
@@ -61,34 +61,38 @@ interface TemplatePromptsProps {
 
 export function TemplatePrompts({ onSelect }: TemplatePromptsProps) {
   return (
-    <div className='grid grid-cols-3 gap-[12px]'>
-      {TEMPLATES.map((template) => {
-        const Icon = template.icon
-        return (
-          <button
-            key={template.title}
-            type='button'
-            onClick={() => onSelect(template.prompt)}
-            className='group flex cursor-pointer flex-col overflow-hidden rounded-[12px] border border-[var(--border-1)] bg-[var(--white)] text-left transition-colors hover:bg-[var(--surface-5)] dark:bg-[var(--surface-4)]'
-          >
-            <div className='relative h-[120px] overflow-hidden'>
-              <Image
-                src={template.image}
-                alt={template.title}
-                fill
-                unoptimized
-                className='object-cover transition-transform duration-300 group-hover:scale-105'
-              />
-            </div>
-            <div className='flex items-center gap-[8px] border-[var(--border-1)] border-t px-[12px] py-[10px]'>
-              <Icon className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-              <span className='font-medium text-[14px] text-[var(--text-body)]'>
-                {template.title}
-              </span>
-            </div>
-          </button>
-        )
-      })}
+    <div>
+      <div className='grid grid-cols-3 gap-[16px]'>
+        {TEMPLATES.map((template) => {
+          const Icon = template.icon
+          return (
+            <button
+              key={template.title}
+              type='button'
+              onClick={() => onSelect(template.prompt)}
+              className='group flex cursor-pointer flex-col text-left'
+            >
+              <div className='overflow-hidden rounded-[10px] border border-[var(--border-1)]'>
+                <div className='relative h-[120px] w-full overflow-hidden'>
+                  <Image
+                    src={template.image}
+                    alt={template.title}
+                    fill
+                    unoptimized
+                    className='object-cover transition-transform duration-300 group-hover:scale-105'
+                  />
+                </div>
+                <div className='flex items-center gap-[6px] border-[var(--border-1)] border-t bg-[var(--white)] px-[10px] py-[6px] dark:bg-[var(--surface-4)]'>
+                  <Icon className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+                  <span className='font-base text-[14px] text-[var(--text-body)]'>
+                    {template.title}
+                  </span>
+                </div>
+              </div>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
