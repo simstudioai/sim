@@ -1198,6 +1198,13 @@
       "when": 1773353601402,
       "tag": "0171_yielding_venom",
       "breakpoints": true
+    },
+    {
+      "idx": 172,
+      "version": "7",
+      "when": 1773390821375,
+      "tag": "0172_silky_magma",
+      "breakpoints": true
     }
   ]
 }
