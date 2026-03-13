@@ -435,17 +435,17 @@ async function handleMessageSend(
         )
       }
 
-      if (isTerminalState(existingTask.status as TaskState)) {
-        return NextResponse.json(
-          createError(id, A2A_ERROR_CODES.TASK_ALREADY_COMPLETE, 'Task already in terminal state'),
-          { status: 400 }
-        )
-      }
-
       if (callerFingerprint && !hasCallerAccessToTask(existingTask, callerFingerprint)) {
         return NextResponse.json(
           createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Task not found'),
           { status: 404 }
+        )
+      }
+
+      if (isTerminalState(existingTask.status as TaskState)) {
+        return NextResponse.json(
+          createError(id, A2A_ERROR_CODES.TASK_ALREADY_COMPLETE, 'Task already in terminal state'),
+          { status: 400 }
         )
       }
     }
@@ -673,19 +673,19 @@ async function handleMessageStream(
       })
     }
 
+    if (callerFingerprint && !hasCallerAccessToTask(existingTask, callerFingerprint)) {
+      await releaseLock(lockKey, lockValue)
+      return NextResponse.json(createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Task not found'), {
+        status: 404,
+      })
+    }
+
     if (isTerminalState(existingTask.status as TaskState)) {
       await releaseLock(lockKey, lockValue)
       return NextResponse.json(
         createError(id, A2A_ERROR_CODES.TASK_ALREADY_COMPLETE, 'Task already in terminal state'),
         { status: 400 }
       )
-    }
-
-    if (callerFingerprint && !hasCallerAccessToTask(existingTask, callerFingerprint)) {
-      await releaseLock(lockKey, lockValue)
-      return NextResponse.json(createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Task not found'), {
-        status: 404,
-      })
     }
 
     history = existingTask.messages as Message[]

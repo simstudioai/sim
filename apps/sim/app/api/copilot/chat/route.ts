@@ -510,18 +510,7 @@ export async function GET(req: NextRequest) {
       .where(and(eq(copilotChats.userId, authenticatedUserId), scopeFilter))
       .orderBy(desc(copilotChats.updatedAt))
 
-    const visibleChats = workflowId
-      ? (
-          await Promise.all(
-            chats.map(async (chat) => {
-              const scopedChat = await getAccessibleCopilotChat(chat.id, authenticatedUserId)
-              return scopedChat ? chat : null
-            })
-          )
-        ).filter((chat): chat is (typeof chats)[number] => chat !== null)
-      : chats
-
-    const transformedChats = visibleChats.map((chat) => ({
+    const transformedChats = chats.map((chat) => ({
       id: chat.id,
       title: chat.title,
       model: chat.model,
