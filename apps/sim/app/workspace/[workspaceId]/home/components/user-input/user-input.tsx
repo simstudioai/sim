@@ -611,6 +611,7 @@ export function UserInput({
   const files = useFileAttachments({ userId: userId || session?.user?.id, disabled: false, isLoading: isSending })
   const hasFiles = files.attachedFiles.some((f) => !f.uploading && f.key)
 
+
   const contextManagement = useContextManagement({ message: value })
 
   const handleContextAdd = useCallback(
@@ -694,6 +695,37 @@ export function UserInput({
       setPlusMenuOpen(false)
     },
     [textareaRef, value, handleContextAdd, mentionMenu]
+  )
+
+  const handleContainerDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (e.dataTransfer.types.includes('application/x-sim-resource')) {
+        e.preventDefault()
+        e.stopPropagation()
+        e.dataTransfer.dropEffect = 'copy'
+        return
+      }
+      files.handleDragOver(e)
+    },
+    [files]
+  )
+
+  const handleContainerDrop = useCallback(
+    (e: React.DragEvent) => {
+      const resourceJson = e.dataTransfer.getData('application/x-sim-resource')
+      if (resourceJson) {
+        e.preventDefault()
+        e.stopPropagation()
+        try {
+          const resource = JSON.parse(resourceJson) as MothershipResource
+          handleResourceSelect(resource, false)
+        } catch {
+          // Invalid JSON — ignore
+        }
+      }
+      files.handleDrop(e)
+    },
+    [handleResourceSelect, files]
   )
 
   useEffect(() => {
@@ -977,8 +1009,8 @@ export function UserInput({
       )}
       onDragEnter={files.handleDragEnter}
       onDragLeave={files.handleDragLeave}
-      onDragOver={files.handleDragOver}
-      onDrop={files.handleDrop}
+      onDragOver={handleContainerDragOver}
+      onDrop={handleContainerDrop}
     >
       {/* Context pills row */}
       {contextManagement.selectedContexts.length > 0 && (
@@ -1211,6 +1243,7 @@ export function UserInput({
           </div>
         </div>
       )}
+
     </div>
   )
 }
