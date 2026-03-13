@@ -26,7 +26,7 @@ export interface AllowedSender {
 }
 
 export interface AgentMailInbox {
-  organization_id: string
+  organization_id?: string
   pod_id: string
   inbox_id: string
   display_name: string | null

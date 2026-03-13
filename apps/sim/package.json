@@ -163,6 +163,7 @@
     "socket.io-client": "4.8.1",
     "ssh2": "^1.17.0",
     "stripe": "18.5.0",
+    "svix": "1.88.0",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "thread-stream": "4.0.0",

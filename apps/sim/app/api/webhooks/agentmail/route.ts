@@ -1,4 +1,3 @@
-import { createHmac, timingSafeEqual } from 'crypto'
 import {
   db,
   mothershipInboxAllowedSender,
@@ -12,6 +11,7 @@ import { createLogger } from '@sim/logger'
 import { tasks } from '@trigger.dev/sdk'
 import { and, eq, gt, ne, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { Webhook } from 'svix'
 import { v4 as uuidv4 } from 'uuid'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { executeInboxTask } from '@/lib/mothership/inbox/executor'
@@ -21,7 +21,6 @@ const logger = createLogger('AgentMailWebhook')
 
 const AUTOMATED_SENDERS = ['mailer-daemon@', 'noreply@', 'no-reply@', 'postmaster@']
 const MAX_EMAILS_PER_HOUR = 20
-const TIMESTAMP_TOLERANCE_SECONDS = 300
 
 export async function POST(req: Request) {
   try {
@@ -55,24 +54,28 @@ export async function POST(req: Request) {
       .where(eq(workspace.inboxProviderId, inboxId))
       .limit(1)
 
-    if (!result) {
-      logger.warn('No workspace found for inbox', { inboxId })
-      return NextResponse.json({ ok: true })
+    if (!result || !result.webhookSecret) {
+      if (!result) {
+        logger.warn('No workspace found for inbox', { inboxId })
+      } else {
+        logger.warn('No webhook secret found for workspace', { workspaceId: result.id })
+      }
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (!result.webhookSecret) {
-      logger.warn('No webhook secret found for workspace, rejecting', { workspaceId: result.id })
-      return NextResponse.json({ error: 'Webhook not configured' }, { status: 401 })
-    }
-
-    if (!svixId || !svixTimestamp || !svixSignature) {
-      logger.warn('Webhook missing Svix headers, rejecting', { workspaceId: result.id })
-      return NextResponse.json({ error: 'Missing signature headers' }, { status: 401 })
-    }
-
-    if (!verifySvixSignature(rawBody, svixId, svixTimestamp, svixSignature, result.webhookSecret)) {
-      logger.warn('Webhook signature verification failed', { workspaceId: result.id })
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+    try {
+      const wh = new Webhook(result.webhookSecret)
+      wh.verify(rawBody, {
+        'svix-id': svixId || '',
+        'svix-timestamp': svixTimestamp || '',
+        'svix-signature': svixSignature || '',
+      })
+    } catch (verifyErr) {
+      logger.warn('Webhook signature verification failed', {
+        workspaceId: result.id,
+        error: verifyErr instanceof Error ? verifyErr.message : 'Unknown error',
+      })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     if (!result.inboxEnabled) {
@@ -193,49 +196,6 @@ export async function POST(req: Request) {
     })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
-
-/**
- * Verify Svix webhook signature (HMAC-SHA256).
- * AgentMail uses Svix for webhook delivery. The signed content is:
- *   `${svixId}.${svixTimestamp}.${rawBody}`
- * The secret is prefixed with `whsec_` followed by a base64-encoded key.
- */
-function verifySvixSignature(
-  rawBody: string,
-  svixId: string,
-  svixTimestamp: string,
-  svixSignature: string,
-  secret: string
-): boolean {
-  const ts = Number.parseInt(svixTimestamp, 10)
-  if (Number.isNaN(ts)) return false
-
-  const now = Math.floor(Date.now() / 1000)
-  if (Math.abs(now - ts) > TIMESTAMP_TOLERANCE_SECONDS) {
-    logger.warn('Webhook timestamp outside tolerance', { svixTimestamp, now })
-    return false
-  }
-
-  const secretKey = secret.startsWith('whsec_') ? secret.slice(6) : secret
-  const secretBytes = Buffer.from(secretKey, 'base64')
-
-  const signedContent = `${svixId}.${svixTimestamp}.${rawBody}`
-  const computed = createHmac('sha256', secretBytes).update(signedContent).digest('base64')
-
-  const signatures = svixSignature.split(' ')
-  for (const sig of signatures) {
-    const parts = sig.split(',')
-    if (parts.length < 2) continue
-    const sigValue = parts.slice(1).join(',')
-    const sigBuf = Buffer.from(sigValue)
-    const computedBuf = Buffer.from(computed)
-    if (sigBuf.length === computedBuf.length && timingSafeEqual(sigBuf, computedBuf)) {
-      return true
-    }
-  }
-
-  return false
 }
 
 async function isSenderAllowed(email: string, workspaceId: string): Promise<boolean> {

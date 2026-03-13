@@ -198,7 +198,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       { success: result.success, content: cleanContent, error: errorStr },
       { inboxProviderId: ws.inboxProviderId, workspaceId: ws.id }
     )
-    responseSent = true
+    responseSent = responseMessageId !== null
 
     await db
       .update(mothershipInboxTask)
