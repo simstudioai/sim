@@ -1,12 +1,6 @@
 'use client'
 
-import {
-  type ElementType,
-  type ReactNode,
-  type RefCallback,
-  type SVGProps,
-  useCallback,
-} from 'react'
+import { type ElementType, type ReactNode, type SVGProps, useEffect, useRef } from 'react'
 import { Button, Tooltip } from '@/components/emcn'
 import { BookOpen, PanelLeft, Table as TableIcon } from '@/components/emcn/icons'
 import { WorkflowIcon } from '@/components/icons'
@@ -83,7 +77,10 @@ export function ResourceTabs({
   onCyclePreviewMode,
   actions,
 }: ResourceTabsProps) {
-  const scrollRef = useCallback<RefCallback<HTMLDivElement>>((node) => {
+  const scrollNodeRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const node = scrollNodeRef.current
     if (!node) return
     const handler = (e: WheelEvent) => {
       if (e.deltaY !== 0) {
@@ -113,7 +110,7 @@ export function ResourceTabs({
         </Tooltip.Content>
       </Tooltip.Root>
       <div
-        ref={scrollRef}
+        ref={scrollNodeRef}
         className='mx-[2px] flex min-w-0 items-center gap-[6px] overflow-x-auto px-[6px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
       >
         {resources.map((resource) => {

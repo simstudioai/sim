@@ -44,7 +44,7 @@ interface FolderState {
   isTaskSelected: (taskId: string) => boolean
 
   // Unified selection helpers
-  getFullSelection: () => { workflowIds: string[]; folderIds: string[] }
+  getFullSelection: () => { workflowIds: string[]; folderIds: string[]; taskIds: string[] }
   hasAnySelection: () => boolean
   isMixedSelection: () => boolean
   clearAllSelection: () => void
@@ -294,6 +294,7 @@ export const useFolderStore = create<FolderState>()(
       getFullSelection: () => ({
         workflowIds: Array.from(get().selectedWorkflows),
         folderIds: Array.from(get().selectedFolders),
+        taskIds: Array.from(get().selectedTasks),
       }),
 
       hasAnySelection: () =>

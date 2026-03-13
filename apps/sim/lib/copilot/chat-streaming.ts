@@ -12,6 +12,7 @@ import {
 } from '@/lib/copilot/orchestrator/stream/buffer'
 import { taskPubSub } from '@/lib/copilot/task-events'
 import { env } from '@/lib/core/config/env'
+import { SSE_HEADERS } from '@/lib/core/utils/sse'
 
 const logger = createLogger('CopilotChatStreaming')
 
@@ -158,11 +159,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         requestChatTitle({ message, model: titleModel, provider: titleProvider })
           .then(async (title) => {
             if (title) {
-              const now = new Date()
-              await db
-                .update(copilotChats)
-                .set({ title, updatedAt: now, lastSeenAt: now })
-                .where(eq(copilotChats.id, chatId!))
+              await db.update(copilotChats).set({ title }).where(eq(copilotChats.id, chatId!))
               await pushEvent({ type: 'title_updated', title })
               if (workspaceId) {
                 taskPubSub?.publishStatusChanged({ workspaceId, chatId: chatId!, type: 'renamed' })
@@ -230,9 +227,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
 }
 
 export const SSE_RESPONSE_HEADERS = {
-  'Content-Type': 'text/event-stream',
+  ...SSE_HEADERS,
   'Content-Encoding': 'none',
-  'Cache-Control': 'no-cache',
-  Connection: 'keep-alive',
-  'X-Accel-Buffering': 'no',
 } as const
