@@ -8,6 +8,7 @@ import {
   sanitizePathSegment,
   type WorkflowExportData,
 } from '@/lib/workflows/operations/import-export'
+import { fetchAllPages } from '@/hooks/queries/utils/paginated-fetch'
 
 const logger = createLogger('useExportWorkspace')
 
@@ -32,11 +33,9 @@ export function useExportWorkspace({ onSuccess }: UseExportWorkspaceProps = {}) 
       try {
         logger.info('Exporting workspace', { workspaceId })
 
-        const workflowsResponse = await fetch(`/api/workflows?workspaceId=${workspaceId}`)
-        if (!workflowsResponse.ok) {
-          throw new Error('Failed to fetch workflows')
-        }
-        const { data: workflows } = await workflowsResponse.json()
+        const workflows = await fetchAllPages<Record<string, any>>(
+          `/api/workflows?workspaceId=${workspaceId}`
+        )
 
         const foldersResponse = await fetch(`/api/folders?workspaceId=${workspaceId}`)
         if (!foldersResponse.ok) {

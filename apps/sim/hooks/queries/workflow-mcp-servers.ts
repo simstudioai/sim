@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { fetchAllPages } from '@/hooks/queries/utils/paginated-fetch'
 
 const logger = createLogger('WorkflowMcpServerQueries')
 
@@ -445,13 +446,7 @@ export function useDeleteWorkflowMcpTool() {
  * Fetch deployed workflows for a workspace
  */
 async function fetchDeployedWorkflows(workspaceId: string): Promise<DeployedWorkflow[]> {
-  const response = await fetch(`/api/workflows?workspaceId=${workspaceId}`)
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch workflows')
-  }
-
-  const { data }: { data: any[] } = await response.json()
+  const data = await fetchAllPages<Record<string, any>>(`/api/workflows?workspaceId=${workspaceId}`)
 
   return data
     .filter((w) => w.isDeployed)
