@@ -168,6 +168,7 @@ export function Home({ chatId }: HomeProps = {}) {
     setActiveResourceId,
     addResource,
     removeResource,
+    reorderResources,
   } = useChat(workspaceId, chatId)
 
   const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
@@ -345,6 +346,7 @@ export function Home({ chatId }: HomeProps = {}) {
         onSelectResource={setActiveResourceId}
         onAddResource={addResource}
         onRemoveResource={removeResource}
+        onReorderResources={reorderResources}
         onCollapse={collapseResource}
         isCollapsed={isResourceCollapsed}
         className={isResourceAnimatingIn ? 'animate-slide-in-right' : undefined}

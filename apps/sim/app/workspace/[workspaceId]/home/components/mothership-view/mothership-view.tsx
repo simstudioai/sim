@@ -27,6 +27,7 @@ interface MothershipViewProps {
   onSelectResource: (id: string) => void
   onAddResource: (resource: MothershipResource) => void
   onRemoveResource: (resourceType: MothershipResourceType, resourceId: string) => void
+  onReorderResources: (resources: MothershipResource[]) => void
   onCollapse: () => void
   isCollapsed: boolean
   className?: string
@@ -40,6 +41,7 @@ export function MothershipView({
   onSelectResource,
   onAddResource,
   onRemoveResource,
+  onReorderResources,
   onCollapse,
   isCollapsed,
   className,
@@ -74,6 +76,7 @@ export function MothershipView({
           onSelect={onSelectResource}
           onAddResource={onAddResource}
           onRemoveResource={onRemoveResource}
+          onReorderResources={onReorderResources}
           onCollapse={onCollapse}
           actions={active ? <ResourceActions workspaceId={workspaceId} resource={active} /> : null}
           previewMode={isActivePreviewable ? previewMode : undefined}
@@ -88,7 +91,7 @@ export function MothershipView({
             />
           ) : (
             <div className='flex h-full flex-col items-center justify-center gap-[4px] px-[24px]'>
-              <p className='text-[13px] text-[var(--text-secondary)]'>No resources open</p>
+              <h2 className='text-[20px] font-semibold text-[var(--text-secondary)]'>No resources open</h2>
               <p className='text-[12px] text-[var(--text-tertiary)]'>
                 Click the <span className='font-medium text-[var(--text-secondary)]'>+</span> button above to add a resource to this task
               </p>

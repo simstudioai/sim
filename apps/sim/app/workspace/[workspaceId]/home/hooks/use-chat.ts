@@ -54,6 +54,7 @@ export interface UseChatReturn {
   setActiveResourceId: (id: string | null) => void
   addResource: (resource: MothershipResource) => void
   removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
+  reorderResources: (resources: MothershipResource[]) => void
 }
 
 const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
@@ -221,6 +222,10 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     },
     []
   )
+
+  const reorderResources = useCallback((newOrder: MothershipResource[]) => {
+    setResources(newOrder)
+  }, [])
 
   useEffect(() => {
     if (sendingRef.current) {
@@ -842,5 +847,6 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     setActiveResourceId,
     addResource,
     removeResource,
+    reorderResources,
   }
 }

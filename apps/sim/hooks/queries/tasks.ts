@@ -256,6 +256,48 @@ export function useAddChatResource(chatId?: string) {
   })
 }
 
+async function reorderChatResources(params: {
+  chatId: string
+  resources: MothershipResource[]
+}): Promise<{ resources: MothershipResource[] }> {
+  const response = await fetch('/api/copilot/chat/resources', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chatId: params.chatId, resources: params.resources }),
+  })
+  if (!response.ok) throw new Error('Failed to reorder resources')
+  return response.json()
+}
+
+export function useReorderChatResources(chatId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: reorderChatResources,
+    onMutate: async ({ resources }) => {
+      if (!chatId) return
+      await queryClient.cancelQueries({ queryKey: taskKeys.detail(chatId) })
+      const previous = queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(chatId))
+      if (previous) {
+        queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(chatId), {
+          ...previous,
+          resources,
+        })
+      }
+      return { previous }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previous && chatId) {
+        queryClient.setQueryData(taskKeys.detail(chatId), context.previous)
+      }
+    },
+    onSettled: () => {
+      if (chatId) {
+        queryClient.invalidateQueries({ queryKey: taskKeys.detail(chatId) })
+      }
+    },
+  })
+}
+
 async function removeChatResource(params: {
   chatId: string
   resourceType: string

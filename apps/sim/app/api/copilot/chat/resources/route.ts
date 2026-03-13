@@ -33,6 +33,17 @@ const RemoveResourceSchema = z.object({
   resourceId: z.string(),
 })
 
+const ReorderResourcesSchema = z.object({
+  chatId: z.string(),
+  resources: z.array(
+    z.object({
+      type: z.enum(['table', 'file', 'workflow', 'knowledgebase']),
+      id: z.string(),
+      title: z.string(),
+    })
+  ),
+})
+
 export async function POST(req: NextRequest) {
   try {
     const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
@@ -86,6 +97,51 @@ export async function POST(req: NextRequest) {
     }
     logger.error('Error adding chat resource:', error)
     return createInternalServerErrorResponse('Failed to add resource')
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
+    if (!isAuthenticated || !userId) {
+      return createUnauthorizedResponse()
+    }
+
+    const body = await req.json()
+    const { chatId, resources: newOrder } = ReorderResourcesSchema.parse(body)
+
+    const [chat] = await db
+      .select({ resources: copilotChats.resources })
+      .from(copilotChats)
+      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
+      .limit(1)
+
+    if (!chat) {
+      return createNotFoundResponse('Chat not found or unauthorized')
+    }
+
+    const existing = Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
+    const existingKeys = new Set(existing.map((r) => `${r.type}:${r.id}`))
+    const newKeys = new Set(newOrder.map((r) => `${r.type}:${r.id}`))
+
+    if (existingKeys.size !== newKeys.size || ![...existingKeys].every((k) => newKeys.has(k))) {
+      return createBadRequestResponse('Reordered resources must match existing resources')
+    }
+
+    await db
+      .update(copilotChats)
+      .set({ resources: sql`${JSON.stringify(newOrder)}::jsonb`, updatedAt: new Date() })
+      .where(eq(copilotChats.id, chatId))
+
+    logger.info('Reordered resources for chat', { chatId, count: newOrder.length })
+
+    return NextResponse.json({ success: true, resources: newOrder })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return createBadRequestResponse(error.errors.map((e) => e.message).join(', '))
+    }
+    logger.error('Error reordering chat resources:', error)
+    return createInternalServerErrorResponse('Failed to reorder resources')
   }
 }
 
