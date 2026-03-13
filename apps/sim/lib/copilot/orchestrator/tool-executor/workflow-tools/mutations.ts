@@ -572,6 +572,27 @@ export async function executeDeleteWorkflow(
   }
 }
 
+export async function executeDeleteFolder(
+  params: DeleteFolderParams,
+  _context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const folderId = params.folderId
+    if (!folderId) {
+      return { success: false, error: 'folderId is required' }
+    }
+
+    const deleted = await deleteFolderRecord(folderId)
+    if (!deleted) {
+      return { success: false, error: 'Folder not found' }
+    }
+
+    return { success: true, output: { folderId, deleted: true } }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
 export async function executeRenameFolder(
   params: RenameFolderParams,
   context: ExecutionContext
@@ -592,27 +613,6 @@ export async function executeRenameFolder(
     await updateFolderRecord(folderId, { name })
 
     return { success: true, output: { folderId, name } }
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
-  }
-}
-
-export async function executeDeleteFolder(
-  params: DeleteFolderParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const folderId = params.folderId
-    if (!folderId) {
-      return { success: false, error: 'folderId is required' }
-    }
-
-    const deleted = await deleteFolderRecord(folderId)
-    if (!deleted) {
-      return { success: false, error: 'Folder not found' }
-    }
-
-    return { success: true, output: { folderId, deleted: true } }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }

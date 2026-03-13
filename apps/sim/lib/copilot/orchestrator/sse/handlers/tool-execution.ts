@@ -22,9 +22,12 @@ import type {
   ToolCallResult,
 } from '@/lib/copilot/orchestrator/types'
 import {
+  extractDeletedResourcesFromToolResult,
   extractResourcesFromToolResult,
+  isDeleteToolName,
   isResourceToolName,
   persistChatResources,
+  removeChatResources,
 } from '@/lib/copilot/resources'
 import { getTableById } from '@/lib/table/service'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -535,6 +538,29 @@ export async function executeToolAndReport(
             type: 'resource_added',
             resource: { type: resource.type, id: resource.id, title: resource.title },
           })
+        }
+      }
+
+      if (isDeleteToolName(toolCall.name)) {
+        const deleted = extractDeletedResourcesFromToolResult(
+          toolCall.name,
+          toolCall.params,
+          result.output
+        )
+        if (deleted.length > 0) {
+          removeChatResources(execContext.chatId, deleted).catch((err) => {
+            logger.warn('Failed to remove chat resources after deletion', {
+              chatId: execContext.chatId,
+              error: err instanceof Error ? err.message : String(err),
+            })
+          })
+
+          for (const resource of deleted) {
+            await options?.onEvent?.({
+              type: 'resource_deleted',
+              resource: { type: resource.type, id: resource.id, title: resource.title },
+            })
+          }
         }
       }
     }
