@@ -79,7 +79,8 @@ function stripQuotedReply(text: string): string {
     return false
   })
 
-  if (cutIndex <= 0) return text
+  if (cutIndex < 0) return text
+  if (cutIndex === 0) return '(reply with no new content above the quote)'
 
   return lines.slice(0, cutIndex).join('\n').trim()
 }

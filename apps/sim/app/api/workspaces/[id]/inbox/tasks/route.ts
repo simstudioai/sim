@@ -33,7 +33,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const conditions = [eq(mothershipInboxTask.workspaceId, workspaceId)]
 
+  const validStatuses = ['received', 'processing', 'completed', 'failed', 'rejected'] as const
   if (status !== 'all') {
+    if (!validStatuses.includes(status as (typeof validStatuses)[number])) {
+      return NextResponse.json({ error: 'Invalid status filter' }, { status: 400 })
+    }
     conditions.push(eq(mothershipInboxTask.status, status))
   }
 

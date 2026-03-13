@@ -66,6 +66,9 @@ export async function enableInbox(
     try {
       if (webhook) await agentmail.deleteWebhook(webhook.webhook_id)
       await agentmail.deleteInbox(inbox.inbox_id)
+      await db
+        .delete(mothershipInboxWebhook)
+        .where(eq(mothershipInboxWebhook.workspaceId, workspaceId))
     } catch (rollbackError) {
       logger.error('Failed to rollback AgentMail resources', { rollbackError })
     }

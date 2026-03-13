@@ -1,6 +1,6 @@
 import { copilotChats, db, mothershipInboxTask, permissions, user, workspace } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat-payload'
 import { requestChatTitle } from '@/lib/copilot/chat-streaming'
@@ -8,6 +8,7 @@ import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import type { OrchestratorResult } from '@/lib/copilot/orchestrator/types'
 import { taskPubSub } from '@/lib/copilot/task-events'
 import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { formatEmailAsMessage } from '@/lib/mothership/inbox/format'
 import { sendInboxResponse } from '@/lib/mothership/inbox/response'
@@ -160,7 +161,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       chatId,
       mode: 'agent',
       messageId: userMessageId,
-      isHosted: true,
+      isHosted,
       workspaceContext,
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
       ...(userPermission ? { userPermission } : {}),
@@ -279,13 +280,6 @@ async function persistChatMessages(
   result: OrchestratorResult
 ): Promise<void> {
   try {
-    const [chat] = await db
-      .select({ messages: copilotChats.messages })
-      .from(copilotChats)
-      .where(eq(copilotChats.id, chatId))
-      .limit(1)
-
-    const existingMessages = Array.isArray(chat?.messages) ? chat.messages : []
     const now = new Date().toISOString()
 
     const userMessage = {
@@ -303,10 +297,11 @@ async function persistChatMessages(
       ...(result.error ? { errorType: 'internal' } : {}),
     }
 
+    const newMessages = JSON.stringify([userMessage, assistantMessage])
     await db
       .update(copilotChats)
       .set({
-        messages: [...existingMessages, userMessage, assistantMessage],
+        messages: sql`COALESCE(${copilotChats.messages}, '[]'::jsonb) || ${newMessages}::jsonb`,
         updatedAt: new Date(),
       })
       .where(eq(copilotChats.id, chatId))
