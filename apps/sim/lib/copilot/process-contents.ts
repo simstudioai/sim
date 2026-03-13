@@ -3,7 +3,7 @@ import { copilotChats, document, knowledgeBase, templates } from '@sim/db/schema
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { readFileRecord } from '@/lib/copilot/vfs/file-reader'
-import { serializeFileMeta, serializeTableMeta } from '@/lib/copilot/vfs/serializers'
+import { serializeTableMeta } from '@/lib/copilot/vfs/serializers'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
 import { getTableById } from '@/lib/table/service'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -606,18 +606,17 @@ async function resolveFileResource(
   const record = await getWorkspaceFile(workspaceId, fileId)
   if (!record) return null
   const fileResult = await readFileRecord(record)
-  const meta = serializeFileMeta({
+  const meta = {
     id: record.id,
     name: record.name,
     contentType: record.type,
     size: record.size,
-    uploadedAt: record.uploadedAt,
-  })
-  const parsed = JSON.parse(meta)
-  parsed.content = fileResult?.content || `[Could not read ${record.name}]`
+    uploadedAt: record.uploadedAt.toISOString(),
+    content: fileResult?.content || `[Could not read ${record.name}]`,
+  }
   return {
     type: 'active_resource',
     tag: '@active_resource',
-    content: JSON.stringify(parsed, null, 2),
+    content: JSON.stringify(meta, null, 2),
   }
 }
