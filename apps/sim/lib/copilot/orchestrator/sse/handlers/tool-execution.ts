@@ -518,28 +518,7 @@ export async function executeToolAndReport(
     await options?.onEvent?.(resultEvent)
 
     if (result.success && execContext.chatId) {
-      const resources =
-        result.resources && result.resources.length > 0
-          ? result.resources
-          : isResourceToolName(toolCall.name)
-            ? extractResourcesFromToolResult(toolCall.name, toolCall.params, result.output)
-            : []
-
-      if (resources.length > 0) {
-        persistChatResources(execContext.chatId, resources).catch((err) => {
-          logger.warn('Failed to persist chat resources', {
-            chatId: execContext.chatId,
-            error: err instanceof Error ? err.message : String(err),
-          })
-        })
-
-        for (const resource of resources) {
-          await options?.onEvent?.({
-            type: 'resource_added',
-            resource: { type: resource.type, id: resource.id, title: resource.title },
-          })
-        }
-      }
+      let isDeleteOp = false
 
       if (hasDeleteCapability(toolCall.name)) {
         const deleted = extractDeletedResourcesFromToolResult(
@@ -548,6 +527,7 @@ export async function executeToolAndReport(
           result.output
         )
         if (deleted.length > 0) {
+          isDeleteOp = true
           removeChatResources(execContext.chatId, deleted).catch((err) => {
             logger.warn('Failed to remove chat resources after deletion', {
               chatId: execContext.chatId,
@@ -558,6 +538,31 @@ export async function executeToolAndReport(
           for (const resource of deleted) {
             await options?.onEvent?.({
               type: 'resource_deleted',
+              resource: { type: resource.type, id: resource.id, title: resource.title },
+            })
+          }
+        }
+      }
+
+      if (!isDeleteOp) {
+        const resources =
+          result.resources && result.resources.length > 0
+            ? result.resources
+            : isResourceToolName(toolCall.name)
+              ? extractResourcesFromToolResult(toolCall.name, toolCall.params, result.output)
+              : []
+
+        if (resources.length > 0) {
+          persistChatResources(execContext.chatId, resources).catch((err) => {
+            logger.warn('Failed to persist chat resources', {
+              chatId: execContext.chatId,
+              error: err instanceof Error ? err.message : String(err),
+            })
+          })
+
+          for (const resource of resources) {
+            await options?.onEvent?.({
+              type: 'resource_added',
               resource: { type: resource.type, id: resource.id, title: resource.title },
             })
           }
