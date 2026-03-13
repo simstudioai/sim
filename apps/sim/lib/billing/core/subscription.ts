@@ -4,7 +4,12 @@ import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getUserUsageLimit } from '@/lib/billing/core/usage'
-import { isOrgPlan, isPro as isPlanPro, isTeam as isPlanTeam } from '@/lib/billing/plan-helpers'
+import {
+  getPlanTierCredits,
+  isOrgPlan,
+  isPro as isPlanPro,
+  isTeam as isPlanTeam,
+} from '@/lib/billing/plan-helpers'
 import {
   checkEnterprisePlan,
   checkProPlan,
@@ -395,13 +400,28 @@ export async function hasAccessControlAccess(userId: string): Promise<boolean> {
  * Check if user has access to inbox (Sim Mailer) feature
  * Returns true if:
  * - INBOX_ENABLED env var is set (self-hosted override), OR
- * - Running on hosted (sim.ai) environment
+ * - User has a Max plan (credits >= 25000) or enterprise plan
+ *
+ * In non-production environments, returns true for convenience.
  */
-export function hasInboxAccess(): boolean {
-  if (isInboxEnabled && !isHosted) {
-    return true
+export async function hasInboxAccess(userId: string): Promise<boolean> {
+  try {
+    if (isInboxEnabled && !isHosted) {
+      return true
+    }
+    if (!isHosted) {
+      return false
+    }
+    if (!isProd) {
+      return true
+    }
+    const sub = await getHighestPrioritySubscription(userId)
+    if (!sub) return false
+    return getPlanTierCredits(sub.plan) >= 25000 || checkEnterprisePlan(sub)
+  } catch (error) {
+    logger.error('Error checking inbox access', { error, userId })
+    return false
   }
-  return isHosted
 }
 
 /**

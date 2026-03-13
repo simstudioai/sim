@@ -11,6 +11,7 @@ import { tasks } from '@trigger.dev/sdk'
 import { and, eq, gt, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
+import { env } from '@/lib/core/config/env'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { executeInboxTask } from '@/lib/mothership/inbox/executor'
 import type { AgentMailWebhookPayload, RejectionReason } from '@/lib/mothership/inbox/types'
@@ -22,6 +23,15 @@ const MAX_EMAILS_PER_HOUR = 20
 
 export async function POST(req: Request) {
   try {
+    const webhookSecret = env.AGENTMAIL_WEBHOOK_SECRET
+    if (webhookSecret) {
+      const authHeader = req.headers.get('authorization')
+      if (authHeader !== `Bearer ${webhookSecret}`) {
+        logger.warn('Invalid webhook authorization')
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+    }
+
     const payload = (await req.json()) as AgentMailWebhookPayload
 
     if (payload.event_type !== 'message.received') {

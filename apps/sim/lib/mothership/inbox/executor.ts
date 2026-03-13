@@ -40,6 +40,11 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     return
   }
 
+  if (inboxTask.status === 'completed' || inboxTask.status === 'failed') {
+    logger.info('Inbox task already terminal, skipping', { taskId, status: inboxTask.status })
+    return
+  }
+
   const [ws] = await db
     .select()
     .from(workspace)

@@ -15,9 +15,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const hasAccess = hasInboxAccess()
+  const hasAccess = await hasInboxAccess(session.user.id)
   if (!hasAccess) {
-    return NextResponse.json({ error: 'Inbox feature is not available' }, { status: 403 })
+    return NextResponse.json({ error: 'Sim Mailer requires a Max plan' }, { status: 403 })
   }
 
   const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
