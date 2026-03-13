@@ -4,12 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull, like, or } from 'drizzle-orm'
 import { getFileMetadata } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
-import {
-  BLOB_CHAT_CONFIG,
-  BLOB_KB_CONFIG,
-  S3_CHAT_CONFIG,
-  S3_KB_CONFIG,
-} from '@/lib/uploads/config'
+import { BLOB_CHAT_CONFIG, S3_CHAT_CONFIG } from '@/lib/uploads/config'
 import type { StorageConfig } from '@/lib/uploads/core/storage-client'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
@@ -415,12 +410,6 @@ async function verifyKBFileAccess(
       return false
     }
 
-    if (customConfig) {
-      await getFileMetadata(cloudKey, customConfig).catch(() => null)
-    } else {
-      await getKBStorageConfig()
-    }
-
     logger.warn('KB file access denied because no active KB document matched the file', {
       cloudKey,
       userId,
@@ -588,31 +577,6 @@ export async function authorizeFileAccess(
     granted: false,
     reason: 'Access denied - insufficient permissions or file not found',
   }
-}
-
-/**
- * Get KB storage configuration based on current storage provider
- */
-async function getKBStorageConfig(): Promise<StorageConfig> {
-  const { USE_S3_STORAGE, USE_BLOB_STORAGE } = await import('@/lib/uploads/config')
-
-  if (USE_BLOB_STORAGE) {
-    return {
-      containerName: BLOB_KB_CONFIG.containerName,
-      accountName: BLOB_KB_CONFIG.accountName,
-      accountKey: BLOB_KB_CONFIG.accountKey,
-      connectionString: BLOB_KB_CONFIG.connectionString,
-    }
-  }
-
-  if (USE_S3_STORAGE) {
-    return {
-      bucket: S3_KB_CONFIG.bucket,
-      region: S3_KB_CONFIG.region,
-    }
-  }
-
-  return {}
 }
 
 /**

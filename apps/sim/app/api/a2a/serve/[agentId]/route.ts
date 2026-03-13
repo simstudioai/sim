@@ -78,6 +78,23 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<R
   const redis = getRedisClient()
   const cacheKey = `a2a:agent:${agentId}:card`
 
+  if (redis) {
+    try {
+      const cached = await redis.get(cacheKey)
+      if (cached) {
+        return NextResponse.json(JSON.parse(cached), {
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'private, max-age=60',
+            'X-Cache': 'HIT',
+          },
+        })
+      }
+    } catch (err) {
+      logger.warn('Redis cache read failed', { agentId, error: err })
+    }
+  }
+
   try {
     const [agent] = await db
       .select({
@@ -138,23 +155,6 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<R
           }),
       defaultInputModes: ['text/plain', 'application/json'],
       defaultOutputModes: ['text/plain', 'application/json'],
-    }
-
-    if (redis) {
-      try {
-        const cached = await redis.get(cacheKey)
-        if (cached) {
-          return NextResponse.json(JSON.parse(cached), {
-            headers: {
-              'Content-Type': 'application/json',
-              'Cache-Control': 'private, max-age=60',
-              'X-Cache': 'HIT',
-            },
-          })
-        }
-      } catch (err) {
-        logger.warn('Redis cache read failed', { agentId, error: err })
-      }
     }
 
     if (redis) {

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -31,7 +31,7 @@ export async function DELETE(request: NextRequest) {
 
     const [deleted] = await db
       .delete(copilotChats)
-      .where(eq(copilotChats.id, parsed.chatId))
+      .where(and(eq(copilotChats.id, parsed.chatId), eq(copilotChats.userId, session.user.id)))
       .returning({ workspaceId: copilotChats.workspaceId })
 
     if (!deleted) {
