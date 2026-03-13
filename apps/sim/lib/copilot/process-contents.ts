@@ -1,8 +1,17 @@
 import { db } from '@sim/db'
-import { copilotChats, document, knowledgeBase, templates } from '@sim/db/schema'
+import {
+  copilotChats,
+  document,
+  knowledgeBase,
+  templates,
+  userTableDefinitions,
+  userTableRows,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, asc, eq, isNull } from 'drizzle-orm'
+import { readFileRecord } from '@/lib/copilot/vfs/file-reader'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
+import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { isHiddenFromDisplay } from '@/blocks/types'
@@ -20,6 +29,7 @@ export type AgentContextType =
   | 'templates'
   | 'workflow_block'
   | 'docs'
+  | 'active_resource'
 
 export interface AgentContext {
   type: AgentContextType
@@ -76,7 +86,8 @@ export async function processContexts(
 export async function processContextsServer(
   contexts: ChatContext[] | undefined,
   userId: string,
-  userMessage?: string
+  userMessage?: string,
+  workspaceId?: string
 ): Promise<AgentContext[]> {
   if (!Array.isArray(contexts) || contexts.length === 0) return []
   const tasks = contexts.map(async (ctx) => {
@@ -92,7 +103,11 @@ export async function processContextsServer(
         )
       }
       if (ctx.kind === 'knowledge' && ctx.knowledgeId) {
-        return await processKnowledgeFromDb(ctx.knowledgeId, ctx.label ? `@${ctx.label}` : '@')
+        return await processKnowledgeFromDb(
+          ctx.knowledgeId,
+          ctx.label ? `@${ctx.label}` : '@',
+          workspaceId
+        )
       }
       if (ctx.kind === 'blocks' && ctx.blockIds?.length > 0) {
         return await processBlockMetadata(
@@ -305,10 +320,14 @@ async function processPastChatViaApi(chatId: string, tag?: string) {
 
 async function processKnowledgeFromDb(
   knowledgeBaseId: string,
-  tag: string
+  tag: string,
+  workspaceId?: string
 ): Promise<AgentContext | null> {
   try {
-    // Load KB metadata
+    const conditions = [eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)]
+    if (workspaceId) {
+      conditions.push(eq(knowledgeBase.workspaceId, workspaceId))
+    }
     const kbRows = await db
       .select({
         id: knowledgeBase.id,
@@ -316,7 +335,7 @@ async function processKnowledgeFromDb(
         updatedAt: knowledgeBase.updatedAt,
       })
       .from(knowledgeBase)
-      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+      .where(and(...conditions))
       .limit(1)
     const kb = kbRows?.[0]
     if (!kb) return null
@@ -529,6 +548,154 @@ async function processExecutionLogFromDb(
     return { type: 'logs', tag, content }
   } catch (error) {
     logger.error('Error processing execution log context (db)', { executionId, error })
+    return null
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Active resource context resolution
+// ---------------------------------------------------------------------------
+
+type ActiveResourceType = 'workflow' | 'table' | 'file' | 'knowledgebase'
+
+const MAX_TABLE_PREVIEW_ROWS = 50
+
+async function resolveWorkflowResource(resourceId: string): Promise<AgentContext | null> {
+  const normalized = await loadWorkflowFromNormalizedTables(resourceId)
+  if (!normalized) return null
+  const sanitized = sanitizeForCopilot({
+    blocks: normalized.blocks || {},
+    edges: normalized.edges || [],
+    loops: normalized.loops || {},
+    parallels: normalized.parallels || {},
+  })
+  return {
+    type: 'active_resource',
+    tag: '@active_resource',
+    content: JSON.stringify({ resourceType: 'workflow', id: resourceId, ...sanitized }, null, 2),
+  }
+}
+
+async function resolveTableResource(
+  resourceId: string,
+  workspaceId: string
+): Promise<AgentContext | null> {
+  const [tableDef] = await db
+    .select()
+    .from(userTableDefinitions)
+    .where(
+      and(eq(userTableDefinitions.id, resourceId), eq(userTableDefinitions.workspaceId, workspaceId))
+    )
+    .limit(1)
+  if (!tableDef) return null
+
+  const rows = await db
+    .select({ id: userTableRows.id, data: userTableRows.data })
+    .from(userTableRows)
+    .where(eq(userTableRows.tableId, resourceId))
+    .orderBy(asc(userTableRows.position))
+    .limit(MAX_TABLE_PREVIEW_ROWS)
+
+  return {
+    type: 'active_resource',
+    tag: '@active_resource',
+    content: JSON.stringify(
+      {
+        resourceType: 'table',
+        id: tableDef.id,
+        name: tableDef.name,
+        description: tableDef.description,
+        schema: tableDef.schema,
+        rowCount: tableDef.rowCount,
+        sampleRows: rows.map((r) => r.data),
+      },
+      null,
+      2
+    ),
+  }
+}
+
+async function resolveFileResource(
+  resourceId: string,
+  workspaceId: string
+): Promise<AgentContext | null> {
+  const file = await getWorkspaceFile(workspaceId, resourceId)
+  if (!file) return null
+
+  const result = await readFileRecord(file)
+  const content = result?.content || `[Could not read ${file.name}]`
+
+  return {
+    type: 'active_resource',
+    tag: '@active_resource',
+    content: JSON.stringify(
+      { resourceType: 'file', id: file.id, name: file.name, fileType: file.type, content },
+      null,
+      2
+    ),
+  }
+}
+
+async function resolveKBResource(
+  resourceId: string,
+  workspaceId: string
+): Promise<AgentContext | null> {
+  const [kb] = await db
+    .select({ id: knowledgeBase.id, name: knowledgeBase.name })
+    .from(knowledgeBase)
+    .where(
+      and(
+        eq(knowledgeBase.id, resourceId),
+        eq(knowledgeBase.workspaceId, workspaceId),
+        isNull(knowledgeBase.deletedAt)
+      )
+    )
+    .limit(1)
+  if (!kb) return null
+
+  const docs = await db
+    .select({ filename: document.filename })
+    .from(document)
+    .where(and(eq(document.knowledgeBaseId, resourceId), isNull(document.deletedAt)))
+    .limit(30)
+
+  return {
+    type: 'active_resource',
+    tag: '@active_resource',
+    content: JSON.stringify({
+      resourceType: 'knowledgebase',
+      id: kb.id,
+      name: kb.name,
+      documents: docs.map((d) => d.filename).filter(Boolean),
+    }),
+  }
+}
+
+/**
+ * Resolves the content of the currently active resource tab so the agent
+ * receives it as inline context without needing to read it via tools.
+ * Returns null if the resource cannot be resolved.
+ */
+export async function resolveActiveResourceContext(
+  resourceType: ActiveResourceType,
+  resourceId: string,
+  workspaceId: string
+): Promise<AgentContext | null> {
+  try {
+    switch (resourceType) {
+      case 'workflow':
+        return await resolveWorkflowResource(resourceId)
+      case 'table':
+        return await resolveTableResource(resourceId, workspaceId)
+      case 'file':
+        return await resolveFileResource(resourceId, workspaceId)
+      case 'knowledgebase':
+        return await resolveKBResource(resourceId, workspaceId)
+      default:
+        return null
+    }
+  } catch (error) {
+    logger.error('Failed to resolve active resource context', { resourceType, resourceId, error })
     return null
   }
 }

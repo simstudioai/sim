@@ -232,6 +232,10 @@ export function useChat(
   const [activeResourceId, setActiveResourceId] = useState<string | null>(null)
   const onResourceEventRef = useRef(options?.onResourceEvent)
   onResourceEventRef.current = options?.onResourceEvent
+  const resourcesRef = useRef(resources)
+  resourcesRef.current = resources
+  const activeResourceIdRef = useRef(activeResourceId)
+  activeResourceIdRef.current = activeResourceId
 
   const abortControllerRef = useRef<AbortController | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
@@ -761,6 +765,15 @@ export function useChat(
       abortControllerRef.current = abortController
 
       try {
+        const currentActiveId = activeResourceIdRef.current
+        const currentResources = resourcesRef.current
+        const activeRes = currentActiveId
+          ? currentResources.find((r) => r.id === currentActiveId)
+          : undefined
+        const resourceAttachments = activeRes
+          ? [{ type: activeRes.type, id: activeRes.id }]
+          : undefined
+
         const response = await fetch(MOTHERSHIP_CHAT_API_PATH, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -771,6 +784,7 @@ export function useChat(
             createNewChat: !chatIdRef.current,
             ...(chatIdRef.current ? { chatId: chatIdRef.current } : {}),
             ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
+            ...(resourceAttachments ? { resourceAttachments } : {}),
             userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
           signal: abortController.signal,

@@ -9,6 +9,10 @@ import { resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
 import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/copilot/chat-streaming'
 import type { OrchestratorResult } from '@/lib/copilot/orchestrator/types'
+import {
+  processContextsServer,
+  resolveActiveResourceContext,
+} from '@/lib/copilot/process-contents'
 import { createRequestTracker, createUnauthorizedResponse } from '@/lib/copilot/request-helpers'
 import { taskPubSub } from '@/lib/copilot/task-events'
 import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
@@ -24,6 +28,11 @@ const FileAttachmentSchema = z.object({
   size: z.number(),
 })
 
+const ResourceAttachmentSchema = z.object({
+  type: z.enum(['workflow', 'table', 'file', 'knowledgebase']),
+  id: z.string().min(1),
+})
+
 const MothershipMessageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
   workspaceId: z.string().min(1, 'workspaceId is required'),
@@ -32,6 +41,7 @@ const MothershipMessageSchema = z.object({
   createNewChat: z.boolean().optional().default(false),
   fileAttachments: z.array(FileAttachmentSchema).optional(),
   userTimezone: z.string().optional(),
+  resourceAttachments: z.array(ResourceAttachmentSchema).optional(),
   contexts: z
     .array(
       z.object({
@@ -82,6 +92,7 @@ export async function POST(req: NextRequest) {
       createNewChat,
       fileAttachments,
       contexts,
+      resourceAttachments,
       userTimezone,
     } = MothershipMessageSchema.parse(body)
 
@@ -90,10 +101,27 @@ export async function POST(req: NextRequest) {
     let agentContexts: Array<{ type: string; content: string }> = []
     if (Array.isArray(contexts) && contexts.length > 0) {
       try {
-        const { processContextsServer } = await import('@/lib/copilot/process-contents')
-        agentContexts = await processContextsServer(contexts as any, authenticatedUserId, message)
+        agentContexts = await processContextsServer(
+          contexts as any,
+          authenticatedUserId,
+          message,
+          workspaceId
+        )
       } catch (e) {
         logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
+      }
+    }
+
+    if (Array.isArray(resourceAttachments) && resourceAttachments.length > 0) {
+      const results = await Promise.allSettled(
+        resourceAttachments.map((r) => resolveActiveResourceContext(r.type, r.id, workspaceId))
+      )
+      for (const result of results) {
+        if (result.status === 'fulfilled' && result.value) {
+          agentContexts.push(result.value)
+        } else if (result.status === 'rejected') {
+          logger.error(`[${tracker.requestId}] Failed to resolve resource attachment`, result.reason)
+        }
       }
     }
 

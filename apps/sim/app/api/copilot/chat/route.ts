@@ -178,7 +178,8 @@ export async function POST(req: NextRequest) {
         const processed = await processContextsServer(
           normalizedContexts as any,
           authenticatedUserId,
-          message
+          message,
+          resolvedWorkspaceId
         )
         agentContexts = processed
         logger.info(`[${tracker.requestId}] Contexts processed for request`, {

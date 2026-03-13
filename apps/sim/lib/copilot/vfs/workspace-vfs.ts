@@ -55,11 +55,8 @@ import {
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { listTables } from '@/lib/table/service'
-import {
-  downloadWorkspaceFile,
-  listWorkspaceFiles,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { isImageFileType } from '@/lib/uploads/utils/file-utils'
+import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { readFileRecord, type FileReadResult } from '@/lib/copilot/vfs/file-reader'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -394,81 +391,12 @@ export class WorkspaceVFS {
 
     if (fileName.endsWith('/meta.json') || path.endsWith('/meta.json')) return null
 
-    try {
-      const files = await listWorkspaceFiles(this._workspaceId)
-      const record = files.find(
-        (f) => f.name === fileName || f.name.normalize('NFC') === fileName.normalize('NFC')
-      )
-      if (!record) return null
-
-      if (isImageFileType(record.type)) {
-        if (record.size > MAX_IMAGE_READ_BYTES) {
-          return {
-            content: `[Image too large: ${record.name} (${(record.size / 1024 / 1024).toFixed(1)}MB, limit 5MB)]`,
-            totalLines: 1,
-          }
-        }
-        const buffer = await downloadWorkspaceFile(record)
-        return {
-          content: `Image: ${record.name} (${(record.size / 1024).toFixed(1)}KB, ${record.type})`,
-          totalLines: 1,
-          attachment: {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: record.type,
-              data: buffer.toString('base64'),
-            },
-          },
-        }
-      }
-
-      const ext = getExtension(record.name)
-      if (PARSEABLE_EXTENSIONS.has(ext)) {
-        const buffer = await downloadWorkspaceFile(record)
-        try {
-          const { parseBuffer } = await import('@/lib/file-parsers')
-          const result = await parseBuffer(buffer, ext)
-          const content = result.content || ''
-          return { content, totalLines: content.split('\n').length }
-        } catch (parseErr) {
-          logger.warn('Failed to parse document', {
-            fileName: record.name,
-            ext,
-            error: parseErr instanceof Error ? parseErr.message : String(parseErr),
-          })
-          return {
-            content: `[Could not parse ${record.name} (${record.type}, ${record.size} bytes)]`,
-            totalLines: 1,
-          }
-        }
-      }
-
-      if (!isReadableType(record.type)) {
-        return {
-          content: `[Binary file: ${record.name} (${record.type}, ${record.size} bytes). Cannot display as text.]`,
-          totalLines: 1,
-        }
-      }
-
-      if (record.size > MAX_TEXT_READ_BYTES) {
-        return {
-          content: `[File too large to display inline: ${record.name} (${record.size} bytes, limit ${MAX_TEXT_READ_BYTES})]`,
-          totalLines: 1,
-        }
-      }
-
-      const buffer = await downloadWorkspaceFile(record)
-      const content = buffer.toString('utf-8')
-      return { content, totalLines: content.split('\n').length }
-    } catch (err) {
-      logger.warn('Failed to read workspace file content', {
-        path,
-        fileName,
-        error: err instanceof Error ? err.message : String(err),
-      })
-      return null
-    }
+    const files = await listWorkspaceFiles(this._workspaceId)
+    const record = files.find(
+      (f) => f.name === fileName || f.name.normalize('NFC') === fileName.normalize('NFC')
+    )
+    if (!record) return null
+    return readFileRecord(record)
   }
 
   /**
@@ -1221,43 +1149,7 @@ export async function getOrMaterializeVFS(
   return vfs
 }
 
-const MAX_TEXT_READ_BYTES = 512 * 1024 // 512 KB
-const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
-
-const TEXT_TYPES = new Set([
-  'text/plain',
-  'text/csv',
-  'text/markdown',
-  'text/html',
-  'text/xml',
-  'application/json',
-  'application/xml',
-  'application/javascript',
-])
-
-const PARSEABLE_EXTENSIONS = new Set(['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'])
-
-function isReadableType(contentType: string): boolean {
-  return TEXT_TYPES.has(contentType) || contentType.startsWith('text/')
-}
-
-function getExtension(filename: string): string {
-  const dot = filename.lastIndexOf('.')
-  return dot >= 0 ? filename.slice(dot + 1).toLowerCase() : ''
-}
-
-export interface FileReadResult {
-  content: string
-  totalLines: number
-  attachment?: {
-    type: string
-    source: {
-      type: 'base64'
-      media_type: string
-      data: string
-    }
-  }
-}
+export type { FileReadResult } from '@/lib/copilot/vfs/file-reader'
 
 /**
  * Sanitize a name for use as a VFS path segment.
