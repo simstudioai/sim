@@ -2,9 +2,11 @@ import { db } from '@sim/db'
 import { copilotChats, document, knowledgeBase, templates } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
-import { RESOURCE_TYPE_TO_DIR } from '@/lib/copilot/resource-types'
-import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
+import { readFileRecord } from '@/lib/copilot/vfs/file-reader'
+import { serializeFileMeta, serializeTableMeta } from '@/lib/copilot/vfs/serializers'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
+import { getTableById } from '@/lib/table/service'
+import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { isHiddenFromDisplay } from '@/blocks/types'
@@ -546,95 +548,76 @@ async function processExecutionLogFromDb(
 }
 
 // ---------------------------------------------------------------------------
-// Active resource context resolution (VFS-backed, workspace-scoped)
+// Active resource context resolution (direct DB lookups, workspace-scoped)
 // ---------------------------------------------------------------------------
 
 /**
- * Resolves the content of the currently active resource tab by reading it
- * from the workspace VFS. The VFS is materialized per-workspace so lookups
- * are inherently scoped — no separate workspace-id filter needed.
+ * Resolves the content of the currently active resource tab via direct DB
+ * queries. Each resource type has a dedicated handler that fetches only the
+ * single resource needed — avoiding the full VFS materialisation overhead.
  */
 export async function resolveActiveResourceContext(
   resourceType: string,
   resourceId: string,
   workspaceId: string,
-  userId: string
+  _userId: string
 ): Promise<AgentContext | null> {
   try {
-    const dirPrefix = RESOURCE_TYPE_TO_DIR[resourceType as keyof typeof RESOURCE_TYPE_TO_DIR]
-    if (!dirPrefix) return null
-
-    const vfs = await getOrMaterializeVFS(workspaceId, userId)
-
-    // For files, read actual content via readFileContent
-    if (resourceType === 'file') {
-      const entries = vfs.list(dirPrefix)
-      for (const entry of entries) {
-        const metaPath = `${dirPrefix}/${entry.name}/meta.json`
-        const meta = vfs.read(metaPath)
-        if (!meta) continue
-        try {
-          const parsed = JSON.parse(meta.content)
-          if (parsed?.id !== resourceId) continue
-          const fileContent = await vfs.readFileContent(`${dirPrefix}/${entry.name}`)
-          return {
-            type: 'active_resource',
-            tag: '@active_resource',
-            content: JSON.stringify(
-              {
-                resourceType: 'file',
-                id: parsed.id,
-                name: parsed.name,
-                fileType: parsed.type,
-                content: fileContent?.content || `[Could not read ${parsed.name}]`,
-              },
-              null,
-              2
-            ),
-          }
-        } catch {
-          continue
-        }
+    switch (resourceType) {
+      case 'workflow': {
+        const ctx = await processWorkflowFromDb(resourceId, '@active_resource')
+        if (!ctx) return null
+        return { type: 'active_resource', tag: '@active_resource', content: ctx.content }
       }
-      return null
-    }
-
-    // For other resource types, collect all VFS files under the matching entry
-    const entries = vfs.list(dirPrefix)
-    for (const entry of entries) {
-      const metaPath = `${dirPrefix}/${entry.name}/meta.json`
-      const meta = vfs.read(metaPath)
-      if (!meta) continue
-      try {
-        const parsed = JSON.parse(meta.content)
-        if (parsed?.id !== resourceId) continue
-
-        const prefix = `${dirPrefix}/${entry.name}/`
-        const allFiles = vfs.glob(`${prefix}*`)
-        const combined: Record<string, unknown> = { resourceType, id: resourceId }
-        for (const filePath of allFiles) {
-          const result = vfs.read(filePath)
-          if (!result) continue
-          const key = filePath.slice(prefix.length).replace(/\.json$/, '')
-          try {
-            combined[key] = JSON.parse(result.content)
-          } catch {
-            combined[key] = result.content
-          }
-        }
-        return {
-          type: 'active_resource',
-          tag: '@active_resource',
-          content: JSON.stringify(combined, null, 2),
-        }
-      } catch {
-        continue
+      case 'knowledgebase': {
+        const ctx = await processKnowledgeFromDb(resourceId, '@active_resource', workspaceId)
+        if (!ctx) return null
+        return { type: 'active_resource', tag: '@active_resource', content: ctx.content }
       }
+      case 'table': {
+        return await resolveTableResource(resourceId)
+      }
+      case 'file': {
+        return await resolveFileResource(resourceId, workspaceId)
+      }
+      default:
+        return null
     }
-
-    return null
   } catch (error) {
     logger.error('Failed to resolve active resource context', { resourceType, resourceId, error })
     return null
+  }
+}
+
+async function resolveTableResource(tableId: string): Promise<AgentContext | null> {
+  const table = await getTableById(tableId)
+  if (!table) return null
+  return {
+    type: 'active_resource',
+    tag: '@active_resource',
+    content: serializeTableMeta(table),
+  }
+}
+
+async function resolveFileResource(
+  fileId: string,
+  workspaceId: string
+): Promise<AgentContext | null> {
+  const record = await getWorkspaceFile(workspaceId, fileId)
+  if (!record) return null
+  const fileResult = await readFileRecord(record)
+  const meta = serializeFileMeta({
+    id: record.id,
+    name: record.name,
+    contentType: record.type,
+    size: record.size,
+    uploadedAt: record.uploadedAt,
+  })
+  const parsed = JSON.parse(meta)
+  parsed.content = fileResult?.content || `[Could not read ${record.name}]`
+  return {
+    type: 'active_resource',
+    tag: '@active_resource',
+    content: JSON.stringify(parsed, null, 2),
   }
 }
