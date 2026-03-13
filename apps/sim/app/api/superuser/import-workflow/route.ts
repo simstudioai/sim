@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { copilotChats, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { verifyEffectiveSuperUser } from '@/lib/templates/permissions'
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     const [targetWorkspace] = await db
       .select({ id: workspace.id, ownerId: workspace.ownerId })
       .from(workspace)
-      .where(eq(workspace.id, targetWorkspaceId))
+      .where(and(eq(workspace.id, targetWorkspaceId), isNull(workspace.archivedAt)))
       .limit(1)
 
     if (!targetWorkspace) {

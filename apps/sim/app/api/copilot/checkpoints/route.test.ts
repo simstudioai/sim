@@ -16,6 +16,7 @@ const {
   mockValues,
   mockReturning,
   mockGetSession,
+  mockGetAccessibleCopilotChat,
 } = vi.hoisted(() => ({
   mockSelect: vi.fn(),
   mockFrom: vi.fn(),
@@ -26,6 +27,7 @@ const {
   mockValues: vi.fn(),
   mockReturning: vi.fn(),
   mockGetSession: vi.fn(),
+  mockGetAccessibleCopilotChat: vi.fn(),
 }))
 
 vi.mock('@/lib/auth', () => ({
@@ -58,7 +60,11 @@ vi.mock('drizzle-orm', () => ({
   desc: vi.fn((field: unknown) => ({ field, type: 'desc' })),
 }))
 
-import { GET, POST } from '@/app/api/copilot/checkpoints/route'
+vi.mock('@/lib/copilot/chat-lifecycle', () => ({
+  getAccessibleCopilotChat: mockGetAccessibleCopilotChat,
+}))
+
+import { GET, POST } from './route'
 
 function createMockRequest(method: string, body: Record<string, unknown>): NextRequest {
   return new NextRequest('http://localhost:3000/api/copilot/checkpoints', {
@@ -84,6 +90,7 @@ describe('Copilot Checkpoints API Route', () => {
     mockLimit.mockResolvedValue([])
     mockInsert.mockReturnValue({ values: mockValues })
     mockValues.mockReturnValue({ returning: mockReturning })
+    mockGetAccessibleCopilotChat.mockResolvedValue({ id: 'chat-123', userId: 'user-123' })
   })
 
   afterEach(() => {
@@ -123,8 +130,7 @@ describe('Copilot Checkpoints API Route', () => {
 
     it('should return 400 when chat not found or unauthorized', async () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
-
-      mockLimit.mockResolvedValue([])
+      mockGetAccessibleCopilotChat.mockResolvedValueOnce(null)
 
       const req = createMockRequest('POST', {
         workflowId: 'workflow-123',

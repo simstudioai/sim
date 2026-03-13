@@ -73,7 +73,10 @@ export async function GET(request: NextRequest) {
       return createErrorResponse('Unauthorized', 401)
     }
 
-    const deployments = await db.select().from(form).where(eq(form.userId, session.user.id))
+    const deployments = await db
+      .select()
+      .from(form)
+      .where(and(eq(form.userId, session.user.id), isNull(form.archivedAt)))
 
     return createSuccessResponse({ deployments })
   } catch (error: any) {

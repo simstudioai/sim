@@ -202,16 +202,16 @@ export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) 
       return notFoundResponse('Workflow')
     }
 
+    const result = await undeployWorkflow({ workflowId })
+    if (!result.success) {
+      return internalErrorResponse(result.error || 'Failed to undeploy workflow')
+    }
+
     await cleanupWebhooksForWorkflow(
       workflowId,
       workflowRecord as Record<string, unknown>,
       requestId
     )
-
-    const result = await undeployWorkflow({ workflowId })
-    if (!result.success) {
-      return internalErrorResponse(result.error || 'Failed to undeploy workflow')
-    }
 
     await removeMcpToolsForWorkflow(workflowId, requestId)
 

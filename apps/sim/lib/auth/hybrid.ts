@@ -9,6 +9,7 @@ const logger = createLogger('HybridAuth')
 export interface AuthResult {
   success: boolean
   userId?: string
+  workspaceId?: string
   userName?: string | null
   userEmail?: string | null
   authType?: 'session' | 'api_key' | 'internal_jwt'
@@ -208,6 +209,7 @@ export async function checkHybridAuth(
         return {
           success: true,
           userId: result.userId!,
+          workspaceId: result.workspaceId,
           authType: 'api_key',
           apiKeyType: result.keyType,
         }

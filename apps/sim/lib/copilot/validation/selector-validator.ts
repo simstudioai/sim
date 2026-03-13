@@ -94,7 +94,14 @@ export async function validateSelectorIds(
         const results = await db
           .select({ id: document.id })
           .from(document)
-          .where(and(inArray(document.id, idsArray), isNull(document.deletedAt)))
+          .where(
+            and(
+              inArray(document.id, idsArray),
+              eq(document.userExcluded, false),
+              isNull(document.archivedAt),
+              isNull(document.deletedAt)
+            )
+          )
         existingIds = results.map((r) => r.id)
         break
       }

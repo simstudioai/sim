@@ -11,7 +11,10 @@ import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/copilot/chat-stream
 import type { OrchestratorResult } from '@/lib/copilot/orchestrator/types'
 import { createRequestTracker, createUnauthorizedResponse } from '@/lib/copilot/request-helpers'
 import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import {
+  assertActiveWorkspaceAccess,
+  getUserEntityPermissions,
+} from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('MothershipChatAPI')
 
@@ -86,6 +89,12 @@ export async function POST(req: NextRequest) {
 
     const userMessageId = providedMessageId || crypto.randomUUID()
 
+    try {
+      await assertActiveWorkspaceAccess(workspaceId, authenticatedUserId)
+    } catch {
+      return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 403 })
+    }
+
     let agentContexts: Array<{ type: string; content: string }> = []
     if (Array.isArray(contexts) && contexts.length > 0) {
       try {
@@ -113,6 +122,10 @@ export async function POST(req: NextRequest) {
       conversationHistory = Array.isArray(chatResult.conversationHistory)
         ? chatResult.conversationHistory
         : []
+
+      if (chatId && !currentChat) {
+        return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
+      }
     }
 
     if (actualChatId) {

@@ -33,7 +33,7 @@ export async function DELETE(
     // Delete the API key, ensuring it belongs to the current user
     const result = await db
       .delete(apiKey)
-      .where(and(eq(apiKey.id, keyId), eq(apiKey.userId, userId)))
+      .where(and(eq(apiKey.id, keyId), eq(apiKey.userId, userId), eq(apiKey.type, 'personal')))
       .returning({ id: apiKey.id, name: apiKey.name })
 
     if (!result.length) {

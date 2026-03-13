@@ -415,15 +415,7 @@ export async function executeManageJob(
           return { success: false, error: `Job not found: ${args.jobId}` }
         }
 
-        await db
-          .update(workflowSchedule)
-          .set({
-            archivedAt: new Date(),
-            updatedAt: new Date(),
-            status: 'disabled',
-            nextRunAt: null,
-          })
-          .where(and(eq(workflowSchedule.id, args.jobId), isNull(workflowSchedule.archivedAt)))
+        await db.delete(workflowSchedule).where(eq(workflowSchedule.id, args.jobId))
 
         logger.info('Job deleted', { jobId: args.jobId })
 

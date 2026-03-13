@@ -53,7 +53,8 @@ export async function listWorkflows(workspaceId: string, options?: { scope?: Wor
 export async function resolveWorkflowIdForUser(
   userId: string,
   workflowId?: string,
-  workflowName?: string
+  workflowName?: string,
+  workspaceId?: string
 ): Promise<{ workflowId: string; workflowName?: string } | null> {
   if (workflowId) {
     const authorization = await authorizeWorkflowByWorkspacePermission({
@@ -74,7 +75,10 @@ export async function resolveWorkflowIdForUser(
     .where(and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace')))
 
   const workspaceIdList = workspaceIds.map((row) => row.entityId)
-  if (workspaceIdList.length === 0) {
+  const allowedWorkspaceIds = workspaceId
+    ? workspaceIdList.filter((candidateWorkspaceId) => candidateWorkspaceId === workspaceId)
+    : workspaceIdList
+  if (allowedWorkspaceIds.length === 0) {
     return null
   }
 
@@ -82,7 +86,7 @@ export async function resolveWorkflowIdForUser(
     .select()
     .from(workflowTable)
     .where(
-      and(inArray(workflowTable.workspaceId, workspaceIdList), isNull(workflowTable.archivedAt))
+      and(inArray(workflowTable.workspaceId, allowedWorkspaceIds), isNull(workflowTable.archivedAt))
     )
     .orderBy(asc(workflowTable.sortOrder), asc(workflowTable.createdAt), asc(workflowTable.id))
 

@@ -5,6 +5,8 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 import { isHiddenFromDisplay } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { escapeRegExp } from '@/executor/constants'
@@ -41,12 +43,17 @@ export async function processContexts(
       if ((ctx.kind === 'workflow' || ctx.kind === 'current_workflow') && ctx.workflowId) {
         return await processWorkflowFromDb(
           ctx.workflowId,
+          undefined,
           ctx.label ? `@${ctx.label}` : '@',
           ctx.kind
         )
       }
       if (ctx.kind === 'knowledge' && ctx.knowledgeId) {
-        return await processKnowledgeFromDb(ctx.knowledgeId, ctx.label ? `@${ctx.label}` : '@')
+        return await processKnowledgeFromDb(
+          ctx.knowledgeId,
+          undefined,
+          ctx.label ? `@${ctx.label}` : '@'
+        )
       }
       if (ctx.kind === 'blocks' && ctx.blockIds?.length > 0) {
         return await processBlockMetadata(ctx.blockIds[0], ctx.label ? `@${ctx.label}` : '@')
@@ -55,10 +62,14 @@ export async function processContexts(
         return await processTemplateFromDb(ctx.templateId, ctx.label ? `@${ctx.label}` : '@')
       }
       if (ctx.kind === 'logs' && ctx.executionId) {
-        return await processExecutionLogFromDb(ctx.executionId, ctx.label ? `@${ctx.label}` : '@')
+        return await processExecutionLogFromDb(
+          ctx.executionId,
+          undefined,
+          ctx.label ? `@${ctx.label}` : '@'
+        )
       }
       if (ctx.kind === 'workflow_block' && ctx.workflowId && ctx.blockId) {
-        return await processWorkflowBlockFromDb(ctx.workflowId, ctx.blockId, ctx.label)
+        return await processWorkflowBlockFromDb(ctx.workflowId, undefined, ctx.blockId, ctx.label)
       }
       // Other kinds can be added here: workflow, blocks, logs, knowledge, templates, docs
       return null
@@ -87,12 +98,17 @@ export async function processContextsServer(
       if ((ctx.kind === 'workflow' || ctx.kind === 'current_workflow') && ctx.workflowId) {
         return await processWorkflowFromDb(
           ctx.workflowId,
+          userId,
           ctx.label ? `@${ctx.label}` : '@',
           ctx.kind
         )
       }
       if (ctx.kind === 'knowledge' && ctx.knowledgeId) {
-        return await processKnowledgeFromDb(ctx.knowledgeId, ctx.label ? `@${ctx.label}` : '@')
+        return await processKnowledgeFromDb(
+          ctx.knowledgeId,
+          userId,
+          ctx.label ? `@${ctx.label}` : '@'
+        )
       }
       if (ctx.kind === 'blocks' && ctx.blockIds?.length > 0) {
         return await processBlockMetadata(
@@ -105,10 +121,14 @@ export async function processContextsServer(
         return await processTemplateFromDb(ctx.templateId, ctx.label ? `@${ctx.label}` : '@')
       }
       if (ctx.kind === 'logs' && ctx.executionId) {
-        return await processExecutionLogFromDb(ctx.executionId, ctx.label ? `@${ctx.label}` : '@')
+        return await processExecutionLogFromDb(
+          ctx.executionId,
+          userId,
+          ctx.label ? `@${ctx.label}` : '@'
+        )
       }
       if (ctx.kind === 'workflow_block' && ctx.workflowId && ctx.blockId) {
-        return await processWorkflowBlockFromDb(ctx.workflowId, ctx.blockId, ctx.label)
+        return await processWorkflowBlockFromDb(ctx.workflowId, userId, ctx.blockId, ctx.label)
       }
       if (ctx.kind === 'docs') {
         try {
@@ -232,10 +252,22 @@ async function processPastChatFromDb(
 
 async function processWorkflowFromDb(
   workflowId: string,
+  userId: string | undefined,
   tag: string,
   kind: 'workflow' | 'current_workflow' = 'workflow'
 ): Promise<AgentContext | null> {
   try {
+    if (userId) {
+      const authorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId,
+        userId,
+        action: 'read',
+      })
+      if (!authorization.allowed) {
+        return null
+      }
+    }
+
     const normalized = await loadWorkflowFromNormalizedTables(workflowId)
     if (!normalized) {
       logger.warn('No normalized workflow data found', { workflowId })
@@ -305,9 +337,17 @@ async function processPastChatViaApi(chatId: string, tag?: string) {
 
 async function processKnowledgeFromDb(
   knowledgeBaseId: string,
+  userId: string | undefined,
   tag: string
 ): Promise<AgentContext | null> {
   try {
+    if (userId) {
+      const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, userId)
+      if (!accessCheck.hasAccess) {
+        return null
+      }
+    }
+
     // Load KB metadata
     const kbRows = await db
       .select({
@@ -325,7 +365,14 @@ async function processKnowledgeFromDb(
     const docRows = await db
       .select({ filename: document.filename })
       .from(document)
-      .where(and(eq(document.knowledgeBaseId, knowledgeBaseId), isNull(document.deletedAt)))
+      .where(
+        and(
+          eq(document.knowledgeBaseId, knowledgeBaseId),
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
+      )
       .limit(20)
 
     const sampleDocuments = docRows.map((d: any) => d.filename).filter(Boolean)
@@ -455,10 +502,22 @@ async function processTemplateFromDb(
 
 async function processWorkflowBlockFromDb(
   workflowId: string,
+  userId: string | undefined,
   blockId: string,
   label?: string
 ): Promise<AgentContext | null> {
   try {
+    if (userId) {
+      const authorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId,
+        userId,
+        action: 'read',
+      })
+      if (!authorization.allowed) {
+        return null
+      }
+    }
+
     const normalized = await loadWorkflowFromNormalizedTables(workflowId)
     if (!normalized) return null
     const block = (normalized.blocks as any)[blockId]
@@ -479,6 +538,7 @@ async function processWorkflowBlockFromDb(
 
 async function processExecutionLogFromDb(
   executionId: string,
+  userId: string | undefined,
   tag: string
 ): Promise<AgentContext | null> {
   try {
@@ -505,6 +565,17 @@ async function processExecutionLogFromDb(
 
     const log = rows?.[0] as any
     if (!log) return null
+
+    if (userId) {
+      const authorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId: log.workflowId,
+        userId,
+        action: 'read',
+      })
+      if (!authorization.allowed) {
+        return null
+      }
+    }
 
     const summary = {
       id: log.id,

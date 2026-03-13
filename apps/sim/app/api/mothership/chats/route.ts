@@ -10,6 +10,7 @@ import {
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
+import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('MothershipChatsAPI')
 
@@ -28,6 +29,8 @@ export async function GET(request: NextRequest) {
     if (!workspaceId) {
       return createBadRequestResponse('workspaceId is required')
     }
+
+    await assertActiveWorkspaceAccess(workspaceId, userId)
 
     const chats = await db
       .select({
@@ -69,6 +72,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const { workspaceId } = CreateChatSchema.parse(body)
+
+    await assertActiveWorkspaceAccess(workspaceId, userId)
 
     const [chat] = await db
       .insert(copilotChats)

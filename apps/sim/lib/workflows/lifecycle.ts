@@ -12,7 +12,9 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
+import { getRedisClient } from '@/lib/core/config/redis'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { getWorkflowById } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowLifecycle')
@@ -61,7 +63,7 @@ async function cleanupExternalWebhooksForWorkflow(
       })
       .from(webhook)
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .where(and(eq(webhook.workflowId, workflowId), isNull(webhook.archivedAt)))
+      .where(eq(webhook.workflowId, workflowId))
 
     for (const webhookData of webhooksToCleanup) {
       try {
@@ -75,6 +77,30 @@ async function cleanupExternalWebhooksForWorkflow(
     }
   } catch (error) {
     logger.warn(`[${requestId}] Error during external webhook cleanup for workflow ${workflowId}`, {
+      error,
+    })
+  }
+}
+
+async function clearA2AAgentCardCache(workflowId: string, requestId: string): Promise<void> {
+  const redis = getRedisClient()
+  if (!redis) {
+    return
+  }
+
+  try {
+    const agents = await db
+      .select({ id: a2aAgent.id })
+      .from(a2aAgent)
+      .where(and(eq(a2aAgent.workflowId, workflowId), isNull(a2aAgent.archivedAt)))
+
+    if (agents.length === 0) {
+      return
+    }
+
+    await redis.del(...agents.map((agent) => `a2a:agent:${agent.id}:card`))
+  } catch (error) {
+    logger.warn(`[${requestId}] Failed to clear A2A agent card cache for workflow ${workflowId}`, {
       error,
     })
   }
@@ -95,8 +121,12 @@ export async function archiveWorkflow(
   }
 
   const now = new Date()
+  const affectedWorkflowMcpServers = await db
+    .select({ serverId: workflowMcpTool.serverId })
+    .from(workflowMcpTool)
+    .where(and(eq(workflowMcpTool.workflowId, workflowId), isNull(workflowMcpTool.archivedAt)))
 
-  await cleanupExternalWebhooksForWorkflow(workflowId, options.requestId)
+  await clearA2AAgentCardCache(workflowId, options.requestId)
 
   await db.transaction(async (tx) => {
     await tx
@@ -181,6 +211,18 @@ export async function archiveWorkflow(
 
   if (options.notifySocket !== false) {
     await notifyWorkflowArchived(workflowId, options.requestId)
+  }
+
+  await cleanupExternalWebhooksForWorkflow(workflowId, options.requestId)
+
+  if (existingWorkflow.workspaceId && mcpPubSub && affectedWorkflowMcpServers.length > 0) {
+    const uniqueServerIds = [...new Set(affectedWorkflowMcpServers.map((row) => row.serverId))]
+    for (const serverId of uniqueServerIds) {
+      mcpPubSub.publishWorkflowToolsChanged({
+        serverId,
+        workspaceId: existingWorkflow.workspaceId,
+      })
+    }
   }
 
   return {

@@ -47,7 +47,12 @@ export async function getKnowledgeBases(
     .from(knowledgeBase)
     .leftJoin(
       document,
-      and(eq(document.knowledgeBaseId, knowledgeBase.id), isNull(document.deletedAt))
+      and(
+        eq(document.knowledgeBaseId, knowledgeBase.id),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
     )
     .leftJoin(
       permissions,
@@ -98,6 +103,7 @@ export async function getKnowledgeBases(
           .where(
             and(
               inArray(knowledgeConnector.knowledgeBaseId, kbIds),
+              isNull(knowledgeConnector.archivedAt),
               isNull(knowledgeConnector.deletedAt)
             )
           )
@@ -214,7 +220,10 @@ export async function updateKnowledgeBase(
     updateData.embeddingDimension = 1536
   }
 
-  await db.update(knowledgeBase).set(updateData).where(eq(knowledgeBase.id, knowledgeBaseId))
+  await db
+    .update(knowledgeBase)
+    .set(updateData)
+    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
 
   const updatedKb = await db
     .select({
@@ -234,9 +243,14 @@ export async function updateKnowledgeBase(
     .from(knowledgeBase)
     .leftJoin(
       document,
-      and(eq(document.knowledgeBaseId, knowledgeBase.id), isNull(document.deletedAt))
+      and(
+        eq(document.knowledgeBaseId, knowledgeBase.id),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
     )
-    .where(eq(knowledgeBase.id, knowledgeBaseId))
+    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
     .groupBy(knowledgeBase.id)
     .limit(1)
 
@@ -278,7 +292,12 @@ export async function getKnowledgeBaseById(
     .from(knowledgeBase)
     .leftJoin(
       document,
-      and(eq(document.knowledgeBaseId, knowledgeBase.id), isNull(document.deletedAt))
+      and(
+        eq(document.knowledgeBaseId, knowledgeBase.id),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
     )
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
     .groupBy(knowledgeBase.id)
@@ -305,13 +324,45 @@ export async function deleteKnowledgeBase(
 ): Promise<void> {
   const now = new Date()
 
-  await db
-    .update(knowledgeBase)
-    .set({
-      deletedAt: now,
-      updatedAt: now,
-    })
-    .where(eq(knowledgeBase.id, knowledgeBaseId))
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+
+    await tx
+      .update(knowledgeBase)
+      .set({
+        deletedAt: now,
+        updatedAt: now,
+      })
+      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+
+    await tx
+      .update(document)
+      .set({
+        archivedAt: now,
+      })
+      .where(
+        and(
+          eq(document.knowledgeBaseId, knowledgeBaseId),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
+      )
+
+    await tx
+      .update(knowledgeConnector)
+      .set({
+        archivedAt: now,
+        status: 'paused',
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+          isNull(knowledgeConnector.archivedAt),
+          isNull(knowledgeConnector.deletedAt)
+        )
+      )
+  })
 
   logger.info(`[${requestId}] Soft deleted knowledge base: ${knowledgeBaseId}`)
 }

@@ -368,106 +368,63 @@ async function verifyKBFileAccess(
   customConfig?: StorageConfig
 ): Promise<boolean> {
   try {
-    // Priority 1: Check workspaceFiles table (new system)
+    const activeKbFileDocuments = await db
+      .select({
+        workspaceId: knowledgeBase.workspaceId,
+      })
+      .from(document)
+      .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
+      .where(
+        and(
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt),
+          isNull(knowledgeBase.deletedAt),
+          or(
+            like(document.fileUrl, `%${cloudKey}%`),
+            like(document.fileUrl, `%${encodeURIComponent(cloudKey)}%`)
+          )
+        )
+      )
+      .limit(10)
+
+    for (const doc of activeKbFileDocuments) {
+      if (!doc.workspaceId) {
+        continue
+      }
+
+      const permission = await getUserEntityPermissions(userId, 'workspace', doc.workspaceId)
+      if (permission !== null) {
+        logger.debug('KB file access granted (active document lookup)', {
+          userId,
+          workspaceId: doc.workspaceId,
+          cloudKey,
+        })
+        return true
+      }
+    }
+
+    // KB file access must resolve through an active KB document. Metadata alone is not enough
+    // because parent archives intentionally keep the underlying file bytes around for history.
     const fileRecord = await getFileMetadataByKey(cloudKey, 'knowledge-base', {
       includeDeleted: true,
     })
 
     if (fileRecord?.deletedAt) {
-      logger.warn('KB file access denied for archived file metadata', {
-        userId,
-        cloudKey,
-      })
+      logger.warn('KB file access denied for deleted file metadata', { userId, cloudKey })
       return false
     }
 
-    if (fileRecord?.workspaceId) {
-      const permission = await getUserEntityPermissions(userId, 'workspace', fileRecord.workspaceId)
-      if (permission !== null) {
-        logger.debug('KB file access granted (workspaceFiles table)', {
-          userId,
-          workspaceId: fileRecord.workspaceId,
-          cloudKey,
-        })
-        return true
-      }
-      logger.warn('User does not have workspace access for KB file', {
-        userId,
-        workspaceId: fileRecord.workspaceId,
-        cloudKey,
-      })
-      return false
+    if (customConfig) {
+      await getFileMetadata(cloudKey, customConfig).catch(() => null)
+    } else {
+      await getKBStorageConfig()
     }
 
-    // Priority 2: Check document table via fileUrl (legacy knowledge base files)
-    try {
-      // Try to find document with matching fileUrl
-      const documents = await db
-        .select({
-          knowledgeBaseId: document.knowledgeBaseId,
-        })
-        .from(document)
-        .where(
-          and(
-            isNull(document.deletedAt),
-            or(
-              like(document.fileUrl, `%${cloudKey}%`),
-              like(document.fileUrl, `%${encodeURIComponent(cloudKey)}%`)
-            )
-          )
-        )
-        .limit(10) // Limit to avoid scanning too many
-
-      // Check each document's knowledge base for workspace access
-      for (const doc of documents) {
-        const [kb] = await db
-          .select({
-            workspaceId: knowledgeBase.workspaceId,
-          })
-          .from(knowledgeBase)
-          .where(and(eq(knowledgeBase.id, doc.knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-          .limit(1)
-
-        if (kb?.workspaceId) {
-          const permission = await getUserEntityPermissions(userId, 'workspace', kb.workspaceId)
-          if (permission !== null) {
-            logger.debug('KB file access granted (document table lookup)', {
-              userId,
-              workspaceId: kb.workspaceId,
-              cloudKey,
-            })
-            return true
-          }
-        }
-      }
-    } catch (docError) {
-      logger.debug('Document table lookup failed:', docError)
-    }
-
-    // Priority 3: Check cloud storage metadata
-    const config: StorageConfig = customConfig || (await getKBStorageConfig())
-    const metadata = await getFileMetadata(cloudKey, config)
-    const workspaceId = metadata.workspaceId
-
-    if (workspaceId) {
-      const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-      if (permission !== null) {
-        logger.debug('KB file access granted (cloud metadata)', {
-          userId,
-          workspaceId,
-          cloudKey,
-        })
-        return true
-      }
-      logger.warn('User does not have workspace access for KB file', {
-        userId,
-        workspaceId,
-        cloudKey,
-      })
-      return false
-    }
-
-    logger.warn('KB file missing workspaceId in all sources', { cloudKey, userId })
+    logger.warn('KB file access denied because no active KB document matched the file', {
+      cloudKey,
+      userId,
+    })
     return false
   } catch (error) {
     logger.error('Error verifying KB file access', { cloudKey, userId, error })

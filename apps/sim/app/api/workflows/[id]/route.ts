@@ -48,6 +48,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
+    if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workflowData.workspaceId) {
+      return NextResponse.json(
+        { error: 'API key is not authorized for this workspace' },
+        { status: 403 }
+      )
+    }
+
     if (isInternalCall && !userId) {
       // Internal system calls (e.g. workflow-in-workflow executor) may not carry a userId.
       // These are already authenticated via internal JWT; allow read access.

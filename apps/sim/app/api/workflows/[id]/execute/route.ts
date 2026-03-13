@@ -344,6 +344,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       | { startBlockId: string; sourceSnapshot: SerializableExecutionState }
       | undefined
     if (rawRunFromBlock) {
+      if (rawRunFromBlock.sourceSnapshot && auth.authType === 'api_key') {
+        return NextResponse.json(
+          { error: 'API key callers cannot provide runFromBlock.sourceSnapshot' },
+          { status: 400 }
+        )
+      }
+
       if (rawRunFromBlock.sourceSnapshot && !isPublicApiAccess) {
         // Public API callers cannot inject arbitrary block state via sourceSnapshot.
         // They must use executionId to resume from a server-stored execution state.
@@ -486,6 +493,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Workflow has no associated workspace' }, { status: 500 })
     }
     const workspaceId = workflow.workspaceId
+
+    if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workspaceId) {
+      return NextResponse.json(
+        { error: 'API key is not authorized for this workspace' },
+        { status: 403 }
+      )
+    }
 
     logger.info(`[${requestId}] Preprocessing passed`, {
       workflowId,

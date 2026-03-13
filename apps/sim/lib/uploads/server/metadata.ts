@@ -45,6 +45,41 @@ export async function insertFileMetadata(
 ): Promise<FileMetadataRecord> {
   const { key, userId, workspaceId, context, originalName, contentType, size, id } = options
 
+  const existingDeleted = await db
+    .select()
+    .from(workspaceFiles)
+    .where(eq(workspaceFiles.key, key))
+    .limit(1)
+
+  if (existingDeleted.length > 0 && existingDeleted[0].deletedAt) {
+    await db
+      .update(workspaceFiles)
+      .set({
+        userId,
+        workspaceId: workspaceId || null,
+        context,
+        originalName,
+        contentType,
+        size,
+        deletedAt: null,
+        uploadedAt: new Date(),
+      })
+      .where(eq(workspaceFiles.id, existingDeleted[0].id))
+
+    return {
+      id: existingDeleted[0].id,
+      key,
+      userId,
+      workspaceId: workspaceId || null,
+      context,
+      originalName,
+      contentType,
+      size,
+      deletedAt: null,
+      uploadedAt: new Date(),
+    }
+  }
+
   const existing = await db
     .select()
     .from(workspaceFiles)
@@ -214,6 +249,9 @@ export async function getFileMetadataByContext(
  * Delete file metadata by key
  */
 export async function deleteFileMetadata(key: string): Promise<boolean> {
-  await db.delete(workspaceFiles).where(eq(workspaceFiles.key, key))
+  await db
+    .update(workspaceFiles)
+    .set({ deletedAt: new Date() })
+    .where(and(eq(workspaceFiles.key, key), isNull(workspaceFiles.deletedAt)))
   return true
 }

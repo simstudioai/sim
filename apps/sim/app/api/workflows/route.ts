@@ -214,6 +214,31 @@ export async function POST(req: NextRequest) {
       sortOrder = minSortOrder != null ? minSortOrder - 1 : 0
     }
 
+    const duplicateConditions = [
+      eq(workflow.workspaceId, workspaceId),
+      isNull(workflow.archivedAt),
+      eq(workflow.name, name),
+    ]
+
+    if (folderId) {
+      duplicateConditions.push(eq(workflow.folderId, folderId))
+    } else {
+      duplicateConditions.push(isNull(workflow.folderId))
+    }
+
+    const [duplicateWorkflow] = await db
+      .select({ id: workflow.id })
+      .from(workflow)
+      .where(and(...duplicateConditions))
+      .limit(1)
+
+    if (duplicateWorkflow) {
+      return NextResponse.json(
+        { error: `A workflow named "${name}" already exists in this folder` },
+        { status: 409 }
+      )
+    }
+
     await db.insert(workflow).values({
       id: workflowId,
       userId,

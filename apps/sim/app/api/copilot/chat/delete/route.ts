@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { getAccessibleCopilotChat } from '@/lib/copilot/chat-lifecycle'
 
 const logger = createLogger('DeleteChatAPI')
 
@@ -21,6 +22,11 @@ export async function DELETE(request: NextRequest) {
 
     const body = await request.json()
     const parsed = DeleteChatSchema.parse(body)
+
+    const chat = await getAccessibleCopilotChat(parsed.chatId, session.user.id)
+    if (!chat) {
+      return NextResponse.json({ success: true })
+    }
 
     // Delete the chat
     await db.delete(copilotChats).where(eq(copilotChats.id, parsed.chatId))

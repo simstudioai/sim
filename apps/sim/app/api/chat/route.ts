@@ -52,7 +52,10 @@ export async function GET(_request: NextRequest) {
     }
 
     // Get the user's chat deployments
-    const deployments = await db.select().from(chat).where(eq(chat.userId, session.user.id))
+    const deployments = await db
+      .select()
+      .from(chat)
+      .where(and(eq(chat.userId, session.user.id), isNull(chat.archivedAt)))
 
     return createSuccessResponse({ deployments })
   } catch (error: any) {

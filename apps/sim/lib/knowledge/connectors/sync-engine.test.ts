@@ -21,6 +21,7 @@ vi.mock('drizzle-orm', () => ({
 }))
 vi.mock('@/lib/core/utils/urls', () => ({ getInternalApiBaseUrl: vi.fn() }))
 vi.mock('@/lib/knowledge/documents/service', () => ({
+  hardDeleteDocuments: vi.fn(),
   isTriggerAvailable: vi.fn(),
   processDocumentAsync: vi.fn(),
 }))

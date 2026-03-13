@@ -32,7 +32,11 @@ export const GET = withMcpAuth<RouteParams>('read')(
         .select({ id: workflowMcpServer.id })
         .from(workflowMcpServer)
         .where(
-          and(eq(workflowMcpServer.id, serverId), eq(workflowMcpServer.workspaceId, workspaceId))
+          and(
+            eq(workflowMcpServer.id, serverId),
+            eq(workflowMcpServer.workspaceId, workspaceId),
+            isNull(workflowMcpServer.deletedAt)
+          )
         )
         .limit(1)
 
@@ -87,7 +91,11 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
         .select({ id: workflowMcpServer.id })
         .from(workflowMcpServer)
         .where(
-          and(eq(workflowMcpServer.id, serverId), eq(workflowMcpServer.workspaceId, workspaceId))
+          and(
+            eq(workflowMcpServer.id, serverId),
+            eq(workflowMcpServer.workspaceId, workspaceId),
+            isNull(workflowMcpServer.deletedAt)
+          )
         )
         .limit(1)
 
@@ -178,7 +186,11 @@ export const DELETE = withMcpAuth<RouteParams>('write')(
         .select({ id: workflowMcpServer.id })
         .from(workflowMcpServer)
         .where(
-          and(eq(workflowMcpServer.id, serverId), eq(workflowMcpServer.workspaceId, workspaceId))
+          and(
+            eq(workflowMcpServer.id, serverId),
+            eq(workflowMcpServer.workspaceId, workspaceId),
+            isNull(workflowMcpServer.deletedAt)
+          )
         )
         .limit(1)
 
@@ -187,15 +199,8 @@ export const DELETE = withMcpAuth<RouteParams>('write')(
       }
 
       const [deletedTool] = await db
-        .update(workflowMcpTool)
-        .set({ archivedAt: new Date(), updatedAt: new Date() })
-        .where(
-          and(
-            eq(workflowMcpTool.id, toolId),
-            eq(workflowMcpTool.serverId, serverId),
-            isNull(workflowMcpTool.archivedAt)
-          )
-        )
+        .delete(workflowMcpTool)
+        .where(and(eq(workflowMcpTool.id, toolId), eq(workflowMcpTool.serverId, serverId)))
         .returning()
 
       if (!deletedTool) {

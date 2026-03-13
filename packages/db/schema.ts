@@ -164,6 +164,9 @@ export const workflow = pgTable(
     userIdIdx: index('workflow_user_id_idx').on(table.userId),
     workspaceIdIdx: index('workflow_workspace_id_idx').on(table.workspaceId),
     userWorkspaceIdx: index('workflow_user_workspace_idx').on(table.userId, table.workspaceId),
+    workspaceFolderNameUnique: uniqueIndex('workflow_workspace_folder_name_active_unique')
+      .on(table.workspaceId, sql`coalesce(${table.folderId}, '')`, table.name)
+      .where(sql`${table.archivedAt} IS NULL`),
     folderSortIdx: index('workflow_folder_sort_idx').on(table.folderId, table.sortOrder),
     archivedAtIdx: index('workflow_archived_at_idx').on(table.archivedAt),
   })
@@ -1085,7 +1088,7 @@ export const workspaceFiles = pgTable(
   'workspace_files',
   {
     id: text('id').primaryKey(),
-    key: text('key').notNull().unique(),
+    key: text('key').notNull(),
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -1098,6 +1101,9 @@ export const workspaceFiles = pgTable(
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
   },
   (table) => ({
+    keyActiveUniqueIdx: uniqueIndex('workspace_files_key_active_unique')
+      .on(table.key)
+      .where(sql`${table.deletedAt} IS NULL`),
     keyIdx: index('workspace_files_key_idx').on(table.key),
     userIdIdx: index('workspace_files_user_id_idx').on(table.userId),
     workspaceIdIdx: index('workspace_files_workspace_id_idx').on(table.workspaceId),
@@ -1275,6 +1281,7 @@ export const document = pgTable(
 
     // Document state
     enabled: boolean('enabled').notNull().default(true), // Enable/disable from knowledge base
+    archivedAt: timestamp('archived_at'), // Parent KB/workspace archive marker
     deletedAt: timestamp('deleted_at'), // Soft delete
     userExcluded: boolean('user_excluded').notNull().default(false), // User explicitly excluded — skip on sync
 
@@ -1303,7 +1310,7 @@ export const document = pgTable(
 
     // Connector-sourced document fields
     connectorId: text('connector_id').references(() => knowledgeConnector.id, {
-      onDelete: 'set null',
+      onDelete: 'cascade',
     }),
     externalId: text('external_id'),
     contentHash: text('content_hash'),
@@ -1328,6 +1335,8 @@ export const document = pgTable(
       .where(sql`${table.deletedAt} IS NULL`),
     // Sync engine: load all active docs for a connector
     connectorIdIdx: index('doc_connector_id_idx').on(table.connectorId),
+    archivedAtIdx: index('doc_archived_at_idx').on(table.archivedAt),
+    deletedAtIdx: index('doc_deleted_at_idx').on(table.deletedAt),
     // Text tag indexes
     tag1Idx: index('doc_tag1_idx').on(table.tag1),
     tag2Idx: index('doc_tag2_idx').on(table.tag2),
@@ -1924,12 +1933,14 @@ export const workflowMcpServer = pgTable(
     name: text('name').notNull(),
     description: text('description'),
     isPublic: boolean('is_public').notNull().default(false),
+    deletedAt: timestamp('deleted_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
     workspaceIdIdx: index('workflow_mcp_server_workspace_id_idx').on(table.workspaceId),
     createdByIdx: index('workflow_mcp_server_created_by_idx').on(table.createdBy),
+    deletedAtIdx: index('workflow_mcp_server_deleted_at_idx').on(table.deletedAt),
   })
 )
 
@@ -2492,11 +2503,14 @@ export const knowledgeConnector = pgTable(
     consecutiveFailures: integer('consecutive_failures').notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    archivedAt: timestamp('archived_at'),
     deletedAt: timestamp('deleted_at'),
   },
   (table) => ({
     knowledgeBaseIdIdx: index('kc_knowledge_base_id_idx').on(table.knowledgeBaseId),
     statusNextSyncIdx: index('kc_status_next_sync_idx').on(table.status, table.nextSyncAt),
+    archivedAtIdx: index('kc_archived_at_idx').on(table.archivedAt),
+    deletedAtIdx: index('kc_deleted_at_idx').on(table.deletedAt),
   })
 )
 

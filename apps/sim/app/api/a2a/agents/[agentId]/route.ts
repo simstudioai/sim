@@ -176,10 +176,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    await db
-      .update(a2aAgent)
-      .set({ archivedAt: new Date(), updatedAt: new Date(), isPublished: false })
-      .where(eq(a2aAgent.id, agentId))
+    await db.delete(a2aAgent).where(eq(a2aAgent.id, agentId))
 
     logger.info(`Deleted A2A agent: ${agentId}`)
 

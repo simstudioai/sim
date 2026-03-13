@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
         and(
           inArray(knowledgeConnector.status, ['active', 'error']),
           lte(knowledgeConnector.nextSyncAt, now),
+          isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt),
           isNull(knowledgeBase.deletedAt)
         )

@@ -17,7 +17,7 @@
 import { db } from '@sim/db'
 import { workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -58,7 +58,7 @@ export const POST = withAdminAuth(async (request) => {
     const [workspaceData] = await db
       .select({ id: workspace.id, ownerId: workspace.ownerId })
       .from(workspace)
-      .where(eq(workspace.id, workspaceId))
+      .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
       .limit(1)
 
     if (!workspaceData) {

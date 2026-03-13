@@ -12,9 +12,12 @@ const { mockCheckSession, mockCheckAccess, mockCheckWriteAccess, mockDbChain, mo
       where: vi.fn().mockReturnThis(),
       orderBy: vi.fn().mockReturnThis(),
       limit: vi.fn().mockResolvedValue([]),
+      execute: vi.fn().mockResolvedValue(undefined),
+      transaction: vi.fn(),
       insert: vi.fn().mockReturnThis(),
       values: vi.fn().mockResolvedValue(undefined),
       update: vi.fn().mockReturnThis(),
+      delete: vi.fn().mockReturnThis(),
       set: vi.fn().mockReturnThis(),
       returning: vi.fn().mockResolvedValue([]),
     }
@@ -29,11 +32,19 @@ const { mockCheckSession, mockCheckAccess, mockCheckWriteAccess, mockDbChain, mo
 
 vi.mock('@sim/db', () => ({ db: mockDbChain }))
 vi.mock('@sim/db/schema', () => ({
-  document: { connectorId: 'connectorId', deletedAt: 'deletedAt' },
+  document: {
+    id: 'id',
+    connectorId: 'connectorId',
+    fileUrl: 'fileUrl',
+    archivedAt: 'archivedAt',
+    deletedAt: 'deletedAt',
+  },
+  embedding: { documentId: 'documentId' },
   knowledgeBase: { id: 'id', userId: 'userId' },
   knowledgeConnector: {
     id: 'id',
     knowledgeBaseId: 'knowledgeBaseId',
+    archivedAt: 'archivedAt',
     deletedAt: 'deletedAt',
     connectorType: 'connectorType',
     credentialId: 'credentialId',
@@ -61,6 +72,9 @@ vi.mock('@/connectors/registry', () => ({
 vi.mock('@/lib/knowledge/tags/service', () => ({
   cleanupUnusedTagDefinitions: vi.fn().mockResolvedValue(undefined),
 }))
+vi.mock('@/lib/knowledge/documents/service', () => ({
+  deleteDocumentStorageFiles: vi.fn().mockResolvedValue(undefined),
+}))
 
 import { DELETE, GET, PATCH } from '@/app/api/knowledge/[id]/connectors/[connectorId]/route'
 
@@ -74,7 +88,12 @@ describe('Knowledge Connector By ID API Route', () => {
     mockDbChain.where.mockReturnThis()
     mockDbChain.orderBy.mockReturnThis()
     mockDbChain.limit.mockResolvedValue([])
+    mockDbChain.execute.mockResolvedValue(undefined)
+    mockDbChain.transaction.mockImplementation(
+      async (callback: (tx: typeof mockDbChain) => unknown) => callback(mockDbChain)
+    )
     mockDbChain.update.mockReturnThis()
+    mockDbChain.delete.mockReturnThis()
     mockDbChain.set.mockReturnThis()
     mockDbChain.returning.mockResolvedValue([])
   })
@@ -190,9 +209,15 @@ describe('Knowledge Connector By ID API Route', () => {
       expect(response.status).toBe(401)
     })
 
-    it('returns 200 on successful soft-delete', async () => {
+    it('returns 200 on successful hard-delete', async () => {
       mockCheckSession.mockResolvedValue({ success: true, userId: 'user-1' })
       mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
+      mockDbChain.where
+        .mockReturnValueOnce(mockDbChain)
+        .mockResolvedValueOnce([{ id: 'doc-1', fileUrl: '/api/uploads/test.txt' }])
+        .mockReturnValueOnce(mockDbChain)
+      mockDbChain.limit.mockResolvedValueOnce([{ id: 'conn-456' }])
+      mockDbChain.returning.mockResolvedValueOnce([{ id: 'conn-456' }])
 
       const req = createMockRequest('DELETE')
       const response = await DELETE(req, { params: mockParams })

@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { credential, credentialMember, permissions, workspace } from '@sim/db/schema'
-import { and, eq, inArray, notInArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull, notInArray } from 'drizzle-orm'
 
 interface AccessibleEnvCredential {
   type: 'env_workspace' | 'env_personal'
@@ -45,8 +45,11 @@ export async function getUserWorkspaceIds(userId: string): Promise<string[]> {
         workspace,
         and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspace.id))
       )
-      .where(eq(permissions.userId, userId)),
-    db.select({ workspaceId: workspace.id }).from(workspace).where(eq(workspace.ownerId, userId)),
+      .where(and(eq(permissions.userId, userId), isNull(workspace.archivedAt))),
+    db
+      .select({ workspaceId: workspace.id })
+      .from(workspace)
+      .where(and(eq(workspace.ownerId, userId), isNull(workspace.archivedAt))),
   ])
 
   const workspaceIds = new Set<string>(permissionRows.map((row) => row.workspaceId))

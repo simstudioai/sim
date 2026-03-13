@@ -39,7 +39,11 @@ export const GET = withMcpAuth<RouteParams>('read')(
         })
         .from(workflowMcpServer)
         .where(
-          and(eq(workflowMcpServer.id, serverId), eq(workflowMcpServer.workspaceId, workspaceId))
+          and(
+            eq(workflowMcpServer.id, serverId),
+            eq(workflowMcpServer.workspaceId, workspaceId),
+            isNull(workflowMcpServer.deletedAt)
+          )
         )
         .limit(1)
 
@@ -87,7 +91,11 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
         .select({ id: workflowMcpServer.id })
         .from(workflowMcpServer)
         .where(
-          and(eq(workflowMcpServer.id, serverId), eq(workflowMcpServer.workspaceId, workspaceId))
+          and(
+            eq(workflowMcpServer.id, serverId),
+            eq(workflowMcpServer.workspaceId, workspaceId),
+            isNull(workflowMcpServer.deletedAt)
+          )
         )
         .limit(1)
 
@@ -112,7 +120,7 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
       const [updatedServer] = await db
         .update(workflowMcpServer)
         .set(updateData)
-        .where(eq(workflowMcpServer.id, serverId))
+        .where(and(eq(workflowMcpServer.id, serverId), isNull(workflowMcpServer.deletedAt)))
         .returning()
 
       logger.info(`[${requestId}] Successfully updated workflow MCP server: ${serverId}`)

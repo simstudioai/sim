@@ -368,8 +368,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const errorMessage = error instanceof Error ? error.message : 'Failed to create document'
     const isStorageLimitError =
       errorMessage.includes('Storage limit exceeded') || errorMessage.includes('storage limit')
+    const isMissingKnowledgeBase = errorMessage === 'Knowledge base not found'
 
-    return NextResponse.json({ error: errorMessage }, { status: isStorageLimitError ? 413 : 500 })
+    return NextResponse.json(
+      { error: errorMessage },
+      { status: isMissingKnowledgeBase ? 404 : isStorageLimitError ? 413 : 500 }
+    )
   }
 }
 

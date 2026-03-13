@@ -245,6 +245,8 @@ export interface ParsedSSEChunk {
   content: string
   /** Final content if this chunk contains the final event */
   finalContent?: string
+  /** Final success flag if this chunk contains the final event */
+  finalSuccess?: boolean
   /** Whether this chunk indicates the stream is done */
   isDone: boolean
 }
@@ -284,8 +286,11 @@ export function parseWorkflowSSEChunk(chunk: string): ParsedSSEChunk {
 
       if (parsed.event === 'chunk' && parsed.data?.content) {
         result.content += parsed.data.content
-      } else if (parsed.event === 'final' && parsed.data?.output?.content) {
-        result.finalContent = parsed.data.output.content
+      } else if (parsed.event === 'final') {
+        if (parsed.data?.output?.content) {
+          result.finalContent = parsed.data.output.content
+        }
+        result.finalSuccess = parsed.data?.success !== false
         result.isDone = true
       }
     } catch {

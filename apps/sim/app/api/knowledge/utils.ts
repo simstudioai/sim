@@ -297,6 +297,8 @@ export async function checkDocumentWriteAccess(
       and(
         eq(document.id, documentId),
         eq(document.knowledgeBaseId, knowledgeBaseId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
         isNull(document.deletedAt)
       )
     )
@@ -339,6 +341,8 @@ export async function checkDocumentAccess(
       and(
         eq(document.id, documentId),
         eq(document.knowledgeBaseId, knowledgeBaseId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
         isNull(document.deletedAt)
       )
     )
@@ -382,6 +386,8 @@ export async function checkChunkAccess(
       and(
         eq(document.id, documentId),
         eq(document.knowledgeBaseId, knowledgeBaseId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
         isNull(document.deletedAt)
       )
     )

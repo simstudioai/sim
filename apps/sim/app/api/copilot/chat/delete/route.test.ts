@@ -6,10 +6,11 @@
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDelete, mockWhere, mockGetSession } = vi.hoisted(() => ({
+const { mockDelete, mockWhere, mockGetSession, mockGetAccessibleCopilotChat } = vi.hoisted(() => ({
   mockDelete: vi.fn(),
   mockWhere: vi.fn(),
   mockGetSession: vi.fn(),
+  mockGetAccessibleCopilotChat: vi.fn(),
 }))
 
 vi.mock('@/lib/auth', () => ({
@@ -33,7 +34,11 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
 }))
 
-import { DELETE } from '@/app/api/copilot/chat/delete/route'
+vi.mock('@/lib/copilot/chat-lifecycle', () => ({
+  getAccessibleCopilotChat: mockGetAccessibleCopilotChat,
+}))
+
+import { DELETE } from './route'
 
 function createMockRequest(method: string, body: Record<string, unknown>): NextRequest {
   return new NextRequest('http://localhost:3000/api/copilot/chat/delete', {
@@ -51,6 +56,7 @@ describe('Copilot Chat Delete API Route', () => {
 
     mockDelete.mockReturnValue({ where: mockWhere })
     mockWhere.mockResolvedValue([])
+    mockGetAccessibleCopilotChat.mockResolvedValue({ id: 'chat-123', userId: 'user-123' })
   })
 
   afterEach(() => {

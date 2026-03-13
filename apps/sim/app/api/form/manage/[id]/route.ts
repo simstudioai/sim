@@ -241,7 +241,7 @@ export async function DELETE(
       return createErrorResponse('Form not found or access denied', 404)
     }
 
-    await db.update(form).set({ isActive: false, updatedAt: new Date() }).where(eq(form.id, id))
+    await db.delete(form).where(eq(form.id, id))
 
     logger.info(`Form ${id} deleted (soft delete)`)
 

@@ -7,7 +7,7 @@ import {
   workflowMcpServer,
   workflowMcpTool,
 } from '@sim/db/schema'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
@@ -36,7 +36,11 @@ export async function executeCheckDeploymentStatus(
 
     const [apiDeploy, chatDeploy] = await Promise.all([
       db.select().from(workflow).where(eq(workflow.id, workflowId)).limit(1),
-      db.select().from(chat).where(eq(chat.workflowId, workflowId)).limit(1),
+      db
+        .select()
+        .from(chat)
+        .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt)))
+        .limit(1),
     ])
 
     const isApiDeployed = apiDeploy[0]?.isDeployed || false
@@ -131,7 +135,9 @@ export async function executeListWorkspaceMcpServers(
         description: workflowMcpServer.description,
       })
       .from(workflowMcpServer)
-      .where(eq(workflowMcpServer.workspaceId, workspaceId))
+      .where(
+        and(eq(workflowMcpServer.workspaceId, workspaceId), isNull(workflowMcpServer.deletedAt))
+      )
 
     const serverIds = servers.map((server) => server.id)
     const tools =
@@ -142,7 +148,9 @@ export async function executeListWorkspaceMcpServers(
               toolName: workflowMcpTool.toolName,
             })
             .from(workflowMcpTool)
-            .where(inArray(workflowMcpTool.serverId, serverIds))
+            .where(
+              and(inArray(workflowMcpTool.serverId, serverIds), isNull(workflowMcpTool.archivedAt))
+            )
         : []
 
     const toolNamesByServer: Record<string, string[]> = {}
@@ -303,7 +311,7 @@ export async function executeDeleteWorkspaceMcpServer(
         workspaceId: workflowMcpServer.workspaceId,
       })
       .from(workflowMcpServer)
-      .where(eq(workflowMcpServer.id, serverId))
+      .where(and(eq(workflowMcpServer.id, serverId), isNull(workflowMcpServer.deletedAt)))
       .limit(1)
 
     if (!existing) {

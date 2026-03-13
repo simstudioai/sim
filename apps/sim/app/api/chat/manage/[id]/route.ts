@@ -132,7 +132,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         const existingIdentifier = await db
           .select()
           .from(chat)
-          .where(eq(chat.identifier, identifier))
+          .where(and(eq(chat.identifier, identifier), isNull(chat.archivedAt)))
           .limit(1)
 
         if (existingIdentifier.length > 0 && existingIdentifier[0].id !== chatId) {

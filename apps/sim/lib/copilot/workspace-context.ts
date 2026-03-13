@@ -8,7 +8,6 @@ import {
   userTableRows,
   workflow,
   workflowSchedule,
-  workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm'
@@ -16,7 +15,11 @@ import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { listSkills } from '@/lib/workflows/skills/operations'
-import { getUsersWithPermissions } from '@/lib/workspaces/permissions/utils'
+import {
+  assertActiveWorkspaceAccess,
+  getUsersWithPermissions,
+  getWorkspaceWithOwner,
+} from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceContext')
 
@@ -199,8 +202,13 @@ export async function generateWorkspaceContext(
   userId: string
 ): Promise<string> {
   try {
+    await assertActiveWorkspaceAccess(workspaceId, userId)
+    const wsRow = await getWorkspaceWithOwner(workspaceId)
+    if (!wsRow) {
+      return '## Workspace\n(unavailable)'
+    }
+
     const [
-      wsRow,
       members,
       workflows,
       kbs,
@@ -213,13 +221,6 @@ export async function generateWorkspaceContext(
       skillRows,
       jobRows,
     ] = await Promise.all([
-      db
-        .select({ id: workspace.id, name: workspace.name, ownerId: workspace.ownerId })
-        .from(workspace)
-        .where(eq(workspace.id, workspaceId))
-        .limit(1)
-        .then((rows) => rows[0] ?? null),
-
       getUsersWithPermissions(workspaceId),
 
       db
@@ -231,7 +232,7 @@ export async function generateWorkspaceContext(
           lastRunAt: workflow.lastRunAt,
         })
         .from(workflow)
-        .where(eq(workflow.workspaceId, workspaceId)),
+        .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt))),
 
       db
         .select({
@@ -249,7 +250,12 @@ export async function generateWorkspaceContext(
           description: userTableDefinitions.description,
         })
         .from(userTableDefinitions)
-        .where(eq(userTableDefinitions.workspaceId, workspaceId)),
+        .where(
+          and(
+            eq(userTableDefinitions.workspaceId, workspaceId),
+            isNull(userTableDefinitions.archivedAt)
+          )
+        ),
 
       listWorkspaceFiles(workspaceId),
 
@@ -300,7 +306,8 @@ export async function generateWorkspaceContext(
         .where(
           and(
             eq(workflowSchedule.sourceWorkspaceId, workspaceId),
-            eq(workflowSchedule.sourceType, 'job')
+            eq(workflowSchedule.sourceType, 'job'),
+            isNull(workflowSchedule.archivedAt)
           )
         ),
     ])
@@ -330,6 +337,7 @@ export async function generateWorkspaceContext(
             .where(
               and(
                 inArray(knowledgeConnector.knowledgeBaseId, kbIds),
+                isNull(knowledgeConnector.archivedAt),
                 isNull(knowledgeConnector.deletedAt)
               )
             )

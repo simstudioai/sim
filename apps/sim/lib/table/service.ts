@@ -217,7 +217,12 @@ export async function createTable(
     const [{ count: existingCount }] = await trx
       .select({ count: count() })
       .from(userTableDefinitions)
-      .where(eq(userTableDefinitions.workspaceId, data.workspaceId))
+      .where(
+        and(
+          eq(userTableDefinitions.workspaceId, data.workspaceId),
+          isNull(userTableDefinitions.archivedAt)
+        )
+      )
 
     if (Number(existingCount) >= maxTables) {
       throw new Error(`Workspace has reached maximum table limit (${maxTables})`)

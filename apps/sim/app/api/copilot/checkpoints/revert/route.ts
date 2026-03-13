@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getAccessibleCopilotChat } from '@/lib/copilot/chat-lifecycle'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
@@ -46,6 +47,11 @@ export async function POST(request: NextRequest) {
       .then((rows) => rows[0])
 
     if (!checkpoint) {
+      return createNotFoundResponse('Checkpoint not found or access denied')
+    }
+
+    const chat = await getAccessibleCopilotChat(checkpoint.chatId, userId)
+    if (!chat) {
       return createNotFoundResponse('Checkpoint not found or access denied')
     }
 

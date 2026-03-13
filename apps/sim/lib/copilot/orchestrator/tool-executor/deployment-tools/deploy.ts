@@ -5,7 +5,10 @@ import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
-import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
+import {
+  generateParameterSchemaForWorkflow,
+  removeMcpToolsForWorkflow,
+} from '@/lib/mcp/workflow-mcp-sync'
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { deployWorkflow, undeployWorkflow } from '@/lib/workflows/persistence/utils'
 import { checkChatAccess, checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
@@ -29,6 +32,7 @@ export async function executeDeployApi(
       if (!result.success) {
         return { success: false, error: result.error || 'Failed to undeploy workflow' }
       }
+      await removeMcpToolsForWorkflow(workflowId, crypto.randomUUID().slice(0, 8))
       return { success: true, output: { workflowId, isDeployed: false } }
     }
 
@@ -70,7 +74,11 @@ export async function executeDeployChat(
 
     const action = params.action === 'undeploy' ? 'undeploy' : 'deploy'
     if (action === 'undeploy') {
-      const existing = await db.select().from(chat).where(eq(chat.workflowId, workflowId)).limit(1)
+      const existing = await db
+        .select()
+        .from(chat)
+        .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt)))
+        .limit(1)
       if (!existing.length) {
         return { success: false, error: 'No active chat deployment found for this workflow' }
       }
@@ -232,14 +240,9 @@ export async function executeDeployMcp(
     // Handle undeploy action — remove workflow from MCP server
     if (params.action === 'undeploy') {
       const deleted = await db
-        .update(workflowMcpTool)
-        .set({ archivedAt: new Date(), updatedAt: new Date() })
+        .delete(workflowMcpTool)
         .where(
-          and(
-            eq(workflowMcpTool.serverId, serverId),
-            eq(workflowMcpTool.workflowId, workflowId),
-            isNull(workflowMcpTool.archivedAt)
-          )
+          and(eq(workflowMcpTool.serverId, serverId), eq(workflowMcpTool.workflowId, workflowId))
         )
         .returning({ id: workflowMcpTool.id })
 

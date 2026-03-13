@@ -377,13 +377,12 @@ export async function DELETE(
       return createErrorResponse(error.message, error.status)
     }
 
-    // Clean up external webhook subscriptions before undeploying
-    await cleanupWebhooksForWorkflow(id, workflowData as Record<string, unknown>, requestId)
-
     const result = await undeployWorkflow({ workflowId: id })
     if (!result.success) {
       return createErrorResponse(result.error || 'Failed to undeploy workflow', 500)
     }
+
+    await cleanupWebhooksForWorkflow(id, workflowData as Record<string, unknown>, requestId)
 
     await removeMcpToolsForWorkflow(id, requestId)
 

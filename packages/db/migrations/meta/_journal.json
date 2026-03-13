@@ -1191,13 +1191,6 @@
       "when": 1773209025121,
       "tag": "0170_careful_saracen",
       "breakpoints": true
-    },
-    {
-      "idx": 171,
-      "version": "7",
-      "when": 1773359766252,
-      "tag": "0171_modern_wolf_cub",
-      "breakpoints": true
     }
   ]
 }

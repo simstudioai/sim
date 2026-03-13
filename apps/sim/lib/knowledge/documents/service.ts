@@ -17,6 +17,7 @@ import {
   gt,
   gte,
   inArray,
+  isNotNull,
   isNull,
   lt,
   lte,
@@ -38,6 +39,7 @@ import {
   validateTagValue,
 } from '@/lib/knowledge/tags/utils'
 import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
+import { deleteFile } from '@/lib/uploads/core/storage-service'
 import type { DocumentProcessingPayload } from '@/background/knowledge-processing'
 
 const logger = createLogger('DocumentService')
@@ -446,7 +448,9 @@ export async function processDocumentAsync(
         processingStartedAt: new Date(),
         processingError: null,
       })
-      .where(and(eq(document.id, documentId), isNull(document.deletedAt)))
+      .where(
+        and(eq(document.id, documentId), isNull(document.archivedAt), isNull(document.deletedAt))
+      )
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 
@@ -526,7 +530,13 @@ export async function processDocumentAsync(
             boolean3: document.boolean3,
           })
           .from(document)
-          .where(and(eq(document.id, documentId), isNull(document.deletedAt)))
+          .where(
+            and(
+              eq(document.id, documentId),
+              isNull(document.archivedAt),
+              isNull(document.deletedAt)
+            )
+          )
           .limit(1)
 
         const documentTags = documentRecord[0] || {}
@@ -572,6 +582,24 @@ export async function processDocumentAsync(
         }))
 
         await db.transaction(async (tx) => {
+          const activeDocument = await tx
+            .select({ id: document.id })
+            .from(document)
+            .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
+            .where(
+              and(
+                eq(document.id, documentId),
+                isNull(document.archivedAt),
+                isNull(document.deletedAt),
+                isNull(knowledgeBase.deletedAt)
+              )
+            )
+            .limit(1)
+
+          if (activeDocument.length === 0) {
+            return
+          }
+
           if (embeddingRecords.length > 0) {
             await tx.delete(embedding).where(eq(embedding.documentId, documentId))
 
@@ -693,17 +721,19 @@ export async function createDocumentRecords(
   knowledgeBaseId: string,
   requestId: string
 ): Promise<DocumentData[]> {
-  const kb = await db
-    .select({ userId: knowledgeBase.userId })
-    .from(knowledgeBase)
-    .where(eq(knowledgeBase.id, knowledgeBaseId))
-    .limit(1)
-
-  if (kb.length === 0) {
-    throw new Error('Knowledge base not found')
-  }
-
   return await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+
+    const kb = await tx
+      .select({ id: knowledgeBase.id })
+      .from(knowledgeBase)
+      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+      .limit(1)
+
+    if (kb.length === 0) {
+      throw new Error('Knowledge base not found')
+    }
+
     const now = new Date()
     const documentRecords = []
     const returnData: DocumentData[] = []
@@ -1008,6 +1038,8 @@ export async function getDocuments(
 
   const whereConditions: (SQL | undefined)[] = [
     eq(document.knowledgeBaseId, knowledgeBaseId),
+    eq(document.userExcluded, false),
+    isNull(document.archivedAt),
     isNull(document.deletedAt),
   ]
 
@@ -1207,16 +1239,6 @@ export async function createSingleDocument(
   tag6: string | null
   tag7: string | null
 }> {
-  const kb = await db
-    .select({ userId: knowledgeBase.userId })
-    .from(knowledgeBase)
-    .where(eq(knowledgeBase.id, knowledgeBaseId))
-    .limit(1)
-
-  if (kb.length === 0) {
-    throw new Error('Knowledge base not found')
-  }
-
   const documentId = randomUUID()
   const now = new Date()
 
@@ -1274,13 +1296,26 @@ export async function createSingleDocument(
     ...processedTags,
   }
 
-  await db.insert(document).values(newDocument)
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
 
-  await db
-    .update(knowledgeBase)
-    .set({ updatedAt: now })
-    .where(eq(knowledgeBase.id, knowledgeBaseId))
+    const kb = await tx
+      .select({ id: knowledgeBase.id })
+      .from(knowledgeBase)
+      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+      .limit(1)
 
+    if (kb.length === 0) {
+      throw new Error('Knowledge base not found')
+    }
+
+    await tx.insert(document).values(newDocument)
+
+    await tx
+      .update(knowledgeBase)
+      .set({ updatedAt: now })
+      .where(eq(knowledgeBase.id, knowledgeBaseId))
+  })
   logger.info(`[${requestId}] Document created: ${documentId} in knowledge base ${knowledgeBaseId}`)
 
   return newDocument as {
@@ -1337,6 +1372,8 @@ export async function bulkDocumentOperation(
       and(
         eq(document.knowledgeBaseId, knowledgeBaseId),
         inArray(document.id, documentIds),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
         isNull(document.deletedAt)
       )
     )
@@ -1359,20 +1396,9 @@ export async function bulkDocumentOperation(
   }>
 
   if (operation === 'delete') {
-    updateResult = await db
-      .update(document)
-      .set({
-        deletedAt: new Date(),
-        userExcluded: sql`CASE WHEN ${document.connectorId} IS NOT NULL THEN true ELSE ${document.userExcluded} END`,
-      })
-      .where(
-        and(
-          eq(document.knowledgeBaseId, knowledgeBaseId),
-          inArray(document.id, documentIds),
-          isNull(document.deletedAt)
-        )
-      )
-      .returning({ id: document.id, deletedAt: document.deletedAt })
+    const deletedIds = documentsToUpdate.map((doc) => doc.id)
+    const deletedCount = await deleteDocumentsByLifecyclePolicy(deletedIds, requestId)
+    updateResult = deletedIds.slice(0, deletedCount).map((id) => ({ id }))
   } else {
     const enabled = operation === 'enable'
 
@@ -1385,6 +1411,8 @@ export async function bulkDocumentOperation(
         and(
           eq(document.knowledgeBaseId, knowledgeBaseId),
           inArray(document.id, documentIds),
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
           isNull(document.deletedAt)
         )
       )
@@ -1427,6 +1455,8 @@ export async function bulkDocumentOperationByFilter(
 
   const whereConditions = [
     eq(document.knowledgeBaseId, knowledgeBaseId),
+    eq(document.userExcluded, false),
+    isNull(document.archivedAt),
     isNull(document.deletedAt),
   ]
 
@@ -1443,14 +1473,14 @@ export async function bulkDocumentOperationByFilter(
   }>
 
   if (operation === 'delete') {
-    updateResult = await db
-      .update(document)
-      .set({
-        deletedAt: new Date(),
-        userExcluded: sql`CASE WHEN ${document.connectorId} IS NOT NULL THEN true ELSE ${document.userExcluded} END`,
-      })
+    const matchingDocs = await db
+      .select({ id: document.id })
+      .from(document)
       .where(and(...whereConditions))
-      .returning({ id: document.id, deletedAt: document.deletedAt })
+
+    const deletedIds = matchingDocs.map((doc) => doc.id)
+    const deletedCount = await deleteDocumentsByLifecyclePolicy(deletedIds, requestId)
+    updateResult = deletedIds.slice(0, deletedCount).map((id) => ({ id }))
   } else {
     const enabled = operation === 'enable'
 
@@ -1817,34 +1847,143 @@ export async function updateDocument(
   }
 }
 
+function getKnowledgeBaseStorageKey(fileUrl: string | null): string | null {
+  if (!fileUrl) {
+    return null
+  }
+
+  try {
+    const urlPath = new URL(fileUrl, 'http://localhost').pathname
+    const storageKey = urlPath.replace(/^\/api\/uploads\//, '')
+    return storageKey !== urlPath ? storageKey : null
+  } catch {
+    return null
+  }
+}
+
+export async function deleteDocumentStorageFiles(
+  documentsToDelete: Array<{ id: string; fileUrl: string | null }>,
+  requestId: string
+): Promise<void> {
+  await Promise.allSettled(
+    documentsToDelete.map(async (doc) => {
+      const storageKey = getKnowledgeBaseStorageKey(doc.fileUrl)
+      if (!storageKey) {
+        return
+      }
+
+      try {
+        await deleteFile({ key: storageKey, context: 'knowledge-base' })
+      } catch (error) {
+        logger.warn(`[${requestId}] Failed to delete document storage file`, {
+          documentId: doc.id,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    })
+  )
+}
+
+async function excludeConnectorDocuments(
+  documentIds: string[],
+  requestId: string
+): Promise<number> {
+  const ids = [...new Set(documentIds)]
+  if (ids.length === 0) {
+    return 0
+  }
+
+  const updated = await db
+    .update(document)
+    .set({
+      userExcluded: true,
+      enabled: false,
+    })
+    .where(and(inArray(document.id, ids), isNotNull(document.connectorId)))
+    .returning({ id: document.id })
+
+  if (updated.length > 0) {
+    logger.info(`[${requestId}] Excluded ${updated.length} connector-backed document(s)`, {
+      documentIds: updated.map((doc) => doc.id),
+    })
+  }
+
+  return updated.length
+}
+
+export async function deleteDocumentsByLifecyclePolicy(
+  documentIds: string[],
+  requestId: string
+): Promise<number> {
+  const ids = [...new Set(documentIds)]
+  if (ids.length === 0) {
+    return 0
+  }
+
+  const docs = await db
+    .select({
+      id: document.id,
+      connectorId: document.connectorId,
+    })
+    .from(document)
+    .where(inArray(document.id, ids))
+
+  const connectorBackedIds = docs.filter((doc) => doc.connectorId !== null).map((doc) => doc.id)
+  const hardDeleteIds = docs.filter((doc) => doc.connectorId === null).map((doc) => doc.id)
+
+  const [excludedCount, hardDeletedCount] = await Promise.all([
+    excludeConnectorDocuments(connectorBackedIds, requestId),
+    hardDeleteDocuments(hardDeleteIds, requestId),
+  ])
+
+  return excludedCount + hardDeletedCount
+}
+
+export async function hardDeleteDocuments(
+  documentIds: string[],
+  requestId: string
+): Promise<number> {
+  const ids = [...new Set(documentIds)]
+  if (ids.length === 0) {
+    return 0
+  }
+
+  const documentsToDelete = await db
+    .select({
+      id: document.id,
+      fileUrl: document.fileUrl,
+    })
+    .from(document)
+    .where(inArray(document.id, ids))
+
+  if (documentsToDelete.length === 0) {
+    return 0
+  }
+
+  const existingIds = documentsToDelete.map((doc) => doc.id)
+
+  await db.transaction(async (tx) => {
+    await tx.delete(embedding).where(inArray(embedding.documentId, existingIds))
+    await tx.delete(document).where(inArray(document.id, existingIds))
+  })
+
+  await deleteDocumentStorageFiles(documentsToDelete, requestId)
+
+  logger.info(`[${requestId}] Hard deleted ${existingIds.length} documents`, {
+    documentIds: existingIds,
+  })
+
+  return existingIds.length
+}
+
 /**
- * Soft delete a document.
- * For connector-sourced documents, also sets userExcluded so the sync engine
- * will not re-import the document on future syncs.
+ * Hard delete a document.
  */
 export async function deleteDocument(
   documentId: string,
   requestId: string
 ): Promise<{ success: boolean; message: string }> {
-  const docs = await db
-    .select({ connectorId: document.connectorId })
-    .from(document)
-    .where(eq(document.id, documentId))
-    .limit(1)
-
-  const isConnectorDoc = docs.length > 0 && docs[0].connectorId !== null
-
-  await db
-    .update(document)
-    .set({
-      deletedAt: new Date(),
-      ...(isConnectorDoc ? { userExcluded: true } : {}),
-    })
-    .where(eq(document.id, documentId))
-
-  logger.info(`[${requestId}] Document deleted: ${documentId}`, {
-    userExcluded: isConnectorDoc,
-  })
+  await deleteDocumentsByLifecyclePolicy([documentId], requestId)
 
   return {
     success: true,

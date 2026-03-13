@@ -321,6 +321,37 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
   })
 
   try {
+    const [scheduleRecord] = await db
+      .select({
+        id: workflowSchedule.id,
+        workflowId: workflowSchedule.workflowId,
+        status: workflowSchedule.status,
+        archivedAt: workflowSchedule.archivedAt,
+      })
+      .from(workflowSchedule)
+      .where(eq(workflowSchedule.id, payload.scheduleId))
+      .limit(1)
+
+    if (!scheduleRecord) {
+      logger.info(`[${requestId}] Schedule no longer exists, skipping execution`, {
+        scheduleId: payload.scheduleId,
+      })
+      return
+    }
+
+    if (scheduleRecord.archivedAt || scheduleRecord.status === 'disabled') {
+      logger.info(`[${requestId}] Schedule is archived or disabled, skipping execution`, {
+        scheduleId: payload.scheduleId,
+      })
+      await releaseScheduleLock(
+        payload.scheduleId,
+        requestId,
+        now,
+        `Failed to release schedule ${payload.scheduleId} after archive/disabled check`
+      )
+      return
+    }
+
     const loggingSession = new LoggingSession(
       payload.workflowId,
       executionId,
@@ -486,12 +517,17 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
       })
 
       if (executionResult.status === 'skip') {
-        await releaseScheduleLock(
+        await applyScheduleUpdate(
           payload.scheduleId,
+          {
+            updatedAt: now,
+            lastQueuedAt: null,
+            lastFailedAt: now,
+            status: 'disabled',
+            nextRunAt: null,
+          },
           requestId,
-          now,
-          `Failed to release schedule ${payload.scheduleId} after skip`,
-          scheduledFor ?? now
+          `Failed to disable schedule ${payload.scheduleId} after skip`
         )
         return
       }

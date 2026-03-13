@@ -33,7 +33,11 @@ export const GET = withMcpAuth<RouteParams>('read')(
         .select({ id: workflowMcpServer.id })
         .from(workflowMcpServer)
         .where(
-          and(eq(workflowMcpServer.id, serverId), eq(workflowMcpServer.workspaceId, workspaceId))
+          and(
+            eq(workflowMcpServer.id, serverId),
+            eq(workflowMcpServer.workspaceId, workspaceId),
+            isNull(workflowMcpServer.deletedAt)
+          )
         )
         .limit(1)
 
@@ -105,7 +109,11 @@ export const POST = withMcpAuth<RouteParams>('write')(
         .select({ id: workflowMcpServer.id })
         .from(workflowMcpServer)
         .where(
-          and(eq(workflowMcpServer.id, serverId), eq(workflowMcpServer.workspaceId, workspaceId))
+          and(
+            eq(workflowMcpServer.id, serverId),
+            eq(workflowMcpServer.workspaceId, workspaceId),
+            isNull(workflowMcpServer.deletedAt)
+          )
         )
         .limit(1)
 

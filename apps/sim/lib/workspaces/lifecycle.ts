@@ -1,7 +1,10 @@
 import { db } from '@sim/db'
 import {
   apiKey,
+  document,
   knowledgeBase,
+  knowledgeConnector,
+  mcpServers,
   userTableDefinitions,
   workflowMcpServer,
   workflowSchedule,
@@ -11,7 +14,9 @@ import {
   workspaceNotificationSubscription,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { mcpPubSub } from '@/lib/mcp/pubsub'
+import { mcpService } from '@/lib/mcp/service'
 import { archiveWorkflowsForWorkspace } from '@/lib/workflows/lifecycle'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
@@ -32,12 +37,15 @@ export async function archiveWorkspace(
   }
 
   if (workspaceRecord.archivedAt) {
+    await archiveWorkflowsForWorkspace(workspaceId, options)
     return { archived: false, workspaceName: workspaceRecord.name }
   }
 
   const now = new Date()
-
-  await archiveWorkflowsForWorkspace(workspaceId, options)
+  const workflowMcpServerIds = await db
+    .select({ id: workflowMcpServer.id })
+    .from(workflowMcpServer)
+    .where(eq(workflowMcpServer.workspaceId, workspaceId))
 
   await db.transaction(async (tx) => {
     await tx
@@ -47,6 +55,36 @@ export async function archiveWorkspace(
         updatedAt: now,
       })
       .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt)))
+
+    const workspaceKbIds = await tx
+      .select({ id: knowledgeBase.id })
+      .from(knowledgeBase)
+      .where(eq(knowledgeBase.workspaceId, workspaceId))
+
+    const knowledgeBaseIds = workspaceKbIds.map((entry) => entry.id)
+    if (knowledgeBaseIds.length > 0) {
+      await tx
+        .update(document)
+        .set({ archivedAt: now })
+        .where(
+          and(
+            inArray(document.knowledgeBaseId, knowledgeBaseIds),
+            isNull(document.archivedAt),
+            isNull(document.deletedAt)
+          )
+        )
+
+      await tx
+        .update(knowledgeConnector)
+        .set({ archivedAt: now, status: 'paused', updatedAt: now })
+        .where(
+          and(
+            inArray(knowledgeConnector.knowledgeBaseId, knowledgeBaseIds),
+            isNull(knowledgeConnector.archivedAt),
+            isNull(knowledgeConnector.deletedAt)
+          )
+        )
+    }
 
     await tx
       .update(userTableDefinitions)
@@ -96,10 +134,20 @@ export async function archiveWorkspace(
     await tx
       .update(workflowMcpServer)
       .set({
+        deletedAt: now,
         isPublic: false,
         updatedAt: now,
       })
       .where(eq(workflowMcpServer.workspaceId, workspaceId))
+
+    await tx
+      .update(mcpServers)
+      .set({
+        deletedAt: now,
+        enabled: false,
+        updatedAt: now,
+      })
+      .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
 
     await tx
       .update(workflowSchedule)
@@ -127,7 +175,20 @@ export async function archiveWorkspace(
       .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
   })
 
+  await archiveWorkflowsForWorkspace(workspaceId, options)
+
   logger.info(`[${options.requestId}] Archived workspace ${workspaceId}`)
+
+  await mcpService.clearCache(workspaceId).catch(() => undefined)
+
+  if (mcpPubSub && workflowMcpServerIds.length > 0) {
+    for (const server of workflowMcpServerIds) {
+      mcpPubSub.publishWorkflowToolsChanged({
+        serverId: server.id,
+        workspaceId,
+      })
+    }
+  }
 
   return {
     archived: true,

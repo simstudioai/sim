@@ -41,7 +41,9 @@ export const GET = withMcpAuth('read')(
           )`.as('tool_count'),
         })
         .from(workflowMcpServer)
-        .where(eq(workflowMcpServer.workspaceId, workspaceId))
+        .where(
+          and(eq(workflowMcpServer.workspaceId, workspaceId), isNull(workflowMcpServer.deletedAt))
+        )
 
       const serverIds = servers.map((s) => s.id)
       const tools =

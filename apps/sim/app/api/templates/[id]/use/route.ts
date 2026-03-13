@@ -11,6 +11,7 @@ import {
   type RegenerateStateInput,
   regenerateWorkflowStateIds,
 } from '@/lib/workflows/persistence/utils'
+import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('TemplateUseAPI')
 
@@ -42,6 +43,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!workspaceId) {
       logger.warn(`[${requestId}] Missing workspaceId in request body`)
       return NextResponse.json({ error: 'Workspace ID is required' }, { status: 400 })
+    }
+
+    const workspace = await getWorkspaceById(workspaceId)
+    if (!workspace) {
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+    }
+
+    const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+    if (permission !== 'admin' && permission !== 'write') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     logger.debug(

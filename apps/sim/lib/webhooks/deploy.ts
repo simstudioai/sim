@@ -842,7 +842,7 @@ export async function restorePreviousVersionWebhooks(params: {
 
   for (const wh of previousWebhooks) {
     try {
-      await createExternalWebhookSubscription(
+      const result = await createExternalWebhookSubscription(
         request,
         {
           id: wh.id,
@@ -854,6 +854,13 @@ export async function restorePreviousVersionWebhooks(params: {
         userId,
         requestId
       )
+      await db
+        .update(webhook)
+        .set({
+          providerConfig: result.updatedProviderConfig,
+          updatedAt: new Date(),
+        })
+        .where(eq(webhook.id, wh.id))
       logger.info(`[${requestId}] Restored external subscription for webhook ${wh.id}`)
     } catch (restoreError) {
       logger.error(

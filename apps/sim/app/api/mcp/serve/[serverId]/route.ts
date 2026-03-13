@@ -67,7 +67,13 @@ async function getServer(serverId: string) {
     })
     .from(workflowMcpServer)
     .innerJoin(workspace, eq(workflowMcpServer.workspaceId, workspace.id))
-    .where(and(eq(workflowMcpServer.id, serverId), isNull(workspace.archivedAt)))
+    .where(
+      and(
+        eq(workflowMcpServer.id, serverId),
+        isNull(workflowMcpServer.deletedAt),
+        isNull(workspace.archivedAt)
+      )
+    )
     .limit(1)
 
   return server
@@ -86,6 +92,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
       const auth = await checkHybridAuth(request, { requireWorkflowId: false })
       if (!auth.success || !auth.userId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      if (auth.apiKeyType === 'workspace' && auth.workspaceId !== server.workspaceId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
       const workspacePermission = await getUserEntityPermissions(
@@ -124,6 +134,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
       const auth = await checkHybridAuth(request, { requireWorkflowId: false })
       if (!auth.success || !auth.userId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      if (auth.apiKeyType === 'workspace' && auth.workspaceId !== server.workspaceId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
       const workspacePermission = await getUserEntityPermissions(

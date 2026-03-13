@@ -57,23 +57,6 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<R
   const redis = getRedisClient()
   const cacheKey = `a2a:agent:${agentId}:card`
 
-  if (redis) {
-    try {
-      const cached = await redis.get(cacheKey)
-      if (cached) {
-        return NextResponse.json(JSON.parse(cached), {
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'private, max-age=60',
-            'X-Cache': 'HIT',
-          },
-        })
-      }
-    } catch (err) {
-      logger.warn('Redis cache read failed', { agentId, error: err })
-    }
-  }
-
   try {
     const [agent] = await db
       .select({
@@ -134,6 +117,23 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<R
           }),
       defaultInputModes: ['text/plain', 'application/json'],
       defaultOutputModes: ['text/plain', 'application/json'],
+    }
+
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey)
+        if (cached) {
+          return NextResponse.json(JSON.parse(cached), {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'private, max-age=60',
+              'X-Cache': 'HIT',
+            },
+          })
+        }
+      } catch (err) {
+        logger.warn('Redis cache read failed', { agentId, error: err })
+      }
     }
 
     if (redis) {
@@ -209,6 +209,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
       authenticatedUserId = auth.userId
       authenticatedAuthType = auth.authType
       authenticatedApiKeyType = auth.apiKeyType
+
+      if (auth.apiKeyType === 'workspace' && auth.workspaceId !== agent.workspaceId) {
+        return NextResponse.json(
+          createError(null, A2A_ERROR_CODES.AUTHENTICATION_REQUIRED, 'Access denied'),
+          { status: 403 }
+        )
+      }
 
       const workspaceAccess = await checkWorkspaceAccess(agent.workspaceId, authenticatedUserId)
       if (!workspaceAccess.exists || !workspaceAccess.hasAccess) {
@@ -453,8 +460,9 @@ async function handleMessageSend(
       })
 
       const executeResult = await response.json()
-
-      const finalState: TaskState = response.ok ? 'completed' : 'failed'
+      const executionId = executeResult.executionId || executeResult.metadata?.executionId
+      const executionSucceeded = response.ok && executeResult.success !== false
+      const finalState: TaskState = executionSucceeded ? 'completed' : 'failed'
 
       const agentContent = extractAgentContent(executeResult)
       const agentMessage = createAgentMessage(agentContent)
@@ -470,7 +478,7 @@ async function handleMessageSend(
           status: finalState,
           messages: history,
           artifacts,
-          executionId: executeResult.metadata?.executionId,
+          executionId,
           completedAt: new Date(),
           updatedAt: new Date(),
         })
@@ -736,6 +744,9 @@ async function handleMessageStream(
             if (parsed.finalContent) {
               finalContent = parsed.finalContent
             }
+            if (parsed.finalSuccess === false) {
+              throw new Error('Workflow execution failed')
+            }
           }
 
           const accumulatedContent = contentChunks.join('')
@@ -772,6 +783,7 @@ async function handleMessageStream(
           })
         } else {
           const result = await response.json()
+          const executionSucceeded = result.success !== false
 
           const content = extractAgentContent(result)
 
@@ -794,24 +806,29 @@ async function handleMessageStream(
           await db
             .update(a2aTask)
             .set({
-              status: 'completed',
+              status: executionSucceeded ? 'completed' : 'failed',
               messages: history,
               artifacts,
-              executionId: result.metadata?.executionId,
+              executionId: result.executionId || result.metadata?.executionId,
               completedAt: new Date(),
               updatedAt: new Date(),
             })
             .where(eq(a2aTask.id, taskId))
 
-          notifyTaskStateChange(taskId, 'completed').catch((err) => {
-            logger.error('Failed to trigger push notification', { taskId, error: err })
-          })
+          notifyTaskStateChange(taskId, executionSucceeded ? 'completed' : 'failed').catch(
+            (err) => {
+              logger.error('Failed to trigger push notification', { taskId, error: err })
+            }
+          )
 
           sendEvent('task', {
             kind: 'task',
             id: taskId,
             contextId,
-            status: { state: 'completed', timestamp: new Date().toISOString() },
+            status: {
+              state: executionSucceeded ? 'completed' : 'failed',
+              timestamp: new Date().toISOString(),
+            },
             history,
             artifacts,
           })
