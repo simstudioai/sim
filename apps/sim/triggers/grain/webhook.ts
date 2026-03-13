@@ -6,7 +6,7 @@ export const grainWebhookTrigger: TriggerConfig = {
   id: 'grain_webhook',
   name: 'Grain Webhook',
   provider: 'grain',
-  description: 'Generic webhook trigger for all Grain events',
+  description: 'Generic webhook trigger for all actions in a selected Grain view',
   version: '1.0.0',
   icon: GrainIcon,
 
@@ -18,6 +18,19 @@ export const grainWebhookTrigger: TriggerConfig = {
       placeholder: 'Enter your Grain API key (Personal Access Token)',
       description: 'Required to create the webhook in Grain.',
       password: true,
+      required: true,
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'grain_webhook',
+      },
+    },
+    {
+      id: 'viewId',
+      title: 'View ID',
+      type: 'short-input',
+      placeholder: 'Enter Grain view UUID',
+      description: 'Required by Grain to create the webhook subscription.',
       required: true,
       mode: 'trigger',
       condition: {

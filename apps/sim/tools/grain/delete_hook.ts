@@ -23,12 +23,11 @@ export const grainDeleteHookTool: ToolConfig<GrainDeleteHookParams, GrainDeleteH
   },
 
   request: {
-    url: (params) => `https://api.grain.com/_/public-api/v2/hooks/${params.hookId}`,
+    url: (params) => `https://api.grain.com/_/public-api/hooks/${params.hookId}`,
     method: 'DELETE',
     headers: (params) => ({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
-      'Public-Api-Version': '2025-10-31',
     }),
   },
 

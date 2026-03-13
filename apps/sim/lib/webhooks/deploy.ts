@@ -5,6 +5,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import type { NextRequest } from 'next/server'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
+import { PendingWebhookVerificationTracker } from '@/lib/webhooks/pending-verification'
 import {
   cleanupExternalWebhook,
   createExternalWebhookSubscription,
@@ -580,6 +581,7 @@ export async function saveTriggerWebhooksForDeploy({
     updatedProviderConfig: Record<string, unknown>
     externalSubscriptionCreated: boolean
   }> = []
+  const pendingVerificationTracker = new PendingWebhookVerificationTracker()
 
   for (const block of blocksNeedingWebhook) {
     const config = webhookConfigs.get(block.id)
@@ -595,6 +597,14 @@ export async function saveTriggerWebhooksForDeploy({
     }
 
     try {
+      await pendingVerificationTracker.register({
+        path: triggerPath,
+        provider,
+        workflowId,
+        blockId: block.id,
+        metadata: providerConfig,
+      })
+
       const result = await createExternalWebhookSubscription(
         request,
         createPayload,
@@ -613,6 +623,7 @@ export async function saveTriggerWebhooksForDeploy({
       })
     } catch (error: any) {
       logger.error(`[${requestId}] Failed to create external subscription for ${block.id}`, error)
+      await pendingVerificationTracker.clearAll()
       for (const sub of createdSubscriptions) {
         if (sub.externalSubscriptionCreated) {
           try {
@@ -666,6 +677,8 @@ export async function saveTriggerWebhooksForDeploy({
       }
     })
 
+    await pendingVerificationTracker.clearAll()
+
     for (const sub of createdSubscriptions) {
       const pollingError = await configurePollingIfNeeded(
         sub.provider,
@@ -710,6 +723,7 @@ export async function saveTriggerWebhooksForDeploy({
       }
     }
   } catch (error: any) {
+    await pendingVerificationTracker.clearAll()
     logger.error(`[${requestId}] Failed to insert webhook records`, error)
     for (const sub of createdSubscriptions) {
       if (sub.externalSubscriptionCreated) {

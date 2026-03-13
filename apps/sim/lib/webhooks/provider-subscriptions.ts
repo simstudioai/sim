@@ -769,14 +769,13 @@ export async function deleteGrainWebhook(webhook: any, requestId: string): Promi
       return
     }
 
-    const grainApiUrl = `https://api.grain.com/_/public-api/v2/hooks/${externalId}`
+    const grainApiUrl = `https://api.grain.com/_/public-api/hooks/${externalId}`
 
     const grainResponse = await fetch(grainApiUrl, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'Public-Api-Version': '2025-10-31',
       },
     })
 
@@ -1237,8 +1236,7 @@ export async function createGrainWebhookSubscription(
 ): Promise<{ id: string; eventTypes: string[] } | undefined> {
   try {
     const { path, providerConfig } = webhookData
-    const { apiKey, triggerId, includeHighlights, includeParticipants, includeAiSummary } =
-      providerConfig || {}
+    const { apiKey, triggerId, viewId } = providerConfig || {}
 
     if (!apiKey) {
       grainLogger.warn(`[${requestId}] Missing apiKey for Grain webhook creation.`, {
@@ -1249,32 +1247,39 @@ export async function createGrainWebhookSubscription(
       )
     }
 
-    const hookTypeMap: Record<string, string> = {
-      grain_webhook: 'recording_added',
-      grain_recording_created: 'recording_added',
-      grain_recording_updated: 'recording_added',
-      grain_highlight_created: 'recording_added',
-      grain_highlight_updated: 'recording_added',
-      grain_story_created: 'recording_added',
-      grain_upload_status: 'upload_status',
+    if (!viewId) {
+      grainLogger.warn(`[${requestId}] Missing viewId for Grain webhook creation.`, {
+        webhookId: webhookData.id,
+        triggerId,
+      })
+      throw new Error(
+        'Grain view ID is required. Please provide the Grain view ID from GET /_/public-api/views in the trigger configuration.'
+      )
+    }
+
+    const actionMap: Record<string, Array<'added' | 'updated' | 'removed'>> = {
+      grain_recording_created: ['added'],
+      grain_recording_updated: ['updated'],
+      grain_highlight_created: ['added'],
+      grain_highlight_updated: ['updated'],
+      grain_story_created: ['added'],
     }
 
     const eventTypeMap: Record<string, string[]> = {
       grain_webhook: [],
       grain_recording_created: ['recording_added'],
       grain_recording_updated: ['recording_updated'],
-      grain_highlight_created: ['highlight_created'],
+      grain_highlight_created: ['highlight_added'],
       grain_highlight_updated: ['highlight_updated'],
-      grain_story_created: ['story_created'],
-      grain_upload_status: ['upload_status'],
+      grain_story_created: ['story_added'],
     }
 
-    const hookType = hookTypeMap[triggerId] ?? 'recording_added'
+    const actions = actionMap[triggerId] ?? []
     const eventTypes = eventTypeMap[triggerId] ?? []
 
-    if (!hookTypeMap[triggerId]) {
+    if (!triggerId || (!(triggerId in actionMap) && triggerId !== 'grain_webhook')) {
       grainLogger.warn(
-        `[${requestId}] Unknown triggerId for Grain: ${triggerId}, defaulting to recording_added`,
+        `[${requestId}] Unknown triggerId for Grain: ${triggerId}, defaulting to all actions`,
         {
           webhookId: webhookData.id,
         }
@@ -1283,32 +1288,23 @@ export async function createGrainWebhookSubscription(
 
     grainLogger.info(`[${requestId}] Creating Grain webhook`, {
       triggerId,
-      hookType,
+      viewId,
+      actions,
       eventTypes,
       webhookId: webhookData.id,
     })
 
     const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
 
-    const grainApiUrl = 'https://api.grain.com/_/public-api/v2/hooks/create'
+    const grainApiUrl = 'https://api.grain.com/_/public-api/hooks'
 
     const requestBody: Record<string, any> = {
+      version: 2,
       hook_url: notificationUrl,
-      hook_type: hookType,
+      view_id: viewId,
     }
-
-    const include: Record<string, boolean> = {}
-    if (includeHighlights) {
-      include.highlights = true
-    }
-    if (includeParticipants) {
-      include.participants = true
-    }
-    if (includeAiSummary) {
-      include.ai_summary = true
-    }
-    if (Object.keys(include).length > 0) {
-      requestBody.include = include
+    if (actions.length > 0) {
+      requestBody.actions = actions
     }
 
     const grainResponse = await fetch(grainApiUrl, {
@@ -1316,7 +1312,6 @@ export async function createGrainWebhookSubscription(
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'Public-Api-Version': '2025-10-31',
       },
       body: JSON.stringify(requestBody),
     })
@@ -1349,15 +1344,29 @@ export async function createGrainWebhookSubscription(
       throw new Error(userFriendlyMessage)
     }
 
+    const grainWebhookId = responseBody.id
+
+    if (!grainWebhookId) {
+      grainLogger.error(
+        `[${requestId}] Grain webhook creation response missing id for webhook ${webhookData.id}.`,
+        {
+          response: responseBody,
+        }
+      )
+      throw new Error(
+        'Grain webhook created but no webhook ID was returned in the response. Cannot track subscription.'
+      )
+    }
+
     grainLogger.info(
       `[${requestId}] Successfully created webhook in Grain for webhook ${webhookData.id}.`,
       {
-        grainWebhookId: responseBody.id,
+        grainWebhookId,
         eventTypes,
       }
     )
 
-    return { id: responseBody.id, eventTypes }
+    return { id: grainWebhookId, eventTypes }
   } catch (error: any) {
     grainLogger.error(
       `[${requestId}] Exception during Grain webhook creation for webhook ${webhookData.id}.`,

@@ -268,6 +268,32 @@ vi.mock('@/lib/webhooks/processor', () => ({
     }
   }),
   handleProviderChallenges: vi.fn().mockResolvedValue(null),
+  handlePreLookupWebhookVerification: vi
+    .fn()
+    .mockImplementation(
+      async (
+        method: string,
+        body: Record<string, unknown> | undefined,
+        _requestId: string,
+        path: string
+      ) => {
+        if (path !== 'pending-verification-path') {
+          return null
+        }
+
+        const isVerificationProbe =
+          method === 'GET' ||
+          method === 'HEAD' ||
+          (method === 'POST' && (!body || Object.keys(body).length === 0 || !body.type))
+
+        if (!isVerificationProbe) {
+          return null
+        }
+
+        const { NextResponse } = require('next/server')
+        return NextResponse.json({ status: 'ok', message: 'Webhook endpoint verified' })
+      }
+    ),
   handleProviderReachabilityTest: vi.fn().mockReturnValue(null),
   verifyProviderAuth: vi
     .fn()
@@ -353,7 +379,7 @@ vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
 
-import { POST } from '@/app/api/webhooks/trigger/[path]/route'
+import { GET, POST } from '@/app/api/webhooks/trigger/[path]/route'
 
 describe('Webhook Trigger API Route', () => {
   beforeEach(() => {
@@ -389,11 +415,77 @@ describe('Webhook Trigger API Route', () => {
   })
 
   it('should handle 404 for non-existent webhooks', async () => {
-    const req = createMockRequest('POST', { event: 'test' })
+    const req = createMockRequest('POST', { type: 'event.test' })
 
     const params = Promise.resolve({ path: 'non-existent-path' })
 
     const response = await POST(req, { params })
+
+    expect(response.status).toBe(404)
+
+    const text = await response.text()
+    expect(text).toMatch(/not found/i)
+  })
+
+  it('should return 405 for GET requests on unknown webhook paths', async () => {
+    const req = createMockRequest(
+      'GET',
+      undefined,
+      {},
+      'http://localhost:3000/api/webhooks/trigger/non-existent-path'
+    )
+
+    const params = Promise.resolve({ path: 'non-existent-path' })
+
+    const response = await GET(req as any, { params })
+
+    expect(response.status).toBe(405)
+  })
+
+  it('should return 200 for GET verification probes on registered pending paths', async () => {
+    const req = createMockRequest(
+      'GET',
+      undefined,
+      {},
+      'http://localhost:3000/api/webhooks/trigger/pending-verification-path'
+    )
+
+    const params = Promise.resolve({ path: 'pending-verification-path' })
+
+    const response = await GET(req as any, { params })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      status: 'ok',
+      message: 'Webhook endpoint verified',
+    })
+  })
+
+  it('should return 200 for empty POST verification probes on registered pending paths', async () => {
+    const req = createMockRequest(
+      'POST',
+      undefined,
+      {},
+      'http://localhost:3000/api/webhooks/trigger/pending-verification-path'
+    )
+
+    const params = Promise.resolve({ path: 'pending-verification-path' })
+
+    const response = await POST(req as any, { params })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      status: 'ok',
+      message: 'Webhook endpoint verified',
+    })
+  })
+
+  it('should return 404 for POST requests without type on unknown webhook paths', async () => {
+    const req = createMockRequest('POST', { event: 'test' })
+
+    const params = Promise.resolve({ path: 'non-existent-path' })
+
+    const response = await POST(req as any, { params })
 
     expect(response.status).toBe(404)
 
