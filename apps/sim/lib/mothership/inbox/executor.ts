@@ -13,6 +13,7 @@ import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { formatEmailAsMessage } from '@/lib/mothership/inbox/format'
 import { sendInboxResponse } from '@/lib/mothership/inbox/response'
 import type { AgentMailAttachment } from '@/lib/mothership/inbox/types'
+import { createFileContent, type MessageContent } from '@/lib/uploads/utils/file-utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('InboxExecutor')
@@ -132,18 +133,36 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       })
     }
 
-    let attachments: AgentMailAttachment[] = []
-    if (inboxTask.hasAttachments && ws.inboxProviderId && inboxTask.agentmailMessageId) {
-      try {
-        const fullMessage = await agentmail.getMessage(
-          ws.inboxProviderId,
-          inboxTask.agentmailMessageId
-        )
-        attachments = fullMessage.attachments || []
-      } catch (attachErr) {
-        logger.warn('Failed to fetch attachment metadata', { taskId, attachErr })
+    const fetchAttachments = async () => {
+      let attachments: AgentMailAttachment[] = []
+      if (inboxTask.hasAttachments && ws.inboxProviderId && inboxTask.agentmailMessageId) {
+        try {
+          const fullMessage = await agentmail.getMessage(
+            ws.inboxProviderId,
+            inboxTask.agentmailMessageId
+          )
+          attachments = fullMessage.attachments || []
+        } catch (attachErr) {
+          logger.warn('Failed to fetch attachment metadata', { taskId, attachErr })
+        }
       }
+      const fileAttachments = await downloadAttachmentContents(
+        attachments,
+        ws.inboxProviderId,
+        inboxTask.agentmailMessageId,
+        taskId
+      )
+      return { attachments, fileAttachments }
     }
+
+    const [attachmentResult, workspaceContext, integrationTools, userPermission] =
+      await Promise.all([
+        fetchAttachments(),
+        generateWorkspaceContext(ws.id, userId),
+        buildIntegrationToolSchemas(userId),
+        getUserEntityPermissions(userId, 'workspace', ws.id).catch(() => null),
+      ])
+    const { attachments, fileAttachments } = attachmentResult
 
     const truncatedTask = {
       ...inboxTask,
@@ -151,12 +170,6 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       bodyHtml: inboxTask.bodyHtml?.substring(0, MAX_BODY_LENGTH) ?? null,
     }
     const messageContent = formatEmailAsMessage(truncatedTask, attachments)
-
-    const [workspaceContext, integrationTools, userPermission] = await Promise.all([
-      generateWorkspaceContext(ws.id, userId),
-      buildIntegrationToolSchemas(userId),
-      getUserEntityPermissions(userId, 'workspace', ws.id).catch(() => null),
-    ])
 
     const userMessageId = crypto.randomUUID()
     const requestPayload: Record<string, unknown> = {
@@ -169,6 +182,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       workspaceContext,
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
       ...(userPermission ? { userPermission } : {}),
+      ...(fileAttachments.length > 0 ? { fileAttachments } : {}),
     }
 
     const result = await orchestrateCopilotStream(requestPayload, {
@@ -333,4 +347,65 @@ async function markTaskFailed(taskId: string, errorMessage: string): Promise<voi
       completedAt: new Date(),
     })
     .where(eq(mothershipInboxTask.id, taskId))
+}
+
+const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024
+
+/**
+ * Download attachment content from AgentMail and convert to file content objects
+ * that the orchestrator can pass to the LLM as multimodal content.
+ */
+async function downloadAttachmentContents(
+  attachments: AgentMailAttachment[],
+  inboxProviderId: string | null,
+  messageId: string | null,
+  taskId: string
+): Promise<Array<MessageContent & { filename: string }>> {
+  if (!inboxProviderId || !messageId || attachments.length === 0) return []
+
+  const eligible = attachments.filter((a) => {
+    if (a.size > MAX_ATTACHMENT_SIZE) {
+      logger.info('Skipping large attachment', { taskId, filename: a.filename, size: a.size })
+      return false
+    }
+    return true
+  })
+
+  const settled = await Promise.allSettled(
+    eligible.map(async (attachment) => {
+      const arrayBuffer = await agentmail.getAttachment(
+        inboxProviderId,
+        messageId,
+        attachment.attachment_id
+      )
+      const buffer = Buffer.from(arrayBuffer)
+      const fileContent = createFileContent(buffer, attachment.content_type)
+      if (!fileContent) return null
+      return { ...fileContent, filename: attachment.filename }
+    })
+  )
+
+  const results: Array<MessageContent & { filename: string }> = []
+  for (let i = 0; i < settled.length; i++) {
+    const outcome = settled[i]
+    if (outcome.status === 'fulfilled' && outcome.value) {
+      results.push(outcome.value)
+    } else if (outcome.status === 'rejected') {
+      const attachment = eligible[i]
+      logger.warn('Failed to download attachment', {
+        taskId,
+        attachmentId: attachment.attachment_id,
+        filename: attachment.filename,
+        error: outcome.reason instanceof Error ? outcome.reason.message : 'Unknown error',
+      })
+    }
+  }
+
+  logger.info('Downloaded attachment contents', {
+    taskId,
+    total: attachments.length,
+    downloaded: results.length,
+  })
+
+  return results
 }
