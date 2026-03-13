@@ -925,6 +925,7 @@ import {
   grainListMeetingTypesTool,
   grainListRecordingsTool,
   grainListTeamsTool,
+  grainListViewsTool,
 } from '@/tools/grain'
 import {
   greenhouseGetApplicationTool,
@@ -3154,6 +3155,7 @@ export const tools: Record<string, ToolConfig> = {
   grain_get_transcript: grainGetTranscriptTool,
   grain_list_teams: grainListTeamsTool,
   grain_list_meeting_types: grainListMeetingTypesTool,
+  grain_list_views: grainListViewsTool,
   grain_create_hook: grainCreateHookTool,
   grain_list_hooks: grainListHooksTool,
   grain_delete_hook: grainDeleteHookTool,

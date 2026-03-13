@@ -191,6 +191,32 @@ export async function handleProviderChallenges(
 }
 
 /**
+ * Returns a verification response for provider reachability probes that happen
+ * before a webhook row exists and therefore before provider lookup is possible.
+ */
+export function handlePreLookupWebhookVerification(
+  method: string,
+  body: Record<string, unknown> | undefined,
+  requestId: string,
+  path: string
+): NextResponse | null {
+  const isVerificationProbe =
+    method === 'GET' ||
+    method === 'HEAD' ||
+    (method === 'POST' && (!body || Object.keys(body).length === 0))
+
+  if (!isVerificationProbe) {
+    return null
+  }
+
+  logger.info(
+    `[${requestId}] Returning 200 for pre-lookup webhook verification probe on path: ${path}`
+  )
+
+  return NextResponse.json({ status: 'ok', message: 'Webhook endpoint verified' })
+}
+
+/**
  * Handle provider-specific reachability tests that occur AFTER webhook lookup.
  *
  * @param webhook - The webhook record from the database

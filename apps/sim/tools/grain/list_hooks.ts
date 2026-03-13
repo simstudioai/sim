@@ -17,12 +17,11 @@ export const grainListHooksTool: ToolConfig<GrainListHooksParams, GrainListHooks
   },
 
   request: {
-    url: 'https://api.grain.com/_/public-api/v2/hooks',
-    method: 'POST',
+    url: 'https://api.grain.com/_/public-api/hooks',
+    method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
-      'Public-Api-Version': '2025-10-31',
     }),
   },
 
@@ -51,9 +50,8 @@ export const grainListHooksTool: ToolConfig<GrainListHooksParams, GrainListHooks
           id: { type: 'string', description: 'Hook UUID' },
           enabled: { type: 'boolean', description: 'Whether hook is active' },
           hook_url: { type: 'string', description: 'Webhook URL' },
-          hook_type: { type: 'string', description: 'Type: recording_added or upload_status' },
-          filter: { type: 'object', description: 'Applied filters' },
-          include: { type: 'object', description: 'Included fields' },
+          view_id: { type: 'string', description: 'Grain view ID' },
+          actions: { type: 'array', description: 'Configured actions' },
           inserted_at: { type: 'string', description: 'Creation timestamp' },
         },
       },

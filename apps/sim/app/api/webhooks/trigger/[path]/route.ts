@@ -5,6 +5,7 @@ import {
   checkWebhookPreprocessing,
   findAllWebhooksForPath,
   handlePreDeploymentVerification,
+  handlePreLookupWebhookVerification,
   handleProviderChallenges,
   handleProviderReachabilityTest,
   parseWebhookBody,
@@ -30,7 +31,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return challengeResponse
   }
 
-  return new NextResponse('Method not allowed', { status: 405 })
+  return handlePreLookupWebhookVerification(
+    request.method,
+    undefined,
+    requestId,
+    path
+  ) as NextResponse
 }
 
 export async function POST(
@@ -64,6 +70,16 @@ export async function POST(
   const webhooksForPath = await findAllWebhooksForPath({ requestId, path })
 
   if (webhooksForPath.length === 0) {
+    const verificationResponse = handlePreLookupWebhookVerification(
+      request.method,
+      body,
+      requestId,
+      path
+    )
+    if (verificationResponse) {
+      return verificationResponse
+    }
+
     logger.warn(`[${requestId}] Webhook or workflow not found for path: ${path}`)
     return new NextResponse('Not Found', { status: 404 })
   }

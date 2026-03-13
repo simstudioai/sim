@@ -353,7 +353,7 @@ vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
 
-import { POST } from '@/app/api/webhooks/trigger/[path]/route'
+import { GET, POST } from '@/app/api/webhooks/trigger/[path]/route'
 
 describe('Webhook Trigger API Route', () => {
   beforeEach(() => {
@@ -399,6 +399,44 @@ describe('Webhook Trigger API Route', () => {
 
     const text = await response.text()
     expect(text).toMatch(/not found/i)
+  })
+
+  it('should return 200 for GET verification probes before webhook persistence', async () => {
+    const req = createMockRequest(
+      'GET',
+      undefined,
+      {},
+      'http://localhost:3000/api/webhooks/trigger/non-existent-path'
+    )
+
+    const params = Promise.resolve({ path: 'non-existent-path' })
+
+    const response = await GET(req as any, { params })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      status: 'ok',
+      message: 'Webhook endpoint verified',
+    })
+  })
+
+  it('should return 200 for empty POST verification probes before webhook persistence', async () => {
+    const req = createMockRequest(
+      'POST',
+      undefined,
+      {},
+      'http://localhost:3000/api/webhooks/trigger/non-existent-path'
+    )
+
+    const params = Promise.resolve({ path: 'non-existent-path' })
+
+    const response = await POST(req as any, { params })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      status: 'ok',
+      message: 'Webhook endpoint verified',
+    })
   })
 
   describe('Generic Webhook Authentication', () => {

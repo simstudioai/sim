@@ -26,6 +26,19 @@ export const grainStoryCreatedTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'viewId',
+      title: 'View ID',
+      type: 'short-input',
+      placeholder: 'Enter Grain story view UUID',
+      description: 'Required by Grain to create the webhook subscription.',
+      required: true,
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'grain_story_created',
+      },
+    },
+    {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
