@@ -34,6 +34,7 @@ import {
   parseWorkflowJson,
 } from '@/lib/workflows/operations/import-export'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
@@ -235,13 +236,14 @@ async function importSingleWorkflow(
     const { color: workflowColor } = extractWorkflowMetadata(parsedContent)
     const workflowId = crypto.randomUUID()
     const now = new Date()
+    const dedupedName = await deduplicateWorkflowName(workflowName, workspaceId, targetFolderId)
 
     await db.insert(workflow).values({
       id: workflowId,
       userId: ownerId,
       workspaceId,
       folderId: targetFolderId,
-      name: workflowName,
+      name: dedupedName,
       description: workflowData.metadata?.description || 'Imported via Admin API',
       color: workflowColor,
       lastSynced: now,
@@ -258,7 +260,7 @@ async function importSingleWorkflow(
       await db.delete(workflow).where(eq(workflow.id, workflowId))
       return {
         workflowId: '',
-        name: workflowName,
+        name: dedupedName,
         success: false,
         error: `Failed to save state: ${saveResult.error}`,
       }
@@ -284,7 +286,7 @@ async function importSingleWorkflow(
 
     return {
       workflowId,
-      name: workflowName,
+      name: dedupedName,
       success: true,
     }
   } catch (error) {

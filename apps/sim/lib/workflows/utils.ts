@@ -50,6 +50,59 @@ export async function listWorkflows(workspaceId: string, options?: { scope?: Wor
     .orderBy(asc(workflowTable.sortOrder), asc(workflowTable.createdAt))
 }
 
+/**
+ * Generates a unique workflow name within a workspace+folder scope.
+ * If the name already exists among active workflows, appends (2), (3), etc.
+ */
+export async function deduplicateWorkflowName(
+  name: string,
+  workspaceId: string,
+  folderId: string | null | undefined
+): Promise<string> {
+  const folderCondition = folderId
+    ? eq(workflowTable.folderId, folderId)
+    : isNull(workflowTable.folderId)
+
+  const [existing] = await db
+    .select({ id: workflowTable.id })
+    .from(workflowTable)
+    .where(
+      and(
+        eq(workflowTable.workspaceId, workspaceId),
+        folderCondition,
+        eq(workflowTable.name, name),
+        isNull(workflowTable.archivedAt)
+      )
+    )
+    .limit(1)
+
+  if (!existing) {
+    return name
+  }
+
+  for (let i = 2; i < 100; i++) {
+    const candidate = `${name} (${i})`
+    const [dup] = await db
+      .select({ id: workflowTable.id })
+      .from(workflowTable)
+      .where(
+        and(
+          eq(workflowTable.workspaceId, workspaceId),
+          folderCondition,
+          eq(workflowTable.name, candidate),
+          isNull(workflowTable.archivedAt)
+        )
+      )
+      .limit(1)
+
+    if (!dup) {
+      return candidate
+    }
+  }
+
+  return `${name} (${crypto.randomUUID().slice(0, 6)})`
+}
+
 export async function resolveWorkflowIdForUser(
   userId: string,
   workflowId?: string,

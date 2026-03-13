@@ -12,6 +12,7 @@ import {
   type RegenerateStateInput,
   regenerateWorkflowStateIds,
 } from '@/lib/workflows/persistence/utils'
+import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('TemplateUseAPI')
@@ -109,14 +110,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return mapped
     })()
 
-    // Step 1: Create the workflow record (like imports do)
+    const rawName =
+      connectToTemplate && !templateData.workflowId
+        ? templateData.name
+        : `${templateData.name} (copy)`
+    const dedupedName = await deduplicateWorkflowName(rawName, workspaceId, null)
+
     await db.insert(workflow).values({
       id: newWorkflowId,
       workspaceId: workspaceId,
-      name:
-        connectToTemplate && !templateData.workflowId
-          ? templateData.name
-          : `${templateData.name} (copy)`,
+      name: dedupedName,
       description: (templateData.details as TemplateDetails | null)?.tagline || null,
       userId: session.user.id,
       variables: remappedVariables, // Remap variable IDs and workflowId for the new workflow

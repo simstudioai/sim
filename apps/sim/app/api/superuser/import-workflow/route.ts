@@ -11,6 +11,7 @@ import {
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { sanitizeForExport } from '@/lib/workflows/sanitization/json-sanitizer'
+import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 
 const logger = createLogger('SuperUserImportWorkflow')
 
@@ -119,13 +120,18 @@ export async function POST(request: NextRequest) {
     // Create new workflow record
     const newWorkflowId = crypto.randomUUID()
     const now = new Date()
+    const dedupedName = await deduplicateWorkflowName(
+      `[Debug Import] ${sourceWorkflow.name}`,
+      targetWorkspaceId,
+      null
+    )
 
     await db.insert(workflow).values({
       id: newWorkflowId,
       userId: session.user.id,
       workspaceId: targetWorkspaceId,
-      folderId: null, // Don't copy folder association
-      name: `[Debug Import] ${sourceWorkflow.name}`,
+      folderId: null,
+      name: dedupedName,
       description: sourceWorkflow.description,
       color: sourceWorkflow.color,
       lastSynced: now,
