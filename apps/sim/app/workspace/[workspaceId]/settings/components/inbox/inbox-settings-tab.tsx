@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { createLogger } from '@sim/logger'
 import { Check, Clipboard, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -24,8 +23,6 @@ import {
   useUpdateInboxAddress,
 } from '@/hooks/queries/inbox'
 
-const logger = createLogger('InboxSettingsTab')
-
 export function InboxSettingsTab() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -45,6 +42,7 @@ export function InboxSettingsTab() {
   const [newUsername, setNewUsername] = useState('')
   const [editAddressError, setEditAddressError] = useState<string | null>(null)
 
+  const [removeSenderError, setRemoveSenderError] = useState<string | null>(null)
   const [copiedAddress, setCopiedAddress] = useState(false)
 
   const handleCopyAddress = useCallback(() => {
@@ -86,10 +84,11 @@ export function InboxSettingsTab() {
 
   const handleRemoveSender = useCallback(
     async (senderId: string) => {
+      setRemoveSenderError(null)
       try {
         await removeSender.mutateAsync({ workspaceId, senderId })
       } catch (error) {
-        logger.error('Failed to remove sender', { error })
+        setRemoveSenderError(error instanceof Error ? error.message : 'Failed to remove sender')
       }
     },
     [workspaceId]
@@ -217,6 +216,12 @@ export function InboxSettingsTab() {
               </>
             )}
           </div>
+
+          {removeSenderError && (
+            <p className='px-[12px] text-[13px] text-[var(--text-error)] leading-tight'>
+              {removeSenderError}
+            </p>
+          )}
 
           <Button
             variant='ghost'

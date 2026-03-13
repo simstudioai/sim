@@ -62,13 +62,13 @@ export async function createInbox(opts: {
 }
 
 export async function deleteInbox(inboxId: string): Promise<void> {
-  return request<void>(`/inboxes/${inboxId}`, {
+  return request<void>(`/inboxes/${encodeURIComponent(inboxId)}`, {
     method: 'DELETE',
   })
 }
 
 export async function getInbox(inboxId: string): Promise<AgentMailInbox> {
-  return request<AgentMailInbox>(`/inboxes/${inboxId}`)
+  return request<AgentMailInbox>(`/inboxes/${encodeURIComponent(inboxId)}`)
 }
 
 export async function createWebhook(opts: {
@@ -87,7 +87,7 @@ export async function createWebhook(opts: {
 }
 
 export async function deleteWebhook(webhookId: string): Promise<void> {
-  return request<void>(`/webhooks/${webhookId}`, {
+  return request<void>(`/webhooks/${encodeURIComponent(webhookId)}`, {
     method: 'DELETE',
   })
 }
@@ -102,19 +102,24 @@ export async function replyToMessage(
     attachments?: AgentMailAttachment[]
   }
 ): Promise<AgentMailReplyResponse> {
-  return request<AgentMailReplyResponse>(`/inboxes/${inboxId}/messages/${messageId}/reply`, {
-    method: 'POST',
-    body: JSON.stringify({
-      text: opts.text,
-      html: opts.html,
-      to: opts.to,
-      attachments: opts.attachments,
-    }),
-  })
+  return request<AgentMailReplyResponse>(
+    `/inboxes/${encodeURIComponent(inboxId)}/messages/${encodeURIComponent(messageId)}/reply`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        text: opts.text,
+        html: opts.html,
+        to: opts.to,
+        attachments: opts.attachments,
+      }),
+    }
+  )
 }
 
 export async function getMessage(inboxId: string, messageId: string): Promise<AgentMailMessage> {
-  return request<AgentMailMessage>(`/inboxes/${inboxId}/messages/${messageId}`)
+  return request<AgentMailMessage>(
+    `/inboxes/${encodeURIComponent(inboxId)}/messages/${encodeURIComponent(messageId)}`
+  )
 }
 
 export async function getAttachment(
@@ -122,7 +127,7 @@ export async function getAttachment(
   messageId: string,
   attachmentId: string
 ): Promise<ArrayBuffer> {
-  const path = `/inboxes/${inboxId}/messages/${messageId}/attachments/${attachmentId}`
+  const path = `/inboxes/${encodeURIComponent(inboxId)}/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`
   return requestRaw(path)
 }
 

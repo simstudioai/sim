@@ -176,7 +176,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       interactive: false,
     })
 
-    const cleanContent = stripThinkingTags(result.content)
+    const cleanContent = stripThinkingTags(result.content || '')
 
     if (chatId) {
       await persistChatMessages(chatId, userId, userMessageId, messageContent, {
