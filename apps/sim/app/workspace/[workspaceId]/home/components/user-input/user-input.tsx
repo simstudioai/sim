@@ -32,7 +32,17 @@ type WindowWithSpeech = Window & {
 }
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUp, AtSign, ChevronRight, Folder, Loader2, Mic, Paperclip, Plus, X } from 'lucide-react'
+import {
+  ArrowUp,
+  AtSign,
+  ChevronRight,
+  Folder,
+  Loader2,
+  Mic,
+  Paperclip,
+  Plus,
+  X,
+} from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import {
@@ -66,7 +76,15 @@ import {
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
-import { ContextPills } from './components'
+import {
+  type AvailableItem,
+  useAvailableResources,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
+import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import type {
+  MothershipResource,
+  MothershipResourceType,
+} from '@/app/workspace/[workspaceId]/home/types'
 import {
   useCaretViewport,
   useContextManagement,
@@ -78,17 +96,12 @@ import {
   computeMentionHighlightRanges,
   extractContextTokens,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
-import type { ChatContext } from '@/stores/panel'
-import {
-  useAvailableResources,
-  type AvailableItem,
-} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
-import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
-import type { MothershipResource, MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 import { useFolders } from '@/hooks/queries/folders'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
+import type { ChatContext } from '@/stores/panel'
 import { useAnimatedPlaceholder } from '../../hooks'
+import { ContextPills } from './components'
 
 const TEXTAREA_BASE_CLASSES = cn(
   'm-0 box-border h-auto min-h-[24px] w-full resize-none',
@@ -184,9 +197,7 @@ function ResourceMentionMenu({
       )
     }
     // When no query, show all items flat
-    return availableResources.flatMap(({ type, items }) =>
-      items.map((item) => ({ type, item }))
-    )
+    return availableResources.flatMap(({ type, items }) => items.map((item) => ({ type, item })))
   }, [availableResources, query])
 
   // Reset active index when query changes
@@ -263,7 +274,9 @@ function ResourceMentionMenu({
                   onClick={() => handleSelect({ type, id: item.id, title: item.name })}
                   className={cn(
                     'flex cursor-pointer items-center gap-[8px] px-[8px] py-[6px] text-[13px]',
-                    index === activeIndex ? 'bg-[var(--surface-active)]' : 'hover:bg-[var(--surface-active)]'
+                    index === activeIndex
+                      ? 'bg-[var(--surface-active)]'
+                      : 'hover:bg-[var(--surface-active)]'
                   )}
                 >
                   {config.renderDropdownItem({ item })}
@@ -292,7 +305,13 @@ interface ResourceTypeFolderProps {
   onSelect: (resource: MothershipResource) => void
 }
 
-function ResourceTypeFolder({ type, items, config, workspaceId, onSelect }: ResourceTypeFolderProps) {
+function ResourceTypeFolder({
+  type,
+  items,
+  config,
+  workspaceId,
+  onSelect,
+}: ResourceTypeFolderProps) {
   const [expanded, setExpanded] = useState(false)
   const Icon = config.icon
 
@@ -578,7 +597,11 @@ export interface FileAttachmentForApi {
 
 interface UserInputProps {
   defaultValue?: string
-  onSubmit: (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => void
+  onSubmit: (
+    text: string,
+    fileAttachments?: FileAttachmentForApi[],
+    contexts?: ChatContext[]
+  ) => void
   isSending: boolean
   onStopGeneration: () => void
   isInitialView?: boolean
@@ -608,7 +631,11 @@ export function UserInput({
   const animatedPlaceholder = useAnimatedPlaceholder(isInitialView)
   const placeholder = isInitialView ? animatedPlaceholder : 'Send message to Sim'
 
-  const files = useFileAttachments({ userId: userId || session?.user?.id, disabled: false, isLoading: isSending })
+  const files = useFileAttachments({
+    userId: userId || session?.user?.id,
+    disabled: false,
+    isLoading: isSending,
+  })
   const hasFiles = files.attachedFiles.some((f) => !f.uploading && f.key)
 
   const contextManagement = useContextManagement({ message: value })
@@ -709,10 +736,13 @@ export function UserInput({
     }
   }, [isInitialView, textareaRef])
 
-  const handleContainerClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).closest('button')) return
-    textareaRef.current?.focus()
-  }, [textareaRef])
+  const handleContainerClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if ((e.target as HTMLElement).closest('button')) return
+      textareaRef.current?.focus()
+    },
+    [textareaRef]
+  )
 
   const handleSubmit = useCallback(() => {
     const fileAttachmentsForApi: FileAttachmentForApi[] = files.attachedFiles
@@ -865,7 +895,6 @@ export function UserInput({
     },
     [isInitialView]
   )
-
 
   const toggleListening = useCallback(() => {
     if (isListening) {
@@ -1090,7 +1119,9 @@ export function UserInput({
               onClose={() => {
                 mentionMenu.closeMentionMenu()
               }}
-              query={mentionMenu.getActiveMentionQueryAtPosition(mentionMenu.getCaretPos())?.query ?? ''}
+              query={
+                mentionMenu.getActiveMentionQueryAtPosition(mentionMenu.getCaretPos())?.query ?? ''
+              }
             />,
             document.body
           )}

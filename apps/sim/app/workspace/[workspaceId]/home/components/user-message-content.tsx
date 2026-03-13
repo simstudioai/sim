@@ -1,8 +1,7 @@
 'use client'
 
-import { cn } from '@/lib/core/utils/cn'
-import type { ChatMessageContext } from '../types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import type { ChatMessageContext } from '../types'
 
 interface UserMessageContentProps {
   content: string
@@ -48,15 +47,10 @@ function MentionHighlight({ context, token }: { context: ChatMessageContext; tok
     return null
   })
 
-  const bgColor = workflowColor
-    ? `${workflowColor}40`
-    : 'rgba(50, 189, 126, 0.4)'
+  const bgColor = workflowColor ? `${workflowColor}40` : 'rgba(50, 189, 126, 0.4)'
 
   return (
-    <span
-      className='rounded-[4px] py-[1px] px-[2px]'
-      style={{ backgroundColor: bgColor }}
-    >
+    <span className='rounded-[4px] px-[2px] py-[1px]' style={{ backgroundColor: bgColor }}>
       {token}
     </span>
   )

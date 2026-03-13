@@ -20,11 +20,11 @@ import {
   taskKeys,
   useChatHistory,
 } from '@/hooks/queries/tasks'
-import type { ChatContext } from '@/stores/panel'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useFolderStore } from '@/stores/folders/store'
+import type { ChatContext } from '@/stores/panel'
 import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { invalidateResourceQueries } from '../components/mothership-view/components/resource-registry'
@@ -46,7 +46,11 @@ export interface UseChatReturn {
   isSending: boolean
   error: string | null
   resolvedChatId: string | undefined
-  sendMessage: (message: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => Promise<void>
+  sendMessage: (
+    message: string,
+    fileAttachments?: FileAttachmentForApi[],
+    contexts?: ChatContext[]
+  ) => Promise<void>
   stopGeneration: () => Promise<void>
   resources: MothershipResource[]
   activeResourceId: string | null

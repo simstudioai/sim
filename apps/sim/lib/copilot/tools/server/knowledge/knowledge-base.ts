@@ -3,7 +3,7 @@ import { knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { generateInternalToken } from '@/lib/auth/internal'
-import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
+import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import type { KnowledgeBaseArgs, KnowledgeBaseResult } from '@/lib/copilot/tools/shared/schemas'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import {
@@ -40,7 +40,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
   name: 'knowledge_base',
   async execute(
     params: KnowledgeBaseArgs,
-    context?: { userId: string }
+    context?: ServerToolContext
   ): Promise<KnowledgeBaseResult> {
     if (!context?.userId) {
       logger.error('Unauthorized attempt to access knowledge base - no authenticated user context')
@@ -48,6 +48,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
     }
 
     const { operation, args = {} } = params
+    const workspaceId =
+      context.workspaceId || ((args as Record<string, unknown>).workspaceId as string | undefined)
 
     try {
       switch (operation) {
@@ -59,7 +61,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          if (!args.workspaceId) {
+          if (!workspaceId) {
             return {
               success: false,
               message: 'Workspace ID is required for creating a knowledge base',
@@ -71,7 +73,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             {
               name: args.name,
               description: args.description,
-              workspaceId: args.workspaceId,
+              workspaceId,
               userId: context.userId,
               embeddingModel: 'text-embedding-3-small',
               embeddingDimension: 1536,
