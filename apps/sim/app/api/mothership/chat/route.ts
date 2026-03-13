@@ -55,6 +55,8 @@ const MothershipMessageSchema = z.object({
           'knowledge',
           'templates',
           'docs',
+          'table',
+          'file',
         ]),
         label: z.string(),
         chatId: z.string().optional(),
@@ -64,6 +66,8 @@ const MothershipMessageSchema = z.object({
         blockIds: z.array(z.string()).optional(),
         templateId: z.string().optional(),
         executionId: z.string().optional(),
+        tableId: z.string().optional(),
+        fileId: z.string().optional(),
       })
     )
     .optional(),
