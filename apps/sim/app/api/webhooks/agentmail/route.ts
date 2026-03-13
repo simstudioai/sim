@@ -60,16 +60,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true })
     }
 
-    if (result.webhookSecret && svixId && svixTimestamp && svixSignature) {
-      if (
-        !verifySvixSignature(rawBody, svixId, svixTimestamp, svixSignature, result.webhookSecret)
-      ) {
-        logger.warn('Webhook signature verification failed', { workspaceId: result.id })
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
-      }
-    } else if (result.webhookSecret) {
+    if (!result.webhookSecret) {
+      logger.warn('No webhook secret found for workspace, rejecting', { workspaceId: result.id })
+      return NextResponse.json({ error: 'Webhook not configured' }, { status: 401 })
+    }
+
+    if (!svixId || !svixTimestamp || !svixSignature) {
       logger.warn('Webhook missing Svix headers, rejecting', { workspaceId: result.id })
       return NextResponse.json({ error: 'Missing signature headers' }, { status: 401 })
+    }
+
+    if (!verifySvixSignature(rawBody, svixId, svixTimestamp, svixSignature, result.webhookSecret)) {
+      logger.warn('Webhook signature verification failed', { workspaceId: result.id })
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
     }
 
     if (!result.inboxEnabled) {
