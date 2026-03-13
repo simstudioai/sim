@@ -729,6 +729,14 @@ import {
 } from '@/tools/gong'
 import { googleSearchTool } from '@/tools/google'
 import {
+  googleAdsAdPerformanceTool,
+  googleAdsCampaignPerformanceTool,
+  googleAdsListAdGroupsTool,
+  googleAdsListCampaignsTool,
+  googleAdsListCustomersTool,
+  googleAdsSearchTool,
+} from '@/tools/google_ads'
+import {
   googleBigQueryGetTableTool,
   googleBigQueryInsertRowsTool,
   googleBigQueryListDatasetsTool,
@@ -4038,6 +4046,12 @@ export const tools: Record<string, ToolConfig> = {
   wordpress_list_users: wordpressListUsersTool,
   wordpress_get_user: wordpressGetUserTool,
   wordpress_search_content: wordpressSearchContentTool,
+  google_ads_list_customers: googleAdsListCustomersTool,
+  google_ads_search: googleAdsSearchTool,
+  google_ads_list_campaigns: googleAdsListCampaignsTool,
+  google_ads_campaign_performance: googleAdsCampaignPerformanceTool,
+  google_ads_list_ad_groups: googleAdsListAdGroupsTool,
+  google_ads_ad_performance: googleAdsAdPerformanceTool,
   google_bigquery_query: googleBigQueryQueryTool,
   google_bigquery_list_datasets: googleBigQueryListDatasetsTool,
   google_bigquery_list_tables: googleBigQueryListTablesTool,
