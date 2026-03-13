@@ -20,6 +20,7 @@ import {
   createSchedulesForDeploy,
   validateWorkflowSchedules,
 } from '@/lib/workflows/schedules'
+import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -132,6 +133,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const normalizedData = await loadWorkflowFromNormalizedTables(id)
     if (!normalizedData) {
       return createErrorResponse('Failed to load workflow state', 500)
+    }
+
+    // Validate workflow state (block types, edges, tool references)
+    const workflowValidation = validateWorkflowState({
+      blocks: normalizedData.blocks,
+      edges: normalizedData.edges,
+      loops: normalizedData.loops,
+      parallels: normalizedData.parallels,
+      variables: {},
+    } as WorkflowState)
+    if (!workflowValidation.valid) {
+      const errorSummary = workflowValidation.errors.join('; ')
+      logger.warn(
+        `[${requestId}] Workflow validation failed for ${id}: ${errorSummary}`
+      )
+      return createErrorResponse(`Workflow validation failed: ${errorSummary}`, 400)
     }
 
     const scheduleValidation = validateWorkflowSchedules(normalizedData.blocks)
