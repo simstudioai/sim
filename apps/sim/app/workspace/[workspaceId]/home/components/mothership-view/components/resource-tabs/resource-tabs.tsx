@@ -12,11 +12,13 @@ import {
   Button,
   Tooltip,
 } from '@/components/emcn'
-import { BookOpen, PanelLeft, Table as TableIcon } from '@/components/emcn/icons'
-import { WorkflowIcon } from '@/components/icons'
-import { getDocumentIcon } from '@/components/icons/document-icons'
+import { PanelLeft } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
+import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
+import { useTablesList } from '@/hooks/queries/tables'
 import { useAddChatResource, useRemoveChatResource, useReorderChatResources } from '@/hooks/queries/tasks'
+import { useWorkflows } from '@/hooks/queries/workflows'
+import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import type {
   MothershipResource,
@@ -57,6 +59,26 @@ function PreviewModeIcon({ mode, ...props }: { mode: PreviewMode } & SVGProps<SV
 const EDGE_ZONE = 40
 const SCROLL_SPEED = 8
 
+/**
+ * Builds a `type:id` -> current name lookup from live query data so resource
+ * tabs always reflect the latest name even after a rename.
+ */
+function useResourceNameLookup(workspaceId: string): Map<string, string> {
+  const { data: workflows = [] } = useWorkflows(workspaceId, { syncRegistry: false })
+  const { data: tables = [] } = useTablesList(workspaceId)
+  const { data: files = [] } = useWorkspaceFiles(workspaceId)
+  const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId)
+
+  return useMemo(() => {
+    const map = new Map<string, string>()
+    for (const w of workflows) map.set(`workflow:${w.id}`, w.name)
+    for (const t of tables) map.set(`table:${t.id}`, t.name)
+    for (const f of files) map.set(`file:${f.id}`, f.name)
+    for (const kb of knowledgeBases ?? []) map.set(`knowledgebase:${kb.id}`, kb.name)
+    return map
+  }, [workflows, tables, files, knowledgeBases])
+}
+
 interface ResourceTabsProps {
   workspaceId: string
   chatId?: string
@@ -86,6 +108,7 @@ export function ResourceTabs({
   onCyclePreviewMode,
   actions,
 }: ResourceTabsProps) {
+  const nameLookup = useResourceNameLookup(workspaceId)
   const scrollNodeRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -274,6 +297,7 @@ export function ResourceTabs({
       >
         {resources.map((resource, idx) => {
           const config = getResourceConfig(resource.type)
+          const displayName = nameLookup.get(`${resource.type}:${resource.id}`) ?? resource.title
           const isActive = activeId === resource.id
           const isHovered = hoveredTabId === resource.id
           const isDragging = draggedIdx === idx
@@ -310,7 +334,7 @@ export function ResourceTabs({
                     )}
                   >
                     {config.renderTabIcon(resource, 'mr-[6px] h-[14px] w-[14px]')}
-                    {resource.title}
+                    {displayName}
                     {(isHovered || isActive) && chatId && (
                       <span
                         role='button'
@@ -318,7 +342,7 @@ export function ResourceTabs({
                         onClick={(e) => handleRemove(e, resource)}
                         onKeyDown={(e) => { if (e.key === 'Enter') handleRemove(e as unknown as React.MouseEvent, resource) }}
                         className='absolute right-[4px] top-1/2 flex -translate-y-1/2 items-center justify-center rounded-[4px] p-[1px] hover:bg-[var(--surface-5)]'
-                        aria-label={`Close ${resource.title}`}
+                        aria-label={`Close ${displayName}`}
                       >
                         <svg className='h-[10px] w-[10px] text-[var(--text-tertiary)]' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'>
                           <path d='M18 6 6 18M6 6l12 12' />
@@ -328,7 +352,7 @@ export function ResourceTabs({
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='bottom'>
-                  <p>{resource.title}</p>
+                  <p>{displayName}</p>
                 </Tooltip.Content>
               </Tooltip.Root>
               {showGapAfter && (
