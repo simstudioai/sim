@@ -104,8 +104,6 @@ export type ChatContext =
   | { kind: 'table'; tableId: string; label: string }
   | { kind: 'file'; fileId: string; label: string }
   | { kind: 'templates'; templateId?: string; label: string }
-  | { kind: 'table'; tableId: string; label: string }
-  | { kind: 'file'; fileId: string; label: string }
   | { kind: 'docs'; label: string }
   | { kind: 'slash_command'; command: string; label: string }
 

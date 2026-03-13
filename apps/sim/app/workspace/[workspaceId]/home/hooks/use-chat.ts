@@ -775,6 +775,8 @@ export function useChat(
         label: c.label,
         ...('workflowId' in c && c.workflowId ? { workflowId: c.workflowId } : {}),
         ...('knowledgeId' in c && c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
+        ...('tableId' in c && c.tableId ? { tableId: c.tableId } : {}),
+        ...('fileId' in c && c.fileId ? { fileId: c.fileId } : {}),
       }))
 
       setMessages((prev) => [
