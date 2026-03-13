@@ -367,6 +367,7 @@ export function ResourceTabs({
           workspaceId={workspaceId}
           existingKeys={existingKeys}
           onAdd={handleAdd}
+          onSwitch={onSelect}
         />
       )}
       {(actions || (previewMode && onCyclePreviewMode)) && (

@@ -38,9 +38,10 @@ export interface AddResourceDropdownProps {
   workspaceId: string
   existingKeys: Set<string>
   onAdd: (resource: MothershipResource) => void
+  onSwitch?: (resourceId: string) => void
 }
 
-export type AvailableItem = { id: string; name: string; [key: string]: unknown }
+export type AvailableItem = { id: string; name: string; isOpen?: boolean; [key: string]: unknown }
 
 interface AvailableItemsByType {
   type: MothershipResourceType
@@ -63,26 +64,22 @@ export function useAvailableResources(workspaceId: string, existingKeys: Set<str
     {
       type: 'workflow' as const,
       items: workflows
-        .filter((w) => !existingKeys.has(`workflow:${w.id}`))
-        .map((w) => ({ id: w.id, name: w.name, color: w.color, folderId: w.folderId })),
+        .map((w) => ({ id: w.id, name: w.name, color: w.color, folderId: w.folderId, isOpen: existingKeys.has(`workflow:${w.id}`) })),
     },
     {
       type: 'table' as const,
       items: tables
-        .filter((t) => !existingKeys.has(`table:${t.id}`))
-        .map((t) => ({ id: t.id, name: t.name })),
+        .map((t) => ({ id: t.id, name: t.name, isOpen: existingKeys.has(`table:${t.id}`) })),
     },
     {
       type: 'file' as const,
       items: files
-        .filter((f) => !existingKeys.has(`file:${f.id}`))
-        .map((f) => ({ id: f.id, name: f.name })),
+        .map((f) => ({ id: f.id, name: f.name, isOpen: existingKeys.has(`file:${f.id}`) })),
     },
     {
       type: 'knowledgebase' as const,
       items: (knowledgeBases ?? [])
-        .filter((kb) => !existingKeys.has(`knowledgebase:${kb.id}`))
-        .map((kb) => ({ id: kb.id, name: kb.name })),
+        .map((kb) => ({ id: kb.id, name: kb.name, isOpen: existingKeys.has(`knowledgebase:${kb.id}`) })),
     },
   ], [workflows, tables, files, knowledgeBases, existingKeys])
 }
@@ -234,7 +231,7 @@ function WorkflowSubmenuContent({
   )
 }
 
-export function AddResourceDropdown({ workspaceId, existingKeys, onAdd }: AddResourceDropdownProps) {
+export function AddResourceDropdown({ workspaceId, existingKeys, onAdd, onSwitch }: AddResourceDropdownProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const available = useAvailableResources(workspaceId, existingKeys)
@@ -248,12 +245,16 @@ export function AddResourceDropdown({ workspaceId, existingKeys, onAdd }: AddRes
   }, [])
 
   const select = useCallback(
-    (resource: MothershipResource) => {
-      onAdd(resource)
+    (resource: MothershipResource, isOpen?: boolean) => {
+      if (isOpen && onSwitch) {
+        onSwitch(resource.id)
+      } else {
+        onAdd(resource)
+      }
       setOpen(false)
       setSearch('')
     },
-    [onAdd]
+    [onAdd, onSwitch]
   )
 
   const query = search.trim().toLowerCase()
@@ -306,7 +307,7 @@ export function AddResourceDropdown({ workspaceId, existingKeys, onAdd }: AddRes
                 return (
                   <DropdownMenuItem
                     key={`${type}:${item.id}`}
-                    onClick={() => select({ type, id: item.id, title: item.name })}
+                    onClick={() => select({ type, id: item.id, title: item.name }, item.isOpen)}
                   >
                     {config.renderDropdownItem({ item })}
                     <span className='ml-auto pl-[8px] text-[11px] text-[var(--text-tertiary)]'>
@@ -337,13 +338,13 @@ export function AddResourceDropdown({ workspaceId, existingKeys, onAdd }: AddRes
                       workspaceId={workspaceId}
                       items={items}
                       config={config}
-                      onSelect={(item) => select({ type, id: item.id, title: item.name })}
+                      onSelect={(item) => select({ type, id: item.id, title: item.name }, item.isOpen)}
                     />
                   ) : items.length > 0 ? (
                     items.map((item) => (
                       <DropdownMenuItem
                         key={item.id}
-                        onClick={() => select({ type, id: item.id, title: item.name })}
+                        onClick={() => select({ type, id: item.id, title: item.name }, item.isOpen)}
                       >
                         {config.renderDropdownItem({ item })}
                       </DropdownMenuItem>
