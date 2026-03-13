@@ -14,6 +14,7 @@ import { linearConnector } from '@/connectors/linear'
 import { notionConnector } from '@/connectors/notion'
 import { obsidianConnector } from '@/connectors/obsidian'
 import { onedriveConnector } from '@/connectors/onedrive'
+import { outlookConnector } from '@/connectors/outlook'
 import { salesforceConnector } from '@/connectors/salesforce'
 import { sharepointConnector } from '@/connectors/sharepoint'
 import { slackConnector } from '@/connectors/slack'
@@ -38,6 +39,7 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   notion: notionConnector,
   obsidian: obsidianConnector,
   onedrive: onedriveConnector,
+  outlook: outlookConnector,
   salesforce: salesforceConnector,
   sharepoint: sharepointConnector,
   slack: slackConnector,
