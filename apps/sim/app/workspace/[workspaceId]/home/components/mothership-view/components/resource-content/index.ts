@@ -1,5 +1,1 @@
-export {
-  EmbeddedKnowledgeBaseActions,
-  EmbeddedWorkflowActions,
-  ResourceContent,
-} from './resource-content'
+export { ResourceActions, ResourceContent } from './resource-content'

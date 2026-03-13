@@ -4,15 +4,16 @@ import { useCallback, useRef, useState } from 'react'
 import { AlertCircle, Loader2 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Modal,
   ModalBody,
   ModalContent,
   ModalHeader,
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverItem,
 } from '@/components/emcn'
+import { Copy } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { Preview } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useExecutionSnapshot } from '@/hooks/queries/logs'
@@ -165,26 +166,33 @@ export function ExecutionSnapshot({
   const canvasContextMenu =
     typeof document !== 'undefined'
       ? createPortal(
-          <Popover
-            open={isMenuOpen}
-            onOpenChange={closeMenu}
-            variant='secondary'
-            size='sm'
-            colorScheme='inverted'
-          >
-            <PopoverAnchor
-              style={{
-                position: 'fixed',
-                left: `${menuPosition.x}px`,
-                top: `${menuPosition.y}px`,
-                width: '1px',
-                height: '1px',
-              }}
-            />
-            <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
-              <PopoverItem onClick={handleCopyExecutionId}>Copy Execution ID</PopoverItem>
-            </PopoverContent>
-          </Popover>,
+          <DropdownMenu open={isMenuOpen} onOpenChange={closeMenu} modal={false}>
+            <DropdownMenuTrigger asChild>
+              <div
+                style={{
+                  position: 'fixed',
+                  left: `${menuPosition.x}px`,
+                  top: `${menuPosition.y}px`,
+                  width: '1px',
+                  height: '1px',
+                  pointerEvents: 'none',
+                }}
+                tabIndex={-1}
+                aria-hidden
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align='start'
+              side='bottom'
+              sideOffset={4}
+              onCloseAutoFocus={(e) => e.preventDefault()}
+            >
+              <DropdownMenuItem onSelect={handleCopyExecutionId}>
+                <Copy />
+                Copy Execution ID
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>,
           document.body
         )
       : null

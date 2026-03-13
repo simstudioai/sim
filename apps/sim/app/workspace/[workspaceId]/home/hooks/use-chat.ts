@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
@@ -8,10 +8,9 @@ import {
   reportManualRunToolStop,
 } from '@/lib/copilot/client-sse/run-tool-execution'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
+import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resource-types'
 import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
-import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
-import { tableKeys, useTablesList } from '@/hooks/queries/tables'
 import {
   type TaskChatHistory,
   type TaskStoredContentBlock,
@@ -22,13 +21,12 @@ import {
   useChatHistory,
 } from '@/hooks/queries/tasks'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
-import { useWorkflows, workflowKeys } from '@/hooks/queries/workflows'
-import { useWorkspaceFiles, workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useFolderStore } from '@/stores/folders/store'
 import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { invalidateResourceQueries } from '../components/mothership-view/components/resource-registry'
 import type { FileAttachmentForApi } from '../components/user-input/user-input'
 import type {
   ChatMessage,
@@ -36,32 +34,25 @@ import type {
   ContentBlock,
   ContentBlockType,
   MothershipResource,
+  MothershipResourceType,
   SSEPayload,
   SSEPayloadData,
   ToolCallStatus,
 } from '../types'
-import {
-  extractFileResource,
-  extractFunctionExecuteResource,
-  extractKnowledgeBaseResource,
-  extractKnowledgeRespondResources,
-  extractResourcesFromHistory,
-  extractTableResource,
-  extractWorkflowResource,
-  GENERIC_TITLES,
-  RESOURCE_TOOL_NAMES,
-} from '../utils'
 
 export interface UseChatReturn {
   messages: ChatMessage[]
   isSending: boolean
   error: string | null
+  resolvedChatId: string | undefined
   sendMessage: (message: string, fileAttachments?: FileAttachmentForApi[]) => Promise<void>
   stopGeneration: () => Promise<void>
   resources: MothershipResource[]
-  isResourceCleanupSettled: boolean
   activeResourceId: string | null
   setActiveResourceId: (id: string | null) => void
+  addResource: (resource: MothershipResource) => void
+  removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
+  reorderResources: (resources: MothershipResource[]) => void
 }
 
 const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
@@ -71,57 +62,6 @@ const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
   rejected: 'error',
   skipped: 'success',
 } as const
-
-function areResourcesEqual(left: MothershipResource[], right: MothershipResource[]): boolean {
-  if (left.length !== right.length) return false
-  return left.every(
-    (resource, index) =>
-      resource.id === right[index]?.id &&
-      resource.type === right[index]?.type &&
-      resource.title === right[index]?.title
-  )
-}
-
-function sanitizeResources(
-  resources: MothershipResource[],
-  existingFileIds: Set<string>,
-  existingTableIds: Set<string>,
-  existingWorkflowIds: Set<string>,
-  pendingFileIds: Set<string>,
-  pendingTableIds: Set<string>,
-  pendingWorkflowIds: Set<string>,
-  shouldFilterMissingFiles: boolean,
-  shouldFilterMissingTables: boolean,
-  shouldFilterMissingWorkflows: boolean
-): MothershipResource[] {
-  return resources.filter((resource) => {
-    if (resource.type === 'file') {
-      if (pendingFileIds.has(resource.id)) {
-        return true
-      }
-      if (shouldFilterMissingFiles && !existingFileIds.has(resource.id)) {
-        return false
-      }
-    }
-    if (resource.type === 'table') {
-      if (pendingTableIds.has(resource.id)) {
-        return true
-      }
-      if (shouldFilterMissingTables && !existingTableIds.has(resource.id)) {
-        return false
-      }
-    }
-    if (resource.type === 'workflow') {
-      if (pendingWorkflowIds.has(resource.id)) {
-        return true
-      }
-      if (shouldFilterMissingWorkflows && !existingWorkflowIds.has(resource.id)) {
-        return false
-      }
-    }
-    return true
-  })
-}
 
 function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
   const mapped: ContentBlock = {
@@ -242,134 +182,112 @@ function ensureWorkflowInRegistry(resourceId: string, title: string, workspaceId
   return true
 }
 
-export function useChat(workspaceId: string, initialChatId?: string): UseChatReturn {
+function extractResourceFromReadResult(
+  path: string | undefined,
+  output: unknown
+): MothershipResource | null {
+  if (!path) return null
+
+  const segments = path.split('/')
+  const resourceType = VFS_DIR_TO_RESOURCE[segments[0]]
+  if (!resourceType || !segments[1]) return null
+
+  const obj = output && typeof output === 'object' ? (output as Record<string, unknown>) : undefined
+  if (!obj) return null
+
+  let id = obj.id as string | undefined
+  let name = obj.name as string | undefined
+
+  if (!id && typeof obj.content === 'string') {
+    try {
+      const parsed = JSON.parse(obj.content)
+      id = parsed?.id as string | undefined
+      name = parsed?.name as string | undefined
+    } catch {
+      // content is not JSON
+    }
+  }
+
+  if (!id) return null
+  return { type: resourceType, id, title: name || segments[1] }
+}
+
+export interface UseChatOptions {
+  onResourceEvent?: () => void
+}
+
+export function useChat(
+  workspaceId: string,
+  initialChatId?: string,
+  options?: UseChatOptions
+): UseChatReturn {
   const pathname = usePathname()
   const queryClient = useQueryClient()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [resolvedChatId, setResolvedChatId] = useState<string | undefined>(initialChatId)
   const [resources, setResources] = useState<MothershipResource[]>([])
   const [activeResourceId, setActiveResourceId] = useState<string | null>(null)
+  const onResourceEventRef = useRef(options?.onResourceEvent)
+  onResourceEventRef.current = options?.onResourceEvent
+  const resourcesRef = useRef(resources)
+  resourcesRef.current = resources
+  const activeResourceIdRef = useRef(activeResourceId)
+  activeResourceIdRef.current = activeResourceId
+
   const abortControllerRef = useRef<AbortController | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
   const appliedChatIdRef = useRef<string | undefined>(undefined)
   const pendingUserMsgRef = useRef<{ id: string; content: string } | null>(null)
   const streamIdRef = useRef<string | undefined>(undefined)
   const sendingRef = useRef(false)
-  const toolArgsMapRef = useRef<Map<string, Record<string, unknown>>>(new Map())
   const streamGenRef = useRef(0)
   const streamingContentRef = useRef('')
   const streamingBlocksRef = useRef<ContentBlock[]>([])
-  const pendingFileResourceIdsRef = useRef<Set<string>>(new Set())
-  const pendingTableResourceIdsRef = useRef<Set<string>>(new Set())
-  const pendingWorkflowResourceIdsRef = useRef<Set<string>>(new Set())
-
   const executionStream = useExecutionStream()
   const isHomePage = pathname.endsWith('/home')
 
   const { data: chatHistory } = useChatHistory(initialChatId)
-  const {
-    data: workspaceFiles = [],
-    isLoading: isWorkspaceFilesLoading,
-    isError: isWorkspaceFilesError,
-  } = useWorkspaceFiles(workspaceId)
-  const {
-    data: workspaceTables = [],
-    isLoading: isWorkspaceTablesLoading,
-    isError: isWorkspaceTablesError,
-  } = useTablesList(workspaceId)
-  const {
-    data: workflows = [],
-    isLoading: isWorkflowsLoading,
-    isError: isWorkflowsError,
-  } = useWorkflows(workspaceId, { syncRegistry: false })
-
-  const existingWorkspaceFileIds = useMemo(
-    () => new Set(workspaceFiles.map((file) => file.id)),
-    [workspaceFiles]
-  )
-  const existingWorkspaceTableIds = useMemo(
-    () => new Set(workspaceTables.map((table) => table.id)),
-    [workspaceTables]
-  )
-  const existingWorkflowIds = useMemo(
-    () => new Set(workflows.map((workflow) => workflow.id)),
-    [workflows]
-  )
-  const isResourceCleanupSettled = useMemo(
-    () => !isWorkspaceFilesLoading && !isWorkspaceTablesLoading && !isWorkflowsLoading,
-    [isWorkspaceFilesLoading, isWorkspaceTablesLoading, isWorkflowsLoading]
-  )
 
   const addResource = useCallback((resource: MothershipResource) => {
-    if (resource.type === 'file') {
-      pendingFileResourceIdsRef.current.add(resource.id)
-    } else if (resource.type === 'table') {
-      pendingTableResourceIdsRef.current.add(resource.id)
-    } else if (resource.type === 'workflow') {
-      pendingWorkflowResourceIdsRef.current.add(resource.id)
-    }
-
     setResources((prev) => {
-      const existing = prev.find((r) => r.type === resource.type && r.id === resource.id)
-      if (existing) {
-        const keepOldTitle = !GENERIC_TITLES.has(existing.title)
-        const title = keepOldTitle ? existing.title : resource.title
-        if (title === existing.title) return prev
-        return prev.map((r) =>
-          r.id === existing.id && r.type === existing.type ? { ...r, title } : r
-        )
-      }
+      const exists = prev.some((r) => r.type === resource.type && r.id === resource.id)
+      if (exists) return prev
       return [...prev, resource]
     })
     setActiveResourceId(resource.id)
   }, [])
 
-  useEffect(() => {
-    for (const id of pendingFileResourceIdsRef.current) {
-      if (existingWorkspaceFileIds.has(id)) {
-        pendingFileResourceIdsRef.current.delete(id)
-      }
-    }
-  }, [existingWorkspaceFileIds])
+  const removeResource = useCallback((resourceType: MothershipResourceType, resourceId: string) => {
+    setResources((prev) => prev.filter((r) => !(r.type === resourceType && r.id === resourceId)))
+  }, [])
 
-  useEffect(() => {
-    for (const id of pendingTableResourceIdsRef.current) {
-      if (existingWorkspaceTableIds.has(id)) {
-        pendingTableResourceIdsRef.current.delete(id)
-      }
-    }
-  }, [existingWorkspaceTableIds])
-
-  useEffect(() => {
-    for (const id of pendingWorkflowResourceIdsRef.current) {
-      if (existingWorkflowIds.has(id)) {
-        pendingWorkflowResourceIdsRef.current.delete(id)
-      }
-    }
-  }, [existingWorkflowIds])
+  const reorderResources = useCallback((newOrder: MothershipResource[]) => {
+    setResources(newOrder)
+  }, [])
 
   useEffect(() => {
     if (sendingRef.current) {
       chatIdRef.current = initialChatId
+      setResolvedChatId(initialChatId)
       return
     }
     chatIdRef.current = initialChatId
+    setResolvedChatId(initialChatId)
     appliedChatIdRef.current = undefined
     setMessages([])
     setError(null)
     setIsSending(false)
     setResources([])
     setActiveResourceId(null)
-    pendingFileResourceIdsRef.current.clear()
-    pendingTableResourceIdsRef.current.clear()
-    pendingWorkflowResourceIdsRef.current.clear()
   }, [initialChatId])
 
   useEffect(() => {
     if (!isHomePage || !chatIdRef.current) return
     streamGenRef.current++
     chatIdRef.current = undefined
+    setResolvedChatId(undefined)
     appliedChatIdRef.current = undefined
     abortControllerRef.current?.abort()
     abortControllerRef.current = null
@@ -379,9 +297,6 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     setIsSending(false)
     setResources([])
     setActiveResourceId(null)
-    pendingFileResourceIdsRef.current.clear()
-    pendingTableResourceIdsRef.current.clear()
-    pendingWorkflowResourceIdsRef.current.clear()
   }, [isHomePage])
 
   useEffect(() => {
@@ -389,49 +304,16 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     appliedChatIdRef.current = chatHistory.id
     setMessages(chatHistory.messages.map(mapStoredMessage))
 
-    const restored = extractResourcesFromHistory(chatHistory.messages)
-    if (restored.length > 0) {
-      setResources(restored)
-      setActiveResourceId(restored[restored.length - 1].id)
+    if (chatHistory.resources.length > 0) {
+      setResources(chatHistory.resources)
+      setActiveResourceId(chatHistory.resources[chatHistory.resources.length - 1].id)
 
-      for (const resource of restored) {
+      for (const resource of chatHistory.resources) {
         if (resource.type !== 'workflow') continue
         ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)
       }
     }
   }, [chatHistory, workspaceId])
-
-  useEffect(() => {
-    setResources((prev) => {
-      const shouldFilterMissingFiles = !isWorkspaceFilesLoading && !isWorkspaceFilesError
-      const shouldFilterMissingTables = !isWorkspaceTablesLoading && !isWorkspaceTablesError
-      const shouldFilterMissingWorkflows = !isWorkflowsLoading && !isWorkflowsError
-      const next = sanitizeResources(
-        prev,
-        existingWorkspaceFileIds,
-        existingWorkspaceTableIds,
-        existingWorkflowIds,
-        pendingFileResourceIdsRef.current,
-        pendingTableResourceIdsRef.current,
-        pendingWorkflowResourceIdsRef.current,
-        shouldFilterMissingFiles,
-        shouldFilterMissingTables,
-        shouldFilterMissingWorkflows
-      )
-      return areResourcesEqual(prev, next) ? prev : next
-    })
-  }, [
-    resources,
-    existingWorkspaceFileIds,
-    existingWorkspaceTableIds,
-    existingWorkflowIds,
-    isWorkspaceFilesError,
-    isWorkspaceFilesLoading,
-    isWorkspaceTablesError,
-    isWorkspaceTablesLoading,
-    isWorkflowsError,
-    isWorkflowsLoading,
-  ])
 
   useEffect(() => {
     if (resources.length === 0) {
@@ -452,16 +334,14 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       let buffer = ''
       const blocks: ContentBlock[] = []
       const toolMap = new Map<string, number>()
+      const toolArgsMap = new Map<string, Record<string, unknown>>()
       const clientExecutionStarted = new Set<string>()
       let activeSubagent: string | undefined
-      let lastTableId: string | null = null
-      let lastWorkflowId: string | null = null
       let runningText = ''
       let lastContentSource: 'main' | 'subagent' | null = null
 
       streamingContentRef.current = ''
       streamingBlocksRef.current = []
-      toolArgsMapRef.current.clear()
 
       const ensureTextBlock = (): ContentBlock => {
         const last = blocks[blocks.length - 1]
@@ -506,6 +386,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
               if (parsed.chatId) {
                 const isNewChat = !chatIdRef.current
                 chatIdRef.current = parsed.chatId
+                setResolvedChatId(parsed.chatId)
                 queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
                 if (isNewChat) {
                   const userMsg = pendingUserMsgRef.current
@@ -516,6 +397,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                       title: null,
                       messages: [{ id: userMsg.id, role: 'user', content: userMsg.content }],
                       activeStreamId,
+                      resources: [],
                     })
                   }
                   window.history.replaceState(
@@ -554,13 +436,6 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
               const isPartial = data?.partial === true
               if (!id) break
 
-              if (RESOURCE_TOOL_NAMES.has(name)) {
-                const args = data?.arguments ?? data?.input
-                if (args) {
-                  toolArgsMapRef.current.set(id, args)
-                }
-              }
-
               if (name.endsWith('_respond')) break
               const ui = parsed.ui || data?.ui
               if (ui?.hidden) break
@@ -579,6 +454,12 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                     calledBy: activeSubagent,
                   },
                 })
+                if (name === 'read') {
+                  const args = (data?.arguments ?? data?.input) as
+                    | Record<string, unknown>
+                    | undefined
+                  if (args) toolArgsMap.set(id, args)
+                }
               } else {
                 const idx = toolMap.get(id)!
                 const tc = blocks[idx].toolCall
@@ -634,101 +515,36 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
                   error: (parsed.error ?? getPayloadData(parsed)?.error) as string | undefined,
                 }
                 flush()
-              }
 
-              const toolName = parsed.toolName || getPayloadData(parsed)?.name
-              if (toolName && parsed.success && RESOURCE_TOOL_NAMES.has(toolName)) {
-                const storedArgs = toolArgsMapRef.current.get(id)
-                let resource: MothershipResource | null = null
-
-                if (toolName === 'user_table') {
-                  const redirected = extractFunctionExecuteResource(parsed, storedArgs)
-                  if (redirected?.type === 'file') {
-                    resource = redirected
-                    queryClient.invalidateQueries({
-                      queryKey: workspaceFilesKeys.lists(),
-                    })
-                    queryClient.invalidateQueries({
-                      queryKey: workspaceFilesKeys.content(workspaceId, resource.id),
-                    })
-                  } else {
-                    resource = extractTableResource(parsed, storedArgs, lastTableId)
-                    if (resource) {
-                      lastTableId = resource.id
-                      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
-                      queryClient.invalidateQueries({ queryKey: tableKeys.detail(resource.id) })
-                      queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(resource.id) })
-                    }
-                  }
-                } else if (toolName === 'workspace_file') {
-                  resource = extractFileResource(parsed, storedArgs)
+                if (tc.name === 'read' && tc.status === 'success') {
+                  const readArgs = toolArgsMap.get(id)
+                  const resource = extractResourceFromReadResult(
+                    readArgs?.path as string | undefined,
+                    tc.result.output
+                  )
                   if (resource) {
-                    queryClient.invalidateQueries({
-                      queryKey: workspaceFilesKeys.lists(),
-                    })
-                    queryClient.invalidateQueries({
-                      queryKey: workspaceFilesKeys.content(workspaceId, resource.id),
-                    })
-                  }
-                } else if (toolName === 'function_execute') {
-                  resource = extractFunctionExecuteResource(parsed, storedArgs)
-                  if (resource) {
-                    if (resource.type === 'table') {
-                      lastTableId = resource.id
-                      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
-                      queryClient.invalidateQueries({ queryKey: tableKeys.detail(resource.id) })
-                      queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(resource.id) })
-                    } else if (resource.type === 'file') {
-                      queryClient.invalidateQueries({
-                        queryKey: workspaceFilesKeys.lists(),
-                      })
-                      queryClient.invalidateQueries({
-                        queryKey: workspaceFilesKeys.content(workspaceId, resource.id),
-                      })
-                    }
-                  }
-                } else if (toolName === 'read') {
-                  resource = extractFunctionExecuteResource(parsed, storedArgs)
-                  if (resource?.type === 'table') {
-                    lastTableId = resource.id
-                    queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
-                    queryClient.invalidateQueries({ queryKey: tableKeys.detail(resource.id) })
-                    queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(resource.id) })
-                  }
-                } else if (toolName === 'create_workflow' || toolName === 'edit_workflow') {
-                  resource = extractWorkflowResource(parsed, lastWorkflowId, storedArgs)
-                  if (resource) {
-                    lastWorkflowId = resource.id
-                    if (ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)) {
-                      useWorkflowRegistry.getState().setActiveWorkflow(resource.id)
-                    } else {
-                      useWorkflowRegistry.getState().loadWorkflowState(resource.id)
-                    }
-                    queryClient.invalidateQueries({ queryKey: workflowKeys.lists() })
-                  }
-                } else if (toolName === 'knowledge_base') {
-                  resource = extractKnowledgeBaseResource(parsed, storedArgs)
-                  if (resource) {
-                    queryClient.invalidateQueries({
-                      queryKey: knowledgeKeys.detail(resource.id),
-                    })
-                    queryClient.invalidateQueries({
-                      queryKey: knowledgeKeys.all,
-                    })
-                  }
-                } else if (toolName === 'knowledge') {
-                  const kbResources = extractKnowledgeRespondResources(parsed)
-                  for (const r of kbResources) {
-                    addResource(r)
-                  }
-                  if (kbResources.length > 0) {
-                    queryClient.invalidateQueries({
-                      queryKey: knowledgeKeys.all,
-                    })
+                    addResource(resource)
+                    invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
+                    onResourceEventRef.current?.()
                   }
                 }
+              }
 
-                if (resource) addResource(resource)
+              break
+            }
+            case 'resource_added': {
+              const resource = parsed.resource
+              if (resource?.type && resource?.id) {
+                addResource(resource)
+                invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
+                onResourceEventRef.current?.()
+                if (resource.type === 'workflow') {
+                  if (ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)) {
+                    useWorkflowRegistry.getState().setActiveWorkflow(resource.id)
+                  } else {
+                    useWorkflowRegistry.getState().loadWorkflowState(resource.id)
+                  }
+                }
               }
               break
             }
@@ -940,6 +756,15 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
       abortControllerRef.current = abortController
 
       try {
+        const currentActiveId = activeResourceIdRef.current
+        const currentResources = resourcesRef.current
+        const activeRes = currentActiveId
+          ? currentResources.find((r) => r.id === currentActiveId)
+          : undefined
+        const resourceAttachments = activeRes
+          ? [{ type: activeRes.type, id: activeRes.id }]
+          : undefined
+
         const response = await fetch(MOTHERSHIP_CHAT_API_PATH, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -950,6 +775,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
             createNewChat: !chatIdRef.current,
             ...(chatIdRef.current ? { chatId: chatIdRef.current } : {}),
             ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
+            ...(resourceAttachments ? { resourceAttachments } : {}),
             userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
           signal: abortController.signal,
@@ -1071,11 +897,14 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
     messages,
     isSending,
     error,
+    resolvedChatId,
     sendMessage,
     stopGeneration,
     resources,
-    isResourceCleanupSettled,
     activeResourceId,
     setActiveResourceId,
+    addResource,
+    removeResource,
+    reorderResources,
   }
 }

@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getAccessibleCopilotChat } from '@/lib/copilot/chat-lifecycle'
+import { taskPubSub } from '@/lib/copilot/task-events'
 
 const logger = createLogger('RenameChatAPI')
 
@@ -29,17 +30,26 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
     }
 
+    const now = new Date()
     const [updated] = await db
       .update(copilotChats)
-      .set({ title, updatedAt: new Date() })
+      .set({ title, updatedAt: now, lastSeenAt: now })
       .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, session.user.id)))
-      .returning({ id: copilotChats.id })
+      .returning({ id: copilotChats.id, workspaceId: copilotChats.workspaceId })
 
     if (!updated) {
       return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
     }
 
     logger.info('Chat renamed', { chatId, title })
+
+    if (updated.workspaceId) {
+      taskPubSub?.publishStatusChanged({
+        workspaceId: updated.workspaceId,
+        chatId,
+        type: 'renamed',
+      })
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -163,9 +163,7 @@ export function PendingTagIndicator() {
           />
         ))}
       </div>
-      <span className='font-[var(--sidebar-font-weight)] text-[14px] text-[var(--text-body)]'>
-        Thinking…
-      </span>
+      <span className='font-base text-[14px] text-[var(--text-body)]'>Thinking…</span>
     </div>
   )
 }
@@ -183,9 +181,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
 
   return (
     <div className='animate-stream-fade-in'>
-      <span className='font-[var(--sidebar-font-weight)] text-[14px] text-[var(--text-body)]'>
-        Suggested follow-ups
-      </span>
+      <span className='font-base text-[14px] text-[var(--text-body)]'>Suggested follow-ups</span>
       <div className='mt-1.5 flex flex-col'>
         {entries.map(([key, value], i) => {
           const title = typeof value === 'string' ? value : value.title
@@ -203,13 +199,9 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
               )}
             >
               <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-                <span className='font-[var(--sidebar-font-weight)] text-[14px] text-[var(--text-icon)]'>
-                  {i + 1}
-                </span>
+                <span className='font-base text-[14px] text-[var(--text-icon)]'>{i + 1}</span>
               </div>
-              <span className='flex-1 font-[var(--sidebar-font-weight)] text-[14px] text-[var(--text-body)]'>
-                {title}
-              </span>
+              <span className='flex-1 font-base text-[14px] text-[var(--text-body)]'>{title}</span>
               <ArrowRight className='h-[16px] w-[16px] shrink-0 text-[var(--text-icon)]' />
             </button>
           )
@@ -267,7 +259,7 @@ function CredentialDisplay({ data }: { data: CredentialTagData }) {
       className='flex animate-stream-fade-in items-center gap-[8px] rounded-lg border border-[var(--divider)] px-3 py-2.5 transition-colors hover:bg-[var(--surface-5)]'
     >
       {createElement(Icon, { className: 'h-[16px] w-[16px] shrink-0' })}
-      <span className='flex-1 font-[var(--sidebar-font-weight)] text-[14px] text-[var(--text-body)]'>
+      <span className='flex-1 font-base text-[14px] text-[var(--text-body)]'>
         Connect {data.provider}
       </span>
       <ArrowRight className='h-[16px] w-[16px] shrink-0 text-[var(--text-icon)]' />

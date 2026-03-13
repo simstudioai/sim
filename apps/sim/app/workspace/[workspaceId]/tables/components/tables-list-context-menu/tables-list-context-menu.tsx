@@ -24,7 +24,7 @@ export function TablesListContextMenu({
   disableCreate = false,
 }: TablesListContextMenuProps) {
   return (
-    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
         <div
           style={{
@@ -39,7 +39,12 @@ export function TablesListContextMenu({
           aria-hidden
         />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align='start' side='bottom' sideOffset={4}>
+      <DropdownMenuContent
+        align='start'
+        side='bottom'
+        sideOffset={4}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
         {onCreateTable && (
           <DropdownMenuItem disabled={disableCreate} onSelect={onCreateTable}>
             <Plus />

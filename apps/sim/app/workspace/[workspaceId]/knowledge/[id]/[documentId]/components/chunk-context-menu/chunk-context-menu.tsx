@@ -1,69 +1,33 @@
 'use client'
 
 import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverDivider,
-  PopoverItem,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/emcn'
+import { Copy, ExternalLink, Eye, Pencil, Plus, Trash } from '@/components/emcn/icons'
 
 interface ChunkContextMenuProps {
   isOpen: boolean
   position: { x: number; y: number }
-  menuRef: React.RefObject<HTMLDivElement | null>
   onClose: () => void
-  /**
-   * Chunk-specific actions (shown when right-clicking on a chunk)
-   */
   onOpenInNewTab?: () => void
   onEdit?: () => void
   onCopyContent?: () => void
   onToggleEnabled?: () => void
   onDelete?: () => void
-  /**
-   * Empty space action (shown when right-clicking on empty space)
-   */
   onAddChunk?: () => void
-  /**
-   * Whether the chunk is currently enabled
-   */
   isChunkEnabled?: boolean
-  /**
-   * Whether a chunk is selected (vs empty space)
-   */
   hasChunk: boolean
-  /**
-   * Whether toggle enabled is disabled
-   */
   disableToggleEnabled?: boolean
-  /**
-   * Whether delete is disabled
-   */
   disableDelete?: boolean
-  /**
-   * Whether add chunk is disabled
-   */
   disableAddChunk?: boolean
-  /**
-   * Whether edit/view is disabled (e.g. user lacks permission)
-   */
   disableEdit?: boolean
-  /**
-   * Whether the document is synced from a connector (chunks are read-only)
-   */
   isConnectorDocument?: boolean
-  /**
-   * Number of selected chunks (for batch operations)
-   */
   selectedCount?: number
-  /**
-   * Number of enabled chunks in selection
-   */
   enabledCount?: number
-  /**
-   * Number of disabled chunks in selection
-   */
   disabledCount?: number
 }
 
@@ -75,7 +39,6 @@ interface ChunkContextMenuProps {
 export function ChunkContextMenu({
   isOpen,
   position,
-  menuRef,
   onClose,
   onOpenInNewTab,
   onEdit,
@@ -110,103 +73,80 @@ export function ChunkContextMenu({
   const hasDestructiveSection = !!onDelete
 
   return (
-    <Popover
-      open={isOpen}
-      onOpenChange={(open) => !open && onClose()}
-      variant='secondary'
-      size='sm'
-    >
-      <PopoverAnchor
-        style={{
-          position: 'fixed',
-          left: `${position.x}px`,
-          top: `${position.y}px`,
-          width: '1px',
-          height: '1px',
-        }}
-      />
-      <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
+    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
+      <DropdownMenuTrigger asChild>
+        <div
+          style={{
+            position: 'fixed',
+            left: `${position.x}px`,
+            top: `${position.y}px`,
+            width: '1px',
+            height: '1px',
+            pointerEvents: 'none',
+          }}
+          tabIndex={-1}
+          aria-hidden
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align='start'
+        side='bottom'
+        sideOffset={4}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
         {hasChunk ? (
           <>
-            {/* Navigation */}
             {hasNavigationSection && (
-              <PopoverItem
-                onClick={() => {
-                  onOpenInNewTab!()
-                  onClose()
-                }}
-              >
+              <DropdownMenuItem onSelect={onOpenInNewTab!}>
+                <ExternalLink />
                 Open in new tab
-              </PopoverItem>
+              </DropdownMenuItem>
             )}
             {hasNavigationSection &&
-              (hasEditSection || hasStateSection || hasDestructiveSection) && <PopoverDivider />}
+              (hasEditSection || hasStateSection || hasDestructiveSection) && (
+                <DropdownMenuSeparator />
+              )}
 
-            {/* Edit and copy actions */}
             {!isMultiSelect && onEdit && (
-              <PopoverItem
-                disabled={disableEdit}
-                onClick={() => {
-                  onEdit()
-                  onClose()
-                }}
-              >
+              <DropdownMenuItem disabled={disableEdit} onSelect={onEdit}>
+                <Pencil />
                 {isConnectorDocument ? 'View' : 'Edit'}
-              </PopoverItem>
+              </DropdownMenuItem>
             )}
             {!isMultiSelect && onCopyContent && (
-              <PopoverItem
-                onClick={() => {
-                  onCopyContent()
-                  onClose()
-                }}
-              >
+              <DropdownMenuItem onSelect={onCopyContent}>
+                <Copy />
                 Copy content
-              </PopoverItem>
+              </DropdownMenuItem>
             )}
-            {hasEditSection && (hasStateSection || hasDestructiveSection) && <PopoverDivider />}
+            {hasEditSection && (hasStateSection || hasDestructiveSection) && (
+              <DropdownMenuSeparator />
+            )}
 
-            {/* State toggle */}
             {onToggleEnabled && (
-              <PopoverItem
-                disabled={disableToggleEnabled}
-                onClick={() => {
-                  onToggleEnabled()
-                  onClose()
-                }}
-              >
+              <DropdownMenuItem disabled={disableToggleEnabled} onSelect={onToggleEnabled}>
+                <Eye />
                 {getToggleLabel()}
-              </PopoverItem>
+              </DropdownMenuItem>
             )}
 
-            {/* Destructive action */}
-            {hasStateSection && hasDestructiveSection && <PopoverDivider />}
+            {hasStateSection && hasDestructiveSection && <DropdownMenuSeparator />}
             {onDelete && (
-              <PopoverItem
-                disabled={disableDelete}
-                onClick={() => {
-                  onDelete()
-                  onClose()
-                }}
-              >
+              <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
+                <Trash />
                 Delete
-              </PopoverItem>
+              </DropdownMenuItem>
             )}
           </>
         ) : (
           onAddChunk && (
-            <PopoverItem
-              disabled={disableAddChunk}
-              onClick={() => {
-                onAddChunk()
-                onClose()
-              }}
-            >
+            <DropdownMenuItem disabled={disableAddChunk} onSelect={onAddChunk}>
+              <Plus />
               Create chunk
-            </PopoverItem>
+            </DropdownMenuItem>
           )
         )}
-      </PopoverContent>
-    </Popover>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

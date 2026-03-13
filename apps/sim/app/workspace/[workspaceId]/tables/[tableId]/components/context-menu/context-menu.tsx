@@ -1,14 +1,12 @@
 import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverDivider,
-  PopoverItem,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/emcn'
 import { ArrowDown, ArrowUp, Duplicate, Pencil, Trash } from '@/components/emcn/icons'
 import type { ContextMenuState } from '../../types'
-
-const ICON = 'h-3.5 w-3.5'
 
 interface ContextMenuProps {
   contextMenu: ContextMenuState
@@ -40,78 +38,55 @@ export function ContextMenu({
   const deleteLabel = selectedRowCount > 1 ? `Delete ${selectedRowCount} rows` : 'Delete row'
 
   return (
-    <Popover open={contextMenu.isOpen} onOpenChange={(open) => !open && onClose()}>
-      <PopoverAnchor
-        style={{
-          position: 'fixed',
-          left: `${contextMenu.position.x}px`,
-          top: `${contextMenu.position.y}px`,
-          width: '1px',
-          height: '1px',
-        }}
-      />
-      <PopoverContent
+    <DropdownMenu
+      open={contextMenu.isOpen}
+      onOpenChange={(open) => !open && onClose()}
+      modal={false}
+    >
+      <DropdownMenuTrigger asChild>
+        <div
+          style={{
+            position: 'fixed',
+            left: `${contextMenu.position.x}px`,
+            top: `${contextMenu.position.y}px`,
+            width: '1px',
+            height: '1px',
+            pointerEvents: 'none',
+          }}
+          tabIndex={-1}
+          aria-hidden
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
         align='start'
         side='bottom'
         sideOffset={4}
-        border
-        className='!min-w-[160px] !rounded-[8px] !bg-[var(--bg)] !p-[6px] shadow-sm'
+        onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {contextMenu.columnName && (
-          <PopoverItem
-            disabled={disableEdit}
-            onClick={() => {
-              onEditCell()
-              onClose()
-            }}
-          >
-            <Pencil className={ICON} />
+          <DropdownMenuItem disabled={disableEdit} onSelect={onEditCell}>
+            <Pencil />
             Edit cell
-          </PopoverItem>
+          </DropdownMenuItem>
         )}
-        <PopoverItem
-          disabled={disableInsert}
-          onClick={() => {
-            onInsertAbove()
-            onClose()
-          }}
-        >
-          <ArrowUp className={ICON} />
+        <DropdownMenuItem disabled={disableInsert} onSelect={onInsertAbove}>
+          <ArrowUp />
           Insert row above
-        </PopoverItem>
-        <PopoverItem
-          disabled={disableInsert}
-          onClick={() => {
-            onInsertBelow()
-            onClose()
-          }}
-        >
-          <ArrowDown className={ICON} />
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={disableInsert} onSelect={onInsertBelow}>
+          <ArrowDown />
           Insert row below
-        </PopoverItem>
-        <PopoverItem
-          disabled={disableInsert || selectedRowCount > 1}
-          onClick={() => {
-            onDuplicate()
-            onClose()
-          }}
-        >
-          <Duplicate className={ICON} />
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={disableInsert || selectedRowCount > 1} onSelect={onDuplicate}>
+          <Duplicate />
           Duplicate row
-        </PopoverItem>
-        <PopoverDivider />
-        <PopoverItem
-          disabled={disableDelete}
-          onClick={() => {
-            onDelete()
-            onClose()
-          }}
-          className='!text-[var(--text-error)] [&_svg]:!text-[var(--text-error)]'
-        >
-          <Trash className={ICON} />
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
+          <Trash />
           {deleteLabel}
-        </PopoverItem>
-      </PopoverContent>
-    </Popover>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

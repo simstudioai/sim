@@ -1,3 +1,7 @@
+import type { MothershipResourceType } from '@/lib/copilot/resource-types'
+
+export type { MothershipResource, MothershipResourceType } from '@/lib/copilot/resource-types'
+
 /**
  * SSE event types emitted by the Go orchestrator backend.
  *
@@ -18,6 +22,7 @@ export type SSEEventType =
   | 'tool_generating'
   | 'tool_result'
   | 'tool_error'
+  | 'resource_added'
   | 'subagent_start'
   | 'subagent_end'
   | 'structured_result'
@@ -235,12 +240,5 @@ export interface SSEPayload {
   result?: unknown
   error?: string
   subagent?: string
-}
-
-export type MothershipResourceType = 'table' | 'file' | 'workflow' | 'knowledgebase'
-
-export interface MothershipResource {
-  type: MothershipResourceType
-  id: string
-  title: string
+  resource?: { type: MothershipResourceType; id: string; title: string }
 }

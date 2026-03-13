@@ -7,10 +7,10 @@ import {
   ButtonGroup,
   ButtonGroupItem,
   Checkbox,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   TagInput,
   type TagItem,
 } from '@/components/emcn'
@@ -142,7 +142,7 @@ export function MemberInvitationCard({
               maxHeight='max-h-24'
             />
           </div>
-          <Popover
+          <DropdownMenu
             open={showWorkspaceInvite}
             onOpenChange={(open) => {
               setShowWorkspaceInvite(open)
@@ -150,8 +150,9 @@ export function MemberInvitationCard({
                 onLoadUserWorkspaces()
               }
             }}
+            modal={false}
           >
-            <PopoverTrigger asChild>
+            <DropdownMenuTrigger asChild>
               <Button
                 variant='active'
                 disabled={isInviting || !hasAvailableSeats}
@@ -168,15 +169,12 @@ export function MemberInvitationCard({
                   )}
                 />
               </Button>
-            </PopoverTrigger>
-            <PopoverContent
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
               side='bottom'
               align='end'
-              maxHeight={320}
               sideOffset={4}
-              minWidth={240}
-              maxWidth={240}
-              border
+              className='max-h-[320px] min-w-[240px] max-w-[240px] overflow-y-auto'
             >
               {isLoadingWorkspaces ? (
                 <div className='px-[6px] py-[16px] text-center'>
@@ -198,16 +196,17 @@ export function MemberInvitationCard({
 
                     return (
                       <div key={workspace.id} className='flex flex-col gap-[4px]'>
-                        <PopoverItem
-                          onClick={() => {
+                        <DropdownMenuItem
+                          onSelect={(e) => {
+                            e.preventDefault()
                             if (isSelected) {
                               onWorkspaceToggle(workspace.id, '')
                             } else {
                               onWorkspaceToggle(workspace.id, 'read')
                             }
                           }}
-                          active={isSelected}
                           disabled={isInviting}
+                          className={cn(isSelected && 'bg-[var(--surface-active)]')}
                         >
                           <Checkbox
                             checked={isSelected}
@@ -215,7 +214,7 @@ export function MemberInvitationCard({
                             className='pointer-events-none'
                           />
                           <span className='flex-1 truncate'>{workspace.name}</span>
-                        </PopoverItem>
+                        </DropdownMenuItem>
                         {isSelected && (
                           <div className='ml-[31px] flex items-center gap-[6px] pb-[4px]'>
                             <span className='text-[11px] text-[var(--text-tertiary)]'>Access:</span>
@@ -237,8 +236,8 @@ export function MemberInvitationCard({
                   })}
                 </div>
               )}
-            </PopoverContent>
-          </Popover>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant='tertiary'
             onClick={() => onInviteMember()}

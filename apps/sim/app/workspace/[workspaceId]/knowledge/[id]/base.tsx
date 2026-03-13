@@ -18,7 +18,6 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  PopoverItem,
   Tooltip,
   Trash,
 } from '@/components/emcn'
@@ -823,39 +822,24 @@ export function KnowledgeBase({
         <span className='font-medium text-[12px] text-[var(--text-secondary)]'>Status</span>
       </div>
       <div className='flex flex-col gap-[2px] px-[12px] py-[8px]'>
-        <PopoverItem
-          active={enabledFilter === 'all'}
-          onClick={() => {
-            setEnabledFilter('all')
-            setCurrentPage(1)
-            setSelectedDocuments(new Set())
-            setIsSelectAllMode(false)
-          }}
-        >
-          All
-        </PopoverItem>
-        <PopoverItem
-          active={enabledFilter === 'enabled'}
-          onClick={() => {
-            setEnabledFilter('enabled')
-            setCurrentPage(1)
-            setSelectedDocuments(new Set())
-            setIsSelectAllMode(false)
-          }}
-        >
-          Enabled
-        </PopoverItem>
-        <PopoverItem
-          active={enabledFilter === 'disabled'}
-          onClick={() => {
-            setEnabledFilter('disabled')
-            setCurrentPage(1)
-            setSelectedDocuments(new Set())
-            setIsSelectAllMode(false)
-          }}
-        >
-          Disabled
-        </PopoverItem>
+        {(['all', 'enabled', 'disabled'] as const).map((value) => (
+          <button
+            key={value}
+            type='button'
+            className={cn(
+              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-secondary)] outline-none transition-colors hover:bg-[var(--surface-active)]',
+              enabledFilter === value && 'bg-[var(--surface-active)]'
+            )}
+            onClick={() => {
+              setEnabledFilter(value)
+              setCurrentPage(1)
+              setSelectedDocuments(new Set())
+              setIsSelectAllMode(false)
+            }}
+          >
+            {value.charAt(0).toUpperCase() + value.slice(1)}
+          </button>
+        ))}
       </div>
       <TagFilterSection
         tagDefinitions={tagDefinitions}
@@ -1248,7 +1232,6 @@ export function KnowledgeBase({
       <DocumentContextMenu
         isOpen={isContextMenuOpen}
         position={contextMenuPosition}
-        menuRef={menuRef}
         onClose={handleContextMenuClose}
         hasDocument={contextMenuDocument !== null}
         isDocumentEnabled={contextMenuDocument?.enabled ?? true}

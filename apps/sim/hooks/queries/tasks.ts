@@ -1,9 +1,12 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 
 export interface TaskMetadata {
   id: string
   name: string
   updatedAt: Date
+  isActive: boolean
+  isUnread: boolean
 }
 
 export interface TaskChatHistory {
@@ -11,6 +14,7 @@ export interface TaskChatHistory {
   title: string | null
   messages: TaskStoredMessage[]
   activeStreamId: string | null
+  resources: MothershipResource[]
 }
 
 export interface TaskStoredToolCall {
@@ -65,13 +69,20 @@ interface TaskResponse {
   id: string
   title: string | null
   updatedAt: string
+  conversationId: string | null
+  lastSeenAt: string | null
 }
 
 function mapTask(chat: TaskResponse): TaskMetadata {
+  const updatedAt = new Date(chat.updatedAt)
   return {
     id: chat.id,
     name: chat.title ?? 'New task',
-    updatedAt: new Date(chat.updatedAt),
+    updatedAt,
+    isActive: chat.conversationId !== null,
+    isUnread:
+      chat.conversationId === null &&
+      (chat.lastSeenAt === null || updatedAt > new Date(chat.lastSeenAt)),
   }
 }
 
@@ -113,6 +124,7 @@ async function fetchChatHistory(chatId: string, signal?: AbortSignal): Promise<T
     title: chat.title,
     messages: Array.isArray(chat.messages) ? chat.messages : [],
     activeStreamId: chat.conversationId || null,
+    resources: Array.isArray(chat.resources) ? chat.resources : [],
   }
 }
 
@@ -193,6 +205,180 @@ export function useRenameTask(workspaceId?: string) {
 
       queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), (old) =>
         old?.map((task) => (task.id === chatId ? { ...task, name: title } : task))
+      )
+
+      return { previousTasks }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousTasks) {
+        queryClient.setQueryData(taskKeys.list(workspaceId), context.previousTasks)
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+    },
+  })
+}
+
+async function addChatResource(params: {
+  chatId: string
+  resource: MothershipResource
+}): Promise<{ resources: MothershipResource[] }> {
+  const response = await fetch('/api/copilot/chat/resources', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chatId: params.chatId, resource: params.resource }),
+  })
+  if (!response.ok) throw new Error('Failed to add resource')
+  return response.json()
+}
+
+export function useAddChatResource(chatId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: addChatResource,
+    onMutate: async ({ resource }) => {
+      if (!chatId) return
+      await queryClient.cancelQueries({ queryKey: taskKeys.detail(chatId) })
+      const previous = queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(chatId))
+      if (previous) {
+        const exists = previous.resources.some(
+          (r) => r.type === resource.type && r.id === resource.id
+        )
+        if (!exists) {
+          queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(chatId), {
+            ...previous,
+            resources: [...previous.resources, resource],
+          })
+        }
+      }
+      return { previous }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previous && chatId) {
+        queryClient.setQueryData(taskKeys.detail(chatId), context.previous)
+      }
+    },
+    onSettled: () => {
+      if (chatId) {
+        queryClient.invalidateQueries({ queryKey: taskKeys.detail(chatId) })
+      }
+    },
+  })
+}
+
+async function reorderChatResources(params: {
+  chatId: string
+  resources: MothershipResource[]
+}): Promise<{ resources: MothershipResource[] }> {
+  const response = await fetch('/api/copilot/chat/resources', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chatId: params.chatId, resources: params.resources }),
+  })
+  if (!response.ok) throw new Error('Failed to reorder resources')
+  return response.json()
+}
+
+export function useReorderChatResources(chatId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: reorderChatResources,
+    onMutate: async ({ resources }) => {
+      if (!chatId) return
+      await queryClient.cancelQueries({ queryKey: taskKeys.detail(chatId) })
+      const previous = queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(chatId))
+      if (previous) {
+        queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(chatId), {
+          ...previous,
+          resources,
+        })
+      }
+      return { previous }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previous && chatId) {
+        queryClient.setQueryData(taskKeys.detail(chatId), context.previous)
+      }
+    },
+    onSettled: () => {
+      if (chatId) {
+        queryClient.invalidateQueries({ queryKey: taskKeys.detail(chatId) })
+      }
+    },
+  })
+}
+
+async function removeChatResource(params: {
+  chatId: string
+  resourceType: string
+  resourceId: string
+}): Promise<{ resources: MothershipResource[] }> {
+  const response = await fetch('/api/copilot/chat/resources', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+  if (!response.ok) throw new Error('Failed to remove resource')
+  return response.json()
+}
+
+export function useRemoveChatResource(chatId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: removeChatResource,
+    onMutate: async ({ resourceType, resourceId }) => {
+      if (!chatId) return
+      await queryClient.cancelQueries({ queryKey: taskKeys.detail(chatId) })
+      const previous = queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(chatId))
+      if (previous) {
+        queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(chatId), {
+          ...previous,
+          resources: previous.resources.filter(
+            (r) => !(r.type === resourceType && r.id === resourceId)
+          ),
+        })
+      }
+      return { previous }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previous && chatId) {
+        queryClient.setQueryData(taskKeys.detail(chatId), context.previous)
+      }
+    },
+    onSettled: () => {
+      if (chatId) {
+        queryClient.invalidateQueries({ queryKey: taskKeys.detail(chatId) })
+      }
+    },
+  })
+}
+
+async function markTaskRead(chatId: string): Promise<void> {
+  const response = await fetch('/api/mothership/chats/read', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chatId }),
+  })
+  if (!response.ok) {
+    throw new Error('Failed to mark task as read')
+  }
+}
+
+/**
+ * Marks a task as read with optimistic update.
+ */
+export function useMarkTaskRead(workspaceId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: markTaskRead,
+    onMutate: async (chatId) => {
+      await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
+
+      const previousTasks = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
+
+      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), (old) =>
+        old?.map((task) => (task.id === chatId ? { ...task, isUnread: false } : task))
       )
 
       return { previousTasks }

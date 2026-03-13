@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
   ListFilter,
   Search,
+  X,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 
@@ -213,7 +214,8 @@ function SortDropdown({ config }: { config: SortConfig }) {
         {active && onClear && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={onClear} className='text-[var(--text-tertiary)]'>
+            <DropdownMenuItem onSelect={onClear}>
+              <X />
               Clear sort
             </DropdownMenuItem>
           </>

@@ -108,7 +108,7 @@ const BlockRow = memo(function BlockRow({
       data-entry-id={entry.id}
       className={clsx(
         ROW_STYLES.base,
-        'h-[26px]',
+        'h-[30px]',
         isSelected ? ROW_STYLES.selected : ROW_STYLES.hover
       )}
       onClick={(e) => {
@@ -118,19 +118,15 @@ const BlockRow = memo(function BlockRow({
     >
       <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
         <div
-          className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded-[4px]'
+          className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
           style={{ background: bgColor }}
         >
-          {BlockIcon && <BlockIcon className='h-[9px] w-[9px] text-white' />}
+          {BlockIcon && <BlockIcon className='h-[10px] w-[10px] text-white' />}
         </div>
         <span
           className={clsx(
-            'min-w-0 truncate font-medium text-[13px]',
-            hasError
-              ? 'text-[var(--text-error)]'
-              : isSelected
-                ? 'text-[var(--text-primary)]'
-                : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+            'min-w-0 truncate font-base text-[14px]',
+            hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
           )}
         >
           {entry.blockName}
@@ -138,9 +134,8 @@ const BlockRow = memo(function BlockRow({
       </div>
       <span
         className={clsx(
-          'flex-shrink-0 font-medium text-[13px]',
-          !isRunning &&
-            (isCanceled ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]')
+          'flex-shrink-0 font-base text-[14px]',
+          !isRunning && 'text-[var(--text-secondary)]'
         )}
       >
         <StatusDisplay
@@ -187,7 +182,7 @@ const IterationNodeRow = memo(function IterationNodeRow({
     <div className='flex min-w-0 flex-col'>
       {/* Iteration Header */}
       <div
-        className={clsx(ROW_STYLES.base, 'h-[26px]', ROW_STYLES.hover)}
+        className={clsx(ROW_STYLES.base, 'h-[30px]', ROW_STYLES.hover)}
         onClick={(e) => {
           e.stopPropagation()
           onToggle()
@@ -196,10 +191,8 @@ const IterationNodeRow = memo(function IterationNodeRow({
         <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
           <span
             className={clsx(
-              'min-w-0 truncate font-medium text-[13px]',
-              hasError
-                ? 'text-[var(--text-error)]'
-                : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+              'min-w-0 truncate font-base text-[14px]',
+              hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
             {iterationLabel}
@@ -207,7 +200,7 @@ const IterationNodeRow = memo(function IterationNodeRow({
           {hasChildren && (
             <ChevronDown
               className={clsx(
-                'h-[8px] w-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+                'h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
                 !isExpanded && '-rotate-90'
               )}
             />
@@ -215,9 +208,8 @@ const IterationNodeRow = memo(function IterationNodeRow({
         </div>
         <span
           className={clsx(
-            'flex-shrink-0 font-medium text-[13px]',
-            !hasRunningChild &&
-              (hasCanceledChild ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]')
+            'flex-shrink-0 font-base text-[14px]',
+            !hasRunningChild && 'text-[var(--text-secondary)]'
           )}
         >
           <StatusDisplay
@@ -285,7 +277,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
     <div className='flex min-w-0 flex-col'>
       {/* Subflow Header */}
       <div
-        className={clsx(ROW_STYLES.base, 'h-[26px]', ROW_STYLES.hover)}
+        className={clsx(ROW_STYLES.base, 'h-[30px]', ROW_STYLES.hover)}
         onClick={(e) => {
           e.stopPropagation()
           onToggleNode(nodeId)
@@ -293,19 +285,15 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
       >
         <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
           <div
-            className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded-[4px]'
+            className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
             style={{ background: bgColor }}
           >
-            {BlockIcon && <BlockIcon className='h-[9px] w-[9px] text-white' />}
+            {BlockIcon && <BlockIcon className='h-[10px] w-[10px] text-white' />}
           </div>
           <span
             className={clsx(
-              'min-w-0 truncate font-medium text-[13px]',
-              hasError
-                ? 'text-[var(--text-error)]'
-                : isExpanded
-                  ? 'text-[var(--text-primary)]'
-                  : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+              'min-w-0 truncate font-base text-[14px]',
+              hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
             {displayName}
@@ -313,7 +301,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
           {hasChildren && (
             <ChevronDown
               className={clsx(
-                'h-[8px] w-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+                'h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
                 !isExpanded && '-rotate-90'
               )}
             />
@@ -321,11 +309,8 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
         </div>
         <span
           className={clsx(
-            'flex-shrink-0 font-medium text-[13px]',
-            !hasRunningDescendant &&
-              (hasCanceledDescendant
-                ? 'text-[var(--text-secondary)]'
-                : 'text-[var(--text-tertiary)]')
+            'flex-shrink-0 font-base text-[14px]',
+            !hasRunningDescendant && 'text-[var(--text-secondary)]'
           )}
         >
           <StatusDisplay
@@ -400,7 +385,7 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
       <div
         className={clsx(
           ROW_STYLES.base,
-          'h-[26px]',
+          'h-[30px]',
           isSelected ? ROW_STYLES.selected : ROW_STYLES.hover
         )}
         onClick={(e) => {
@@ -411,19 +396,15 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
       >
         <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
           <div
-            className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded-[4px]'
+            className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
             style={{ background: bgColor }}
           >
-            {BlockIcon && <BlockIcon className='h-[9px] w-[9px] text-white' />}
+            {BlockIcon && <BlockIcon className='h-[10px] w-[10px] text-white' />}
           </div>
           <span
             className={clsx(
-              'min-w-0 truncate font-medium text-[13px]',
-              hasError
-                ? 'text-[var(--text-error)]'
-                : isSelected || isExpanded
-                  ? 'text-[var(--text-primary)]'
-                  : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+              'min-w-0 truncate font-base text-[14px]',
+              hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
             {entry.blockName}
@@ -431,7 +412,7 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
           {hasChildren && (
             <ChevronDown
               className={clsx(
-                'h-[8px] w-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+                'h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
                 !isExpanded && '-rotate-90'
               )}
             />
@@ -439,11 +420,8 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
         </div>
         <span
           className={clsx(
-            'flex-shrink-0 font-medium text-[13px]',
-            !hasRunningDescendant &&
-              (hasCanceledDescendant
-                ? 'text-[var(--text-secondary)]'
-                : 'text-[var(--text-tertiary)]')
+            'flex-shrink-0 font-base text-[14px]',
+            !hasRunningDescendant && 'text-[var(--text-secondary)]'
           )}
         >
           <StatusDisplay
@@ -1341,9 +1319,9 @@ export const Terminal = memo(function Terminal() {
                           className='!p-1.5 -m-1.5'
                         >
                           {sortConfig.direction === 'desc' ? (
-                            <ArrowDown className='h-3 w-3' />
+                            <ArrowDown className='h-3.5 w-3.5' />
                           ) : (
-                            <ArrowUp className='h-3 w-3' />
+                            <ArrowUp className='h-3.5 w-3.5' />
                           )}
                         </Button>
                       </Tooltip.Trigger>
@@ -1362,7 +1340,7 @@ export const Terminal = memo(function Terminal() {
                             aria-label='Component Playground'
                             className='!p-1.5 -m-1.5'
                           >
-                            <Palette className='h-3 w-3' />
+                            <Palette className='h-3.5 w-3.5' />
                           </Button>
                         </Link>
                       </Tooltip.Trigger>
@@ -1385,9 +1363,9 @@ export const Terminal = memo(function Terminal() {
                           )}
                         >
                           {isTraining ? (
-                            <Pause className='h-3 w-3' />
+                            <Pause className='h-3.5 w-3.5' />
                           ) : (
-                            <Database className='h-3 w-3' />
+                            <Database className='h-3.5 w-3.5' />
                           )}
                         </Button>
                       </Tooltip.Trigger>
@@ -1407,7 +1385,7 @@ export const Terminal = memo(function Terminal() {
                             aria-label='Download console CSV'
                             className='!p-1.5 -m-1.5'
                           >
-                            <ArrowDownToLine className='h-3 w-3' />
+                            <ArrowDownToLine className='h-3.5 w-3.5' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>
@@ -1422,7 +1400,7 @@ export const Terminal = memo(function Terminal() {
                             aria-label='Clear console'
                             className='!p-1.5 -m-1.5'
                           >
-                            <Trash2 className='h-3 w-3' />
+                            <Trash2 className='h-3.5 w-3.5' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>

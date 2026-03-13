@@ -1,32 +1,18 @@
 'use client'
 
-import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/emcn'
+import { Plus } from '@/components/emcn/icons'
 
 interface KnowledgeListContextMenuProps {
-  /**
-   * Whether the context menu is open
-   */
   isOpen: boolean
-  /**
-   * Position of the context menu
-   */
   position: { x: number; y: number }
-  /**
-   * Ref for the menu element
-   */
-  menuRef: React.RefObject<HTMLDivElement | null>
-  /**
-   * Callback when menu should close
-   */
   onClose: () => void
-  /**
-   * Callback when add knowledge base is clicked
-   */
   onAddKnowledgeBase?: () => void
-  /**
-   * Whether the add option is disabled
-   * @default false
-   */
   disableAdd?: boolean
 }
 
@@ -37,40 +23,39 @@ interface KnowledgeListContextMenuProps {
 export function KnowledgeListContextMenu({
   isOpen,
   position,
-  menuRef,
   onClose,
   onAddKnowledgeBase,
   disableAdd = false,
 }: KnowledgeListContextMenuProps) {
   return (
-    <Popover
-      open={isOpen}
-      onOpenChange={(open) => !open && onClose()}
-      variant='secondary'
-      size='sm'
-    >
-      <PopoverAnchor
-        style={{
-          position: 'fixed',
-          left: `${position.x}px`,
-          top: `${position.y}px`,
-          width: '1px',
-          height: '1px',
-        }}
-      />
-      <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
+    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
+      <DropdownMenuTrigger asChild>
+        <div
+          style={{
+            position: 'fixed',
+            left: `${position.x}px`,
+            top: `${position.y}px`,
+            width: '1px',
+            height: '1px',
+            pointerEvents: 'none',
+          }}
+          tabIndex={-1}
+          aria-hidden
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align='start'
+        side='bottom'
+        sideOffset={4}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
         {onAddKnowledgeBase && (
-          <PopoverItem
-            disabled={disableAdd}
-            onClick={() => {
-              onAddKnowledgeBase()
-              onClose()
-            }}
-          >
+          <DropdownMenuItem disabled={disableAdd} onSelect={onAddKnowledgeBase}>
+            <Plus />
             Add knowledge base
-          </PopoverItem>
+          </DropdownMenuItem>
         )}
-      </PopoverContent>
-    </Popover>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

@@ -1,17 +1,17 @@
 'use client'
 
 import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverDivider,
-  PopoverItem,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/emcn'
+import { Pause, Pencil, Play, Trash } from '@/components/emcn/icons'
 
 interface ScheduleContextMenuProps {
   isOpen: boolean
   position: { x: number; y: number }
-  menuRef: React.RefObject<HTMLDivElement | null>
   onClose: () => void
   isActive: boolean
   onEdit?: () => void
@@ -23,7 +23,6 @@ interface ScheduleContextMenuProps {
 export function ScheduleContextMenu({
   isOpen,
   position,
-  menuRef,
   onClose,
   isActive,
   onEdit,
@@ -32,65 +31,54 @@ export function ScheduleContextMenu({
   onDelete,
 }: ScheduleContextMenuProps) {
   return (
-    <Popover
-      open={isOpen}
-      onOpenChange={(open) => !open && onClose()}
-      variant='secondary'
-      size='sm'
-    >
-      <PopoverAnchor
-        style={{
-          position: 'fixed',
-          left: `${position.x}px`,
-          top: `${position.y}px`,
-          width: '1px',
-          height: '1px',
-        }}
-      />
-      <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
+    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
+      <DropdownMenuTrigger asChild>
+        <div
+          style={{
+            position: 'fixed',
+            left: `${position.x}px`,
+            top: `${position.y}px`,
+            width: '1px',
+            height: '1px',
+            pointerEvents: 'none',
+          }}
+          tabIndex={-1}
+          aria-hidden
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align='start'
+        side='bottom'
+        sideOffset={4}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
         {onEdit && (
-          <PopoverItem
-            onClick={() => {
-              onEdit()
-              onClose()
-            }}
-          >
+          <DropdownMenuItem onSelect={onEdit}>
+            <Pencil />
             Edit
-          </PopoverItem>
+          </DropdownMenuItem>
         )}
-        {onEdit && <PopoverDivider />}
+        {onEdit && <DropdownMenuSeparator />}
         {isActive && onPause && (
-          <PopoverItem
-            onClick={() => {
-              onPause()
-              onClose()
-            }}
-          >
+          <DropdownMenuItem onSelect={onPause}>
+            <Pause />
             Pause
-          </PopoverItem>
+          </DropdownMenuItem>
         )}
         {!isActive && onResume && (
-          <PopoverItem
-            onClick={() => {
-              onResume()
-              onClose()
-            }}
-          >
+          <DropdownMenuItem onSelect={onResume}>
+            <Play />
             Resume
-          </PopoverItem>
+          </DropdownMenuItem>
         )}
-        {(onPause || onResume) && onDelete && <PopoverDivider />}
+        {(onPause || onResume) && onDelete && <DropdownMenuSeparator />}
         {onDelete && (
-          <PopoverItem
-            onClick={() => {
-              onDelete()
-              onClose()
-            }}
-          >
+          <DropdownMenuItem onSelect={onDelete}>
+            <Trash />
             Delete
-          </PopoverItem>
+          </DropdownMenuItem>
         )}
-      </PopoverContent>
-    </Popover>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

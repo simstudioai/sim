@@ -197,7 +197,7 @@ const ModalHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
   ({ className, children, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn('flex min-w-0 items-center justify-between gap-2 px-4 pt-4', className)}
+      className={cn('flex min-w-0 items-center justify-between gap-2 px-4 py-4', className)}
       {...props}
     >
       <DialogPrimitive.Title className='min-w-0 font-medium text-[var(--text-primary)] text-base leading-none'>
@@ -356,7 +356,7 @@ ModalTabsContent.displayName = 'ModalTabsContent'
  */
 const ModalBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('flex-1 overflow-y-auto px-4 pt-3 pb-4', className)} {...props} />
+    <div ref={ref} className={cn('flex-1 overflow-y-auto px-4 pb-4', className)} {...props} />
   )
 )
 

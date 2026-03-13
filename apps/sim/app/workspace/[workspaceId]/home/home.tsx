@@ -14,14 +14,12 @@ import {
   LandingWorkflowSeedStorage,
 } from '@/lib/core/utils/browser-storage'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
-import { useChatHistory } from '@/hooks/queries/tasks'
+import { useChatHistory, useMarkTaskRead } from '@/hooks/queries/tasks'
 import { MessageContent, MothershipView, TemplatePrompts, UserInput } from './components'
 import type { FileAttachmentForApi } from './components/user-input/user-input'
 import { useAutoScroll, useChat } from './hooks'
 
 const logger = createLogger('Home')
-
-const RESOURCE_PANEL_EXPAND_DELAY = 175
 
 const THINKING_BLOCKS = [
   { color: '#2ABBF8', delay: '0s' },
@@ -86,6 +84,9 @@ export function Home({ chatId }: HomeProps = {}) {
   const { data: session } = useSession()
   const [initialPrompt, setInitialPrompt] = useState('')
   const hasCheckedLandingStorageRef = useRef(false)
+  const initialViewInputRef = useRef<HTMLDivElement>(null)
+  const templateRef = useRef<HTMLDivElement>(null)
+  const baseInputHeightRef = useRef<number | null>(null)
 
   const createWorkflowFromLandingSeed = useCallback(
     async (seed: LandingWorkflowSeed) => {
@@ -158,51 +159,76 @@ export function Home({ chatId }: HomeProps = {}) {
     }
   }, [createWorkflowFromLandingSeed, workspaceId, router])
 
+  const wasSendingRef = useRef(false)
+
   const { isLoading: isLoadingHistory } = useChatHistory(chatId)
+  const { mutate: markRead } = useMarkTaskRead(workspaceId)
+
+  const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
+  const [isResourceAnimatingIn, setIsResourceAnimatingIn] = useState(false)
+  const [skipResourceTransition, setSkipResourceTransition] = useState(false)
+  const isResourceCollapsedRef = useRef(isResourceCollapsed)
+  isResourceCollapsedRef.current = isResourceCollapsed
+
+  const collapseResource = useCallback(() => setIsResourceCollapsed(true), [])
+  const expandResource = useCallback(() => {
+    setIsResourceCollapsed(false)
+    setIsResourceAnimatingIn(true)
+  }, [])
+
+  const handleResourceEvent = useCallback(() => {
+    if (isResourceCollapsedRef.current) {
+      setIsResourceCollapsed(false)
+      setIsResourceAnimatingIn(true)
+    }
+  }, [])
 
   const {
     messages,
     isSending,
     sendMessage,
     stopGeneration,
+    resolvedChatId,
     resources,
-    isResourceCleanupSettled,
     activeResourceId,
     setActiveResourceId,
-  } = useChat(workspaceId, chatId)
-
-  const [isResourceCollapsed, setIsResourceCollapsed] = useState(false)
-  const [showExpandButton, setShowExpandButton] = useState(false)
-  const [isResourceAnimatingIn, setIsResourceAnimatingIn] = useState(false)
+    addResource,
+    removeResource,
+    reorderResources,
+  } = useChat(workspaceId, chatId, { onResourceEvent: handleResourceEvent })
 
   useEffect(() => {
-    if (!isResourceCollapsed) {
-      setShowExpandButton(false)
-      return
-    }
-    const timer = setTimeout(() => setShowExpandButton(true), RESOURCE_PANEL_EXPAND_DELAY)
-    return () => clearTimeout(timer)
-  }, [isResourceCollapsed])
+    wasSendingRef.current = false
+    if (resolvedChatId) markRead(resolvedChatId)
+  }, [resolvedChatId, markRead])
 
-  const collapseResource = useCallback(() => setIsResourceCollapsed(true), [])
-  const expandResource = useCallback(() => setIsResourceCollapsed(false), [])
-
-  const visibleResources = isResourceCleanupSettled ? resources : []
-  const prevResourceCountRef = useRef(visibleResources.length)
-  const shouldEnterResourcePanel =
-    isSending && prevResourceCountRef.current === 0 && visibleResources.length > 0
   useEffect(() => {
-    if (shouldEnterResourcePanel) {
-      setIsResourceAnimatingIn(true)
+    if (wasSendingRef.current && !isSending && resolvedChatId) {
+      markRead(resolvedChatId)
     }
-    prevResourceCountRef.current = visibleResources.length
-  }, [shouldEnterResourcePanel, visibleResources.length])
+    wasSendingRef.current = isSending
+  }, [isSending, resolvedChatId, markRead])
+
+  const visibleResources = resources
 
   useEffect(() => {
     if (!isResourceAnimatingIn) return
     const timer = setTimeout(() => setIsResourceAnimatingIn(false), 400)
     return () => clearTimeout(timer)
   }, [isResourceAnimatingIn])
+
+  useEffect(() => {
+    if (resources.length > 0 && isResourceCollapsedRef.current) {
+      setSkipResourceTransition(true)
+      setIsResourceCollapsed(false)
+    }
+  }, [resources])
+
+  useEffect(() => {
+    if (!skipResourceTransition) return
+    const id = requestAnimationFrame(() => setSkipResourceTransition(false))
+    return () => cancelAnimationFrame(id)
+  }, [skipResourceTransition])
 
   const handleSubmit = useCallback(
     (text: string, fileAttachments?: FileAttachmentForApi[]) => {
@@ -216,6 +242,22 @@ export function Home({ chatId }: HomeProps = {}) {
   const scrollContainerRef = useAutoScroll(isSending)
 
   const hasMessages = messages.length > 0
+
+  useEffect(() => {
+    if (hasMessages) return
+    const input = initialViewInputRef.current
+    const templates = templateRef.current
+    if (!input || !templates) return
+
+    const ro = new ResizeObserver((entries) => {
+      const height = entries[0].contentRect.height
+      if (baseInputHeightRef.current === null) baseInputHeightRef.current = height
+      const delta = Math.max(0, (height - baseInputHeightRef.current) / 2)
+      templates.style.marginTop = delta > 0 ? `calc(-30vh + ${delta}px)` : ''
+    })
+    ro.observe(input)
+    return () => ro.disconnect()
+  }, [hasMessages])
 
   if (!hasMessages && chatId && isLoadingHistory) {
     return (
@@ -235,20 +277,22 @@ export function Home({ chatId }: HomeProps = {}) {
     return (
       <div className='h-full overflow-y-auto bg-[var(--bg)]'>
         <div className='flex min-h-full flex-col items-center justify-center px-[24px] pb-[2vh]'>
-          <h1 className='mb-[24px] max-w-[42rem] font-[440] font-season text-[32px] text-[var(--text-primary)] tracking-[-0.02em]'>
+          <h1 className='mb-[24px] max-w-[42rem] font-[430] font-season text-[32px] text-[var(--text-primary)] tracking-[-0.02em]'>
             What should we get done
             {session?.user?.name ? `, ${session.user.name.split(' ')[0]}` : ''}?
           </h1>
-          <UserInput
-            defaultValue={initialPrompt}
-            onSubmit={handleSubmit}
-            isSending={isSending}
-            onStopGeneration={stopGeneration}
-            userId={session?.user?.id}
-          />
+          <div ref={initialViewInputRef} className='w-full'>
+            <UserInput
+              defaultValue={initialPrompt}
+              onSubmit={handleSubmit}
+              isSending={isSending}
+              onStopGeneration={stopGeneration}
+              userId={session?.user?.id}
+            />
+          </div>
         </div>
-        <div className='-mt-[30vh] mx-auto w-full max-w-[42rem] px-[16px] pb-[32px]'>
-          <TemplatePrompts onSelect={(prompt) => handleSubmit(prompt)} />
+        <div ref={templateRef} className='-mt-[30vh] mx-auto w-full max-w-[42rem] pb-[32px]'>
+          <TemplatePrompts onSelect={handleSubmit} />
         </div>
       </div>
     )
@@ -309,9 +353,7 @@ export function Home({ chatId }: HomeProps = {}) {
                 return (
                   <div key={msg.id} className='flex items-center gap-[8px] py-[8px]'>
                     <ThinkingIndicator />
-                    <span className='font-[var(--sidebar-font-weight)] text-[14px] text-[var(--text-body)]'>
-                      Thinking…
-                    </span>
+                    <span className='font-base text-[14px] text-[var(--text-body)]'>Thinking…</span>
                   </div>
                 )
               }
@@ -347,19 +389,27 @@ export function Home({ chatId }: HomeProps = {}) {
         </div>
       </div>
 
-      {visibleResources.length > 0 && (
-        <MothershipView
-          workspaceId={workspaceId}
-          resources={visibleResources}
-          activeResourceId={activeResourceId}
-          onSelectResource={setActiveResourceId}
-          onCollapse={collapseResource}
-          isCollapsed={isResourceCollapsed}
-          className={isResourceAnimatingIn ? 'animate-slide-in-right' : undefined}
-        />
-      )}
+      <MothershipView
+        workspaceId={workspaceId}
+        chatId={resolvedChatId}
+        resources={visibleResources}
+        activeResourceId={activeResourceId}
+        onSelectResource={setActiveResourceId}
+        onAddResource={addResource}
+        onRemoveResource={removeResource}
+        onReorderResources={reorderResources}
+        onCollapse={collapseResource}
+        isCollapsed={isResourceCollapsed}
+        className={
+          isResourceAnimatingIn
+            ? 'animate-slide-in-right'
+            : skipResourceTransition
+              ? '!transition-none'
+              : undefined
+        }
+      />
 
-      {visibleResources.length > 0 && showExpandButton && (
+      {isResourceCollapsed && (
         <div className='absolute top-[8.5px] right-[16px]'>
           <button
             type='button'

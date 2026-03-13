@@ -9,7 +9,9 @@ import { resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
 import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/copilot/chat-streaming'
 import type { OrchestratorResult } from '@/lib/copilot/orchestrator/types'
+import { processContextsServer, resolveActiveResourceContext } from '@/lib/copilot/process-contents'
 import { createRequestTracker, createUnauthorizedResponse } from '@/lib/copilot/request-helpers'
+import { taskPubSub } from '@/lib/copilot/task-events'
 import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
 import {
   assertActiveWorkspaceAccess,
@@ -26,6 +28,11 @@ const FileAttachmentSchema = z.object({
   size: z.number(),
 })
 
+const ResourceAttachmentSchema = z.object({
+  type: z.enum(['workflow', 'table', 'file', 'knowledgebase']),
+  id: z.string().min(1),
+})
+
 const MothershipMessageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
   workspaceId: z.string().min(1, 'workspaceId is required'),
@@ -34,6 +41,7 @@ const MothershipMessageSchema = z.object({
   createNewChat: z.boolean().optional().default(false),
   fileAttachments: z.array(FileAttachmentSchema).optional(),
   userTimezone: z.string().optional(),
+  resourceAttachments: z.array(ResourceAttachmentSchema).optional(),
   contexts: z
     .array(
       z.object({
@@ -84,6 +92,7 @@ export async function POST(req: NextRequest) {
       createNewChat,
       fileAttachments,
       contexts,
+      resourceAttachments,
       userTimezone,
     } = MothershipMessageSchema.parse(body)
 
@@ -98,7 +107,6 @@ export async function POST(req: NextRequest) {
     let agentContexts: Array<{ type: string; content: string }> = []
     if (Array.isArray(contexts) && contexts.length > 0) {
       try {
-        const { processContextsServer } = await import('@/lib/copilot/process-contents')
         agentContexts = await processContextsServer(
           contexts as any,
           authenticatedUserId,
@@ -107,6 +115,24 @@ export async function POST(req: NextRequest) {
         )
       } catch (e) {
         logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
+      }
+    }
+
+    if (Array.isArray(resourceAttachments) && resourceAttachments.length > 0) {
+      const results = await Promise.allSettled(
+        resourceAttachments.map((r) =>
+          resolveActiveResourceContext(r.type, r.id, workspaceId, authenticatedUserId)
+        )
+      )
+      for (const result of results) {
+        if (result.status === 'fulfilled' && result.value) {
+          agentContexts.push(result.value)
+        } else if (result.status === 'rejected') {
+          logger.error(
+            `[${tracker.requestId}] Failed to resolve resource attachment`,
+            result.reason
+          )
+        }
       }
     }
 
@@ -164,6 +190,7 @@ export async function POST(req: NextRequest) {
       if (updated) {
         const freshMessages: any[] = Array.isArray(updated.messages) ? updated.messages : []
         conversationHistory = freshMessages.filter((m: any) => m.id !== userMessageId)
+        taskPubSub?.publishStatusChanged({ workspaceId, chatId: actualChatId, type: 'started' })
       }
     }
 
@@ -200,6 +227,7 @@ export async function POST(req: NextRequest) {
       message,
       titleModel: 'claude-opus-4-5',
       requestId: tracker.requestId,
+      workspaceId,
       orchestrateOptions: {
         userId: authenticatedUserId,
         workspaceId,
@@ -261,8 +289,15 @@ export async function POST(req: NextRequest) {
                 .set({
                   messages: sql`${copilotChats.messages} || ${JSON.stringify([assistantMessage])}::jsonb`,
                   conversationId: sql`CASE WHEN ${copilotChats.conversationId} = ${userMessageId} THEN NULL ELSE ${copilotChats.conversationId} END`,
+                  updatedAt: new Date(),
                 })
                 .where(eq(copilotChats.id, actualChatId))
+
+              taskPubSub?.publishStatusChanged({
+                workspaceId,
+                chatId: actualChatId,
+                type: 'completed',
+              })
             }
           } catch (error) {
             logger.error(`[${tracker.requestId}] Failed to persist chat messages`, {

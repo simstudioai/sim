@@ -2,8 +2,12 @@ import { db } from '@sim/db'
 import { document, knowledgeBase, templates } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
+import { readFileRecord } from '@/lib/copilot/vfs/file-reader'
+import { serializeTableMeta } from '@/lib/copilot/vfs/serializers'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
+import { getTableById } from '@/lib/table/service'
 import { canAccessTemplate } from '@/lib/templates/permissions'
+import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
@@ -24,6 +28,7 @@ export type AgentContextType =
   | 'templates'
   | 'workflow_block'
   | 'docs'
+  | 'active_resource'
 
 export interface AgentContext {
   type: AgentContextType
@@ -395,7 +400,10 @@ async function processKnowledgeFromDb(
       }
     }
 
-    // Load KB metadata
+    const conditions = [eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)]
+    if (currentWorkspaceId) {
+      conditions.push(eq(knowledgeBase.workspaceId, currentWorkspaceId))
+    }
     const kbRows = await db
       .select({
         id: knowledgeBase.id,
@@ -403,7 +411,7 @@ async function processKnowledgeFromDb(
         updatedAt: knowledgeBase.updatedAt,
       })
       .from(knowledgeBase)
-      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+      .where(and(...conditions))
       .limit(1)
     const kb = kbRows?.[0]
     if (!kb) return null
@@ -672,5 +680,84 @@ async function processExecutionLogFromDb(
   } catch (error) {
     logger.error('Error processing execution log context (db)', { executionId, error })
     return null
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Active resource context resolution (direct DB lookups, workspace-scoped)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves the content of the currently active resource tab via direct DB
+ * queries. Each resource type has a dedicated handler that fetches only the
+ * single resource needed — avoiding the full VFS materialisation overhead.
+ */
+export async function resolveActiveResourceContext(
+  resourceType: string,
+  resourceId: string,
+  workspaceId: string,
+  _userId: string
+): Promise<AgentContext | null> {
+  try {
+    switch (resourceType) {
+      case 'workflow': {
+        const ctx = await processWorkflowFromDb(resourceId, undefined, '@active_resource')
+        if (!ctx) return null
+        return { type: 'active_resource', tag: '@active_resource', content: ctx.content }
+      }
+      case 'knowledgebase': {
+        const ctx = await processKnowledgeFromDb(
+          resourceId,
+          undefined,
+          '@active_resource',
+          workspaceId
+        )
+        if (!ctx) return null
+        return { type: 'active_resource', tag: '@active_resource', content: ctx.content }
+      }
+      case 'table': {
+        return await resolveTableResource(resourceId)
+      }
+      case 'file': {
+        return await resolveFileResource(resourceId, workspaceId)
+      }
+      default:
+        return null
+    }
+  } catch (error) {
+    logger.error('Failed to resolve active resource context', { resourceType, resourceId, error })
+    return null
+  }
+}
+
+async function resolveTableResource(tableId: string): Promise<AgentContext | null> {
+  const table = await getTableById(tableId)
+  if (!table) return null
+  return {
+    type: 'active_resource',
+    tag: '@active_resource',
+    content: serializeTableMeta(table),
+  }
+}
+
+async function resolveFileResource(
+  fileId: string,
+  workspaceId: string
+): Promise<AgentContext | null> {
+  const record = await getWorkspaceFile(workspaceId, fileId)
+  if (!record) return null
+  const fileResult = await readFileRecord(record)
+  const meta = {
+    id: record.id,
+    name: record.name,
+    contentType: record.type,
+    size: record.size,
+    uploadedAt: record.uploadedAt.toISOString(),
+    content: fileResult?.content || `[Could not read ${record.name}]`,
+  }
+  return {
+    type: 'active_resource',
+    tag: '@active_resource',
+    content: JSON.stringify(meta, null, 2),
   }
 }

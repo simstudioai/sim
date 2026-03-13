@@ -9,14 +9,14 @@ import {
   Blimp,
   Button,
   Download,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   FolderPlus,
   Home,
   Library,
   Loader,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverTrigger,
   Skeleton,
   Tooltip,
 } from '@/components/emcn'
@@ -29,6 +29,7 @@ import {
   Plus,
   Search,
   Settings,
+  Sim,
   Table,
 } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
@@ -63,6 +64,7 @@ import {
 import { useDeleteTask, useDeleteTasks, useRenameTask, useTasks } from '@/hooks/queries/tasks'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { useTaskEvents } from '@/hooks/use-task-events'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
@@ -80,18 +82,26 @@ function SidebarItemSkeleton() {
 
 const SidebarTaskItem = memo(function SidebarTaskItem({
   task,
-  active,
+  isCurrentRoute,
   isSelected,
+  isActive,
+  isUnread,
   showCollapsedContent,
   onMultiSelectClick,
   onContextMenu,
+  onMorePointerDown,
+  onMoreClick,
 }: {
   task: { id: string; href: string; name: string }
-  active: boolean
+  isCurrentRoute: boolean
   isSelected: boolean
+  isActive: boolean
+  isUnread: boolean
   showCollapsedContent: boolean
   onMultiSelectClick: (taskId: string, shiftKey: boolean, metaKey: boolean) => void
   onContextMenu: (e: React.MouseEvent, taskId: string) => void
+  onMorePointerDown: () => void
+  onMoreClick: (e: React.MouseEvent<HTMLButtonElement>, taskId: string) => void
 }) {
   return (
     <Tooltip.Root>
@@ -99,8 +109,8 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
         <Link
           href={task.href}
           className={cn(
-            'mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
-            (active || isSelected) && 'bg-[var(--surface-active)]'
+            'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
+            (isCurrentRoute || isSelected) && 'bg-[var(--surface-active)]'
           )}
           onClick={(e) => {
             if (task.id === 'new') return
@@ -108,15 +118,38 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
               e.preventDefault()
               onMultiSelectClick(task.id, e.shiftKey, e.metaKey || e.ctrlKey)
             } else {
-              useFolderStore.getState().clearTaskSelection()
+              useFolderStore.setState({
+                selectedTasks: new Set<string>(),
+                lastSelectedTaskId: task.id,
+              })
             }
           }}
           onContextMenu={task.id !== 'new' ? (e) => onContextMenu(e, task.id) : undefined}
         >
           <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-          <div className='min-w-0 truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
+          <div className='min-w-0 flex-1 truncate font-base text-[var(--text-body)]'>
             {task.name}
           </div>
+          {task.id !== 'new' && (
+            <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
+              {(isActive || isUnread) && !isCurrentRoute && (
+                <span className='absolute h-[7px] w-[7px] rounded-full bg-[#33C482] group-hover:hidden' />
+              )}
+              <button
+                type='button'
+                aria-label='Task options'
+                onPointerDown={onMorePointerDown}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onMoreClick(e, task.id)
+                }}
+                className='flex h-[18px] w-[18px] items-center justify-center rounded-[4px] opacity-0 hover:bg-[var(--surface-7)] group-hover:opacity-100'
+              >
+                <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+              </button>
+            </div>
+          )}
         </Link>
       </Tooltip.Trigger>
       {showCollapsedContent && (
@@ -160,9 +193,7 @@ const SidebarNavItem = memo(function SidebarNavItem({
       onClick={item.onClick}
     >
       <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
-        {item.label}
-      </span>
+      <span className='truncate font-base text-[var(--text-body)]'>{item.label}</span>
     </button>
   ) : (
     <Link
@@ -172,9 +203,7 @@ const SidebarNavItem = memo(function SidebarNavItem({
       onContextMenu={onContextMenu ? (e) => onContextMenu(e, item.href!) : undefined}
     >
       <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate font-[var(--sidebar-font-weight)] text-[var(--text-body)]'>
-        {item.label}
-      </span>
+      <span className='truncate font-base text-[var(--text-body)]'>{item.label}</span>
     </Link>
   )
 
@@ -373,6 +402,7 @@ export const Sidebar = memo(function Sidebar() {
     menuRef: taskMenuRef,
     handleContextMenu: handleTaskContextMenuBase,
     closeMenu: closeTaskContextMenu,
+    preventDismiss: preventTaskDismiss,
   } = useContextMenu()
 
   const contextMenuSelectionRef = useRef<{ taskIds: string[]; names: string[] }>({
@@ -380,21 +410,49 @@ export const Sidebar = memo(function Sidebar() {
     names: [],
   })
 
+  const captureTaskSelection = useCallback((taskId: string) => {
+    const { selectedTasks, selectTaskOnly } = useFolderStore.getState()
+    if (selectedTasks.size > 0 && selectedTasks.has(taskId)) {
+      contextMenuSelectionRef.current = {
+        taskIds: Array.from(selectedTasks),
+        names: [],
+      }
+    } else {
+      selectTaskOnly(taskId)
+      contextMenuSelectionRef.current = { taskIds: [taskId], names: [] }
+    }
+  }, [])
+
   const handleTaskContextMenu = useCallback(
     (e: React.MouseEvent, taskId: string) => {
-      const { selectedTasks, selectTaskOnly } = useFolderStore.getState()
-      if (selectedTasks.size > 0 && selectedTasks.has(taskId)) {
-        contextMenuSelectionRef.current = {
-          taskIds: Array.from(selectedTasks),
-          names: [],
-        }
-      } else {
-        selectTaskOnly(taskId)
-        contextMenuSelectionRef.current = { taskIds: [taskId], names: [] }
-      }
+      captureTaskSelection(taskId)
       handleTaskContextMenuBase(e)
     },
-    [handleTaskContextMenuBase]
+    [captureTaskSelection, handleTaskContextMenuBase]
+  )
+
+  const handleTaskMorePointerDown = useCallback(() => {
+    if (isTaskContextMenuOpen) {
+      preventTaskDismiss()
+    }
+  }, [isTaskContextMenuOpen, preventTaskDismiss])
+
+  const handleTaskMoreClick = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>, taskId: string) => {
+      if (isTaskContextMenuOpen) {
+        closeTaskContextMenu()
+        return
+      }
+      captureTaskSelection(taskId)
+      const rect = e.currentTarget.getBoundingClientRect()
+      handleTaskContextMenuBase({
+        preventDefault: () => {},
+        stopPropagation: () => {},
+        clientX: rect.right,
+        clientY: rect.top,
+      } as React.MouseEvent)
+    },
+    [isTaskContextMenuOpen, closeTaskContextMenu, captureTaskSelection, handleTaskContextMenuBase]
   )
 
   const { handleDuplicateWorkspace: duplicateWorkspace } = useDuplicateWorkspace({
@@ -507,6 +565,8 @@ export const Sidebar = memo(function Sidebar() {
 
   const { data: fetchedTasks = [], isLoading: tasksLoading } = useTasks(workspaceId)
 
+  useTaskEvents(workspaceId)
+
   const tasks = useMemo(
     () =>
       fetchedTasks.length > 0
@@ -514,7 +574,15 @@ export const Sidebar = memo(function Sidebar() {
             ...t,
             href: `/workspace/${workspaceId}/task/${t.id}`,
           }))
-        : [{ id: 'new', name: 'New task', href: `/workspace/${workspaceId}/home` }],
+        : [
+            {
+              id: 'new',
+              name: 'New task',
+              href: `/workspace/${workspaceId}/home`,
+              isActive: false,
+              isUnread: false,
+            },
+          ],
     [fetchedTasks, workspaceId]
   )
 
@@ -865,7 +933,7 @@ export const Sidebar = memo(function Sidebar() {
                     className='group flex h-[30px] w-[30px] items-center justify-center rounded-[8px] hover:bg-[var(--surface-active)]'
                     aria-label='Expand sidebar'
                   >
-                    <Blimp className='h-[18px] w-[18px] text-[var(--text-icon)] group-hover:hidden' />
+                    <Sim className='h-[16px] w-[16px] text-[var(--text-icon)] group-hover:hidden' />
                     <PanelLeft className='hidden h-[16px] w-[16px] rotate-180 text-[var(--text-icon)] group-hover:block' />
                   </button>
                 ) : (
@@ -873,7 +941,7 @@ export const Sidebar = memo(function Sidebar() {
                     href={`/workspace/${workspaceId}/home`}
                     className='flex h-[30px] w-[30px] items-center justify-center rounded-[8px] hover:bg-[var(--surface-active)]'
                   >
-                    <Blimp className='h-[18px] w-[18px] text-[var(--text-icon)]' />
+                    <Sim className='h-[16px] w-[16px] text-[var(--text-icon)]' />
                   </Link>
                 )}
               </Tooltip.Trigger>
@@ -1018,7 +1086,7 @@ export const Sidebar = memo(function Sidebar() {
                     ) : (
                       <>
                         {tasks.slice(0, visibleTaskCount).map((task) => {
-                          const active = task.id !== 'new' && pathname === task.href
+                          const isCurrentRoute = task.id !== 'new' && pathname === task.href
                           const isRenaming = renamingTaskId === task.id
                           const isSelected = task.id !== 'new' && selectedTasks.has(task.id)
 
@@ -1045,11 +1113,15 @@ export const Sidebar = memo(function Sidebar() {
                             <SidebarTaskItem
                               key={task.id}
                               task={task}
-                              active={active}
+                              isCurrentRoute={isCurrentRoute}
                               isSelected={isSelected}
+                              isActive={!!task.isActive}
+                              isUnread={!!task.isUnread}
                               showCollapsedContent={showCollapsedContent}
                               onMultiSelectClick={handleTaskClick}
                               onContextMenu={handleTaskContextMenu}
+                              onMorePointerDown={handleTaskMorePointerDown}
+                              onMoreClick={handleTaskMoreClick}
                             />
                           )
                         })}
@@ -1060,7 +1132,7 @@ export const Sidebar = memo(function Sidebar() {
                             className='mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] text-[var(--text-icon)] hover:bg-[var(--surface-active)]'
                           >
                             <MoreHorizontal className='h-[16px] w-[16px] flex-shrink-0' />
-                            <span className='font-[var(--sidebar-font-weight)]'>See more</span>
+                            <span className='font-base'>See more</span>
                           </button>
                         )}
                       </>
@@ -1077,10 +1149,10 @@ export const Sidebar = memo(function Sidebar() {
                           Workflows
                         </div>
                         <div className='flex items-center justify-center gap-[8px]'>
-                          <Popover>
+                          <DropdownMenu>
                             <Tooltip.Root>
                               <Tooltip.Trigger asChild>
-                                <PopoverTrigger asChild>
+                                <DropdownMenuTrigger asChild>
                                   <Button
                                     variant='ghost'
                                     className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
@@ -1092,31 +1164,33 @@ export const Sidebar = memo(function Sidebar() {
                                       <MoreHorizontal className='h-[16px] w-[16px]' />
                                     )}
                                   </Button>
-                                </PopoverTrigger>
+                                </DropdownMenuTrigger>
                               </Tooltip.Trigger>
                               <Tooltip.Content>
                                 <p>More actions</p>
                               </Tooltip.Content>
                             </Tooltip.Root>
-                            <PopoverContent align='end' sideOffset={8} minWidth={160}>
-                              <PopoverItem
-                                onClick={handleImportWorkflow}
+                            <DropdownMenuContent
+                              align='start'
+                              sideOffset={8}
+                              className='min-w-[160px]'
+                            >
+                              <DropdownMenuItem
+                                onSelect={handleImportWorkflow}
                                 disabled={!canEdit || isImporting}
                               >
-                                <Download className='h-[16px] w-[16px]' />
-                                <span>{isImporting ? 'Importing...' : 'Import workflow'}</span>
-                              </PopoverItem>
-                              <PopoverItem
-                                onClick={handleCreateFolder}
+                                <Download />
+                                {isImporting ? 'Importing...' : 'Import workflow'}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={handleCreateFolder}
                                 disabled={!canEdit || isCreatingFolder}
                               >
-                                <FolderPlus className='h-[16px] w-[16px]' />
-                                <span>
-                                  {isCreatingFolder ? 'Creating folder...' : 'Create folder'}
-                                </span>
-                              </PopoverItem>
-                            </PopoverContent>
-                          </Popover>
+                                <FolderPlus />
+                                {isCreatingFolder ? 'Creating folder...' : 'Create folder'}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                           <Tooltip.Root>
                             <Tooltip.Trigger asChild>
                               <Button

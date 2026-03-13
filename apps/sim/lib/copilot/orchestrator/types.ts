@@ -1,3 +1,5 @@
+import type { MothershipResource } from '@/lib/copilot/resource-types'
+
 export type SSEEventType =
   | 'chat_id'
   | 'title_updated'
@@ -8,6 +10,7 @@ export type SSEEventType =
   | 'tool_generating'
   | 'tool_result'
   | 'tool_error'
+  | 'resource_added'
   | 'subagent_start'
   | 'subagent_end'
   | 'structured_result'
@@ -38,6 +41,8 @@ export interface SSEEvent {
   phase?: string
   /** UI metadata from copilot (title, icon, phaseLabel) */
   ui?: Record<string, unknown>
+  /** Set on resource_added events */
+  resource?: { type: string; id: string; title: string }
 }
 
 export type ToolCallStatus =
@@ -64,6 +69,7 @@ export interface ToolCallResult<T = unknown> {
   success: boolean
   output?: T
   error?: string
+  resources?: MothershipResource[]
 }
 
 export type ContentBlockType = 'text' | 'thinking' | 'tool_call' | 'subagent_text' | 'subagent'

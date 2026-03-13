@@ -1,90 +1,38 @@
 'use client'
 
 import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverDivider,
-  PopoverItem,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/emcn'
+import { Copy, ExternalLink, Pencil, Tag, Trash } from '@/components/emcn/icons'
 
 interface KnowledgeBaseContextMenuProps {
-  /**
-   * Whether the context menu is open
-   */
   isOpen: boolean
-  /**
-   * Position of the context menu
-   */
   position: { x: number; y: number }
-  /**
-   * Ref for the menu element
-   */
-  menuRef: React.RefObject<HTMLDivElement | null>
-  /**
-   * Callback when menu should close
-   */
   onClose: () => void
-  /**
-   * Callback when open in new tab is clicked
-   */
   onOpenInNewTab?: () => void
-  /**
-   * Callback when view tags is clicked
-   */
   onViewTags?: () => void
-  /**
-   * Callback when copy ID is clicked
-   */
   onCopyId?: () => void
-  /**
-   * Callback when edit is clicked
-   */
   onEdit?: () => void
-  /**
-   * Callback when delete is clicked
-   */
   onDelete?: () => void
-  /**
-   * Whether to show the open in new tab option
-   * @default true
-   */
   showOpenInNewTab?: boolean
-  /**
-   * Whether to show the view tags option
-   * @default true
-   */
   showViewTags?: boolean
-  /**
-   * Whether to show the edit option
-   * @default true
-   */
   showEdit?: boolean
-  /**
-   * Whether to show the delete option
-   * @default true
-   */
   showDelete?: boolean
-  /**
-   * Whether the edit option is disabled
-   * @default false
-   */
   disableEdit?: boolean
-  /**
-   * Whether the delete option is disabled
-   * @default false
-   */
   disableDelete?: boolean
 }
 
 /**
  * Context menu component for knowledge base cards.
- * Displays open in new tab, view tags, edit, and delete options in a popover at the right-click position.
+ * Displays open in new tab, view tags, edit, and delete options.
  */
 export function KnowledgeBaseContextMenu({
   isOpen,
   position,
-  menuRef,
   onClose,
   onOpenInNewTab,
   onViewTags,
@@ -104,87 +52,66 @@ export function KnowledgeBaseContextMenu({
   const hasDestructiveSection = showDelete && !!onDelete
 
   return (
-    <Popover
-      open={isOpen}
-      onOpenChange={(open) => !open && onClose()}
-      variant='secondary'
-      size='sm'
-    >
-      <PopoverAnchor
-        style={{
-          position: 'fixed',
-          left: `${position.x}px`,
-          top: `${position.y}px`,
-          width: '1px',
-          height: '1px',
-        }}
-      />
-      <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
-        {/* Navigation */}
+    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
+      <DropdownMenuTrigger asChild>
+        <div
+          style={{
+            position: 'fixed',
+            left: `${position.x}px`,
+            top: `${position.y}px`,
+            width: '1px',
+            height: '1px',
+            pointerEvents: 'none',
+          }}
+          tabIndex={-1}
+          aria-hidden
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align='start'
+        side='bottom'
+        sideOffset={4}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
         {hasNavigationSection && (
-          <PopoverItem
-            onClick={() => {
-              onOpenInNewTab!()
-              onClose()
-            }}
-          >
+          <DropdownMenuItem onSelect={onOpenInNewTab!}>
+            <ExternalLink />
             Open in new tab
-          </PopoverItem>
+          </DropdownMenuItem>
         )}
         {hasNavigationSection && (hasInfoSection || hasEditSection || hasDestructiveSection) && (
-          <PopoverDivider />
+          <DropdownMenuSeparator />
         )}
 
-        {/* View and copy actions */}
         {showViewTags && onViewTags && (
-          <PopoverItem
-            onClick={() => {
-              onViewTags()
-              onClose()
-            }}
-          >
+          <DropdownMenuItem onSelect={onViewTags}>
+            <Tag />
             View tags
-          </PopoverItem>
+          </DropdownMenuItem>
         )}
         {onCopyId && (
-          <PopoverItem
-            onClick={() => {
-              onCopyId()
-              onClose()
-            }}
-          >
+          <DropdownMenuItem onSelect={onCopyId}>
+            <Copy />
             Copy ID
-          </PopoverItem>
+          </DropdownMenuItem>
         )}
-        {hasInfoSection && (hasEditSection || hasDestructiveSection) && <PopoverDivider />}
+        {hasInfoSection && (hasEditSection || hasDestructiveSection) && <DropdownMenuSeparator />}
 
-        {/* Edit action */}
         {showEdit && onEdit && (
-          <PopoverItem
-            disabled={disableEdit}
-            onClick={() => {
-              onEdit()
-              onClose()
-            }}
-          >
+          <DropdownMenuItem disabled={disableEdit} onSelect={onEdit}>
+            <Pencil />
             Edit
-          </PopoverItem>
+          </DropdownMenuItem>
         )}
 
-        {/* Destructive action */}
-        {hasEditSection && hasDestructiveSection && <PopoverDivider />}
+        {hasEditSection && hasDestructiveSection && <DropdownMenuSeparator />}
         {showDelete && onDelete && (
-          <PopoverItem
-            disabled={disableDelete}
-            onClick={() => {
-              onDelete()
-              onClose()
-            }}
-          >
+          <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
+            <Trash />
             Delete
-          </PopoverItem>
+          </DropdownMenuItem>
         )}
-      </PopoverContent>
-    </Popover>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

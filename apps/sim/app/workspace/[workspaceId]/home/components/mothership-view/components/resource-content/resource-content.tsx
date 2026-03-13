@@ -4,8 +4,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo } from 'react'
 import { Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
-import { BookOpen } from '@/components/emcn/icons'
-import { WorkflowIcon } from '@/components/icons'
+import { BookOpen, SquareArrowUpRight } from '@/components/emcn/icons'
 import {
   markRunToolManuallyStopped,
   reportManualRunToolStop,
@@ -83,6 +82,24 @@ export function ResourceContent({ workspaceId, resource, previewMode }: Resource
   }
 }
 
+interface ResourceActionsProps {
+  workspaceId: string
+  resource: MothershipResource
+}
+
+export function ResourceActions({ workspaceId, resource }: ResourceActionsProps) {
+  switch (resource.type) {
+    case 'workflow':
+      return <EmbeddedWorkflowActions workspaceId={workspaceId} workflowId={resource.id} />
+    case 'knowledgebase':
+      return (
+        <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
+      )
+    default:
+      return null
+  }
+}
+
 interface EmbeddedWorkflowActionsProps {
   workspaceId: string
   workflowId: string
@@ -146,7 +163,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
             className='shrink-0 bg-transparent px-[8px] py-[5px] text-[12px]'
             aria-label='Open workflow'
           >
-            <WorkflowIcon className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+            <SquareArrowUpRight className='h-[16px] w-[16px] text-[var(--text-icon)]' />
           </Button>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>

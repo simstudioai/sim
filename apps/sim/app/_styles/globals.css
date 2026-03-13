@@ -132,7 +132,6 @@
     --text-body: #3b3b3b;
     --text-icon: #5e5e5e;
 
-    --sidebar-font-weight: 420;
     --text-inverse: #ffffff;
     --text-muted-inverse: #a0a0a0;
     --text-error: #ef4444;
@@ -154,7 +153,7 @@
     --white: #ffffff;
 
     /* Font weights - lighter for light mode */
-    --font-weight-base: 430;
+    --font-weight-base: 420;
     --font-weight-medium: 440;
     --font-weight-semibold: 500;
 
@@ -255,7 +254,6 @@
     --text-body: #cdcdcd;
     --text-icon: #939393;
 
-    --sidebar-font-weight: 420;
     --text-inverse: #1b1b1b;
     --text-muted-inverse: #b3b3b3;
     --text-error: #ef4444;
@@ -277,7 +275,7 @@
     --white: #ffffff;
 
     /* Font weights - standard weights for dark mode */
-    --font-weight-base: 450;
+    --font-weight-base: 420;
     --font-weight-medium: 480;
     --font-weight-semibold: 550;
 
@@ -669,16 +667,36 @@ input[type="search"]::-ms-clear {
 }
 
 /**
- * Notification toast enter animation
+ * Notification toast enter animation — pop-open with stack offset
  */
 @keyframes notification-enter {
   from {
     opacity: 0;
-    transform: translateX(-16px);
+    transform: translateX(calc(var(--stack-offset, 0px) - 8px)) scale(0.97);
   }
   to {
     opacity: 1;
-    transform: translateX(var(--stack-offset, 0px));
+    transform: translateX(var(--stack-offset, 0px)) scale(1);
+  }
+}
+
+@keyframes notification-countdown {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: 34.56;
+  }
+}
+
+@keyframes notification-exit {
+  from {
+    opacity: 1;
+    transform: translateX(var(--stack-offset, 0px)) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(calc(var(--stack-offset, 0px) + 8px)) scale(0.97);
   }
 }
 

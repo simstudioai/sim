@@ -199,8 +199,9 @@ export function WorkspaceHeader({
     contextMenuClosedRef.current = true
 
     setIsContextMenuOpen(false)
+    const isOpeningAnother = isContextMenuOpeningRef.current
     isContextMenuOpeningRef.current = false
-    if (!isRenamingRef.current) {
+    if (!isRenamingRef.current && !isOpeningAnother) {
       setIsWorkspaceMenuOpen(false)
     }
     isRenamingRef.current = false
@@ -354,11 +355,7 @@ export function WorkspaceHeader({
                     <span className='min-w-0 flex-1 truncate text-left font-base text-[14px] text-[var(--text-primary)]'>
                       {activeWorkspace?.name || 'Loading...'}
                     </span>
-                    <ChevronDown
-                      className={`sidebar-collapse-hide h-[8px] w-[10px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100 group-hover:text-[var(--text-secondary)] ${
-                        isWorkspaceMenuOpen ? 'rotate-180' : ''
-                      }`}
-                    />
+                    <ChevronDown className='sidebar-collapse-hide h-[8px] w-[10px] flex-shrink-0 text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]' />
                   </>
                 )}
               </button>
@@ -497,6 +494,9 @@ export function WorkspaceHeader({
                             <button
                               type='button'
                               aria-label='Workspace options'
+                              onMouseDown={() => {
+                                isContextMenuOpeningRef.current = true
+                              }}
                               onClick={(e) => {
                                 e.preventDefault()
                                 e.stopPropagation()

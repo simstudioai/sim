@@ -2322,10 +2322,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               {column.unique ? 'Remove unique' : 'Set unique'}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onSelect={() => onDeleteColumn(column.name)}
-              className='text-[var(--text-error)] focus:text-[var(--text-error)]'
-            >
+            <DropdownMenuItem onSelect={() => onDeleteColumn(column.name)}>
               <Trash />
               Delete column
             </DropdownMenuItem>

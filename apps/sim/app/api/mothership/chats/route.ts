@@ -10,6 +10,7 @@ import {
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
+import { taskPubSub } from '@/lib/copilot/task-events'
 import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('MothershipChatsAPI')
@@ -37,6 +38,8 @@ export async function GET(request: NextRequest) {
         id: copilotChats.id,
         title: copilotChats.title,
         updatedAt: copilotChats.updatedAt,
+        conversationId: copilotChats.conversationId,
+        lastSeenAt: copilotChats.lastSeenAt,
       })
       .from(copilotChats)
       .where(
@@ -75,6 +78,7 @@ export async function POST(request: NextRequest) {
 
     await assertActiveWorkspaceAccess(workspaceId, userId)
 
+    const now = new Date()
     const [chat] = await db
       .insert(copilotChats)
       .values({
@@ -84,8 +88,12 @@ export async function POST(request: NextRequest) {
         title: null,
         model: 'claude-opus-4-5',
         messages: [],
+        updatedAt: now,
+        lastSeenAt: now,
       })
       .returning({ id: copilotChats.id })
+
+    taskPubSub?.publishStatusChanged({ workspaceId, chatId: chat.id, type: 'created' })
 
     return NextResponse.json({ success: true, id: chat.id })
   } catch (error) {

@@ -1,6 +1,12 @@
 'use client'
 
-import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/emcn'
+import { Copy, ExternalLink } from '@/components/emcn/icons'
 
 interface NavItemContextMenuProps {
   isOpen: boolean
@@ -20,40 +26,45 @@ export function NavItemContextMenu({
   onCopyLink,
 }: NavItemContextMenuProps) {
   return (
-    <Popover
-      open={isOpen}
-      onOpenChange={(open) => !open && onClose()}
-      variant='secondary'
-      size='sm'
-      colorScheme='inverted'
-    >
-      <PopoverAnchor
-        style={{
-          position: 'fixed',
-          left: `${position.x}px`,
-          top: `${position.y}px`,
-          width: '1px',
-          height: '1px',
-        }}
-      />
-      <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
-        <PopoverItem
-          onClick={() => {
+    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
+      <DropdownMenuTrigger asChild>
+        <div
+          style={{
+            position: 'fixed',
+            left: `${position.x}px`,
+            top: `${position.y}px`,
+            width: '1px',
+            height: '1px',
+            pointerEvents: 'none',
+          }}
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        ref={menuRef}
+        align='start'
+        side='bottom'
+        sideOffset={4}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        <DropdownMenuItem
+          onSelect={() => {
             onOpenInNewTab()
             onClose()
           }}
         >
+          <ExternalLink />
           Open in new tab
-        </PopoverItem>
-        <PopoverItem
-          onClick={() => {
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => {
             onCopyLink()
             onClose()
           }}
         >
+          <Copy />
           Copy link
-        </PopoverItem>
-      </PopoverContent>
-    </Popover>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

@@ -463,6 +463,7 @@ export async function GET(req: NextRequest) {
         planArtifact: chat.planArtifact || null,
         config: chat.config || null,
         conversationId: chat.conversationId || null,
+        resources: Array.isArray(chat.resources) ? chat.resources : [],
         createdAt: chat.createdAt,
         updatedAt: chat.updatedAt,
       }

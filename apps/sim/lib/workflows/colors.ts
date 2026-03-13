@@ -20,9 +20,7 @@ export const WORKFLOW_COLORS = [
   // Shade 1 - all base colors (brightest)
   { color: '#c084fc', name: 'Purple 1' },
   { color: '#5ed8ff', name: 'Blue 1' },
-  { color: '#4aea7f', name: 'Green 1' },
   { color: '#ff6b6b', name: 'Red 1' },
-  { color: '#ff9642', name: 'Orange 1' },
   { color: '#f472b6', name: 'Pink 1' },
 
   // Shade 2 - all base colors

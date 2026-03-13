@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Copy, Trash } from '@/components/emcn/icons'
+import { Copy, Database, Pencil, Trash } from '@/components/emcn/icons'
 
 interface TableContextMenuProps {
   isOpen: boolean
@@ -34,7 +34,7 @@ export function TableContextMenu({
   disableRename = false,
 }: TableContextMenuProps) {
   return (
-    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
         <div
           style={{
@@ -49,10 +49,21 @@ export function TableContextMenu({
           aria-hidden
         />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align='start' side='bottom' sideOffset={4}>
-        {onViewSchema && <DropdownMenuItem onSelect={onViewSchema}>View Schema</DropdownMenuItem>}
+      <DropdownMenuContent
+        align='start'
+        side='bottom'
+        sideOffset={4}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        {onViewSchema && (
+          <DropdownMenuItem onSelect={onViewSchema}>
+            <Database />
+            View Schema
+          </DropdownMenuItem>
+        )}
         {onRename && (
           <DropdownMenuItem disabled={disableRename} onSelect={onRename}>
+            <Pencil />
             Rename
           </DropdownMenuItem>
         )}
