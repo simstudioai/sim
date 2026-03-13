@@ -120,7 +120,9 @@ describe('workspace lifecycle', () => {
       archived: false,
       workspaceName: 'Workspace 1',
     })
-    expect(mockArchiveWorkflowsForWorkspace).not.toHaveBeenCalled()
+    expect(mockArchiveWorkflowsForWorkspace).toHaveBeenCalledWith('workspace-1', {
+      requestId: 'req-1',
+    })
     expect(mockTransaction).not.toHaveBeenCalled()
   })
 })
