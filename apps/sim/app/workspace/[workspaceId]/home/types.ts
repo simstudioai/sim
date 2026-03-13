@@ -146,6 +146,8 @@ export interface ChatMessageContext {
   label: string
   workflowId?: string
   knowledgeId?: string
+  tableId?: string
+  fileId?: string
 }
 
 export interface ChatMessage {

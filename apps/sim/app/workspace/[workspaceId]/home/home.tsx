@@ -259,6 +259,18 @@ export function Home({ chatId }: HomeProps = {}) {
             resourceId = context.knowledgeId
           }
           break
+        case 'table':
+          if (context.tableId) {
+            resourceType = 'table'
+            resourceId = context.tableId
+          }
+          break
+        case 'file':
+          if (context.fileId) {
+            resourceType = 'file'
+            resourceId = context.fileId
+          }
+          break
         default:
           break
       }

@@ -140,9 +140,9 @@ function mapResourceToContext(resource: MothershipResource): ChatContext {
     case 'knowledgebase':
       return { kind: 'knowledge', knowledgeId: resource.id, label: resource.title }
     case 'table':
-      return { kind: 'docs', label: resource.title }
+      return { kind: 'table', tableId: resource.id, label: resource.title }
     case 'file':
-      return { kind: 'docs', label: resource.title }
+      return { kind: 'file', fileId: resource.id, label: resource.title }
     default:
       return { kind: 'docs', label: resource.title }
   }
@@ -626,6 +626,8 @@ export function UserInput({
     for (const ctx of contextManagement.selectedContexts) {
       if (ctx.kind === 'workflow' && ctx.workflowId) keys.add(`workflow:${ctx.workflowId}`)
       if (ctx.kind === 'knowledge' && ctx.knowledgeId) keys.add(`knowledgebase:${ctx.knowledgeId}`)
+      if (ctx.kind === 'table' && ctx.tableId) keys.add(`table:${ctx.tableId}`)
+      if (ctx.kind === 'file' && ctx.fileId) keys.add(`file:${ctx.fileId}`)
     }
     return keys
   }, [contextManagement.selectedContexts])

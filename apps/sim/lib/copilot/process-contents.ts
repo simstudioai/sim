@@ -21,6 +21,8 @@ export type AgentContextType =
   | 'blocks'
   | 'logs'
   | 'knowledge'
+  | 'table'
+  | 'file'
   | 'templates'
   | 'workflow_block'
   | 'docs'
@@ -119,6 +121,16 @@ export async function processContextsServer(
       }
       if (ctx.kind === 'workflow_block' && ctx.workflowId && ctx.blockId) {
         return await processWorkflowBlockFromDb(ctx.workflowId, ctx.blockId, ctx.label)
+      }
+      if (ctx.kind === 'table' && ctx.tableId) {
+        const result = await resolveTableResource(ctx.tableId)
+        if (!result) return null
+        return { type: 'table', tag: ctx.label ? `@${ctx.label}` : '@', content: result.content }
+      }
+      if (ctx.kind === 'file' && ctx.fileId && workspaceId) {
+        const result = await resolveFileResource(ctx.fileId, workspaceId)
+        if (!result) return null
+        return { type: 'file', tag: ctx.label ? `@${ctx.label}` : '@', content: result.content }
       }
       if (ctx.kind === 'docs') {
         try {

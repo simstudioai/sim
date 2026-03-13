@@ -152,6 +152,8 @@ function mapStoredMessage(msg: TaskStoredMessage): ChatMessage {
       label: c.label,
       ...(c.workflowId && { workflowId: c.workflowId }),
       ...(c.knowledgeId && { knowledgeId: c.knowledgeId }),
+      ...(c.tableId && { tableId: c.tableId }),
+      ...(c.fileId && { fileId: c.fileId }),
     }))
   }
 

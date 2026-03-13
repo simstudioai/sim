@@ -40,6 +40,8 @@ export interface TaskStoredMessageContext {
   label: string
   workflowId?: string
   knowledgeId?: string
+  tableId?: string
+  fileId?: string
 }
 
 export interface TaskStoredMessage {
