@@ -5,6 +5,8 @@ export interface TaskMetadata {
   id: string
   name: string
   updatedAt: Date
+  isActive: boolean
+  isUnread: boolean
 }
 
 export interface TaskChatHistory {
@@ -67,13 +69,20 @@ interface TaskResponse {
   id: string
   title: string | null
   updatedAt: string
+  conversationId: string | null
+  lastSeenAt: string | null
 }
 
 function mapTask(chat: TaskResponse): TaskMetadata {
+  const updatedAt = new Date(chat.updatedAt)
   return {
     id: chat.id,
     name: chat.title ?? 'New task',
-    updatedAt: new Date(chat.updatedAt),
+    updatedAt,
+    isActive: chat.conversationId !== null,
+    isUnread:
+      chat.conversationId === null &&
+      (chat.lastSeenAt === null || updatedAt > new Date(chat.lastSeenAt)),
   }
 }
 
@@ -339,6 +348,46 @@ export function useRemoveChatResource(chatId?: string) {
       if (chatId) {
         queryClient.invalidateQueries({ queryKey: taskKeys.detail(chatId) })
       }
+    },
+  })
+}
+
+async function markTaskRead(chatId: string): Promise<void> {
+  const response = await fetch('/api/mothership/chats/read', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chatId }),
+  })
+  if (!response.ok) {
+    throw new Error('Failed to mark task as read')
+  }
+}
+
+/**
+ * Marks a task as read with optimistic update.
+ */
+export function useMarkTaskRead(workspaceId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: markTaskRead,
+    onMutate: async (chatId) => {
+      await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
+
+      const previousTasks = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
+
+      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), (old) =>
+        old?.map((task) => (task.id === chatId ? { ...task, isUnread: false } : task))
+      )
+
+      return { previousTasks }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousTasks) {
+        queryClient.setQueryData(taskKeys.list(workspaceId), context.previousTasks)
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
     },
   })
 }

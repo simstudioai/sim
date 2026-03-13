@@ -144,6 +144,12 @@ export function UserInput({
     wasSendingRef.current = isSending
   }, [isSending])
 
+  useEffect(() => {
+    if (isInitialView) {
+      textareaRef.current?.focus()
+    }
+  }, [isInitialView])
+
   const handleContainerClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('button')) return
     textareaRef.current?.focus()

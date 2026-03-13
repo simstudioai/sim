@@ -1,11 +1,10 @@
-'use client'
-
 import {
   type ReactNode,
   type RefCallback,
-  type SVGProps,
+  type SVGProps,  
   useCallback,
-  useMemo,
+  useMemo,  
+  useEffect,
   useRef,
   useState,
 } from 'react'
@@ -13,7 +12,9 @@ import {
   Button,
   Tooltip,
 } from '@/components/emcn'
-import { PanelLeft } from '@/components/emcn/icons'
+import { BookOpen, PanelLeft, Table as TableIcon } from '@/components/emcn/icons'
+import { WorkflowIcon } from '@/components/icons'
+import { getDocumentIcon } from '@/components/icons/document-icons'
 import { cn } from '@/lib/core/utils/cn'
 import { useAddChatResource, useRemoveChatResource, useReorderChatResources } from '@/hooks/queries/tasks'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
@@ -85,9 +86,10 @@ export function ResourceTabs({
   onCyclePreviewMode,
   actions,
 }: ResourceTabsProps) {
-  const scrollNodeRef = useRef<HTMLDivElement | null>(null)
-  const scrollRef = useCallback<RefCallback<HTMLDivElement>>((node) => {
-    scrollNodeRef.current = node
+  const scrollNodeRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const node = scrollNodeRef.current
     if (!node) return
     const handler = (e: WheelEvent) => {
       if (e.deltaY !== 0) {
@@ -243,7 +245,7 @@ export function ResourceTabs({
         </Tooltip.Content>
       </Tooltip.Root>
       <div
-        ref={scrollRef}
+        ref={scrollNodeRef}
         className='mx-[2px] flex min-w-0 items-center gap-[6px] overflow-x-auto px-[6px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
         onDragOver={(e) => {
           e.preventDefault()

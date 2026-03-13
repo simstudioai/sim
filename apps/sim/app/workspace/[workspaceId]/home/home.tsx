@@ -14,7 +14,7 @@ import {
   LandingWorkflowSeedStorage,
 } from '@/lib/core/utils/browser-storage'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
-import { useChatHistory } from '@/hooks/queries/tasks'
+import { useChatHistory, useMarkTaskRead } from '@/hooks/queries/tasks'
 import { MessageContent, MothershipView, TemplatePrompts, UserInput } from './components'
 import type { FileAttachmentForApi } from './components/user-input/user-input'
 import { useAutoScroll, useChat } from './hooks'
@@ -156,7 +156,10 @@ export function Home({ chatId }: HomeProps = {}) {
     }
   }, [createWorkflowFromLandingSeed, workspaceId, router])
 
+  const wasSendingRef = useRef(false)
+
   const { isLoading: isLoadingHistory } = useChatHistory(chatId)
+  const { mutate: markRead } = useMarkTaskRead(workspaceId)
 
   const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
   const [isResourceAnimatingIn, setIsResourceAnimatingIn] = useState(false)
@@ -182,6 +185,7 @@ export function Home({ chatId }: HomeProps = {}) {
     isSending,
     sendMessage,
     stopGeneration,
+    resolvedChatId,
     resources,
     activeResourceId,
     setActiveResourceId,
@@ -189,6 +193,18 @@ export function Home({ chatId }: HomeProps = {}) {
     removeResource,
     reorderResources,
   } = useChat(workspaceId, chatId, { onResourceEvent: handleResourceEvent })
+
+  useEffect(() => {
+    wasSendingRef.current = false
+    if (resolvedChatId) markRead(resolvedChatId)
+  }, [resolvedChatId, markRead])
+
+  useEffect(() => {
+    if (wasSendingRef.current && !isSending && resolvedChatId) {
+      markRead(resolvedChatId)
+    }
+    wasSendingRef.current = isSending
+  }, [isSending, resolvedChatId, markRead])
 
   const visibleResources = resources
 

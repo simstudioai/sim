@@ -44,6 +44,7 @@ export interface UseChatReturn {
   messages: ChatMessage[]
   isSending: boolean
   error: string | null
+  resolvedChatId: string | undefined
   sendMessage: (message: string, fileAttachments?: FileAttachmentForApi[]) => Promise<void>
   stopGeneration: () => Promise<void>
   resources: MothershipResource[]
@@ -226,6 +227,7 @@ export function useChat(
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [resolvedChatId, setResolvedChatId] = useState<string | undefined>(initialChatId)
   const [resources, setResources] = useState<MothershipResource[]>([])
   const [activeResourceId, setActiveResourceId] = useState<string | null>(null)
   const onResourceEventRef = useRef(options?.onResourceEvent)
@@ -268,9 +270,11 @@ export function useChat(
   useEffect(() => {
     if (sendingRef.current) {
       chatIdRef.current = initialChatId
+      setResolvedChatId(initialChatId)
       return
     }
     chatIdRef.current = initialChatId
+    setResolvedChatId(initialChatId)
     appliedChatIdRef.current = undefined
     setMessages([])
     setError(null)
@@ -283,6 +287,7 @@ export function useChat(
     if (!isHomePage || !chatIdRef.current) return
     streamGenRef.current++
     chatIdRef.current = undefined
+    setResolvedChatId(undefined)
     appliedChatIdRef.current = undefined
     abortControllerRef.current?.abort()
     abortControllerRef.current = null
@@ -381,6 +386,7 @@ export function useChat(
               if (parsed.chatId) {
                 const isNewChat = !chatIdRef.current
                 chatIdRef.current = parsed.chatId
+                setResolvedChatId(parsed.chatId)
                 queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
                 if (isNewChat) {
                   const userMsg = pendingUserMsgRef.current
@@ -886,6 +892,7 @@ export function useChat(
     messages,
     isSending,
     error,
+    resolvedChatId,
     sendMessage,
     stopGeneration,
     resources,
