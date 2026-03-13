@@ -168,6 +168,7 @@ export function Home({ chatId }: HomeProps = {}) {
     isSending,
     sendMessage,
     stopGeneration,
+    resolvedChatId,
     resources,
     isResourceCleanupSettled,
     activeResourceId,
@@ -176,15 +177,15 @@ export function Home({ chatId }: HomeProps = {}) {
 
   useEffect(() => {
     wasSendingRef.current = false
-    if (chatId) markRead(chatId)
-  }, [chatId, markRead])
+    if (resolvedChatId) markRead(resolvedChatId)
+  }, [resolvedChatId, markRead])
 
   useEffect(() => {
-    if (wasSendingRef.current && !isSending && chatId) {
-      markRead(chatId)
+    if (wasSendingRef.current && !isSending && resolvedChatId) {
+      markRead(resolvedChatId)
     }
     wasSendingRef.current = isSending
-  }, [isSending, chatId, markRead])
+  }, [isSending, resolvedChatId, markRead])
 
   const [isResourceCollapsed, setIsResourceCollapsed] = useState(false)
   const [showExpandButton, setShowExpandButton] = useState(false)

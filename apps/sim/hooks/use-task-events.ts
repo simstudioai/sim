@@ -14,7 +14,9 @@ export function useTaskEvents(workspaceId: string | undefined) {
   useEffect(() => {
     if (!workspaceId) return
 
-    const eventSource = new EventSource(`/api/mothership/events?workspaceId=${workspaceId}`)
+    const eventSource = new EventSource(
+      `/api/mothership/events?workspaceId=${encodeURIComponent(workspaceId)}`
+    )
 
     eventSource.addEventListener('task_status', () => {
       queryClient.invalidateQueries({ queryKey: taskKeys.lists() })
