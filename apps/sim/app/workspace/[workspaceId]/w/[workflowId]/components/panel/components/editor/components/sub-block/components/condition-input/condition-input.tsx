@@ -4,7 +4,6 @@ import { createLogger } from '@sim/logger'
 import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import Editor from 'react-simple-code-editor'
-import { useUpdateNodeInternals } from 'reactflow'
 import {
   Button,
   Code,
@@ -173,7 +172,6 @@ export function ConditionInput({
   const [visualLineHeights, setVisualLineHeights] = useState<{
     [key: string]: number[]
   }>({})
-  const updateNodeInternals = useUpdateNodeInternals()
   const batchRemoveEdges = useWorkflowStore((state) => state.batchRemoveEdges)
   const edges = useWorkflowStore((state) => state.edges)
 
@@ -352,17 +350,8 @@ export function ConditionInput({
     if (newValue !== prevStoreValueRef.current) {
       prevStoreValueRef.current = newValue
       setStoreValue(newValue)
-      updateNodeInternals(blockId)
     }
-  }, [
-    conditionalBlocks,
-    blockId,
-    subBlockId,
-    setStoreValue,
-    updateNodeInternals,
-    isReady,
-    isPreview,
-  ])
+  }, [conditionalBlocks, blockId, subBlockId, setStoreValue, isReady, isPreview])
 
   // Cleanup when component unmounts
   useEffect(() => {
@@ -708,8 +697,6 @@ export function ConditionInput({
 
     shouldPersistRef.current = true
     setConditionalBlocks((blocks) => updateBlockTitles(blocks.filter((block) => block.id !== id)))
-
-    setTimeout(() => updateNodeInternals(blockId), 0)
   }
 
   const moveBlock = (id: string, direction: 'up' | 'down') => {
@@ -737,8 +724,6 @@ export function ConditionInput({
     ]
     shouldPersistRef.current = true
     setConditionalBlocks(updateBlockTitles(newBlocks))
-
-    setTimeout(() => updateNodeInternals(blockId), 0)
   }
 
   // Add useEffect to handle keyboard events for both dropdowns

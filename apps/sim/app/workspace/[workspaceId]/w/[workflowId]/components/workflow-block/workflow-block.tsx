@@ -11,6 +11,7 @@ import { createMcpToolId } from '@/lib/mcp/shared'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import type { FilterRule, SortRule } from '@/lib/table/types'
 import { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
+import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
 import {
   buildCanonicalIndex,
   evaluateSubBlockCondition,
@@ -1049,6 +1050,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
   const subBlockRows = subBlockRowsData.rows
   const subBlockState = subBlockRowsData.stateToUse
+  const topologySubBlocks = data.isPreview
+    ? (data.blockState?.subBlocks ?? {})
+    : (currentStoreBlock?.subBlocks ?? {})
   const effectiveAdvanced = useMemo(() => {
     const rawValues = Object.entries(subBlockState).reduce<Record<string, unknown>>(
       (acc, [key, entry]) => {
@@ -1108,34 +1112,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
    */
   const conditionRows = useMemo(() => {
     if (type !== 'condition') return [] as { id: string; title: string; value: string }[]
-
-    const conditionsValue = subBlockState.conditions?.value
-    const raw = typeof conditionsValue === 'string' ? conditionsValue : undefined
-
-    try {
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown
-        if (Array.isArray(parsed)) {
-          return parsed.map((item: unknown, index: number) => {
-            const conditionItem = item as { id?: string; value?: unknown }
-            const title = index === 0 ? 'if' : index === parsed.length - 1 ? 'else' : 'else if'
-            return {
-              id: conditionItem?.id ?? `${id}-cond-${index}`,
-              title,
-              value: typeof conditionItem?.value === 'string' ? conditionItem.value : '',
-            }
-          })
-        }
-      }
-    } catch (error) {
-      logger.warn('Failed to parse condition subblock value', { error, blockId: id })
-    }
-
-    return [
-      { id: `${id}-if`, title: 'if', value: '' },
-      { id: `${id}-else`, title: 'else', value: '' },
-    ]
-  }, [type, subBlockState, id])
+    return getConditionRows(id, topologySubBlocks.conditions?.value)
+  }, [type, topologySubBlocks, id])
 
   /**
    * Compute per-route rows (id/value) for router_v2 blocks so we can render
@@ -1144,31 +1122,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
    */
   const routerRows = useMemo(() => {
     if (type !== 'router_v2') return [] as { id: string; value: string }[]
-
-    const routesValue = subBlockState.routes?.value
-    const raw = typeof routesValue === 'string' ? routesValue : undefined
-
-    try {
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown
-        if (Array.isArray(parsed)) {
-          return parsed.map((item: unknown, index: number) => {
-            const routeItem = item as { id?: string; value?: string }
-            return {
-              // Use stable ID format that matches ConditionInput's generateStableId
-              id: routeItem?.id ?? `${id}-route${index + 1}`,
-              value: routeItem?.value ?? '',
-            }
-          })
-        }
-      }
-    } catch (error) {
-      logger.warn('Failed to parse router routes value', { error, blockId: id })
-    }
-
-    // Fallback must match ConditionInput's default: generateStableId(blockId, 'route1') = `${blockId}-route1`
-    return [{ id: `${id}-route1`, value: '' }]
-  }, [type, subBlockState, id])
+    return getRouterRows(id, topologySubBlocks.routes?.value)
+  }, [type, topologySubBlocks, id])
 
   /**
    * Compute and publish deterministic layout metrics for workflow blocks.

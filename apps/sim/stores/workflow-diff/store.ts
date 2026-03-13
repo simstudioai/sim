@@ -190,22 +190,6 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             logger.warn('Failed to broadcast workflow state (non-blocking)', { error })
           })
 
-          // Fire and forget: persist to database (don't await)
-          persistWorkflowStateToServer(activeWorkflowId, candidateState)
-            .then((persisted) => {
-              if (!persisted) {
-                logger.warn('Failed to persist copilot edits (state already applied locally)')
-                // Don't revert - user can retry or state will sync on next save
-              } else {
-                logger.info('Workflow diff persisted to database', {
-                  workflowId: activeWorkflowId,
-                })
-              }
-            })
-            .catch((error) => {
-              logger.warn('Failed to persist workflow state (non-blocking)', { error })
-            })
-
           // Emit event for undo/redo recording
           if (!options?.skipRecording) {
             window.dispatchEvent(
