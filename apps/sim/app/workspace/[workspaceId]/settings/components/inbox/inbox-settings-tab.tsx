@@ -22,7 +22,7 @@ import {
   useInboxSenders,
   useRemoveInboxSender,
   useUpdateInboxAddress,
-} from '@/hooks/queries/use-inbox'
+} from '@/hooks/queries/inbox'
 
 const logger = createLogger('InboxSettingsTab')
 

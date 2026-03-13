@@ -13,7 +13,7 @@ import {
   ModalHeader,
   Switch,
 } from '@/components/emcn'
-import { useInboxConfig, useToggleInbox } from '@/hooks/queries/use-inbox'
+import { useInboxConfig, useToggleInbox } from '@/hooks/queries/inbox'
 
 const logger = createLogger('InboxEnableToggle')
 

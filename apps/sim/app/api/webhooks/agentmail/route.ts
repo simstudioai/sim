@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'crypto'
 import {
   db,
   mothershipInboxAllowedSender,
@@ -25,8 +26,11 @@ export async function POST(req: Request) {
   try {
     const webhookSecret = env.AGENTMAIL_WEBHOOK_SECRET
     if (webhookSecret) {
-      const authHeader = req.headers.get('authorization')
-      if (authHeader !== `Bearer ${webhookSecret}`) {
+      const authHeader = req.headers.get('authorization') ?? ''
+      const expected = `Bearer ${webhookSecret}`
+      const authBuf = Buffer.from(authHeader)
+      const expectedBuf = Buffer.from(expected)
+      if (authBuf.length !== expectedBuf.length || !timingSafeEqual(authBuf, expectedBuf)) {
         logger.warn('Invalid webhook authorization')
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
@@ -115,8 +119,8 @@ export async function POST(req: Request) {
     const fromName = extractDisplayName(message.from_)
 
     const taskId = uuidv4()
-    const bodyText = message.text || null
-    const bodyHtml = message.html || null
+    const bodyText = message.text?.substring(0, 50_000) || null
+    const bodyHtml = message.html?.substring(0, 50_000) || null
     const bodyPreview = (bodyText || '')?.substring(0, 200) || null
 
     await db.insert(mothershipInboxTask).values({

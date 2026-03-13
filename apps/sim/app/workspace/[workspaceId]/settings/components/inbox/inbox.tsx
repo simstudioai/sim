@@ -9,8 +9,8 @@ import { InboxSettingsTab } from '@/app/workspace/[workspaceId]/settings/compone
 import { InboxSkeleton } from '@/app/workspace/[workspaceId]/settings/components/inbox/inbox-skeleton'
 import { InboxTaskList } from '@/app/workspace/[workspaceId]/settings/components/inbox/inbox-task-list'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { useInboxConfig } from '@/hooks/queries/inbox'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
-import { useInboxConfig } from '@/hooks/queries/use-inbox'
 
 export function Inbox() {
   const params = useParams()

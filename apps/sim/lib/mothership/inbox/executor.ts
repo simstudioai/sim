@@ -63,13 +63,19 @@ export async function executeInboxTask(taskId: string): Promise<void> {
   let chatId = inboxTask.chatId
 
   try {
-    const [, userId] = await Promise.all([
+    const [[claimed], userId] = await Promise.all([
       db
         .update(mothershipInboxTask)
         .set({ status: 'processing', processingStartedAt: new Date() })
-        .where(eq(mothershipInboxTask.id, taskId)),
+        .where(and(eq(mothershipInboxTask.id, taskId), eq(mothershipInboxTask.status, 'received')))
+        .returning({ id: mothershipInboxTask.id }),
       resolveUserId(inboxTask.fromEmail, ws),
     ])
+
+    if (!claimed) {
+      logger.info('Task already claimed by another execution, skipping', { taskId })
+      return
+    }
 
     if (!chatId) {
       const chatResult = await resolveOrCreateChat({

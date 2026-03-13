@@ -15,8 +15,8 @@ import {
 import { Input } from '@/components/ui'
 import { formatRelativeTime } from '@/lib/core/utils/formatting'
 import { InboxTaskSkeleton } from '@/app/workspace/[workspaceId]/settings/components/inbox/inbox-skeleton'
-import type { InboxTaskItem } from '@/hooks/queries/use-inbox'
-import { useInboxConfig, useInboxTasks } from '@/hooks/queries/use-inbox'
+import type { InboxTaskItem } from '@/hooks/queries/inbox'
+import { useInboxConfig, useInboxTasks } from '@/hooks/queries/inbox'
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All statuses' },
