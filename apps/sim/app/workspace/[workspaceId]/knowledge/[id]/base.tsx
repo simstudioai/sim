@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { format } from 'date-fns'
-import { AlertCircle, Loader2, Pencil, Plus, Tag, Upload, X } from 'lucide-react'
+import { AlertCircle, Loader2, Pencil, Plus, Tag, X } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Badge,
@@ -792,10 +792,7 @@ export function KnowledgeBase({
 
   const headerActions: HeaderAction[] = [
     ...(userPermissions.canEdit
-      ? [
-          { label: 'New connector', icon: Plus, onClick: () => setShowAddConnectorModal(true) },
-          { label: 'Upload documents', icon: Upload, onClick: handleAddDocuments },
-        ]
+      ? [{ label: 'New connector', icon: Plus, onClick: () => setShowAddConnectorModal(true) }]
       : []),
   ]
 
@@ -1025,7 +1022,7 @@ export function KnowledgeBase({
     ? 'No documents found'
     : enabledFilter !== 'all' || activeTagFilters.length > 0
       ? 'Nothing matches your filter'
-      : 'No documents yet'
+      : undefined
 
   if (error && !knowledgeBase) {
     return (
@@ -1049,6 +1046,11 @@ export function KnowledgeBase({
         icon={Database}
         title='Knowledge Base'
         breadcrumbs={breadcrumbs}
+        create={{
+          label: 'New documents',
+          onClick: handleAddDocuments,
+          disabled: userPermissions.canEdit !== true,
+        }}
         headerActions={headerActions}
         sort={sortConfig}
         search={{
