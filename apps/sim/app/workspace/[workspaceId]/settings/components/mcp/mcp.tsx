@@ -574,6 +574,9 @@ export function MCP({ initialServerId }: MCPProps) {
         </div>
 
         <div className='mt-auto flex items-center justify-between'>
+          <Button onClick={handleBackToList} variant='default'>
+            Back
+          </Button>
           <div className='flex items-center gap-[8px]'>
             <Button
               onClick={() => handleRefreshServer(server.id)}
@@ -592,9 +595,6 @@ export function MCP({ initialServerId }: MCPProps) {
               Edit
             </Button>
           </div>
-          <Button onClick={handleBackToList} variant='tertiary'>
-            Back
-          </Button>
         </div>
 
         <McpServerFormModal
