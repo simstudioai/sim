@@ -2783,6 +2783,21 @@ export const GroqIcon = (props: SVGProps<SVGSVGElement>) => (
   </svg>
 )
 
+export const MiniMaxIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg {...props} height='1em' viewBox='0 0 120 120' width='1em' xmlns='http://www.w3.org/2000/svg'>
+    <title>MiniMax</title>
+    <rect width='120' height='120' rx='24' fill='#1A1A2E' />
+    <path
+      d='M30 80V40l15 20 15-20v40M70 40v40M80 40l10 20 10-20v40'
+      stroke='#E94560'
+      strokeWidth='6'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      fill='none'
+    />
+  </svg>
+)
+
 export const DeepseekIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg {...props} height='1em' viewBox='0 0 24 24' width='1em' xmlns='http://www.w3.org/2000/svg'>
     <title>DeepSeek</title>

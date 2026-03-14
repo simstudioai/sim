@@ -7,6 +7,7 @@ import { cerebrasProvider } from '@/providers/cerebras'
 import { deepseekProvider } from '@/providers/deepseek'
 import { googleProvider } from '@/providers/google'
 import { groqProvider } from '@/providers/groq'
+import { minimaxProvider } from '@/providers/minimax'
 import { mistralProvider } from '@/providers/mistral'
 import { ollamaProvider } from '@/providers/ollama'
 import { openaiProvider } from '@/providers/openai'
@@ -28,6 +29,7 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   xai: xAIProvider,
   cerebras: cerebrasProvider,
   groq: groqProvider,
+  minimax: minimaxProvider,
   vllm: vllmProvider,
   mistral: mistralProvider,
   'azure-openai': azureOpenAIProvider,
