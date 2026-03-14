@@ -172,7 +172,7 @@ export class PauseResumeManager {
     const RETRY_DELAY_MS = 200
     let lastError: Error | null = null
 
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
         return await db.transaction(async (tx) => {
           const pausedExecution = await tx
@@ -291,7 +291,7 @@ export class PauseResumeManager {
       } catch (err: any) {
         lastError = err
         const isNotFound = err.message?.includes('Paused execution not found')
-        const isLastAttempt = attempt === MAX_RETRIES
+        const isLastAttempt = attempt === MAX_RETRIES - 1
 
         if (!isNotFound || isLastAttempt) {
           throw err
