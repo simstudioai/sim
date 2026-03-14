@@ -2,6 +2,7 @@ export type StorageContext =
   | 'knowledge-base'
   | 'chat'
   | 'copilot'
+  | 'mothership'
   | 'execution'
   | 'workspace'
   | 'profile-pictures'

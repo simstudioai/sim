@@ -1212,6 +1212,13 @@
       "when": 1773395340207,
       "tag": "0173_bored_zeigeist",
       "breakpoints": true
+    },
+    {
+      "idx": 174,
+      "version": "7",
+      "when": 1773519512736,
+      "tag": "0174_add_chat_id_to_workspace_files",
+      "breakpoints": true
     }
   ]
 }

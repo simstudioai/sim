@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { getUserSubscriptionState } from '@/lib/billing/core/subscription'
-import { processFileAttachments } from '@/lib/copilot/chat-context'
 import { getCopilotToolDescription } from '@/lib/copilot/tool-descriptions'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { createMcpToolId } from '@/lib/mcp/utils'
+import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { tools } from '@/tools/registry'
 import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
@@ -126,7 +126,47 @@ export async function buildCopilotRequestPayload(
   const effectiveMode = mode === 'agent' ? 'build' : mode
   const transportMode = effectiveMode === 'build' ? 'agent' : effectiveMode
 
-  const processedFileContents = await processFileAttachments(fileAttachments ?? [], userId)
+  // Track uploaded files in the DB and build context tags instead of base64 inlining
+  const uploadContexts: Array<{ type: string; content: string }> = []
+  if (chatId && params.workspaceId && fileAttachments && fileAttachments.length > 0) {
+    for (const f of fileAttachments) {
+      const filename = (f.filename ?? f.name ?? 'file') as string
+      const mediaType = (f.media_type ?? f.mimeType ?? 'application/octet-stream') as string
+      try {
+        await trackChatUpload(
+          params.workspaceId,
+          userId,
+          chatId,
+          f.key,
+          filename,
+          mediaType,
+          f.size
+        )
+        const lines = [
+          `File "${filename}" (${mediaType}, ${f.size} bytes) uploaded.`,
+          `Read with: read("uploads/${filename}")`,
+          `To save permanently: materialize_file(fileName: "${filename}")`,
+        ]
+        if (filename.endsWith('.json')) {
+          lines.push(
+            `To import as a workflow: materialize_file(fileName: "${filename}", operation: "import")`
+          )
+        }
+        uploadContexts.push({
+          type: 'uploaded_file',
+          content: lines.join('\n'),
+        })
+      } catch (err) {
+        logger.warn('Failed to track chat upload', {
+          filename,
+          chatId,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+    }
+  }
+
+  const allContexts = [...(contexts ?? []), ...uploadContexts]
 
   let integrationTools: ToolSchema[] = []
 
@@ -170,11 +210,10 @@ export async function buildCopilotRequestPayload(
     ...(provider ? { provider } : {}),
     mode: transportMode,
     messageId: userMessageId,
-    ...(contexts && contexts.length > 0 ? { context: contexts } : {}),
+    ...(allContexts.length > 0 ? { context: allContexts } : {}),
     ...(chatId ? { chatId } : {}),
     ...(typeof prefetch === 'boolean' ? { prefetch } : {}),
     ...(implicitFeedback ? { implicitFeedback } : {}),
-    ...(processedFileContents.length > 0 ? { fileAttachments: processedFileContents } : {}),
     ...(integrationTools.length > 0 ? { integrationTools } : {}),
     ...(commands && commands.length > 0 ? { commands } : {}),
     ...(params.workspaceContext ? { workspaceContext: params.workspaceContext } : {}),

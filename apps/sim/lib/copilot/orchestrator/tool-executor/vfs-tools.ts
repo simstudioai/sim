@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
+import { listChatUploads, readChatUpload } from './upload-file-reader'
 
 const logger = createLogger('VfsTools')
 
@@ -63,7 +64,14 @@ export async function executeVfsGlob(
 
   try {
     const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
-    const files = vfs.glob(pattern)
+    let files = vfs.glob(pattern)
+
+    if (context.chatId && (pattern === 'uploads/*' || pattern.startsWith('uploads/'))) {
+      const uploads = await listChatUploads(context.chatId)
+      const uploadPaths = uploads.map((f) => `uploads/${f.name}`)
+      files = [...files, ...uploadPaths]
+    }
+
     logger.debug('vfs_glob result', { pattern, fileCount: files.length })
     return { success: true, output: { files } }
   } catch (err) {
@@ -90,6 +98,23 @@ export async function executeVfsRead(
   }
 
   try {
+    // Handle chat-scoped uploads via the uploads/ virtual prefix
+    if (path.startsWith('uploads/')) {
+      if (!context.chatId) {
+        return { success: false, error: 'No chat context available for uploads/' }
+      }
+      const filename = path.slice('uploads/'.length)
+      const uploadResult = await readChatUpload(filename, context.chatId)
+      if (uploadResult) {
+        logger.debug('vfs_read resolved chat upload', { path, totalLines: uploadResult.totalLines })
+        return { success: true, output: uploadResult }
+      }
+      return {
+        success: false,
+        error: `Upload not found: ${path}. Use glob("uploads/*") to list available uploads.`,
+      }
+    }
+
     const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
     const result = vfs.read(
       path,

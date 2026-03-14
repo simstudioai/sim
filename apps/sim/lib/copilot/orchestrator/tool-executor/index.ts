@@ -41,6 +41,7 @@ import {
   executeUpdateWorkspaceMcpServer,
 } from './deployment-tools'
 import { executeIntegrationToolDirect } from './integration-tools'
+import { executeMaterializeFile } from './materialize-file'
 import {
   executeCompleteJob,
   executeCreateJob,
@@ -984,6 +985,7 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
       },
     }
   },
+  materialize_file: (p, c) => executeMaterializeFile(p, c),
   manage_custom_tool: (p, c) => executeManageCustomTool(p, c),
   manage_mcp_tool: (p, c) => executeManageMcpTool(p, c),
   manage_skill: (p, c) => executeManageSkill(p, c),
