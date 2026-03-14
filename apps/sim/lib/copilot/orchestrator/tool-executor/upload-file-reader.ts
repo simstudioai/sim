@@ -3,14 +3,12 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getServePathPrefix } from '@/lib/uploads'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('UploadFileReader')
 
-function toWorkspaceFileRecord(
-  row: typeof workspaceFiles.$inferSelect
-): WorkspaceFileRecord {
+function toWorkspaceFileRecord(row: typeof workspaceFiles.$inferSelect): WorkspaceFileRecord {
   const pathPrefix = getServePathPrefix()
   return {
     id: row.id,
@@ -29,9 +27,7 @@ function toWorkspaceFileRecord(
 /**
  * List all chat-scoped uploads for a given chat.
  */
-export async function listChatUploads(
-  chatId: string
-): Promise<WorkspaceFileRecord[]> {
+export async function listChatUploads(chatId: string): Promise<WorkspaceFileRecord[]> {
   try {
     const rows = await db
       .select()

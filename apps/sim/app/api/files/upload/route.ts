@@ -4,6 +4,7 @@ import { sanitizeFileName } from '@/executor/constants'
 import '@/lib/uploads/core/setup.server'
 import { getSession } from '@/lib/auth'
 import type { StorageContext } from '@/lib/uploads/config'
+import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { isImageFileType, resolveFileType } from '@/lib/uploads/utils/file-utils'
 import {
   SUPPORTED_AUDIO_EXTENSIONS,
@@ -12,7 +13,6 @@ import {
   validateFileType,
 } from '@/lib/uploads/utils/validation'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   createErrorResponse,
   createOptionsResponse,
@@ -261,9 +261,7 @@ export async function POST(request: NextRequest) {
           metadata,
         })
 
-        const finalPath = usingCloudStorage
-          ? `${fileInfo.path}?context=mothership`
-          : fileInfo.path
+        const finalPath = usingCloudStorage ? `${fileInfo.path}?context=mothership` : fileInfo.path
 
         uploadResults.push({
           fileName: originalName,

@@ -3,8 +3,8 @@ import { workflow, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
-import { downloadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getServePathPrefix } from '@/lib/uploads'
+import { downloadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
@@ -44,10 +44,7 @@ function toFileRecord(row: typeof workspaceFiles.$inferSelect) {
   }
 }
 
-async function executeSave(
-  fileName: string,
-  chatId: string
-): Promise<ToolCallResult> {
+async function executeSave(fileName: string, chatId: string): Promise<ToolCallResult> {
   const [updated] = await db
     .update(workspaceFiles)
     .set({ context: 'workspace', chatId: null })
