@@ -1,6 +1,5 @@
 'use client'
 import { generateId } from '../../lib/utils/uuid'
-'use client'
 
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
