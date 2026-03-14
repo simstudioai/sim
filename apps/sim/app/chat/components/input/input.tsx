@@ -1,6 +1,5 @@
 'use client'
 import { generateId } from '../../lib/utils/uuid'
-'use client'
 
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
