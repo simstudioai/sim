@@ -41,6 +41,7 @@ export async function getKnowledgeBases(
       chunkingConfig: knowledgeBase.chunkingConfig,
       createdAt: knowledgeBase.createdAt,
       updatedAt: knowledgeBase.updatedAt,
+      deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
       docCount: count(document.id),
     })
@@ -171,6 +172,7 @@ export async function createKnowledgeBase(
     chunkingConfig: data.chunkingConfig,
     createdAt: now,
     updatedAt: now,
+    deletedAt: null,
     workspaceId: data.workspaceId,
     docCount: 0,
     connectorTypes: [],
@@ -237,6 +239,7 @@ export async function updateKnowledgeBase(
       chunkingConfig: knowledgeBase.chunkingConfig,
       createdAt: knowledgeBase.createdAt,
       updatedAt: knowledgeBase.updatedAt,
+      deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
       docCount: count(document.id),
     })
@@ -286,6 +289,7 @@ export async function getKnowledgeBaseById(
       chunkingConfig: knowledgeBase.chunkingConfig,
       createdAt: knowledgeBase.createdAt,
       updatedAt: knowledgeBase.updatedAt,
+      deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
       docCount: count(document.id),
     })

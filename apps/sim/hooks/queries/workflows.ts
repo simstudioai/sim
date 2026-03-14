@@ -76,6 +76,7 @@ function mapWorkflow(workflow: any): WorkflowMetadata {
     sortOrder: workflow.sortOrder ?? 0,
     createdAt: new Date(workflow.createdAt),
     lastModified: new Date(workflow.updatedAt || workflow.createdAt),
+    archivedAt: workflow.archivedAt ? new Date(workflow.archivedAt) : null,
   }
 }
 

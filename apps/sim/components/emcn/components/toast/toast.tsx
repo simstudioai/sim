@@ -189,7 +189,7 @@ const ToastItem = memo(function ToastItem({
       <div className='flex flex-col gap-[8px] p-[8px]'>
         <div className='flex items-start gap-[8px]'>
           {data.icon && (
-            <span className='mt-[1px] shrink-0 text-[var(--text-icon)]'>{data.icon}</span>
+            <span className='flex h-[16px] shrink-0 items-center text-[var(--text-icon)]'>{data.icon}</span>
           )}
           <div className='line-clamp-2 min-w-0 flex-1 font-medium text-[12px] text-[var(--text-body)]'>
             {data.variant === 'error' && (

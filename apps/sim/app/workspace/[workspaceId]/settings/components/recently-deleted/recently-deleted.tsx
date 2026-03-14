@@ -128,7 +128,7 @@ export function RecentlyDeleted() {
         id: wf.id,
         name: wf.name,
         type: 'workflow',
-        deletedAt: new Date(wf.lastModified),
+        deletedAt: wf.archivedAt ? new Date(wf.archivedAt) : new Date(wf.lastModified),
         workspaceId: wf.workspaceId ?? workspaceId,
         color: wf.color,
       })
@@ -149,7 +149,7 @@ export function RecentlyDeleted() {
         id: kb.id,
         name: kb.name,
         type: 'knowledge',
-        deletedAt: new Date(kb.updatedAt),
+        deletedAt: kb.deletedAt ? new Date(kb.deletedAt) : new Date(kb.updatedAt),
         workspaceId: kb.workspaceId ?? workspaceId,
       })
     }
