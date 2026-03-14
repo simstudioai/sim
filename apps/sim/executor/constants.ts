@@ -440,6 +440,9 @@ export function isValidEnvVarName(name: string): boolean {
 }
 
 export function sanitizeFileName(fileName: string): string {
+  if (!fileName || typeof fileName !== 'string') {
+    return 'file'
+  }
   return fileName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_')
 }
 
