@@ -10,7 +10,6 @@ import {
   SModalTabsList,
   SModalTabsTrigger,
   toast,
-  Undo,
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { formatDate } from '@/lib/core/utils/formatting'
@@ -242,7 +241,7 @@ export function RecentlyDeleted() {
         value={activeTab}
         onValueChange={(v) => setActiveTab(v as ResourceType)}
       >
-        <SModalTabsList activeValue={activeTab} className='px-0'>
+        <SModalTabsList activeValue={activeTab} className='border-b border-[var(--border)]'>
           {TABS.map((tab) => (
             <SModalTabsTrigger key={tab.id} value={tab.id}>
               {tab.label}
@@ -287,7 +286,7 @@ export function RecentlyDeleted() {
                 </div>
 
                 <Button
-                  variant='ghost'
+                  variant='default'
                   size='sm'
                   disabled={isRestoring}
                   onClick={() => handleRestore(resource)}
@@ -296,9 +295,8 @@ export function RecentlyDeleted() {
                   {isRestoring ? (
                     <Loader2 className='h-3.5 w-3.5 animate-spin' />
                   ) : (
-                    <Undo className='h-3.5 w-3.5' />
+                    'Restore'
                   )}
-                  <span className='ml-[4px]'>Restore</span>
                 </Button>
               </div>
             )
