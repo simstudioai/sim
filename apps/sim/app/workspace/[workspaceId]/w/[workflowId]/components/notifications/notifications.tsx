@@ -184,16 +184,21 @@ export const Notifications = memo(function Notifications() {
       timers.set(
         n.id,
         setTimeout(() => {
-          timers.delete(n.id)
           setExitingIds((prev) => new Set(prev).add(n.id))
-          setTimeout(() => {
-            removeNotification(n.id)
-            setExitingIds((prev) => {
-              const next = new Set(prev)
-              next.delete(n.id)
-              return next
-            })
-          }, EXIT_ANIMATION_MS)
+          const exitKey = `${n.id}:exit`
+          timers.delete(n.id)
+          timers.set(
+            exitKey,
+            setTimeout(() => {
+              timers.delete(exitKey)
+              removeNotification(n.id)
+              setExitingIds((prev) => {
+                const next = new Set(prev)
+                next.delete(n.id)
+                return next
+              })
+            }, EXIT_ANIMATION_MS)
+          )
         }, AUTO_DISMISS_MS)
       )
     }
