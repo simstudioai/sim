@@ -362,6 +362,8 @@ export const Panel = memo(function Panel() {
     const result = validateWorkflowState({
       blocks: state.blocks,
       edges: state.edges,
+      loops: state.loops || {},
+      parallels: state.parallels || {},
     })
     return !result.valid
   })
