@@ -1,10 +1,10 @@
 'use client'
 
 import {
-  type ReactElement,
-  type ReactNode,
   createContext,
   memo,
+  type ReactElement,
+  type ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -12,8 +12,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { Button } from '@/components/emcn/components/button/button'
 import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 
@@ -189,7 +189,9 @@ const ToastItem = memo(function ToastItem({
       <div className='flex flex-col gap-[8px] p-[8px]'>
         <div className='flex items-start gap-[8px]'>
           {data.icon && (
-            <span className='flex h-[16px] shrink-0 items-center text-[var(--text-icon)]'>{data.icon}</span>
+            <span className='flex h-[16px] shrink-0 items-center text-[var(--text-icon)]'>
+              {data.icon}
+            </span>
           )}
           <div className='line-clamp-2 min-w-0 flex-1 font-medium text-[12px] text-[var(--text-body)]'>
             {data.variant === 'error' && (
@@ -356,7 +358,11 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
         createPortal(
           <>
             <style>{TOAST_KEYFRAMES}</style>
-            <div aria-live='polite' aria-label='Toasts' className='fixed right-[16px] bottom-[16px] z-[10000400] grid'>
+            <div
+              aria-live='polite'
+              aria-label='Toasts'
+              className='fixed right-[16px] bottom-[16px] z-[10000400] grid'
+            >
               {[...visibleToasts].reverse().map((t, index, stacked) => {
                 const depth = stacked.length - index - 1
                 const showCountdown = !isPaused && t.duration > 0

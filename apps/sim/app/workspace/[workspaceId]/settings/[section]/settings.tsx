@@ -167,25 +167,25 @@ export function SettingsPage({ section }: SettingsPageProps) {
   return (
     <div>
       <h2 className='mb-[28px] font-medium text-[22px] text-[var(--text-primary)]'>{label}</h2>
-        {effectiveSection === 'general' && <General />}
-        {effectiveSection === 'integrations' && <Integrations />}
-        {effectiveSection === 'secrets' && <Credentials />}
-        {effectiveSection === 'template-profile' && <TemplateProfile />}
-        {effectiveSection === 'credential-sets' && <CredentialSets />}
-        {effectiveSection === 'access-control' && <AccessControl />}
-        {effectiveSection === 'apikeys' && <ApiKeys />}
-        {isBillingEnabled && effectiveSection === 'subscription' && <Subscription />}
-        {isBillingEnabled && effectiveSection === 'team' && <TeamManagement />}
-        {effectiveSection === 'sso' && <SSO />}
-        {effectiveSection === 'byok' && <BYOK />}
-        {effectiveSection === 'copilot' && <Copilot />}
-        {effectiveSection === 'mcp' && <MCP initialServerId={mcpServerId} />}
-        {effectiveSection === 'custom-tools' && <CustomTools />}
-        {effectiveSection === 'skills' && <Skills />}
-        {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
-        {effectiveSection === 'inbox' && <Inbox />}
-        {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}
-        {effectiveSection === 'debug' && <Debug />}
+      {effectiveSection === 'general' && <General />}
+      {effectiveSection === 'integrations' && <Integrations />}
+      {effectiveSection === 'secrets' && <Credentials />}
+      {effectiveSection === 'template-profile' && <TemplateProfile />}
+      {effectiveSection === 'credential-sets' && <CredentialSets />}
+      {effectiveSection === 'access-control' && <AccessControl />}
+      {effectiveSection === 'apikeys' && <ApiKeys />}
+      {isBillingEnabled && effectiveSection === 'subscription' && <Subscription />}
+      {isBillingEnabled && effectiveSection === 'team' && <TeamManagement />}
+      {effectiveSection === 'sso' && <SSO />}
+      {effectiveSection === 'byok' && <BYOK />}
+      {effectiveSection === 'copilot' && <Copilot />}
+      {effectiveSection === 'mcp' && <MCP initialServerId={mcpServerId} />}
+      {effectiveSection === 'custom-tools' && <CustomTools />}
+      {effectiveSection === 'skills' && <Skills />}
+      {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
+      {effectiveSection === 'inbox' && <Inbox />}
+      {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}
+      {effectiveSection === 'debug' && <Debug />}
     </div>
   )
 }

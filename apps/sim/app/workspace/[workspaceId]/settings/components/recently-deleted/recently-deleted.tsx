@@ -13,14 +13,18 @@ import {
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { formatDate } from '@/lib/core/utils/formatting'
-import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 import { useKnowledgeBasesQuery, useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useRestoreTable, useTablesList } from '@/hooks/queries/tables'
-import { useRestoreWorkspaceFile, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useRestoreWorkflow, useWorkflows } from '@/hooks/queries/workflows'
+import { useRestoreWorkspaceFile, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
-function getResourceHref(workspaceId: string, type: Exclude<ResourceType, 'all'>, id: string): string {
+function getResourceHref(
+  workspaceId: string,
+  type: Exclude<ResourceType, 'all'>,
+  id: string
+): string {
   const base = `/workspace/${workspaceId}`
   switch (type) {
     case 'workflow':
@@ -241,11 +245,8 @@ export function RecentlyDeleted() {
         />
       </div>
 
-      <SModalTabs
-        value={activeTab}
-        onValueChange={(v) => setActiveTab(v as ResourceType)}
-      >
-        <SModalTabsList activeValue={activeTab} className='border-b border-[var(--border)]'>
+      <SModalTabs value={activeTab} onValueChange={(v) => setActiveTab(v as ResourceType)}>
+        <SModalTabsList activeValue={activeTab} className='border-[var(--border)] border-b'>
           {TABS.map((tab) => (
             <SModalTabsTrigger key={tab.id} value={tab.id}>
               {tab.label}
@@ -278,8 +279,8 @@ export function RecentlyDeleted() {
               >
                 <ResourceIcon resource={resource} />
 
-                <div className='flex flex-col min-w-0 flex-1'>
-                  <span className='text-[13px] font-medium text-[var(--text-primary)] truncate'>
+                <div className='flex min-w-0 flex-1 flex-col'>
+                  <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
                     {resource.name}
                   </span>
                   <span className='text-[12px] text-[var(--text-tertiary)]'>
@@ -296,11 +297,7 @@ export function RecentlyDeleted() {
                   onClick={() => handleRestore(resource)}
                   className='shrink-0'
                 >
-                  {isRestoring ? (
-                    <Loader2 className='h-3.5 w-3.5 animate-spin' />
-                  ) : (
-                    'Restore'
-                  )}
+                  {isRestoring ? <Loader2 className='h-3.5 w-3.5 animate-spin' /> : 'Restore'}
                 </Button>
               </div>
             )

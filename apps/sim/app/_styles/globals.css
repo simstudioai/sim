@@ -666,8 +666,6 @@ input[type="search"]::-ms-clear {
   }
 }
 
-
-
 /**
  * @depricated
  * Legacy globals (light/dark) kept for backward-compat with old classes.
