@@ -16,7 +16,6 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { Copy as CopyIcon, Search as SearchIcon } from '@/components/emcn/icons'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDuration } from '@/lib/core/utils/formatting'
@@ -396,7 +395,7 @@ export const LogDetails = memo(function LogDetails({
             </div>
 
             {/* Content - Scrollable */}
-            <ScrollArea className='mt-[20px] h-full w-full overflow-y-auto' ref={scrollAreaRef}>
+            <div className='mt-[20px] h-full w-full overflow-y-auto' ref={scrollAreaRef}>
               <div className='flex flex-col gap-[10px] pb-[16px]'>
                 {/* Timestamp & Workflow Row */}
                 <div className='flex min-w-0 items-center gap-[16px] px-[1px]'>
@@ -632,7 +631,7 @@ export const LogDetails = memo(function LogDetails({
                   </div>
                 )}
               </div>
-            </ScrollArea>
+            </div>
           </div>
         )}
 

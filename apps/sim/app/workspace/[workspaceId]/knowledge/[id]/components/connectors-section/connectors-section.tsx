@@ -23,9 +23,9 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Skeleton,
   Tooltip,
 } from '@/components/emcn'
-import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/core/utils/cn'
 import {
   getCanonicalScopesForProvider,

@@ -18,11 +18,11 @@ import {
   ModalTabsContent,
   ModalTabsList,
   ModalTabsTrigger,
+  Skeleton,
   TagInput,
   type TagItem,
 } from '@/components/emcn'
 import { SlackIcon } from '@/components/icons'
-import { Skeleton } from '@/components/ui'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'

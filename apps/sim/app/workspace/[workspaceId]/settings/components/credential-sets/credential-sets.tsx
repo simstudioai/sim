@@ -17,11 +17,12 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Skeleton,
   TagInput,
   type TagItem,
 } from '@/components/emcn'
 import { GmailIcon, OutlookIcon } from '@/components/icons'
-import { Input as BaseInput, Skeleton } from '@/components/ui'
+import { Input as BaseInput } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionStatus } from '@/lib/billing/client'
 import { cn } from '@/lib/core/utils/cn'

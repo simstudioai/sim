@@ -14,12 +14,13 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Skeleton,
   TagInput,
   type TagItem,
   Textarea,
   Tooltip,
 } from '@/components/emcn'
-import { Alert, AlertDescription, Skeleton } from '@/components/ui'
+import { Alert, AlertDescription } from '@/components/ui'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { generatePassword } from '@/lib/core/security/encryption'
 import { cn } from '@/lib/core/utils/cn'

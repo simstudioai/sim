@@ -19,6 +19,7 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Skeleton,
   SModalTabs,
   SModalTabsBody,
   SModalTabsContent,
@@ -27,7 +28,7 @@ import {
   Textarea,
   Tooltip,
 } from '@/components/emcn'
-import { Input, Skeleton } from '@/components/ui'
+import { Input } from '@/components/ui'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useApiKeys } from '@/hooks/queries/api-keys'
