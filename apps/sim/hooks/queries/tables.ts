@@ -171,6 +171,7 @@ export function useTablesList(workspaceId?: string, scope: TableQueryScope = 'ac
     },
     enabled: Boolean(workspaceId),
     staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
   })
 }
 

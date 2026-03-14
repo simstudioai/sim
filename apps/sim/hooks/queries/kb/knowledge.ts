@@ -14,8 +14,9 @@ type KnowledgeQueryScope = 'active' | 'archived' | 'all'
 
 export const knowledgeKeys = {
   all: ['knowledge'] as const,
+  lists: () => [...knowledgeKeys.all, 'list'] as const,
   list: (workspaceId?: string, scope: KnowledgeQueryScope = 'active') =>
-    [...knowledgeKeys.all, 'list', workspaceId ?? 'all', scope] as const,
+    [...knowledgeKeys.lists(), workspaceId ?? 'all', scope] as const,
   detail: (knowledgeBaseId?: string) =>
     [...knowledgeKeys.all, 'detail', knowledgeBaseId ?? ''] as const,
   tagDefinitions: (knowledgeBaseId: string) =>
@@ -1232,7 +1233,7 @@ export function useRestoreKnowledgeBase() {
       return res.json()
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: knowledgeKeys.all })
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
     },
   })
 }

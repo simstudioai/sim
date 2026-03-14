@@ -1,20 +1,14 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Loader2, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import {
-  Button,
-  Check,
-  SModalTabs,
-  SModalTabsList,
-  SModalTabsTrigger,
-  toast,
-} from '@/components/emcn'
+import { Button, SModalTabs, SModalTabsList, SModalTabsTrigger } from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { formatDate } from '@/lib/core/utils/formatting'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
+import { DeletedItemSkeleton } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/deleted-item-skeleton'
 import { useKnowledgeBasesQuery, useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useRestoreTable, useTablesList } from '@/hooks/queries/tables'
 import { useRestoreWorkflow, useWorkflows } from '@/hooks/queries/workflows'
@@ -107,6 +101,7 @@ export function RecentlyDeleted() {
   const [activeTab, setActiveTab] = useState<ResourceType>('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set())
+  const [restoredItems, setRestoredItems] = useState<Map<string, DeletedResource>>(new Map())
 
   const workflowsQuery = useWorkflows(workspaceId, { syncRegistry: false, scope: 'archived' })
   const tablesQuery = useTablesList(workspaceId, 'archived')
@@ -123,6 +118,9 @@ export function RecentlyDeleted() {
     tablesQuery.isLoading ||
     knowledgeQuery.isLoading ||
     filesQuery.isLoading
+
+  const error =
+    workflowsQuery.error || tablesQuery.error || knowledgeQuery.error || filesQuery.error
 
   const resources = useMemo<DeletedResource[]>(() => {
     const items: DeletedResource[] = []
@@ -168,9 +166,24 @@ export function RecentlyDeleted() {
       })
     }
 
+    // Merge back restored items that are no longer in the query data
+    const itemIds = new Set(items.map((i) => i.id))
+    for (const [id, resource] of restoredItems) {
+      if (!itemIds.has(id)) {
+        items.push(resource)
+      }
+    }
+
     items.sort((a, b) => b.deletedAt.getTime() - a.deletedAt.getTime())
     return items
-  }, [workflowsQuery.data, tablesQuery.data, knowledgeQuery.data, filesQuery.data, workspaceId])
+  }, [
+    workflowsQuery.data,
+    tablesQuery.data,
+    knowledgeQuery.data,
+    filesQuery.data,
+    workspaceId,
+    restoredItems,
+  ])
 
   const filtered = useMemo(() => {
     let items = activeTab === 'all' ? resources : resources.filter((r) => r.type === activeTab)
@@ -195,42 +208,30 @@ export function RecentlyDeleted() {
     }
 
     const onSuccess = () => {
-      const href = getResourceHref(resource.workspaceId, resource.type, resource.id)
-      toast.success(`${resource.name} restored`, {
-        icon: <Check className='h-[12px] w-[12px]' />,
-        action: { label: 'View', onClick: () => router.push(href) },
-      })
-    }
-
-    const onError = () => {
-      toast.error(`Failed to restore ${resource.name}`)
+      setRestoredItems((prev) => new Map(prev).set(resource.id, resource))
     }
 
     switch (resource.type) {
       case 'workflow':
-        restoreWorkflow.mutate(resource.id, { onSettled, onSuccess, onError })
+        restoreWorkflow.mutate(resource.id, { onSettled, onSuccess })
         break
       case 'table':
-        restoreTable.mutate(resource.id, { onSettled, onSuccess, onError })
+        restoreTable.mutate(resource.id, { onSettled, onSuccess })
         break
       case 'knowledge':
-        restoreKnowledgeBase.mutate(resource.id, { onSettled, onSuccess, onError })
+        restoreKnowledgeBase.mutate(resource.id, { onSettled, onSuccess })
         break
       case 'file':
         restoreWorkspaceFile.mutate(
           { workspaceId: resource.workspaceId, fileId: resource.id },
-          { onSettled, onSuccess, onError }
+          { onSettled, onSuccess }
         )
         break
     }
   }
 
   return (
-    <div className='flex flex-col gap-[16px]'>
-      <p className='text-[13px] text-[var(--text-secondary)]'>
-        Items you delete are kept here for 30 days before being permanently removed.
-      </p>
-
+    <div className='flex h-full flex-col gap-[18px]'>
       <div className='flex items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
         <Search
           className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
@@ -246,7 +247,7 @@ export function RecentlyDeleted() {
       </div>
 
       <SModalTabs value={activeTab} onValueChange={(v) => setActiveTab(v as ResourceType)}>
-        <SModalTabsList activeValue={activeTab} className='border-[var(--border)] border-b'>
+        <SModalTabsList activeValue={activeTab} className='border-b border-[var(--border)]'>
           {TABS.map((tab) => (
             <SModalTabsTrigger key={tab.id} value={tab.id}>
               {tab.label}
@@ -255,55 +256,81 @@ export function RecentlyDeleted() {
         </SModalTabsList>
       </SModalTabs>
 
-      {isLoading ? (
-        <div className='flex items-center justify-center py-[48px]'>
-          <Loader2 className='h-5 w-5 animate-spin text-[var(--text-tertiary)]' />
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className='flex flex-col items-center justify-center py-[48px] text-[var(--text-tertiary)]'>
-          <p className='text-[13px]'>
+      <div className='min-h-0 flex-1 overflow-y-auto'>
+        {error ? (
+          <div className='flex h-full flex-col items-center justify-center gap-[8px]'>
+            <p className='text-[11px] leading-tight text-[#DC2626] dark:text-[#F87171]'>
+              {error instanceof Error ? error.message : 'Failed to load deleted items'}
+            </p>
+          </div>
+        ) : isLoading ? (
+          <div className='flex flex-col gap-[8px]'>
+            <DeletedItemSkeleton />
+            <DeletedItemSkeleton />
+            <DeletedItemSkeleton />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
             {showNoResults
               ? `No items found matching \u201c${searchTerm}\u201d`
               : 'No deleted items'}
-          </p>
-        </div>
-      ) : (
-        <div className='flex flex-col'>
-          {filtered.map((resource) => {
-            const isRestoring = restoringIds.has(resource.id)
+          </div>
+        ) : (
+          <div className='flex flex-col gap-[8px]'>
+            {filtered.map((resource) => {
+              const isRestoring = restoringIds.has(resource.id)
+              const isRestored = restoredItems.has(resource.id)
 
-            return (
-              <div
-                key={resource.id}
-                className='flex items-center gap-[12px] rounded-[6px] px-[8px] py-[8px] hover:bg-[var(--bg-hover)]'
-              >
-                <ResourceIcon resource={resource} />
-
-                <div className='flex min-w-0 flex-1 flex-col'>
-                  <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
-                    {resource.name}
-                  </span>
-                  <span className='text-[12px] text-[var(--text-tertiary)]'>
-                    {TYPE_LABEL[resource.type]}
-                    {' \u00b7 '}
-                    Deleted {formatDate(resource.deletedAt)}
-                  </span>
-                </div>
-
-                <Button
-                  variant='default'
-                  size='sm'
-                  disabled={isRestoring}
-                  onClick={() => handleRestore(resource)}
-                  className='shrink-0'
+              return (
+                <div
+                  key={resource.id}
+                  className='flex items-center gap-[12px] rounded-[6px] px-[8px] py-[8px] hover:bg-[var(--bg-hover)]'
                 >
-                  {isRestoring ? <Loader2 className='h-3.5 w-3.5 animate-spin' /> : 'Restore'}
-                </Button>
-              </div>
-            )
-          })}
-        </div>
-      )}
+                  <ResourceIcon resource={resource} />
+
+                  <div className='flex flex-col min-w-0 flex-1'>
+                    <span className='text-[13px] font-medium text-[var(--text-primary)] truncate'>
+                      {resource.name}
+                    </span>
+                    <span className='text-[12px] text-[var(--text-tertiary)]'>
+                      {TYPE_LABEL[resource.type]}
+                      {' \u00b7 '}
+                      Deleted {formatDate(resource.deletedAt)}
+                    </span>
+                  </div>
+
+                  {isRestored ? (
+                    <div className='flex items-center gap-[8px] shrink-0'>
+                      <span className='text-[13px] text-[var(--text-tertiary)]'>Restored</span>
+                      <Button
+                        variant='default'
+                        size='sm'
+                        onClick={() =>
+                          router.push(
+                            getResourceHref(resource.workspaceId, resource.type, resource.id)
+                          )
+                        }
+                      >
+                        View
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant='default'
+                      size='sm'
+                      disabled={isRestoring}
+                      onClick={() => handleRestore(resource)}
+                      className='shrink-0'
+                    >
+                      {isRestoring ? 'Restoring...' : 'Restore'}
+                    </Button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
