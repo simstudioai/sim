@@ -1615,6 +1615,38 @@ export function validateFirefliesSignature(
 }
 
 /**
+ * Validates an Ashby webhook signature using HMAC-SHA256.
+ * Ashby signs payloads with the secretToken and sends the digest in the Ashby-Signature header.
+ * @param secretToken - The secret token configured when creating the webhook
+ * @param signature - Ashby-Signature header value (format: 'sha256=<hex>')
+ * @param body - Raw request body string
+ * @returns Whether the signature is valid
+ */
+export function validateAshbySignature(
+  secretToken: string,
+  signature: string,
+  body: string
+): boolean {
+  try {
+    if (!secretToken || !signature || !body) {
+      return false
+    }
+
+    if (!signature.startsWith('sha256=')) {
+      return false
+    }
+
+    const providedSignature = signature.substring(7)
+    const computedHash = crypto.createHmac('sha256', secretToken).update(body, 'utf8').digest('hex')
+
+    return safeCompare(computedHash, providedSignature)
+  } catch (error) {
+    logger.error('Error validating Ashby signature:', error)
+    return false
+  }
+}
+
+/**
  * Validates a GitHub webhook request signature using HMAC SHA-256 or SHA-1
  * @param secret - GitHub webhook secret (plain text)
  * @param signature - X-Hub-Signature-256 or X-Hub-Signature header value (format: 'sha256=<hex>' or 'sha1=<hex>')

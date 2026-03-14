@@ -20,6 +20,7 @@ import { convertSquareBracketsToTwiML } from '@/lib/webhooks/utils'
 import {
   handleSlackChallenge,
   handleWhatsAppVerification,
+  validateAshbySignature,
   validateAttioSignature,
   validateCalcomSignature,
   validateCirclebackSignature,
@@ -549,6 +550,29 @@ export async function verifyProviderAuth(
       if (!isValidSignature) {
         logger.warn(`[${requestId}] Microsoft Teams HMAC signature verification failed`)
         return new NextResponse('Unauthorized - Invalid HMAC signature', {
+          status: 401,
+        })
+      }
+    }
+  }
+
+  // Ashby webhook signature verification (HMAC-SHA256 via Ashby-Signature header)
+  if (foundWebhook.provider === 'ashby') {
+    const secretToken = providerConfig.secretToken as string | undefined
+
+    if (secretToken) {
+      const signature = request.headers.get('ashby-signature')
+
+      if (!signature) {
+        logger.warn(`[${requestId}] Ashby webhook missing Ashby-Signature header`)
+        return new NextResponse('Unauthorized - Missing Ashby signature', {
+          status: 401,
+        })
+      }
+
+      if (!validateAshbySignature(secretToken, signature, rawBody)) {
+        logger.warn(`[${requestId}] Ashby webhook signature verification failed`)
+        return new NextResponse('Unauthorized - Invalid Ashby signature', {
           status: 401,
         })
       }

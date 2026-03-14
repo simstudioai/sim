@@ -44,6 +44,7 @@ const pendingWebhookVerificationRegistrationMatchers: Record<
   string,
   PendingWebhookVerificationRegistrationMatcher
 > = {
+  ashby: () => true,
   grain: () => true,
   generic: (registration) => registration.metadata?.verifyTestEvents === true,
 }
@@ -52,6 +53,7 @@ const pendingWebhookVerificationProbeMatchers: Record<
   string,
   PendingWebhookVerificationProbeMatcher
 > = {
+  ashby: ({ method, body }) => method === 'POST' && body?.action === 'ping',
   grain: ({ method, body }) =>
     method === 'GET' ||
     method === 'HEAD' ||
