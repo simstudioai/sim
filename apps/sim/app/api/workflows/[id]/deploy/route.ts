@@ -139,6 +139,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const stateValidation = validateWorkflowState({
       blocks: normalizedData.blocks,
       edges: normalizedData.edges,
+      loops: normalizedData.loops || {},
+      parallels: normalizedData.parallels || {},
     })
     if (!stateValidation.valid) {
       logger.warn(
