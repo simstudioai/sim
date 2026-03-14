@@ -94,7 +94,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const fileName = rawFile.name
-    if (!fileName || typeof fileName !== 'string') {
+    if (!fileName) {
       return NextResponse.json({ error: 'File name is missing' }, { status: 400 })
     }
 

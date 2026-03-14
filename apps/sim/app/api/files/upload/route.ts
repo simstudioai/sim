@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
 
     for (const file of files) {
       const originalName = file.name
-      if (!originalName || typeof originalName !== 'string') {
+      if (!originalName) {
         throw new InvalidRequestError('File name is missing')
       }
 

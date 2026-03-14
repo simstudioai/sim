@@ -439,7 +439,7 @@ export function isValidEnvVarName(name: string): boolean {
   return PATTERNS.ENV_VAR_NAME.test(name)
 }
 
-export function sanitizeFileName(fileName: string): string {
+export function sanitizeFileName(fileName: string | null | undefined): string {
   if (!fileName || typeof fileName !== 'string') {
     return 'untitled'
   }
