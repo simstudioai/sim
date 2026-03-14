@@ -741,7 +741,7 @@ export function useChat(
         sendMessageRef.current(next.content, next.fileAttachments, next.contexts)
       })
     }
-  }, [invalidateChatQueries, setMessageQueue])
+  }, [invalidateChatQueries])
 
   useEffect(() => {
     const activeStreamId = chatHistory?.activeStreamId
@@ -999,40 +999,30 @@ export function useChat(
     }
   }, [invalidateChatQueries, persistPartialResponse, executionStream])
 
-  const removeFromQueue = useCallback(
-    (id: string) => {
-      setMessageQueue((prev) => prev.filter((m) => m.id !== id))
-    },
-    [setMessageQueue]
-  )
+  const removeFromQueue = useCallback((id: string) => {
+    setMessageQueue((prev) => prev.filter((m) => m.id !== id))
+  }, [])
 
-  const sendNowProcessingRef = useRef<string | null>(null)
   const sendNow = useCallback(
     async (id: string) => {
-      if (sendNowProcessingRef.current === id) return
       const msg = messageQueueRef.current.find((m) => m.id === id)
       if (!msg) return
-      sendNowProcessingRef.current = id
-      try {
-        await stopGeneration()
-        setMessageQueue((prev) => prev.filter((m) => m.id !== id))
-        await sendMessage(msg.content, msg.fileAttachments, msg.contexts)
-      } finally {
-        sendNowProcessingRef.current = null
-      }
+      // Eagerly update ref so a rapid second click finds the message already gone
+      messageQueueRef.current = messageQueueRef.current.filter((m) => m.id !== id)
+      await stopGeneration()
+      setMessageQueue((prev) => prev.filter((m) => m.id !== id))
+      await sendMessage(msg.content, msg.fileAttachments, msg.contexts)
     },
-    [stopGeneration, sendMessage, setMessageQueue]
+    [stopGeneration, sendMessage]
   )
 
-  const editQueuedMessage = useCallback(
-    (id: string): QueuedMessage | undefined => {
-      const msg = messageQueueRef.current.find((m) => m.id === id)
-      if (!msg) return undefined
-      setMessageQueue((prev) => prev.filter((m) => m.id !== id))
-      return msg
-    },
-    [setMessageQueue]
-  )
+  const editQueuedMessage = useCallback((id: string): QueuedMessage | undefined => {
+    const msg = messageQueueRef.current.find((m) => m.id === id)
+    if (!msg) return undefined
+    messageQueueRef.current = messageQueueRef.current.filter((m) => m.id !== id)
+    setMessageQueue((prev) => prev.filter((m) => m.id !== id))
+    return msg
+  }, [])
 
   useEffect(() => {
     return () => {
