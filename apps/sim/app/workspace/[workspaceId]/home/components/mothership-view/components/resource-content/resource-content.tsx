@@ -1,14 +1,16 @@
 'use client'
 
 import { lazy, Suspense, useCallback, useEffect, useMemo } from 'react'
+import { createLogger } from '@sim/logger'
 import { Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
-import { FileX, SquareArrowUpRight, WorkflowX } from '@/components/emcn/icons'
+import { Download, FileX, SquareArrowUpRight, WorkflowX } from '@/components/emcn/icons'
 import {
   markRunToolManuallyStopped,
   reportManualRunToolStop,
 } from '@/lib/copilot/client-sse/run-tool-execution'
+import { downloadWorkspaceFile } from '@/lib/uploads/utils/file-utils'
 import {
   FileViewer,
   type PreviewMode,
@@ -93,6 +95,8 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
   switch (resource.type) {
     case 'workflow':
       return <EmbeddedWorkflowActions workspaceId={workspaceId} workflowId={resource.id} />
+    case 'file':
+      return <EmbeddedFileActions workspaceId={workspaceId} fileId={resource.id} />
     case 'knowledgebase':
       return (
         <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
@@ -227,6 +231,68 @@ export function EmbeddedKnowledgeBaseActions({
         <p>Open knowledge base</p>
       </Tooltip.Content>
     </Tooltip.Root>
+  )
+}
+
+const fileLogger = createLogger('EmbeddedFileActions')
+
+interface EmbeddedFileActionsProps {
+  workspaceId: string
+  fileId: string
+}
+
+function EmbeddedFileActions({ workspaceId, fileId }: EmbeddedFileActionsProps) {
+  const router = useRouter()
+  const { data: files = [] } = useWorkspaceFiles(workspaceId)
+  const file = useMemo(() => files.find((f) => f.id === fileId), [files, fileId])
+
+  const handleDownload = useCallback(async () => {
+    if (!file) return
+    try {
+      await downloadWorkspaceFile(file)
+    } catch (err) {
+      fileLogger.error('Failed to download file:', err)
+    }
+  }, [file])
+
+  const handleOpenInFiles = useCallback(() => {
+    router.push(`/workspace/${workspaceId}/files?fileId=${fileId}`)
+  }, [router, workspaceId, fileId])
+
+  return (
+    <>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Button
+            variant='subtle'
+            onClick={handleOpenInFiles}
+            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+            aria-label='Open in files'
+          >
+            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+          </Button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>Open in files</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Button
+            variant='subtle'
+            onClick={() => void handleDownload()}
+            disabled={!file}
+            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+            aria-label='Download file'
+          >
+            <Download className={RESOURCE_TAB_ICON_CLASS} />
+          </Button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>Download</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    </>
   )
 }
 

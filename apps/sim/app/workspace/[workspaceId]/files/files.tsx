@@ -26,6 +26,7 @@ import { File as FilesIcon } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
+  downloadWorkspaceFile,
   formatFileSize,
   getFileExtension,
   getMimeTypeFromExtension,
@@ -113,23 +114,6 @@ function formatFileType(mimeType: string | null, filename: string): string {
   if (ext) return ext.toUpperCase()
 
   return mimeType ?? 'File'
-}
-
-async function downloadFile(file: WorkspaceFileRecord) {
-  const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace&t=${Date.now()}`
-  const response = await fetch(serveUrl, { cache: 'no-store' })
-  if (!response.ok) {
-    throw new Error(`Failed to download file: ${response.statusText}`)
-  }
-  const blob = await response.blob()
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = file.name
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
 }
 
 export function Files() {
@@ -292,7 +276,7 @@ export function Files() {
 
   const handleDownload = useCallback(async (file: WorkspaceFileRecord) => {
     try {
-      await downloadFile(file)
+      await downloadWorkspaceFile(file)
     } catch (err) {
       logger.error('Failed to download file:', err)
     }
