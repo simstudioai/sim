@@ -320,6 +320,7 @@ export function useChat(
     if (sendingRef.current) {
       chatIdRef.current = initialChatId
       setResolvedChatId(initialChatId)
+      setMessageQueue([])
       return
     }
     chatIdRef.current = initialChatId
