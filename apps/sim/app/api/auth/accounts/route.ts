@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
       id: acc.id,
       accountId: acc.accountId,
       providerId: acc.providerId,
-      displayName: acc.credentialDisplayName || acc.providerId,
+      displayName: acc.credentialDisplayName || acc.accountId || acc.providerId,
     }))
 
     return NextResponse.json({ accounts: accountsWithDisplayName })

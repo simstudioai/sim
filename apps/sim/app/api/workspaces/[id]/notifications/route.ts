@@ -81,7 +81,7 @@ const createNotificationSchema = z
     workflowIds: z.array(z.string()).max(MAX_WORKFLOW_IDS).default([]),
     allWorkflows: z.boolean().default(false),
     levelFilter: levelFilterSchema.default(['info', 'error']),
-    triggerFilter: triggerFilterSchema,
+    triggerFilter: triggerFilterSchema.default([]),
     includeFinalOutput: z.boolean().default(false),
     includeTraceSpans: z.boolean().default(false),
     includeRateLimits: z.boolean().default(false),

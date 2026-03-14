@@ -758,8 +758,8 @@ export const NotificationSettings = memo(function NotificationSettings({
               placeholder='Select log levels...'
               overlayContent={
                 formData.levelFilter.length > 0 ? (
-                  <div className='flex items-center gap-[4px] overflow-hidden'>
-                    {formData.levelFilter.slice(0, 2).map((level) => (
+                  <div className='flex items-center gap-[4px]'>
+                    {formData.levelFilter.map((level) => (
                       <Badge
                         key={level}
                         variant='outline'
@@ -777,14 +777,6 @@ export const NotificationSettings = memo(function NotificationSettings({
                         <X className='h-3 w-3' />
                       </Badge>
                     ))}
-                    {formData.levelFilter.length > 2 && (
-                      <Badge
-                        variant='outline'
-                        className='rounded-[6px] px-[8px] py-[2px] text-[11px]'
-                      >
-                        +{formData.levelFilter.length - 2}
-                      </Badge>
-                    )}
                   </div>
                 ) : null
               }
