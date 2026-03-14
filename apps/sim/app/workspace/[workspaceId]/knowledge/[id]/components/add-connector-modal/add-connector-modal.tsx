@@ -177,7 +177,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
   return (
     <>
       <Modal open={open} onOpenChange={(val) => !isCreating && onOpenChange(val)}>
-        <ModalContent size='md'>
+        <ModalContent size='md' className='h-[80vh] max-h-[560px]'>
           <ModalHeader>
             {step === 'configure' && (
               <Button
@@ -206,7 +206,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                     className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
                   />
                 </div>
-                <div className='max-h-[400px] min-h-0 overflow-y-auto'>
+                <div className='min-h-[400px] overflow-y-auto'>
                   <div className='flex flex-col gap-[2px]'>
                     {filteredEntries.map(([type, config]) => (
                       <ConnectorTypeCard
@@ -348,7 +348,18 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                       >
                         <Checkbox
                           checked={!disabledTagIds.has(tagDef.id)}
-                          onCheckedChange={() => {}}
+                          onClick={(e) => e.stopPropagation()}
+                          onCheckedChange={(checked) => {
+                            setDisabledTagIds((prev) => {
+                              const next = new Set(prev)
+                              if (checked) {
+                                next.delete(tagDef.id)
+                              } else {
+                                next.add(tagDef.id)
+                              }
+                              return next
+                            })
+                          }}
                         />
                         <span className='text-[var(--text-primary)]'>{tagDef.displayName}</span>
                         <span className='text-[11px] text-[var(--text-muted)]'>
