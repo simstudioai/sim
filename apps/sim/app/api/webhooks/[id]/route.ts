@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { webhook, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       })
       .from(webhook)
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .where(eq(webhook.id, id))
+      .where(and(eq(webhook.id, id), isNull(webhook.archivedAt)))
       .limit(1)
 
     if (webhooks.length === 0) {
@@ -106,7 +106,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       })
       .from(webhook)
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .where(eq(webhook.id, id))
+      .where(and(eq(webhook.id, id), isNull(webhook.archivedAt)))
       .limit(1)
 
     if (webhooks.length === 0) {
@@ -204,7 +204,13 @@ export async function DELETE(
       const allCredentialSetWebhooks = await db
         .select()
         .from(webhook)
-        .where(and(eq(webhook.workflowId, webhookData.workflow.id), eq(webhook.blockId, blockId)))
+        .where(
+          and(
+            eq(webhook.workflowId, webhookData.workflow.id),
+            eq(webhook.blockId, blockId),
+            isNull(webhook.archivedAt)
+          )
+        )
 
       const webhooksToDelete = allCredentialSetWebhooks.filter(
         (w) => w.credentialSetId === credentialSetId

@@ -6,6 +6,7 @@ import type Stripe from 'stripe'
 import { getPlanPricing } from '@/lib/billing/core/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { canPurchaseCredits, isOrgAdmin } from '@/lib/billing/credits/balance'
+import { isEnterprise, isTeam } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 
 const logger = createLogger('CreditPurchase')
@@ -120,14 +121,14 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
   }
 
   // Enterprise users must contact support
-  if (subscription.plan === 'enterprise') {
+  if (isEnterprise(subscription.plan)) {
     return { success: false, error: 'Enterprise users must contact support to purchase credits' }
   }
 
   let entityType: 'user' | 'organization' = 'user'
   let entityId = userId
 
-  if (subscription.plan === 'team') {
+  if (isTeam(subscription.plan)) {
     const isAdmin = await isOrgAdmin(userId, subscription.referenceId)
     if (!isAdmin) {
       return { success: false, error: 'Only organization owners and admins can purchase credits' }

@@ -7,6 +7,7 @@ import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
 
 Blocks are the building components you connect together to create AI workflows. Think of them as specialized modules that each handle a specific task—from chatting with AI models to making API calls or processing data.
 
@@ -138,3 +139,12 @@ Each block type has specific configuration options:
     Pause workflow execution for specified time delays
   </Card>
 </Cards>
+
+<FAQ items={[
+  { question: "How many block types are available in Sim?", answer: "Sim has over 200 blocks in its registry, spanning core workflow blocks (Agent, Function, Condition, Router, etc.), integration blocks for third-party services (Gmail, Slack, GitHub, Notion, and many more), and trigger blocks that start workflows from external events like webhooks or schedules. Loop and parallel execution are built into the execution engine as container constructs on the canvas, rather than being standalone registry blocks." },
+  { question: "Can one block's output connect to multiple downstream blocks?", answer: "Yes. A single output port can connect to multiple input ports on different blocks. This lets you fan out data from one processing step to several parallel paths without needing to duplicate the block." },
+  { question: "What happens if a block in the middle of a workflow fails?", answer: "When a block encounters an error, the workflow stops executing along that path. Blocks that support error handling (like the Router) can route to an error path so you can handle failures gracefully instead of halting the entire workflow." },
+  { question: "What is the difference between Processing blocks and Logic blocks?", answer: "Processing blocks (Agent, Function, API) transform or generate data — they do the actual work. Logic blocks (Condition, Router, Evaluator) make decisions about which path the workflow should take based on the data, without modifying it themselves." },
+  { question: "Can I use blocks from different categories together in one workflow?", answer: "Absolutely. A typical workflow combines blocks from multiple categories. For example, you might use a trigger block to start the workflow, an Agent block to process input, a Condition block to branch logic, and an integration block like Gmail to send results." },
+  { question: "Are there container blocks that can hold other blocks inside them?", answer: "Yes. Loop and Parallel are execution engine constructs that appear as container regions on the canvas. You drag other blocks inside them. Loop containers execute their contained blocks repeatedly, while Parallel containers execute their contained blocks concurrently across multiple branches. Unlike registry blocks, these are handled directly by the execution engine." },
+]} />

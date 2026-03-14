@@ -260,7 +260,7 @@ function useJsonCollapse(
   visibleLineIndices: number[]
   toggleCollapse: (lineIndex: number) => void
 } {
-  const [collapsedLines, setCollapsedLines] = useState<Set<number>>(new Set())
+  const [collapsedLines, setCollapsedLines] = useState<Set<number>>(() => new Set())
 
   const collapsibleRegions = useMemo(() => {
     if (!showCollapseColumn || language !== 'json') return new Map<number, CollapsibleRegion>()

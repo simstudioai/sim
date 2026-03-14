@@ -5,7 +5,11 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createKnowledgeBase, getKnowledgeBases } from '@/lib/knowledge/service'
+import {
+  createKnowledgeBase,
+  getKnowledgeBases,
+  type KnowledgeBaseScope,
+} from '@/lib/knowledge/service'
 
 const logger = createLogger('KnowledgeBaseAPI')
 
@@ -61,8 +65,12 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const workspaceId = searchParams.get('workspaceId')
+    const scope = (searchParams.get('scope') ?? 'active') as KnowledgeBaseScope
+    if (!['active', 'archived', 'all'].includes(scope)) {
+      return NextResponse.json({ error: 'Invalid scope' }, { status: 400 })
+    }
 
-    const knowledgeBasesWithCounts = await getKnowledgeBases(session.user.id, workspaceId)
+    const knowledgeBasesWithCounts = await getKnowledgeBases(session.user.id, workspaceId, scope)
 
     return NextResponse.json({
       success: true,

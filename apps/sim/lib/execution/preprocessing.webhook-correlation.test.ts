@@ -38,6 +38,14 @@ vi.mock('@/lib/workspaces/utils', () => ({
   getWorkspaceBilledAccountUserId: mockGetWorkspaceBilledAccountUserId,
 }))
 
+vi.mock('@/lib/workflows/active-context', () => ({
+  getActiveWorkflowRecord: vi.fn().mockResolvedValue({
+    id: 'workflow-1',
+    workspaceId: 'workspace-1',
+    isDeployed: true,
+  }),
+}))
+
 import { preprocessExecution } from './preprocessing'
 
 describe('preprocessExecution webhook correlation logging', () => {

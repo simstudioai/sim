@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 import { db, workflowDeploymentVersion } from '@sim/db'
-import { account, webhook } from '@sim/db/schema'
+import { account, webhook, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
@@ -14,6 +14,7 @@ import {
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import type { DbOrTx } from '@/lib/db/types'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
+import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
 import {
   getCredentialsForCredentialSet,
   refreshAccessTokenIfNeeded,
@@ -2255,9 +2256,14 @@ export async function syncWebhooksForCredentialSet(params: {
         ? and(
             eq(webhook.workflowId, workflowId),
             eq(webhook.blockId, blockId),
-            eq(webhook.deploymentVersionId, deploymentVersionId)
+            eq(webhook.deploymentVersionId, deploymentVersionId),
+            isNull(webhook.archivedAt)
           )
-        : and(eq(webhook.workflowId, workflowId), eq(webhook.blockId, blockId))
+        : and(
+            eq(webhook.workflowId, workflowId),
+            eq(webhook.blockId, blockId),
+            isNull(webhook.archivedAt)
+          )
     )
 
   // Filter to only webhooks belonging to this credential set
@@ -2279,6 +2285,15 @@ export async function syncWebhooksForCredentialSet(params: {
   }
 
   const credentialIdsInSet = new Set(credentials.map((c) => c.credentialId))
+  const [workflowRecord] = await db
+    .select({
+      id: workflow.id,
+      userId: workflow.userId,
+      workspaceId: workflow.workspaceId,
+    })
+    .from(workflow)
+    .where(eq(workflow.id, workflowId))
+    .limit(1)
 
   const result: CredentialSetWebhookSyncResult = {
     webhooks: [],
@@ -2386,6 +2401,9 @@ export async function syncWebhooksForCredentialSet(params: {
   for (const [credentialId, existingWebhook] of existingByCredentialId) {
     if (!credentialIdsInSet.has(credentialId)) {
       try {
+        if (workflowRecord) {
+          await cleanupExternalWebhook(existingWebhook, workflowRecord, requestId)
+        }
         await dbCtx.delete(webhook).where(eq(webhook.id, existingWebhook.id))
         result.deleted++
 
@@ -2441,6 +2459,7 @@ export async function syncAllWebhooksForCredentialSet(
     .where(
       and(
         eq(webhook.credentialSetId, credentialSetId),
+        isNull(webhook.archivedAt),
         or(
           eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
           and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))

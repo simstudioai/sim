@@ -23,7 +23,7 @@ interface DeleteModalProps {
    * Type of item being deleted
    * - 'mixed' is used when both workflows and folders are selected
    */
-  itemType: 'workflow' | 'folder' | 'workspace' | 'mixed'
+  itemType: 'workflow' | 'folder' | 'workspace' | 'mixed' | 'task'
   /**
    * Name(s) of the item(s) being deleted (optional, for display)
    * Can be a single name or an array of names for multiple items
@@ -56,11 +56,15 @@ export function DeleteModal({
     title = isMultiple ? 'Delete Workflows' : 'Delete Workflow'
   } else if (itemType === 'folder') {
     title = isMultiple ? 'Delete Folders' : 'Delete Folder'
+  } else if (itemType === 'task') {
+    title = isMultiple ? 'Delete Tasks' : 'Delete Task'
   } else if (itemType === 'mixed') {
     title = 'Delete Items'
   } else {
     title = 'Delete Workspace'
   }
+
+  const restorableTypes = new Set<string>(['workflow'])
 
   const renderDescription = () => {
     if (itemType === 'workflow') {
@@ -71,7 +75,7 @@ export function DeleteModal({
             <span className='font-medium text-[var(--text-primary)]'>
               {displayNames.join(', ')}
             </span>
-            ? This will permanently remove all associated blocks, executions, and configuration.
+            ? All associated blocks, executions, and configuration will be removed.
           </>
         )
       }
@@ -79,12 +83,12 @@ export function DeleteModal({
         return (
           <>
             Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>? This
-            will permanently remove all associated blocks, executions, and configuration.
+            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>? All
+            associated blocks, executions, and configuration will be removed.
           </>
         )
       }
-      return 'Are you sure you want to delete this workflow? This will permanently remove all associated blocks, executions, and configuration.'
+      return 'Are you sure you want to delete this workflow? All associated blocks, executions, and configuration will be removed.'
     }
 
     if (itemType === 'folder') {
@@ -110,6 +114,30 @@ export function DeleteModal({
         )
       }
       return 'Are you sure you want to delete this folder? This will permanently remove all associated workflows, logs, and knowledge bases.'
+    }
+
+    if (itemType === 'task') {
+      if (isMultiple) {
+        return (
+          <>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {displayNames.length} tasks
+            </span>
+            ? This will permanently remove all conversation history.
+          </>
+        )
+      }
+      if (isSingle && displayNames.length > 0) {
+        return (
+          <>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>? This
+            will permanently remove all conversation history.
+          </>
+        )
+      }
+      return 'Are you sure you want to delete this task? This will permanently remove all conversation history.'
     }
 
     if (itemType === 'mixed') {
@@ -146,9 +174,15 @@ export function DeleteModal({
       <ModalContent size='sm'>
         <ModalHeader>{title}</ModalHeader>
         <ModalBody>
-          <p className='text-[12px] text-[var(--text-secondary)]'>
+          <p className='text-[var(--text-secondary)]'>
             {renderDescription()}{' '}
-            <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            {restorableTypes.has(itemType) ? (
+              <span className='text-[var(--text-tertiary)]'>
+                You can restore it from Recently Deleted in Settings.
+              </span>
+            ) : (
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            )}
           </p>
         </ModalBody>
         <ModalFooter>

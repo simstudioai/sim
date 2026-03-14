@@ -40,6 +40,20 @@ export const googleMapsAirQualityTool: ToolConfig<
     },
   },
 
+  hosting: {
+    envKeyPrefix: 'GOOGLE_CLOUD_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'google_cloud',
+    pricing: {
+      type: 'per_request',
+      cost: 0.005,
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 60,
+    },
+  },
+
   request: {
     url: (params) => {
       return `https://airquality.googleapis.com/v1/currentConditions:lookup?key=${params.apiKey.trim()}`

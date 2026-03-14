@@ -1,12 +1,10 @@
 import { memo, useCallback, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
-import clsx from 'clsx'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useNotificationStore } from '@/stores/notifications'
-import { useCopilotStore, usePanelStore } from '@/stores/panel'
-import { useTerminalStore } from '@/stores/terminal'
+import { useCopilotStore } from '@/stores/panel'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -15,8 +13,6 @@ const NOTIFICATION_WIDTH = 240
 const NOTIFICATION_GAP = 16
 
 export const DiffControls = memo(function DiffControls() {
-  const isTerminalResizing = useTerminalStore((state) => state.isResizing)
-  const isPanelResizing = usePanelStore((state) => state.isResizing)
   const { isDiffReady, hasActiveDiff, acceptChanges, rejectChanges } = useWorkflowDiffStore(
     useCallback(
       (state) => ({
@@ -144,17 +140,15 @@ export const DiffControls = memo(function DiffControls() {
     return null
   }
 
-  const isResizing = isTerminalResizing || isPanelResizing
-
   const notificationOffset = hasVisibleNotifications ? NOTIFICATION_WIDTH + NOTIFICATION_GAP : 0
 
   return (
     <div
       ref={preventZoomRef}
-      className={clsx('fixed z-30', !isResizing && 'transition-[bottom] duration-100 ease-out')}
+      className='absolute z-30'
       style={{
-        bottom: 'calc(var(--terminal-height) + 16px)',
-        right: `calc(var(--panel-width) + 16px + ${notificationOffset}px)`,
+        bottom: '16px',
+        right: `${16 + notificationOffset}px`,
       }}
     >
       <div

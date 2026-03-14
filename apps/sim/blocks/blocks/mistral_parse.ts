@@ -68,6 +68,7 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
       placeholder: 'Enter your Mistral API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
     },
   ],
   tools: {
@@ -75,13 +76,12 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
     config: {
       tool: () => 'mistral_parser',
       params: (params) => {
-        if (!params || !params.apiKey || params.apiKey.trim() === '') {
-          throw new Error('Mistral API key is required')
+        const parameters: Record<string, unknown> = {
+          resultType: params.resultType || 'markdown',
         }
 
-        const parameters: Record<string, unknown> = {
-          apiKey: params.apiKey.trim(),
-          resultType: params.resultType || 'markdown',
+        if (params.apiKey?.trim()) {
+          parameters.apiKey = params.apiKey.trim()
         }
 
         const inputMethod = params.inputMethod || 'url'
@@ -195,6 +195,7 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
       placeholder: 'Enter your Mistral API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
     },
   ],
   tools: {
@@ -206,13 +207,12 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
         fallbackToolId: 'mistral_parser_v2',
       }),
       params: (params) => {
-        if (!params || !params.apiKey || params.apiKey.trim() === '') {
-          throw new Error('Mistral API key is required')
+        const parameters: Record<string, unknown> = {
+          resultType: params.resultType || 'markdown',
         }
 
-        const parameters: Record<string, unknown> = {
-          apiKey: params.apiKey.trim(),
-          resultType: params.resultType || 'markdown',
+        if (params.apiKey?.trim()) {
+          parameters.apiKey = params.apiKey.trim()
         }
 
         // Use canonical document param directly
@@ -327,6 +327,7 @@ export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
       placeholder: 'Enter your Mistral API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
     },
   ],
   tools: {
@@ -334,13 +335,12 @@ export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
     config: {
       tool: () => 'mistral_parser_v3',
       params: (params) => {
-        if (!params || !params.apiKey || params.apiKey.trim() === '') {
-          throw new Error('Mistral API key is required')
+        const parameters: Record<string, unknown> = {
+          resultType: params.resultType || 'markdown',
         }
 
-        const parameters: Record<string, unknown> = {
-          apiKey: params.apiKey.trim(),
-          resultType: params.resultType || 'markdown',
+        if (params.apiKey?.trim()) {
+          parameters.apiKey = params.apiKey.trim()
         }
 
         // V3 pattern: use canonical document param directly

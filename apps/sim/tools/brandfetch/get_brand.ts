@@ -11,6 +11,21 @@ export const brandfetchGetBrandTool: ToolConfig<
     'Retrieve brand assets including logos, colors, fonts, and company info by domain, ticker, ISIN, or crypto symbol',
   version: '1.0.0',
 
+  hosting: {
+    envKeyPrefix: 'BRANDFETCH_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'brandfetch',
+    pricing: {
+      type: 'per_request',
+      // Brand API: $99/month for 2,500 calls = $0.0396/request — https://docs.brandfetch.com/brand-api/quotas-and-usage
+      cost: 0.04,
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 30,
+    },
+  },
+
   params: {
     apiKey: {
       type: 'string',

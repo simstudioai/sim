@@ -15,9 +15,9 @@ import {
   type RequestId,
 } from '@modelcontextprotocol/sdk/types.js'
 import { db } from '@sim/db'
-import { workflow, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
+import { workflow, workflowMcpServer, workflowMcpTool, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { type AuthResult, AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateInternalToken } from '@/lib/auth/internal'
@@ -66,7 +66,14 @@ async function getServer(serverId: string) {
       createdBy: workflowMcpServer.createdBy,
     })
     .from(workflowMcpServer)
-    .where(eq(workflowMcpServer.id, serverId))
+    .innerJoin(workspace, eq(workflowMcpServer.workspaceId, workspace.id))
+    .where(
+      and(
+        eq(workflowMcpServer.id, serverId),
+        isNull(workflowMcpServer.deletedAt),
+        isNull(workspace.archivedAt)
+      )
+    )
     .limit(1)
 
   return server
@@ -85,6 +92,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
       const auth = await checkHybridAuth(request, { requireWorkflowId: false })
       if (!auth.success || !auth.userId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      if (auth.apiKeyType === 'workspace' && auth.workspaceId !== server.workspaceId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
       const workspacePermission = await getUserEntityPermissions(
@@ -123,6 +134,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
       const auth = await checkHybridAuth(request, { requireWorkflowId: false })
       if (!auth.success || !auth.userId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      if (auth.apiKeyType === 'workspace' && auth.workspaceId !== server.workspaceId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
       const workspacePermission = await getUserEntityPermissions(
@@ -211,7 +226,7 @@ async function handleToolsList(id: RequestId, serverId: string): Promise<NextRes
         parameterSchema: workflowMcpTool.parameterSchema,
       })
       .from(workflowMcpTool)
-      .where(eq(workflowMcpTool.serverId, serverId))
+      .where(and(eq(workflowMcpTool.serverId, serverId), isNull(workflowMcpTool.archivedAt)))
 
     const result: ListToolsResult = {
       tools: tools.map((tool) => {
@@ -262,7 +277,13 @@ async function handleToolsCall(
         workflowId: workflowMcpTool.workflowId,
       })
       .from(workflowMcpTool)
-      .where(and(eq(workflowMcpTool.serverId, serverId), eq(workflowMcpTool.toolName, params.name)))
+      .where(
+        and(
+          eq(workflowMcpTool.serverId, serverId),
+          eq(workflowMcpTool.toolName, params.name),
+          isNull(workflowMcpTool.archivedAt)
+        )
+      )
       .limit(1)
     if (!tool) {
       return NextResponse.json(
@@ -276,7 +297,7 @@ async function handleToolsCall(
     const [wf] = await db
       .select({ isDeployed: workflow.isDeployed })
       .from(workflow)
-      .where(eq(workflow.id, tool.workflowId))
+      .where(and(eq(workflow.id, tool.workflowId), isNull(workflow.archivedAt)))
       .limit(1)
 
     if (!wf?.isDeployed) {

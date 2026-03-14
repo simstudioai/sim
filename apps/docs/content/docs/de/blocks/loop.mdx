@@ -190,13 +190,8 @@ console.log(`${processedItems} gültige Elemente verarbeitet`);
 
 ### Einschränkungen
 
-<Callout type="warning">
-  Container-Blöcke (Schleifen und Parallele) können nicht ineinander verschachtelt werden. Das bedeutet:
-  - Du kannst keinen Schleifenblock in einen anderen Schleifenblock platzieren
-  - Du kannst keinen Parallel-Block in einen Schleifenblock platzieren
-  - Du kannst keinen Container-Block in einen anderen Container-Block platzieren
-  
-  Wenn du mehrdimensionale Iterationen benötigst, erwäge eine Umstrukturierung deines Workflows, um sequentielle Schleifen zu verwenden oder Daten in Stufen zu verarbeiten.
+<Callout type="info">
+  Container-Blöcke (Schleifen und Parallele) unterstützen Verschachtelung. Du kannst Schleifen in Schleifen, Parallele in Schleifen und jede Kombination von Container-Blöcken platzieren, um komplexe mehrdimensionale Workflows zu erstellen.
 </Callout>
 
 <Callout type="info">

@@ -104,6 +104,8 @@ export class BrowserStorage {
  */
 export const STORAGE_KEYS = {
   LANDING_PAGE_PROMPT: 'sim_landing_page_prompt',
+  LANDING_PAGE_TEMPLATE: 'sim_landing_page_template',
+  LANDING_PAGE_WORKFLOW_SEED: 'sim_landing_page_workflow_seed',
 } as const
 
 /**
@@ -185,5 +187,106 @@ export class LandingPromptStorage {
    */
   static clear(): boolean {
     return BrowserStorage.removeItem(LandingPromptStorage.KEY)
+  }
+}
+
+/**
+ * Specialized utility for managing a template selection from the landing page.
+ * Stores the marketplace template ID so it can be consumed after signup.
+ */
+export class LandingTemplateStorage {
+  private static readonly KEY = STORAGE_KEYS.LANDING_PAGE_TEMPLATE
+
+  /**
+   * Store a template ID selected on the landing page
+   * @param templateId - The marketplace template UUID
+   */
+  static store(templateId: string): boolean {
+    if (!templateId || templateId.trim().length === 0) {
+      return false
+    }
+
+    return BrowserStorage.setItem(LandingTemplateStorage.KEY, {
+      templateId: templateId.trim(),
+      timestamp: Date.now(),
+    })
+  }
+
+  /**
+   * Retrieve and consume the stored template ID
+   * @param maxAge - Maximum age in milliseconds (default: 24 hours)
+   */
+  static consume(maxAge: number = 24 * 60 * 60 * 1000): string | null {
+    const data = BrowserStorage.getItem<{ templateId: string; timestamp: number } | null>(
+      LandingTemplateStorage.KEY,
+      null
+    )
+
+    if (!data || !data.templateId || !data.timestamp) {
+      return null
+    }
+
+    if (Date.now() - data.timestamp > maxAge) {
+      LandingTemplateStorage.clear()
+      return null
+    }
+
+    LandingTemplateStorage.clear()
+    return data.templateId
+  }
+
+  static clear(): boolean {
+    return BrowserStorage.removeItem(LandingTemplateStorage.KEY)
+  }
+}
+
+export interface LandingWorkflowSeed {
+  templateId: string
+  workflowName: string
+  workflowDescription?: string
+  color?: string
+  workflowJson: string
+}
+
+/**
+ * Specialized utility for managing a landing-page workflow seed.
+ * Stores a workflow export JSON so it can be imported after signup.
+ */
+export class LandingWorkflowSeedStorage {
+  private static readonly KEY = STORAGE_KEYS.LANDING_PAGE_WORKFLOW_SEED
+
+  static store(seed: LandingWorkflowSeed): boolean {
+    if (!seed.templateId || !seed.workflowName || !seed.workflowJson) {
+      return false
+    }
+
+    return BrowserStorage.setItem(LandingWorkflowSeedStorage.KEY, {
+      ...seed,
+      timestamp: Date.now(),
+    })
+  }
+
+  static consume(maxAge: number = 24 * 60 * 60 * 1000): LandingWorkflowSeed | null {
+    const data = BrowserStorage.getItem<(LandingWorkflowSeed & { timestamp: number }) | null>(
+      LandingWorkflowSeedStorage.KEY,
+      null
+    )
+
+    if (!data || !data.templateId || !data.workflowName || !data.timestamp || !data.workflowJson) {
+      return null
+    }
+
+    if (Date.now() - data.timestamp > maxAge) {
+      LandingWorkflowSeedStorage.clear()
+      return null
+    }
+
+    LandingWorkflowSeedStorage.clear()
+    const { timestamp: _timestamp, ...seed } = data
+    return seed
+  }
+
+  static clear(): boolean {
+    return BrowserStorage.removeItem(LandingWorkflowSeedStorage.KEY)
   }
 }

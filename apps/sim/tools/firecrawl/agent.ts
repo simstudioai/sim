@@ -189,10 +189,6 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
       type: 'object',
       description: 'Extracted data from the agent',
     },
-    creditsUsed: {
-      type: 'number',
-      description: 'Number of credits consumed by this agent task',
-    },
     expiresAt: {
       type: 'string',
       description: 'Timestamp when the results expire (24 hours)',

@@ -6,15 +6,16 @@ import { createPortal } from 'react-dom'
 import {
   Button,
   Code,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Eye,
   Input,
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverDivider,
-  PopoverItem,
   Tooltip,
 } from '@/components/emcn'
+import { Copy as CopyIcon, Search as SearchIcon } from '@/components/emcn/icons'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { cn } from '@/lib/core/utils/cn'
@@ -39,6 +40,7 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { formatCost } from '@/providers/utils'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
+import { MAX_LOG_DETAILS_WIDTH_RATIO, MIN_LOG_DETAILS_WIDTH } from '@/stores/logs/utils'
 
 /**
  * Workflow Output section with code viewer, copy, search, and context menu functionality
@@ -207,28 +209,38 @@ const WorkflowOutputSection = memo(
         {/* Context Menu - rendered in portal to avoid transform/overflow clipping */}
         {typeof document !== 'undefined' &&
           createPortal(
-            <Popover
-              open={isContextMenuOpen}
-              onOpenChange={closeContextMenu}
-              variant='secondary'
-              size='sm'
-              colorScheme='inverted'
-            >
-              <PopoverAnchor
-                style={{
-                  position: 'fixed',
-                  left: `${contextMenuPosition.x}px`,
-                  top: `${contextMenuPosition.y}px`,
-                  width: '1px',
-                  height: '1px',
-                }}
-              />
-              <PopoverContent align='start' side='bottom' sideOffset={4}>
-                <PopoverItem onClick={handleCopy}>Copy</PopoverItem>
-                <PopoverDivider />
-                <PopoverItem onClick={handleSearch}>Search</PopoverItem>
-              </PopoverContent>
-            </Popover>,
+            <DropdownMenu open={isContextMenuOpen} onOpenChange={closeContextMenu} modal={false}>
+              <DropdownMenuTrigger asChild>
+                <div
+                  style={{
+                    position: 'fixed',
+                    left: `${contextMenuPosition.x}px`,
+                    top: `${contextMenuPosition.y}px`,
+                    width: '1px',
+                    height: '1px',
+                    pointerEvents: 'none',
+                  }}
+                  tabIndex={-1}
+                  aria-hidden
+                />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align='start'
+                side='bottom'
+                sideOffset={4}
+                onCloseAutoFocus={(e) => e.preventDefault()}
+              >
+                <DropdownMenuItem onSelect={handleCopy}>
+                  <CopyIcon />
+                  Copy
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={handleSearch}>
+                  <SearchIcon />
+                  Search
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>,
             document.body
           )}
       </div>
@@ -275,6 +287,9 @@ export const LogDetails = memo(function LogDetails({
   const { handleMouseDown } = useLogDetailsResize()
   const { config: permissionConfig } = usePermissionConfig()
 
+  const maxVw = `${MAX_LOG_DETAILS_WIDTH_RATIO * 100}vw`
+  const effectiveWidth = `clamp(${MIN_LOG_DETAILS_WIDTH}px, ${panelWidth}px, ${maxVw})`
+
   useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = 0
@@ -289,9 +304,7 @@ export const LogDetails = memo(function LogDetails({
     )
   }, [log])
 
-  const hasCostInfo = useMemo(() => {
-    return isWorkflowExecutionLog && log?.cost
-  }, [log, isWorkflowExecutionLog])
+  const hasCostInfo = isWorkflowExecutionLog && log?.cost
 
   const workflowOutput = useMemo(() => {
     const executionData = log?.executionData as
@@ -329,7 +342,7 @@ export const LogDetails = memo(function LogDetails({
     [log?.createdAt]
   )
 
-  const logStatus = useMemo(() => getDisplayStatus(log?.status), [log?.status])
+  const logStatus = getDisplayStatus(log?.status)
 
   return (
     <>
@@ -337,7 +350,7 @@ export const LogDetails = memo(function LogDetails({
       {isOpen && (
         <div
           className='absolute top-0 bottom-0 z-[60] w-[8px] cursor-ew-resize'
-          style={{ right: `${panelWidth - 4}px` }}
+          style={{ right: `calc(${effectiveWidth} - 4px)` }}
           onMouseDown={handleMouseDown}
           role='separator'
           aria-label='Resize log details panel'
@@ -346,10 +359,10 @@ export const LogDetails = memo(function LogDetails({
       )}
 
       <div
-        className={`absolute top-[0px] right-0 bottom-0 z-50 transform overflow-hidden border-l bg-[var(--surface-1)] shadow-md transition-transform duration-200 ease-out ${
+        className={`absolute top-[0px] right-0 bottom-0 z-50 transform overflow-hidden border-l bg-[var(--bg)] shadow-md transition-transform duration-200 ease-out ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
-        style={{ width: `${panelWidth}px` }}
+        style={{ width: effectiveWidth }}
         aria-label='Log details sidebar'
       >
         {log && (
@@ -405,20 +418,31 @@ export const LogDetails = memo(function LogDetails({
                   {/* Workflow Card */}
                   <div className='flex w-0 min-w-0 flex-1 flex-col gap-[8px]'>
                     <div className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      Workflow
+                      {log.trigger === 'mothership' ? 'Job' : 'Workflow'}
                     </div>
                     <div className='flex min-w-0 items-center gap-[8px]'>
-                      <div
-                        className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px]'
-                        style={{
-                          backgroundColor:
-                            log.workflow?.color ||
-                            (!log.workflowId ? DELETED_WORKFLOW_COLOR : undefined),
-                        }}
-                      />
+                      {(() => {
+                        const c =
+                          log.trigger === 'mothership'
+                            ? '#ec4899'
+                            : log.workflow?.color ||
+                              (!log.workflowId ? DELETED_WORKFLOW_COLOR : undefined)
+                        return (
+                          <div
+                            className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
+                            style={{
+                              backgroundColor: c,
+                              borderColor: c ? `${c}60` : undefined,
+                              backgroundClip: 'padding-box',
+                            }}
+                          />
+                        )
+                      })()}
                       <span className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-secondary)]'>
-                        {log.workflow?.name ||
-                          (!log.workflowId ? DELETED_WORKFLOW_LABEL : 'Unknown')}
+                        {log.trigger === 'mothership'
+                          ? log.jobTitle || 'Untitled Job'
+                          : log.workflow?.name ||
+                            (!log.workflowId ? DELETED_WORKFLOW_LABEL : 'Unknown')}
                       </span>
                     </div>
                   </div>
@@ -488,21 +512,24 @@ export const LogDetails = memo(function LogDetails({
                 </div>
 
                 {/* Workflow State */}
-                {isWorkflowExecutionLog && log.executionId && !permissionConfig.hideTraceSpans && (
-                  <div className='-mt-[8px] flex flex-col gap-[6px] rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] py-[8px]'>
-                    <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      Workflow State
-                    </span>
-                    <Button
-                      variant='active'
-                      onClick={() => setIsExecutionSnapshotOpen(true)}
-                      className='flex w-full items-center justify-between px-[10px] py-[6px]'
-                    >
-                      <span className='font-medium text-[12px]'>View Snapshot</span>
-                      <Eye className='h-[14px] w-[14px]' />
-                    </Button>
-                  </div>
-                )}
+                {isWorkflowExecutionLog &&
+                  log.executionId &&
+                  log.trigger !== 'mothership' &&
+                  !permissionConfig.hideTraceSpans && (
+                    <div className='-mt-[8px] flex flex-col gap-[6px] rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] py-[8px]'>
+                      <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                        Workflow State
+                      </span>
+                      <Button
+                        variant='active'
+                        onClick={() => setIsExecutionSnapshotOpen(true)}
+                        className='flex w-full items-center justify-between px-[10px] py-[6px]'
+                      >
+                        <span className='font-medium text-[12px]'>View Snapshot</span>
+                        <Eye className='h-[14px] w-[14px]' />
+                      </Button>
+                    </div>
+                  )}
 
                 {/* Workflow Output */}
                 {isWorkflowExecutionLog && workflowOutput && !permissionConfig.hideTraceSpans && (

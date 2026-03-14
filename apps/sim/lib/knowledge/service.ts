@@ -1,8 +1,8 @@
 import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
-import { document, knowledgeBase, permissions } from '@sim/db/schema'
+import { document, knowledgeBase, knowledgeConnector, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq, isNotNull, isNull, or } from 'drizzle-orm'
+import { and, count, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -12,31 +12,48 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('KnowledgeBaseService')
 
+export type KnowledgeBaseScope = 'active' | 'archived' | 'all'
+
 /**
  * Get knowledge bases that a user can access
  */
 export async function getKnowledgeBases(
   userId: string,
-  workspaceId?: string | null
+  workspaceId?: string | null,
+  scope: KnowledgeBaseScope = 'active'
 ): Promise<KnowledgeBaseWithCounts[]> {
+  const scopeCondition =
+    scope === 'all'
+      ? undefined
+      : scope === 'archived'
+        ? sql`${knowledgeBase.deletedAt} IS NOT NULL`
+        : isNull(knowledgeBase.deletedAt)
+
   const knowledgeBasesWithCounts = await db
     .select({
       id: knowledgeBase.id,
+      userId: knowledgeBase.userId,
       name: knowledgeBase.name,
       description: knowledgeBase.description,
-      tokenCount: knowledgeBase.tokenCount,
+      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
       embeddingModel: knowledgeBase.embeddingModel,
       embeddingDimension: knowledgeBase.embeddingDimension,
       chunkingConfig: knowledgeBase.chunkingConfig,
       createdAt: knowledgeBase.createdAt,
       updatedAt: knowledgeBase.updatedAt,
+      deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
       docCount: count(document.id),
     })
     .from(knowledgeBase)
     .leftJoin(
       document,
-      and(eq(document.knowledgeBaseId, knowledgeBase.id), isNull(document.deletedAt))
+      and(
+        eq(document.knowledgeBaseId, knowledgeBase.id),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
     )
     .leftJoin(
       permissions,
@@ -46,14 +63,19 @@ export async function getKnowledgeBases(
         eq(permissions.userId, userId)
       )
     )
+    .leftJoin(workspace, eq(knowledgeBase.workspaceId, workspace.id))
     .where(
       and(
-        isNull(knowledgeBase.deletedAt),
+        scopeCondition,
         workspaceId
           ? // When filtering by workspace
             or(
               // Knowledge bases belonging to the specified workspace (user must have workspace permissions)
-              and(eq(knowledgeBase.workspaceId, workspaceId), isNotNull(permissions.userId)),
+              and(
+                eq(knowledgeBase.workspaceId, workspaceId),
+                isNotNull(permissions.userId),
+                isNull(workspace.archivedAt)
+              ),
               // Fallback: User-owned knowledge bases without workspace (legacy)
               and(eq(knowledgeBase.userId, userId), isNull(knowledgeBase.workspaceId))
             )
@@ -62,17 +84,46 @@ export async function getKnowledgeBases(
               // User owns the knowledge base directly
               eq(knowledgeBase.userId, userId),
               // User has permissions on the knowledge base's workspace
-              isNotNull(permissions.userId)
+              and(isNotNull(permissions.userId), isNull(workspace.archivedAt))
             )
       )
     )
     .groupBy(knowledgeBase.id)
     .orderBy(knowledgeBase.createdAt)
 
+  const kbIds = knowledgeBasesWithCounts.map((kb) => kb.id)
+
+  const connectorRows =
+    kbIds.length > 0
+      ? await db
+          .select({
+            knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
+            connectorType: knowledgeConnector.connectorType,
+          })
+          .from(knowledgeConnector)
+          .where(
+            and(
+              inArray(knowledgeConnector.knowledgeBaseId, kbIds),
+              isNull(knowledgeConnector.archivedAt),
+              isNull(knowledgeConnector.deletedAt)
+            )
+          )
+      : []
+
+  const connectorTypesByKb = new Map<string, string[]>()
+  for (const row of connectorRows) {
+    const types = connectorTypesByKb.get(row.knowledgeBaseId) ?? []
+    if (!types.includes(row.connectorType)) {
+      types.push(row.connectorType)
+    }
+    connectorTypesByKb.set(row.knowledgeBaseId, types)
+  }
+
   return knowledgeBasesWithCounts.map((kb) => ({
     ...kb,
     chunkingConfig: kb.chunkingConfig as ChunkingConfig,
     docCount: Number(kb.docCount),
+    connectorTypes: connectorTypesByKb.get(kb.id) ?? [],
   }))
 }
 
@@ -112,6 +163,7 @@ export async function createKnowledgeBase(
 
   return {
     id: kbId,
+    userId: data.userId,
     name: data.name,
     description: data.description ?? null,
     tokenCount: 0,
@@ -120,8 +172,10 @@ export async function createKnowledgeBase(
     chunkingConfig: data.chunkingConfig,
     createdAt: now,
     updatedAt: now,
+    deletedAt: null,
     workspaceId: data.workspaceId,
     docCount: 0,
+    connectorTypes: [],
   }
 }
 
@@ -168,28 +222,38 @@ export async function updateKnowledgeBase(
     updateData.embeddingDimension = 1536
   }
 
-  await db.update(knowledgeBase).set(updateData).where(eq(knowledgeBase.id, knowledgeBaseId))
+  await db
+    .update(knowledgeBase)
+    .set(updateData)
+    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
 
   const updatedKb = await db
     .select({
       id: knowledgeBase.id,
+      userId: knowledgeBase.userId,
       name: knowledgeBase.name,
       description: knowledgeBase.description,
-      tokenCount: knowledgeBase.tokenCount,
+      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
       embeddingModel: knowledgeBase.embeddingModel,
       embeddingDimension: knowledgeBase.embeddingDimension,
       chunkingConfig: knowledgeBase.chunkingConfig,
       createdAt: knowledgeBase.createdAt,
       updatedAt: knowledgeBase.updatedAt,
+      deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
       docCount: count(document.id),
     })
     .from(knowledgeBase)
     .leftJoin(
       document,
-      and(eq(document.knowledgeBaseId, knowledgeBase.id), isNull(document.deletedAt))
+      and(
+        eq(document.knowledgeBaseId, knowledgeBase.id),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
     )
-    .where(eq(knowledgeBase.id, knowledgeBaseId))
+    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
     .groupBy(knowledgeBase.id)
     .limit(1)
 
@@ -203,6 +267,7 @@ export async function updateKnowledgeBase(
     ...updatedKb[0],
     chunkingConfig: updatedKb[0].chunkingConfig as ChunkingConfig,
     docCount: Number(updatedKb[0].docCount),
+    connectorTypes: [],
   }
 }
 
@@ -215,21 +280,28 @@ export async function getKnowledgeBaseById(
   const result = await db
     .select({
       id: knowledgeBase.id,
+      userId: knowledgeBase.userId,
       name: knowledgeBase.name,
       description: knowledgeBase.description,
-      tokenCount: knowledgeBase.tokenCount,
+      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
       embeddingModel: knowledgeBase.embeddingModel,
       embeddingDimension: knowledgeBase.embeddingDimension,
       chunkingConfig: knowledgeBase.chunkingConfig,
       createdAt: knowledgeBase.createdAt,
       updatedAt: knowledgeBase.updatedAt,
+      deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
       docCount: count(document.id),
     })
     .from(knowledgeBase)
     .leftJoin(
       document,
-      and(eq(document.knowledgeBaseId, knowledgeBase.id), isNull(document.deletedAt))
+      and(
+        eq(document.knowledgeBaseId, knowledgeBase.id),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
     )
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
     .groupBy(knowledgeBase.id)
@@ -243,6 +315,7 @@ export async function getKnowledgeBaseById(
     ...result[0],
     chunkingConfig: result[0].chunkingConfig as ChunkingConfig,
     docCount: Number(result[0].docCount),
+    connectorTypes: [],
   }
 }
 
@@ -255,13 +328,116 @@ export async function deleteKnowledgeBase(
 ): Promise<void> {
   const now = new Date()
 
-  await db
-    .update(knowledgeBase)
-    .set({
-      deletedAt: now,
-      updatedAt: now,
-    })
-    .where(eq(knowledgeBase.id, knowledgeBaseId))
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+
+    await tx
+      .update(knowledgeBase)
+      .set({
+        deletedAt: now,
+        updatedAt: now,
+      })
+      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+
+    await tx
+      .update(document)
+      .set({
+        archivedAt: now,
+      })
+      .where(
+        and(
+          eq(document.knowledgeBaseId, knowledgeBaseId),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
+      )
+
+    await tx
+      .update(knowledgeConnector)
+      .set({
+        archivedAt: now,
+        status: 'paused',
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+          isNull(knowledgeConnector.archivedAt),
+          isNull(knowledgeConnector.deletedAt)
+        )
+      )
+  })
 
   logger.info(`[${requestId}] Soft deleted knowledge base: ${knowledgeBaseId}`)
+}
+
+/**
+ * Restore a soft-deleted knowledge base and its graph children.
+ * Clears archivedAt on children that were archived as part of the KB snapshot.
+ * Does NOT revive children that were directly deleted (deletedAt set).
+ */
+export async function restoreKnowledgeBase(
+  knowledgeBaseId: string,
+  requestId: string
+): Promise<void> {
+  const [kb] = await db
+    .select({
+      id: knowledgeBase.id,
+      deletedAt: knowledgeBase.deletedAt,
+      workspaceId: knowledgeBase.workspaceId,
+    })
+    .from(knowledgeBase)
+    .where(eq(knowledgeBase.id, knowledgeBaseId))
+    .limit(1)
+
+  if (!kb) {
+    throw new Error('Knowledge base not found')
+  }
+
+  if (!kb.deletedAt) {
+    throw new Error('Knowledge base is not archived')
+  }
+
+  if (kb.workspaceId) {
+    const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
+    const ws = await getWorkspaceWithOwner(kb.workspaceId)
+    if (!ws || ws.archivedAt) {
+      throw new Error('Cannot restore knowledge base into an archived workspace')
+    }
+  }
+
+  const now = new Date()
+
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+
+    await tx
+      .update(knowledgeBase)
+      .set({ deletedAt: null, updatedAt: now })
+      .where(eq(knowledgeBase.id, knowledgeBaseId))
+
+    await tx
+      .update(document)
+      .set({ archivedAt: null })
+      .where(
+        and(
+          eq(document.knowledgeBaseId, knowledgeBaseId),
+          isNotNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
+      )
+
+    await tx
+      .update(knowledgeConnector)
+      .set({ archivedAt: null, status: 'active', updatedAt: now })
+      .where(
+        and(
+          eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+          isNotNull(knowledgeConnector.archivedAt),
+          isNull(knowledgeConnector.deletedAt)
+        )
+      )
+  })
+
+  logger.info(`[${requestId}] Restored knowledge base: ${knowledgeBaseId}`)
 }

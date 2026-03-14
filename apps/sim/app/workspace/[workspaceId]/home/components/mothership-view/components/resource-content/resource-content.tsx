@@ -1,0 +1,371 @@
+'use client'
+
+import { lazy, Suspense, useCallback, useEffect, useMemo } from 'react'
+import { createLogger } from '@sim/logger'
+import { Square } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
+import { Download, FileX, SquareArrowUpRight, WorkflowX } from '@/components/emcn/icons'
+import {
+  markRunToolManuallyStopped,
+  reportManualRunToolStop,
+} from '@/lib/copilot/client-sse/run-tool-execution'
+import { downloadWorkspaceFile } from '@/lib/uploads/utils/file-utils'
+import {
+  FileViewer,
+  type PreviewMode,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import {
+  RESOURCE_TAB_ICON_BUTTON_CLASS,
+  RESOURCE_TAB_ICON_CLASS,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
+import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/components'
+import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
+import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
+import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { useExecutionStore } from '@/stores/execution/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+
+const Workflow = lazy(() => import('@/app/workspace/[workspaceId]/w/[workflowId]/workflow'))
+
+const LOADING_SKELETON = (
+  <div className='flex h-full flex-col gap-[8px] p-[24px]'>
+    <Skeleton className='h-[16px] w-[60%]' />
+    <Skeleton className='h-[16px] w-[80%]' />
+    <Skeleton className='h-[16px] w-[40%]' />
+  </div>
+)
+
+interface ResourceContentProps {
+  workspaceId: string
+  resource: MothershipResource
+  previewMode?: PreviewMode
+}
+
+/**
+ * Renders the content for the currently active mothership resource.
+ * Handles table, file, and workflow resource types with appropriate
+ * embedded rendering for each.
+ */
+export function ResourceContent({ workspaceId, resource, previewMode }: ResourceContentProps) {
+  switch (resource.type) {
+    case 'table':
+      return <Table key={resource.id} workspaceId={workspaceId} tableId={resource.id} embedded />
+
+    case 'file':
+      return (
+        <EmbeddedFile
+          key={resource.id}
+          workspaceId={workspaceId}
+          fileId={resource.id}
+          previewMode={previewMode}
+        />
+      )
+
+    case 'workflow':
+      return (
+        <EmbeddedWorkflow key={resource.id} workspaceId={workspaceId} workflowId={resource.id} />
+      )
+
+    case 'knowledgebase':
+      return (
+        <KnowledgeBase
+          key={resource.id}
+          id={resource.id}
+          knowledgeBaseName={resource.title}
+          workspaceId={workspaceId}
+        />
+      )
+
+    default:
+      return null
+  }
+}
+
+interface ResourceActionsProps {
+  workspaceId: string
+  resource: MothershipResource
+}
+
+export function ResourceActions({ workspaceId, resource }: ResourceActionsProps) {
+  switch (resource.type) {
+    case 'workflow':
+      return <EmbeddedWorkflowActions workspaceId={workspaceId} workflowId={resource.id} />
+    case 'file':
+      return <EmbeddedFileActions workspaceId={workspaceId} fileId={resource.id} />
+    case 'knowledgebase':
+      return (
+        <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
+      )
+    default:
+      return null
+  }
+}
+
+interface EmbeddedWorkflowActionsProps {
+  workspaceId: string
+  workflowId: string
+}
+
+export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWorkflowActionsProps) {
+  const router = useRouter()
+  const { navigateToSettings } = useSettingsNavigation()
+  const { userPermissions: effectivePermissions } = useWorkspacePermissionsContext()
+  const setActiveWorkflow = useWorkflowRegistry((state) => state.setActiveWorkflow)
+  const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
+  const isExecuting = useExecutionStore(
+    (state) => state.workflowExecutions.get(workflowId)?.isExecuting ?? false
+  )
+  const { usageExceeded } = useUsageLimits()
+
+  useEffect(() => {
+    setActiveWorkflow(workflowId)
+  }, [setActiveWorkflow, workflowId])
+
+  const isRunButtonDisabled =
+    !isExecuting && !effectivePermissions.canRead && !effectivePermissions.isLoading
+
+  const handleRun = useCallback(async () => {
+    setActiveWorkflow(workflowId)
+
+    if (isExecuting) {
+      markRunToolManuallyStopped(workflowId)
+      await handleCancelExecution()
+      await reportManualRunToolStop(workflowId)
+      return
+    }
+
+    if (usageExceeded) {
+      navigateToSettings({ section: 'subscription' })
+      return
+    }
+
+    await handleRunWorkflow()
+  }, [
+    handleCancelExecution,
+    handleRunWorkflow,
+    isExecuting,
+    navigateToSettings,
+    setActiveWorkflow,
+    usageExceeded,
+    workflowId,
+  ])
+
+  const handleOpenWorkflow = useCallback(() => {
+    router.push(`/workspace/${workspaceId}/w/${workflowId}`)
+  }, [router, workspaceId, workflowId])
+
+  return (
+    <>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Button
+            variant='subtle'
+            onClick={handleOpenWorkflow}
+            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+            aria-label='Open workflow'
+          >
+            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+          </Button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>Open workflow</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Button
+            variant='subtle'
+            onClick={() => void handleRun()}
+            disabled={isRunButtonDisabled}
+            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+            aria-label={isExecuting ? 'Stop workflow' : 'Run workflow'}
+          >
+            {isExecuting ? (
+              <Square className={RESOURCE_TAB_ICON_CLASS} />
+            ) : (
+              <PlayOutline className={RESOURCE_TAB_ICON_CLASS} />
+            )}
+          </Button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>{isExecuting ? 'Stop' : 'Run'}</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    </>
+  )
+}
+
+interface EmbeddedKnowledgeBaseActionsProps {
+  workspaceId: string
+  knowledgeBaseId: string
+}
+
+export function EmbeddedKnowledgeBaseActions({
+  workspaceId,
+  knowledgeBaseId,
+}: EmbeddedKnowledgeBaseActionsProps) {
+  const router = useRouter()
+
+  const handleOpenKnowledgeBase = useCallback(() => {
+    router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`)
+  }, [router, workspaceId, knowledgeBaseId])
+
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <Button
+          variant='subtle'
+          onClick={handleOpenKnowledgeBase}
+          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+          aria-label='Open knowledge base'
+        >
+          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+        </Button>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='bottom'>
+        <p>Open knowledge base</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
+
+const fileLogger = createLogger('EmbeddedFileActions')
+
+interface EmbeddedFileActionsProps {
+  workspaceId: string
+  fileId: string
+}
+
+function EmbeddedFileActions({ workspaceId, fileId }: EmbeddedFileActionsProps) {
+  const router = useRouter()
+  const { data: files = [] } = useWorkspaceFiles(workspaceId)
+  const file = useMemo(() => files.find((f) => f.id === fileId), [files, fileId])
+
+  const handleDownload = useCallback(async () => {
+    if (!file) return
+    try {
+      await downloadWorkspaceFile(file)
+    } catch (err) {
+      fileLogger.error('Failed to download file:', err)
+    }
+  }, [file])
+
+  const handleOpenInFiles = useCallback(() => {
+    router.push(`/workspace/${workspaceId}/files?fileId=${fileId}`)
+  }, [router, workspaceId, fileId])
+
+  return (
+    <>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Button
+            variant='subtle'
+            onClick={handleOpenInFiles}
+            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+            aria-label='Open in files'
+          >
+            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+          </Button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>Open in files</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Button
+            variant='subtle'
+            onClick={() => void handleDownload()}
+            disabled={!file}
+            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+            aria-label='Download file'
+          >
+            <Download className={RESOURCE_TAB_ICON_CLASS} />
+          </Button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>Download</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    </>
+  )
+}
+
+interface EmbeddedWorkflowProps {
+  workspaceId: string
+  workflowId: string
+}
+
+function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
+  const workflowExists = useWorkflowRegistry((state) => Boolean(state.workflows[workflowId]))
+  const hydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
+  const hydrationWorkflowId = useWorkflowRegistry((state) => state.hydration.workflowId)
+  const isMetadataLoaded = hydrationPhase !== 'idle' && hydrationPhase !== 'metadata-loading'
+  const hasLoadError = hydrationPhase === 'error' && hydrationWorkflowId === workflowId
+
+  if (!isMetadataLoaded) return LOADING_SKELETON
+
+  if (!workflowExists || hasLoadError) {
+    return (
+      <div className='flex h-full flex-col items-center justify-center gap-[12px]'>
+        <WorkflowX className='h-[32px] w-[32px] text-[var(--text-icon)]' />
+        <div className='flex flex-col items-center gap-[4px]'>
+          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Workflow not found</h2>
+          <p className='text-[13px] text-[var(--text-body)]'>
+            This workflow may have been deleted or moved
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <Suspense fallback={LOADING_SKELETON}>
+      <Workflow workspaceId={workspaceId} workflowId={workflowId} embedded />
+    </Suspense>
+  )
+}
+
+interface EmbeddedFileProps {
+  workspaceId: string
+  fileId: string
+  previewMode?: PreviewMode
+}
+
+function EmbeddedFile({ workspaceId, fileId, previewMode }: EmbeddedFileProps) {
+  const { data: files = [], isLoading } = useWorkspaceFiles(workspaceId)
+  const file = useMemo(() => files.find((f) => f.id === fileId), [files, fileId])
+
+  if (isLoading) return LOADING_SKELETON
+
+  if (!file) {
+    return (
+      <div className='flex h-full flex-col items-center justify-center gap-[12px]'>
+        <FileX className='h-[32px] w-[32px] text-[var(--text-icon)]' />
+        <div className='flex flex-col items-center gap-[4px]'>
+          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>File not found</h2>
+          <p className='text-[13px] text-[var(--text-body)]'>
+            This file may have been deleted or moved
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className='flex h-full flex-col overflow-hidden'>
+      <FileViewer
+        key={file.id}
+        file={file}
+        workspaceId={workspaceId}
+        canEdit={true}
+        previewMode={previewMode}
+      />
+    </div>
+  )
+}

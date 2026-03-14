@@ -8,6 +8,7 @@ import {
   applyTriggerConfigToBlockSubblocks,
   createBlockFromParams,
   filterDisallowedTools,
+  JSON_STRING_SUBBLOCK_KEYS,
   normalizeArrayWithIds,
   normalizeConditionRouterIds,
   normalizeResponseFormat,
@@ -146,6 +147,9 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       // Normalize array subblocks with id fields (inputFormat, table rows, etc.)
       if (shouldNormalizeArrayIds(key)) {
         sanitizedValue = normalizeArrayWithIds(value)
+        if (JSON_STRING_SUBBLOCK_KEYS.has(key)) {
+          sanitizedValue = JSON.stringify(sanitizedValue)
+        }
       }
 
       sanitizedValue = normalizeConditionRouterIds(block_id, key, sanitizedValue)
@@ -895,6 +899,9 @@ export function handleInsertIntoSubflowOperation(
         // Normalize array subblocks with id fields (inputFormat, table rows, etc.)
         if (shouldNormalizeArrayIds(key)) {
           sanitizedValue = normalizeArrayWithIds(value)
+          if (JSON_STRING_SUBBLOCK_KEYS.has(key)) {
+            sanitizedValue = JSON.stringify(sanitizedValue)
+          }
         }
 
         sanitizedValue = normalizeConditionRouterIds(block_id, key, sanitizedValue)

@@ -68,8 +68,7 @@ export async function validateSelectorIds(
       }
 
       case 'knowledge-base-selector': {
-        // Knowledge bases - check if they exist (workspace check optional)
-        const conditions = [inArray(knowledgeBase.id, idsArray)]
+        const conditions = [inArray(knowledgeBase.id, idsArray), isNull(knowledgeBase.deletedAt)]
         if (context.workspaceId) {
           conditions.push(eq(knowledgeBase.workspaceId, context.workspaceId))
         }
@@ -82,11 +81,10 @@ export async function validateSelectorIds(
       }
 
       case 'workflow-selector': {
-        // Workflows - check if they exist
         const results = await db
           .select({ id: workflow.id })
           .from(workflow)
-          .where(inArray(workflow.id, idsArray))
+          .where(and(inArray(workflow.id, idsArray), isNull(workflow.archivedAt)))
         existingIds = results.map((r) => r.id)
         break
       }
@@ -96,7 +94,14 @@ export async function validateSelectorIds(
         const results = await db
           .select({ id: document.id })
           .from(document)
-          .where(and(inArray(document.id, idsArray), isNull(document.deletedAt)))
+          .where(
+            and(
+              inArray(document.id, idsArray),
+              eq(document.userExcluded, false),
+              isNull(document.archivedAt),
+              isNull(document.deletedAt)
+            )
+          )
         existingIds = results.map((r) => r.id)
         break
       }

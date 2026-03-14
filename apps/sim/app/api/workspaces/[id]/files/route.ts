@@ -3,7 +3,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { listWorkspaceFiles, uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
+import {
+  listWorkspaceFiles,
+  uploadWorkspaceFile,
+  type WorkspaceFileScope,
+} from '@/lib/uploads/contexts/workspace'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
@@ -34,7 +38,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const files = await listWorkspaceFiles(workspaceId)
+    const scope = (new URL(request.url).searchParams.get('scope') ?? 'active') as WorkspaceFileScope
+    if (!['active', 'archived', 'all'].includes(scope)) {
+      return NextResponse.json({ error: 'Invalid scope' }, { status: 400 })
+    }
+
+    const files = await listWorkspaceFiles(workspaceId, { scope })
 
     logger.info(`[${requestId}] Listed ${files.length} files for workspace ${workspaceId}`)
 

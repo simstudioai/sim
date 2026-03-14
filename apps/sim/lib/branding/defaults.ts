@@ -6,7 +6,7 @@ import type { BrandConfig } from './types'
 export const defaultBrandConfig: BrandConfig = {
   name: 'Sim',
   logoUrl: undefined,
-  faviconUrl: '/favicon/favicon.ico',
+  faviconUrl: undefined,
   customCssUrl: undefined,
   supportEmail: 'help@sim.ai',
   documentationUrl: undefined,

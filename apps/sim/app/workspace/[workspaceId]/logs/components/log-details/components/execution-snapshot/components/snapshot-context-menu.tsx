@@ -1,19 +1,19 @@
 'use client'
 
-import type { RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverDivider,
-  PopoverItem,
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/emcn'
+import { Copy, Search } from '@/components/emcn/icons'
 
 interface SnapshotContextMenuProps {
   isOpen: boolean
   position: { x: number; y: number }
-  menuRef: RefObject<HTMLDivElement | null>
   onClose: () => void
   onCopy: () => void
   onSearch?: () => void
@@ -31,7 +31,6 @@ interface SnapshotContextMenuProps {
 export function SnapshotContextMenu({
   isOpen,
   position,
-  menuRef,
   onClose,
   onCopy,
   onSearch,
@@ -42,56 +41,52 @@ export function SnapshotContextMenu({
   if (typeof document === 'undefined') return null
 
   return createPortal(
-    <Popover
-      open={isOpen}
-      onOpenChange={(open) => !open && onClose()}
-      variant='secondary'
-      size='sm'
-      colorScheme='inverted'
-    >
-      <PopoverAnchor
-        style={{
-          position: 'fixed',
-          left: `${position.x}px`,
-          top: `${position.y}px`,
-          width: '1px',
-          height: '1px',
-        }}
-      />
-      <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
-        <PopoverItem
-          onClick={() => {
-            onCopy()
-            onClose()
+    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
+      <DropdownMenuTrigger asChild>
+        <div
+          style={{
+            position: 'fixed',
+            left: `${position.x}px`,
+            top: `${position.y}px`,
+            width: '1px',
+            height: '1px',
+            pointerEvents: 'none',
           }}
-        >
+          tabIndex={-1}
+          aria-hidden
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align='start'
+        side='bottom'
+        sideOffset={4}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        <DropdownMenuItem onSelect={onCopy}>
+          <Copy />
           Copy
-        </PopoverItem>
+        </DropdownMenuItem>
 
         {!copyOnly && onSearch && (
           <>
-            <PopoverDivider />
-            <PopoverItem
-              onClick={() => {
-                onSearch()
-                onClose()
-              }}
-            >
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onSearch}>
+              <Search />
               Search
-            </PopoverItem>
+            </DropdownMenuItem>
           </>
         )}
 
         {!copyOnly && onToggleWrap && (
           <>
-            <PopoverDivider />
-            <PopoverItem showCheck={wrapText} onClick={onToggleWrap}>
+            <DropdownMenuSeparator />
+            <DropdownMenuCheckboxItem checked={wrapText} onSelect={onToggleWrap}>
               Wrap Text
-            </PopoverItem>
+            </DropdownMenuCheckboxItem>
           </>
         )}
-      </PopoverContent>
-    </Popover>,
+      </DropdownMenuContent>
+    </DropdownMenu>,
     document.body
   )
 }

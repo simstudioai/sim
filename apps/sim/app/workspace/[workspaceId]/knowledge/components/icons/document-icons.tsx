@@ -1,230 +1,225 @@
-import type React from 'react'
+import type { SVGProps } from 'react'
 import {
   SUPPORTED_AUDIO_EXTENSIONS,
   SUPPORTED_VIDEO_EXTENSIONS,
 } from '@/lib/uploads/utils/validation'
 
-interface IconProps {
-  className?: string
+export function PdfIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' {...props}>
+      <rect x='4' y='2' width='16' height='20' rx='2' stroke='currentColor' strokeWidth='1.5' />
+      <text
+        x='12'
+        y='12'
+        textAnchor='middle'
+        dominantBaseline='central'
+        fontSize='5.5'
+        fontWeight='bold'
+        fontFamily='Arial, sans-serif'
+        letterSpacing='0.5'
+        fill='currentColor'
+      >
+        PDF
+      </text>
+    </svg>
+  )
 }
 
-export const PdfIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
-  <svg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' className={className}>
-    <path
-      d='M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z'
-      fill='#E53935'
-    />
-    <path d='M14 2V8H20' fill='#EF5350' />
-    <path
-      d='M14 2L20 8V20C20 21.1 19.1 22 18 22H6C4.9 22 4 21.1 4 20V4C4 2.9 4.9 2 6 2H14Z'
-      stroke='#C62828'
-      strokeWidth='0.5'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-    />
-    <text
-      x='12'
-      y='16'
-      textAnchor='middle'
-      fontSize='7'
-      fontWeight='bold'
-      fill='white'
-      fontFamily='Arial, sans-serif'
-    >
-      PDF
-    </text>
-  </svg>
-)
-
-export const DocxIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
-  <svg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' className={className}>
-    <path
-      d='M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z'
-      fill='#2196F3'
-    />
-    <path d='M14 2V8H20' fill='#64B5F6' />
-    <path
-      d='M14 2L20 8V20C20 21.1 19.1 22 18 22H6C4.9 22 4 21.1 4 20V4C4 2.9 4.9 2 6 2H14Z'
-      stroke='#1565C0'
-      strokeWidth='0.5'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-    />
-    <text
-      x='12'
-      y='16'
-      textAnchor='middle'
-      fontSize='8'
-      fontWeight='bold'
-      fill='white'
-      fontFamily='Arial, sans-serif'
-    >
-      W
-    </text>
-  </svg>
-)
-
-export const XlsxIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
-  <svg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' className={className}>
-    <path
-      d='M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z'
-      fill='#4CAF50'
-    />
-    <path d='M14 2V8H20' fill='#81C784' />
-    <path
-      d='M14 2L20 8V20C20 21.1 19.1 22 18 22H6C4.9 22 4 21.1 4 20V4C4 2.9 4.9 2 6 2H14Z'
-      stroke='#2E7D32'
-      strokeWidth='0.5'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-    />
-    <text
-      x='12'
-      y='16'
-      textAnchor='middle'
-      fontSize='8'
-      fontWeight='bold'
-      fill='white'
-      fontFamily='Arial, sans-serif'
-    >
-      X
-    </text>
-  </svg>
-)
-
-export const CsvIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
-  <svg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' className={className}>
-    <path
-      d='M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z'
-      fill='#4CAF50'
-    />
-    <path d='M14 2V8H20' fill='#81C784' />
-    <path
-      d='M14 2L20 8V20C20 21.1 19.1 22 18 22H6C4.9 22 4 21.1 4 20V4C4 2.9 4.9 2 6 2H14Z'
-      stroke='#2E7D32'
-      strokeWidth='0.5'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-    />
-    <text
-      x='12'
-      y='16'
-      textAnchor='middle'
-      fontSize='6.5'
-      fontWeight='bold'
-      fill='white'
-      fontFamily='Arial, sans-serif'
-    >
-      CSV
-    </text>
-  </svg>
-)
-
-export const TxtIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
-  <svg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' className={className}>
-    <path
-      d='M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z'
-      fill='#757575'
-    />
-    <path d='M14 2V8H20' fill='#9E9E9E' />
-    <path
-      d='M14 2L20 8V20C20 21.1 19.1 22 18 22H6C4.9 22 4 21.1 4 20V4C4 2.9 4.9 2 6 2H14Z'
-      stroke='var(--border-muted)'
-      strokeWidth='0.5'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-    />
-    <text
-      x='12'
-      y='16'
-      textAnchor='middle'
-      fontSize='6'
-      fontWeight='bold'
-      fill='white'
-      fontFamily='Arial, sans-serif'
-    >
-      TXT
-    </text>
-  </svg>
-)
-
-export const AudioIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
-  <svg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' className={className}>
-    <path
-      d='M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z'
-      fill='#0288D1'
-    />
-    <path d='M14 2V8H20' fill='#29B6F6' />
-    <path
-      d='M14 2L20 8V20C20 21.1 19.1 22 18 22H6C4.9 22 4 21.1 4 20V4C4 2.9 4.9 2 6 2H14Z'
-      stroke='#01579B'
-      strokeWidth='0.5'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-    />
-    {/* Speaker icon */}
-    <path d='M8.5 10.5v3c0 .28.22.5.5.5h1.5l2 2V8l-2 2H9c-.28 0-.5.22-.5.5z' fill='white' />
-    {/* Sound waves */}
-    <path
-      d='M14 10.5c.6.6.6 1.4 0 2M15.5 9c1.2 1.2 1.2 3.8 0 5'
-      stroke='white'
-      strokeWidth='0.8'
-      strokeLinecap='round'
-    />
-  </svg>
-)
-
-export const VideoIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
-  <svg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' className={className}>
-    <path
-      d='M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z'
-      fill='#D32F2F'
-    />
-    <path d='M14 2V8H20' fill='#EF5350' />
-    <path
-      d='M14 2L20 8V20C20 21.1 19.1 22 18 22H6C4.9 22 4 21.1 4 20V4C4 2.9 4.9 2 6 2H14Z'
-      stroke='#B71C1C'
-      strokeWidth='0.5'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-    />
-    {/* Video screen */}
-    <rect
-      x='7.5'
-      y='9.5'
-      width='9'
-      height='6'
-      rx='0.5'
-      stroke='white'
-      strokeWidth='0.8'
+export function DocxIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox='0 0 24 24'
       fill='none'
-    />
-    {/* Play button */}
-    <path d='M10.5 11.5l3 2-3 2v-4z' fill='white' />
-  </svg>
-)
-
-export const DefaultFileIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
-  <svg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' className={className}>
-    <path
-      d='M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z'
-      fill='#607D8B'
-    />
-    <path d='M14 2V8H20' fill='#90A4AE' />
-    <path
-      d='M14 2L20 8V20C20 21.1 19.1 22 18 22H6C4.9 22 4 21.1 4 20V4C4 2.9 4.9 2 6 2H14Z'
-      stroke='#37474F'
-      strokeWidth='0.5'
+      stroke='currentColor'
+      strokeWidth='1.5'
       strokeLinecap='round'
       strokeLinejoin='round'
-    />
-    <rect x='8' y='13' width='8' height='1' fill='white' rx='0.5' />
-    <rect x='8' y='15' width='8' height='1' fill='white' rx='0.5' />
-    <rect x='8' y='17' width='5' height='1' fill='white' rx='0.5' />
-  </svg>
-)
+      xmlns='http://www.w3.org/2000/svg'
+      {...props}
+    >
+      <path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' />
+      <path d='M14 2v4a2 2 0 0 0 2 2h4' />
+      <path d='M16 9H8' />
+      <path d='M16 13H8' />
+      <path d='M16 17H8' />
+    </svg>
+  )
+}
 
-export function getDocumentIcon(mimeType: string, filename: string): React.FC<IconProps> {
+export function XlsxIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' {...props}>
+      <rect x='3' y='3' width='18' height='18' rx='2' stroke='currentColor' strokeWidth='1.5' />
+      <line x1='3' y1='9' x2='21' y2='9' stroke='currentColor' strokeWidth='1.5' />
+      <line x1='3' y1='15' x2='21' y2='15' stroke='currentColor' strokeWidth='1.5' />
+      <line x1='9' y1='3' x2='9' y2='21' stroke='currentColor' strokeWidth='1.5' />
+      <line x1='15' y1='3' x2='15' y2='21' stroke='currentColor' strokeWidth='1.5' />
+    </svg>
+  )
+}
+
+export function CsvIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' {...props}>
+      <rect x='3' y='1' width='8' height='6' rx='1.5' stroke='currentColor' strokeWidth='1.5' />
+      <rect x='13' y='1' width='8' height='6' rx='1.5' stroke='currentColor' strokeWidth='1.5' />
+      <rect x='3' y='9' width='8' height='6' rx='1.5' stroke='currentColor' strokeWidth='1.5' />
+      <rect x='13' y='9' width='8' height='6' rx='1.5' stroke='currentColor' strokeWidth='1.5' />
+      <rect x='3' y='17' width='8' height='6' rx='1.5' stroke='currentColor' strokeWidth='1.5' />
+      <rect x='13' y='17' width='8' height='6' rx='1.5' stroke='currentColor' strokeWidth='1.5' />
+    </svg>
+  )
+}
+
+export function TxtIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='1.5'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      {...props}
+    >
+      <path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' />
+      <path d='M14 2v4a2 2 0 0 0 2 2h4' />
+      <path d='M16 13H8' />
+      <path d='M12 17H8' />
+    </svg>
+  )
+}
+
+export function PptxIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='1.5'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      {...props}
+    >
+      <rect x='2' y='4' width='20' height='16' rx='2' />
+      <line x1='6' y1='9' x2='18' y2='9' />
+      <line x1='8' y1='14' x2='16' y2='14' />
+    </svg>
+  )
+}
+
+export function AudioIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      xmlns='http://www.w3.org/2000/svg'
+      {...props}
+    >
+      <line x1='4' y1='14' x2='4' y2='10' />
+      <line x1='8' y1='17' x2='8' y2='7' />
+      <line x1='12' y1='15' x2='12' y2='9' />
+      <line x1='16' y1='18' x2='16' y2='6' />
+      <line x1='20' y1='14' x2='20' y2='10' />
+    </svg>
+  )
+}
+
+export function VideoIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' {...props}>
+      <rect x='2' y='4' width='20' height='16' rx='2' stroke='currentColor' strokeWidth='1.5' />
+      <path d='M10 9l5 3-5 3V9Z' fill='currentColor' />
+    </svg>
+  )
+}
+
+export function HtmlIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='1.5'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      {...props}
+    >
+      <path d='M8 8l-4 4 4 4' />
+      <path d='M16 8l4 4-4 4' />
+      <line x1='14' y1='4' x2='10' y2='20' />
+    </svg>
+  )
+}
+
+export function JsonIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='1.5'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      {...props}
+    >
+      <path d='M8 3H7a2 2 0 0 0-2 2v4c0 1.1-.9 2-2 2 1.1 0 2 .9 2 2v4a2 2 0 0 0 2 2h1' />
+      <path d='M16 3h1a2 2 0 0 1 2 2v4c0 1.1.9 2 2 2-1.1 0-2 .9-2 2v4a2 2 0 0 1-2 2h-1' />
+    </svg>
+  )
+}
+
+export function MarkdownIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' {...props}>
+      <rect x='2' y='4' width='20' height='16' rx='3' stroke='currentColor' strokeWidth='1.5' />
+      <path
+        d='M6 15V9l3 3.5L12 9v6'
+        stroke='currentColor'
+        strokeWidth='1.5'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <path
+        d='M17 9v6m-2-2l2 2 2-2'
+        stroke='currentColor'
+        strokeWidth='1.5'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+    </svg>
+  )
+}
+
+export function DefaultFileIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='1.5'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      {...props}
+    >
+      <path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' />
+      <path d='M14 2v4a2 2 0 0 0 2 2h4' />
+    </svg>
+  )
+}
+
+export function getDocumentIcon(
+  mimeType: string,
+  filename: string
+): (props: SVGProps<SVGSVGElement>) => React.JSX.Element {
   const extension = filename.split('.').pop()?.toLowerCase()
 
   if (
@@ -271,6 +266,27 @@ export function getDocumentIcon(mimeType: string, filename: string): React.FC<Ic
 
   if (mimeType === 'text/plain' || extension === 'txt') {
     return TxtIcon
+  }
+
+  if (
+    mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+    mimeType === 'application/vnd.ms-powerpoint' ||
+    extension === 'pptx' ||
+    extension === 'ppt'
+  ) {
+    return PptxIcon
+  }
+
+  if (mimeType === 'text/html' || extension === 'html' || extension === 'htm') {
+    return HtmlIcon
+  }
+
+  if (mimeType === 'application/json' || extension === 'json') {
+    return JsonIcon
+  }
+
+  if (mimeType === 'text/markdown' || extension === 'md' || extension === 'mdx') {
+    return MarkdownIcon
   }
 
   return DefaultFileIcon

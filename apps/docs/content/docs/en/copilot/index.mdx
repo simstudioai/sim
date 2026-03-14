@@ -5,7 +5,7 @@ title: Copilot
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Image } from '@/components/ui/image'
-import { MessageCircle, Hammer, Zap, Globe, Paperclip, History, RotateCcw, Brain } from 'lucide-react'
+import { MessageCircle, Hammer, ListChecks, Zap, Globe, Paperclip, History, RotateCcw, Brain } from 'lucide-react'
 
 Copilot is your in-editor assistant that helps you build and edit workflows. It can:
 
@@ -47,6 +47,18 @@ Switch between modes using the mode selector at the bottom of the input area.
   >
     <div className="m-0 text-sm">
       Workflow building mode. Copilot can add blocks, wire connections, edit configurations, and debug issues.
+    </div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <ListChecks className="h-4 w-4 text-muted-foreground" />
+        Plan
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">
+      Creates a step-by-step implementation plan for your workflow without making any changes. Helps you think through the approach before building.
     </div>
   </Card>
 </Cards>
@@ -185,10 +197,10 @@ Selected options are highlighted; unselected options appear struck through.
 
 ## Usage Limits
 
-Copilot usage is billed per token from the underlying LLM. If you reach your usage limit, Copilot will prompt you to increase your limit. You can add usage in increments ($50, $100) from your current base.
+Copilot usage is billed per token from the underlying LLM and counts toward your plan's credit usage. If you reach your usage limit, enable on-demand billing from Settings → Subscription to continue using Copilot beyond your plan's included credits.
 
 <Callout type="info">
-  See the [Cost Calculation page](/execution/costs) for billing details.
+  See the [Cost Calculation page](/execution/costs) for billing and plan details.
 </Callout>
 ## Copilot MCP
 
@@ -285,4 +297,16 @@ Replace `YOUR_COPILOT_API_KEY` with your key.
 <Callout type="info">
   For self-hosted deployments, replace `https://www.sim.ai` with your self-hosted Sim URL.
 </Callout>
+
+import { FAQ } from '@/components/ui/faq'
+
+<FAQ items={[
+  { question: "What is the difference between Ask, Build, and Plan mode?", answer: "Copilot has three modes. Ask mode is a read-only Q&A mode for explanations, guidance, and suggestions without making any changes to your workflow. Build mode allows Copilot to actively modify your workflow by adding blocks, wiring connections, editing configurations, and debugging issues. Plan mode creates a step-by-step implementation plan for your request without making any changes, so you can review the approach before committing. Use Ask when you want to learn or explore ideas, Plan when you want to see a proposed approach first, and Build when you want Copilot to make changes directly." },
+  { question: "Does Copilot have access to my full workflow when answering questions?", answer: "Copilot has access to the workflow you are currently editing as context. You can also use the @ context menu to reference other workflows, previous chats, execution logs, knowledge bases, documentation, and templates to give Copilot additional context for your request." },
+  { question: "How do I use Copilot from an external editor like Cursor or VS Code?", answer: "You can use Copilot as an MCP server from external editors. First, generate a Copilot API key from Settings > Copilot on sim.ai. Then add the MCP server configuration to your editor using the endpoint https://www.sim.ai/api/mcp/copilot with your API key in the X-API-Key header. Configuration examples are available for Cursor, Claude Code, Claude Desktop, and VS Code." },
+  { question: "Can I revert changes that Copilot made to my workflow?", answer: "Yes. When Copilot makes changes in Build mode, it saves checkpoints of your workflow state. You can hover over a Copilot message and click the checkpoints icon to see saved states, then click Revert on any checkpoint to restore your workflow. Note that reverting cannot be undone, so review the checkpoint before confirming." },
+  { question: "How does Copilot billing work?", answer: "Copilot usage is billed per token from the underlying LLM and counts toward your plan's credit usage. More capable models like Claude Opus cost more per token than lighter models like Haiku. If you reach your usage limit, you can enable on-demand billing from Settings > Subscription to continue using Copilot." },
+  { question: "What do the slash commands like /research and /search do?", answer: "Slash commands trigger specialized behaviors. /fast enables fast mode execution, /research activates a research and exploration mode, and /actions executes agent actions. Web commands like /search, /read, /scrape, and /crawl let Copilot interact with the web to search for information, read URLs, scrape page content, or crawl multiple pages to gather context for your request." },
+  { question: "How do I set up Copilot for a self-hosted deployment?", answer: "For self-hosted deployments, go to sim.ai > Settings > Copilot and generate a Copilot API key. Then set the COPILOT_API_KEY environment variable in your self-hosted environment. Copilot is a Sim-managed service, so the self-hosted instance communicates with Sim's servers to process requests." },
+]} />
 

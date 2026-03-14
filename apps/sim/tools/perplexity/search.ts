@@ -66,6 +66,20 @@ export const searchTool: ToolConfig<PerplexitySearchParams, PerplexitySearchResp
     },
   },
 
+  hosting: {
+    envKeyPrefix: 'PERPLEXITY_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'perplexity',
+    pricing: {
+      type: 'per_request',
+      cost: 0.005,
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 30,
+    },
+  },
+
   request: {
     method: 'POST',
     url: () => 'https://api.perplexity.ai/search',

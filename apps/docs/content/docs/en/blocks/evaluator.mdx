@@ -5,6 +5,7 @@ title: Evaluator
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
 
 The Evaluator block uses AI to score and assess content quality against custom metrics. Perfect for quality control, A/B testing, and ensuring AI outputs meet specific standards.
 
@@ -49,12 +50,12 @@ The content to be evaluated. This can be:
 Choose an AI model to perform the evaluation:
 
 - **OpenAI**: GPT-4o, o1, o3, o4-mini, gpt-4.1
-- **Anthropic**: Claude 3.7 Sonnet
+- **Anthropic**: Claude Sonnet 4.5
 - **Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
 - **Other Providers**: Groq, Cerebras, xAI, DeepSeek
 - **Local Models**: Ollama or VLLM compatible models
 
-Use models with strong reasoning capabilities like GPT-4o or Claude 3.7 Sonnet for best results.
+Use models with strong reasoning capabilities like GPT-4o or Claude Sonnet 4.5 for best results.
 
 ### API Key
 
@@ -91,3 +92,12 @@ Agent (Support Response) → Evaluator (Score) → Function (Log) → Condition 
 - **Connect with Agent blocks**: Use Evaluator blocks to assess Agent block outputs and create feedback loops
 - **Use consistent metrics**: For comparative analysis, maintain consistent metrics across similar evaluations
 - **Combine multiple metrics**: Use several metrics to get a comprehensive evaluation
+
+<FAQ items={[
+  { question: "What format does the Evaluator return scores in?", answer: "The Evaluator returns a JSON object where each key is the lowercase version of your metric name and the value is a numeric score within the range you defined. For example, a metric named 'Accuracy' with range 1-5 would appear as { \"accuracy\": 4 } in the output." },
+  { question: "Which models work best for evaluation?", answer: "Models with strong reasoning capabilities produce the most consistent evaluations. GPT-4o and Claude Sonnet are recommended. The default model is Claude Sonnet 4.5." },
+  { question: "Can I evaluate non-text content?", answer: "The content field accepts any string input. If you pass JSON or structured data, the Evaluator will automatically detect and format it before evaluation. However, the evaluation is text-based — it cannot directly evaluate images or audio." },
+  { question: "What happens if a metric name is invalid or incomplete?", answer: "Metrics missing a name or range are automatically filtered out. The Evaluator only scores metrics that have both a valid name and a defined min/max range." },
+  { question: "Does the Evaluator use structured output?", answer: "Yes. The Evaluator generates a JSON Schema response format based on your metrics and enforces strict mode, so the LLM is constrained to return only the expected metric scores as numbers — no extra text or explanations." },
+  { question: "How are evaluation costs calculated?", answer: "Costs are based on the token usage of the underlying LLM call. The Evaluator outputs include token counts (prompt, completion, total) and cost breakdown (input, output, total) so you can track spending per evaluation." },
+]} />

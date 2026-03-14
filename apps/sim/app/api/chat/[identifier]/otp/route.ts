@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { chat, verification } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, gt } from 'drizzle-orm'
+import { and, eq, gt, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { renderOTPEmail } from '@/components/emails'
@@ -128,7 +128,7 @@ export async function POST(
         title: chat.title,
       })
       .from(chat)
-      .where(eq(chat.identifier, identifier))
+      .where(and(eq(chat.identifier, identifier), eq(chat.isActive, true), isNull(chat.archivedAt)))
       .limit(1)
 
     if (deploymentResult.length === 0) {
@@ -218,7 +218,7 @@ export async function PUT(
         authType: chat.authType,
       })
       .from(chat)
-      .where(eq(chat.identifier, identifier))
+      .where(and(eq(chat.identifier, identifier), eq(chat.isActive, true), isNull(chat.archivedAt)))
       .limit(1)
 
     if (deploymentResult.length === 0) {

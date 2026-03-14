@@ -58,6 +58,7 @@ export const GooglePagespeedBlock: BlockConfig<GooglePagespeedAnalyzeResponse> =
       required: true,
       placeholder: 'Enter your Google PageSpeed API key',
       password: true,
+      hideWhenHosted: true,
     },
   ],
 

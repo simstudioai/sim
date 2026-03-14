@@ -16,6 +16,7 @@ import { Badge, Button, Textarea } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import type { CopilotModelId } from '@/lib/copilot/models'
 import { cn } from '@/lib/core/utils/cn'
+import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import {
   AttachedFilesDisplay,
   BottomControls,
@@ -127,12 +128,13 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const params = useParams()
     const workspaceId = params.workspaceId as string
 
-    const copilotStore = useCopilotStore()
-    const workflowId =
-      workflowIdOverride !== undefined ? workflowIdOverride : copilotStore.workflowId
+    const storeWorkflowId = useCopilotStore((s) => s.workflowId)
+    const storeSelectedModel = useCopilotStore((s) => s.selectedModel)
+    const storeSetSelectedModel = useCopilotStore((s) => s.setSelectedModel)
+    const workflowId = workflowIdOverride !== undefined ? workflowIdOverride : storeWorkflowId
     const selectedModel =
-      selectedModelOverride !== undefined ? selectedModelOverride : copilotStore.selectedModel
-    const setSelectedModel = onModelChangeOverride || copilotStore.setSelectedModel
+      selectedModelOverride !== undefined ? selectedModelOverride : storeSelectedModel
+    const setSelectedModel = onModelChangeOverride || storeSetSelectedModel
 
     const [internalMessage, setInternalMessage] = useState('')
     const [isNearTop, setIsNearTop] = useState(false)
@@ -236,7 +238,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         scrollContainer.addEventListener('scroll', checkPosition, { passive: true })
       }
 
-      window.addEventListener('scroll', checkPosition, true)
+      window.addEventListener('scroll', checkPosition, { capture: true, passive: true })
       window.addEventListener('resize', checkPosition)
 
       return () => {
@@ -882,7 +884,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             type='file'
             onChange={fileAttachments.handleFileChange}
             className='hidden'
-            accept='image/*'
+            accept={CHAT_ACCEPT_ATTRIBUTE}
             multiple
             disabled={disabled}
           />

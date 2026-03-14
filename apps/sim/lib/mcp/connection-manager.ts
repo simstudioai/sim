@@ -31,7 +31,7 @@ const IDLE_CHECK_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
 type ToolsChangedListener = (event: ToolsChangedEvent) => void
 
-class McpConnectionManager {
+export class McpConnectionManager {
   private connections = new Map<string, McpClient>()
   private states = new Map<string, ManagedConnectionState>()
   private reconnectTimers = new Map<string, ReturnType<typeof setTimeout>>()

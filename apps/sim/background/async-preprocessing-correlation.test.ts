@@ -8,6 +8,7 @@ const {
   mockPreprocessExecution,
   mockTask,
   mockDbUpdate,
+  mockDbSelect,
   mockExecuteWorkflowCore,
   mockLoggingSession,
   mockBlockExistsInDeployment,
@@ -18,8 +19,11 @@ const {
   mockPreprocessExecution: vi.fn(),
   mockTask: vi.fn((config) => config),
   mockDbUpdate: vi.fn(() => ({
-    set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) })),
+    set: vi.fn(() => ({
+      where: vi.fn().mockResolvedValue(undefined),
+    })),
   })),
+  mockDbSelect: vi.fn(),
   mockExecuteWorkflowCore: vi.fn(),
   mockLoggingSession: vi.fn(),
   mockBlockExistsInDeployment: vi.fn(),
@@ -33,13 +37,18 @@ vi.mock('@trigger.dev/sdk', () => ({ task: mockTask }))
 vi.mock('@sim/db', () => ({
   db: {
     update: mockDbUpdate,
-    select: vi.fn(),
+    select: mockDbSelect,
   },
   workflow: {},
   workflowSchedule: {},
 }))
 
-vi.mock('drizzle-orm', () => ({ eq: vi.fn() }))
+vi.mock('drizzle-orm', () => ({
+  eq: vi.fn(),
+  and: vi.fn(),
+  isNull: vi.fn(),
+  sql: Object.assign(vi.fn(), { raw: vi.fn() }),
+}))
 
 vi.mock('@/lib/execution/preprocessing', () => ({
   preprocessExecution: mockPreprocessExecution,
@@ -51,6 +60,7 @@ vi.mock('@/lib/logs/execution/logging-session', () => ({
       safeStart: vi.fn().mockResolvedValue(true),
       safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
       markAsFailed: vi.fn().mockResolvedValue(undefined),
+      waitForPostExecution: vi.fn().mockResolvedValue(undefined),
     }
     mockLoggingSession(instance)
     return instance
@@ -117,6 +127,20 @@ import { executeWorkflowJob } from './workflow-execution'
 describe('async preprocessing correlation threading', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockDbSelect.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue([
+            {
+              id: 'schedule-1',
+              workflowId: 'workflow-1',
+              status: 'active',
+              archivedAt: null,
+            },
+          ]),
+        }),
+      }),
+    })
     mockLoadDeployedWorkflowState.mockResolvedValue({
       blocks: {
         'schedule-block': {

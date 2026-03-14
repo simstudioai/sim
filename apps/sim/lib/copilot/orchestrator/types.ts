@@ -1,12 +1,17 @@
+import type { MothershipResource } from '@/lib/copilot/resource-types'
+
 export type SSEEventType =
   | 'chat_id'
   | 'title_updated'
   | 'content'
   | 'reasoning'
   | 'tool_call'
+  | 'tool_call_delta'
   | 'tool_generating'
   | 'tool_result'
   | 'tool_error'
+  | 'resource_added'
+  | 'resource_deleted'
   | 'subagent_start'
   | 'subagent_end'
   | 'structured_result'
@@ -17,7 +22,12 @@ export type SSEEventType =
 
 export interface SSEEvent {
   type: SSEEventType
+  /** Authoritative tool call state set by the Go backend */
+  state?: string
   data?: Record<string, unknown>
+  /** Parent agent that produced this event */
+  agent?: string
+  /** Subagent identifier (e.g. "build", "fast_edit") */
   subagent?: string
   toolCallId?: string
   toolName?: string
@@ -33,11 +43,20 @@ export interface SSEEvent {
   content?: string
   /** Set on reasoning events */
   phase?: string
-  /** Set on tool_result events */
-  failedDependency?: boolean
+  /** UI metadata from copilot (title, icon, phaseLabel) */
+  ui?: Record<string, unknown>
+  /** Set on resource_added events */
+  resource?: { type: string; id: string; title: string }
 }
 
-export type ToolCallStatus = 'pending' | 'executing' | 'success' | 'error' | 'skipped' | 'rejected'
+export type ToolCallStatus =
+  | 'pending'
+  | 'executing'
+  | 'success'
+  | 'error'
+  | 'skipped'
+  | 'rejected'
+  | 'cancelled'
 
 export interface ToolCallState {
   id: string
@@ -54,20 +73,21 @@ export interface ToolCallResult<T = unknown> {
   success: boolean
   output?: T
   error?: string
+  resources?: MothershipResource[]
 }
 
-export type ContentBlockType = 'text' | 'thinking' | 'tool_call' | 'subagent_text'
+export type ContentBlockType = 'text' | 'thinking' | 'tool_call' | 'subagent_text' | 'subagent'
 
 export interface ContentBlock {
   type: ContentBlockType
   content?: string
   toolCall?: ToolCallState
+  calledBy?: string
   timestamp: number
 }
 
 export interface StreamingContext {
   chatId?: string
-  conversationId?: string
   messageId: string
   accumulatedContent: string
   contentBlocks: ContentBlock[]
@@ -75,12 +95,15 @@ export interface StreamingContext {
   currentThinkingBlock: ContentBlock | null
   isInThinkingBlock: boolean
   subAgentParentToolCallId?: string
+  subAgentParentStack: string[]
   subAgentContent: Record<string, string>
   subAgentToolCalls: Record<string, ToolCallState[]>
   pendingContent: string
   streamComplete: boolean
   wasAborted: boolean
   errors: string[]
+  usage?: { prompt: number; completion: number }
+  cost?: { input: number; output: number; total: number }
 }
 
 export interface FileAttachment {
@@ -98,7 +121,6 @@ export interface OrchestratorRequest {
   chatId?: string
   mode?: 'agent' | 'ask' | 'plan'
   model?: string
-  conversationId?: string
   contexts?: Array<{ type: string; content: string }>
   fileAttachments?: FileAttachment[]
   commands?: string[]
@@ -125,9 +147,10 @@ export interface OrchestratorResult {
   contentBlocks: ContentBlock[]
   toolCalls: ToolCallSummary[]
   chatId?: string
-  conversationId?: string
   error?: string
   errors?: string[]
+  usage?: { prompt: number; completion: number }
+  cost?: { input: number; output: number; total: number }
 }
 
 export interface ToolCallSummary {
@@ -144,5 +167,8 @@ export interface ExecutionContext {
   userId: string
   workflowId: string
   workspaceId?: string
+  chatId?: string
+  userTimezone?: string
+  userPermission?: string
   decryptedEnvVars?: Record<string, string>
 }

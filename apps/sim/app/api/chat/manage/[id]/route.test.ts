@@ -70,7 +70,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 vi.mock('@sim/db/schema', () => ({
-  chat: { id: 'id', identifier: 'identifier', userId: 'userId' },
+  chat: { id: 'id', identifier: 'identifier', userId: 'userId', archivedAt: 'archivedAt' },
 }))
 vi.mock('@/app/api/workflows/utils', () => ({
   createSuccessResponse: mockCreateSuccessResponse,
@@ -89,7 +89,9 @@ vi.mock('@/lib/workflows/persistence/utils', () => ({
   deployWorkflow: mockDeployWorkflow,
 }))
 vi.mock('drizzle-orm', () => ({
-  eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
+  and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
+  eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
+  isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
 }))
 
 import { DELETE, GET, PATCH } from '@/app/api/chat/manage/[id]/route'

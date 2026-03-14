@@ -1,7 +1,5 @@
-import { db } from '@sim/db'
-import { workflow } from '@sim/db/schema'
+import type { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
 import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
@@ -9,6 +7,7 @@ import { getExecutionTimeout } from '@/lib/core/execution-limits'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
 import { LoggingSession, type SessionStartParams } from '@/lib/logs/execution/logging-session'
+import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
@@ -112,9 +111,9 @@ export async function preprocessExecution(
   let workflowRecord: WorkflowRecord | null = prefetchedWorkflowRecord ?? null
   if (!workflowRecord) {
     try {
-      const records = await db.select().from(workflow).where(eq(workflow.id, workflowId)).limit(1)
+      workflowRecord = await getActiveWorkflowRecord(workflowId)
 
-      if (records.length === 0) {
+      if (!workflowRecord) {
         logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
 
         await logPreprocessingError({
@@ -139,8 +138,6 @@ export async function preprocessExecution(
           },
         }
       }
-
-      workflowRecord = records[0]
     } catch (error) {
       logger.error(`[${requestId}] Error fetching workflow`, { error, workflowId })
 
@@ -165,6 +162,30 @@ export async function preprocessExecution(
         },
       }
     }
+  } else if (workflowRecord.archivedAt) {
+    logger.warn(`[${requestId}] Prefetched workflow is archived: ${workflowId}`)
+    return {
+      success: false,
+      error: {
+        message: 'Workflow not found',
+        statusCode: 404,
+        logCreated: false,
+      },
+    }
+  } else {
+    const activeWorkflow = await getActiveWorkflowRecord(workflowId)
+    if (!activeWorkflow) {
+      logger.warn(`[${requestId}] Workflow archived before execution started: ${workflowId}`)
+      return {
+        success: false,
+        error: {
+          message: 'Workflow not found',
+          statusCode: 404,
+          logCreated: false,
+        },
+      }
+    }
+    workflowRecord = activeWorkflow
   }
 
   const workspaceId = workflowRecord.workspaceId || providedWorkspaceId || ''

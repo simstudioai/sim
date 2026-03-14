@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { resolveFileType } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('useFileAttachments')
 
@@ -112,21 +113,18 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
       }
 
       for (const file of Array.from(fileList)) {
-        if (!file.type.startsWith('image/')) {
-          logger.warn(`File ${file.name} is not an image. Only image files are allowed.`)
-          continue
-        }
-
         let previewUrl: string | undefined
         if (file.type.startsWith('image/')) {
           previewUrl = URL.createObjectURL(file)
         }
 
+        const resolvedType = resolveFileType(file)
+
         const tempFile: AttachedFile = {
           id: crypto.randomUUID(),
           name: file.name,
           size: file.size,
-          type: file.type,
+          type: resolvedType,
           path: '',
           uploading: true,
           previewUrl,

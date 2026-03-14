@@ -17,6 +17,7 @@ import {
   evaluateSubBlockCondition,
   hasAdvancedValues,
   isSubBlockFeatureEnabled,
+  isSubBlockHiddenByHostedKey,
   isSubBlockVisibleForMode,
   resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'
@@ -40,7 +41,7 @@ import { getDependsOnFields } from '@/blocks/utils'
 import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import { useCustomTools } from '@/hooks/queries/custom-tools'
 import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
-import { useCredentialName } from '@/hooks/queries/oauth-credentials'
+import { useCredentialName } from '@/hooks/queries/oauth/oauth-credentials'
 import { useReactivateSchedule, useScheduleInfo } from '@/hooks/queries/schedules'
 import { useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
@@ -978,6 +979,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       if (block.hidden) return false
       if (block.hideFromPreview) return false
       if (!isSubBlockFeatureEnabled(block)) return false
+      if (isSubBlockHiddenByHostedKey(block)) return false
 
       const isPureTriggerBlock = config?.triggers?.enabled && config.category === 'triggers'
 
@@ -1201,7 +1203,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
           </div>
         )}
 
-        {!data.isPreview && (
+        {!data.isPreview && !data.isEmbedded && (
           <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
         )}
 

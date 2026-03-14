@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { sanitizeForHttp, sanitizeHeaders } from '@/lib/mcp/shared'
-import type { McpServerStatusConfig, McpTool, StoredMcpTool } from '@/lib/mcp/types'
+import type { McpServerStatusConfig, McpTool, McpTransport, StoredMcpTool } from '@/lib/mcp/types'
 import { workflowMcpServerKeys } from '@/hooks/queries/workflow-mcp-servers'
 
 const logger = createLogger('McpQueries')
@@ -14,6 +14,7 @@ export const mcpKeys = {
   servers: (workspaceId: string) => [...mcpKeys.all, 'servers', workspaceId] as const,
   tools: (workspaceId: string) => [...mcpKeys.all, 'tools', workspaceId] as const,
   storedTools: (workspaceId: string) => [...mcpKeys.all, 'stored', workspaceId] as const,
+  allowedDomains: () => [...mcpKeys.all, 'allowedDomains'] as const,
 }
 
 export interface McpServer {
@@ -48,8 +49,8 @@ export interface McpServerInput {
   enabled: boolean
 }
 
-async function fetchMcpServers(workspaceId: string): Promise<McpServer[]> {
-  const response = await fetch(`/api/mcp/servers?workspaceId=${workspaceId}`)
+async function fetchMcpServers(workspaceId: string, signal?: AbortSignal): Promise<McpServer[]> {
+  const response = await fetch(`/api/mcp/servers?workspaceId=${workspaceId}`, { signal })
 
   if (response.status === 404) {
     return []
@@ -67,7 +68,7 @@ async function fetchMcpServers(workspaceId: string): Promise<McpServer[]> {
 export function useMcpServers(workspaceId: string) {
   return useQuery({
     queryKey: mcpKeys.servers(workspaceId),
-    queryFn: () => fetchMcpServers(workspaceId),
+    queryFn: ({ signal }) => fetchMcpServers(workspaceId, signal),
     enabled: !!workspaceId,
     retry: false,
     staleTime: 60 * 1000,
@@ -75,13 +76,17 @@ export function useMcpServers(workspaceId: string) {
   })
 }
 
-async function fetchMcpTools(workspaceId: string, forceRefresh = false): Promise<McpTool[]> {
+async function fetchMcpTools(
+  workspaceId: string,
+  forceRefresh = false,
+  signal?: AbortSignal
+): Promise<McpTool[]> {
   const params = new URLSearchParams({ workspaceId })
   if (forceRefresh) {
     params.set('refresh', 'true')
   }
 
-  const response = await fetch(`/api/mcp/tools/discover?${params.toString()}`)
+  const response = await fetch(`/api/mcp/tools/discover?${params.toString()}`, { signal })
 
   if (response.status === 404) {
     return []
@@ -99,7 +104,7 @@ async function fetchMcpTools(workspaceId: string, forceRefresh = false): Promise
 export function useMcpToolsQuery(workspaceId: string) {
   return useQuery({
     queryKey: mcpKeys.tools(workspaceId),
-    queryFn: () => fetchMcpTools(workspaceId),
+    queryFn: ({ signal }) => fetchMcpTools(workspaceId, false, signal),
     enabled: !!workspaceId,
     retry: false,
     staleTime: 30 * 1000,
@@ -194,6 +199,8 @@ export function useCreateMcpServer() {
       }
 
       queryClient.setQueryData(mcpKeys.tools(variables.workspaceId), freshTools)
+    },
+    onSettled: (_, __, variables) => {
       queryClient.invalidateQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
     },
   })
@@ -341,8 +348,11 @@ export function useRefreshMcpServer() {
   })
 }
 
-async function fetchStoredMcpTools(workspaceId: string): Promise<StoredMcpTool[]> {
-  const response = await fetch(`/api/mcp/tools/stored?workspaceId=${workspaceId}`)
+async function fetchStoredMcpTools(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<StoredMcpTool[]> {
+  const response = await fetch(`/api/mcp/tools/stored?workspaceId=${workspaceId}`, { signal })
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}))
@@ -356,7 +366,7 @@ async function fetchStoredMcpTools(workspaceId: string): Promise<StoredMcpTool[]
 export function useStoredMcpTools(workspaceId: string) {
   return useQuery({
     queryKey: mcpKeys.storedTools(workspaceId),
-    queryFn: () => fetchStoredMcpTools(workspaceId),
+    queryFn: ({ signal }) => fetchStoredMcpTools(workspaceId, signal),
     enabled: !!workspaceId,
     staleTime: 60 * 1000,
   })
@@ -425,4 +435,108 @@ export function useMcpToolsEvents(workspaceId: string) {
       }
     }
   }, [workspaceId, queryClient])
+}
+
+export interface McpServerTestConfig {
+  name: string
+  transport: McpTransport
+  url?: string
+  headers?: Record<string, string>
+  timeout?: number
+  workspaceId: string
+}
+
+export interface McpServerTestResult {
+  success: boolean
+  message: string
+  error?: string
+  negotiatedVersion?: string
+  supportedCapabilities?: string[]
+  toolCount?: number
+  warnings?: string[]
+}
+
+async function testMcpServerConnection(
+  config: McpServerTestConfig,
+  signal?: AbortSignal
+): Promise<McpServerTestResult> {
+  const cleanConfig = {
+    ...config,
+    url: config.url ? sanitizeForHttp(config.url) : config.url,
+    headers: sanitizeHeaders(config.headers) || {},
+  }
+
+  const response = await fetch('/api/mcp/servers/test-connection', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cleanConfig),
+    signal,
+  })
+
+  const result = await response.json()
+
+  if (!response.ok) {
+    if (result.data?.error || result.data?.success === false) {
+      return {
+        success: false,
+        message: result.data.error || 'Connection failed',
+        error: result.data.error,
+        warnings: result.data.warnings,
+      }
+    }
+    throw new Error(result.error || 'Connection test failed')
+  }
+
+  return result.data || result
+}
+
+export function useMcpServerTest() {
+  const mutation = useMutation({
+    mutationFn: (config: McpServerTestConfig) => testMcpServerConnection(config),
+    onSuccess: (result, variables) => {
+      logger.info(`MCP server test ${result.success ? 'passed' : 'failed'}:`, variables.name)
+    },
+    onError: (error) => {
+      logger.error('MCP server test failed:', error instanceof Error ? error.message : error)
+    },
+  })
+
+  return {
+    testResult:
+      mutation.data ??
+      (mutation.error
+        ? ({
+            success: false,
+            message: 'Connection failed',
+            error:
+              mutation.error instanceof Error ? mutation.error.message : 'Unknown error occurred',
+          } as McpServerTestResult)
+        : null),
+    isTestingConnection: mutation.isPending,
+    testConnection: mutation.mutateAsync,
+    clearTestResult: mutation.reset,
+  }
+}
+
+/**
+ * Fetch allowed MCP domains (admin-configured allowlist)
+ */
+async function fetchAllowedMcpDomains(signal?: AbortSignal): Promise<string[] | null> {
+  const response = await fetch('/api/settings/allowed-mcp-domains', { signal })
+  if (!response.ok) {
+    return null
+  }
+  const data = await response.json()
+  return data.allowedMcpDomains ?? null
+}
+
+/**
+ * Hook to fetch allowed MCP domains
+ */
+export function useAllowedMcpDomains() {
+  return useQuery<string[] | null>({
+    queryKey: mcpKeys.allowedDomains(),
+    queryFn: ({ signal }) => fetchAllowedMcpDomains(signal),
+    staleTime: 5 * 60 * 1000,
+  })
 }

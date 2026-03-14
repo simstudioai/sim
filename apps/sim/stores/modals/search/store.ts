@@ -97,17 +97,19 @@ export const useSearchModalStore = create<SearchModalState>()(
         const filteredTriggers = filterBlocks(allTriggers) as typeof allTriggers
         const priorityOrder = ['Start', 'Schedule', 'Webhook']
 
-        const sortedTriggers = [...filteredTriggers].sort((a, b) => {
-          const aIndex = priorityOrder.indexOf(a.name)
-          const bIndex = priorityOrder.indexOf(b.name)
-          const aHasPriority = aIndex !== -1
-          const bHasPriority = bIndex !== -1
+        const sortedTriggers = [...filteredTriggers].sort(
+          (a: (typeof filteredTriggers)[number], b: (typeof filteredTriggers)[number]) => {
+            const aIndex = priorityOrder.indexOf(a.name)
+            const bIndex = priorityOrder.indexOf(b.name)
+            const aHasPriority = aIndex !== -1
+            const bHasPriority = bIndex !== -1
 
-          if (aHasPriority && bHasPriority) return aIndex - bIndex
-          if (aHasPriority) return -1
-          if (bHasPriority) return 1
-          return a.name.localeCompare(b.name)
-        })
+            if (aHasPriority && bHasPriority) return aIndex - bIndex
+            if (aHasPriority) return -1
+            if (bHasPriority) return 1
+            return a.name.localeCompare(b.name)
+          }
+        )
 
         const triggers = sortedTriggers.map(
           (block): SearchBlockItem => ({

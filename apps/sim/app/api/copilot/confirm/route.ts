@@ -17,10 +17,11 @@ const logger = createLogger('CopilotConfirmAPI')
 // Schema for confirmation request
 const ConfirmationSchema = z.object({
   toolCallId: z.string().min(1, 'Tool call ID is required'),
-  status: z.enum(['success', 'error', 'accepted', 'rejected', 'background'] as const, {
+  status: z.enum(['success', 'error', 'accepted', 'rejected', 'background', 'cancelled'] as const, {
     errorMap: () => ({ message: 'Invalid notification status' }),
   }),
-  message: z.string().optional(), // Optional message for background moves or additional context
+  message: z.string().optional(),
+  data: z.record(z.unknown()).optional(),
 })
 
 /**
@@ -30,7 +31,8 @@ const ConfirmationSchema = z.object({
 async function updateToolCallStatus(
   toolCallId: string,
   status: NotificationStatus,
-  message?: string
+  message?: string,
+  data?: Record<string, unknown>
 ): Promise<boolean> {
   const redis = getRedisClient()
   if (!redis) {
@@ -40,10 +42,13 @@ async function updateToolCallStatus(
 
   try {
     const key = `${REDIS_TOOL_CALL_PREFIX}${toolCallId}`
-    const payload = {
+    const payload: Record<string, unknown> = {
       status,
       message: message || null,
       timestamp: new Date().toISOString(),
+    }
+    if (data) {
+      payload.data = data
     }
     await redis.set(key, JSON.stringify(payload), 'EX', REDIS_TOOL_CALL_TTL_SECONDS)
     return true
@@ -74,10 +79,10 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { toolCallId, status, message } = ConfirmationSchema.parse(body)
+    const { toolCallId, status, message, data } = ConfirmationSchema.parse(body)
 
     // Update the tool call status in Redis
-    const updated = await updateToolCallStatus(toolCallId, status, message)
+    const updated = await updateToolCallStatus(toolCallId, status, message, data)
 
     if (!updated) {
       logger.error(`[${tracker.requestId}] Failed to update tool call status`, {

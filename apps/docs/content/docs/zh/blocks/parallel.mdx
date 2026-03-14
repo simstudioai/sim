@@ -121,11 +121,8 @@ const allResults = input.parallel.results;
 
 ### 限制
 
-<Callout type="warning">
-  容器块（循环和并行）不能嵌套在彼此内部。这意味着：
-  - 您不能在并行块中放置循环块
-  - 您不能在并行块中放置另一个并行块
-  - 您不能在一个容器块中放置另一个容器块
+<Callout type="info">
+  容器块（循环和并行）支持嵌套。您可以将并行放入并行中、将循环放入并行中，以及任意组合容器块来构建复杂的多维工作流。
 </Callout>
 
 <Callout type="info">

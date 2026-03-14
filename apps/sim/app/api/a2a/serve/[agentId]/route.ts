@@ -2,7 +2,7 @@ import type { Artifact, Message, PushNotificationConfig, TaskState } from '@a2a-
 import { db } from '@sim/db'
 import { a2aAgent, a2aPushNotificationConfig, a2aTask, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { A2A_DEFAULT_TIMEOUT, A2A_MAX_HISTORY_LENGTH } from '@/lib/a2a/constants'
@@ -47,6 +47,27 @@ interface RouteParams {
   agentId: string
 }
 
+function getCallerFingerprint(request: NextRequest, userId?: string | null): string {
+  if (userId) {
+    return `user:${userId}`
+  }
+
+  const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+  const realIp = request.headers.get('x-real-ip')?.trim()
+  const userAgent = request.headers.get('user-agent')?.trim() || 'unknown'
+  return `public:${forwardedFor || realIp || 'unknown'}:${userAgent}`
+}
+
+function hasCallerAccessToTask(
+  task: typeof a2aTask.$inferSelect,
+  callerFingerprint: string
+): boolean {
+  const metadata = (task.metadata as Record<string, unknown> | null) ?? {}
+  const storedFingerprint =
+    typeof metadata.callerFingerprint === 'string' ? metadata.callerFingerprint : null
+  return !storedFingerprint || storedFingerprint === callerFingerprint
+}
+
 /**
  * GET - Returns the Agent Card (discovery document)
  */
@@ -86,7 +107,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<R
         isPublished: a2aAgent.isPublished,
       })
       .from(a2aAgent)
-      .where(eq(a2aAgent.id, agentId))
+      .where(and(eq(a2aAgent.id, agentId), isNull(a2aAgent.archivedAt)))
       .limit(1)
 
     if (!agent) {
@@ -174,7 +195,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
         authentication: a2aAgent.authentication,
       })
       .from(a2aAgent)
-      .where(eq(a2aAgent.id, agentId))
+      .where(and(eq(a2aAgent.id, agentId), isNull(a2aAgent.archivedAt)))
       .limit(1)
 
     if (!agent) {
@@ -209,6 +230,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
       authenticatedAuthType = auth.authType
       authenticatedApiKeyType = auth.apiKeyType
 
+      if (auth.apiKeyType === 'workspace' && auth.workspaceId !== agent.workspaceId) {
+        return NextResponse.json(
+          createError(null, A2A_ERROR_CODES.AUTHENTICATION_REQUIRED, 'Access denied'),
+          { status: 403 }
+        )
+      }
+
       const workspaceAccess = await checkWorkspaceAccess(agent.workspaceId, authenticatedUserId)
       if (!workspaceAccess.exists || !workspaceAccess.hasAccess) {
         return NextResponse.json(
@@ -221,7 +249,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
     const [wf] = await db
       .select({ isDeployed: workflow.isDeployed })
       .from(workflow)
-      .where(eq(workflow.id, agent.workflowId))
+      .where(and(eq(workflow.id, agent.workflowId), isNull(workflow.archivedAt)))
       .limit(1)
 
     if (!wf?.isDeployed) {
@@ -245,6 +273,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
     const apiKey = authenticatedAuthType === AuthType.API_KEY ? requestApiKey : null
     const isPersonalApiKeyCaller =
       authenticatedAuthType === AuthType.API_KEY && authenticatedApiKeyType === 'personal'
+    const callerFingerprint = getCallerFingerprint(request, authenticatedUserId)
     const billedUserId = await getWorkspaceBilledAccountUserId(agent.workspaceId)
     if (!billedUserId) {
       logger.error('Unable to resolve workspace billed account for A2A execution', {
@@ -267,7 +296,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
 
     switch (method) {
       case A2A_METHODS.MESSAGE_SEND:
-        return handleMessageSend(id, agent, rpcParams as MessageSendParams, apiKey, executionUserId)
+        return handleMessageSend(
+          id,
+          agent,
+          rpcParams as MessageSendParams,
+          apiKey,
+          executionUserId,
+          callerFingerprint
+        )
 
       case A2A_METHODS.MESSAGE_STREAM:
         return handleMessageStream(
@@ -276,26 +312,43 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
           agent,
           rpcParams as MessageSendParams,
           apiKey,
-          executionUserId
+          executionUserId,
+          callerFingerprint
         )
 
       case A2A_METHODS.TASKS_GET:
-        return handleTaskGet(id, agent.id, rpcParams as TaskIdParams)
+        return handleTaskGet(id, agent.id, rpcParams as TaskIdParams, callerFingerprint)
 
       case A2A_METHODS.TASKS_CANCEL:
-        return handleTaskCancel(id, agent.id, rpcParams as TaskIdParams)
+        return handleTaskCancel(id, agent.id, rpcParams as TaskIdParams, callerFingerprint)
 
       case A2A_METHODS.TASKS_RESUBSCRIBE:
-        return handleTaskResubscribe(request, id, agent.id, rpcParams as TaskIdParams)
+        return handleTaskResubscribe(
+          request,
+          id,
+          agent.id,
+          rpcParams as TaskIdParams,
+          callerFingerprint
+        )
 
       case A2A_METHODS.PUSH_NOTIFICATION_SET:
-        return handlePushNotificationSet(id, agent.id, rpcParams as PushNotificationSetParams)
+        return handlePushNotificationSet(
+          id,
+          agent.id,
+          rpcParams as PushNotificationSetParams,
+          callerFingerprint
+        )
 
       case A2A_METHODS.PUSH_NOTIFICATION_GET:
-        return handlePushNotificationGet(id, agent.id, rpcParams as TaskIdParams)
+        return handlePushNotificationGet(id, agent.id, rpcParams as TaskIdParams, callerFingerprint)
 
       case A2A_METHODS.PUSH_NOTIFICATION_DELETE:
-        return handlePushNotificationDelete(id, agent.id, rpcParams as TaskIdParams)
+        return handlePushNotificationDelete(
+          id,
+          agent.id,
+          rpcParams as TaskIdParams,
+          callerFingerprint
+        )
 
       default:
         return NextResponse.json(
@@ -311,9 +364,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
   }
 }
 
-async function getTaskForAgent(taskId: string, agentId: string) {
+async function getTaskForAgent(taskId: string, agentId: string, callerFingerprint?: string) {
   const [task] = await db.select().from(a2aTask).where(eq(a2aTask.id, taskId)).limit(1)
   if (!task || task.agentId !== agentId) {
+    return null
+  }
+  if (callerFingerprint && !hasCallerAccessToTask(task, callerFingerprint)) {
     return null
   }
   return task
@@ -332,7 +388,8 @@ async function handleMessageSend(
   },
   params: MessageSendParams,
   apiKey?: string | null,
-  executionUserId?: string
+  executionUserId?: string,
+  callerFingerprint?: string
 ): Promise<NextResponse> {
   if (!params?.message) {
     return NextResponse.json(
@@ -377,6 +434,13 @@ async function handleMessageSend(
         )
       }
 
+      if (callerFingerprint && !hasCallerAccessToTask(existingTask, callerFingerprint)) {
+        return NextResponse.json(
+          createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Task not found'),
+          { status: 404 }
+        )
+      }
+
       if (isTerminalState(existingTask.status as TaskState)) {
         return NextResponse.json(
           createError(id, A2A_ERROR_CODES.TASK_ALREADY_COMPLETE, 'Task already in terminal state'),
@@ -409,7 +473,7 @@ async function handleMessageSend(
         sessionId: contextId || null,
         status: 'working',
         messages: history,
-        metadata: {},
+        metadata: callerFingerprint ? { callerFingerprint } : {},
         createdAt: new Date(),
         updatedAt: new Date(),
       })
@@ -430,6 +494,22 @@ async function handleMessageSend(
     try {
       const workflowInput = extractWorkflowInput(message)
       if (!workflowInput) {
+        await db
+          .update(a2aTask)
+          .set({
+            status: 'failed',
+            completedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(a2aTask.id, taskId))
+
+        notifyTaskStateChange(taskId, 'failed').catch((err) => {
+          logger.error('Failed to trigger push notification for invalid input', {
+            taskId,
+            error: err,
+          })
+        })
+
         return NextResponse.json(
           createError(
             id,
@@ -452,8 +532,9 @@ async function handleMessageSend(
       })
 
       const executeResult = await response.json()
-
-      const finalState: TaskState = response.ok ? 'completed' : 'failed'
+      const executionId = executeResult.executionId || executeResult.metadata?.executionId
+      const executionSucceeded = response.ok && executeResult.success !== false
+      const finalState: TaskState = executionSucceeded ? 'completed' : 'failed'
 
       const agentContent = extractAgentContent(executeResult)
       const agentMessage = createAgentMessage(agentContent)
@@ -469,7 +550,7 @@ async function handleMessageSend(
           status: finalState,
           messages: history,
           artifacts,
-          executionId: executeResult.metadata?.executionId,
+          executionId,
           completedAt: new Date(),
           updatedAt: new Date(),
         })
@@ -536,7 +617,8 @@ async function handleMessageStream(
   },
   params: MessageSendParams,
   apiKey?: string | null,
-  executionUserId?: string
+  executionUserId?: string,
+  callerFingerprint?: string
 ): Promise<NextResponse> {
   if (!params?.message) {
     return NextResponse.json(
@@ -590,6 +672,13 @@ async function handleMessageStream(
       })
     }
 
+    if (callerFingerprint && !hasCallerAccessToTask(existingTask, callerFingerprint)) {
+      await releaseLock(lockKey, lockValue)
+      return NextResponse.json(createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Task not found'), {
+        status: 404,
+      })
+    }
+
     if (isTerminalState(existingTask.status as TaskState)) {
       await releaseLock(lockKey, lockValue)
       return NextResponse.json(
@@ -623,7 +712,7 @@ async function handleMessageStream(
       sessionId: contextId || null,
       status: 'working',
       messages: history,
-      metadata: {},
+      metadata: callerFingerprint ? { callerFingerprint } : {},
       createdAt: new Date(),
       updatedAt: new Date(),
     })
@@ -669,6 +758,22 @@ async function handleMessageStream(
 
         const workflowInput = extractWorkflowInput(message)
         if (!workflowInput) {
+          await db
+            .update(a2aTask)
+            .set({
+              status: 'failed',
+              completedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(a2aTask.id, taskId))
+
+          notifyTaskStateChange(taskId, 'failed').catch((err) => {
+            logger.error('Failed to trigger push notification for invalid streamed input', {
+              taskId,
+              error: err,
+            })
+          })
+
           sendEvent('error', {
             code: A2A_ERROR_CODES.INVALID_PARAMS,
             message: 'Message must contain at least one part with content',
@@ -702,6 +807,7 @@ async function handleMessageStream(
         }
 
         const contentType = response.headers.get('content-type') || ''
+        const streamingExecutionId = response.headers.get('X-Execution-Id') || undefined
         const isStreamingResponse =
           contentType.includes('text/event-stream') || contentType.includes('text/plain')
 
@@ -710,14 +816,79 @@ async function handleMessageStream(
           const decoder = new TextDecoder()
           const contentChunks: string[] = []
           let finalContent: string | undefined
+          let finalArtifacts: Artifact[] = []
+          let sseBuffer = ''
 
           while (true) {
             const { done, value } = await reader.read()
             if (done) break
 
-            const rawChunk = decoder.decode(value, { stream: true })
-            const parsed = parseWorkflowSSEChunk(rawChunk)
+            sseBuffer += decoder.decode(value, { stream: true })
+            const frames = sseBuffer.split('\n\n')
+            sseBuffer = frames.pop() ?? ''
 
+            for (const frame of frames) {
+              const parsed = parseWorkflowSSEChunk(frame)
+
+              if (parsed.content) {
+                contentChunks.push(parsed.content)
+                sendEvent('message', {
+                  kind: 'message',
+                  taskId,
+                  contextId,
+                  role: 'agent',
+                  parts: [{ kind: 'text', text: parsed.content }],
+                  final: false,
+                })
+              }
+
+              if (parsed.finalContent) {
+                finalContent = parsed.finalContent
+              }
+              if (parsed.finalArtifacts) {
+                finalArtifacts = parsed.finalArtifacts
+              }
+              if (parsed.terminalState === 'canceled') {
+                const agentMessage = createAgentMessage(finalContent || 'Task canceled')
+                agentMessage.taskId = taskId
+                if (contextId) agentMessage.contextId = contextId
+                history.push(agentMessage)
+
+                await db
+                  .update(a2aTask)
+                  .set({
+                    status: 'canceled',
+                    messages: history,
+                    executionId: streamingExecutionId,
+                    artifacts: finalArtifacts,
+                    completedAt: new Date(),
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(a2aTask.id, taskId))
+
+                notifyTaskStateChange(taskId, 'canceled').catch((err) => {
+                  logger.error('Failed to trigger push notification', { taskId, error: err })
+                })
+
+                sendEvent('task', {
+                  kind: 'task',
+                  id: taskId,
+                  contextId,
+                  status: { state: 'canceled', timestamp: new Date().toISOString() },
+                  history,
+                  artifacts: finalArtifacts,
+                })
+                return
+              }
+
+              if (parsed.finalSuccess === false) {
+                throw new Error('Workflow execution failed')
+              }
+            }
+          }
+
+          if (sseBuffer.trim().length > 0) {
+            const parsed = parseWorkflowSSEChunk(sseBuffer)
             if (parsed.content) {
               contentChunks.push(parsed.content)
               sendEvent('message', {
@@ -729,9 +900,14 @@ async function handleMessageStream(
                 final: false,
               })
             }
-
             if (parsed.finalContent) {
               finalContent = parsed.finalContent
+            }
+            if (parsed.finalArtifacts) {
+              finalArtifacts = parsed.finalArtifacts
+            }
+            if (parsed.finalSuccess === false) {
+              throw new Error('Workflow execution failed')
             }
           }
 
@@ -750,6 +926,8 @@ async function handleMessageStream(
             .set({
               status: 'completed',
               messages: history,
+              executionId: streamingExecutionId,
+              artifacts: finalArtifacts,
               completedAt: new Date(),
               updatedAt: new Date(),
             })
@@ -765,10 +943,11 @@ async function handleMessageStream(
             contextId,
             status: { state: 'completed', timestamp: new Date().toISOString() },
             history,
-            artifacts: [],
+            artifacts: finalArtifacts,
           })
         } else {
           const result = await response.json()
+          const executionSucceeded = result.success !== false
 
           const content = extractAgentContent(result)
 
@@ -791,24 +970,29 @@ async function handleMessageStream(
           await db
             .update(a2aTask)
             .set({
-              status: 'completed',
+              status: executionSucceeded ? 'completed' : 'failed',
               messages: history,
               artifacts,
-              executionId: result.metadata?.executionId,
+              executionId: result.executionId || result.metadata?.executionId,
               completedAt: new Date(),
               updatedAt: new Date(),
             })
             .where(eq(a2aTask.id, taskId))
 
-          notifyTaskStateChange(taskId, 'completed').catch((err) => {
-            logger.error('Failed to trigger push notification', { taskId, error: err })
-          })
+          notifyTaskStateChange(taskId, executionSucceeded ? 'completed' : 'failed').catch(
+            (err) => {
+              logger.error('Failed to trigger push notification', { taskId, error: err })
+            }
+          )
 
           sendEvent('task', {
             kind: 'task',
             id: taskId,
             contextId,
-            status: { state: 'completed', timestamp: new Date().toISOString() },
+            status: {
+              state: executionSucceeded ? 'completed' : 'failed',
+              timestamp: new Date().toISOString(),
+            },
             history,
             artifacts,
           })
@@ -862,7 +1046,8 @@ async function handleMessageStream(
 async function handleTaskGet(
   id: string | number,
   agentId: string,
-  params: TaskIdParams
+  params: TaskIdParams,
+  callerFingerprint?: string
 ): Promise<NextResponse> {
   if (!params?.id) {
     return NextResponse.json(
@@ -876,7 +1061,7 @@ async function handleTaskGet(
       ? params.historyLength
       : undefined
 
-  const task = await getTaskForAgent(params.id, agentId)
+  const task = await getTaskForAgent(params.id, agentId, callerFingerprint)
 
   if (!task) {
     return NextResponse.json(createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Task not found'), {
@@ -903,7 +1088,8 @@ async function handleTaskGet(
 async function handleTaskCancel(
   id: string | number,
   agentId: string,
-  params: TaskIdParams
+  params: TaskIdParams,
+  callerFingerprint?: string
 ): Promise<NextResponse> {
   if (!params?.id) {
     return NextResponse.json(
@@ -912,7 +1098,7 @@ async function handleTaskCancel(
     )
   }
 
-  const task = await getTaskForAgent(params.id, agentId)
+  const task = await getTaskForAgent(params.id, agentId, callerFingerprint)
 
   if (!task) {
     return NextResponse.json(createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Task not found'), {
@@ -977,7 +1163,8 @@ async function handleTaskResubscribe(
   request: NextRequest,
   id: string | number,
   agentId: string,
-  params: TaskIdParams
+  params: TaskIdParams,
+  callerFingerprint?: string
 ): Promise<NextResponse> {
   if (!params?.id) {
     return NextResponse.json(
@@ -986,7 +1173,7 @@ async function handleTaskResubscribe(
     )
   }
 
-  const task = await getTaskForAgent(params.id, agentId)
+  const task = await getTaskForAgent(params.id, agentId, callerFingerprint)
 
   if (!task) {
     return NextResponse.json(createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Task not found'), {
@@ -1184,7 +1371,8 @@ async function handleTaskResubscribe(
 async function handlePushNotificationSet(
   id: string | number,
   agentId: string,
-  params: PushNotificationSetParams
+  params: PushNotificationSetParams,
+  callerFingerprint?: string
 ): Promise<NextResponse> {
   if (!params?.id) {
     return NextResponse.json(
@@ -1211,7 +1399,7 @@ async function handlePushNotificationSet(
     )
   }
 
-  const task = await getTaskForAgent(params.id, agentId)
+  const task = await getTaskForAgent(params.id, agentId, callerFingerprint)
 
   if (!task) {
     return NextResponse.json(createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Task not found'), {
@@ -1263,7 +1451,8 @@ async function handlePushNotificationSet(
 async function handlePushNotificationGet(
   id: string | number,
   agentId: string,
-  params: TaskIdParams
+  params: TaskIdParams,
+  callerFingerprint?: string
 ): Promise<NextResponse> {
   if (!params?.id) {
     return NextResponse.json(
@@ -1272,7 +1461,7 @@ async function handlePushNotificationGet(
     )
   }
 
-  const task = await getTaskForAgent(params.id, agentId)
+  const task = await getTaskForAgent(params.id, agentId, callerFingerprint)
 
   if (!task) {
     return NextResponse.json(createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Task not found'), {
@@ -1307,7 +1496,8 @@ async function handlePushNotificationGet(
 async function handlePushNotificationDelete(
   id: string | number,
   agentId: string,
-  params: TaskIdParams
+  params: TaskIdParams,
+  callerFingerprint?: string
 ): Promise<NextResponse> {
   if (!params?.id) {
     return NextResponse.json(
@@ -1316,7 +1506,7 @@ async function handlePushNotificationDelete(
     )
   }
 
-  const task = await getTaskForAgent(params.id, agentId)
+  const task = await getTaskForAgent(params.id, agentId, callerFingerprint)
 
   if (!task) {
     return NextResponse.json(createError(id, A2A_ERROR_CODES.TASK_NOT_FOUND, 'Task not found'), {

@@ -5,6 +5,7 @@ title: Agent
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
 
 The Agent block connects your workflow to Large Language Models (LLMs). It processes natural language inputs, calls external tools, and generates structured or unstructured outputs.
 
@@ -58,7 +59,7 @@ Controls response randomness and creativity:
 
 ### Max Output Tokens
 
-Controls the maximum length of the model's response. For Anthropic models, Sim uses reliable defaults: streaming executions use the model's full capacity (e.g. 64,000 tokens for Claude 4.5), while non-streaming executions default to 8,192 to avoid timeout issues. When using tools with Anthropic models, intermediate tool-calling requests use a capped limit of 8,192 tokens to avoid SDK timeout errors, regardless of your configured max tokens—the final streaming response uses your full configured limit. This only affects Anthropic's direct API; AWS Bedrock handles this automatically. For long-form content generation via API, explicitly set a higher value.
+Controls the maximum length of the model's response. Each model defaults to its full max output token limit (e.g., 64,000 tokens for Claude Sonnet 4.5). You can override this with a custom value using the Max Tokens setting. For Anthropic models, when non-streaming requests exceed the SDK's internal threshold, the provider automatically uses internal streaming to avoid timeouts.
 
 ### API Key
 
@@ -78,7 +79,7 @@ Extend agent capabilities with external integrations. Select from 60+ pre-built 
 **Execution Modes:**
 - **Auto**: Model decides when to use tools based on context
 - **Required**: Tool must be called in every request
-- **None**: Tool available but not suggested to model
+- **None**: Tool is completely filtered out and not sent to the model — effectively disables the tool
 
 ### Response Format
 
@@ -113,7 +114,7 @@ After an agent completes, you can access its outputs:
 
 - **`<agent.content>`**: The agent's response text or structured data
 - **`<agent.tokens>`**: Token usage statistics (prompt, completion, total)
-- **`<agent.tool_calls>`**: Details of any tools the agent used during execution
+- **`<agent.toolCalls>`**: Details of any tools the agent used during execution
 - **`<agent.cost>`**: Estimated cost of the API call (if available)
 
 ## Advanced Features
@@ -131,8 +132,9 @@ See the [`Memory`](/tools/memory) block reference for details.
 ## Outputs
 
 - **`<agent.content>`**: Agent's response text
+- **`<agent.model>`**: Model identifier used for the request
 - **`<agent.tokens>`**: Token usage statistics
-- **`<agent.tool_calls>`**: Tool execution details
+- **`<agent.toolCalls>`**: Tool execution details
 - **`<agent.cost>`**: Estimated API call cost
 
 ## Example Use Cases
@@ -157,3 +159,13 @@ Input → Agent (Google Search, Notion) → Function (Compile Report)
 - **Be specific in system prompts**: Clearly define the agent's role, tone, and limitations. The more specific your instructions are, the better the agent will be able to fulfill its intended purpose.
 - **Choose the right temperature setting**: Use lower temperature settings (0-0.3) when accuracy is important, or increase temperature (0.7-2.0) for more creative or varied responses
 - **Leverage tools effectively**: Integrate tools that complement the agent's purpose and enhance its capabilities. Be selective about which tools you provide to avoid overwhelming the agent. For tasks with little overlap, use another Agent block for the best results.
+
+<FAQ items={[
+  { question: "What LLM providers does the Agent block support?", answer: "The Agent block supports OpenAI, Anthropic, Google (Gemini), xAI (Grok), DeepSeek, Groq, Cerebras, Azure OpenAI, Azure Anthropic, Google Vertex AI, AWS Bedrock, OpenRouter, and local models via Ollama or VLLM. You can type or select any supported model from the model combobox." },
+  { question: "What are the memory options for the Agent block?", answer: "The Agent block has four memory modes: None (no memory, each request is independent), Conversation (full conversation history keyed by a conversation ID), Sliding Window by messages (keeps the N most recent messages), and Sliding Window by tokens (keeps messages up to a token limit). Memory requires a conversation ID to persist across runs." },
+  { question: "What is the difference between the tool execution modes (Auto, Required, None)?", answer: "In Auto mode, the model decides when to call a tool based on context. In Required mode, the model must call the tool on every request. In None mode, the tool is completely filtered out and never sent to the model — it effectively disables that tool without removing it from the configuration." },
+  { question: "How does the Response Format work?", answer: "Response Format enforces structured output by providing a JSON Schema. When set, the model's response is constrained to match the schema exactly. Fields from the structured response can be accessed directly by downstream blocks using <agent.fieldName> syntax. If no response format is set, the agent returns its standard outputs: content, model, tokens, and toolCalls." },
+  { question: "What does the Reasoning Effort / Thinking Level setting do?", answer: "These are advanced settings that appear only for models that support extended reasoning. Reasoning Effort (for OpenAI o-series and GPT-5 models) and Thinking Level (for Anthropic Claude and Gemini models with thinking) control how much compute the model spends reasoning before responding. Higher levels produce more thorough answers but cost more tokens and take longer." },
+  { question: "How does max output tokens work with Anthropic models specifically?", answer: "The Agent block uses each Anthropic model's full max output token limit by default (e.g., 64,000 for Claude Sonnet 4.5). You can override this with the Max Tokens setting. For non-streaming requests that exceed the SDK's internal threshold, the provider automatically uses internal streaming to avoid timeouts." },
+  { question: "Can I use the Agent block with a custom or self-hosted model?", answer: "Yes. You can use any Ollama or VLLM-compatible model by typing the model name directly into the model combobox. This lets you connect to locally hosted or custom-deployed models as long as they expose a compatible API endpoint." },
+]} />

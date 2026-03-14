@@ -1,5 +1,7 @@
 import { useMemo } from 'react'
+import { FileText } from 'lucide-react'
 import { StreamingIndicator } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/smooth-streaming'
+import { useThrottledValue } from '@/hooks/use-throttled-value'
 
 interface ChatAttachment {
   id: string
@@ -93,12 +95,15 @@ const WordWrap = ({ text }: { text: string }) => {
  * Renders a chat message with optional file attachments
  */
 export function ChatMessage({ message }: ChatMessageProps) {
-  const formattedContent = useMemo(() => {
+  const rawContent = useMemo(() => {
     if (typeof message.content === 'object' && message.content !== null) {
       return JSON.stringify(message.content, null, 2)
     }
     return String(message.content || '')
   }, [message.content])
+
+  const throttled = useThrottledValue(rawContent)
+  const formattedContent = message.type === 'user' ? rawContent : throttled
 
   const handleAttachmentClick = (attachment: ChatAttachment) => {
     const validDataUrl = attachment.dataUrl?.trim()
@@ -108,22 +113,22 @@ export function ChatMessage({ message }: ChatMessageProps) {
   }
 
   if (message.type === 'user') {
+    const hasAttachments = message.attachments && message.attachments.length > 0
     return (
       <div className='w-full max-w-full overflow-hidden opacity-100 transition-opacity duration-200'>
-        {message.attachments && message.attachments.length > 0 && (
-          <div className='mb-2 flex flex-wrap gap-[6px]'>
-            {message.attachments.map((attachment) => {
+        {hasAttachments && (
+          <div className='mb-[4px] flex flex-wrap gap-[4px]'>
+            {message.attachments!.map((attachment) => {
               const hasValidDataUrl =
                 attachment.dataUrl?.trim() && attachment.dataUrl.startsWith('data:')
-              // Only treat as displayable image if we have both image type AND valid data URL
               const canDisplayAsImage = attachment.type.startsWith('image/') && hasValidDataUrl
 
               return (
                 <div
                   key={attachment.id}
-                  className={`group relative flex-shrink-0 overflow-hidden rounded-[6px] bg-[var(--surface-2)] ${
+                  className={`flex max-w-[150px] items-center gap-[5px] rounded-[6px] bg-[var(--surface-2)] px-[5px] py-[3px] ${
                     hasValidDataUrl ? 'cursor-pointer' : ''
-                  } ${canDisplayAsImage ? 'h-[40px] w-[40px]' : 'flex min-w-[80px] max-w-[120px] items-center justify-center px-[8px] py-[2px]'}`}
+                  }`}
                   onClick={(e) => {
                     if (hasValidDataUrl) {
                       e.preventDefault()
@@ -136,20 +141,14 @@ export function ChatMessage({ message }: ChatMessageProps) {
                     <img
                       src={attachment.dataUrl}
                       alt={attachment.name}
-                      className='h-full w-full object-cover'
+                      className='h-[20px] w-[20px] flex-shrink-0 rounded-[3px] object-cover'
                     />
                   ) : (
-                    <div className='min-w-0 flex-1'>
-                      <div className='truncate font-medium text-[10px] text-[var(--white)]'>
-                        {attachment.name}
-                      </div>
-                      {attachment.size && (
-                        <div className='text-[9px] text-[var(--text-tertiary)]'>
-                          {formatFileSize(attachment.size)}
-                        </div>
-                      )}
-                    </div>
+                    <FileText className='h-[12px] w-[12px] flex-shrink-0 text-[var(--text-tertiary)]' />
                   )}
+                  <span className='truncate text-[10px] text-[var(--text-secondary)]'>
+                    {attachment.name}
+                  </span>
                 </div>
               )
             })}

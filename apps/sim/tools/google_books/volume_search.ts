@@ -93,6 +93,20 @@ export const googleBooksVolumeSearchTool: ToolConfig<
     },
   },
 
+  hosting: {
+    envKeyPrefix: 'GOOGLE_CLOUD_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'google_cloud',
+    pricing: {
+      type: 'per_request',
+      cost: 0,
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 30,
+    },
+  },
+
   request: {
     url: (params) => {
       const url = new URL('https://www.googleapis.com/books/v1/volumes')

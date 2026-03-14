@@ -33,11 +33,13 @@ import {
 } from '@/lib/auth/cimd'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
+import { writeBillingInterval } from '@/lib/billing/core/subscription'
 import { handleNewUser } from '@/lib/billing/core/usage'
 import {
   ensureOrganizationForTeamSubscription,
   syncSubscriptionUsageLimits,
 } from '@/lib/billing/organization'
+import { isOrgPlan, isTeam } from '@/lib/billing/plan-helpers'
 import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -63,10 +65,7 @@ import {
 } from '@/lib/core/config/feature-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import {
-  handleCreateCredentialFromDraft,
-  handleReconnectCredential,
-} from '@/lib/credentials/draft-hooks'
+import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -257,50 +256,12 @@ export const auth = betterAuth({
             })
           }
 
-          /**
-           * If a pending credential draft exists for this (userId, providerId),
-           * either create a new credential or reconnect an existing one.
-           *
-           * - draft.credentialId is null: create a new credential (normal connect flow)
-           * - draft.credentialId is set: update existing credential's accountId (reconnect flow)
-           */
           try {
-            const [draft] = await db
-              .select()
-              .from(schema.pendingCredentialDraft)
-              .where(
-                and(
-                  eq(schema.pendingCredentialDraft.userId, account.userId),
-                  eq(schema.pendingCredentialDraft.providerId, account.providerId),
-                  sql`${schema.pendingCredentialDraft.expiresAt} > NOW()`
-                )
-              )
-              .limit(1)
-
-            if (draft) {
-              const now = new Date()
-
-              if (draft.credentialId) {
-                await handleReconnectCredential({
-                  draft,
-                  newAccountId: account.id,
-                  workspaceId: draft.workspaceId,
-                  now,
-                })
-              } else {
-                await handleCreateCredentialFromDraft({
-                  draft,
-                  accountId: account.id,
-                  providerId: account.providerId,
-                  userId: account.userId,
-                  now,
-                })
-              }
-
-              await db
-                .delete(schema.pendingCredentialDraft)
-                .where(eq(schema.pendingCredentialDraft.id, draft.id))
-            }
+            await processCredentialDraft({
+              userId: account.userId,
+              providerId: account.providerId,
+              accountId: account.id,
+            })
           } catch (error) {
             logger.error('[account.create.after] Failed to process credential draft', {
               userId: account.userId,
@@ -2676,11 +2637,11 @@ export const auth = betterAuth({
             subscription: {
               enabled: true,
               plans: getPlans(),
-              authorizeReference: async ({ user, referenceId }) => {
-                return await authorizeSubscriptionReference(user.id, referenceId)
+              authorizeReference: async ({ user, referenceId, action }) => {
+                return await authorizeSubscriptionReference(user.id, referenceId, action)
               },
               getCheckoutSessionParams: async ({ plan, subscription }) => {
-                if (plan.name === 'team') {
+                if (isTeam(plan.name)) {
                   return {
                     params: {
                       allow_promotion_codes: true,
@@ -2713,7 +2674,7 @@ export const auth = betterAuth({
                 stripeSubscription: Stripe.Subscription
                 subscription: any
               }) => {
-                const { priceId, planFromStripe, isTeamPlan } =
+                const { priceId, planFromStripe, isAnnual } =
                   resolvePlanFromStripeSubscription(stripeSubscription)
 
                 logger.info('[onSubscriptionComplete] Subscription created', {
@@ -2722,18 +2683,25 @@ export const auth = betterAuth({
                   dbPlan: subscription.plan,
                   planFromStripe,
                   priceId,
+                  isAnnual,
                   status: subscription.status,
                 })
 
-                const subscriptionForOrgCreation = isTeamPlan
-                  ? { ...subscription, plan: 'team' }
-                  : subscription
+                if (!planFromStripe) {
+                  logger.error(
+                    '[onSubscriptionComplete] Could not resolve plan from Stripe price — check env var configuration',
+                    { subscriptionId: subscription.id, dbPlan: subscription.plan, priceId }
+                  )
+                }
+                const subscriptionForOrg = {
+                  ...subscription,
+                  plan: planFromStripe ?? subscription.plan,
+                }
 
                 let resolvedSubscription = subscription
                 try {
-                  resolvedSubscription = await ensureOrganizationForTeamSubscription(
-                    subscriptionForOrgCreation
-                  )
+                  resolvedSubscription =
+                    await ensureOrganizationForTeamSubscription(subscriptionForOrg)
                 } catch (orgError) {
                   logger.error(
                     '[onSubscriptionComplete] Failed to ensure organization for team subscription',
@@ -2753,6 +2721,8 @@ export const auth = betterAuth({
 
                 await syncSubscriptionUsageLimits(resolvedSubscription)
 
+                await writeBillingInterval(resolvedSubscription.id, isAnnual ? 'year' : 'month')
+
                 await sendPlanWelcomeEmail(resolvedSubscription)
               },
               onSubscriptionUpdate: async ({
@@ -2763,7 +2733,7 @@ export const auth = betterAuth({
                 subscription: any
               }) => {
                 const stripeSubscription = event.data.object as Stripe.Subscription
-                const { priceId, planFromStripe, isTeamPlan } =
+                const { priceId, planFromStripe, isTeamPlan, isAnnual } =
                   resolvePlanFromStripeSubscription(stripeSubscription)
 
                 if (priceId && !planFromStripe) {
@@ -2779,7 +2749,7 @@ export const auth = betterAuth({
 
                 const isUpgradeToTeam =
                   isTeamPlan &&
-                  subscription.plan !== 'team' &&
+                  !isTeam(subscription.plan) &&
                   !subscription.referenceId.startsWith('org_')
 
                 const effectivePlanForTeamFeatures = planFromStripe ?? subscription.plan
@@ -2790,18 +2760,25 @@ export const auth = betterAuth({
                   dbPlan: subscription.plan,
                   planFromStripe,
                   isUpgradeToTeam,
+                  isAnnual,
                   referenceId: subscription.referenceId,
                 })
 
-                const subscriptionForOrgCreation = isUpgradeToTeam
-                  ? { ...subscription, plan: 'team' }
-                  : subscription
+                if (!planFromStripe) {
+                  logger.error(
+                    '[onSubscriptionUpdate] Could not resolve plan from Stripe price — org creation may be skipped for team upgrades',
+                    { subscriptionId: subscription.id, dbPlan: subscription.plan }
+                  )
+                }
+                const subscriptionForOrg = {
+                  ...subscription,
+                  plan: planFromStripe ?? subscription.plan,
+                }
 
                 let resolvedSubscription = subscription
                 try {
-                  resolvedSubscription = await ensureOrganizationForTeamSubscription(
-                    subscriptionForOrgCreation
-                  )
+                  resolvedSubscription =
+                    await ensureOrganizationForTeamSubscription(subscriptionForOrg)
 
                   if (isUpgradeToTeam) {
                     logger.info(
@@ -2840,7 +2817,7 @@ export const auth = betterAuth({
                   })
                 }
 
-                if (effectivePlanForTeamFeatures === 'team') {
+                if (isTeam(effectivePlanForTeamFeatures)) {
                   try {
                     const quantity = stripeSubscription.items?.data?.[0]?.quantity || 1
 
@@ -2866,6 +2843,8 @@ export const auth = betterAuth({
                     })
                   }
                 }
+
+                await writeBillingInterval(resolvedSubscription.id, isAnnual ? 'year' : 'month')
               },
               onSubscriptionDeleted: async ({
                 subscription,
@@ -2959,8 +2938,7 @@ export const auth = betterAuth({
                 .where(eq(schema.subscription.referenceId, user.id))
 
               const hasTeamPlan = dbSubscriptions.some(
-                (sub) =>
-                  sub.status === 'active' && (sub.plan === 'team' || sub.plan === 'enterprise')
+                (sub) => sub.status === 'active' && isOrgPlan(sub.plan)
               )
 
               return hasTeamPlan

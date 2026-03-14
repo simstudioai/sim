@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { form } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     const existingForm = await db
       .select({ id: form.id })
       .from(form)
-      .where(eq(form.identifier, validatedIdentifier))
+      .where(and(eq(form.identifier, validatedIdentifier), isNull(form.archivedAt)))
       .limit(1)
 
     const isAvailable = existingForm.length === 0

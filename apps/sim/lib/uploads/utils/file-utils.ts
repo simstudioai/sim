@@ -32,7 +32,7 @@ export const MIME_TYPE_MAPPING: Record<string, 'image' | 'document' | 'audio' | 
   'image/png': 'image',
   'image/gif': 'image',
   'image/webp': 'image',
-  'image/svg+xml': 'image',
+  // SVG is XML text, not a raster image — handled separately in createFileContent
 
   // Documents
   'application/pdf': 'document',
@@ -97,16 +97,14 @@ export function isSupportedFileType(mimeType: string): boolean {
 /**
  * Check if a MIME type is an image type (for copilot uploads)
  */
+const IMAGE_MIME_TYPES = new Set(
+  Object.entries(MIME_TYPE_MAPPING)
+    .filter(([, v]) => v === 'image')
+    .map(([k]) => k)
+)
+
 export function isImageFileType(mimeType: string): boolean {
-  const imageTypes = [
-    'image/jpeg',
-    'image/jpg',
-    'image/png',
-    'image/gif',
-    'image/webp',
-    'image/svg+xml',
-  ]
-  return imageTypes.includes(mimeType.toLowerCase())
+  return IMAGE_MIME_TYPES.has(mimeType.toLowerCase())
 }
 
 /**
@@ -142,6 +140,19 @@ export function bufferToBase64(buffer: Buffer): string {
  * Create message content from file data
  */
 export function createFileContent(fileBuffer: Buffer, mimeType: string): MessageContent | null {
+  // SVG is XML text — Claude only supports raster image formats (JPEG, PNG, GIF, WebP),
+  // so send SVGs as an XML document instead
+  if (mimeType.toLowerCase() === 'image/svg+xml') {
+    return {
+      type: 'document',
+      source: {
+        type: 'base64',
+        media_type: 'text/xml',
+        data: bufferToBase64(fileBuffer),
+      },
+    }
+  }
+
   const contentType = getContentType(mimeType)
   if (!contentType) {
     return null
@@ -165,54 +176,126 @@ export function getFileExtension(filename: string): string {
   return lastDot !== -1 ? filename.slice(lastDot + 1).toLowerCase() : ''
 }
 
+const EXTENSION_TO_MIME: Record<string, string> = {
+  // Images
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+
+  // Documents
+  pdf: 'application/pdf',
+  txt: 'text/plain',
+  csv: 'text/csv',
+  json: 'application/json',
+  xml: 'application/xml',
+  html: 'text/html',
+  htm: 'text/html',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  doc: 'application/msword',
+  xls: 'application/vnd.ms-excel',
+  ppt: 'application/vnd.ms-powerpoint',
+  md: 'text/markdown',
+  yaml: 'application/x-yaml',
+  yml: 'application/x-yaml',
+  rtf: 'application/rtf',
+
+  // Audio
+  mp3: 'audio/mpeg',
+  m4a: 'audio/mp4',
+  wav: 'audio/wav',
+  webm: 'audio/webm',
+  ogg: 'audio/ogg',
+  flac: 'audio/flac',
+  aac: 'audio/aac',
+  opus: 'audio/opus',
+
+  // Video
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  avi: 'video/x-msvideo',
+  mkv: 'video/x-matroska',
+}
+
 /**
  * Get MIME type from file extension (fallback if not provided)
  */
 export function getMimeTypeFromExtension(extension: string): string {
-  const extensionMimeMap: Record<string, string> = {
-    // Images
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    png: 'image/png',
-    gif: 'image/gif',
-    webp: 'image/webp',
-    svg: 'image/svg+xml',
+  return EXTENSION_TO_MIME[extension.toLowerCase()] || 'application/octet-stream'
+}
 
-    // Documents
-    pdf: 'application/pdf',
-    txt: 'text/plain',
-    csv: 'text/csv',
-    json: 'application/json',
-    xml: 'application/xml',
-    html: 'text/html',
-    htm: 'text/html',
-    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    doc: 'application/msword',
-    xls: 'application/vnd.ms-excel',
-    ppt: 'application/vnd.ms-powerpoint',
-    md: 'text/markdown',
-    rtf: 'application/rtf',
+/**
+ * Resolve a reliable MIME type from a file, falling back to extension
+ * when the browser reports empty or generic `application/octet-stream`
+ */
+export function resolveFileType(file: { type: string; name: string }): string {
+  return file.type && file.type !== 'application/octet-stream'
+    ? file.type
+    : getMimeTypeFromExtension(getFileExtension(file.name))
+}
 
-    // Audio
-    mp3: 'audio/mpeg',
-    m4a: 'audio/mp4',
-    wav: 'audio/wav',
-    webm: 'audio/webm',
-    ogg: 'audio/ogg',
-    flac: 'audio/flac',
-    aac: 'audio/aac',
-    opus: 'audio/opus',
+const MIME_TO_EXTENSION: Record<string, string> = {
+  // Images
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/svg+xml': 'svg',
 
-    // Video
-    mp4: 'video/mp4',
-    mov: 'video/quicktime',
-    avi: 'video/x-msvideo',
-    mkv: 'video/x-matroska',
-  }
+  // Documents
+  'application/pdf': 'pdf',
+  'text/plain': 'txt',
+  'text/csv': 'csv',
+  'application/json': 'json',
+  'application/xml': 'xml',
+  'text/xml': 'xml',
+  'text/html': 'html',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+  'application/msword': 'doc',
+  'application/vnd.ms-excel': 'xls',
+  'application/vnd.ms-powerpoint': 'ppt',
+  'text/markdown': 'md',
+  'application/rtf': 'rtf',
 
-  return extensionMimeMap[extension.toLowerCase()] || 'application/octet-stream'
+  // Audio
+  'audio/mpeg': 'mp3',
+  'audio/mp3': 'mp3',
+  'audio/mp4': 'm4a',
+  'audio/x-m4a': 'm4a',
+  'audio/m4a': 'm4a',
+  'audio/wav': 'wav',
+  'audio/wave': 'wav',
+  'audio/x-wav': 'wav',
+  'audio/webm': 'webm',
+  'audio/ogg': 'ogg',
+  'audio/vorbis': 'ogg',
+  'audio/flac': 'flac',
+  'audio/x-flac': 'flac',
+  'audio/aac': 'aac',
+  'audio/x-aac': 'aac',
+  'audio/opus': 'opus',
+
+  // Video
+  'video/mp4': 'mp4',
+  'video/mpeg': 'mpg',
+  'video/quicktime': 'mov',
+  'video/x-quicktime': 'mov',
+  'video/x-msvideo': 'avi',
+  'video/avi': 'avi',
+  'video/x-matroska': 'mkv',
+  'video/webm': 'webm',
+
+  // Archives
+  'application/zip': 'zip',
+  'application/x-zip-compressed': 'zip',
+  'application/gzip': 'gz',
 }
 
 /**
@@ -221,67 +304,7 @@ export function getMimeTypeFromExtension(extension: string): string {
  * @returns File extension without dot, or null if not found
  */
 export function getExtensionFromMimeType(mimeType: string): string | null {
-  const mimeToExtension: Record<string, string> = {
-    // Images
-    'image/jpeg': 'jpg',
-    'image/jpg': 'jpg',
-    'image/png': 'png',
-    'image/gif': 'gif',
-    'image/webp': 'webp',
-    'image/svg+xml': 'svg',
-
-    // Documents
-    'application/pdf': 'pdf',
-    'text/plain': 'txt',
-    'text/csv': 'csv',
-    'application/json': 'json',
-    'application/xml': 'xml',
-    'text/xml': 'xml',
-    'text/html': 'html',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
-    'application/msword': 'doc',
-    'application/vnd.ms-excel': 'xls',
-    'application/vnd.ms-powerpoint': 'ppt',
-    'text/markdown': 'md',
-    'application/rtf': 'rtf',
-
-    // Audio
-    'audio/mpeg': 'mp3',
-    'audio/mp3': 'mp3',
-    'audio/mp4': 'm4a',
-    'audio/x-m4a': 'm4a',
-    'audio/m4a': 'm4a',
-    'audio/wav': 'wav',
-    'audio/wave': 'wav',
-    'audio/x-wav': 'wav',
-    'audio/webm': 'webm',
-    'audio/ogg': 'ogg',
-    'audio/vorbis': 'ogg',
-    'audio/flac': 'flac',
-    'audio/x-flac': 'flac',
-    'audio/aac': 'aac',
-    'audio/x-aac': 'aac',
-    'audio/opus': 'opus',
-
-    // Video
-    'video/mp4': 'mp4',
-    'video/mpeg': 'mpg',
-    'video/quicktime': 'mov',
-    'video/x-quicktime': 'mov',
-    'video/x-msvideo': 'avi',
-    'video/avi': 'avi',
-    'video/x-matroska': 'mkv',
-    'video/webm': 'webm',
-
-    // Archives
-    'application/zip': 'zip',
-    'application/x-zip-compressed': 'zip',
-    'application/gzip': 'gz',
-  }
-
-  return mimeToExtension[mimeType.toLowerCase()] || null
+  return MIME_TO_EXTENSION[mimeType.toLowerCase()] || null
 }
 
 /**
@@ -726,4 +749,25 @@ export function getViewerUrl(fileKey: string, workspaceId?: string): string | nu
   }
 
   return `/workspace/${resolvedWorkspaceId}/files/${fileKey}/view`
+}
+
+/**
+ * Downloads a workspace file to the user's device via the serve API.
+ * Fetches the file as a blob and triggers a browser download.
+ */
+export async function downloadWorkspaceFile(file: { key: string; name: string }): Promise<void> {
+  const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace&t=${Date.now()}`
+  const response = await fetch(serveUrl, { cache: 'no-store' })
+  if (!response.ok) {
+    throw new Error(`Failed to download file: ${response.statusText}`)
+  }
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = file.name
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }

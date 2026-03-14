@@ -5,6 +5,7 @@ title: Response
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
 
 The Response block formats and sends structured HTTP responses back to API callers. Use it to return workflow results with proper status codes and headers.
 
@@ -35,23 +36,15 @@ The response data is the main content that will be sent back to the API caller. 
 
 ### Status Code
 
-Set the HTTP status code for the response (defaults to 200):
+A free-text input field where you can enter any valid HTTP status code (the default placeholder is 200). Common examples include:
 
-**Success (2xx):**
 - **200**: OK - Standard success response
 - **201**: Created - Resource successfully created
-- **204**: No Content - Success with no response body
-
-**Client Error (4xx):**
 - **400**: Bad Request - Invalid request parameters
-- **401**: Unauthorized - Authentication required
 - **404**: Not Found - Resource doesn't exist
-- **422**: Unprocessable Entity - Validation errors
-
-**Server Error (5xx):**
 - **500**: Internal Server Error - Server-side error
-- **502**: Bad Gateway - External service error
-- **503**: Service Unavailable - Service temporarily down
+
+Any valid HTTP status code can be entered directly into the field.
 
 ### Response Headers
 
@@ -84,7 +77,7 @@ Condition (Error Detected) → Router → Response (400/500, Error Details)
 
 ## Outputs
 
-Response blocks are terminal - they end workflow execution and send the HTTP response to the API caller. No outputs are available to downstream blocks.
+Response blocks are terminal — no downstream blocks execute after them. However, the block does define outputs (`data`, `status`, `headers`) which are used to construct the HTTP response sent back to the API caller.
 
 ## Variable References
 
@@ -115,4 +108,12 @@ Use the `<variable.name>` syntax to dynamically insert workflow variables into y
 - **Include relevant metadata**: Add timestamps and version information to help with debugging and monitoring
 - **Handle errors gracefully**: Use conditional logic in your workflow to set appropriate error responses with descriptive messages
 - **Validate variable references**: Ensure all referenced variables exist and contain the expected data types before the Response block executes
+
+<FAQ items={[
+  { question: "Can I have multiple Response blocks in a workflow?", answer: "No. The Response block is a single-instance block — only one is allowed per workflow. If you need different responses for different conditions, use a Condition or Router block upstream to determine what data reaches the single Response block." },
+  { question: "What triggers require a Response block?", answer: "The Response block is designed for use with the API Trigger. When your workflow is invoked via the API, the Response block sends the structured HTTP response back to the caller. Other trigger types (like webhooks or schedules) do not require a Response block." },
+  { question: "What is the difference between Builder and Editor mode?", answer: "Builder mode provides a visual interface for constructing your response structure with fields and types. Editor mode gives you a raw JSON code editor where you can write the response body directly. Builder mode is recommended for most use cases." },
+  { question: "What is the default status code?", answer: "If you do not specify a status code, the Response block defaults to 200 (OK). You can set any valid HTTP status code including error codes like 400, 404, or 500." },
+  { question: "Can the Response block connect to downstream blocks?", answer: "No. Response blocks are terminal — they end workflow execution and send the HTTP response. No further blocks can be connected after a Response block." },
+]} />
 

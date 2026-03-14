@@ -493,21 +493,29 @@ export async function executeWorkflowCore(
         )) as ExecutionResult)
       : ((await executorInstance.execute(workflowId, resolvedTriggerBlockId)) as ExecutionResult)
 
-    await finalizeExecutionOutcome({
-      result,
-      loggingSession,
-      executionId,
-      requestId,
-      workflowInput: processedInput,
-    })
+    loggingSession.setPostExecutionPromise(
+      (async () => {
+        try {
+          await finalizeExecutionOutcome({
+            result,
+            loggingSession,
+            executionId,
+            requestId,
+            workflowInput: processedInput,
+          })
 
-    if (result.success && result.status !== 'paused') {
-      try {
-        await updateWorkflowRunCounts(workflowId)
-      } catch (runCountError) {
-        logger.error(`[${requestId}] Failed to update run counts`, { error: runCountError })
-      }
-    }
+          if (result.success && result.status !== 'paused') {
+            try {
+              await updateWorkflowRunCounts(workflowId)
+            } catch (runCountError) {
+              logger.error(`[${requestId}] Failed to update run counts`, { error: runCountError })
+            }
+          }
+        } catch (postExecError) {
+          logger.error(`[${requestId}] Post-execution logging failed`, { error: postExecError })
+        }
+      })()
+    )
 
     logger.info(`[${requestId}] Workflow execution completed`, {
       success: result.success,
@@ -530,18 +538,28 @@ export async function executeWorkflowCore(
       })
     }
 
-    const finalized = loggingStarted
-      ? await finalizeExecutionError({
-          error,
-          loggingSession,
-          executionId,
-          requestId,
-        })
-      : false
+    loggingSession.setPostExecutionPromise(
+      (async () => {
+        try {
+          const finalized = loggingStarted
+            ? await finalizeExecutionError({
+                error,
+                loggingSession,
+                executionId,
+                requestId,
+              })
+            : false
 
-    if (finalized) {
-      markExecutionFinalizedByCore(error, executionId)
-    }
+          if (finalized) {
+            markExecutionFinalizedByCore(error, executionId)
+          }
+        } catch (postExecError) {
+          logger.error(`[${requestId}] Post-execution error logging failed`, {
+            error: postExecError,
+          })
+        }
+      })()
+    )
 
     throw error
   }

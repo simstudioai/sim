@@ -77,6 +77,7 @@ export function useDuplicateFolder({ workspaceId, folderIds, onSuccess }: UseDup
           name: duplicateName,
           parentId: folder.parentId,
           color: folder.color,
+          newId: crypto.randomUUID(),
         })
         const newFolderId = result?.id
         if (newFolderId) {

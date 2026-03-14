@@ -170,9 +170,7 @@ describe('extractFilename', () => {
           'inline; filename="safe-image.png"'
         )
         expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
-        expect(response.headers.get('Content-Security-Policy')).toBe(
-          "default-src 'none'; style-src 'unsafe-inline'; sandbox;"
-        )
+        expect(response.headers.get('Content-Security-Policy')).toBeNull()
       })
 
       it('should serve PDFs inline safely', () => {
@@ -203,33 +201,31 @@ describe('extractFilename', () => {
         expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
       })
 
-      it('should force attachment for SVG files to prevent XSS', () => {
+      it('should serve SVG files inline with CSP sandbox protection', () => {
         const response = createFileResponse({
           buffer: Buffer.from(
             '<svg onload="alert(\'XSS\')" xmlns="http://www.w3.org/2000/svg"></svg>'
           ),
           contentType: 'image/svg+xml',
-          filename: 'malicious.svg',
+          filename: 'image.svg',
         })
 
         expect(response.status).toBe(200)
-        expect(response.headers.get('Content-Type')).toBe('application/octet-stream')
-        expect(response.headers.get('Content-Disposition')).toBe(
-          'attachment; filename="malicious.svg"'
+        expect(response.headers.get('Content-Type')).toBe('image/svg+xml')
+        expect(response.headers.get('Content-Disposition')).toBe('inline; filename="image.svg"')
+        expect(response.headers.get('Content-Security-Policy')).toBe(
+          "default-src 'none'; style-src 'unsafe-inline'; sandbox;"
         )
       })
 
-      it('should override dangerous content types to safe alternatives', () => {
+      it('should not apply CSP sandbox to non-SVG files', () => {
         const response = createFileResponse({
-          buffer: Buffer.from('<svg>safe content</svg>'),
-          contentType: 'image/svg+xml',
-          filename: 'image.png', // Extension doesn't match content-type
+          buffer: Buffer.from('hello'),
+          contentType: 'text/plain',
+          filename: 'readme.txt',
         })
 
-        expect(response.status).toBe(200)
-        // Should override SVG content type to plain text for safety
-        expect(response.headers.get('Content-Type')).toBe('text/plain')
-        expect(response.headers.get('Content-Disposition')).toBe('inline; filename="image.png"')
+        expect(response.headers.get('Content-Security-Policy')).toBeNull()
       })
 
       it('should force attachment for JavaScript files', () => {
@@ -302,15 +298,22 @@ describe('extractFilename', () => {
     })
 
     describe('Content Security Policy', () => {
-      it('should include CSP header in all responses', () => {
-        const response = createFileResponse({
+      it('should include CSP header only for SVG responses', () => {
+        const svgResponse = createFileResponse({
+          buffer: Buffer.from('<svg></svg>'),
+          contentType: 'image/svg+xml',
+          filename: 'icon.svg',
+        })
+        expect(svgResponse.headers.get('Content-Security-Policy')).toBe(
+          "default-src 'none'; style-src 'unsafe-inline'; sandbox;"
+        )
+
+        const txtResponse = createFileResponse({
           buffer: Buffer.from('test'),
           contentType: 'text/plain',
           filename: 'test.txt',
         })
-
-        const csp = response.headers.get('Content-Security-Policy')
-        expect(csp).toBe("default-src 'none'; style-src 'unsafe-inline'; sandbox;")
+        expect(txtResponse.headers.get('Content-Security-Policy')).toBeNull()
       })
 
       it('should include X-Content-Type-Options header', () => {

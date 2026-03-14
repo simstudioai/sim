@@ -12,17 +12,21 @@ const logger = createLogger('DeploymentQueries')
  */
 export const deploymentKeys = {
   all: ['deployments'] as const,
-  info: (workflowId: string | null) => [...deploymentKeys.all, 'info', workflowId ?? ''] as const,
+  infos: () => [...deploymentKeys.all, 'info'] as const,
+  info: (workflowId: string | null) => [...deploymentKeys.infos(), workflowId ?? ''] as const,
+  allVersions: () => [...deploymentKeys.all, 'versions'] as const,
   versions: (workflowId: string | null) =>
-    [...deploymentKeys.all, 'versions', workflowId ?? ''] as const,
+    [...deploymentKeys.allVersions(), workflowId ?? ''] as const,
+  chatStatuses: () => [...deploymentKeys.all, 'chatStatus'] as const,
   chatStatus: (workflowId: string | null) =>
-    [...deploymentKeys.all, 'chatStatus', workflowId ?? ''] as const,
-  chatDetail: (chatId: string | null) =>
-    [...deploymentKeys.all, 'chatDetail', chatId ?? ''] as const,
+    [...deploymentKeys.chatStatuses(), workflowId ?? ''] as const,
+  chatDetails: () => [...deploymentKeys.all, 'chatDetail'] as const,
+  chatDetail: (chatId: string | null) => [...deploymentKeys.chatDetails(), chatId ?? ''] as const,
+  formStatuses: () => [...deploymentKeys.all, 'formStatus'] as const,
   formStatus: (workflowId: string | null) =>
-    [...deploymentKeys.all, 'formStatus', workflowId ?? ''] as const,
-  formDetail: (formId: string | null) =>
-    [...deploymentKeys.all, 'formDetail', formId ?? ''] as const,
+    [...deploymentKeys.formStatuses(), workflowId ?? ''] as const,
+  formDetails: () => [...deploymentKeys.all, 'formDetail'] as const,
+  formDetail: (formId: string | null) => [...deploymentKeys.formDetails(), formId ?? ''] as const,
 }
 
 /**
@@ -39,8 +43,11 @@ export interface WorkflowDeploymentInfo {
 /**
  * Fetches deployment info for a workflow
  */
-async function fetchDeploymentInfo(workflowId: string): Promise<WorkflowDeploymentInfo> {
-  const response = await fetch(`/api/workflows/${workflowId}/deploy`)
+async function fetchDeploymentInfo(
+  workflowId: string,
+  signal?: AbortSignal
+): Promise<WorkflowDeploymentInfo> {
+  const response = await fetch(`/api/workflows/${workflowId}/deploy`, { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch deployment information')
@@ -63,7 +70,7 @@ async function fetchDeploymentInfo(workflowId: string): Promise<WorkflowDeployme
 export function useDeploymentInfo(workflowId: string | null, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: deploymentKeys.info(workflowId),
-    queryFn: () => fetchDeploymentInfo(workflowId!),
+    queryFn: ({ signal }) => fetchDeploymentInfo(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
     staleTime: 30 * 1000, // 30 seconds
   })
@@ -79,8 +86,11 @@ export interface DeploymentVersionsResponse {
 /**
  * Fetches all deployment versions for a workflow
  */
-async function fetchDeploymentVersions(workflowId: string): Promise<DeploymentVersionsResponse> {
-  const response = await fetch(`/api/workflows/${workflowId}/deployments`)
+async function fetchDeploymentVersions(
+  workflowId: string,
+  signal?: AbortSignal
+): Promise<DeploymentVersionsResponse> {
+  const response = await fetch(`/api/workflows/${workflowId}/deployments`, { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch deployment versions')
@@ -99,7 +109,7 @@ async function fetchDeploymentVersions(workflowId: string): Promise<DeploymentVe
 export function useDeploymentVersions(workflowId: string | null, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: deploymentKeys.versions(workflowId),
-    queryFn: () => fetchDeploymentVersions(workflowId!),
+    queryFn: ({ signal }) => fetchDeploymentVersions(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
     staleTime: 30 * 1000, // 30 seconds
   })
@@ -119,8 +129,11 @@ export interface ChatDeploymentStatus {
 /**
  * Fetches chat deployment status for a workflow
  */
-async function fetchChatDeploymentStatus(workflowId: string): Promise<ChatDeploymentStatus> {
-  const response = await fetch(`/api/workflows/${workflowId}/chat/status`)
+async function fetchChatDeploymentStatus(
+  workflowId: string,
+  signal?: AbortSignal
+): Promise<ChatDeploymentStatus> {
+  const response = await fetch(`/api/workflows/${workflowId}/chat/status`, { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch chat deployment status')
@@ -143,7 +156,7 @@ export function useChatDeploymentStatus(
 ) {
   return useQuery({
     queryKey: deploymentKeys.chatStatus(workflowId),
-    queryFn: () => fetchChatDeploymentStatus(workflowId!),
+    queryFn: ({ signal }) => fetchChatDeploymentStatus(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
     staleTime: 30 * 1000, // 30 seconds
   })
@@ -173,8 +186,8 @@ export interface ChatDetail {
 /**
  * Fetches chat detail by chat ID
  */
-async function fetchChatDetail(chatId: string): Promise<ChatDetail> {
-  const response = await fetch(`/api/chat/manage/${chatId}`)
+async function fetchChatDetail(chatId: string, signal?: AbortSignal): Promise<ChatDetail> {
+  const response = await fetch(`/api/chat/manage/${chatId}`, { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch chat detail')
@@ -190,7 +203,7 @@ async function fetchChatDetail(chatId: string): Promise<ChatDetail> {
 export function useChatDetail(chatId: string | null, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: deploymentKeys.chatDetail(chatId),
-    queryFn: () => fetchChatDetail(chatId!),
+    queryFn: ({ signal }) => fetchChatDetail(chatId!, signal),
     enabled: Boolean(chatId) && (options?.enabled ?? true),
     staleTime: 30 * 1000, // 30 seconds
   })
@@ -609,7 +622,8 @@ export function useActivateDeploymentVersion() {
         data.deployedAt ? new Date(data.deployedAt) : undefined,
         data.apiKey
       )
-
+    },
+    onSettled: (_, __, variables) => {
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.info(variables.workflowId),
       })

@@ -1,19 +1,24 @@
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
 
 const logger = createLogger('WorkspaceByIdAPI')
 
 import { db } from '@sim/db'
-import { knowledgeBase, permissions, templates, workspace } from '@sim/db/schema'
+import { permissions, templates, workspace } from '@sim/db/schema'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const patchWorkspaceSchema = z.object({
   name: z.string().trim().min(1).optional(),
+  color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .optional(),
   billedAccountUserId: z.string().optional(),
   allowPersonalApiKeys: z.boolean().optional(),
 })
@@ -80,7 +85,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const workspaceDetails = await db
     .select()
     .from(workspace)
-    .where(eq(workspace.id, workspaceId))
+    .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
     .then((rows) => rows[0])
 
   if (!workspaceDetails) {
@@ -113,10 +118,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   try {
     const body = patchWorkspaceSchema.parse(await request.json())
-    const { name, billedAccountUserId, allowPersonalApiKeys } = body
+    const { name, color, billedAccountUserId, allowPersonalApiKeys } = body
 
     if (
       name === undefined &&
+      color === undefined &&
       billedAccountUserId === undefined &&
       allowPersonalApiKeys === undefined
     ) {
@@ -126,7 +132,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const existingWorkspace = await db
       .select()
       .from(workspace)
-      .where(eq(workspace.id, workspaceId))
+      .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
       .then((rows) => rows[0])
 
     if (!existingWorkspace) {
@@ -137,6 +143,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     if (name !== undefined) {
       updateData.name = name
+    }
+
+    if (color !== undefined) {
+      updateData.color = color
     }
 
     if (allowPersonalApiKeys !== undefined) {
@@ -233,67 +243,37 @@ export async function DELETE(
     const [workspaceRecord] = await db
       .select({ name: workspace.name })
       .from(workspace)
-      .where(eq(workspace.id, workspaceId))
+      .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
       .limit(1)
 
-    // Delete workspace and all related data in a transaction
-    let workspaceWorkflowCount = 0
-    await db.transaction(async (tx) => {
-      // Get all workflows in this workspace before deletion
-      const workspaceWorkflows = await tx
-        .select({ id: workflow.id })
-        .from(workflow)
-        .where(eq(workflow.workspaceId, workspaceId))
+    const workspaceWorkflows = await db
+      .select({ id: workflow.id })
+      .from(workflow)
+      .where(eq(workflow.workspaceId, workspaceId))
 
-      workspaceWorkflowCount = workspaceWorkflows.length
+    const workflowIds = workspaceWorkflows.map((entry) => entry.id)
 
-      if (workspaceWorkflows.length > 0) {
-        const workflowIds = workspaceWorkflows.map((w) => w.id)
-
-        // Handle templates based on user choice
-        if (deleteTemplates) {
-          // Delete published templates that reference these workflows
-          await tx.delete(templates).where(inArray(templates.workflowId, workflowIds))
-          logger.info(`Deleted templates for workflows in workspace ${workspaceId}`)
-        } else {
-          // Set workflowId to null for templates to create "orphaned" templates
-          // This allows templates to remain without source workflows
-          await tx
-            .update(templates)
-            .set({ workflowId: null })
-            .where(inArray(templates.workflowId, workflowIds))
-          logger.info(
-            `Updated templates to orphaned status for workflows in workspace ${workspaceId}`
-          )
-        }
+    if (workflowIds.length > 0) {
+      if (deleteTemplates) {
+        await db.delete(templates).where(inArray(templates.workflowId, workflowIds))
+      } else {
+        await db
+          .update(templates)
+          .set({ workflowId: null })
+          .where(inArray(templates.workflowId, workflowIds))
       }
+    }
 
-      // Delete all workflows in the workspace - database cascade will handle all workflow-related data
-      // The database cascade will handle deleting related workflow_blocks, workflow_edges, workflow_subflows,
-      // workflow_logs, workflow_execution_snapshots, workflow_execution_logs, workflow_execution_trace_spans,
-      // workflow_schedule, webhook, chat, and memory records
-      await tx.delete(workflow).where(eq(workflow.workspaceId, workspaceId))
-
-      // Clear workspace ID from knowledge bases instead of deleting them
-      // This allows knowledge bases to become "unassigned" rather than being deleted
-      await tx
-        .update(knowledgeBase)
-        .set({ workspaceId: null, updatedAt: new Date() })
-        .where(eq(knowledgeBase.workspaceId, workspaceId))
-
-      // Delete all permissions associated with this workspace
-      await tx
-        .delete(permissions)
-        .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
-
-      // Delete the workspace itself
-      await tx.delete(workspace).where(eq(workspace.id, workspaceId))
-
-      logger.info(`Successfully deleted workspace ${workspaceId} and all related data`)
+    const archiveResult = await archiveWorkspace(workspaceId, {
+      requestId: `workspace-${workspaceId}`,
     })
 
+    if (!archiveResult.archived && !workspaceRecord) {
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+    }
+
     recordAudit({
-      workspaceId: null,
+      workspaceId,
       actorId: session.user.id,
       actorName: session.user.name,
       actorEmail: session.user.email,
@@ -301,11 +281,12 @@ export async function DELETE(
       resourceType: AuditResourceType.WORKSPACE,
       resourceId: workspaceId,
       resourceName: workspaceRecord?.name,
-      description: `Deleted workspace "${workspaceRecord?.name || workspaceId}"`,
+      description: `Archived workspace "${workspaceRecord?.name || workspaceId}"`,
       metadata: {
         affected: {
-          workflows: workspaceWorkflowCount,
+          workflows: workflowIds.length,
         },
+        archived: archiveResult.archived,
         deleteTemplates,
       },
       request,

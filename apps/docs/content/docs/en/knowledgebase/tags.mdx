@@ -3,6 +3,7 @@ title: Tags and Filtering
 ---
 
 import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
 
 Tags provide a powerful way to organize your documents and create precise filtering for your vector searches. By combining tag-based filtering with semantic search, you can retrieve exactly the content you need from your knowledgebase.
 
@@ -16,7 +17,7 @@ You can add custom tags to any document in your knowledgebase to organize and ca
 
 ### Tag Management
 - **Custom tags**: Create your own tag system that fits your workflow
-- **Multiple tags per document**: Apply as many tags as needed to each document, there are 7 tag slots available per knowledgebase that are shared by all documents in the knowledgebase
+- **Multiple tags per document**: Apply as many tags as needed to each document. Each knowledgebase has 17 tag slots total: 7 text, 5 number, 2 date, and 3 boolean slots, shared by all documents in the knowledgebase
 - **Tag organization**: Group related documents with consistent tagging
 
 ### Tag Best Practices
@@ -65,10 +66,10 @@ When you **provide both tags and a search query**:
 ### Search Configuration
 
 #### Tag Filtering
-- **Multiple tags**: Use multiple tags for OR logic (document must have one or more of the tags)
+- **Multiple tags**: Use multiple tags with AND or OR logic to control whether documents must match all or any of the specified tags
 - **Tag combinations**: Mix different tag types for precise filtering
 - **Case sensitivity**: Tag matching is case-insensitive
-- **Partial matching**: Exact tag name matching required
+- **Partial matching**: Text fields support partial matching operators such as contains, starts_with, and ends_with in addition to exact matching
 
 #### Vector Search Parameters
 - **Query complexity**: Natural language questions work best
@@ -106,3 +107,12 @@ When you **provide both tags and a search query**:
 5. **Refine over time**: Adjust your tagging approach based on search results
 
 Tags transform your knowledgebase from a simple document store into a precisely organized, searchable intelligence system that your AI workflows can navigate with surgical precision.
+
+<FAQ items={[
+  { question: "How many tag slots are available per knowledgebase?", answer: "Each knowledgebase supports up to 17 tag slots total across four field types: 7 text slots, 5 number slots, 2 date slots, and 3 boolean slots. These slots are shared across all documents in the knowledgebase." },
+  { question: "What tag field types are supported?", answer: "Four field types are supported: text (free-form string values), number (numeric values), date (date values in YYYY-MM-DD format), and boolean (true/false values). Each type has its own pool of available slots." },
+  { question: "Is tag matching case-sensitive?", answer: "No, tag matching is case-insensitive. You can use any capitalization when filtering by tags and it will match regardless of how the tag value was originally entered." },
+  { question: "How does combined tag and vector search work?", answer: "When you provide both tags and a search query, tag filtering is applied first to narrow down the document set, then vector search runs within that filtered subset. This approach is more efficient because it reduces the number of vectors that need similarity comparison." },
+  { question: "What is the default number of results returned from a knowledge search?", answer: "The default is 10 results. You can configure this with the topK parameter, which accepts values from 1 to 100." },
+  { question: "What embedding model does Sim use for knowledge base search?", answer: "Sim uses OpenAI's text-embedding-3-small model with 1536 dimensions for generating document embeddings and performing vector similarity search." },
+]} />

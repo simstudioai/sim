@@ -37,9 +37,9 @@ export async function GET() {
 
     const manifest = `# Sim Documentation
 
-> Visual Workflow Builder for AI Applications
+> The open-source platform to build AI agents and run your agentic workforce.
 
-Sim is a visual workflow builder for AI applications that lets you build AI agent workflows visually. Create powerful AI agents, automation workflows, and data processing pipelines by connecting blocks on a canvas—no coding required.
+Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows. Create agents, workflows, knowledge bases, tables, and docs. Trusted by over 100,000 builders.
 
 ## Documentation Overview
 

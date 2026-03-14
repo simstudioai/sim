@@ -1,34 +1,19 @@
 /**
  * @vitest-environment node
  */
-import { drizzleOrmMock, loggerMock } from '@sim/testing'
+import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSelect, mockFrom, mockWhere, mockLimit, mockGetUserEntityPermissions } = vi.hoisted(
-  () => ({
-    mockSelect: vi.fn(),
-    mockFrom: vi.fn(),
-    mockWhere: vi.fn(),
-    mockLimit: vi.fn(),
-    mockGetUserEntityPermissions: vi.fn(),
-  })
-)
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mockSelect,
-  },
+const { mockGetActiveWorkflowContext, mockGetUserEntityPermissions } = vi.hoisted(() => ({
+  mockGetActiveWorkflowContext: vi.fn(),
+  mockGetUserEntityPermissions: vi.fn(),
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  workflow: {
-    id: 'id',
-    workspaceId: 'workspaceId',
-  },
-}))
-
-vi.mock('drizzle-orm', () => drizzleOrmMock)
 vi.mock('@sim/logger', () => loggerMock)
+
+vi.mock('@/lib/workflows/active-context', () => ({
+  getActiveWorkflowContext: mockGetActiveWorkflowContext,
+}))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getUserEntityPermissions: mockGetUserEntityPermissions,
@@ -40,15 +25,12 @@ describe('Copilot Auth Permissions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockSelect.mockReturnValue({ from: mockFrom })
-    mockFrom.mockReturnValue({ where: mockWhere })
-    mockWhere.mockReturnValue({ limit: mockLimit })
-    mockLimit.mockResolvedValue([])
+    mockGetActiveWorkflowContext.mockResolvedValue(null)
   })
 
   describe('verifyWorkflowAccess', () => {
     it('should return no access for non-existent workflow', async () => {
-      mockLimit.mockResolvedValueOnce([])
+      mockGetActiveWorkflowContext.mockResolvedValueOnce(null)
 
       const result = await verifyWorkflowAccess('user-123', 'non-existent-workflow')
 
@@ -59,10 +41,10 @@ describe('Copilot Auth Permissions', () => {
     })
 
     it('should check workspace permissions for workflow with workspace', async () => {
-      const workflowData = {
+      mockGetActiveWorkflowContext.mockResolvedValueOnce({
+        workflow: {},
         workspaceId: 'workspace-456',
-      }
-      mockLimit.mockResolvedValueOnce([workflowData])
+      })
       mockGetUserEntityPermissions.mockResolvedValueOnce('write')
 
       const result = await verifyWorkflowAccess('user-123', 'workflow-789')
@@ -81,10 +63,10 @@ describe('Copilot Auth Permissions', () => {
     })
 
     it('should return read permission through workspace', async () => {
-      const workflowData = {
+      mockGetActiveWorkflowContext.mockResolvedValueOnce({
+        workflow: {},
         workspaceId: 'workspace-456',
-      }
-      mockLimit.mockResolvedValueOnce([workflowData])
+      })
       mockGetUserEntityPermissions.mockResolvedValueOnce('read')
 
       const result = await verifyWorkflowAccess('user-123', 'workflow-789')
@@ -97,10 +79,10 @@ describe('Copilot Auth Permissions', () => {
     })
 
     it('should return admin permission through workspace', async () => {
-      const workflowData = {
+      mockGetActiveWorkflowContext.mockResolvedValueOnce({
+        workflow: {},
         workspaceId: 'workspace-456',
-      }
-      mockLimit.mockResolvedValueOnce([workflowData])
+      })
       mockGetUserEntityPermissions.mockResolvedValueOnce('admin')
 
       const result = await verifyWorkflowAccess('user-123', 'workflow-789')
@@ -113,10 +95,10 @@ describe('Copilot Auth Permissions', () => {
     })
 
     it('should return no access without workspace permissions', async () => {
-      const workflowData = {
+      mockGetActiveWorkflowContext.mockResolvedValueOnce({
+        workflow: {},
         workspaceId: 'workspace-456',
-      }
-      mockLimit.mockResolvedValueOnce([workflowData])
+      })
       mockGetUserEntityPermissions.mockResolvedValueOnce(null)
 
       const result = await verifyWorkflowAccess('user-123', 'workflow-789')
@@ -129,22 +111,18 @@ describe('Copilot Auth Permissions', () => {
     })
 
     it('should return no access for workflow without workspace', async () => {
-      const workflowData = {
-        workspaceId: null,
-      }
-      mockLimit.mockResolvedValueOnce([workflowData])
+      mockGetActiveWorkflowContext.mockResolvedValueOnce(null)
 
       const result = await verifyWorkflowAccess('user-123', 'workflow-789')
 
       expect(result).toEqual({
         hasAccess: false,
         userPermission: null,
-        workspaceId: undefined,
       })
     })
 
     it('should handle database errors gracefully', async () => {
-      mockLimit.mockRejectedValueOnce(new Error('Database connection failed'))
+      mockGetActiveWorkflowContext.mockRejectedValueOnce(new Error('Database connection failed'))
 
       const result = await verifyWorkflowAccess('user-123', 'workflow-789')
 
@@ -155,11 +133,10 @@ describe('Copilot Auth Permissions', () => {
     })
 
     it('should handle permission check errors gracefully', async () => {
-      const workflowData = {
-        userId: 'other-user',
+      mockGetActiveWorkflowContext.mockResolvedValueOnce({
+        workflow: {},
         workspaceId: 'workspace-456',
-      }
-      mockLimit.mockResolvedValueOnce([workflowData])
+      })
       mockGetUserEntityPermissions.mockRejectedValueOnce(new Error('Permission check failed'))
 
       const result = await verifyWorkflowAccess('user-123', 'workflow-789')

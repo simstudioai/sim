@@ -4,6 +4,7 @@ description: Enterprise features for business organizations
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
 
 Sim Enterprise provides advanced features for organizations with enhanced security, compliance, and management requirements.
 
@@ -108,3 +109,14 @@ curl -X DELETE "https://your-instance/api/v1/admin/workspaces/{workspaceId}/memb
 
 - Enabling `ACCESS_CONTROL_ENABLED` automatically enables organizations, as access control requires organization membership.
 - When `DISABLE_INVITATIONS` is set, users cannot send invitations. Use the Admin API to manage workspace and organization memberships instead.
+
+<FAQ items={[
+  { question: "What are the minimum requirements to self-host Sim?", answer: "The Docker Compose production setup includes the Sim application (8 GB memory limit), a realtime collaboration server (1 GB memory limit), and a PostgreSQL database with pgvector. A machine with at least 16 GB of RAM and 4 CPU cores is recommended. You will also need Docker and Docker Compose installed." },
+  { question: "Can I run Sim completely offline with local AI models?", answer: "Yes. Sim supports Ollama and VLLM for running local AI models. A separate Docker Compose configuration (docker-compose.ollama.yml) is available for deploying with Ollama. This lets you run workflows without any external API calls, keeping all data on your infrastructure." },
+  { question: "How does data privacy work with self-hosted deployments?", answer: "When self-hosted, all data stays on your infrastructure. Workflow definitions, execution logs, credentials, and user data are stored in your PostgreSQL database. If you use local AI models through Ollama or VLLM, no data leaves your network. When using external AI providers, only the data sent in prompts goes to those providers." },
+  { question: "Do I need a paid license to self-host Sim?", answer: "The core Sim platform is open source under Apache 2.0 and can be self-hosted for free. Enterprise features like SSO (SAML/OIDC), access control with permission groups, and organization management require an Enterprise subscription for production use. These features can be enabled via environment variables for development and evaluation without a license." },
+  { question: "Which SSO providers are supported?", answer: "Sim supports SAML 2.0 and OIDC protocols, which means it works with virtually any enterprise identity provider including Okta, Azure AD (Entra ID), Google Workspace, and OneLogin. Configuration is done through Settings in the workspace UI." },
+  { question: "How do I manage users when invitations are disabled?", answer: "Use the Admin API with your admin API key. You can create organizations, add members to organizations with specific roles, add users to workspaces with defined permissions, and remove users. All management is done through REST API calls authenticated with the x-admin-key header." },
+  { question: "Can I scale Sim horizontally for high availability?", answer: "The Docker Compose setup is designed for single-node deployments. For production scaling, you can deploy on Kubernetes with multiple application replicas behind a load balancer. The database can be scaled independently using managed PostgreSQL services. Redis can be configured for session and cache management across multiple instances." },
+  { question: "How do access control permission groups work?", answer: "Permission groups let you restrict which AI providers, workflow blocks, and platform features are available to specific team members. Users not assigned to any group have full access. Restrictions are enforced at both the UI level (hiding restricted options) and at execution time (blocking unauthorized operations). Enabling access control automatically enables organization management." },
+]} />

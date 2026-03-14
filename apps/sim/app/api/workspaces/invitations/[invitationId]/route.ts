@@ -10,7 +10,7 @@ import {
   workspaceInvitation,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { WorkspaceInvitationEmail } from '@/components/emails'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
@@ -19,7 +19,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
-import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+import { getWorkspaceById, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceInvitationAPI')
 
@@ -74,7 +74,7 @@ export async function GET(
     const workspaceDetails = await db
       .select()
       .from(workspace)
-      .where(eq(workspace.id, invitation.workspaceId))
+      .where(and(eq(workspace.id, invitation.workspaceId), isNull(workspace.archivedAt)))
       .then((rows) => rows[0])
 
     if (!workspaceDetails) {
@@ -141,7 +141,7 @@ export async function GET(
           .where(eq(workspaceInvitation.id, invitation.id))
 
         return NextResponse.redirect(
-          new URL(`/workspace/${invitation.workspaceId}/w`, getBaseUrl())
+          new URL(`/workspace/${invitation.workspaceId}/home`, getBaseUrl())
         )
       }
 
@@ -193,7 +193,9 @@ export async function GET(
         request: req,
       })
 
-      return NextResponse.redirect(new URL(`/workspace/${invitation.workspaceId}/w`, getBaseUrl()))
+      return NextResponse.redirect(
+        new URL(`/workspace/${invitation.workspaceId}/home`, getBaseUrl())
+      )
     }
 
     return NextResponse.json({
@@ -233,6 +235,11 @@ export async function DELETE(
 
     if (!invitation) {
       return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
+    }
+
+    const activeWorkspace = await getWorkspaceById(invitation.workspaceId)
+    if (!activeWorkspace) {
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }
 
     const hasAdminAccess = await hasWorkspaceAdminAccess(session.user.id, invitation.workspaceId)

@@ -1,3 +1,4 @@
+import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
 import { env } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
@@ -88,14 +89,14 @@ export const RATE_LIMITS: Record<SubscriptionPlan, RateLimitConfig> = {
 }
 
 export function getRateLimit(
-  plan: SubscriptionPlan | undefined,
+  plan: SubscriptionPlan | string | undefined,
   type: RateLimitCounterType
 ): TokenBucketConfig {
   const key = toConfigKey(type)
   if (!isBillingEnabled) {
     return RATE_LIMITS.free[key]
   }
-  return RATE_LIMITS[plan || 'free'][key]
+  return RATE_LIMITS[getPlanTypeForLimits(plan)][key]
 }
 
 export class RateLimitError extends Error {

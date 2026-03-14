@@ -15,6 +15,7 @@ import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
 import { addCredits, getCreditBalance, removeCredits } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
 import { blockOrgMembers, unblockOrgMembers } from '@/lib/billing/organizations/membership'
+import { isEnterprise, isOrgPlan, isTeam } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -155,7 +156,7 @@ async function sendPaymentFailureEmails(
     // Get users to notify
     let usersToNotify: Array<{ email: string; name: string | null }> = []
 
-    if (sub.plan === 'team' || sub.plan === 'enterprise') {
+    if (isOrgPlan(sub.plan)) {
       // For team/enterprise, notify all owners and admins
       const members = await db
         .select({
@@ -240,7 +241,7 @@ export async function getBilledOverageForSubscription(sub: {
   plan: string | null
   referenceId: string
 }): Promise<number> {
-  if (sub.plan === 'team') {
+  if (isTeam(sub.plan)) {
     const ownerRows = await db
       .select({ userId: member.userId })
       .from(member)
@@ -275,7 +276,7 @@ export async function getBilledOverageForSubscription(sub: {
 }
 
 export async function resetUsageForSubscription(sub: { plan: string | null; referenceId: string }) {
-  if (sub.plan === 'team' || sub.plan === 'enterprise') {
+  if (isOrgPlan(sub.plan)) {
     const membersRows = await db
       .select({ userId: member.userId })
       .from(member)
@@ -479,7 +480,7 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
 
     // Only reset usage here if the tenant was previously blocked; otherwise invoice.created already reset it
     let wasBlocked = false
-    if (sub.plan === 'team' || sub.plan === 'enterprise') {
+    if (isOrgPlan(sub.plan)) {
       const membersRows = await db
         .select({ userId: member.userId })
         .from(member)
@@ -502,7 +503,7 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
       wasBlocked = row.length > 0 ? !!row[0].blocked : false
     }
 
-    if (sub.plan === 'team' || sub.plan === 'enterprise') {
+    if (isOrgPlan(sub.plan)) {
       await unblockOrgMembers(sub.referenceId, 'payment_failed')
     } else {
       // Only unblock users blocked for payment_failed, not disputes
@@ -599,7 +600,7 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
 
       if (records.length > 0) {
         const sub = records[0]
-        if (sub.plan === 'team' || sub.plan === 'enterprise') {
+        if (isOrgPlan(sub.plan)) {
           const memberCount = await blockOrgMembers(sub.referenceId, 'payment_failed')
           logger.info('Blocked team/enterprise members due to payment failure', {
             organizationId: sub.referenceId,
@@ -686,7 +687,7 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
     const sub = records[0]
 
     // Enterprise plans have no overages - reset usage and exit
-    if (sub.plan === 'enterprise') {
+    if (isEnterprise(sub.plan)) {
       await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
       return
     }
@@ -708,7 +709,7 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
     // Apply credits to reduce overage at end of cycle
     let creditsApplied = 0
     if (remainingOverage > 0) {
-      const entityType = sub.plan === 'team' || sub.plan === 'enterprise' ? 'organization' : 'user'
+      const entityType = isOrgPlan(sub.plan) ? 'organization' : 'user'
       const entityId = sub.referenceId
       const { balance: creditBalance } = await getCreditBalance(entityId)
 

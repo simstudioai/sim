@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useMemo, useState } from 'react'
+import { memo, useState } from 'react'
 import { Check, Copy, File as FileIcon, FileText, Image as ImageIcon } from 'lucide-react'
 import { Tooltip } from '@/components/emcn'
 import {
@@ -8,6 +8,7 @@ import {
   ChatFileDownloadAll,
 } from '@/app/chat/components/message/components/file-download'
 import MarkdownRenderer from '@/app/chat/components/message/components/markdown-renderer'
+import { useThrottledValue } from '@/hooks/use-throttled-value'
 
 export interface ChatAttachment {
   id: string
@@ -39,16 +40,15 @@ export interface ChatMessage {
 }
 
 function EnhancedMarkdownRenderer({ content }: { content: string }) {
-  return <MarkdownRenderer content={content} />
+  const throttled = useThrottledValue(content)
+  return <MarkdownRenderer content={throttled} />
 }
 
 export const ClientChatMessage = memo(
   function ClientChatMessage({ message }: { message: ChatMessage }) {
     const [isCopied, setIsCopied] = useState(false)
 
-    const isJsonObject = useMemo(() => {
-      return typeof message.content === 'object' && message.content !== null
-    }, [message.content])
+    const isJsonObject = typeof message.content === 'object' && message.content !== null
 
     // Since tool calls are now handled via SSE events and stored in message.toolCalls,
     // we can use the content directly without parsing

@@ -20,6 +20,7 @@ vi.mock('drizzle-orm', () => ({
 vi.mock('@/lib/workflows/utils', () => ({
   authorizeWorkflowByWorkspacePermission: (...args: unknown[]) =>
     mockAuthorizeWorkflowByWorkspacePermission(...args),
+  deduplicateWorkflowName: vi.fn(async (name: string) => name),
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({

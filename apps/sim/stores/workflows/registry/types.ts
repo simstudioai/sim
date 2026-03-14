@@ -27,6 +27,7 @@ export interface WorkflowMetadata {
   workspaceId?: string
   folderId?: string | null
   sortOrder: number
+  archivedAt?: Date | null
 }
 
 export type HydrationPhase =

@@ -142,3 +142,34 @@ export async function verifyCreatorPermission(
 
   return { hasPermission: false, error: 'Unknown creator profile type' }
 }
+
+export async function canAccessTemplate(
+  templateId: string,
+  userId?: string | null
+): Promise<{ allowed: boolean; template?: typeof templates.$inferSelect }> {
+  const [template] = await db.select().from(templates).where(eq(templates.id, templateId)).limit(1)
+
+  if (!template) {
+    return { allowed: false }
+  }
+
+  if (template.status === 'approved') {
+    return { allowed: true, template }
+  }
+
+  if (!userId) {
+    return { allowed: false, template }
+  }
+
+  const { effectiveSuperUser } = await verifyEffectiveSuperUser(userId)
+  if (effectiveSuperUser) {
+    return { allowed: true, template }
+  }
+
+  if (!template.creatorId) {
+    return { allowed: false, template }
+  }
+
+  const { hasPermission } = await verifyCreatorPermission(userId, template.creatorId, 'member')
+  return { allowed: hasPermission, template }
+}

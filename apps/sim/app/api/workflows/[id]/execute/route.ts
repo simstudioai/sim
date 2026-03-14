@@ -349,11 +349,55 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       runFromBlock: rawRunFromBlock,
     } = validation.data
 
+    if (isPublicApiAccess && isClientSession) {
+      return NextResponse.json(
+        { error: 'Public API callers cannot set isClientSession' },
+        { status: 400 }
+      )
+    }
+
+    if (auth.authType === 'api_key') {
+      if (isClientSession) {
+        return NextResponse.json(
+          { error: 'API key callers cannot set isClientSession' },
+          { status: 400 }
+        )
+      }
+
+      if (workflowStateOverride) {
+        return NextResponse.json(
+          { error: 'API key callers cannot provide workflowStateOverride' },
+          { status: 400 }
+        )
+      }
+
+      if (useDraftState) {
+        return NextResponse.json(
+          { error: 'API key callers cannot execute draft workflow state' },
+          { status: 400 }
+        )
+      }
+    }
+
     // Resolve runFromBlock snapshot from executionId if needed
     let resolvedRunFromBlock:
       | { startBlockId: string; sourceSnapshot: SerializableExecutionState }
       | undefined
     if (rawRunFromBlock) {
+      if (rawRunFromBlock.sourceSnapshot && auth.authType === 'api_key') {
+        return NextResponse.json(
+          { error: 'API key callers cannot provide runFromBlock.sourceSnapshot' },
+          { status: 400 }
+        )
+      }
+
+      if (rawRunFromBlock.executionId && (auth.authType === 'api_key' || isPublicApiAccess)) {
+        return NextResponse.json(
+          { error: 'External callers cannot resume from stored execution snapshots' },
+          { status: 400 }
+        )
+      }
+
       if (rawRunFromBlock.sourceSnapshot && !isPublicApiAccess) {
         // Public API callers cannot inject arbitrary block state via sourceSnapshot.
         // They must use executionId to resume from a server-stored execution state.
@@ -362,13 +406,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           sourceSnapshot: rawRunFromBlock.sourceSnapshot as SerializableExecutionState,
         }
       } else if (rawRunFromBlock.executionId) {
-        const { getExecutionState, getLatestExecutionState } = await import(
+        const { getExecutionStateForWorkflow, getLatestExecutionState } = await import(
           '@/lib/workflows/executor/execution-state'
         )
         const snapshot =
           rawRunFromBlock.executionId === 'latest'
             ? await getLatestExecutionState(workflowId)
-            : await getExecutionState(rawRunFromBlock.executionId)
+            : await getExecutionStateForWorkflow(rawRunFromBlock.executionId, workflowId)
         if (!snapshot) {
           return NextResponse.json(
             {
@@ -425,6 +469,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const enableSSE = streamHeader || streamParam === true
     const executionModeHeader = req.headers.get('X-Execution-Mode')
     const isAsyncMode = executionModeHeader === 'async'
+    const requiresWriteExecutionAccess = Boolean(
+      useDraftState || workflowStateOverride || rawRunFromBlock
+    )
+
+    if (
+      isAsyncMode &&
+      (body.useDraftState !== undefined ||
+        body.workflowStateOverride !== undefined ||
+        body.runFromBlock !== undefined ||
+        body.stopAfterBlockId !== undefined ||
+        body.selectedOutputs?.length ||
+        body.includeFileBase64 !== undefined ||
+        body.base64MaxBytes !== undefined)
+    ) {
+      return NextResponse.json(
+        { error: 'Async execution does not support draft or override execution controls' },
+        { status: 400 }
+      )
+    }
 
     logger.info(`[${requestId}] Starting server-side execution`, {
       workflowId,
@@ -460,7 +523,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
       workflowId,
       userId,
-      action: shouldUseDraftState ? 'write' : 'read',
+      action: requiresWriteExecutionAccess ? 'write' : 'read',
     })
     if (!workflowAuthorization.allowed) {
       return NextResponse.json(
@@ -498,6 +561,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Workflow has no associated workspace' }, { status: 500 })
     }
     const workspaceId = workflow.workspaceId
+
+    if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workspaceId) {
+      return NextResponse.json(
+        { error: 'API key is not authorized for this workspace' },
+        { status: 403 }
+      )
+    }
 
     logger.info(`[${requestId}] Preprocessing passed`, {
       workflowId,

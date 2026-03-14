@@ -5,6 +5,7 @@ title: Overview
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
 
 Sim's execution engine brings your workflows to life by processing blocks in the correct order, managing data flow, and handling errors gracefully, so you can understand exactly how workflows are executed in Sim.
 
@@ -55,7 +56,7 @@ Each workflow maintains a rich context during execution containing:
 
 ## Deployment Snapshots
 
-All public entry points—API, Chat, Schedule, Webhook, and Manual runs—execute the workflow’s active deployment snapshot. Publish a new deployment whenever you change the canvas so every trigger uses the updated version.
+API, Chat, Schedule, and Webhook executions run against the workflow’s active deployment snapshot. Manual runs from the editor execute the current draft canvas state, letting you test changes before deploying. Publish a new deployment whenever you change the canvas so every trigger uses the updated version.
 
 <div className='flex justify-center my-6'>
   <Image
@@ -114,3 +115,13 @@ const result = await client.executeWorkflow('workflow-id', {
 ## What's Next?
 
 Start with [Execution Basics](/execution/basics) to understand how workflows run, then explore [Logging](/execution/logging) to monitor your executions and [Cost Calculation](/execution/costs) to optimize your spending.
+
+<FAQ items={[
+  { question: "What are the execution timeout limits?", answer: "Synchronous executions (API, chat) have a default timeout of 5 minutes on the Free plan and 50 minutes on Pro, Team, and Enterprise plans. Asynchronous executions (schedules, webhooks) allow up to 90 minutes across all plans. These limits are configurable by the platform administrator." },
+  { question: "How does parallel execution work?", answer: "The engine identifies layers of blocks with no dependencies on each other and runs them concurrently. Within loops and parallel blocks, the engine supports up to 20 parallel branches by default and up to 1,000 loop iterations. Nested subflows (loops inside parallels, or vice versa) are supported up to 10 levels deep." },
+  { question: "Can I cancel a running execution?", answer: "Yes. The engine supports cancellation through an abort signal mechanism. When you cancel an execution, the engine checks for cancellation between block executions (at roughly 500ms intervals when using Redis-backed cancellation). Any in-progress blocks complete, and the execution returns with a cancelled status." },
+  { question: "What is a deployment snapshot?", answer: "A deployment snapshot is a frozen copy of your workflow at the time you click Deploy. Trigger-based executions (API, chat, schedule, webhook) run against the active snapshot, not your draft canvas. Manual runs from the editor execute the current draft canvas state, so you can test changes before deploying. You can view, compare, and roll back snapshots from the Deploy modal." },
+  { question: "How are execution costs calculated?", answer: "Costs are tracked per block based on the AI model used. Each block log records input tokens, output tokens, and the computed cost using the model's pricing. The total workflow cost is the sum of all block-level costs for that execution. You can review costs in the execution logs." },
+  { question: "What happens when a block fails during execution?", answer: "When a block throws an error, the engine captures the error message in the block log, finalizes any incomplete logs with timing data, and halts the execution with a failure status. If the failing block has an error output handle connected to another block, that error path is followed instead of halting entirely." },
+  { question: "Can I re-run part of a workflow without starting from scratch?", answer: "Yes. The run-from-block feature lets you select a specific block and re-execute from that point. The engine computes which upstream blocks need to be re-run (the dirty set) and preserves cached outputs from blocks that have not changed, so only the affected portion of the workflow re-executes." },
+]} />

@@ -95,6 +95,16 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    if (accessCheck.document?.connectorId) {
+      logger.warn(
+        `[${requestId}] User ${session.user.id} attempted to update chunk on connector-synced document: Doc=${documentId}`
+      )
+      return NextResponse.json(
+        { error: 'Chunks from connector-synced documents are read-only' },
+        { status: 403 }
+      )
+    }
+
     const body = await req.json()
 
     try {
@@ -165,6 +175,16 @@ export async function DELETE(
         `[${requestId}] User ${session.user.id} attempted unauthorized chunk deletion: ${accessCheck.reason}`
       )
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (accessCheck.document?.connectorId) {
+      logger.warn(
+        `[${requestId}] User ${session.user.id} attempted to delete chunk on connector-synced document: Doc=${documentId}`
+      )
+      return NextResponse.json(
+        { error: 'Chunks from connector-synced documents are read-only' },
+        { status: 403 }
+      )
     }
 
     await deleteChunk(chunkId, documentId, requestId)

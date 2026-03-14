@@ -17,6 +17,7 @@ export interface CodeExecutionInput {
     userId?: string
   }
   isCustomTool?: boolean
+  _sandboxFiles?: Array<{ path: string; content: string }>
 }
 
 export interface CodeExecutionOutput extends ToolResponse {

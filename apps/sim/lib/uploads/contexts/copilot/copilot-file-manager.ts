@@ -5,31 +5,35 @@ import {
   generatePresignedDownloadUrl,
   generatePresignedUploadUrl,
 } from '@/lib/uploads/core/storage-service'
+import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import type { PresignedUrlResponse } from '@/lib/uploads/shared/types'
 
 const logger = createLogger('CopilotFileManager')
 
-const SUPPORTED_IMAGE_TYPES = [
+const SUPPORTED_FILE_TYPES = [
+  // Images
   'image/jpeg',
   'image/jpg',
   'image/png',
   'image/gif',
   'image/webp',
   'image/svg+xml',
+  // Documents
+  'application/pdf',
+  'text/plain',
+  'text/csv',
+  'text/markdown',
+  'text/html',
+  'application/json',
+  'application/xml',
+  'text/xml',
 ]
 
 /**
- * Check if a file type is a supported image format for copilot
+ * Check if a MIME type is supported for copilot attachments
  */
 export function isSupportedFileType(mimeType: string): boolean {
-  return SUPPORTED_IMAGE_TYPES.includes(mimeType.toLowerCase())
-}
-
-/**
- * Check if a content type is an image
- */
-export function isImageFileType(contentType: string): boolean {
-  return contentType.toLowerCase().startsWith('image/')
+  return SUPPORTED_FILE_TYPES.includes(mimeType.toLowerCase())
 }
 
 export interface CopilotFileAttachment {
@@ -49,12 +53,12 @@ export interface GenerateCopilotUploadUrlOptions {
 /**
  * Generate a presigned URL for copilot file upload
  *
- * Only image files are allowed for copilot uploads.
+ * Images and document files are allowed for copilot uploads.
  * Requires authenticated user session.
  *
  * @param options Upload URL generation options
  * @returns Presigned URL response with upload URL and file key
- * @throws Error if file type is not an image or user is not authenticated
+ * @throws Error if file type is unsupported or user is not authenticated
  */
 export async function generateCopilotUploadUrl(
   options: GenerateCopilotUploadUrlOptions
@@ -65,8 +69,10 @@ export async function generateCopilotUploadUrl(
     throw new Error('Authenticated user session is required for copilot uploads')
   }
 
-  if (!isImageFileType(contentType)) {
-    throw new Error('Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed for copilot uploads')
+  if (!isSupportedFileType(contentType) && !isImageFileType(contentType)) {
+    throw new Error(
+      'Unsupported file type. Allowed: images (JPEG, PNG, GIF, WebP), PDF, and text files (TXT, CSV, MD, HTML, JSON, XML).'
+    )
   }
 
   const presignedUrlResponse = await generatePresignedUploadUrl({

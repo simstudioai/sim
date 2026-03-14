@@ -8,6 +8,7 @@ import { db } from '@sim/db'
 import { organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
+import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 
 const logger = createLogger('StorageTracking')
@@ -27,8 +28,7 @@ export async function incrementStorageUsage(userId: string, bytes: number): Prom
     const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
     const sub = await getHighestPrioritySubscription(userId)
 
-    if (sub && (sub.plan === 'team' || sub.plan === 'enterprise')) {
-      // Update organization storage
+    if (sub && isOrgPlan(sub.plan)) {
       await db
         .update(organization)
         .set({
@@ -69,8 +69,7 @@ export async function decrementStorageUsage(userId: string, bytes: number): Prom
     const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
     const sub = await getHighestPrioritySubscription(userId)
 
-    if (sub && (sub.plan === 'team' || sub.plan === 'enterprise')) {
-      // Update organization storage
+    if (sub && isOrgPlan(sub.plan)) {
       await db
         .update(organization)
         .set({

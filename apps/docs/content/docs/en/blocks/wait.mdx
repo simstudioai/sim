@@ -5,6 +5,7 @@ title: Wait
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
 
 The Wait block pauses your workflow for a specified amount of time before continuing to the next block. Use it to add delays between actions, respect API rate limits, or space out operations.
 
@@ -62,3 +63,11 @@ API (Trigger Job) → Wait (30s) → API (Check Status)
 
 - **Keep waits reasonable**: Use Wait for delays up to 10 minutes. For longer delays, consider scheduled workflows
 - **Monitor execution time**: Remember that waits extend total workflow duration
+
+<FAQ items={[
+  { question: "What is the maximum wait time?", answer: "The maximum wait time is 600 seconds (10 minutes). You can specify the duration in either seconds or minutes." },
+  { question: "Can a Wait block be cancelled?", answer: "Yes. Wait blocks are interruptible via workflow cancellation. If the workflow is stopped while a Wait block is active, the wait is cancelled and the status output will reflect 'cancelled'." },
+  { question: "What happens if I enter a value exceeding the maximum?", answer: "The wait is capped at 600 seconds. If you enter a value greater than 600 seconds (or greater than 10 minutes), it will be limited to the maximum allowed duration." },
+  { question: "Does the Wait block consume resources while paused?", answer: "The Wait block performs a simple sleep for the configured duration. It does not actively consume compute resources during the wait, but the workflow execution remains open until the wait completes." },
+  { question: "What outputs does the Wait block provide?", answer: "The Wait block outputs the wait duration in milliseconds (waitDuration) and a status string that indicates whether the wait is 'waiting', 'completed', or 'cancelled'." },
+]} />

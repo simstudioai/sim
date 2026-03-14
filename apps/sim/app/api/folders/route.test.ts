@@ -455,7 +455,7 @@ describe('Folders API Route', () => {
         expect(response.status).toBe(400)
 
         const data = await response.json()
-        expect(data).toHaveProperty('error', 'Name and workspace ID are required')
+        expect(data).toHaveProperty('error', 'Invalid request data')
       }
     })
 

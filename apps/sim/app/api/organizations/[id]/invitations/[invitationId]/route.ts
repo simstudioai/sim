@@ -23,6 +23,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasAccessControlAccess } from '@/lib/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
+import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
@@ -325,7 +326,7 @@ export async function PUT(
             .limit(1)
 
           const orgSub = orgSubs[0]
-          const orgIsPaid = orgSub && (orgSub.plan === 'team' || orgSub.plan === 'enterprise')
+          const orgIsPaid = orgSub && isOrgPlan(orgSub.plan)
 
           if (orgIsPaid) {
             const userId = session.user.id

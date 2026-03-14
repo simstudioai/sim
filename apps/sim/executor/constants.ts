@@ -25,6 +25,7 @@ export enum BlockType {
 
   FUNCTION = 'function',
   AGENT = 'agent',
+  MOTHERSHIP = 'mothership',
   API = 'api',
   EVALUATOR = 'evaluator',
   VARIABLES = 'variables',

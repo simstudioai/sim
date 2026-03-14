@@ -1,3 +1,19 @@
+/** Color palette for workspace accents, aligned with the workflow color family. */
+export const WORKSPACE_COLORS = [
+  '#2ABBF8', // Blue
+  '#22c55e', // Green
+  '#FFCC02', // Yellow
+  '#a855f7', // Purple
+  '#f97316', // Orange
+  '#14b8a6', // Teal
+  '#ff6b6b', // Coral
+] as const
+
+/** Picks a random workspace color from the hero palette. */
+export function getRandomWorkspaceColor(): string {
+  return WORKSPACE_COLORS[Math.floor(Math.random() * WORKSPACE_COLORS.length)]
+}
+
 const APP_COLORS = [
   { from: '#4F46E5', to: '#7C3AED' }, // indigo to purple
   { from: '#7C3AED', to: '#C026D3' }, // purple to fuchsia

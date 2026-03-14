@@ -1,6 +1,6 @@
 import { db, workflowMcpServer, workflowMcpTool } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { hasValidStartBlockInState } from '@/lib/workflows/triggers/trigger-utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -65,7 +65,7 @@ export async function syncMcpToolsForWorkflow(options: SyncOptions): Promise<voi
     const tools = await db
       .select({ id: workflowMcpTool.id, serverId: workflowMcpTool.serverId })
       .from(workflowMcpTool)
-      .where(eq(workflowMcpTool.workflowId, workflowId))
+      .where(and(eq(workflowMcpTool.workflowId, workflowId), isNull(workflowMcpTool.archivedAt)))
 
     if (tools.length === 0) {
       return
@@ -95,7 +95,7 @@ export async function syncMcpToolsForWorkflow(options: SyncOptions): Promise<voi
         parameterSchema,
         updatedAt: new Date(),
       })
-      .where(eq(workflowMcpTool.workflowId, workflowId))
+      .where(and(eq(workflowMcpTool.workflowId, workflowId), isNull(workflowMcpTool.archivedAt)))
 
     logger.info(
       `[${requestId}] Synced ${tools.length} MCP tool(s) for workflow (${context}): ${workflowId}`
@@ -119,7 +119,7 @@ export async function removeMcpToolsForWorkflow(
     const tools = await db
       .select({ id: workflowMcpTool.id, serverId: workflowMcpTool.serverId })
       .from(workflowMcpTool)
-      .where(eq(workflowMcpTool.workflowId, workflowId))
+      .where(and(eq(workflowMcpTool.workflowId, workflowId), isNull(workflowMcpTool.archivedAt)))
 
     if (tools.length === 0) return
 
@@ -146,7 +146,9 @@ function notifyAffectedServers(tools: Array<{ serverId: string }>): void {
       const servers = await db
         .select({ id: workflowMcpServer.id, workspaceId: workflowMcpServer.workspaceId })
         .from(workflowMcpServer)
-        .where(inArray(workflowMcpServer.id, uniqueServerIds))
+        .where(
+          and(inArray(workflowMcpServer.id, uniqueServerIds), isNull(workflowMcpServer.deletedAt))
+        )
 
       for (const server of servers) {
         mcpPubSub.publishWorkflowToolsChanged({

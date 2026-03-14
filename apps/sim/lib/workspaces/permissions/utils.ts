@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { permissions, type permissionTypeEnum, user, workspace } from '@sim/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 
 export type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 export interface WorkspaceBasic {
@@ -9,7 +9,9 @@ export interface WorkspaceBasic {
 
 export interface WorkspaceWithOwner {
   id: string
+  name: string
   ownerId: string
+  archivedAt?: Date | null
 }
 
 export interface WorkspaceAccess {
@@ -25,11 +27,19 @@ export interface WorkspaceAccess {
  * @param workspaceId - The workspace ID to check
  * @returns True if the workspace exists, false otherwise
  */
-export async function workspaceExists(workspaceId: string): Promise<boolean> {
+export async function workspaceExists(
+  workspaceId: string,
+  options?: { includeArchived?: boolean }
+): Promise<boolean> {
+  const { includeArchived = false } = options ?? {}
   const [ws] = await db
     .select({ id: workspace.id })
     .from(workspace)
-    .where(eq(workspace.id, workspaceId))
+    .where(
+      includeArchived
+        ? eq(workspace.id, workspaceId)
+        : and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt))
+    )
     .limit(1)
 
   return !!ws
@@ -41,8 +51,11 @@ export async function workspaceExists(workspaceId: string): Promise<boolean> {
  * @param workspaceId - The workspace ID to look up
  * @returns The workspace if found, null otherwise
  */
-export async function getWorkspaceById(workspaceId: string): Promise<WorkspaceBasic | null> {
-  const exists = await workspaceExists(workspaceId)
+export async function getWorkspaceById(
+  workspaceId: string,
+  options?: { includeArchived?: boolean }
+): Promise<WorkspaceBasic | null> {
+  const exists = await workspaceExists(workspaceId, options)
   return exists ? { id: workspaceId } : null
 }
 
@@ -53,12 +66,23 @@ export async function getWorkspaceById(workspaceId: string): Promise<WorkspaceBa
  * @returns The workspace with owner info if found, null otherwise
  */
 export async function getWorkspaceWithOwner(
-  workspaceId: string
+  workspaceId: string,
+  options?: { includeArchived?: boolean }
 ): Promise<WorkspaceWithOwner | null> {
+  const { includeArchived = false } = options ?? {}
   const [ws] = await db
-    .select({ id: workspace.id, ownerId: workspace.ownerId })
+    .select({
+      id: workspace.id,
+      name: workspace.name,
+      ownerId: workspace.ownerId,
+      archivedAt: workspace.archivedAt,
+    })
     .from(workspace)
-    .where(eq(workspace.id, workspaceId))
+    .where(
+      includeArchived
+        ? eq(workspace.id, workspaceId)
+        : and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt))
+    )
     .limit(1)
 
   return ws || null
@@ -110,6 +134,17 @@ export async function checkWorkspaceAccess(
   return { exists: true, hasAccess: true, canWrite, workspace: ws }
 }
 
+export async function assertActiveWorkspaceAccess(
+  workspaceId: string,
+  userId: string
+): Promise<WorkspaceAccess> {
+  const access = await checkWorkspaceAccess(workspaceId, userId)
+  if (!access.exists || !access.hasAccess) {
+    throw new Error(`Active workspace access denied: ${workspaceId}`)
+  }
+  return access
+}
+
 /**
  * Get the highest permission level a user has for a specific entity
  *
@@ -123,6 +158,13 @@ export async function getUserEntityPermissions(
   entityType: string,
   entityId: string
 ): Promise<PermissionType | null> {
+  if (entityType === 'workspace') {
+    const activeWorkspace = await workspaceExists(entityId)
+    if (!activeWorkspace) {
+      return null
+    }
+  }
+
   const result = await db
     .select({ permissionType: permissions.permissionType })
     .from(permissions)
@@ -195,7 +237,14 @@ export async function getUsersWithPermissions(workspaceId: string): Promise<
     })
     .from(permissions)
     .innerJoin(user, eq(permissions.userId, user.id))
-    .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
+    .innerJoin(workspace, eq(permissions.entityId, workspace.id))
+    .where(
+      and(
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityId, workspaceId),
+        isNull(workspace.archivedAt)
+      )
+    )
     .orderBy(user.email)
 
   return usersWithPermissions.map((row) => ({
@@ -204,6 +253,40 @@ export async function getUsersWithPermissions(workspaceId: string): Promise<
     name: row.name,
     permissionType: row.permissionType,
   }))
+}
+
+/** Lightweight profile data for workspace member display (avatars, owner cells). */
+export interface WorkspaceMemberProfile {
+  userId: string
+  name: string
+  image: string | null
+}
+
+/**
+ * Fetches minimal profile data (id, name, image) for all members of a workspace.
+ * Use this instead of getUsersWithPermissions when you only need display info.
+ */
+export async function getWorkspaceMemberProfiles(
+  workspaceId: string
+): Promise<WorkspaceMemberProfile[]> {
+  const rows = await db
+    .select({
+      userId: user.id,
+      name: user.name,
+      image: user.image,
+    })
+    .from(permissions)
+    .innerJoin(user, eq(permissions.userId, user.id))
+    .innerJoin(workspace, eq(permissions.entityId, workspace.id))
+    .where(
+      and(
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityId, workspaceId),
+        isNull(workspace.archivedAt)
+      )
+    )
+
+  return rows
 }
 
 /**
@@ -256,7 +339,7 @@ export async function getManageableWorkspaces(userId: string): Promise<
       ownerId: workspace.ownerId,
     })
     .from(workspace)
-    .where(eq(workspace.ownerId, userId))
+    .where(and(eq(workspace.ownerId, userId), isNull(workspace.archivedAt)))
 
   const adminWorkspaces = await db
     .select({
@@ -268,6 +351,7 @@ export async function getManageableWorkspaces(userId: string): Promise<
     .innerJoin(permissions, eq(permissions.entityId, workspace.id))
     .where(
       and(
+        isNull(workspace.archivedAt),
         eq(permissions.userId, userId),
         eq(permissions.entityType, 'workspace'),
         eq(permissions.permissionType, 'admin')

@@ -49,11 +49,10 @@ vi.mock('@/lib/mcp/client', () => ({
   McpClient: MockMcpClientConstructor,
 }))
 
+import { McpConnectionManager } from '@/lib/mcp/connection-manager'
+
 describe('McpConnectionManager', () => {
-  let manager: {
-    connect: (...args: unknown[]) => Promise<{ supportsListChanged: boolean }>
-    dispose: () => void
-  } | null = null
+  let manager: McpConnectionManager | null = null
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -64,13 +63,8 @@ describe('McpConnectionManager', () => {
     manager = null
   })
 
-  /**
-   * Because connection-manager.ts creates a singleton at module scope,
-   * each test needs a fresh module evaluation.
-   */
-  async function importFreshManager() {
-    vi.resetModules()
-    const { mcpConnectionManager: mgr } = await import('@/lib/mcp/connection-manager')
+  function createFreshManager(): McpConnectionManager {
+    const mgr = new McpConnectionManager()
     manager = mgr
     return mgr
   }
@@ -91,7 +85,7 @@ describe('McpConnectionManager', () => {
         return instance
       })
 
-      const mgr = await importFreshManager()
+      const mgr = createFreshManager()
 
       const config = serverConfig('server-1')
 
@@ -120,7 +114,7 @@ describe('McpConnectionManager', () => {
         return instance
       })
 
-      const mgr = await importFreshManager()
+      const mgr = createFreshManager()
 
       const config = serverConfig('server-2')
 
@@ -152,7 +146,7 @@ describe('McpConnectionManager', () => {
         return instance
       })
 
-      const mgr = await importFreshManager()
+      const mgr = createFreshManager()
 
       const config = serverConfig('server-3')
 
@@ -174,7 +168,7 @@ describe('McpConnectionManager', () => {
         onClose: vi.fn(),
       }))
 
-      const mgr = await importFreshManager()
+      const mgr = createFreshManager()
 
       mgr.dispose()
 

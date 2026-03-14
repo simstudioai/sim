@@ -9,7 +9,10 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, min } from 'drizzle-orm'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+import {
+  authorizeWorkflowByWorkspacePermission,
+  deduplicateWorkflowName,
+} from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import type { Variable } from '@/stores/panel/variables/types'
 import type { LoopConfig, ParallelConfig } from '@/stores/workflows/workflow/types'
@@ -25,6 +28,7 @@ interface DuplicateWorkflowOptions {
   workspaceId?: string
   folderId?: string | null
   requestId?: string
+  newWorkflowId?: string
 }
 
 interface DuplicateWorkflowResult {
@@ -128,10 +132,10 @@ export async function duplicateWorkflow(
     workspaceId,
     folderId,
     requestId = 'unknown',
+    newWorkflowId: clientNewWorkflowId,
   } = options
 
-  // Generate new workflow ID
-  const newWorkflowId = crypto.randomUUID()
+  const newWorkflowId = clientNewWorkflowId || crypto.randomUUID()
   const now = new Date()
 
   // Duplicate workflow and all related data in a transaction
@@ -202,14 +206,15 @@ export async function duplicateWorkflow(
     // Mapping from old variable IDs to new variable IDs (populated during variable duplication)
     const varIdMapping = new Map<string, string>()
 
-    // Create the new workflow first (required for foreign key constraints)
+    const deduplicatedName = await deduplicateWorkflowName(name, targetWorkspaceId, targetFolderId)
+
     await tx.insert(workflow).values({
       id: newWorkflowId,
       userId,
       workspaceId: targetWorkspaceId,
       folderId: targetFolderId,
       sortOrder,
-      name,
+      name: deduplicatedName,
       description: description || source.description,
       color: color || source.color,
       lastSynced: now,
@@ -432,7 +437,7 @@ export async function duplicateWorkflow(
 
     return {
       id: newWorkflowId,
-      name,
+      name: deduplicatedName,
       description: description || source.description,
       color: color || source.color,
       workspaceId: finalWorkspaceId,

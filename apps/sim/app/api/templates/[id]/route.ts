@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { canAccessTemplate } from '@/lib/templates/permissions'
 import {
   extractRequiredCredentials,
   sanitizeCredentials,
@@ -24,6 +25,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const session = await getSession()
 
+    const access = await canAccessTemplate(id, session?.user?.id)
+    if (!access.allowed || !access.template) {
+      logger.warn(`[${requestId}] Template not found: ${id}`)
+      return NextResponse.json({ error: 'Template not found' }, { status: 404 })
+    }
+
     const result = await db
       .select({
         template: templates,
@@ -34,19 +41,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .where(eq(templates.id, id))
       .limit(1)
 
-    if (result.length === 0) {
-      logger.warn(`[${requestId}] Template not found: ${id}`)
-      return NextResponse.json({ error: 'Template not found' }, { status: 404 })
-    }
-
     const { template, creator } = result[0]
     const templateWithCreator = {
       ...template,
       creator: creator || undefined,
-    }
-
-    if (!session?.user?.id && template.status !== 'approved') {
-      return NextResponse.json({ error: 'Template not found' }, { status: 404 })
     }
 
     let isStarred = false

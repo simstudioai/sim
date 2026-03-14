@@ -1,40 +1,10 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 
-/**
- * Singleton QueryClient instance for client-side use.
- * Can be imported directly for cache operations outside React components.
- */
-function makeQueryClient() {
-  return new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 30 * 1000,
-        gcTime: 5 * 60 * 1000,
-        refetchOnWindowFocus: false,
-        retry: 1,
-        retryOnMount: false,
-      },
-      mutations: {
-        retry: 1,
-      },
-    },
-  })
-}
-
-let browserQueryClient: QueryClient | undefined
-
-export function getQueryClient() {
-  if (typeof window === 'undefined') {
-    return makeQueryClient()
-  }
-  if (!browserQueryClient) {
-    browserQueryClient = makeQueryClient()
-  }
-  return browserQueryClient
-}
+export { getQueryClient } from '@/app/_shell/providers/get-query-client'
 
 export function QueryProvider({ children }: { children: ReactNode }) {
   const queryClient = getQueryClient()

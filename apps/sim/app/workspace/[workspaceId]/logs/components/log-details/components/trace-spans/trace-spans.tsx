@@ -8,14 +8,15 @@ import {
   Button,
   ChevronDown,
   Code,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Input,
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverDivider,
-  PopoverItem,
   Tooltip,
 } from '@/components/emcn'
+import { Copy as CopyIcon, Search as SearchIcon } from '@/components/emcn/icons'
 import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDuration } from '@/lib/core/utils/formatting'
@@ -435,28 +436,38 @@ function InputOutputSection({
           {/* Context Menu - rendered in portal to avoid transform/overflow clipping */}
           {typeof document !== 'undefined' &&
             createPortal(
-              <Popover
-                open={isContextMenuOpen}
-                onOpenChange={closeContextMenu}
-                variant='secondary'
-                size='sm'
-                colorScheme='inverted'
-              >
-                <PopoverAnchor
-                  style={{
-                    position: 'fixed',
-                    left: `${contextMenuPosition.x}px`,
-                    top: `${contextMenuPosition.y}px`,
-                    width: '1px',
-                    height: '1px',
-                  }}
-                />
-                <PopoverContent align='start' side='bottom' sideOffset={4}>
-                  <PopoverItem onClick={handleCopy}>Copy</PopoverItem>
-                  <PopoverDivider />
-                  <PopoverItem onClick={handleSearch}>Search</PopoverItem>
-                </PopoverContent>
-              </Popover>,
+              <DropdownMenu open={isContextMenuOpen} onOpenChange={closeContextMenu} modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <div
+                    style={{
+                      position: 'fixed',
+                      left: `${contextMenuPosition.x}px`,
+                      top: `${contextMenuPosition.y}px`,
+                      width: '1px',
+                      height: '1px',
+                      pointerEvents: 'none',
+                    }}
+                    tabIndex={-1}
+                    aria-hidden
+                  />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align='start'
+                  side='bottom'
+                  sideOffset={4}
+                  onCloseAutoFocus={(e) => e.preventDefault()}
+                >
+                  <DropdownMenuItem onSelect={handleCopy}>
+                    <CopyIcon />
+                    Copy
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={handleSearch}>
+                    <SearchIcon />
+                    Search
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>,
               document.body
             )}
         </>
@@ -693,7 +704,7 @@ const TraceSpanNode = memo(function TraceSpanNode({
  */
 export const TraceSpans = memo(function TraceSpans({ traceSpans }: TraceSpansProps) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set())
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(() => new Set())
   const toggleSet = useSetToggle()
 
   const { workflowStartTime, actualTotalDuration, normalizedSpans } = useMemo(() => {

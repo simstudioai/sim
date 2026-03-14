@@ -1,9 +1,9 @@
 import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { deleteTagDefinition } from '@/lib/knowledge/tags/service'
-import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
+import { checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,17 +22,20 @@ export async function DELETE(
       `[${requestId}] Deleting tag definition ${tagId} from knowledge base ${knowledgeBaseId}`
     )
 
-    const session = await getSession()
-    if (!session?.user?.id) {
+    const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, session.user.id)
+    const accessCheck = await checkKnowledgeBaseWriteAccess(knowledgeBaseId, auth.userId)
     if (!accessCheck.hasAccess) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return NextResponse.json(
+        { error: accessCheck.notFound ? 'Not found' : 'Forbidden' },
+        { status: accessCheck.notFound ? 404 : 403 }
+      )
     }
 
-    const deletedTag = await deleteTagDefinition(tagId, requestId)
+    const deletedTag = await deleteTagDefinition(knowledgeBaseId, tagId, requestId)
 
     return NextResponse.json({
       success: true,

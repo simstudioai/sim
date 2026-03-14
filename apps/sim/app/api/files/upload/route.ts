@@ -4,8 +4,13 @@ import { sanitizeFileName } from '@/executor/constants'
 import '@/lib/uploads/core/setup.server'
 import { getSession } from '@/lib/auth'
 import type { StorageContext } from '@/lib/uploads/config'
-import { isImageFileType } from '@/lib/uploads/utils/file-utils'
-import { validateFileType } from '@/lib/uploads/utils/validation'
+import { isImageFileType, resolveFileType } from '@/lib/uploads/utils/file-utils'
+import {
+  SUPPORTED_AUDIO_EXTENSIONS,
+  SUPPORTED_DOCUMENT_EXTENSIONS,
+  SUPPORTED_VIDEO_EXTENSIONS,
+  validateFileType,
+} from '@/lib/uploads/utils/validation'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import {
   createErrorResponse,
@@ -13,38 +18,13 @@ import {
   InvalidRequestError,
 } from '@/app/api/files/utils'
 
-const ALLOWED_EXTENSIONS = new Set([
-  // Documents
-  'pdf',
-  'doc',
-  'docx',
-  'txt',
-  'md',
-  'csv',
-  'xlsx',
-  'xls',
-  'json',
-  'yaml',
-  'yml',
-  // Images
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
-  // Audio
-  'mp3',
-  'm4a',
-  'wav',
-  'webm',
-  'ogg',
-  'flac',
-  'aac',
-  'opus',
-  // Video
-  'mp4',
-  'mov',
-  'avi',
-  'mkv',
+const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] as const
+
+const ALLOWED_EXTENSIONS = new Set<string>([
+  ...SUPPORTED_DOCUMENT_EXTENSIONS,
+  ...IMAGE_EXTENSIONS,
+  ...SUPPORTED_AUDIO_EXTENSIONS,
+  ...SUPPORTED_VIDEO_EXTENSIONS,
 ])
 
 function validateFileExtension(filename: string): boolean {
@@ -251,9 +231,19 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Handle image-only contexts (copilot, chat, profile-pictures)
+      // Handle copilot, chat, profile-pictures contexts
       if (context === 'copilot' || context === 'chat' || context === 'profile-pictures') {
-        if (!isImageFileType(file.type)) {
+        if (context === 'copilot') {
+          const { isSupportedFileType: isCopilotSupported } = await import(
+            '@/lib/uploads/contexts/copilot/copilot-file-manager'
+          )
+          const resolvedType = resolveFileType(file)
+          if (!isImageFileType(resolvedType) && !isCopilotSupported(resolvedType)) {
+            throw new InvalidRequestError(
+              'Unsupported file type. Allowed: images, PDF, and text files (TXT, CSV, MD, HTML, JSON, XML).'
+            )
+          }
+        } else if (!isImageFileType(file.type)) {
           throw new InvalidRequestError(
             `Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed for ${context} uploads`
           )

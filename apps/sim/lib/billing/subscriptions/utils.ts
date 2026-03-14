@@ -4,6 +4,15 @@ import {
   DEFAULT_PRO_TIER_COST_LIMIT,
   DEFAULT_TEAM_TIER_COST_LIMIT,
 } from '@/lib/billing/constants'
+import { CREDIT_MULTIPLIER } from '@/lib/billing/credits/conversion'
+import {
+  getPlanTierCredits,
+  isEnterprise,
+  isFree,
+  isOrgPlan,
+  isPro,
+  isTeam,
+} from '@/lib/billing/plan-helpers'
 import type { EnterpriseSubscriptionMetadata } from '@/lib/billing/types'
 import { env } from '@/lib/core/config/env'
 
@@ -36,7 +45,7 @@ export function getEnterpriseTierLimitPerSeat(): number {
 }
 
 export function checkEnterprisePlan(subscription: any): boolean {
-  return subscription?.plan === 'enterprise' && subscription?.status === 'active'
+  return isEnterprise(subscription?.plan) && subscription?.status === 'active'
 }
 
 /**
@@ -56,7 +65,7 @@ export function getEffectiveSeats(subscription: any): number {
     return 0
   }
 
-  if (subscription.plan === 'enterprise') {
+  if (isEnterprise(subscription.plan)) {
     const metadata = subscription.metadata as EnterpriseSubscriptionMetadata | null
     if (isEnterpriseMetadata(metadata)) {
       return Number.parseInt(metadata.seats, 10)
@@ -64,7 +73,7 @@ export function getEffectiveSeats(subscription: any): number {
     return 0
   }
 
-  if (subscription.plan === 'team') {
+  if (isTeam(subscription.plan)) {
     return subscription.seats ?? 0
   }
 
@@ -72,11 +81,11 @@ export function getEffectiveSeats(subscription: any): number {
 }
 
 export function checkProPlan(subscription: any): boolean {
-  return subscription?.plan === 'pro' && subscription?.status === 'active'
+  return isPro(subscription?.plan) && subscription?.status === 'active'
 }
 
 export function checkTeamPlan(subscription: any): boolean {
-  return subscription?.plan === 'team' && subscription?.status === 'active'
+  return isTeam(subscription?.plan) && subscription?.status === 'active'
 }
 
 /**
@@ -91,11 +100,13 @@ export function getPerUserMinimumLimit(subscription: any): number {
     return getFreeTierLimit()
   }
 
-  if (subscription.plan === 'pro') {
+  if (isPro(subscription.plan)) {
+    const tierCredits = getPlanTierCredits(subscription.plan)
+    if (tierCredits > 0) return tierCredits / CREDIT_MULTIPLIER
     return getProTierLimit()
   }
 
-  if (subscription.plan === 'team' || subscription.plan === 'enterprise') {
+  if (isOrgPlan(subscription.plan)) {
     // Team and Enterprise don't have individual limits - they use organization limits
     // This function should not be called for these plans
     // Returning 0 to indicate no individual minimum
@@ -119,23 +130,22 @@ export function canEditUsageLimit(subscription: any): boolean {
 
   // Only Pro and Team plans can edit limits
   // Enterprise has fixed limits that match their monthly cost
-  return subscription.plan === 'pro' || subscription.plan === 'team'
+  return isPro(subscription.plan) || isTeam(subscription.plan)
 }
 
 /**
- * Get pricing info for a plan
+ * Get pricing info for a plan. Supports both legacy names (`'pro'`, `'team'`)
+ * and new credit-tier names (`'pro_4000'`, `'team_8000'`).
  */
 export function getPlanPricing(plan: string): { basePrice: number } {
-  switch (plan) {
-    case 'free':
-      return { basePrice: 0 }
-    case 'pro':
-      return { basePrice: getProTierLimit() }
-    case 'team':
-      return { basePrice: getTeamTierLimitPerSeat() }
-    case 'enterprise':
-      return { basePrice: getEnterpriseTierLimitPerSeat() }
-    default:
-      return { basePrice: 0 }
+  if (isFree(plan)) return { basePrice: 0 }
+  if (isEnterprise(plan)) return { basePrice: getEnterpriseTierLimitPerSeat() }
+
+  if (isPro(plan) || isTeam(plan)) {
+    const tierCredits = getPlanTierCredits(plan)
+    if (tierCredits > 0) return { basePrice: tierCredits / CREDIT_MULTIPLIER }
+    return { basePrice: isPro(plan) ? getProTierLimit() : getTeamTierLimitPerSeat() }
   }
+
+  return { basePrice: 0 }
 }

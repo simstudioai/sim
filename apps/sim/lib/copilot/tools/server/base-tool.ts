@@ -2,6 +2,8 @@ import type { z } from 'zod'
 
 export interface ServerToolContext {
   userId: string
+  workspaceId?: string
+  userPermission?: string
 }
 
 /**

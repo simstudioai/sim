@@ -4,6 +4,7 @@ import type { AvailableModel } from '@/lib/copilot/types'
 export type { CopilotMode, CopilotModelId } from '@/lib/copilot/models'
 
 import type { ClientContentBlock } from '@/lib/copilot/client-sse/types'
+import type { ServerToolUI } from '@/lib/copilot/store-utils'
 import type { ClientToolCallState, ClientToolDisplay } from '@/lib/copilot/tools/client/base-tool'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -26,6 +27,12 @@ export interface CopilotToolCall {
   params?: Record<string, unknown>
   input?: Record<string, unknown>
   display?: ClientToolDisplay
+  /** UI metadata from the copilot SSE event (used as fallback for unregistered tools) */
+  serverUI?: ServerToolUI
+  /** Persisted tool call result for rendering resources on chat reload */
+  result?: { success: boolean; output?: unknown; error?: string }
+  /** Tool should be executed client-side (set by Go backend via SSE) */
+  clientExecutable?: boolean
   /** Content streamed from a subagent (e.g., debug agent) */
   subAgentContent?: string
   /** Tool calls made by the subagent */
@@ -94,6 +101,8 @@ export type ChatContext =
   | { kind: 'logs'; executionId?: string; label: string }
   | { kind: 'workflow_block'; workflowId: string; blockId: string; label: string }
   | { kind: 'knowledge'; knowledgeId?: string; label: string }
+  | { kind: 'table'; tableId: string; label: string }
+  | { kind: 'file'; fileId: string; label: string }
   | { kind: 'templates'; templateId?: string; label: string }
   | { kind: 'docs'; label: string }
   | { kind: 'slash_command'; command: string; label: string }
@@ -148,7 +157,6 @@ export interface CopilotState {
   chatsLoadedForWorkflow: string | null
 
   revertState: { messageId: string; messageContent: string } | null
-  inputValue: string
 
   planTodos: Array<{ id: string; content: string; completed?: boolean; executing?: boolean }>
   showPlanTodos: boolean
@@ -228,7 +236,6 @@ export interface CopilotActions {
   cleanup: () => void
   reset: () => void
 
-  setInputValue: (value: string) => void
   clearRevertState: () => void
 
   setPlanTodos: (

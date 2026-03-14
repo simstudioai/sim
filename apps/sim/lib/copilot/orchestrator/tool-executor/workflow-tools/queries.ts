@@ -1,159 +1,36 @@
-import { db } from '@sim/db'
-import { customTools, permissions, workflow, workflowFolder, workspace } from '@sim/db/schema'
-import { and, asc, desc, eq, isNull, or } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
-import {
-  formatNormalizedWorkflowForCopilot,
-  normalizeWorkflowName,
-} from '@/lib/copilot/tools/shared/workflow-utils'
+import { formatNormalizedWorkflowForCopilot } from '@/lib/copilot/tools/shared/workflow-utils'
 import { mcpService } from '@/lib/mcp/service'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { getEffectiveBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
+import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import { getWorkflowById, listFolders } from '@/lib/workflows/utils'
+import { listUserWorkspaces } from '@/lib/workspaces/utils'
 import { getBlock } from '@/blocks/registry'
 import { normalizeName } from '@/executor/constants'
 import type { Loop, Parallel } from '@/stores/workflows/workflow/types'
-import {
-  ensureWorkflowAccess,
-  ensureWorkspaceAccess,
-  getAccessibleWorkflowsForUser,
-  getDefaultWorkspaceId,
-} from '../access'
+import { ensureWorkflowAccess, ensureWorkspaceAccess, getDefaultWorkspaceId } from '../access'
 import type {
   GetBlockOutputsParams,
   GetBlockUpstreamReferencesParams,
   GetDeployedWorkflowStateParams,
-  GetUserWorkflowParams,
   GetWorkflowDataParams,
-  GetWorkflowFromNameParams,
   ListFoldersParams,
-  ListUserWorkflowsParams,
 } from '../param-types'
-
-export async function executeGetUserWorkflow(
-  params: GetUserWorkflowParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workflowId = params.workflowId || context.workflowId
-    if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
-    }
-
-    const { workflow: workflowRecord, workspaceId } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId
-    )
-
-    const normalized = await loadWorkflowFromNormalizedTables(workflowId)
-    const userWorkflow = formatNormalizedWorkflowForCopilot(normalized)
-    if (!userWorkflow) {
-      return { success: false, error: 'Workflow has no normalized data' }
-    }
-
-    return {
-      success: true,
-      output: {
-        workflowId,
-        workflowName: workflowRecord.name || '',
-        workspaceId,
-        userWorkflow,
-      },
-    }
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
-  }
-}
-
-export async function executeGetWorkflowFromName(
-  params: GetWorkflowFromNameParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workflowName = typeof params.workflow_name === 'string' ? params.workflow_name.trim() : ''
-    if (!workflowName) {
-      return { success: false, error: 'workflow_name is required' }
-    }
-
-    const workflows = await getAccessibleWorkflowsForUser(context.userId)
-
-    const targetName = normalizeWorkflowName(workflowName)
-    const match = workflows.find((w) => normalizeWorkflowName(w.name) === targetName)
-    if (!match) {
-      return { success: false, error: `Workflow not found: ${workflowName}` }
-    }
-
-    const normalized = await loadWorkflowFromNormalizedTables(match.id)
-    const userWorkflow = formatNormalizedWorkflowForCopilot(normalized)
-    if (!userWorkflow) {
-      return { success: false, error: 'Workflow has no normalized data' }
-    }
-
-    return {
-      success: true,
-      output: {
-        workflowId: match.id,
-        workflowName: match.name || '',
-        workspaceId: match.workspaceId,
-        userWorkflow,
-      },
-    }
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
-  }
-}
-
-export async function executeListUserWorkflows(
-  params: ListUserWorkflowsParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workspaceId = params?.workspaceId as string | undefined
-    const folderId = params?.folderId as string | undefined
-
-    const workflows = await getAccessibleWorkflowsForUser(context.userId, { workspaceId, folderId })
-
-    const workflowList = workflows.map((w) => ({
-      workflowId: w.id,
-      workflowName: w.name || '',
-      workspaceId: w.workspaceId,
-      folderId: w.folderId,
-    }))
-
-    return { success: true, output: { workflows: workflowList } }
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
-  }
-}
 
 export async function executeListUserWorkspaces(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    const workspaces = await db
-      .select({
-        workspaceId: workspace.id,
-        workspaceName: workspace.name,
-        ownerId: workspace.ownerId,
-        permissionType: permissions.permissionType,
-      })
-      .from(permissions)
-      .innerJoin(workspace, eq(permissions.entityId, workspace.id))
-      .where(and(eq(permissions.userId, context.userId), eq(permissions.entityType, 'workspace')))
-      .orderBy(desc(workspace.createdAt))
+    const workspaces = await listUserWorkspaces(context.userId)
 
-    const output = workspaces.map((row) => ({
-      workspaceId: row.workspaceId,
-      workspaceName: row.workspaceName,
-      role: row.ownerId === context.userId ? 'owner' : row.permissionType,
-    }))
-
-    return { success: true, output: { workspaces: output } }
+    return { success: true, output: { workspaces } }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
@@ -165,20 +42,13 @@ export async function executeListFolders(
 ): Promise<ToolCallResult> {
   try {
     const workspaceId =
-      (params?.workspaceId as string | undefined) || (await getDefaultWorkspaceId(context.userId))
+      (params?.workspaceId as string | undefined) ||
+      context.workspaceId ||
+      (await getDefaultWorkspaceId(context.userId))
 
     await ensureWorkspaceAccess(workspaceId, context.userId, false)
 
-    const folders = await db
-      .select({
-        folderId: workflowFolder.id,
-        folderName: workflowFolder.name,
-        parentId: workflowFolder.parentId,
-        sortOrder: workflowFolder.sortOrder,
-      })
-      .from(workflowFolder)
-      .where(eq(workflowFolder.workspaceId, workspaceId))
-      .orderBy(asc(workflowFolder.sortOrder), asc(workflowFolder.createdAt))
+    const folders = await listFolders(workspaceId)
 
     return {
       success: true,
@@ -228,15 +98,10 @@ export async function executeGetWorkflowData(
       if (!workspaceId) {
         return { success: false, error: 'workspaceId is required' }
       }
-      const conditions = [
-        eq(customTools.workspaceId, workspaceId),
-        and(eq(customTools.userId, context.userId), isNull(customTools.workspaceId)),
-      ]
-      const toolsRows = await db
-        .select()
-        .from(customTools)
-        .where(or(...conditions))
-        .orderBy(desc(customTools.createdAt))
+      const toolsRows = await listCustomTools({
+        userId: context.userId,
+        workspaceId,
+      })
 
       const customToolsData = toolsRows.map((tool) => {
         const schema = tool.schema as Record<string, unknown> | null
@@ -522,11 +387,7 @@ export async function executeGetBlockUpstreamReferences(
 async function getWorkflowVariablesForTool(
   workflowId: string
 ): Promise<Array<{ id: string; name: string; type: string; tag: string }>> {
-  const [workflowRecord] = await db
-    .select({ variables: workflow.variables })
-    .from(workflow)
-    .where(eq(workflow.id, workflowId))
-    .limit(1)
+  const workflowRecord = await getWorkflowById(workflowId)
 
   const variablesRecord = (workflowRecord?.variables as Record<string, unknown>) || {}
   return Object.values(variablesRecord)

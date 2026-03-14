@@ -17,10 +17,11 @@
 import { db } from '@sim/db'
 import { workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -58,7 +59,7 @@ export const POST = withAdminAuth(async (request) => {
     const [workspaceData] = await db
       .select({ id: workspace.id, ownerId: workspace.ownerId })
       .from(workspace)
-      .where(eq(workspace.id, workspaceId))
+      .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
       .limit(1)
 
     if (!workspaceData) {
@@ -93,13 +94,14 @@ export const POST = withAdminAuth(async (request) => {
 
     const workflowId = crypto.randomUUID()
     const now = new Date()
+    const dedupedName = await deduplicateWorkflowName(workflowName, workspaceId, folderId || null)
 
     await db.insert(workflow).values({
       id: workflowId,
       userId: workspaceData.ownerId,
       workspaceId,
       folderId: folderId || null,
-      name: workflowName,
+      name: dedupedName,
       description: workflowDescription,
       color: workflowColor,
       lastSynced: now,
@@ -136,12 +138,12 @@ export const POST = withAdminAuth(async (request) => {
     }
 
     logger.info(
-      `Admin API: Imported workflow ${workflowId} (${workflowName}) into workspace ${workspaceId}`
+      `Admin API: Imported workflow ${workflowId} (${dedupedName}) into workspace ${workspaceId}`
     )
 
     const response: ImportSuccessResponse = {
       workflowId,
-      name: workflowName,
+      name: dedupedName,
       success: true,
     }
 

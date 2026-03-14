@@ -1,14 +1,13 @@
 import { db } from '@sim/db'
-import { templates, webhook, workflow } from '@sim/db/schema'
+import { templates, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { AuthType, checkHybridAuth, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { env } from '@/lib/core/config/env'
-import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { archiveWorkflow } from '@/lib/workflows/lifecycle'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { authorizeWorkflowByWorkspacePermission, getWorkflowById } from '@/lib/workflows/utils'
 
@@ -47,6 +46,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!workflowData) {
       logger.warn(`[${requestId}] Workflow ${workflowId} not found`)
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+    }
+
+    if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workflowData.workspaceId) {
+      return NextResponse.json(
+        { error: 'API key is not authorized for this workspace' },
+        { status: 403 }
+      )
     }
 
     if (isInternalCall && !userId) {
@@ -183,7 +189,7 @@ export async function DELETE(
       const totalWorkflowsInWorkspace = await db
         .select({ id: workflow.id })
         .from(workflow)
-        .where(eq(workflow.workspaceId, workflowData.workspaceId))
+        .where(and(eq(workflow.workspaceId, workflowData.workspaceId), isNull(workflow.archivedAt)))
 
       if (totalWorkflowsInWorkspace.length <= 1) {
         return NextResponse.json(
@@ -241,92 +247,13 @@ export async function DELETE(
       }
     }
 
-    // Clean up external webhooks before deleting workflow
-    try {
-      const { cleanupExternalWebhook } = await import('@/lib/webhooks/provider-subscriptions')
-      const webhooksToCleanup = await db
-        .select({
-          webhook: webhook,
-          workflow: {
-            id: workflow.id,
-            userId: workflow.userId,
-            workspaceId: workflow.workspaceId,
-          },
-        })
-        .from(webhook)
-        .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-        .where(eq(webhook.workflowId, workflowId))
-
-      if (webhooksToCleanup.length > 0) {
-        logger.info(
-          `[${requestId}] Found ${webhooksToCleanup.length} webhook(s) to cleanup for workflow ${workflowId}`
-        )
-
-        // Clean up each webhook (don't fail if cleanup fails)
-        for (const webhookData of webhooksToCleanup) {
-          try {
-            await cleanupExternalWebhook(webhookData.webhook, webhookData.workflow, requestId)
-          } catch (cleanupError) {
-            logger.warn(
-              `[${requestId}] Failed to cleanup external webhook ${webhookData.webhook.id} during workflow deletion`,
-              cleanupError
-            )
-            // Continue with deletion even if cleanup fails
-          }
-        }
-      }
-    } catch (webhookCleanupError) {
-      logger.warn(
-        `[${requestId}] Error during webhook cleanup for workflow deletion (continuing with deletion)`,
-        webhookCleanupError
-      )
-      // Continue with workflow deletion even if webhook cleanup fails
-    }
-
-    await db.delete(workflow).where(eq(workflow.id, workflowId))
-
-    try {
-      PlatformEvents.workflowDeleted({
-        workflowId,
-        workspaceId: workflowData.workspaceId || undefined,
-      })
-    } catch {
-      // Telemetry should not fail the operation
+    const archiveResult = await archiveWorkflow(workflowId, { requestId })
+    if (!archiveResult.workflow) {
+      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
     const elapsed = Date.now() - startTime
-    logger.info(`[${requestId}] Successfully deleted workflow ${workflowId} in ${elapsed}ms`)
-
-    // Notify Socket.IO system to disconnect users from this workflow's room
-    // This prevents "Block not found" errors when collaborative updates try to process
-    // after the workflow has been deleted
-    try {
-      const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
-      const socketResponse = await fetch(`${socketUrl}/api/workflow-deleted`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': env.INTERNAL_API_SECRET,
-        },
-        body: JSON.stringify({ workflowId }),
-      })
-
-      if (socketResponse.ok) {
-        logger.info(
-          `[${requestId}] Notified Socket.IO server about workflow ${workflowId} deletion`
-        )
-      } else {
-        logger.warn(
-          `[${requestId}] Failed to notify Socket.IO server about workflow ${workflowId} deletion`
-        )
-      }
-    } catch (error) {
-      logger.warn(
-        `[${requestId}] Error notifying Socket.IO server about workflow ${workflowId} deletion:`,
-        error
-      )
-      // Don't fail the deletion if Socket.IO notification fails
-    }
+    logger.info(`[${requestId}] Successfully archived workflow ${workflowId} in ${elapsed}ms`)
 
     recordAudit({
       workspaceId: workflowData.workspaceId || null,
@@ -337,8 +264,9 @@ export async function DELETE(
       resourceType: AuditResourceType.WORKFLOW,
       resourceId: workflowId,
       resourceName: workflowData.name,
-      description: `Deleted workflow "${workflowData.name}"`,
+      description: `Archived workflow "${workflowData.name}"`,
       metadata: {
+        archived: archiveResult.archived,
         deleteTemplates: deleteTemplatesParam === 'delete',
       },
       request,
@@ -417,6 +345,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
       const conditions = [
         eq(workflow.workspaceId, workflowData.workspaceId),
+        isNull(workflow.archivedAt),
         eq(workflow.name, targetName),
         ne(workflow.id, workflowId),
       ]

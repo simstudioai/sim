@@ -94,6 +94,33 @@ export const FIELD_TYPE_LABELS: Record<string, string> = {
 }
 
 /**
+ * Allocate tag slots for a set of tag definitions, avoiding already-used slots.
+ * Returns a mapping of semantic IDs to slot names and a list of skipped tag names.
+ */
+export function allocateTagSlots(
+  tagDefinitions: Array<{ id: string; displayName: string; fieldType: string }>,
+  usedSlots: Set<string>
+): { mapping: Record<string, string>; skipped: string[] } {
+  const mapping: Record<string, string> = {}
+  const skipped: string[] = []
+  const claimed = new Set(usedSlots)
+
+  for (const td of tagDefinitions) {
+    const slots = getSlotsForFieldType(td.fieldType)
+    const available = slots.find((s) => !claimed.has(s))
+
+    if (!available) {
+      skipped.push(td.displayName)
+      continue
+    }
+    claimed.add(available)
+    mapping[td.id] = available
+  }
+
+  return { mapping, skipped }
+}
+
+/**
  * Get placeholder text for value input based on field type
  */
 export function getPlaceholderForFieldType(fieldType: string): string {

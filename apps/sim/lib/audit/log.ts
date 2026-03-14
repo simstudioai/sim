@@ -50,6 +50,7 @@ export const AuditAction = {
 
   // Files
   FILE_UPLOADED: 'file.uploaded',
+  FILE_UPDATED: 'file.updated',
   FILE_DELETED: 'file.deleted',
 
   // Folders
@@ -114,6 +115,11 @@ export const AuditAction = {
   // Schedules
   SCHEDULE_UPDATED: 'schedule.updated',
 
+  // Tables
+  TABLE_CREATED: 'table.created',
+  TABLE_UPDATED: 'table.updated',
+  TABLE_DELETED: 'table.deleted',
+
   // Templates
   TEMPLATE_CREATED: 'template.created',
   TEMPLATE_UPDATED: 'template.updated',
@@ -165,6 +171,7 @@ export const AuditResourceType = {
   PASSWORD: 'password',
   PERMISSION_GROUP: 'permission_group',
   SCHEDULE: 'schedule',
+  TABLE: 'table',
   TEMPLATE: 'template',
   WEBHOOK: 'webhook',
   WORKFLOW: 'workflow',

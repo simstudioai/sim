@@ -1,0 +1,821 @@
+{
+  "version": "1.0",
+  "exportedAt": "2026-03-09T21:40:19.014Z",
+  "state": {
+    "blocks": {
+      "88c4fce8-e349-41ba-9dbd-ca63b6d34b60": {
+        "id": "88c4fce8-e349-41ba-9dbd-ca63b6d34b60",
+        "type": "supabase",
+        "name": "supabaseInvoices",
+        "position": {
+          "x": 1650,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 259,
+        "subBlocks": {
+          "data": {
+            "id": "data",
+            "type": "short-input",
+            "value": "<invoiceExtractor.content>"
+          },
+          "file": {
+            "id": "file",
+            "type": "file-upload",
+            "value": null
+          },
+          "path": {
+            "id": "path",
+            "type": "short-input",
+            "value": null
+          },
+          "limit": {
+            "id": "limit",
+            "type": "short-input",
+            "value": null
+          },
+          "paths": {
+            "id": "paths",
+            "type": "code",
+            "value": null
+          },
+          "query": {
+            "id": "query",
+            "type": "short-input",
+            "value": null
+          },
+          "table": {
+            "id": "table",
+            "type": "short-input",
+            "value": "invoices"
+          },
+          "apiKey": {
+            "id": "apiKey",
+            "type": "short-input",
+            "value": "{{SUPABASE_API_KEY}}"
+          },
+          "bucket": {
+            "id": "bucket",
+            "type": "short-input",
+            "value": null
+          },
+          "column": {
+            "id": "column",
+            "type": "short-input",
+            "value": null
+          },
+          "filter": {
+            "id": "filter",
+            "type": "short-input",
+            "value": null
+          },
+          "offset": {
+            "id": "offset",
+            "type": "short-input",
+            "value": null
+          },
+          "params": {
+            "id": "params",
+            "type": "code",
+            "value": null
+          },
+          "schema": {
+            "id": "schema",
+            "type": "short-input",
+            "value": null
+          },
+          "search": {
+            "id": "search",
+            "type": "short-input",
+            "value": null
+          },
+          "select": {
+            "id": "select",
+            "type": "short-input",
+            "value": null
+          },
+          "sortBy": {
+            "id": "sortBy",
+            "type": "dropdown",
+            "value": null
+          },
+          "toPath": {
+            "id": "toPath",
+            "type": "short-input",
+            "value": null
+          },
+          "upsert": {
+            "id": "upsert",
+            "type": "dropdown",
+            "value": null
+          },
+          "orderBy": {
+            "id": "orderBy",
+            "type": "short-input",
+            "value": null
+          },
+          "download": {
+            "id": "download",
+            "type": "dropdown",
+            "value": null
+          },
+          "fileName": {
+            "id": "fileName",
+            "type": "short-input",
+            "value": null
+          },
+          "fromPath": {
+            "id": "fromPath",
+            "type": "short-input",
+            "value": null
+          },
+          "isPublic": {
+            "id": "isPublic",
+            "type": "dropdown",
+            "value": null
+          },
+          "language": {
+            "id": "language",
+            "type": "short-input",
+            "value": null
+          },
+          "countType": {
+            "id": "countType",
+            "type": "dropdown",
+            "value": null
+          },
+          "expiresIn": {
+            "id": "expiresIn",
+            "type": "short-input",
+            "value": null
+          },
+          "operation": {
+            "id": "operation",
+            "type": "short-input",
+            "value": "insert"
+          },
+          "projectId": {
+            "id": "projectId",
+            "type": "short-input",
+            "value": null
+          },
+          "sortOrder": {
+            "id": "sortOrder",
+            "type": "dropdown",
+            "value": null
+          },
+          "matchCount": {
+            "id": "matchCount",
+            "type": "short-input",
+            "value": null
+          },
+          "searchType": {
+            "id": "searchType",
+            "type": "dropdown",
+            "value": null
+          },
+          "contentType": {
+            "id": "contentType",
+            "type": "short-input",
+            "value": null
+          },
+          "fileContent": {
+            "id": "fileContent",
+            "type": "short-input",
+            "value": null
+          },
+          "functionName": {
+            "id": "functionName",
+            "type": "short-input",
+            "value": null
+          },
+          "fileSizeLimit": {
+            "id": "fileSizeLimit",
+            "type": "short-input",
+            "value": null
+          },
+          "matchThreshold": {
+            "id": "matchThreshold",
+            "type": "short-input",
+            "value": null
+          },
+          "queryEmbedding": {
+            "id": "queryEmbedding",
+            "type": "code",
+            "value": null
+          },
+          "allowedMimeTypes": {
+            "id": "allowedMimeTypes",
+            "type": "code",
+            "value": null
+          }
+        },
+        "outputs": {
+          "message": {
+            "type": "string",
+            "description": "Operation status message"
+          },
+          "results": {
+            "type": "array",
+            "description": "Array of inserted records"
+          }
+        },
+        "data": {
+          "canonicalModes": {
+            "fileData": "basic"
+          }
+        },
+        "locked": false
+      },
+      "1fbe6757-baa6-4488-8b4d-e71afaea3bda": {
+        "id": "1fbe6757-baa6-4488-8b4d-e71afaea3bda",
+        "type": "file_v3",
+        "name": "File Parser",
+        "position": {
+          "x": 650,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 0,
+        "subBlocks": {
+          "file": {
+            "id": "file",
+            "type": "file-upload",
+            "value": null
+          },
+          "fileUrl": {
+            "id": "fileUrl",
+            "type": "short-input",
+            "value": "<gmailtrigger.email.attachments[0].url>"
+          }
+        },
+        "outputs": {
+          "files": {
+            "type": "file[]",
+            "description": "Parsed files as UserFile objects"
+          },
+          "combinedContent": {
+            "type": "string",
+            "description": "Combined content of all parsed files"
+          }
+        },
+        "data": {
+          "canonicalModes": {
+            "fileInput": "advanced"
+          }
+        },
+        "locked": false
+      },
+      "f9f5e591-70a5-46a6-9cc2-84078e7022e8": {
+        "id": "f9f5e591-70a5-46a6-9cc2-84078e7022e8",
+        "type": "agent",
+        "name": "invoiceExtractor",
+        "position": {
+          "x": 1150,
+          "y": 152.09459172294703
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 259,
+        "subBlocks": {
+          "model": {
+            "id": "model",
+            "type": "short-input",
+            "value": "gpt-5.2"
+          },
+          "tools": {
+            "id": "tools",
+            "type": "short-input",
+            "value": [
+              {
+                "type": "mistral_parse_v3",
+                "title": "Mistral Parser",
+                "params": {
+                  "resultType": "markdown",
+                  "fileReference": "<fileparser.files[0]>"
+                },
+                "toolId": "mistral_parser_v3",
+                "isExpanded": true,
+                "usageControl": "auto"
+              }
+            ]
+          },
+          "apiKey": {
+            "id": "apiKey",
+            "type": "short-input",
+            "value": null
+          },
+          "skills": {
+            "id": "skills",
+            "type": "skill-input",
+            "value": null
+          },
+          "messages": {
+            "id": "messages",
+            "type": "messages-input",
+            "value": [
+              {
+                "role": "system",
+                "content": "Extract invoice fields from the provided PDF document"
+              },
+              {
+                "role": "user",
+                "content": "Extract all invoice fields from the PDF document attached to this email. The attachment URL is: <gmailtrigger.email.attachments[0].url>. Use the Textract tool to parse the document and extract the invoice data."
+              }
+            ]
+          },
+          "maxTokens": {
+            "id": "maxTokens",
+            "type": "short-input",
+            "value": null
+          },
+          "verbosity": {
+            "id": "verbosity",
+            "type": "dropdown",
+            "value": null
+          },
+          "memoryType": {
+            "id": "memoryType",
+            "type": "dropdown",
+            "value": "none"
+          },
+          "temperature": {
+            "id": "temperature",
+            "type": "short-input",
+            "value": 0.3
+          },
+          "azureEndpoint": {
+            "id": "azureEndpoint",
+            "type": "short-input",
+            "value": null
+          },
+          "bedrockRegion": {
+            "id": "bedrockRegion",
+            "type": "short-input",
+            "value": null
+          },
+          "thinkingLevel": {
+            "id": "thinkingLevel",
+            "type": "dropdown",
+            "value": null
+          },
+          "vertexProject": {
+            "id": "vertexProject",
+            "type": "short-input",
+            "value": null
+          },
+          "conversationId": {
+            "id": "conversationId",
+            "type": "short-input",
+            "value": null
+          },
+          "responseFormat": {
+            "id": "responseFormat",
+            "type": "code",
+            "value": null
+          },
+          "vertexLocation": {
+            "id": "vertexLocation",
+            "type": "short-input",
+            "value": null
+          },
+          "azureApiVersion": {
+            "id": "azureApiVersion",
+            "type": "short-input",
+            "value": null
+          },
+          "reasoningEffort": {
+            "id": "reasoningEffort",
+            "type": "dropdown",
+            "value": null
+          },
+          "bedrockSecretKey": {
+            "id": "bedrockSecretKey",
+            "type": "short-input",
+            "value": null
+          },
+          "manualCredential": {
+            "id": "manualCredential",
+            "type": "short-input",
+            "value": null
+          },
+          "vertexCredential": {
+            "id": "vertexCredential",
+            "type": "oauth-input",
+            "value": null
+          },
+          "slidingWindowSize": {
+            "id": "slidingWindowSize",
+            "type": "short-input",
+            "value": null
+          },
+          "bedrockAccessKeyId": {
+            "id": "bedrockAccessKeyId",
+            "type": "short-input",
+            "value": null
+          },
+          "slidingWindowTokens": {
+            "id": "slidingWindowTokens",
+            "type": "short-input",
+            "value": null
+          },
+          "previousInteractionId": {
+            "id": "previousInteractionId",
+            "type": "short-input",
+            "value": null
+          }
+        },
+        "outputs": {
+          "cost": {
+            "type": "json",
+            "description": "Cost of the API call"
+          },
+          "model": {
+            "type": "string",
+            "description": "Model used for generation"
+          },
+          "tokens": {
+            "type": "json",
+            "description": "Token usage statistics"
+          },
+          "content": {
+            "type": "string",
+            "description": "Generated response content"
+          },
+          "toolCalls": {
+            "type": "json",
+            "description": "Tool calls made"
+          },
+          "providerTiming": {
+            "type": "json",
+            "description": "Provider timing information"
+          }
+        },
+        "data": {
+          "canonicalModes": {
+            "oauthCredential": "basic",
+            "mistral_parse_v3:document": "advanced"
+          }
+        },
+        "locked": false
+      },
+      "a1880fed-ec19-4720-bdd3-6856c4425bc2": {
+        "id": "a1880fed-ec19-4720-bdd3-6856c4425bc2",
+        "type": "gmail_v2",
+        "name": "gmailTrigger",
+        "position": {
+          "x": 150,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": true,
+        "height": 0,
+        "subBlocks": {
+          "cc": {
+            "id": "cc",
+            "type": "short-input",
+            "value": null
+          },
+          "to": {
+            "id": "to",
+            "type": "short-input",
+            "value": null
+          },
+          "bcc": {
+            "id": "bcc",
+            "type": "short-input",
+            "value": null
+          },
+          "body": {
+            "id": "body",
+            "type": "long-input",
+            "value": null
+          },
+          "query": {
+            "id": "query",
+            "type": "short-input",
+            "value": null
+          },
+          "folder": {
+            "id": "folder",
+            "type": "folder-selector",
+            "value": null
+          },
+          "subject": {
+            "id": "subject",
+            "type": "short-input",
+            "value": null
+          },
+          "labelIds": {
+            "id": "labelIds",
+            "type": "dropdown",
+            "value": null
+          },
+          "threadId": {
+            "id": "threadId",
+            "type": "short-input",
+            "value": null
+          },
+          "messageId": {
+            "id": "messageId",
+            "type": "short-input",
+            "value": null
+          },
+          "operation": {
+            "id": "operation",
+            "type": "dropdown",
+            "value": null
+          },
+          "credential": {
+            "id": "credential",
+            "type": "oauth-input",
+            "value": null
+          },
+          "markAsRead": {
+            "id": "markAsRead",
+            "type": "short-input",
+            "value": false
+          },
+          "maxResults": {
+            "id": "maxResults",
+            "type": "short-input",
+            "value": null
+          },
+          "unreadOnly": {
+            "id": "unreadOnly",
+            "type": "switch",
+            "value": null
+          },
+          "attachments": {
+            "id": "attachments",
+            "type": "short-input",
+            "value": null
+          },
+          "contentType": {
+            "id": "contentType",
+            "type": "dropdown",
+            "value": null
+          },
+          "searchQuery": {
+            "id": "searchQuery",
+            "type": "short-input",
+            "value": null
+          },
+          "sourceLabel": {
+            "id": "sourceLabel",
+            "type": "folder-selector",
+            "value": null
+          },
+          "manualFolder": {
+            "id": "manualFolder",
+            "type": "short-input",
+            "value": null
+          },
+          "labelSelector": {
+            "id": "labelSelector",
+            "type": "folder-selector",
+            "value": null
+          },
+          "manualLabelId": {
+            "id": "manualLabelId",
+            "type": "short-input",
+            "value": null
+          },
+          "moveMessageId": {
+            "id": "moveMessageId",
+            "type": "short-input",
+            "value": null
+          },
+          "actionMessageId": {
+            "id": "actionMessageId",
+            "type": "short-input",
+            "value": null
+          },
+          "attachmentFiles": {
+            "id": "attachmentFiles",
+            "type": "file-upload",
+            "value": null
+          },
+          "destinationLabel": {
+            "id": "destinationLabel",
+            "type": "folder-selector",
+            "value": null
+          },
+          "manualCredential": {
+            "id": "manualCredential",
+            "type": "short-input",
+            "value": null
+          },
+          "replyToMessageId": {
+            "id": "replyToMessageId",
+            "type": "short-input",
+            "value": null
+          },
+          "manualSourceLabel": {
+            "id": "manualSourceLabel",
+            "type": "short-input",
+            "value": null
+          },
+          "includeAttachments": {
+            "id": "includeAttachments",
+            "type": "short-input",
+            "value": true
+          },
+          "triggerCredentials": {
+            "id": "triggerCredentials",
+            "type": "short-input",
+            "value": null
+          },
+          "labelFilterBehavior": {
+            "id": "labelFilterBehavior",
+            "type": "short-input",
+            "value": "INCLUDE"
+          },
+          "triggerInstructions": {
+            "id": "triggerInstructions",
+            "type": "text",
+            "value": null
+          },
+          "labelActionMessageId": {
+            "id": "labelActionMessageId",
+            "type": "short-input",
+            "value": null
+          },
+          "manualDestinationLabel": {
+            "id": "manualDestinationLabel",
+            "type": "short-input",
+            "value": null
+          },
+          "samplePayload_gmail_poller": {
+            "id": "samplePayload_gmail_poller",
+            "type": "code",
+            "value": null
+          }
+        },
+        "outputs": {
+          "email": {
+            "cc": {
+              "type": "string",
+              "description": "CC recipients"
+            },
+            "id": {
+              "type": "string",
+              "description": "Gmail message ID"
+            },
+            "to": {
+              "type": "string",
+              "description": "Recipient email address"
+            },
+            "date": {
+              "type": "string",
+              "description": "Email date in ISO format"
+            },
+            "from": {
+              "type": "string",
+              "description": "Sender email address"
+            },
+            "labels": {
+              "type": "string",
+              "description": "Email labels array"
+            },
+            "subject": {
+              "type": "string",
+              "description": "Email subject line"
+            },
+            "bodyHtml": {
+              "type": "string",
+              "description": "HTML email body"
+            },
+            "bodyText": {
+              "type": "string",
+              "description": "Plain text email body"
+            },
+            "threadId": {
+              "type": "string",
+              "description": "Gmail thread ID"
+            },
+            "attachments": {
+              "type": "file[]",
+              "description": "Array of email attachments as files (if includeAttachments is enabled)"
+            },
+            "hasAttachments": {
+              "type": "boolean",
+              "description": "Whether email has attachments"
+            }
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "Event timestamp"
+          }
+        },
+        "data": {
+          "canonicalModes": {
+            "folder": "basic",
+            "addLabelIds": "basic",
+            "attachments": "basic",
+            "manageLabelId": "basic",
+            "removeLabelIds": "basic",
+            "oauthCredential": "basic"
+          }
+        },
+        "locked": false
+      },
+      "6ca6a47e-36db-4728-aa23-635bdcb3fa70": {
+        "id": "6ca6a47e-36db-4728-aa23-635bdcb3fa70",
+        "type": "note",
+        "name": "Gmail Setup",
+        "position": {
+          "x": 147.09586673447242,
+          "y": 14.230452516160646
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 0,
+        "subBlocks": {
+          "content": {
+            "id": "content",
+            "type": "long-input",
+            "value": "- Connect Gmail Account \n- Select Relevant Labels if needed"
+          }
+        },
+        "outputs": {},
+        "data": {},
+        "locked": false
+      },
+      "16e2b354-2924-4022-9335-59bd929f1381": {
+        "id": "16e2b354-2924-4022-9335-59bd929f1381",
+        "type": "note",
+        "name": "Supabase Setup",
+        "position": {
+          "x": 1659.0192982175643,
+          "y": -65.81005643625652
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 114,
+        "subBlocks": {
+          "content": {
+            "id": "content",
+            "type": "long-input",
+            "value": "- Set Supabase Project Id in a Secret as {{SUPABASE_PROJECT_ID}}\n- Set service role secret as {{SUPABASE_API_KEY}}"
+          }
+        },
+        "outputs": {},
+        "data": {},
+        "locked": false
+      }
+    },
+    "edges": [
+      {
+        "id": "632109a8-f13f-482c-b24b-ae0078bc8834",
+        "source": "f9f5e591-70a5-46a6-9cc2-84078e7022e8",
+        "target": "88c4fce8-e349-41ba-9dbd-ca63b6d34b60",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      },
+      {
+        "id": "dd6a5faf-af38-4b5b-983a-4d9155b7dcb3",
+        "source": "1fbe6757-baa6-4488-8b4d-e71afaea3bda",
+        "target": "f9f5e591-70a5-46a6-9cc2-84078e7022e8",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      },
+      {
+        "id": "7780c36d-56c7-4349-bf32-df2911676dd3",
+        "source": "a1880fed-ec19-4720-bdd3-6856c4425bc2",
+        "target": "1fbe6757-baa6-4488-8b4d-e71afaea3bda",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      }
+    ],
+    "loops": {},
+    "parallels": {},
+    "metadata": {
+      "name": "ocr-invoice-db",
+      "description": "Your first workflow - start building here!",
+      "color": "#3972F6",
+      "exportedAt": "2026-03-09T21:40:19.014Z"
+    },
+    "variables": {}
+  }
+}

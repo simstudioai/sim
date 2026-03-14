@@ -31,11 +31,9 @@ interface SpeechRecognitionStatic {
   new (): SpeechRecognition
 }
 
-declare global {
-  interface Window {
-    SpeechRecognition?: SpeechRecognitionStatic
-    webkitSpeechRecognition?: SpeechRecognitionStatic
-  }
+type WindowWithSpeech = Window & {
+  SpeechRecognition?: SpeechRecognitionStatic
+  webkitSpeechRecognition?: SpeechRecognitionStatic
 }
 
 interface VoiceInputProps {
@@ -57,8 +55,9 @@ export function VoiceInput({
 
   // Check if speech recognition is supported
   useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    setIsSupported(!!SpeechRecognition)
+    const w = window as WindowWithSpeech
+    const SpeechRecognitionCtor = w.SpeechRecognition || w.webkitSpeechRecognition
+    setIsSupported(!!SpeechRecognitionCtor)
   }, [])
 
   const handleVoiceClick = useCallback(() => {

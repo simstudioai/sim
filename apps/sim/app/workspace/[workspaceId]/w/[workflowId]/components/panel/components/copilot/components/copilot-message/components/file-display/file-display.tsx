@@ -29,7 +29,7 @@ interface FileAttachmentDisplayProps {
  */
 export const FileAttachmentDisplay = memo(({ fileAttachments }: FileAttachmentDisplayProps) => {
   const [fileUrls, setFileUrls] = useState<Record<string, string>>({})
-  const [failedImages, setFailedImages] = useState<Set<string>>(new Set())
+  const [failedImages, setFailedImages] = useState<Set<string>>(() => new Set())
 
   /**
    * Formats file size in bytes to human-readable format

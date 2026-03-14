@@ -15,6 +15,7 @@ import {
   useWorkspaceEnvironment,
   type WorkspaceEnvironmentData,
 } from '@/hooks/queries/environment'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 /**
  * Props for the EnvVarDropdown component
@@ -119,6 +120,8 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
   maxHeight = 'none',
   inputRef,
 }) => {
+  const { navigateToSettings } = useSettingsNavigation()
+
   // React Query hooks for environment variables
   const { data: personalEnv = {} } = usePersonalEnvironment()
   const { data: workspaceEnvData } = useWorkspaceEnvironment(workspaceId || '', {
@@ -177,7 +180,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
         requestedAt: Date.now(),
       })
     }
-    window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'credentials' } }))
+    navigateToSettings({ section: 'secrets' })
     onClose?.()
   }
 

@@ -22,6 +22,9 @@ export interface PerplexityChatResponse extends ToolResponse {
       prompt_tokens: number
       completion_tokens: number
       total_tokens: number
+      citation_tokens?: number
+      num_search_queries?: number
+      reasoning_tokens?: number
     }
   }
 }

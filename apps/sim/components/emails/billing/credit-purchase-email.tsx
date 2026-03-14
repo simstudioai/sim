@@ -1,6 +1,7 @@
 import { Link, Section, Text } from '@react-email/components'
 import { baseStyles, colors } from '@/components/emails/_styles'
 import { EmailLayout } from '@/components/emails/components'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
@@ -20,7 +21,7 @@ export function CreditPurchaseEmail({
   const brand = getBrandConfig()
   const baseUrl = getBaseUrl()
 
-  const previewText = `${brand.name}: $${amount.toFixed(2)} in credits added to your account`
+  const previewText = `${brand.name}: ${dollarsToCredits(amount).toLocaleString()} credits added to your account`
 
   return (
     <EmailLayout preview={previewText} showUnsubscribe={false}>
@@ -28,7 +29,8 @@ export function CreditPurchaseEmail({
         {userName ? `Hi ${userName},` : 'Hi,'}
       </Text>
       <Text style={baseStyles.paragraph}>
-        Your credit purchase of <strong>${amount.toFixed(2)}</strong> has been confirmed.
+        Your credit purchase of <strong>{dollarsToCredits(amount).toLocaleString()} credits</strong>{' '}
+        has been confirmed.
       </Text>
 
       <Section style={baseStyles.infoBox}>
@@ -51,7 +53,7 @@ export function CreditPurchaseEmail({
             fontFamily: baseStyles.fontFamily,
           }}
         >
-          ${amount.toFixed(2)}
+          {dollarsToCredits(amount).toLocaleString()} credits
         </Text>
         <Text
           style={{
@@ -72,7 +74,7 @@ export function CreditPurchaseEmail({
             fontFamily: baseStyles.fontFamily,
           }}
         >
-          ${newBalance.toFixed(2)}
+          {dollarsToCredits(newBalance).toLocaleString()} credits
         </Text>
       </Section>
 

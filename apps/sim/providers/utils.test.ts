@@ -769,27 +769,23 @@ describe('Cost Calculation', () => {
   })
 
   describe('formatCost', () => {
-    it.concurrent('should format costs >= $1 with two decimal places', () => {
-      expect(formatCost(1.234)).toBe('$1.23')
-      expect(formatCost(10.567)).toBe('$10.57')
+    it.concurrent('should format dollar amounts as credits', () => {
+      expect(formatCost(1.234)).toBe('247 credits')
+      expect(formatCost(10.567)).toBe('2,113 credits')
     })
 
-    it.concurrent('should format costs between 1¢ and $1 with three decimal places', () => {
-      expect(formatCost(0.0234)).toBe('$0.023')
-      expect(formatCost(0.1567)).toBe('$0.157')
+    it.concurrent('should show <1 credit for very small costs', () => {
+      expect(formatCost(0.0024)).toBe('<1 credit')
+      expect(formatCost(0.001)).toBe('<1 credit')
     })
 
-    it.concurrent('should format costs between 0.1¢ and 1¢ with four decimal places', () => {
-      expect(formatCost(0.00234)).toBe('$0.0023')
-      expect(formatCost(0.00567)).toBe('$0.0057')
-    })
-
-    it.concurrent('should format very small costs with appropriate precision', () => {
-      expect(formatCost(0.000234)).toContain('$0.000234')
+    it.concurrent('should show credit count for small costs that round to at least 1', () => {
+      expect(formatCost(0.0234)).toBe('5 credits')
+      expect(formatCost(0.1567)).toBe('31 credits')
     })
 
     it.concurrent('should handle zero cost', () => {
-      expect(formatCost(0)).toBe('$0')
+      expect(formatCost(0)).toBe('0 credits')
     })
 
     it.concurrent('should handle undefined/null costs', () => {
@@ -1405,6 +1401,7 @@ describe('prepareToolExecution', () => {
         workspaceId: 'ws-456',
         chatId: 'chat-789',
         userId: 'user-abc',
+        skipFixedUsageLog: true,
       })
     })
 

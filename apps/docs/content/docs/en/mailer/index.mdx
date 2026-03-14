@@ -1,0 +1,76 @@
+---
+title: Sim Mailer
+description: Send emails to your workspace and let Sim handle them as tasks.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
+
+Sim Mailer gives your workspace a dedicated email address. Forward or send emails to it and Sim will process them as tasks — reading the subject, body, and any attachments, then replying to the thread with the result.
+
+This means you can interact with Sim directly from your email client without switching apps.
+
+## Getting Started
+
+1. Navigate to **Settings** → **Inbox**
+2. Toggle the inbox on
+3. Optionally choose a custom address prefix (e.g., `acme` → `acme@mothership.sim.ai`)
+4. Copy your inbox address and start sending emails
+
+If you skip the custom prefix, one is generated automatically.
+
+<Callout type="info">
+  Changing your address creates a new inbox. The old address stops working immediately.
+</Callout>
+
+## What You Can Send
+
+Write your email like you would to a colleague. The subject and body become the task prompt.
+
+**Attachments are fully supported.** Images, PDFs, and documents (up to 10 MB each) are read by Sim and displayed inline in the conversation — image attachments show as previews, just like when you upload them directly in the chat.
+
+| Good email | Why it works |
+|------------|-------------|
+| "Summarize the attached PDF and list action items" | Clear task with an attachment |
+| "What's in this image?" with a photo attached | Sim reads and describes the image |
+| "Draft a reply to this forwarded thread" | Uses the email body as context |
+
+## Allowed Senders
+
+Only authorized senders can create tasks. Emails from anyone else are automatically rejected.
+
+- **Workspace members** are allowed by default — no setup needed
+- **External senders** can be added manually with an optional label for easy identification
+
+Manage your allowed senders list in **Settings** → **Inbox** → **Allowed Senders**.
+
+## Tracking Tasks
+
+Every email becomes a task you can track in **Settings** → **Inbox**:
+
+- **Search** by subject, sender, or body content
+- **Filter** by status to find what you need
+- **Click** any completed or failed task to jump to the full conversation
+
+### Task Statuses
+
+| Status | Meaning |
+|--------|---------|
+| **Received** | Email accepted, queued for processing |
+| **Processing** | Sim is actively working on it |
+| **Completed** | Done — the result was sent as an email reply |
+| **Failed** | Something went wrong during execution |
+| **Rejected** | Email blocked (sender not allowed, automated sender, or rate limit exceeded) |
+
+## Conversations
+
+Each email task creates a conversation in your workspace. You can continue the conversation from the Sim chat interface, and any follow-up emails in the same thread are linked to the same conversation.
+
+<FAQ items={[
+  { question: "Can I use my own email domain?", answer: "Not currently. All inbox addresses use the @mothership.sim.ai domain. You can customize the prefix (e.g., acme@mothership.sim.ai) but not the domain itself." },
+  { question: "What happens if I send from an unauthorized email?", answer: "The email is automatically rejected. Only workspace members and manually added external senders can create tasks." },
+  { question: "Is there a size limit for attachments?", answer: "Yes, each attachment can be up to 10 MB. Images, PDFs, and common document formats are supported." },
+  { question: "Can I reply to Sim's email responses?", answer: "Yes. Replies in the same email thread are linked to the original conversation, so you can continue the interaction from your email client." },
+  { question: "How long does it take to process an email?", answer: "Most emails are processed within a few seconds. Emails with large attachments or complex tasks may take slightly longer." },
+  { question: "Can multiple people in my workspace use the same inbox?", answer: "Yes. All workspace members can send to the shared inbox address. Each email creates its own task and conversation." },
+]} />

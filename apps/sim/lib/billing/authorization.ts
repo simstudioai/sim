@@ -16,15 +16,15 @@ const logger = createLogger('BillingAuthorization')
  */
 export async function authorizeSubscriptionReference(
   userId: string,
-  referenceId: string
+  referenceId: string,
+  action?: string
 ): Promise<boolean> {
-  // User can always manage their own subscriptions (Pro upgrades, etc.)
   if (referenceId === userId) {
     return true
   }
 
-  // For organizations: check for existing active subscriptions to prevent duplicates
-  if (await hasActiveSubscription(referenceId)) {
+  // Only block duplicate subscriptions during upgrade/checkout, not cancel/restore/list
+  if (action === 'upgrade-subscription' && (await hasActiveSubscription(referenceId))) {
     logger.warn('Blocking checkout - active subscription already exists for organization', {
       userId,
       referenceId,
@@ -32,7 +32,6 @@ export async function authorizeSubscriptionReference(
     return false
   }
 
-  // Check if referenceId is an organizationId the user has admin rights to
   const members = await db
     .select()
     .from(schema.member)
@@ -40,6 +39,5 @@ export async function authorizeSubscriptionReference(
 
   const member = members[0]
 
-  // Allow if the user is an owner or admin of the organization
   return member?.role === 'owner' || member?.role === 'admin'
 }

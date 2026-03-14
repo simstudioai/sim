@@ -43,7 +43,7 @@ function VerificationForm({
 
   useEffect(() => {
     if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
+      const timer = setTimeout(() => setCountdown((c) => c - 1), 1000)
       return () => clearTimeout(timer)
     }
     if (countdown === 0 && isResendDisabled) {

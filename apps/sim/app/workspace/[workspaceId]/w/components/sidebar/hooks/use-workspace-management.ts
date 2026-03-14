@@ -2,12 +2,11 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
-import { generateWorkspaceName } from '@/lib/workspaces/naming'
 import { useLeaveWorkspace } from '@/hooks/queries/invitations'
 import {
   useCreateWorkspace,
   useDeleteWorkspace,
-  useUpdateWorkspaceName,
+  useUpdateWorkspace,
   useWorkspacesQuery,
   type Workspace,
   workspaceKeys,
@@ -47,7 +46,7 @@ export function useWorkspaceManagement({
   const leaveWorkspaceMutation = useLeaveWorkspace()
   const createWorkspaceMutation = useCreateWorkspace()
   const deleteWorkspaceMutation = useDeleteWorkspace()
-  const updateWorkspaceNameMutation = useUpdateWorkspaceName()
+  const updateWorkspaceMutation = useUpdateWorkspace()
 
   const workspaceIdRef = useRef<string>(workspaceId)
   const routerRef = useRef<ReturnType<typeof useRouter>>(router)
@@ -78,7 +77,7 @@ export function useWorkspaceManagement({
       logger.warn(`Workspace ${currentWorkspaceId} not found in user's workspaces`)
       const fallbackWorkspace = workspaces[0]
       logger.info(`Redirecting to fallback workspace: ${fallbackWorkspace.id}`)
-      routerRef.current?.push(`/workspace/${fallbackWorkspace.id}/w`)
+      routerRef.current?.push(`/workspace/${fallbackWorkspace.id}/home`)
     }
 
     hasValidatedRef.current = true
@@ -93,18 +92,18 @@ export function useWorkspaceManagement({
     await refetchWorkspaces()
   }, [refetchWorkspaces])
 
-  const updateWorkspaceName = useCallback(
-    async (workspaceId: string, newName: string): Promise<boolean> => {
+  const updateWorkspace = useCallback(
+    async (workspaceId: string, updates: { name?: string; color?: string }): Promise<boolean> => {
       try {
-        await updateWorkspaceNameMutation.mutateAsync({ workspaceId, name: newName })
-        logger.info('Successfully updated workspace name to:', newName.trim())
+        await updateWorkspaceMutation.mutateAsync({ workspaceId, ...updates })
+        logger.info('Successfully updated workspace:', updates)
         return true
       } catch (error) {
-        logger.error('Error updating workspace name:', error)
+        logger.error('Error updating workspace:', error)
         return false
       }
     },
-    [updateWorkspaceNameMutation]
+    [updateWorkspaceMutation]
   )
 
   const switchWorkspace = useCallback(
@@ -123,7 +122,7 @@ export function useWorkspaceManagement({
         } else if (/^\/workspace\/[^/]+\/templates$/.test(currentPath)) {
           routerRef.current?.push(`/workspace/${workspace.id}/templates`)
         } else {
-          routerRef.current?.push(`/workspace/${workspace.id}/w`)
+          routerRef.current?.push(`/workspace/${workspace.id}/home`)
         }
         logger.info(`Switched to workspace: ${workspace.name} (${workspace.id})`)
       } catch (error) {
@@ -133,25 +132,26 @@ export function useWorkspaceManagement({
     [switchToWorkspace]
   )
 
-  const handleCreateWorkspace = useCallback(async () => {
-    if (createWorkspaceMutation.isPending) {
-      logger.info('Workspace creation already in progress, ignoring request')
-      return
-    }
+  const handleCreateWorkspace = useCallback(
+    async (name: string) => {
+      if (createWorkspaceMutation.isPending) {
+        logger.info('Workspace creation already in progress, ignoring request')
+        return
+      }
 
-    try {
-      logger.info('Creating new workspace')
-      const workspaceName = await generateWorkspaceName()
-      logger.info(`Generated workspace name: ${workspaceName}`)
+      try {
+        logger.info(`Creating new workspace: ${name}`)
 
-      const newWorkspace = await createWorkspaceMutation.mutateAsync({ name: workspaceName })
-      logger.info('Created new workspace:', newWorkspace)
+        const newWorkspace = await createWorkspaceMutation.mutateAsync({ name })
+        logger.info('Created new workspace:', newWorkspace)
 
-      await switchWorkspace(newWorkspace)
-    } catch (error) {
-      logger.error('Error creating workspace:', error)
-    }
-  }, [createWorkspaceMutation, switchWorkspace])
+        await switchWorkspace(newWorkspace)
+      } catch (error) {
+        logger.error('Error creating workspace:', error)
+      }
+    },
+    [createWorkspaceMutation, switchWorkspace]
+  )
 
   const confirmDeleteWorkspace = useCallback(
     async (workspaceToDelete: Workspace, templateAction?: 'keep' | 'delete') => {
@@ -251,7 +251,7 @@ export function useWorkspaceManagement({
     isLeaving: leaveWorkspaceMutation.isPending,
     fetchWorkspaces,
     refreshWorkspaceList,
-    updateWorkspaceName,
+    updateWorkspace,
     switchWorkspace,
     handleCreateWorkspace,
     confirmDeleteWorkspace,

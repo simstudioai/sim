@@ -1177,7 +1177,7 @@ try {
         <ModalContent size='sm'>
           <ModalHeader>Delete Custom Tool</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               This will permanently delete the tool and remove it from any workflows that are using
               it. <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
@@ -1205,7 +1205,7 @@ try {
         <ModalContent size='sm'>
           <ModalHeader>Unsaved Changes</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               You have unsaved changes to this tool. Are you sure you want to discard your changes
               and close the editor?
             </p>

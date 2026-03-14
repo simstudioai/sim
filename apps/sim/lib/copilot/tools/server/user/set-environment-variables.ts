@@ -1,14 +1,11 @@
 import { db } from '@sim/db'
-import { credential, environment, workflow, workspaceEnvironment } from '@sim/db/schema'
+import { credential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
-import {
-  syncPersonalEnvCredentialsForUser,
-  syncWorkspaceEnvCredentials,
-} from '@/lib/credentials/environment'
+import { upsertPersonalEnvVars, upsertWorkspaceEnvVars } from '@/lib/environment/utils'
+import { getWorkflowById } from '@/lib/workflows/utils'
 
 interface SetEnvironmentVariablesParams {
   variables: Record<string, any> | Array<{ name: string; value: string }>
@@ -65,11 +62,7 @@ export const setEnvironmentVariablesServerTool: BaseServerTool<SetEnvironmentVar
       let resolvedWorkspaceId: string | null = null
 
       if (requestedKeys.length > 0 && workflowId) {
-        const [wf] = await db
-          .select({ workspaceId: workflow.workspaceId })
-          .from(workflow)
-          .where(eq(workflow.id, workflowId))
-          .limit(1)
+        const wf = await getWorkflowById(workflowId)
 
         if (wf?.workspaceId) {
           resolvedWorkspaceId = wf.workspaceId
@@ -101,112 +94,15 @@ export const setEnvironmentVariablesServerTool: BaseServerTool<SetEnvironmentVar
         }
       }
 
-      const added: string[] = []
-      const updated: string[] = []
-      const workspaceUpdated: string[] = []
+      const { added, updated } = await upsertPersonalEnvVars(authenticatedUserId, personalVars)
 
-      if (Object.keys(personalVars).length > 0) {
-        const existingData = await db
-          .select()
-          .from(environment)
-          .where(eq(environment.userId, authenticatedUserId))
-          .limit(1)
-        const existingEncrypted = (existingData[0]?.variables as Record<string, string>) || {}
-
-        const toEncrypt: Record<string, string> = {}
-        for (const [key, newVal] of Object.entries(personalVars)) {
-          if (!(key in existingEncrypted)) {
-            toEncrypt[key] = newVal
-            added.push(key)
-          } else {
-            try {
-              const { decrypted } = await decryptSecret(existingEncrypted[key])
-              if (decrypted !== newVal) {
-                toEncrypt[key] = newVal
-                updated.push(key)
-              }
-            } catch {
-              toEncrypt[key] = newVal
-              updated.push(key)
-            }
-          }
-        }
-
-        const newlyEncrypted = await Object.entries(toEncrypt).reduce(
-          async (accP, [key, val]) => {
-            const acc = await accP
-            const { encrypted } = await encryptSecret(val)
-            return { ...acc, [key]: encrypted }
-          },
-          Promise.resolve({} as Record<string, string>)
-        )
-
-        const finalEncrypted = { ...existingEncrypted, ...newlyEncrypted }
-
-        await db
-          .insert(environment)
-          .values({
-            id: crypto.randomUUID(),
-            userId: authenticatedUserId,
-            variables: finalEncrypted,
-            updatedAt: new Date(),
-          })
-          .onConflictDoUpdate({
-            target: [environment.userId],
-            set: { variables: finalEncrypted, updatedAt: new Date() },
-          })
-
-        await syncPersonalEnvCredentialsForUser({
-          userId: authenticatedUserId,
-          envKeys: Object.keys(finalEncrypted),
-        })
-      }
-
+      let workspaceUpdated: string[] = []
       if (Object.keys(workspaceVars).length > 0 && resolvedWorkspaceId) {
-        const wsRows = await db
-          .select()
-          .from(workspaceEnvironment)
-          .where(eq(workspaceEnvironment.workspaceId, resolvedWorkspaceId))
-          .limit(1)
-
-        const existingWsEncrypted = (wsRows[0]?.variables as Record<string, string>) || {}
-
-        const toEncryptWs: Record<string, string> = {}
-        for (const [key, newVal] of Object.entries(workspaceVars)) {
-          toEncryptWs[key] = newVal
-          workspaceUpdated.push(key)
-        }
-
-        const newlyEncryptedWs = await Object.entries(toEncryptWs).reduce(
-          async (accP, [key, val]) => {
-            const acc = await accP
-            const { encrypted } = await encryptSecret(val)
-            return { ...acc, [key]: encrypted }
-          },
-          Promise.resolve({} as Record<string, string>)
+        workspaceUpdated = await upsertWorkspaceEnvVars(
+          resolvedWorkspaceId,
+          workspaceVars,
+          authenticatedUserId
         )
-
-        const mergedWs = { ...existingWsEncrypted, ...newlyEncryptedWs }
-
-        await db
-          .insert(workspaceEnvironment)
-          .values({
-            id: crypto.randomUUID(),
-            workspaceId: resolvedWorkspaceId,
-            variables: mergedWs,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .onConflictDoUpdate({
-            target: [workspaceEnvironment.workspaceId],
-            set: { variables: mergedWs, updatedAt: new Date() },
-          })
-
-        await syncWorkspaceEnvCredentials({
-          workspaceId: resolvedWorkspaceId,
-          envKeys: Object.keys(workspaceVars),
-          actingUserId: authenticatedUserId,
-        })
       }
 
       const totalProcessed = added.length + updated.length + workspaceUpdated.length

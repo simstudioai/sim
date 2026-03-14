@@ -17,6 +17,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
+import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 
@@ -412,7 +413,7 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
       )
       .limit(1)
 
-    const orgIsPaid = orgSub && (orgSub.plan === 'team' || orgSub.plan === 'enterprise')
+    const orgIsPaid = orgSub && isOrgPlan(orgSub.plan)
 
     let memberId = ''
 
@@ -621,7 +622,7 @@ export async function removeUserFromOrganization(
             .where(eq(subscriptionTable.status, 'active'))
 
           hasAnyPaidTeam = orgPaidSubs.some(
-            (s) => orgIds.includes(s.referenceId) && ['team', 'enterprise'].includes(s.plan ?? '')
+            (s) => orgIds.includes(s.referenceId) && isOrgPlan(s.plan)
           )
         }
 

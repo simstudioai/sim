@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflow, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
@@ -37,10 +37,13 @@ export const GET = withMcpAuth('read')(
             SELECT COUNT(*)::int
             FROM "workflow_mcp_tool"
             WHERE "workflow_mcp_tool"."server_id" = "workflow_mcp_server"."id"
+              AND "workflow_mcp_tool"."archived_at" IS NULL
           )`.as('tool_count'),
         })
         .from(workflowMcpServer)
-        .where(eq(workflowMcpServer.workspaceId, workspaceId))
+        .where(
+          and(eq(workflowMcpServer.workspaceId, workspaceId), isNull(workflowMcpServer.deletedAt))
+        )
 
       const serverIds = servers.map((s) => s.id)
       const tools =
@@ -51,7 +54,12 @@ export const GET = withMcpAuth('read')(
                 toolName: workflowMcpTool.toolName,
               })
               .from(workflowMcpTool)
-              .where(inArray(workflowMcpTool.serverId, serverIds))
+              .where(
+                and(
+                  inArray(workflowMcpTool.serverId, serverIds),
+                  isNull(workflowMcpTool.archivedAt)
+                )
+              )
           : []
 
       const toolNamesByServer: Record<string, string[]> = {}
@@ -133,7 +141,7 @@ export const POST = withMcpAuth('write')(
             workspaceId: workflow.workspaceId,
           })
           .from(workflow)
-          .where(inArray(workflow.id, workflowIds))
+          .where(and(inArray(workflow.id, workflowIds), isNull(workflow.archivedAt)))
 
         for (const workflowRecord of workflows) {
           if (workflowRecord.workspaceId !== workspaceId) {

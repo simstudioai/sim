@@ -7,10 +7,10 @@ import {
   CheckCircle2,
   ChevronDown,
   Clipboard,
-  Download,
   Eye,
   Send,
   Trash2,
+  Upload,
   X,
   XCircle,
 } from 'lucide-react'
@@ -65,12 +65,12 @@ export function TrainingModal() {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [viewingDataset, setViewingDataset] = useState<string | null>(null)
   const [expandedDataset, setExpandedDataset] = useState<string | null>(null)
-  const [sendingDatasets, setSendingDatasets] = useState<Set<string>>(new Set())
+  const [sendingDatasets, setSendingDatasets] = useState<Set<string>>(() => new Set())
   const [sendingAll, setSendingAll] = useState(false)
-  const [selectedDatasets, setSelectedDatasets] = useState<Set<string>>(new Set())
+  const [selectedDatasets, setSelectedDatasets] = useState<Set<string>>(() => new Set())
   const [sendingSelected, setSendingSelected] = useState(false)
-  const [sentDatasets, setSentDatasets] = useState<Set<string>>(new Set())
-  const [failedDatasets, setFailedDatasets] = useState<Set<string>>(new Set())
+  const [sentDatasets, setSentDatasets] = useState<Set<string>>(() => new Set())
+  const [failedDatasets, setFailedDatasets] = useState<Set<string>>(() => new Set())
   const [sendingLiveWorkflow, setSendingLiveWorkflow] = useState(false)
   const [liveWorkflowSent, setLiveWorkflowSent] = useState(false)
   const [liveWorkflowFailed, setLiveWorkflowFailed] = useState(false)
@@ -493,7 +493,7 @@ export function TrainingModal() {
                         onClick={handleExportAll}
                         disabled={datasets.length === 0}
                       >
-                        <Download className='mr-[6px] h-[12px] w-[12px]' />
+                        <Upload className='mr-[6px] h-[12px] w-[12px]' />
                         Export
                       </Button>
                       <Button
