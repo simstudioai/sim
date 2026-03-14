@@ -16,6 +16,7 @@ interface ConnectorSelectorFieldProps {
   credentialId: string | null
   sourceConfig: Record<string, string>
   configFields: ConnectorConfigField[]
+  canonicalModes: Record<string, 'basic' | 'advanced'>
   disabled?: boolean
 }
 
@@ -26,6 +27,7 @@ export function ConnectorSelectorField({
   credentialId,
   sourceConfig,
   configFields,
+  canonicalModes,
   disabled,
 }: ConnectorSelectorFieldProps) {
   const context = useMemo<SelectorContext>(() => {
@@ -35,20 +37,22 @@ export function ConnectorSelectorField({
     for (const depFieldId of getDependsOnFields(field.dependsOn)) {
       const depField = configFields.find((f) => f.id === depFieldId)
       const canonicalId = depField?.canonicalParamId ?? depFieldId
-      const depValue = sourceConfig[depFieldId]
+      const depValue = resolveDepValue(depFieldId, configFields, canonicalModes, sourceConfig)
       if (depValue && SELECTOR_CONTEXT_FIELDS.has(canonicalId as keyof SelectorContext)) {
         ctx[canonicalId as keyof SelectorContext] = depValue
       }
     }
 
     return ctx
-  }, [credentialId, field.dependsOn, sourceConfig, configFields])
+  }, [credentialId, field.dependsOn, sourceConfig, configFields, canonicalModes])
 
   const depsResolved = useMemo(() => {
     if (!field.dependsOn) return true
     const deps = Array.isArray(field.dependsOn) ? field.dependsOn : (field.dependsOn.all ?? [])
-    return deps.every((depId) => Boolean(sourceConfig[depId]?.trim()))
-  }, [field.dependsOn, sourceConfig])
+    return deps.every((depId) =>
+      Boolean(resolveDepValue(depId, configFields, canonicalModes, sourceConfig)?.trim())
+    )
+  }, [field.dependsOn, sourceConfig, configFields, canonicalModes])
 
   const isEnabled = !disabled && !!credentialId && depsResolved
   const { data: options = [], isLoading } = useSelectorOptions(field.selectorKey, {
@@ -85,6 +89,24 @@ export function ConnectorSelectorField({
       disabled={disabled || !credentialId || !depsResolved}
     />
   )
+}
+
+function resolveDepValue(
+  depFieldId: string,
+  configFields: ConnectorConfigField[],
+  canonicalModes: Record<string, 'basic' | 'advanced'>,
+  sourceConfig: Record<string, string>
+): string {
+  const depField = configFields.find((f) => f.id === depFieldId)
+  if (!depField?.canonicalParamId) return sourceConfig[depFieldId] ?? ''
+
+  const activeMode = canonicalModes[depField.canonicalParamId] ?? 'basic'
+  if (depField.mode === activeMode) return sourceConfig[depFieldId] ?? ''
+
+  const activeField = configFields.find(
+    (f) => f.canonicalParamId === depField.canonicalParamId && f.mode === activeMode
+  )
+  return activeField ? (sourceConfig[activeField.id] ?? '') : (sourceConfig[depFieldId] ?? '')
 }
 
 function getDependencyLabel(

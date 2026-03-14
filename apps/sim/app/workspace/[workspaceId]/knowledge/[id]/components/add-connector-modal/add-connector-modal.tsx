@@ -121,6 +121,12 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
       for (const field of group) {
         for (const dep of map.get(field.id) ?? []) {
           allDependents.add(dep)
+          const depField = connectorConfig.configFields.find((f) => f.id === dep)
+          if (depField?.canonicalParamId) {
+            for (const sibling of canonicalGroups.get(depField.canonicalParamId) ?? []) {
+              allDependents.add(sibling.id)
+            }
+          }
         }
       }
       if (allDependents.size > 0) {
@@ -438,7 +444,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                             </Tooltip.Trigger>
                             <Tooltip.Content side='top'>
                               {field.mode === 'basic'
-                                ? 'Switch to manual ID'
+                                ? 'Switch to manual input'
                                 : 'Switch to selector'}
                             </Tooltip.Content>
                           </Tooltip.Root>
@@ -455,6 +461,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                           credentialId={effectiveCredentialId}
                           sourceConfig={sourceConfig}
                           configFields={connectorConfig.configFields}
+                          canonicalModes={canonicalModes}
                           disabled={isCreating}
                         />
                       ) : field.type === 'dropdown' && field.options ? (
