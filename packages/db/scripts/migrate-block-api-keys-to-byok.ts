@@ -557,9 +557,7 @@ async function processWorkspace(
 
       if (DRY_RUN) {
         if (existingBYOKProviders.has(providerId)) {
-          console.log(
-            `  [DRY RUN] BYOK already exists for provider "${providerId}", skipping`
-          )
+          console.log(`  [DRY RUN] BYOK already exists for provider "${providerId}", skipping`)
           stats.skippedExisting++
           continue
         }
