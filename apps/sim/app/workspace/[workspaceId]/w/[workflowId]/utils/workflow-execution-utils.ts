@@ -4,7 +4,13 @@ import type {
   BlockErrorData,
   BlockStartedData,
 } from '@/lib/workflows/executor/execution-events'
-import type { BlockLog, BlockState, ExecutionResult, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
+import type {
+  BlockLog,
+  BlockState,
+  ExecutionResult,
+  NormalizedBlockOutput,
+  StreamingExecution,
+} from '@/executor/types'
 import { stripCloneSuffixes } from '@/executor/utils/subflow-utils'
 import { useExecutionStore } from '@/stores/execution'
 import type { ConsoleEntry, ConsoleUpdate } from '@/stores/terminal'
@@ -118,7 +124,10 @@ export interface BlockEventHandlerDeps {
  * Creates block event handlers for SSE execution events.
  * Shared by the workflow execution hook and standalone execution utilities.
  */
-export function createBlockEventHandlers(config: BlockEventHandlerConfig, deps: BlockEventHandlerDeps) {
+export function createBlockEventHandlers(
+  config: BlockEventHandlerConfig,
+  deps: BlockEventHandlerDeps
+) {
   const {
     workflowId,
     executionIdRef,
