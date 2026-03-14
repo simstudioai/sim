@@ -22,6 +22,7 @@ const SECTION_TITLES: Record<string, string> = {
   skills: 'Skills',
   'workflow-mcp-servers': 'MCP Servers',
   'credential-sets': 'Email Polling',
+  'recently-deleted': 'Recently Deleted',
   debug: 'Debug',
 } as const
 

@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { X } from 'lucide-react'
-import { Badge, Combobox, type ComboboxOption } from '@/components/emcn'
+import { Badge, Combobox, type ComboboxOption, Label } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { useWorkflows } from '@/hooks/queries/workflows'
 
@@ -103,16 +103,16 @@ export function WorkflowSelector({
 
   if (isLoading) {
     return (
-      <div className='flex flex-col gap-[4px]'>
-        <span className='font-medium text-[13px] text-[var(--text-secondary)]'>Workflows</span>
+      <div className='flex flex-col gap-[8px]'>
+        <Label>Workflows</Label>
         <Skeleton className='h-[34px] w-full rounded-[6px]' />
       </div>
     )
   }
 
   return (
-    <div className='flex flex-col gap-[4px]'>
-      <span className='font-medium text-[13px] text-[var(--text-secondary)]'>Workflows</span>
+    <div className='flex flex-col gap-[8px]'>
+      <Label>Workflows</Label>
       <Combobox
         options={options}
         multiSelect

@@ -316,7 +316,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
           Failed to load server details
         </p>
         <Button variant='default' onClick={onBack}>
-          Go Back
+          Back
         </Button>
       </div>
     )
@@ -588,6 +588,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         </SModalTabs>
 
         <div className='mt-auto flex items-center justify-between'>
+          <Button onClick={onBack} variant='default'>
+            Back
+          </Button>
           <div className='flex items-center gap-[8px]'>
             {activeServerTab === 'details' && (
               <>
@@ -619,9 +622,6 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
               </>
             )}
           </div>
-          <Button onClick={onBack} variant='tertiary'>
-            Back
-          </Button>
         </div>
       </div>
 

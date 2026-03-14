@@ -601,8 +601,8 @@ export function CredentialSets() {
             </div>
           </div>
 
-          <div className='mt-auto flex items-center justify-end'>
-            <Button onClick={handleBackToList} variant='tertiary'>
+          <div className='mt-auto flex items-center justify-start'>
+            <Button onClick={handleBackToList} variant='default'>
               Back
             </Button>
           </div>

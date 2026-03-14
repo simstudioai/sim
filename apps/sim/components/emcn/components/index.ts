@@ -141,5 +141,6 @@ export {
   tagVariants,
 } from './tag-input/tag-input'
 export { Textarea } from './textarea/textarea'
+export { toast, ToastProvider, useToast } from './toast/toast'
 export { TimePicker, type TimePickerProps, timePickerVariants } from './time-picker/time-picker'
 export { Tooltip } from './tooltip/tooltip'

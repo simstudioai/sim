@@ -76,7 +76,8 @@ export async function emitWorkflowExecutionCompleted(log: WorkflowExecutionLog):
 
     for (const subscription of subscriptions) {
       const levelMatches = subscription.levelFilter.includes(log.level)
-      const triggerMatches = subscription.triggerFilter.includes(log.trigger)
+      const triggerMatches =
+        subscription.triggerFilter.length === 0 || subscription.triggerFilter.includes(log.trigger)
 
       if (!levelMatches || !triggerMatches) {
         logger.debug(`Skipping subscription ${subscription.id} due to filter mismatch`)

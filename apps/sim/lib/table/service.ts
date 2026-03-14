@@ -433,6 +433,35 @@ export async function deleteTable(tableId: string, requestId: string): Promise<v
 }
 
 /**
+ * Restores an archived table.
+ */
+export async function restoreTable(tableId: string, requestId: string): Promise<void> {
+  const table = await getTableById(tableId, { includeArchived: true })
+  if (!table) {
+    throw new Error('Table not found')
+  }
+
+  if (!table.archivedAt) {
+    throw new Error('Table is not archived')
+  }
+
+  if (table.workspaceId) {
+    const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
+    const ws = await getWorkspaceWithOwner(table.workspaceId)
+    if (!ws || ws.archivedAt) {
+      throw new Error('Cannot restore table into an archived workspace')
+    }
+  }
+
+  await db
+    .update(userTableDefinitions)
+    .set({ archivedAt: null, updatedAt: new Date() })
+    .where(eq(userTableDefinitions.id, tableId))
+
+  logger.info(`[${requestId}] Restored table ${tableId}`)
+}
+
+/**
  * Inserts a single row into a table.
  *
  * @param data - Row insertion data

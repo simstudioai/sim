@@ -590,8 +590,10 @@ export const Panel = memo(function Panel() {
               <span className='font-medium text-[var(--text-primary)]'>
                 {currentWorkflow?.name ?? 'this workflow'}
               </span>
-              ? This will permanently remove all associated blocks, executions, and configuration.{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              ? All associated blocks, executions, and configuration will be removed.{' '}
+              <span className='text-[var(--text-tertiary)]'>
+                You can restore it from Recently Deleted in Settings.
+              </span>
             </p>
           </ModalBody>
           <ModalFooter>

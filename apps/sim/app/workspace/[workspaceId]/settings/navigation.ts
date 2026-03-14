@@ -8,10 +8,12 @@ import {
   KeySquare,
   LogIn,
   Mail,
+  Send,
   Server,
   Settings,
   ShieldCheck,
   TerminalWindow,
+  TrashOutline,
   User,
   Users,
   Wrench,
@@ -39,6 +41,7 @@ export type SettingsSection =
   | 'inbox'
   | 'docs'
   | 'debug'
+  | 'recently-deleted'
 
 export type NavigationSection =
   | 'account'
@@ -130,7 +133,7 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'inbox',
     label: 'Sim Mailer',
-    icon: Mail,
+    icon: Send,
     section: 'system',
     requiresHosted: true,
     selfHostedOverride: isInboxEnabled,
@@ -143,6 +146,7 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     selfHostedOverride: isCredentialSetsEnabled,
   },
+  { id: 'recently-deleted', label: 'Recently Deleted', icon: TrashOutline, section: 'system' },
   {
     id: 'sso',
     label: 'Single Sign-On',

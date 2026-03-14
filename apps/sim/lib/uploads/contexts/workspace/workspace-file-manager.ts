@@ -526,3 +526,38 @@ export async function deleteWorkspaceFile(workspaceId: string, fileId: string): 
     )
   }
 }
+
+/**
+ * Restore a soft-deleted workspace file.
+ */
+export async function restoreWorkspaceFile(workspaceId: string, fileId: string): Promise<void> {
+  logger.info(`Restoring workspace file: ${fileId}`)
+
+  const fileRecord = await getWorkspaceFile(workspaceId, fileId, { includeDeleted: true })
+  if (!fileRecord) {
+    throw new Error('File not found')
+  }
+
+  if (!fileRecord.deletedAt) {
+    throw new Error('File is not archived')
+  }
+
+  const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
+  const ws = await getWorkspaceWithOwner(workspaceId)
+  if (!ws || ws.archivedAt) {
+    throw new Error('Cannot restore file into an archived workspace')
+  }
+
+  await db
+    .update(workspaceFiles)
+    .set({ deletedAt: null })
+    .where(
+      and(
+        eq(workspaceFiles.id, fileId),
+        eq(workspaceFiles.workspaceId, workspaceId),
+        eq(workspaceFiles.context, 'workspace')
+      )
+    )
+
+  logger.info(`Successfully restored workspace file: ${fileRecord.name}`)
+}

@@ -321,7 +321,7 @@ export function ApiKeys() {
       {/* Allow Personal API Keys Toggle - Fixed at bottom */}
       {!isLoading && canManageWorkspaceKeys && (
         <Tooltip.Provider delayDuration={150}>
-          <div className='mt-auto flex items-center justify-between'>
+          <div className='mt-[24px] flex items-center justify-between'>
             <div className='flex items-center gap-[8px]'>
               <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
                 Allow personal Sim keys

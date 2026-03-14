@@ -211,8 +211,10 @@ export function Tables() {
             <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{activeTable?.name}</span>?
-              This will permanently delete all {activeTable?.rowCount} rows.{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              All {activeTable?.rowCount} rows will be removed.{' '}
+              <span className='text-[var(--text-tertiary)]'>
+                You can restore it from Recently Deleted in Settings.
+              </span>
             </p>
           </ModalBody>
           <ModalFooter>
