@@ -291,7 +291,7 @@ export const gmailConnector: ConnectorConfig = {
   auth: {
     mode: 'oauth',
     provider: 'google-email',
-    requiredScopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+    requiredScopes: ['https://www.googleapis.com/auth/gmail.modify'],
   },
 
   configFields: [

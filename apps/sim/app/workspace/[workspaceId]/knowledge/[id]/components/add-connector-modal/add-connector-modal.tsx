@@ -57,6 +57,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
   const [showOAuthModal, setShowOAuthModal] = useState(false)
 
   const [apiKeyValue, setApiKeyValue] = useState('')
+  const [apiKeyFocused, setApiKeyFocused] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
 
   const { workspaceId } = useParams<{ workspaceId: string }>()
@@ -235,10 +236,12 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                         : 'API Key'}
                     </Label>
                     <Input
-                      type='password'
+                      type={apiKeyFocused ? 'text' : 'password'}
                       autoComplete='new-password'
                       value={apiKeyValue}
                       onChange={(e) => setApiKeyValue(e.target.value)}
+                      onFocus={() => setApiKeyFocused(true)}
+                      onBlur={() => setApiKeyFocused(false)}
                       placeholder={
                         connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.placeholder
                           ? connectorConfig.auth.placeholder
@@ -345,17 +348,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                       >
                         <Checkbox
                           checked={!disabledTagIds.has(tagDef.id)}
-                          onCheckedChange={(checked) => {
-                            setDisabledTagIds((prev) => {
-                              const next = new Set(prev)
-                              if (checked) {
-                                next.delete(tagDef.id)
-                              } else {
-                                next.add(tagDef.id)
-                              }
-                              return next
-                            })
-                          }}
+                          onCheckedChange={() => {}}
                         />
                         <span className='text-[var(--text-primary)]'>{tagDef.displayName}</span>
                         <span className='text-[11px] text-[var(--text-muted)]'>

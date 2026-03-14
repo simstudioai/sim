@@ -158,7 +158,11 @@ export const githubConnector: ConnectorConfig = {
   version: '1.0.0',
   icon: GithubIcon,
 
-  auth: { mode: 'oauth', provider: 'github', requiredScopes: ['repo'] },
+  auth: {
+    mode: 'apiKey',
+    label: 'Personal Access Token',
+    placeholder: 'ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+  },
 
   configFields: [
     {

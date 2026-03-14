@@ -237,7 +237,7 @@ export const googleCalendarConnector: ConnectorConfig = {
   auth: {
     mode: 'oauth',
     provider: 'google-calendar',
-    requiredScopes: ['https://www.googleapis.com/auth/calendar.readonly'],
+    requiredScopes: ['https://www.googleapis.com/auth/calendar'],
   },
 
   configFields: [
