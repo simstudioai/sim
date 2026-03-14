@@ -28,7 +28,6 @@ import { formatDuration } from '@/lib/core/utils/formatting'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
-  FilterPopover,
   LogRowContextMenu,
   OutputPanel,
   StatusDisplay,
@@ -603,7 +602,6 @@ export const Terminal = memo(function Terminal() {
   const [showCopySuccess, setShowCopySuccess] = useState(false)
   const [showInput, setShowInput] = useState(false)
   const [autoSelectEnabled, setAutoSelectEnabled] = useState(true)
-  const [filtersOpen, setFiltersOpen] = useState(false)
   const [mainOptionsOpen, setMainOptionsOpen] = useState(false)
 
   const [isTrainingEnvEnabled, setIsTrainingEnvEnabled] = useState(false)
@@ -675,23 +673,6 @@ export const Terminal = memo(function Terminal() {
     }
     return result
   }, [executionGroups])
-
-  /**
-   * Get unique blocks (by ID) from all workflow entries
-   */
-  const uniqueBlocks = useMemo(() => {
-    const blocksMap = new Map<string, { blockId: string; blockName: string; blockType: string }>()
-    allWorkflowEntries.forEach((entry) => {
-      if (!blocksMap.has(entry.blockId)) {
-        blocksMap.set(entry.blockId, {
-          blockId: entry.blockId,
-          blockName: entry.blockName,
-          blockType: entry.blockType,
-        })
-      }
-    })
-    return Array.from(blocksMap.values()).sort((a, b) => a.blockName.localeCompare(b.blockName))
-  }, [allWorkflowEntries])
 
   /**
    * Check if input data exists for selected entry
@@ -1289,22 +1270,9 @@ export const Terminal = memo(function Terminal() {
               {/* Left side - Logs label */}
               <span className={TERMINAL_CONFIG.HEADER_TEXT_CLASS}>Logs</span>
 
-              {/* Right side - Filters and icons */}
+              {/* Right side - Icons and options */}
               {!selectedEntry && (
                 <div className='flex items-center gap-[8px]'>
-                  {/* Unified filter popover */}
-                  {allWorkflowEntries.length > 0 && (
-                    <FilterPopover
-                      open={filtersOpen}
-                      onOpenChange={setFiltersOpen}
-                      filters={filters}
-                      toggleStatus={toggleStatus}
-                      toggleBlock={toggleBlock}
-                      uniqueBlocks={uniqueBlocks}
-                      hasActiveFilters={hasActiveFilters}
-                    />
-                  )}
-
                   {/* Sort toggle */}
                   {allWorkflowEntries.length > 0 && (
                     <Tooltip.Root>
@@ -1497,16 +1465,11 @@ export const Terminal = memo(function Terminal() {
               handleCopy={handleCopy}
               filteredEntries={filteredEntries}
               handleExportConsole={handleExportConsole}
-              hasActiveFilters={hasActiveFilters}
               handleClearConsole={handleClearConsole}
               shouldShowCodeDisplay={shouldShowCodeDisplay}
               outputDataStringified={outputDataStringified}
               outputData={outputData}
               handleClearConsoleFromMenu={handleClearConsoleFromMenu}
-              filters={filters}
-              toggleBlock={toggleBlock}
-              toggleStatus={toggleStatus}
-              uniqueBlocks={uniqueBlocks}
             />
           )}
         </div>

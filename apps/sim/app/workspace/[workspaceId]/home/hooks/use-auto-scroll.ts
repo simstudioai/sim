@@ -12,6 +12,9 @@ const REATTACH_THRESHOLD = 5
  * on any upward user gesture (wheel, touch, scrollbar drag). Once detached,
  * the user must scroll back to within {@link REATTACH_THRESHOLD} of the
  * bottom to re-engage.
+ *
+ * Returns `ref` (callback ref for the scroll container) and `scrollToBottom`
+ * for imperative use after layout-changing events like panel expansion.
  */
 export function useAutoScroll(isStreaming: boolean) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -110,5 +113,5 @@ export function useAutoScroll(isStreaming: boolean) {
     }
   }, [isStreaming, scrollToBottom])
 
-  return callbackRef
+  return { ref: callbackRef, scrollToBottom }
 }

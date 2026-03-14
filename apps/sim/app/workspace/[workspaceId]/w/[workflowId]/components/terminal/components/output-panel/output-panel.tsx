@@ -27,14 +27,9 @@ import {
   PopoverTrigger,
   Tooltip,
 } from '@/components/emcn'
-import { FilterPopover } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/filter-popover'
 import { OutputContextMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/output-panel/components/output-context-menu'
 import { StructuredOutput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/output-panel/components/structured-output'
 import { ToggleButton } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/toggle-button'
-import type {
-  BlockInfo,
-  TerminalFilters,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import type { ConsoleEntry } from '@/stores/terminal'
@@ -100,16 +95,11 @@ export interface OutputPanelProps {
   handleCopy: () => void
   filteredEntries: ConsoleEntry[]
   handleExportConsole: (e: React.MouseEvent) => void
-  hasActiveFilters: boolean
   handleClearConsole: (e: React.MouseEvent) => void
   shouldShowCodeDisplay: boolean
   outputDataStringified: string
   outputData: unknown
   handleClearConsoleFromMenu: () => void
-  filters: TerminalFilters
-  toggleBlock: (blockId: string) => void
-  toggleStatus: (status: 'error' | 'info') => void
-  uniqueBlocks: BlockInfo[]
 }
 
 /**
@@ -133,16 +123,11 @@ export const OutputPanel = React.memo(function OutputPanel({
   handleCopy,
   filteredEntries,
   handleExportConsole,
-  hasActiveFilters,
   handleClearConsole,
   shouldShowCodeDisplay,
   outputDataStringified,
   outputData,
   handleClearConsoleFromMenu,
-  filters,
-  toggleBlock,
-  toggleStatus,
-  uniqueBlocks,
 }: OutputPanelProps) {
   // Access store-backed settings directly to reduce prop drilling
   const outputPanelWidth = useTerminalStore((state) => state.outputPanelWidth)
@@ -154,7 +139,6 @@ export const OutputPanel = React.memo(function OutputPanel({
   const setStructuredView = useTerminalStore((state) => state.setStructuredView)
 
   const outputContentRef = useRef<HTMLDivElement>(null)
-  const [filtersOpen, setFiltersOpen] = useState(false)
   const [outputOptionsOpen, setOutputOptionsOpen] = useState(false)
   const {
     isSearchActive: isOutputSearchActive,
@@ -339,19 +323,6 @@ export const OutputPanel = React.memo(function OutputPanel({
             )}
           </div>
           <div className='flex flex-shrink-0 items-center gap-[8px]'>
-            {/* Unified filter popover */}
-            {filteredEntries.length > 0 && (
-              <FilterPopover
-                open={filtersOpen}
-                onOpenChange={setFiltersOpen}
-                filters={filters}
-                toggleStatus={toggleStatus}
-                toggleBlock={toggleBlock}
-                uniqueBlocks={uniqueBlocks}
-                hasActiveFilters={hasActiveFilters}
-              />
-            )}
-
             {isOutputSearchActive ? (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>

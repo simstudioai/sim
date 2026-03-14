@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { Skeleton } from '@/components/emcn'
@@ -272,9 +272,22 @@ export function Home({ chatId }: HomeProps = {}) {
     [addResource, handleResourceEvent]
   )
 
-  const scrollContainerRef = useAutoScroll(isSending)
+  const { ref: scrollContainerRef, scrollToBottom } = useAutoScroll(isSending)
 
   const hasMessages = messages.length > 0
+  const initialScrollDoneRef = useRef(false)
+
+  useLayoutEffect(() => {
+    if (!hasMessages) {
+      initialScrollDoneRef.current = false
+      return
+    }
+    if (initialScrollDoneRef.current) return
+    if (resources.length > 0 && isResourceCollapsed) return
+
+    initialScrollDoneRef.current = true
+    scrollToBottom()
+  }, [hasMessages, resources.length, isResourceCollapsed, scrollToBottom])
 
   useEffect(() => {
     if (hasMessages) return

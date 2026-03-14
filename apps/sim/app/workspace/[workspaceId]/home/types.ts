@@ -16,21 +16,21 @@ export type SSEEventType =
   | 'chat_id'
   | 'title_updated'
   | 'content'
-  | 'reasoning'
-  | 'tool_call'
-  | 'tool_call_delta'
-  | 'tool_generating'
-  | 'tool_result'
-  | 'tool_error'
-  | 'resource_added'
-  | 'resource_deleted'
-  | 'subagent_start'
-  | 'subagent_end'
-  | 'structured_result'
-  | 'subagent_result'
-  | 'done'
-  | 'error'
-  | 'start'
+  | 'reasoning' // openai reasoning - render as thinking text
+  | 'tool_call' // tool call name
+  | 'tool_call_delta' // chunk of tool call
+  | 'tool_generating' // start a tool call
+  | 'tool_result' // tool call result
+  | 'tool_error' // tool call error
+  | 'resource_added' // add a resource to the chat
+  | 'resource_deleted' // delete a resource from the chat
+  | 'subagent_start' // start a subagent
+  | 'subagent_end' // end a subagent
+  | 'structured_result' // structured result from a tool call
+  | 'subagent_result' // result from a subagent
+  | 'done' // end of the chat
+  | 'error' // error in the chat
+  | 'start' // start of the chat
 
 /**
  * All tool names observed in the mothership SSE stream, grouped by phase.
