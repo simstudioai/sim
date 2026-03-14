@@ -64,7 +64,10 @@ import { cn } from '@/lib/core/utils/cn'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useAvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
-import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import type {
+  FileAttachmentForApi,
+  MothershipResource,
+} from '@/app/workspace/[workspaceId]/home/types'
 import {
   useContextManagement,
   useFileAttachments,
@@ -125,9 +128,17 @@ function autoResizeTextarea(e: React.FormEvent<HTMLTextAreaElement>, maxHeight: 
 function mapResourceToContext(resource: MothershipResource): ChatContext {
   switch (resource.type) {
     case 'workflow':
-      return { kind: 'workflow', workflowId: resource.id, label: resource.title }
+      return {
+        kind: 'workflow',
+        workflowId: resource.id,
+        label: resource.title,
+      }
     case 'knowledgebase':
-      return { kind: 'knowledge', knowledgeId: resource.id, label: resource.title }
+      return {
+        kind: 'knowledge',
+        knowledgeId: resource.id,
+        label: resource.title,
+      }
     case 'table':
       return { kind: 'table', tableId: resource.id, label: resource.title }
     case 'file':
@@ -137,16 +148,12 @@ function mapResourceToContext(resource: MothershipResource): ChatContext {
   }
 }
 
-export interface FileAttachmentForApi {
-  id: string
-  key: string
-  filename: string
-  media_type: string
-  size: number
-}
+export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 
 interface UserInputProps {
   defaultValue?: string
+  editValue?: string
+  onEditValueConsumed?: () => void
   onSubmit: (
     text: string,
     fileAttachments?: FileAttachmentForApi[],
@@ -161,6 +168,8 @@ interface UserInputProps {
 
 export function UserInput({
   defaultValue = '',
+  editValue,
+  onEditValueConsumed,
   onSubmit,
   isSending,
   onStopGeneration,
@@ -176,9 +185,27 @@ export function UserInput({
   const [plusMenuActiveIndex, setPlusMenuActiveIndex] = useState(0)
   const overlayRef = useRef<HTMLDivElement>(null)
 
+  const [prevDefaultValue, setPrevDefaultValue] = useState(defaultValue)
+  if (defaultValue && defaultValue !== prevDefaultValue) {
+    setPrevDefaultValue(defaultValue)
+    setValue(defaultValue)
+  } else if (!defaultValue && prevDefaultValue) {
+    setPrevDefaultValue(defaultValue)
+  }
+
+  const [prevEditValue, setPrevEditValue] = useState(editValue)
+  if (editValue && editValue !== prevEditValue) {
+    setPrevEditValue(editValue)
+    setValue(editValue)
+  } else if (!editValue && prevEditValue) {
+    setPrevEditValue(editValue)
+  }
+
   useEffect(() => {
-    if (defaultValue) setValue(defaultValue)
-  }, [defaultValue])
+    if (editValue) {
+      onEditValueConsumed?.()
+    }
+  }, [editValue, onEditValueConsumed])
 
   const animatedPlaceholder = useAnimatedPlaceholder(isInitialView)
   const placeholder = isInitialView ? animatedPlaceholder : 'Send message to Sim'
@@ -393,9 +420,7 @@ export function UserInput({
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
         e.preventDefault()
-        if (!isSending) {
-          handleSubmit()
-        }
+        handleSubmit()
         return
       }
 
@@ -461,7 +486,7 @@ export function UserInput({
         }
       }
     },
-    [handleSubmit, isSending, mentionTokensWithContext, value, textareaRef]
+    [handleSubmit, mentionTokensWithContext, value, textareaRef]
   )
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -637,7 +662,9 @@ export function UserInput({
         <span
           key={`mention-${i}-${range.start}-${range.end}`}
           className='rounded-[5px] bg-[var(--surface-5)] py-[2px]'
-          style={{ boxShadow: '-2px 0 0 var(--surface-5), 2px 0 0 var(--surface-5)' }}
+          style={{
+            boxShadow: '-2px 0 0 var(--surface-5), 2px 0 0 var(--surface-5)',
+          }}
         >
           <span className='relative'>
             <span className='invisible'>{range.token.charAt(0)}</span>
@@ -662,7 +689,7 @@ export function UserInput({
     <div
       onClick={handleContainerClick}
       className={cn(
-        'relative mx-auto w-full max-w-[42rem] cursor-text rounded-[20px] border border-[var(--border-1)] bg-[var(--white)] px-[10px] py-[8px] dark:bg-[var(--surface-4)]',
+        'relative z-10 mx-auto w-full max-w-[42rem] cursor-text rounded-[20px] border border-[var(--border-1)] bg-[var(--white)] px-[10px] py-[8px] dark:bg-[var(--surface-4)]',
         isInitialView && 'shadow-sm'
       )}
       onDragEnter={files.handleDragEnter}
@@ -818,7 +845,11 @@ export function UserInput({
                           )}
                           onMouseEnter={() => setPlusMenuActiveIndex(index)}
                           onClick={() => {
-                            handleResourceSelect({ type, id: item.id, title: item.name })
+                            handleResourceSelect({
+                              type,
+                              id: item.id,
+                              title: item.name,
+                            })
                             setPlusMenuOpen(false)
                             setPlusMenuSearch('')
                             setPlusMenuActiveIndex(0)

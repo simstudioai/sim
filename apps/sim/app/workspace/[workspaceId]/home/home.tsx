@@ -19,14 +19,14 @@ import type { ChatContext } from '@/stores/panel'
 import {
   MessageContent,
   MothershipView,
+  QueuedMessages,
   TemplatePrompts,
   UserInput,
   UserMessageContent,
 } from './components'
 import { PendingTagIndicator } from './components/message-content/components/special-tags'
-import type { FileAttachmentForApi } from './components/user-input/user-input'
 import { useAutoScroll, useChat } from './hooks'
-import type { MothershipResource, MothershipResourceType } from './types'
+import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
 
 const logger = createLogger('Home')
 
@@ -183,7 +183,28 @@ export function Home({ chatId }: HomeProps = {}) {
     addResource,
     removeResource,
     reorderResources,
+    messageQueue,
+    removeFromQueue,
+    sendNow,
+    editQueuedMessage,
   } = useChat(workspaceId, chatId, { onResourceEvent: handleResourceEvent })
+
+  const [editingInputValue, setEditingInputValue] = useState('')
+  const clearEditingValue = useCallback(() => setEditingInputValue(''), [])
+
+  const handleEditQueuedMessage = useCallback(
+    (id: string) => {
+      const msg = editQueuedMessage(id)
+      if (msg) {
+        setEditingInputValue(msg.content)
+      }
+    },
+    [editQueuedMessage]
+  )
+
+  useEffect(() => {
+    setEditingInputValue('')
+  }, [chatId])
 
   useEffect(() => {
     wasSendingRef.current = false
@@ -419,6 +440,12 @@ export function Home({ chatId }: HomeProps = {}) {
 
         <div className='flex-shrink-0 px-[24px] pb-[16px]'>
           <div className='mx-auto max-w-[42rem]'>
+            <QueuedMessages
+              messageQueue={messageQueue}
+              onRemove={removeFromQueue}
+              onSendNow={sendNow}
+              onEdit={handleEditQueuedMessage}
+            />
             <UserInput
               onSubmit={handleSubmit}
               isSending={isSending}
@@ -426,6 +453,8 @@ export function Home({ chatId }: HomeProps = {}) {
               isInitialView={false}
               userId={session?.user?.id}
               onContextAdd={handleContextAdd}
+              editValue={editingInputValue}
+              onEditValueConsumed={clearEditingValue}
             />
           </div>
         </div>

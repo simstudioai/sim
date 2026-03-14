@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
@@ -28,14 +28,15 @@ import { useFolderStore } from '@/stores/folders/store'
 import type { ChatContext } from '@/stores/panel'
 import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import type { FileAttachmentForApi } from '../components/user-input/user-input'
 import type {
   ChatMessage,
   ChatMessageAttachment,
   ContentBlock,
   ContentBlockType,
+  FileAttachmentForApi,
   MothershipResource,
   MothershipResourceType,
+  QueuedMessage,
   SSEPayload,
   SSEPayloadData,
   ToolCallStatus,
@@ -58,6 +59,10 @@ export interface UseChatReturn {
   addResource: (resource: MothershipResource) => boolean
   removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
   reorderResources: (resources: MothershipResource[]) => void
+  messageQueue: QueuedMessage[]
+  removeFromQueue: (id: string) => void
+  sendNow: (id: string) => Promise<void>
+  editQueuedMessage: (id: string) => QueuedMessage | undefined
 }
 
 const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
@@ -101,7 +106,11 @@ function mapStoredToolCall(tc: TaskStoredToolCall): ContentBlock {
       displayTitle: resolvedStatus === 'cancelled' ? 'Stopped by user' : undefined,
       result:
         tc.result != null
-          ? { success: tc.status === 'success', output: tc.result, error: tc.error }
+          ? {
+              success: tc.status === 'success',
+              output: tc.result,
+              error: tc.error,
+            }
           : undefined,
     },
   }
@@ -252,6 +261,14 @@ export function useChat(
   const activeResourceIdRef = useRef(activeResourceId)
   activeResourceIdRef.current = activeResourceId
 
+  const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
+  const messageQueueRef = useRef<QueuedMessage[]>([])
+  useEffect(() => {
+    messageQueueRef.current = messageQueue
+  }, [messageQueue])
+
+  const sendMessageRef = useRef<UseChatReturn['sendMessage']>(async () => {})
+
   const abortControllerRef = useRef<AbortController | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
   const appliedChatIdRef = useRef<string | undefined>(undefined)
@@ -303,6 +320,7 @@ export function useChat(
     if (sendingRef.current) {
       chatIdRef.current = initialChatId
       setResolvedChatId(initialChatId)
+      setMessageQueue([])
       return
     }
     chatIdRef.current = initialChatId
@@ -313,6 +331,7 @@ export function useChat(
     setIsSending(false)
     setResources([])
     setActiveResourceId(null)
+    setMessageQueue([])
   }, [initialChatId])
 
   useEffect(() => {
@@ -329,6 +348,7 @@ export function useChat(
     setIsSending(false)
     setResources([])
     setActiveResourceId(null)
+    setMessageQueue([])
   }, [isHomePage])
 
   useEffect(() => {
@@ -419,7 +439,9 @@ export function useChat(
                 const isNewChat = !chatIdRef.current
                 chatIdRef.current = parsed.chatId
                 setResolvedChatId(parsed.chatId)
-                queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+                queryClient.invalidateQueries({
+                  queryKey: taskKeys.list(workspaceId),
+                })
                 if (isNewChat) {
                   const userMsg = pendingUserMsgRef.current
                   const activeStreamId = streamIdRef.current
@@ -427,7 +449,13 @@ export function useChat(
                     queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(parsed.chatId), {
                       id: parsed.chatId,
                       title: null,
-                      messages: [{ id: userMsg.id, role: 'user', content: userMsg.content }],
+                      messages: [
+                        {
+                          id: userMsg.id,
+                          role: 'user',
+                          content: userMsg.content,
+                        },
+                      ],
                       activeStreamId,
                       resources: [],
                     })
@@ -619,7 +647,9 @@ export function useChat(
               break
             }
             case 'title_updated': {
-              queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+              queryClient.invalidateQueries({
+                queryKey: taskKeys.list(workspaceId),
+              })
               break
             }
             case 'error': {
@@ -689,17 +719,37 @@ export function useChat(
   const invalidateChatQueries = useCallback(() => {
     const activeChatId = chatIdRef.current
     if (activeChatId) {
-      queryClient.invalidateQueries({ queryKey: taskKeys.detail(activeChatId) })
+      queryClient.invalidateQueries({
+        queryKey: taskKeys.detail(activeChatId),
+      })
     }
     queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
   }, [workspaceId, queryClient])
 
-  const finalize = useCallback(() => {
-    sendingRef.current = false
-    setIsSending(false)
-    abortControllerRef.current = null
-    invalidateChatQueries()
-  }, [invalidateChatQueries])
+  const finalize = useCallback(
+    (options?: { error?: boolean }) => {
+      sendingRef.current = false
+      setIsSending(false)
+      abortControllerRef.current = null
+      invalidateChatQueries()
+
+      if (options?.error) {
+        setMessageQueue([])
+        return
+      }
+
+      const next = messageQueueRef.current[0]
+      if (next) {
+        setMessageQueue((prev) => prev.filter((m) => m.id !== next.id))
+        const gen = streamGenRef.current
+        queueMicrotask(() => {
+          if (streamGenRef.current !== gen) return
+          sendMessageRef.current(next.content, next.fileAttachments, next.contexts)
+        })
+      }
+    },
+    [invalidateChatQueries]
+  )
 
   useEffect(() => {
     const activeStreamId = chatHistory?.activeStreamId
@@ -714,7 +764,12 @@ export function useChat(
     const assistantId = crypto.randomUUID()
     setMessages((prev) => [
       ...prev,
-      { id: assistantId, role: 'assistant' as const, content: '', contentBlocks: [] },
+      {
+        id: assistantId,
+        role: 'assistant' as const,
+        content: '',
+        contentBlocks: [],
+      },
     ])
 
     const reconnect = async () => {
@@ -745,9 +800,15 @@ export function useChat(
       if (!message.trim() || !workspaceId) return
 
       if (sendingRef.current) {
-        await persistPartialResponse()
+        const queued: QueuedMessage = {
+          id: crypto.randomUUID(),
+          content: message,
+          fileAttachments,
+          contexts,
+        }
+        setMessageQueue((prev) => [...prev, queued])
+        return
       }
-      abortControllerRef.current?.abort()
 
       const gen = ++streamGenRef.current
 
@@ -854,14 +915,20 @@ export function useChat(
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return
         setError(err instanceof Error ? err.message : 'Failed to send message')
-      } finally {
         if (streamGenRef.current === gen) {
-          finalize()
+          finalize({ error: true })
         }
+        return
+      }
+      if (streamGenRef.current === gen) {
+        finalize()
       }
     },
-    [workspaceId, queryClient, processSSEStream, finalize, persistPartialResponse]
+    [workspaceId, queryClient, processSSEStream, finalize]
   )
+  useLayoutEffect(() => {
+    sendMessageRef.current = sendMessage
+  })
 
   const stopGeneration = useCallback(async () => {
     if (sendingRef.current) {
@@ -943,6 +1010,32 @@ export function useChat(
     }
   }, [invalidateChatQueries, persistPartialResponse, executionStream])
 
+  const removeFromQueue = useCallback((id: string) => {
+    messageQueueRef.current = messageQueueRef.current.filter((m) => m.id !== id)
+    setMessageQueue((prev) => prev.filter((m) => m.id !== id))
+  }, [])
+
+  const sendNow = useCallback(
+    async (id: string) => {
+      const msg = messageQueueRef.current.find((m) => m.id === id)
+      if (!msg) return
+      // Eagerly update ref so a rapid second click finds the message already gone
+      messageQueueRef.current = messageQueueRef.current.filter((m) => m.id !== id)
+      await stopGeneration()
+      setMessageQueue((prev) => prev.filter((m) => m.id !== id))
+      await sendMessage(msg.content, msg.fileAttachments, msg.contexts)
+    },
+    [stopGeneration, sendMessage]
+  )
+
+  const editQueuedMessage = useCallback((id: string): QueuedMessage | undefined => {
+    const msg = messageQueueRef.current.find((m) => m.id === id)
+    if (!msg) return undefined
+    messageQueueRef.current = messageQueueRef.current.filter((m) => m.id !== id)
+    setMessageQueue((prev) => prev.filter((m) => m.id !== id))
+    return msg
+  }, [])
+
   useEffect(() => {
     return () => {
       streamGenRef.current++
@@ -968,5 +1061,9 @@ export function useChat(
     addResource,
     removeResource,
     reorderResources,
+    messageQueue,
+    removeFromQueue,
+    sendNow,
+    editQueuedMessage,
   }
 }

@@ -1,6 +1,25 @@
 import type { MothershipResourceType } from '@/lib/copilot/resource-types'
+import type { ChatContext } from '@/stores/panel'
 
-export type { MothershipResource, MothershipResourceType } from '@/lib/copilot/resource-types'
+export type {
+  MothershipResource,
+  MothershipResourceType,
+} from '@/lib/copilot/resource-types'
+
+export interface FileAttachmentForApi {
+  id: string
+  key: string
+  filename: string
+  media_type: string
+  size: number
+}
+
+export interface QueuedMessage {
+  id: string
+  content: string
+  fileAttachments?: FileAttachmentForApi[]
+  contexts?: ChatContext[]
+}
 
 /**
  * SSE event types emitted by the Go orchestrator backend.
@@ -203,38 +222,122 @@ export interface ToolUIMetadata {
  * fallback metadata for tools that arrive via `tool_generating` without `ui`.
  */
 export const TOOL_UI_METADATA: Partial<Record<MothershipToolName, ToolUIMetadata>> = {
-  glob: { title: 'Searching files', phaseLabel: 'Workspace', phase: 'workspace' },
-  grep: { title: 'Searching code', phaseLabel: 'Workspace', phase: 'workspace' },
+  glob: {
+    title: 'Searching files',
+    phaseLabel: 'Workspace',
+    phase: 'workspace',
+  },
+  grep: {
+    title: 'Searching code',
+    phaseLabel: 'Workspace',
+    phase: 'workspace',
+  },
   read: { title: 'Reading file', phaseLabel: 'Workspace', phase: 'workspace' },
-  search_online: { title: 'Searching online', phaseLabel: 'Search', phase: 'search' },
-  scrape_page: { title: 'Scraping page', phaseLabel: 'Search', phase: 'search' },
-  get_page_contents: { title: 'Getting page contents', phaseLabel: 'Search', phase: 'search' },
-  search_library_docs: { title: 'Searching library docs', phaseLabel: 'Search', phase: 'search' },
-  manage_mcp_tool: { title: 'Managing MCP tool', phaseLabel: 'Management', phase: 'management' },
-  manage_skill: { title: 'Managing skill', phaseLabel: 'Management', phase: 'management' },
-  user_memory: { title: 'Accessing memory', phaseLabel: 'Management', phase: 'management' },
-  function_execute: { title: 'Running code', phaseLabel: 'Code', phase: 'execution' },
-  superagent: { title: 'Executing action', phaseLabel: 'Action', phase: 'execution' },
-  user_table: { title: 'Managing table', phaseLabel: 'Resource', phase: 'resource' },
-  workspace_file: { title: 'Managing file', phaseLabel: 'Resource', phase: 'resource' },
-  create_workflow: { title: 'Creating workflow', phaseLabel: 'Resource', phase: 'resource' },
-  edit_workflow: { title: 'Editing workflow', phaseLabel: 'Resource', phase: 'resource' },
+  search_online: {
+    title: 'Searching online',
+    phaseLabel: 'Search',
+    phase: 'search',
+  },
+  scrape_page: {
+    title: 'Scraping page',
+    phaseLabel: 'Search',
+    phase: 'search',
+  },
+  get_page_contents: {
+    title: 'Getting page contents',
+    phaseLabel: 'Search',
+    phase: 'search',
+  },
+  search_library_docs: {
+    title: 'Searching library docs',
+    phaseLabel: 'Search',
+    phase: 'search',
+  },
+  manage_mcp_tool: {
+    title: 'Managing MCP tool',
+    phaseLabel: 'Management',
+    phase: 'management',
+  },
+  manage_skill: {
+    title: 'Managing skill',
+    phaseLabel: 'Management',
+    phase: 'management',
+  },
+  user_memory: {
+    title: 'Accessing memory',
+    phaseLabel: 'Management',
+    phase: 'management',
+  },
+  function_execute: {
+    title: 'Running code',
+    phaseLabel: 'Code',
+    phase: 'execution',
+  },
+  superagent: {
+    title: 'Executing action',
+    phaseLabel: 'Action',
+    phase: 'execution',
+  },
+  user_table: {
+    title: 'Managing table',
+    phaseLabel: 'Resource',
+    phase: 'resource',
+  },
+  workspace_file: {
+    title: 'Managing file',
+    phaseLabel: 'Resource',
+    phase: 'resource',
+  },
+  create_workflow: {
+    title: 'Creating workflow',
+    phaseLabel: 'Resource',
+    phase: 'resource',
+  },
+  edit_workflow: {
+    title: 'Editing workflow',
+    phaseLabel: 'Resource',
+    phase: 'resource',
+  },
   build: { title: 'Building', phaseLabel: 'Build', phase: 'subagent' },
   run: { title: 'Running', phaseLabel: 'Run', phase: 'subagent' },
   deploy: { title: 'Deploying', phaseLabel: 'Deploy', phase: 'subagent' },
-  auth: { title: 'Connecting credentials', phaseLabel: 'Auth', phase: 'subagent' },
-  knowledge: { title: 'Managing knowledge', phaseLabel: 'Knowledge', phase: 'subagent' },
-  knowledge_base: { title: 'Managing knowledge base', phaseLabel: 'Resource', phase: 'resource' },
+  auth: {
+    title: 'Connecting credentials',
+    phaseLabel: 'Auth',
+    phase: 'subagent',
+  },
+  knowledge: {
+    title: 'Managing knowledge',
+    phaseLabel: 'Knowledge',
+    phase: 'subagent',
+  },
+  knowledge_base: {
+    title: 'Managing knowledge base',
+    phaseLabel: 'Resource',
+    phase: 'resource',
+  },
   table: { title: 'Managing tables', phaseLabel: 'Table', phase: 'subagent' },
   job: { title: 'Managing jobs', phaseLabel: 'Job', phase: 'subagent' },
   agent: { title: 'Agent action', phaseLabel: 'Agent', phase: 'subagent' },
-  custom_tool: { title: 'Creating tool', phaseLabel: 'Tool', phase: 'subagent' },
+  custom_tool: {
+    title: 'Creating tool',
+    phaseLabel: 'Tool',
+    phase: 'subagent',
+  },
   research: { title: 'Researching', phaseLabel: 'Research', phase: 'subagent' },
   plan: { title: 'Planning', phaseLabel: 'Plan', phase: 'subagent' },
   debug: { title: 'Debugging', phaseLabel: 'Debug', phase: 'subagent' },
   edit: { title: 'Editing workflow', phaseLabel: 'Edit', phase: 'subagent' },
-  fast_edit: { title: 'Editing workflow', phaseLabel: 'Edit', phase: 'subagent' },
-  open_resource: { title: 'Opening resource', phaseLabel: 'Resource', phase: 'resource' },
+  fast_edit: {
+    title: 'Editing workflow',
+    phaseLabel: 'Edit',
+    phase: 'subagent',
+  },
+  open_resource: {
+    title: 'Opening resource',
+    phaseLabel: 'Resource',
+    phase: 'resource',
+  },
 }
 
 export interface SSEPayloadUI {
