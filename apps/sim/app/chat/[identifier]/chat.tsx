@@ -1,6 +1,5 @@
 'use client'
 import { generateId } from '../../lib/utils/uuid'
-'use client'
 
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
