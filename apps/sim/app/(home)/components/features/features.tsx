@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
-import { Badge } from '@/components/emcn'
+import Link from 'next/link'
+import { Badge, ChevronDown } from '@/components/emcn'
 
 function hexToRgba(hex: string, alpha: number): string {
   const r = Number.parseInt(hex.slice(1, 3), 16)
@@ -13,8 +14,12 @@ function hexToRgba(hex: string, alpha: number): string {
 
 const FEATURE_TABS = [
   {
-    label: 'Integrations',
+    label: 'Mothership',
     color: '#FA4EDF',
+    title: 'Your AI command center',
+    description:
+      'Direct your entire AI workforce from one place. Build agents, spin up workflows, query tables, and manage every resource across your workspace — in natural language.',
+    cta: 'Explore mothership',
     segments: [
       [0.3, 8],
       [0.25, 10],
@@ -29,8 +34,12 @@ const FEATURE_TABS = [
     ],
   },
   {
-    label: 'Copilot',
+    label: 'Tables',
     color: '#2ABBF8',
+    title: 'A database, built in',
+    description:
+      'Filter, sort, and edit data inline, then wire it directly into your workflows. Agents query, insert, and update rows on every run — no external database needed.',
+    cta: 'Explore tables',
     segments: [
       [0.25, 12],
       [0.4, 10],
@@ -44,59 +53,33 @@ const FEATURE_TABS = [
     ],
   },
   {
-    label: 'Models',
-    color: '#00F701',
-    badgeColor: '#22C55E',
-    segments: [
-      [0.2, 6],
-      [0.35, 10],
-      [0.3, 8],
-      [0.5, 10],
-      [0.6, 8],
-      [0.75, 12],
-      [0.85, 10],
-      [1, 8],
-      [0.9, 12],
-      [1, 10],
-      [0.95, 6],
-    ],
-  },
-  {
-    label: 'Deploy',
+    label: 'Files',
     color: '#FFCC02',
     badgeColor: '#EAB308',
-    segments: [
-      [0.3, 12],
-      [0.25, 8],
-      [0.4, 10],
-      [0.55, 10],
-      [0.7, 8],
-      [0.6, 10],
-      [0.85, 12],
-      [1, 10],
-      [0.9, 10],
-      [1, 10],
-    ],
-  },
-  {
-    label: 'Logs',
-    color: '#FF6B35',
+    title: 'Upload, create, and share',
+    description:
+      'Create or upload documents, spreadsheets, and media that agents can read, write, and reference across workflows. One shared store your entire team and every agent can pull from.',
+    cta: 'Explore files',
     segments: [
       [0.25, 10],
-      [0.35, 8],
-      [0.3, 10],
+      [0.4, 8],
+      [0.35, 12],
       [0.5, 10],
       [0.65, 8],
-      [0.8, 12],
-      [0.9, 10],
+      [0.75, 10],
+      [0.9, 12],
       [1, 10],
-      [0.85, 12],
+      [0.85, 10],
       [1, 10],
     ],
   },
   {
     label: 'Knowledge Base',
     color: '#8B5CF6',
+    title: 'Your context engine',
+    description:
+      'Sync institutional knowledge from 30+ live connectors — Notion, Drive, Slack, Confluence, and more — so every agent draws from the same truth across your entire organization.',
+    cta: 'Explore knowledge base',
     segments: [
       [0.3, 10],
       [0.25, 8],
@@ -107,6 +90,26 @@ const FEATURE_TABS = [
       [0.9, 12],
       [1, 10],
       [0.95, 10],
+      [1, 10],
+    ],
+  },
+  {
+    label: 'Logs',
+    color: '#FF6B35',
+    title: 'Full visibility, every run',
+    description:
+      'Trace every execution block by block — inputs, outputs, cost, and duration. Filter by status or workflow, replay snapshots, and export reports to keep your team accountable.',
+    cta: 'Explore logs',
+    segments: [
+      [0.25, 10],
+      [0.35, 8],
+      [0.3, 10],
+      [0.5, 10],
+      [0.65, 8],
+      [0.8, 12],
+      [0.9, 10],
+      [1, 10],
+      [0.85, 12],
       [1, 10],
     ],
   },
@@ -126,7 +129,7 @@ function DotGrid({
   return (
     <div
       aria-hidden='true'
-      className={`shrink-0 bg-[#FDFDFD] p-[6px] ${borderLeft ? 'border-[#E9E9E9] border-l' : ''}`}
+      className={`shrink-0 bg-[#F6F6F6] p-[6px] ${borderLeft ? 'border-[#E9E9E9] border-l' : ''}`}
       style={{
         width: width ? `${width}px` : undefined,
         display: 'grid',
@@ -177,13 +180,17 @@ export default function Features() {
               ),
             }}
           >
-            Features
+            Workspace
           </Badge>
           <h2
             id='features-heading'
-            className='font-[430] font-season text-[#1C1C1C] text-[40px] leading-[100%] tracking-[-0.02em]'
+            className='max-w-[900px] font-[430] font-season text-[#1C1C1C] text-[40px] leading-[110%] tracking-[-0.02em]'
           >
-            Power your AI workforce
+            Everything you need to build, deploy, and manage AI agents.{' '}
+            <span className='text-[#1C1C1C]/40'>
+              Design powerful workflows, connect your data, and monitor every run — all in one
+              platform.
+            </span>
           </h2>
         </div>
 
@@ -222,6 +229,68 @@ export default function Features() {
           </div>
 
           <DotGrid cols={10} rows={8} width={80} borderLeft />
+        </div>
+
+        <div className='mt-[60px] grid grid-cols-[1fr_2.8fr] gap-[60px] px-[80px]'>
+          <div className='flex h-[560px] flex-col items-start justify-between pt-[20px]'>
+            <div className='flex flex-col items-start gap-[16px]'>
+              <h3 className='font-[430] font-season text-[#1C1C1C] text-[28px] leading-[120%] tracking-[-0.02em]'>
+                {FEATURE_TABS[activeTab].title}
+              </h3>
+              <p className='font-[430] font-season text-[#1C1C1C]/50 text-[18px] leading-[150%] tracking-[0.02em]'>
+                {FEATURE_TABS[activeTab].description}
+              </p>
+            </div>
+            <Link
+              href='/signup'
+              className='group/cta inline-flex h-[32px] items-center gap-[6px] rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-[10px] font-[430] font-season text-[14px] text-white transition-colors hover:border-[#2A2A2A] hover:bg-[#2A2A2A]'
+            >
+              {FEATURE_TABS[activeTab].cta}
+              <span className='relative h-[10px] w-[10px] shrink-0'>
+                <ChevronDown className='-rotate-90 absolute inset-0 h-[10px] w-[10px] transition-opacity duration-150 group-hover/cta:opacity-0' />
+                <svg
+                  className='absolute inset-0 h-[10px] w-[10px] opacity-0 transition-opacity duration-150 group-hover/cta:opacity-100'
+                  viewBox='0 0 10 10'
+                  fill='none'
+                >
+                  <path
+                    d='M1 5H8M5.5 2L8.5 5L5.5 8'
+                    stroke='currentColor'
+                    strokeWidth='1.33'
+                    strokeLinecap='square'
+                    strokeLinejoin='miter'
+                    fill='none'
+                  />
+                </svg>
+              </span>
+            </Link>
+          </div>
+
+          <div
+            className='flex h-[560px] items-center justify-center rounded-[8px] border-2 border-dashed'
+            style={{
+              borderColor: hexToRgba(
+                FEATURE_TABS[activeTab].badgeColor ?? FEATURE_TABS[activeTab].color,
+                0.3
+              ),
+              backgroundColor: hexToRgba(
+                FEATURE_TABS[activeTab].badgeColor ?? FEATURE_TABS[activeTab].color,
+                0.04
+              ),
+            }}
+          >
+            <span
+              className='font-[430] font-season text-[14px] uppercase tracking-[0.08em]'
+              style={{
+                color: hexToRgba(
+                  FEATURE_TABS[activeTab].badgeColor ?? FEATURE_TABS[activeTab].color,
+                  0.4
+                ),
+              }}
+            >
+              {FEATURE_TABS[activeTab].label} preview
+            </span>
+          </div>
         </div>
       </div>
     </section>

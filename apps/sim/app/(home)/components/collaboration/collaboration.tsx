@@ -268,7 +268,7 @@ export default function Collaboration() {
               collaboration
             </h2>
 
-            <p className='font-[430] font-season text-[#F6F6F0]/50 text-[14px] leading-[125%] tracking-[0.02em] sm:text-[16px]'>
+            <p className='font-[430] font-season text-[#F6F6F0]/50 text-[18px] leading-[150%] tracking-[0.02em]'>
               Grab your team. Build agents together <br /> in real-time inside your workspace.
             </p>
 

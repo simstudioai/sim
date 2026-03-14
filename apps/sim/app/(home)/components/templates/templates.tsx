@@ -462,7 +462,7 @@ export default function Templates() {
                 Ship your agent in minutes
               </h2>
 
-              <p className='font-[430] font-season text-[#F6F6F0]/50 text-[16px] leading-[125%] tracking-[0.02em]'>
+              <p className='font-[430] font-season text-[#F6F6F0]/50 text-[18px] leading-[150%] tracking-[0.02em]'>
                 Pre-built templates for every use case—pick one, swap <br />
                 models and tools to fit your stack, and deploy.
               </p>
