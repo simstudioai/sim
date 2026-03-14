@@ -296,9 +296,22 @@ export const gmailConnector: ConnectorConfig = {
 
   configFields: [
     {
+      id: 'labelSelector',
+      title: 'Label',
+      type: 'selector',
+      selectorKey: 'gmail.labels',
+      canonicalParamId: 'label',
+      mode: 'basic',
+      placeholder: 'Select a label',
+      required: false,
+      description: 'Only sync emails with this label. Leave empty for all mail.',
+    },
+    {
       id: 'label',
       title: 'Label',
       type: 'short-input',
+      canonicalParamId: 'label',
+      mode: 'advanced',
       placeholder: 'e.g. INBOX, IMPORTANT, or a custom label name',
       required: false,
       description: 'Only sync emails with this label. Leave empty for all mail.',

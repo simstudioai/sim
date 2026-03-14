@@ -257,9 +257,21 @@ export const outlookConnector: ConnectorConfig = {
 
   configFields: [
     {
+      id: 'folderSelector',
+      title: 'Folder',
+      type: 'selector',
+      selectorKey: 'outlook.folders',
+      canonicalParamId: 'folder',
+      mode: 'basic',
+      placeholder: 'Select a folder',
+      required: false,
+    },
+    {
       id: 'folder',
       title: 'Folder',
       type: 'dropdown',
+      canonicalParamId: 'folder',
+      mode: 'advanced',
       required: false,
       options: [
         { label: 'Inbox', id: 'inbox' },

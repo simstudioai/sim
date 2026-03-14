@@ -1,0 +1,97 @@
+'use client'
+
+import { useMemo } from 'react'
+import { Loader2 } from 'lucide-react'
+import { Combobox, type ComboboxOption } from '@/components/emcn'
+import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
+import { getDependsOnFields } from '@/blocks/utils'
+import type { ConnectorConfigField } from '@/connectors/types'
+import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
+import { useSelectorOptions } from '@/hooks/selectors/use-selector-query'
+
+interface ConnectorSelectorFieldProps {
+  field: ConnectorConfigField & { selectorKey: SelectorKey }
+  value: string
+  onChange: (value: string) => void
+  credentialId: string | null
+  sourceConfig: Record<string, string>
+  configFields: ConnectorConfigField[]
+  disabled?: boolean
+}
+
+export function ConnectorSelectorField({
+  field,
+  value,
+  onChange,
+  credentialId,
+  sourceConfig,
+  configFields,
+  disabled,
+}: ConnectorSelectorFieldProps) {
+  const context = useMemo<SelectorContext>(() => {
+    const ctx: SelectorContext = {}
+    if (credentialId) ctx.oauthCredential = credentialId
+
+    for (const depFieldId of getDependsOnFields(field.dependsOn)) {
+      const depField = configFields.find((f) => f.id === depFieldId)
+      const canonicalId = depField?.canonicalParamId ?? depFieldId
+      const depValue = sourceConfig[depFieldId]
+      if (depValue && SELECTOR_CONTEXT_FIELDS.has(canonicalId as keyof SelectorContext)) {
+        ctx[canonicalId as keyof SelectorContext] = depValue
+      }
+    }
+
+    return ctx
+  }, [credentialId, field.dependsOn, sourceConfig, configFields])
+
+  const depsResolved = useMemo(() => {
+    if (!field.dependsOn) return true
+    const deps = Array.isArray(field.dependsOn) ? field.dependsOn : (field.dependsOn.all ?? [])
+    return deps.every((depId) => Boolean(sourceConfig[depId]?.trim()))
+  }, [field.dependsOn, sourceConfig])
+
+  const isEnabled = !disabled && !!credentialId && depsResolved
+  const { data: options = [], isLoading } = useSelectorOptions(field.selectorKey, {
+    context,
+    enabled: isEnabled,
+  })
+
+  const comboboxOptions = useMemo<ComboboxOption[]>(
+    () => options.map((opt) => ({ label: opt.label, value: opt.id })),
+    [options]
+  )
+
+  if (isLoading && isEnabled) {
+    return (
+      <div className='flex items-center gap-2 rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] py-[6px] text-sm text-[var(--text-muted)]'>
+        <Loader2 className='h-3.5 w-3.5 animate-spin' />
+        Loading...
+      </div>
+    )
+  }
+
+  return (
+    <Combobox
+      options={comboboxOptions}
+      value={value || undefined}
+      onChange={onChange}
+      placeholder={
+        !credentialId
+          ? 'Connect an account first'
+          : !depsResolved
+            ? `Select ${getDependencyLabel(field, configFields)} first`
+            : field.placeholder || `Select ${field.title.toLowerCase()}`
+      }
+      disabled={disabled || !credentialId || !depsResolved}
+    />
+  )
+}
+
+function getDependencyLabel(
+  field: ConnectorConfigField,
+  configFields: ConnectorConfigField[]
+): string {
+  const deps = getDependsOnFields(field.dependsOn)
+  const depField = deps.length > 0 ? configFields.find((f) => f.id === deps[0]) : undefined
+  return depField?.title?.toLowerCase() ?? 'dependency'
+}

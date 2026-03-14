@@ -1,4 +1,5 @@
 import type { OAuthService } from '@/lib/oauth/types'
+import type { SelectorKey } from '@/hooks/selectors/types'
 
 /**
  * Authentication configuration for a connector.
@@ -56,11 +57,21 @@ export interface SyncResult {
 export interface ConnectorConfigField {
   id: string
   title: string
-  type: 'short-input' | 'dropdown'
+  type: 'short-input' | 'dropdown' | 'selector'
   placeholder?: string
   required?: boolean
   description?: string
   options?: { label: string; id: string }[]
+
+  /** Selector key from the selector registry (used when type is 'selector') */
+  selectorKey?: SelectorKey
+  /** Field IDs this field depends on — clears when deps change */
+  dependsOn?: string[] | { all?: string[]; any?: string[] }
+
+  /** Display mode for canonical pair fields ('basic' for selector, 'advanced' for manual input) */
+  mode?: 'basic' | 'advanced'
+  /** Links selector + manual input fields that resolve to the same config key */
+  canonicalParamId?: string
 }
 
 /**
