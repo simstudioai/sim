@@ -46,12 +46,14 @@ export function DeleteKnowledgeBaseModal({
               <>
                 Are you sure you want to delete{' '}
                 <span className='font-medium text-[var(--text-primary)]'>{knowledgeBaseName}</span>?
-                This will permanently remove all associated documents, chunks, and embeddings.
+                All associated documents, chunks, and embeddings will be removed.
               </>
             ) : (
-              'Are you sure you want to delete this knowledge base? This will permanently remove all associated documents, chunks, and embeddings.'
+              'Are you sure you want to delete this knowledge base? All associated documents, chunks, and embeddings will be removed.'
             )}{' '}
-            <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            <span className='text-[var(--text-tertiary)]'>
+              You can restore it from Recently Deleted in Settings.
+            </span>
           </p>
         </ModalBody>
         <ModalFooter>

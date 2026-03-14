@@ -767,3 +767,21 @@ export function useImportWorkflow() {
     },
   })
 }
+
+export function useRestoreWorkflow() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (workflowId: string) => {
+      const res = await fetch(`/api/workflows/${workflowId}/restore`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to restore workflow')
+      }
+      return res.json()
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: workflowKeys.lists() })
+    },
+  })
+}

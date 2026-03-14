@@ -1105,9 +1105,11 @@ export function KnowledgeBase({
             <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{knowledgeBaseName}</span>?
-              This will permanently delete the knowledge base and all {pagination.total} document
-              {pagination.total === 1 ? '' : 's'} within it.{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              The knowledge base and all {pagination.total} document
+              {pagination.total === 1 ? '' : 's'} within it will be removed.{' '}
+              <span className='text-[var(--text-tertiary)]'>
+                You can restore it from Recently Deleted in Settings.
+              </span>
             </p>
           </ModalBody>
           <ModalFooter>

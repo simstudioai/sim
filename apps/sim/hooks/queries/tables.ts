@@ -716,6 +716,24 @@ export function useUpdateTableMetadata({ workspaceId, tableId }: RowMutationCont
 /**
  * Delete a column from a table.
  */
+export function useRestoreTable() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (tableId: string) => {
+      const res = await fetch(`/api/table/${tableId}/restore`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to restore table')
+      }
+      return res.json()
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+    },
+  })
+}
+
 export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
 

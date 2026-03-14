@@ -1219,6 +1219,24 @@ export async function deleteDocumentTagDefinitions({
   }
 }
 
+export function useRestoreKnowledgeBase() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (knowledgeBaseId: string) => {
+      const res = await fetch(`/api/knowledge/${knowledgeBaseId}/restore`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to restore knowledge base')
+      }
+      return res.json()
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.all })
+    },
+  })
+}
+
 export function useDeleteDocumentTagDefinitions() {
   const queryClient = useQueryClient()
 

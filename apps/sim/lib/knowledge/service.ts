@@ -366,3 +366,74 @@ export async function deleteKnowledgeBase(
 
   logger.info(`[${requestId}] Soft deleted knowledge base: ${knowledgeBaseId}`)
 }
+
+/**
+ * Restore a soft-deleted knowledge base and its graph children.
+ * Clears archivedAt on children that were archived as part of the KB snapshot.
+ * Does NOT revive children that were directly deleted (deletedAt set).
+ */
+export async function restoreKnowledgeBase(
+  knowledgeBaseId: string,
+  requestId: string
+): Promise<void> {
+  const [kb] = await db
+    .select({
+      id: knowledgeBase.id,
+      deletedAt: knowledgeBase.deletedAt,
+      workspaceId: knowledgeBase.workspaceId,
+    })
+    .from(knowledgeBase)
+    .where(eq(knowledgeBase.id, knowledgeBaseId))
+    .limit(1)
+
+  if (!kb) {
+    throw new Error('Knowledge base not found')
+  }
+
+  if (!kb.deletedAt) {
+    throw new Error('Knowledge base is not archived')
+  }
+
+  if (kb.workspaceId) {
+    const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
+    const ws = await getWorkspaceWithOwner(kb.workspaceId)
+    if (!ws || ws.archivedAt) {
+      throw new Error('Cannot restore knowledge base into an archived workspace')
+    }
+  }
+
+  const now = new Date()
+
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+
+    await tx
+      .update(knowledgeBase)
+      .set({ deletedAt: null, updatedAt: now })
+      .where(eq(knowledgeBase.id, knowledgeBaseId))
+
+    await tx
+      .update(document)
+      .set({ archivedAt: null })
+      .where(
+        and(
+          eq(document.knowledgeBaseId, knowledgeBaseId),
+          isNotNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
+      )
+
+    await tx
+      .update(knowledgeConnector)
+      .set({ archivedAt: null, updatedAt: now })
+      .where(
+        and(
+          eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+          isNotNull(knowledgeConnector.archivedAt),
+          isNull(knowledgeConnector.deletedAt)
+        )
+      )
+  })
+
+  logger.info(`[${requestId}] Restored knowledge base: ${knowledgeBaseId}`)
+}

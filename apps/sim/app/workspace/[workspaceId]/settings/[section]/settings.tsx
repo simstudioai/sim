@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
-import { Skeleton } from '@/components/emcn'
+import { Skeleton, ToastProvider } from '@/components/emcn'
 import { ApiKeysSkeleton } from '@/app/workspace/[workspaceId]/settings/components/api-keys/api-key-skeleton'
 import { BYOKSkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
 import { CopilotSkeleton } from '@/app/workspace/[workspaceId]/settings/components/copilot/copilot-skeleton'
@@ -135,6 +135,13 @@ const Debug = dynamic(
     import('@/app/workspace/[workspaceId]/settings/components/debug/debug').then((m) => m.Debug),
   { loading: () => <DebugSkeleton /> }
 )
+const RecentlyDeleted = dynamic(
+  () =>
+    import(
+      '@/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted'
+    ).then((m) => m.RecentlyDeleted),
+  { loading: () => <SettingsSectionSkeleton /> }
+)
 const AccessControl = dynamic(
   () => import('@/ee/access-control/components/access-control').then((m) => m.AccessControl),
   { loading: () => <SettingsSectionSkeleton /> }
@@ -158,26 +165,29 @@ export function SettingsPage({ section }: SettingsPageProps) {
     allNavigationItems.find((item) => item.id === effectiveSection)?.label ?? effectiveSection
 
   return (
-    <div>
-      <h2 className='mb-[28px] font-medium text-[22px] text-[var(--text-primary)]'>{label}</h2>
-      {effectiveSection === 'general' && <General />}
-      {effectiveSection === 'integrations' && <Integrations />}
-      {effectiveSection === 'secrets' && <Credentials />}
-      {effectiveSection === 'template-profile' && <TemplateProfile />}
-      {effectiveSection === 'credential-sets' && <CredentialSets />}
-      {effectiveSection === 'access-control' && <AccessControl />}
-      {effectiveSection === 'apikeys' && <ApiKeys />}
-      {isBillingEnabled && effectiveSection === 'subscription' && <Subscription />}
-      {isBillingEnabled && effectiveSection === 'team' && <TeamManagement />}
-      {effectiveSection === 'sso' && <SSO />}
-      {effectiveSection === 'byok' && <BYOK />}
-      {effectiveSection === 'copilot' && <Copilot />}
-      {effectiveSection === 'mcp' && <MCP initialServerId={mcpServerId} />}
-      {effectiveSection === 'custom-tools' && <CustomTools />}
-      {effectiveSection === 'skills' && <Skills />}
-      {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
-      {effectiveSection === 'inbox' && <Inbox />}
-      {effectiveSection === 'debug' && <Debug />}
-    </div>
+    <ToastProvider>
+      <div>
+        <h2 className='mb-[28px] font-medium text-[22px] text-[var(--text-primary)]'>{label}</h2>
+        {effectiveSection === 'general' && <General />}
+        {effectiveSection === 'integrations' && <Integrations />}
+        {effectiveSection === 'secrets' && <Credentials />}
+        {effectiveSection === 'template-profile' && <TemplateProfile />}
+        {effectiveSection === 'credential-sets' && <CredentialSets />}
+        {effectiveSection === 'access-control' && <AccessControl />}
+        {effectiveSection === 'apikeys' && <ApiKeys />}
+        {isBillingEnabled && effectiveSection === 'subscription' && <Subscription />}
+        {isBillingEnabled && effectiveSection === 'team' && <TeamManagement />}
+        {effectiveSection === 'sso' && <SSO />}
+        {effectiveSection === 'byok' && <BYOK />}
+        {effectiveSection === 'copilot' && <Copilot />}
+        {effectiveSection === 'mcp' && <MCP initialServerId={mcpServerId} />}
+        {effectiveSection === 'custom-tools' && <CustomTools />}
+        {effectiveSection === 'skills' && <Skills />}
+        {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
+        {effectiveSection === 'inbox' && <Inbox />}
+        {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}
+        {effectiveSection === 'debug' && <Debug />}
+      </div>
+    </ToastProvider>
   )
 }

@@ -310,3 +310,24 @@ export function useDeleteWorkspaceFile() {
     },
   })
 }
+
+export function useRestoreWorkspaceFile() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ workspaceId, fileId }: { workspaceId: string; fileId: string }) => {
+      const res = await fetch(`/api/workspaces/${workspaceId}/files/${fileId}/restore`, {
+        method: 'POST',
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to restore file')
+      }
+      return res.json()
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
+    },
+  })
+}
