@@ -1,11 +1,5 @@
 import { AshbyIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
-import {
-  ashbySetupInstructions,
-  ashbyTriggerOptions,
-  buildAshbyExtraFields,
-  buildCandidateDeleteOutputs,
-} from '@/triggers/ashby/utils'
+import { buildAshbySubBlocks, buildCandidateDeleteOutputs } from '@/triggers/ashby/utils'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -21,11 +15,9 @@ export const ashbyCandidateDeleteTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: AshbyIcon,
 
-  subBlocks: buildTriggerSubBlocks({
+  subBlocks: buildAshbySubBlocks({
     triggerId: 'ashby_candidate_delete',
-    triggerOptions: ashbyTriggerOptions,
-    setupInstructions: ashbySetupInstructions('Candidate Deleted'),
-    extraFields: buildAshbyExtraFields('ashby_candidate_delete'),
+    eventType: 'Candidate Deleted',
   }),
 
   outputs: buildCandidateDeleteOutputs(),

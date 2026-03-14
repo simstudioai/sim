@@ -2060,7 +2060,11 @@ export async function createExternalWebhookSubscription(
   if (provider === 'ashby') {
     const result = await createAshbyWebhookSubscription(webhookData, requestId)
     if (result) {
-      updatedProviderConfig = { ...updatedProviderConfig, externalId: result.id }
+      updatedProviderConfig = {
+        ...updatedProviderConfig,
+        externalId: result.id,
+        secretToken: result.secretToken,
+      }
       externalSubscriptionCreated = true
     }
   } else if (provider === 'airtable') {
@@ -2175,7 +2179,7 @@ export async function cleanupExternalWebhook(
 export async function createAshbyWebhookSubscription(
   webhookData: any,
   requestId: string
-): Promise<{ id: string } | undefined> {
+): Promise<{ id: string; secretToken: string } | undefined> {
   try {
     const { path, providerConfig } = webhookData
     const { apiKey, triggerId } = providerConfig || {}
@@ -2213,9 +2217,12 @@ export async function createAshbyWebhookSubscription(
       webhookId: webhookData.id,
     })
 
+    const secretToken = crypto.randomUUID()
+
     const requestBody: Record<string, unknown> = {
       requestUrl: notificationUrl,
       webhookType,
+      secretToken,
     }
 
     const ashbyResponse = await fetch('https://api.ashbyhq.com/webhook.create', {
@@ -2255,7 +2262,7 @@ export async function createAshbyWebhookSubscription(
     ashbyLogger.info(
       `[${requestId}] Successfully created Ashby webhook subscription ${externalId} for webhook ${webhookData.id}`
     )
-    return { id: externalId }
+    return { id: externalId, secretToken }
   } catch (error: any) {
     ashbyLogger.error(
       `[${requestId}] Exception during Ashby webhook creation for webhook ${webhookData.id}.`,

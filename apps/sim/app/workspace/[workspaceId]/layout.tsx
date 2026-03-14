@@ -1,6 +1,5 @@
 'use client'
 
-import { ToastProvider } from '@/components/emcn'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { ProviderModelsLoader } from '@/app/workspace/[workspaceId]/providers/provider-models-loader'
 import { SettingsLoader } from '@/app/workspace/[workspaceId]/providers/settings-loader'
@@ -9,7 +8,7 @@ import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/side
 
 export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ToastProvider>
+    <>
       <SettingsLoader />
       <ProviderModelsLoader />
       <GlobalCommandsProvider>
@@ -26,6 +25,6 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
           </WorkspacePermissionsProvider>
         </div>
       </GlobalCommandsProvider>
-    </ToastProvider>
+    </>
   )
 }

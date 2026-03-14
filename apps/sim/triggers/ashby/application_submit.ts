@@ -1,11 +1,5 @@
 import { AshbyIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
-import {
-  ashbySetupInstructions,
-  ashbyTriggerOptions,
-  buildApplicationSubmitOutputs,
-  buildAshbyExtraFields,
-} from '@/triggers/ashby/utils'
+import { buildApplicationSubmitOutputs, buildAshbySubBlocks } from '@/triggers/ashby/utils'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -22,12 +16,10 @@ export const ashbyApplicationSubmitTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: AshbyIcon,
 
-  subBlocks: buildTriggerSubBlocks({
+  subBlocks: buildAshbySubBlocks({
     triggerId: 'ashby_application_submit',
-    triggerOptions: ashbyTriggerOptions,
+    eventType: 'Application Submitted',
     includeDropdown: true,
-    setupInstructions: ashbySetupInstructions('Application Submitted'),
-    extraFields: buildAshbyExtraFields('ashby_application_submit'),
   }),
 
   outputs: buildApplicationSubmitOutputs(),

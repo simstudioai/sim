@@ -1,11 +1,5 @@
 import { AshbyIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
-import {
-  ashbySetupInstructions,
-  ashbyTriggerOptions,
-  buildAshbyExtraFields,
-  buildCandidateHireOutputs,
-} from '@/triggers/ashby/utils'
+import { buildAshbySubBlocks, buildCandidateHireOutputs } from '@/triggers/ashby/utils'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -22,11 +16,9 @@ export const ashbyCandidateHireTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: AshbyIcon,
 
-  subBlocks: buildTriggerSubBlocks({
+  subBlocks: buildAshbySubBlocks({
     triggerId: 'ashby_candidate_hire',
-    triggerOptions: ashbyTriggerOptions,
-    setupInstructions: ashbySetupInstructions('Candidate Hired'),
-    extraFields: buildAshbyExtraFields('ashby_candidate_hire'),
+    eventType: 'Candidate Hired',
   }),
 
   outputs: buildCandidateHireOutputs(),

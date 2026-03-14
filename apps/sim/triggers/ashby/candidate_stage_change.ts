@@ -1,11 +1,5 @@
 import { AshbyIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
-import {
-  ashbySetupInstructions,
-  ashbyTriggerOptions,
-  buildAshbyExtraFields,
-  buildCandidateStageChangeOutputs,
-} from '@/triggers/ashby/utils'
+import { buildAshbySubBlocks, buildCandidateStageChangeOutputs } from '@/triggers/ashby/utils'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -22,11 +16,9 @@ export const ashbyCandidateStageChangeTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: AshbyIcon,
 
-  subBlocks: buildTriggerSubBlocks({
+  subBlocks: buildAshbySubBlocks({
     triggerId: 'ashby_candidate_stage_change',
-    triggerOptions: ashbyTriggerOptions,
-    setupInstructions: ashbySetupInstructions('Candidate Stage Change'),
-    extraFields: buildAshbyExtraFields('ashby_candidate_stage_change'),
+    eventType: 'Candidate Stage Change',
   }),
 
   outputs: buildCandidateStageChangeOutputs(),

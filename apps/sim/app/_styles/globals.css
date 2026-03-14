@@ -790,6 +790,59 @@ input[type="search"]::-ms-clear {
   }
 }
 
+@keyframes notification-enter {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--stack-offset, 0px) - 8px)) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(var(--stack-offset, 0px)) scale(1);
+  }
+}
+
+@keyframes notification-countdown {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: 34.56;
+  }
+}
+
+@keyframes notification-exit {
+  from {
+    opacity: 1;
+    transform: translateX(var(--stack-offset, 0px)) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(calc(var(--stack-offset, 0px) + 8px)) scale(0.97);
+  }
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toast-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+}
+
 /* WandPromptBar status indicator */
 @keyframes smoke-pulse {
   0%,
