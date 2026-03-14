@@ -425,7 +425,7 @@ export async function restoreKnowledgeBase(
 
     await tx
       .update(knowledgeConnector)
-      .set({ archivedAt: null, updatedAt: now })
+      .set({ archivedAt: null, status: 'active', updatedAt: now })
       .where(
         and(
           eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),

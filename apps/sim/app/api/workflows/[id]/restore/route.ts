@@ -32,6 +32,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (permission !== 'admin' && permission !== 'write') {
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
+    } else if (workflowData.userId !== auth.userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const result = await restoreWorkflow(workflowId, { requestId })

@@ -25,6 +25,20 @@ const STACK_OFFSET_PX = 3
 const RING_RADIUS = 5.5
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
 
+const TOAST_KEYFRAMES = `
+@keyframes toast-enter {
+  from { opacity: 0; transform: translateX(calc(var(--stack-offset, 0px) - 8px)) scale(0.97); }
+  to   { opacity: 1; transform: translateX(var(--stack-offset, 0px)) scale(1); }
+}
+@keyframes toast-exit {
+  from { opacity: 1; transform: translateX(var(--stack-offset, 0px)) scale(1); }
+  to   { opacity: 0; transform: translateX(calc(var(--stack-offset, 0px) + 8px)) scale(0.97); }
+}
+@keyframes toast-countdown {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: ${RING_CIRCUMFERENCE.toFixed(2)}; }
+}`
+
 type ToastVariant = 'default' | 'success' | 'error'
 
 interface ToastAction {
@@ -127,7 +141,7 @@ function CountdownRing({ durationMs, onPause }: { durationMs: number; onPause: (
               strokeLinecap='round'
               strokeDasharray={RING_CIRCUMFERENCE}
               style={{
-                animation: `notification-countdown ${durationMs}ms linear forwards`,
+                animation: `toast-countdown ${durationMs}ms linear forwards`,
               }}
             />
           </svg>
@@ -165,8 +179,8 @@ const ToastItem = memo(function ToastItem({
         {
           '--stack-offset': `${xOffset}px`,
           animation: isExiting
-            ? `notification-exit ${EXIT_ANIMATION_MS}ms ease-in forwards`
-            : 'notification-enter 200ms ease-out forwards',
+            ? `toast-exit ${EXIT_ANIMATION_MS}ms ease-in forwards`
+            : 'toast-enter 200ms ease-out forwards',
           gridArea: '1 / 1',
         } as React.CSSProperties
       }
@@ -340,25 +354,28 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
       {mounted &&
         visibleToasts.length > 0 &&
         createPortal(
-          <div aria-live='polite' aria-label='Toasts' className='fixed right-[16px] bottom-[16px] z-[10000400] grid'>
-            {[...visibleToasts].reverse().map((t, index, stacked) => {
-              const depth = stacked.length - index - 1
-              const showCountdown = !isPaused && t.duration > 0
+          <>
+            <style>{TOAST_KEYFRAMES}</style>
+            <div aria-live='polite' aria-label='Toasts' className='fixed right-[16px] bottom-[16px] z-[10000400] grid'>
+              {[...visibleToasts].reverse().map((t, index, stacked) => {
+                const depth = stacked.length - index - 1
+                const showCountdown = !isPaused && t.duration > 0
 
-              return (
-                <ToastItem
-                  key={t.id}
-                  data={t}
-                  depth={depth}
-                  isExiting={exitingIds.has(t.id)}
-                  showCountdown={showCountdown}
-                  onDismiss={dismissToast}
-                  onPauseCountdown={pauseAll}
-                  onAction={handleAction}
-                />
-              )
-            })}
-          </div>,
+                return (
+                  <ToastItem
+                    key={t.id}
+                    data={t}
+                    depth={depth}
+                    isExiting={exitingIds.has(t.id)}
+                    showCountdown={showCountdown}
+                    onDismiss={dismissToast}
+                    onPauseCountdown={pauseAll}
+                    onAction={handleAction}
+                  />
+                )
+              })}
+            </div>
+          </>,
           document.body
         )}
     </ToastContext.Provider>
