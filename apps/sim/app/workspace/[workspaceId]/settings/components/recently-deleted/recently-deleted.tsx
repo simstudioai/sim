@@ -5,6 +5,7 @@ import { Loader2, Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Button,
+  Check,
   SModalTabs,
   SModalTabsList,
   SModalTabsTrigger,
@@ -193,6 +194,7 @@ export function RecentlyDeleted() {
     const onSuccess = () => {
       const href = getResourceHref(resource.workspaceId, resource.type, resource.id)
       toast.success(`${resource.name} restored`, {
+        icon: <Check className='h-[12px] w-[12px]' />,
         action: { label: 'View', onClick: () => router.push(href) },
       })
     }

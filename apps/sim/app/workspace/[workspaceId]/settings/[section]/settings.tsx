@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
-import { Skeleton, ToastProvider } from '@/components/emcn'
+import { Skeleton } from '@/components/emcn'
 import { ApiKeysSkeleton } from '@/app/workspace/[workspaceId]/settings/components/api-keys/api-key-skeleton'
 import { BYOKSkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
 import { CopilotSkeleton } from '@/app/workspace/[workspaceId]/settings/components/copilot/copilot-skeleton'
@@ -165,9 +165,8 @@ export function SettingsPage({ section }: SettingsPageProps) {
     allNavigationItems.find((item) => item.id === effectiveSection)?.label ?? effectiveSection
 
   return (
-    <ToastProvider>
-      <div>
-        <h2 className='mb-[28px] font-medium text-[22px] text-[var(--text-primary)]'>{label}</h2>
+    <div>
+      <h2 className='mb-[28px] font-medium text-[22px] text-[var(--text-primary)]'>{label}</h2>
         {effectiveSection === 'general' && <General />}
         {effectiveSection === 'integrations' && <Integrations />}
         {effectiveSection === 'secrets' && <Credentials />}
@@ -187,7 +186,6 @@ export function SettingsPage({ section }: SettingsPageProps) {
         {effectiveSection === 'inbox' && <Inbox />}
         {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}
         {effectiveSection === 'debug' && <Debug />}
-      </div>
-    </ToastProvider>
+    </div>
   )
 }
