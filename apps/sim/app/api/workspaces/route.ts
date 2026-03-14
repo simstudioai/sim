@@ -10,6 +10,7 @@ import { PlatformEvents } from '@/lib/core/telemetry'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { getRandomWorkspaceColor } from '@/lib/workspaces/colors'
+import type { WorkspaceScope } from '@/lib/workspaces/utils'
 
 const logger = createLogger('Workspaces')
 

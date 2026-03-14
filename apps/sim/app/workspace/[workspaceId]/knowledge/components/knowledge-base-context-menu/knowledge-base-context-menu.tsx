@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Copy, ExternalLink, Pencil, Tag, Trash } from '@/components/emcn/icons'
+import { Copy, ExternalLink, Pencil, TagIcon, Trash } from '@/components/emcn/icons'
 
 interface KnowledgeBaseContextMenuProps {
   isOpen: boolean
@@ -85,7 +85,7 @@ export function KnowledgeBaseContextMenu({
 
         {showViewTags && onViewTags && (
           <DropdownMenuItem onSelect={onViewTags}>
-            <Tag />
+            <TagIcon />
             View tags
           </DropdownMenuItem>
         )}

@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
         executionId,
         requestId,
         source: 'schedule' as const,
-        workflowId: schedule.workflowId,
+        workflowId: schedule.workflowId!,
         scheduleId: schedule.id,
         triggerType: 'schedule',
         scheduledFor: schedule.nextRunAt?.toISOString(),

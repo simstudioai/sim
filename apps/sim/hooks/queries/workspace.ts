@@ -86,12 +86,14 @@ export function useCreateWorkspace() {
       const data = await response.json()
       return data.workspace as Workspace
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.all })
-      queryClient.removeQueries({ queryKey: workspaceKeys.detail(variables.workspaceId) })
-      queryClient.removeQueries({ queryKey: workspaceKeys.settings(variables.workspaceId) })
-      queryClient.removeQueries({ queryKey: workspaceKeys.permissions(variables.workspaceId) })
-      queryClient.removeQueries({ queryKey: workspaceKeys.members(variables.workspaceId) })
+      if (data?.id) {
+        queryClient.removeQueries({ queryKey: workspaceKeys.detail(data.id) })
+        queryClient.removeQueries({ queryKey: workspaceKeys.settings(data.id) })
+        queryClient.removeQueries({ queryKey: workspaceKeys.permissions(data.id) })
+        queryClient.removeQueries({ queryKey: workspaceKeys.members(data.id) })
+      }
     },
   })
 }

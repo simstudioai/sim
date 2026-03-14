@@ -4,7 +4,7 @@ import type { SVGProps } from 'react'
  * Tag icon component - price tag / label
  * @param props - SVG properties including className, fill, etc.
  */
-export function Tag(props: SVGProps<SVGSVGElement>) {
+export function TagIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       width='24'

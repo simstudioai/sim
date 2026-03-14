@@ -9,7 +9,6 @@ import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
-import { decrementSSEConnections, incrementSSEConnections } from '@/lib/monitoring/sse-connections'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 export interface SSESubscription {
@@ -56,14 +55,11 @@ export function createWorkspaceSSE(config: WorkspaceSSEConfig) {
       for (const unsub of unsubscribers) {
         unsub()
       }
-      decrementSSEConnections(config.label)
       logger.info(`SSE connection closed for workspace ${workspaceId}`)
     }
 
     const stream = new ReadableStream({
       start(controller) {
-        incrementSSEConnections(config.label)
-
         const send = (eventName: string, data: Record<string, unknown>) => {
           if (cleaned) return
           try {

@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'

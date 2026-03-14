@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { ExternalLink, Eye, Pencil, Plus, Tag, Trash } from '@/components/emcn/icons'
+import { ExternalLink, Eye, Pencil, Plus, TagIcon, Trash } from '@/components/emcn/icons'
 
 interface DocumentContextMenuProps {
   isOpen: boolean
@@ -123,7 +123,7 @@ export function DocumentContextMenu({
             )}
             {!isMultiSelect && hasTags && onViewTags && (
               <DropdownMenuItem onSelect={onViewTags}>
-                <Tag />
+                <TagIcon />
                 View tags
               </DropdownMenuItem>
             )}

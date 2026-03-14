@@ -306,7 +306,6 @@ export function Files() {
       await deleteFile.mutateAsync({
         workspaceId,
         fileId: target.id,
-        fileSize: target.size,
       })
       setShowDeleteConfirm(false)
       setDeleteTargetFile(null)
