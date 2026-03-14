@@ -486,7 +486,7 @@ export function UserInput({
         }
       }
     },
-    [handleSubmit, isSending, mentionTokensWithContext, value, textareaRef]
+    [handleSubmit, mentionTokensWithContext, value, textareaRef]
   )
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
