@@ -7,10 +7,14 @@ import type { ToolCallData } from '../../../../types'
 import { getAgentIcon } from '../../utils'
 import { ToolCallItem } from './tool-call-item'
 
+export type AgentGroupItem =
+  | { type: 'text'; content: string }
+  | { type: 'tool'; data: ToolCallData }
+
 interface AgentGroupProps {
   agentName: string
   agentLabel: string
-  tools: ToolCallData[]
+  items: AgentGroupItem[]
   autoCollapse?: boolean
 }
 
@@ -19,14 +23,20 @@ const FADE_MS = 300
 export function AgentGroup({
   agentName,
   agentLabel,
-  tools,
+  items,
   autoCollapse = false,
 }: AgentGroupProps) {
   const AgentIcon = getAgentIcon(agentName)
-  const hasTools = tools.length > 0
+  const hasItems = items.length > 0
+  const toolItems = items.filter(
+    (item): item is Extract<AgentGroupItem, { type: 'tool' }> => item.type === 'tool'
+  )
   const allDone =
-    hasTools &&
-    tools.every((t) => t.status === 'success' || t.status === 'error' || t.status === 'cancelled')
+    toolItems.length > 0 &&
+    toolItems.every(
+      (t) =>
+        t.data.status === 'success' || t.data.status === 'error' || t.data.status === 'cancelled'
+    )
 
   const [expanded, setExpanded] = useState(!allDone)
   const [mounted, setMounted] = useState(!allDone)
@@ -49,39 +59,55 @@ export function AgentGroup({
 
   return (
     <div className='flex flex-col gap-1.5'>
-      <button
-        type='button'
-        onClick={hasTools ? () => setExpanded((prev) => !prev) : undefined}
-        className={cn('flex items-center gap-[8px]', hasTools && 'cursor-pointer')}
-      >
-        <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-          <AgentIcon className='h-[16px] w-[16px] text-[var(--text-icon)]' />
-        </div>
-        <span className='font-base text-[14px] text-[var(--text-body)]'>{agentLabel}</span>
-        {hasTools && (
+      {hasItems ? (
+        <button
+          type='button'
+          onClick={() => setExpanded((prev) => !prev)}
+          className='flex cursor-pointer items-center gap-[8px]'
+        >
+          <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
+            <AgentIcon className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+          </div>
+          <span className='font-base text-[14px] text-[var(--text-body)]'>{agentLabel}</span>
           <ChevronDown
             className={cn(
               'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
               !expanded && '-rotate-90'
             )}
           />
-        )}
-      </button>
-      {hasTools && mounted && (
+        </button>
+      ) : (
+        <div className='flex items-center gap-[8px]'>
+          <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
+            <AgentIcon className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+          </div>
+          <span className='font-base text-[14px] text-[var(--text-body)]'>{agentLabel}</span>
+        </div>
+      )}
+      {hasItems && mounted && (
         <div
           className={cn(
-            'flex flex-col gap-1.5 transition-opacity duration-300 ease-out',
+            'flex flex-col gap-3 transition-opacity duration-300 ease-out',
             expanded ? 'opacity-100' : 'opacity-0'
           )}
         >
-          {tools.map((tool) => (
-            <ToolCallItem
-              key={tool.id}
-              toolName={tool.toolName}
-              displayTitle={tool.displayTitle}
-              status={tool.status}
-            />
-          ))}
+          {items.map((item, idx) =>
+            item.type === 'tool' ? (
+              <ToolCallItem
+                key={item.data.id}
+                toolName={item.data.toolName}
+                displayTitle={item.data.displayTitle}
+                status={item.data.status}
+              />
+            ) : (
+              <p
+                key={`text-${idx}`}
+                className='whitespace-pre-wrap pl-[24px] font-base text-[13px] text-[var(--text-secondary)]'
+              >
+                {item.content.trim()}
+              </p>
+            )
+          )}
         </div>
       )}
     </div>

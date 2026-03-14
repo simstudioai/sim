@@ -2,6 +2,7 @@
 
 import type { ContentBlock, OptionItem, SubagentName, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS } from '../../types'
+import type { AgentGroupItem } from './components'
 import { AgentGroup, ChatContent, CircleStop, Options } from './components'
 
 interface TextSegment {
@@ -14,7 +15,7 @@ interface AgentGroupSegment {
   id: string
   agentName: string
   agentLabel: string
-  tools: ToolCallData[]
+  items: AgentGroupItem[]
 }
 
 interface OptionsSegment {
@@ -64,7 +65,18 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]
 
-    if (block.type === 'text' || block.type === 'subagent_text') {
+    if (block.type === 'subagent_text') {
+      if (!block.content || !group) continue
+      const lastItem = group.items[group.items.length - 1]
+      if (lastItem?.type === 'text') {
+        lastItem.content += block.content
+      } else {
+        group.items.push({ type: 'text', content: block.content })
+      }
+      continue
+    }
+
+    if (block.type === 'text') {
       if (!block.content?.trim()) continue
       if (group) {
         segments.push(group)
@@ -92,7 +104,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
         id: `agent-${key}-${i}`,
         agentName: key,
         agentLabel: resolveAgentLabel(key),
-        tools: [],
+        items: [],
       }
       continue
     }
@@ -113,7 +125,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
             id: `agent-${tc.name}-${i}`,
             agentName: tc.name,
             agentLabel: resolveAgentLabel(tc.name),
-            tools: [],
+            items: [],
           }
         }
         continue
@@ -122,7 +134,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
       const tool = toToolData(tc)
 
       if (tc.calledBy && group && group.agentName === tc.calledBy) {
-        group.tools.push(tool)
+        group.items.push({ type: 'tool', data: tool })
       } else if (tc.calledBy) {
         if (group) {
           segments.push(group)
@@ -133,11 +145,11 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
           id: `agent-${tc.calledBy}-${i}`,
           agentName: tc.calledBy,
           agentLabel: resolveAgentLabel(tc.calledBy),
-          tools: [tool],
+          items: [{ type: 'tool', data: tool }],
         }
       } else {
         if (group && group.agentName === 'mothership') {
-          group.tools.push(tool)
+          group.items.push({ type: 'tool', data: tool })
         } else {
           if (group) {
             segments.push(group)
@@ -148,7 +160,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
             id: `agent-mothership-${i}`,
             agentName: 'mothership',
             agentLabel: 'Mothership',
-            tools: [tool],
+            items: [{ type: 'tool', data: tool }],
           }
         }
       }
@@ -216,10 +228,15 @@ export function MessageContent({
               />
             )
           case 'agent_group': {
+            const toolItems = segment.items.filter((item) => item.type === 'tool')
             const allToolsDone =
-              segment.tools.length > 0 &&
-              segment.tools.every(
-                (t) => t.status === 'success' || t.status === 'error' || t.status === 'cancelled'
+              toolItems.length === 0 ||
+              toolItems.every(
+                (t) =>
+                  t.type === 'tool' &&
+                  (t.data.status === 'success' ||
+                    t.data.status === 'error' ||
+                    t.data.status === 'cancelled')
               )
             const hasFollowingText = segments.slice(i + 1).some((s) => s.type === 'text')
             return (
@@ -227,7 +244,7 @@ export function MessageContent({
                 <AgentGroup
                   agentName={segment.agentName}
                   agentLabel={segment.agentLabel}
-                  tools={segment.tools}
+                  items={segment.items}
                   autoCollapse={allToolsDone && hasFollowingText}
                 />
               </div>

@@ -53,16 +53,16 @@ export function ToolCallItem({ toolName, displayTitle, status }: ToolCallItemPro
     <div className='flex items-center gap-[8px] pl-[24px]'>
       <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
         {status === 'executing' ? (
-          <Loader className='h-[16px] w-[16px] text-[var(--text-icon)]' animate />
+          <Loader className='h-[15px] w-[15px] text-[var(--text-tertiary)]' animate />
         ) : status === 'cancelled' ? (
-          <CircleStop className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+          <CircleStop className='h-[15px] w-[15px] text-[var(--text-tertiary)]' />
         ) : Icon ? (
-          <Icon className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+          <Icon className='h-[15px] w-[15px] text-[var(--text-tertiary)]' />
         ) : (
-          <CircleCheck className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+          <CircleCheck className='h-[15px] w-[15px] text-[var(--text-tertiary)]' />
         )}
       </div>
-      <span className='font-base text-[14px] text-[var(--text-body)]'>{displayTitle}</span>
+      <span className='font-base text-[13px] text-[var(--text-secondary)]'>{displayTitle}</span>
     </div>
   )
 }

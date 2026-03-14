@@ -6,12 +6,12 @@ import {
   Bug,
   Calendar,
   ClipboardList,
-  Connections,
   Database,
   File,
   FolderCode,
   Hammer,
   Integration,
+  Layout,
   Library,
   Pencil,
   PlayOutline,
@@ -42,7 +42,7 @@ const TOOL_ICONS: Record<MothershipToolName | SubagentName | 'mothership', IconC
   superagent: Blimp,
   user_table: TableIcon,
   workspace_file: File,
-  create_workflow: Connections,
+  create_workflow: Layout,
   edit_workflow: Pencil,
   build: Hammer,
   run: PlayOutline,
@@ -58,6 +58,7 @@ const TOOL_ICONS: Record<MothershipToolName | SubagentName | 'mothership', IconC
   plan: ClipboardList,
   debug: Bug,
   edit: Pencil,
+  fast_edit: Pencil,
 }
 
 export function getAgentIcon(name: string): IconComponent {
