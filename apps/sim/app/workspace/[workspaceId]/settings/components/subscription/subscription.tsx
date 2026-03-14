@@ -47,7 +47,6 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import {
   CreditBalance,
   PlanCard,
-  ReferralCode,
 } from '@/app/workspace/[workspaceId]/settings/components/subscription/components'
 import {
   ENTERPRISE_PLAN_FEATURES,
@@ -999,11 +998,6 @@ export function Subscription() {
           onButtonClick={() => window.open(CONSTANTS.TYPEFORM_ENTERPRISE_URL, '_blank')}
           inlineButton
         />
-      )}
-
-      {/* Referral Code */}
-      {!subscription.isEnterprise && (
-        <ReferralCode onRedeemComplete={() => refetchSubscription()} />
       )}
     </div>
   )
