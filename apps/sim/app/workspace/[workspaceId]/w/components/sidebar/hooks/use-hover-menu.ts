@@ -58,5 +58,5 @@ export function useHoverMenu() {
     [cancelClose, scheduleClose]
   )
 
-  return { isOpen, close, triggerProps, contentProps }
+  return { isOpen, open, close, triggerProps, contentProps }
 }

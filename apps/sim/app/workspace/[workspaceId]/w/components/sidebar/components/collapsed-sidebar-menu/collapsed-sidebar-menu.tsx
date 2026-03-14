@@ -34,7 +34,8 @@ export function CollapsedSidebarMenu({
       <DropdownMenu
         open={hover.isOpen}
         onOpenChange={(open) => {
-          if (!open) hover.close()
+          if (open) hover.open()
+          else hover.close()
         }}
         modal={false}
       >
