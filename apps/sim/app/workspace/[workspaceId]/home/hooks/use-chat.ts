@@ -1006,13 +1006,20 @@ export function useChat(
     [setMessageQueue]
   )
 
+  const sendNowProcessingRef = useRef<string | null>(null)
   const sendNow = useCallback(
     async (id: string) => {
+      if (sendNowProcessingRef.current === id) return
       const msg = messageQueueRef.current.find((m) => m.id === id)
       if (!msg) return
-      await stopGeneration()
-      setMessageQueue((prev) => prev.filter((m) => m.id !== id))
-      await sendMessage(msg.content, msg.fileAttachments, msg.contexts)
+      sendNowProcessingRef.current = id
+      try {
+        await stopGeneration()
+        setMessageQueue((prev) => prev.filter((m) => m.id !== id))
+        await sendMessage(msg.content, msg.fileAttachments, msg.contexts)
+      } finally {
+        sendNowProcessingRef.current = null
+      }
     },
     [stopGeneration, sendMessage, setMessageQueue]
   )
