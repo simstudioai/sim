@@ -1,5 +1,5 @@
-import { generateId } from '../../../lib/utils/uuid'
 'use client'
+import { generateId } from '../../../lib/utils/uuid'
 
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
