@@ -270,6 +270,14 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
             }
           case 'telegram_send_photo': {
             // photo is the canonical param for both basic (photoFile) and advanced modes
+            // In advanced mode, photo can be a plain URL string or file_id
+            if (typeof params.photo === 'string' && params.photo.trim()) {
+              return {
+                ...commonParams,
+                photo: params.photo.trim(),
+                caption: params.caption,
+              }
+            }
             const photoSource = normalizeFileInput(params.photo, {
               single: true,
             })
@@ -284,6 +292,14 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
           }
           case 'telegram_send_video': {
             // video is the canonical param for both basic (videoFile) and advanced modes
+            // In advanced mode, video can be a plain URL string or file_id
+            if (typeof params.video === 'string' && params.video.trim()) {
+              return {
+                ...commonParams,
+                video: params.video.trim(),
+                caption: params.caption,
+              }
+            }
             const videoSource = normalizeFileInput(params.video, {
               single: true,
             })
@@ -298,6 +314,14 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
           }
           case 'telegram_send_audio': {
             // audio is the canonical param for both basic (audioFile) and advanced modes
+            // In advanced mode, audio can be a plain URL string or file_id
+            if (typeof params.audio === 'string' && params.audio.trim()) {
+              return {
+                ...commonParams,
+                audio: params.audio.trim(),
+                caption: params.caption,
+              }
+            }
             const audioSource = normalizeFileInput(params.audio, {
               single: true,
             })
@@ -312,6 +336,14 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
           }
           case 'telegram_send_animation': {
             // animation is the canonical param for both basic (animationFile) and advanced modes
+            // In advanced mode, animation can be a plain URL string or file_id
+            if (typeof params.animation === 'string' && params.animation.trim()) {
+              return {
+                ...commonParams,
+                animation: params.animation.trim(),
+                caption: params.caption,
+              }
+            }
             const animationSource = normalizeFileInput(params.animation, {
               single: true,
             })
