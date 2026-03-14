@@ -74,6 +74,7 @@ async function executeSave(fileName: string, chatId: string): Promise<ToolCallRe
       fileId: updated.id,
       path: `files/${fileName}`,
     },
+    resources: [{ type: 'file', id: updated.id, title: fileName }],
   }
 }
 

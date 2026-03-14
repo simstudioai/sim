@@ -880,12 +880,15 @@ export function useChat(
       try {
         const currentActiveId = activeResourceIdRef.current
         const currentResources = resourcesRef.current
-        const activeRes = currentActiveId
-          ? currentResources.find((r) => r.id === currentActiveId)
-          : undefined
-        const resourceAttachments = activeRes
-          ? [{ type: activeRes.type, id: activeRes.id }]
-          : undefined
+        const resourceAttachments =
+          currentResources.length > 0
+            ? currentResources.map((r) => ({
+                type: r.type,
+                id: r.id,
+                title: r.title,
+                active: r.id === currentActiveId,
+              }))
+            : undefined
 
         const response = await fetch(MOTHERSHIP_CHAT_API_PATH, {
           method: 'POST',
