@@ -42,6 +42,7 @@ export type SkippedItemType =
   | 'tool_not_allowed'
   | 'invalid_edge_target'
   | 'invalid_edge_source'
+  | 'invalid_edge_scope'
   | 'invalid_source_handle'
   | 'invalid_target_handle'
   | 'invalid_subblock_field'

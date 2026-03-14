@@ -45,6 +45,7 @@ import {
   useAutoLayout,
   useCanvasContextMenu,
   useCurrentWorkflow,
+  useDynamicHandleRefresh,
   useNodeUtilities,
   useShiftSelectionLock,
   useWorkflowExecution,
@@ -53,6 +54,7 @@ import {
   calculateContainerDimensions,
   clampPositionToContainer,
   clearDragHighlights,
+  computeBlockZIndex,
   computeClampedPositionUpdates,
   estimateBlockDimensions,
   filterProtectedBlocks,
@@ -64,6 +66,7 @@ import {
   isInEditableElement,
   resolveParentChildSelectionConflicts,
   validateTriggerPaste,
+  Z_INDEX,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
@@ -248,6 +251,7 @@ const WorkflowContent = React.memo(() => {
   const { screenToFlowPosition, getNodes, setNodes, getIntersectingNodes } = reactFlowInstance
   const { fitViewToBounds, getViewportCenter } = useCanvasViewport(reactFlowInstance)
   const { emitCursorUpdate } = useSocket()
+  useDynamicHandleRefresh()
 
   const workspaceId = params.workspaceId as string
   const workflowIdParam = params.workflowId as string
@@ -727,6 +731,7 @@ const WorkflowContent = React.memo(() => {
               ...node,
               position: update.newPosition,
               parentId: update.newParentId ?? undefined,
+              zIndex: update.newParentId ? Z_INDEX.CHILD_BLOCK : Z_INDEX.ROOT_BLOCK,
             }
           }
           return node
@@ -2364,13 +2369,6 @@ const WorkflowContent = React.memo(() => {
 
       // Handle container nodes differently
       if (block.type === 'loop' || block.type === 'parallel') {
-        // Compute nesting depth so children always render above parents
-        let depth = 0
-        let pid = block.data?.parentId as string | undefined
-        while (pid && depth < 100) {
-          depth++
-          pid = blocks[pid]?.data?.parentId as string | undefined
-        }
         nodeArray.push({
           id: block.id,
           type: 'subflowNode',
@@ -2379,8 +2377,9 @@ const WorkflowContent = React.memo(() => {
           extent: block.data?.extent || undefined,
           dragHandle: '.workflow-drag-handle',
           draggable: !isBlockProtected(block.id, blocks),
-          zIndex: depth,
+          zIndex: computeBlockZIndex(block, blocks),
           className: block.data?.parentId ? 'nested-subflow-node' : undefined,
+          style: { pointerEvents: 'none' },
           data: {
             ...block.data,
             name: block.name,
@@ -2409,12 +2408,6 @@ const WorkflowContent = React.memo(() => {
       const nodeType = block.type === 'note' ? 'noteBlock' : 'workflowBlock'
       const dragHandle = block.type === 'note' ? '.note-drag-handle' : '.workflow-drag-handle'
 
-      // Compute zIndex for blocks inside containers so they render above the
-      // parent subflow's interactive body area (which needs pointer-events for
-      // click-to-select). Container nodes use zIndex: depth (0, 1, 2...),
-      // so child blocks use a baseline that is always above any container.
-      const childZIndex = block.data?.parentId ? 1000 : undefined
-
       // Create stable node object - React Flow will handle shallow comparison
       nodeArray.push({
         id: block.id,
@@ -2423,7 +2416,7 @@ const WorkflowContent = React.memo(() => {
         parentId: block.data?.parentId,
         dragHandle,
         draggable: !isBlockProtected(block.id, blocks),
-        ...(childZIndex !== undefined && { zIndex: childZIndex }),
+        zIndex: computeBlockZIndex(block, blocks),
         extent: (() => {
           // Clamp children to subflow body (exclude header)
           const parentId = block.data?.parentId as string | undefined
@@ -2609,6 +2602,7 @@ const WorkflowContent = React.memo(() => {
                 position: absPos,
                 parentId: undefined,
                 extent: undefined,
+                zIndex: Z_INDEX.ROOT_BLOCK,
               }
             }
             return n
@@ -3330,6 +3324,7 @@ const WorkflowContent = React.memo(() => {
                 position: relativePositionBefore,
                 parentId: potentialParentId,
                 extent: 'parent' as const,
+                zIndex: Z_INDEX.CHILD_BLOCK,
               }
             }
             return n
@@ -3372,6 +3367,7 @@ const WorkflowContent = React.memo(() => {
                 position: absolutePosition,
                 parentId: undefined,
                 extent: undefined,
+                zIndex: Z_INDEX.ROOT_BLOCK,
               }
             }
             return n
@@ -3594,12 +3590,43 @@ const WorkflowContent = React.memo(() => {
   const handleNodeClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
       const isMultiSelect = event.shiftKey || event.metaKey || event.ctrlKey
-      setNodes((nodes) =>
-        nodes.map((n) => ({
+      setNodes((nodes) => {
+        const updated = nodes.map((n) => ({
           ...n,
           selected: isMultiSelect ? (n.id === node.id ? true : n.selected) : n.id === node.id,
         }))
-      )
+        if (!isMultiSelect) return updated
+
+        const clickedId = node.id
+        const clickedParentId = node.parentId
+
+        const selectedIds = new Set(updated.filter((n) => n.selected).map((n) => n.id))
+
+        let hasConflict = false
+        const resolved = updated.map((n) => {
+          if (!n.selected || n.id === clickedId) return n
+          const nParentId = n.parentId
+
+          if (nParentId === clickedId) {
+            hasConflict = true
+            return { ...n, selected: false }
+          }
+
+          if (clickedParentId === n.id) {
+            hasConflict = true
+            return { ...n, selected: false }
+          }
+
+          if (nParentId && selectedIds.has(nParentId)) {
+            hasConflict = true
+            return { ...n, selected: false }
+          }
+
+          return n
+        })
+
+        return hasConflict ? resolved : updated
+      })
     },
     [setNodes]
   )

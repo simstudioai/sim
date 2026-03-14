@@ -19,6 +19,11 @@ const {
 
 vi.mock('@/lib/auth/hybrid', () => ({
   checkHybridAuth: mockCheckHybridAuth,
+  AuthType: {
+    SESSION: 'session',
+    API_KEY: 'api_key',
+    INTERNAL_JWT: 'internal_jwt',
+  },
 }))
 
 vi.mock('@/lib/workflows/utils', () => ({

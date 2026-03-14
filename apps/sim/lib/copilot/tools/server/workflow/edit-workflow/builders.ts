@@ -99,6 +99,8 @@ export function createBlockFromParams(
         sanitizedValue = normalizeArrayWithIds(value)
       }
 
+      sanitizedValue = normalizeConditionRouterIds(blockId, key, sanitizedValue)
+
       // Special handling for tools - normalize and filter disallowed
       if (key === 'tools' && Array.isArray(value)) {
         sanitizedValue = filterDisallowedTools(
@@ -114,9 +116,10 @@ export function createBlockFromParams(
         sanitizedValue = normalizeResponseFormat(value)
       }
 
+      const subBlockDef = blockConfig?.subBlocks.find((subBlock) => subBlock.id === key)
       blockState.subBlocks[key] = {
         id: key,
-        type: 'short-input',
+        type: subBlockDef?.type || 'short-input',
         value: sanitizedValue,
       }
     })
@@ -270,6 +273,52 @@ export function normalizeArrayWithIds(value: unknown): any[] {
  */
 export function shouldNormalizeArrayIds(key: string): boolean {
   return ARRAY_WITH_ID_SUBBLOCK_TYPES.has(key)
+}
+
+/**
+ * Normalizes condition/router branch IDs to use canonical block-scoped format.
+ * The LLM provides branch structure (if/else-if/else or routes) but should not
+ * have to generate the internal IDs -- we assign them based on the block ID.
+ */
+export function normalizeConditionRouterIds(blockId: string, key: string, value: unknown): unknown {
+  if (key !== 'conditions' && key !== 'routes') return value
+
+  let parsed: any[]
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value)
+      if (!Array.isArray(parsed)) return value
+    } catch {
+      return value
+    }
+  } else if (Array.isArray(value)) {
+    parsed = value
+  } else {
+    return value
+  }
+
+  let elseIfCounter = 0
+  const normalized = parsed.map((item, index) => {
+    if (!item || typeof item !== 'object') return item
+
+    let canonicalId: string
+    if (key === 'conditions') {
+      if (index === 0) {
+        canonicalId = `${blockId}-if`
+      } else if (index === parsed.length - 1) {
+        canonicalId = `${blockId}-else`
+      } else {
+        canonicalId = `${blockId}-else-if-${elseIfCounter}`
+        elseIfCounter++
+      }
+    } else {
+      canonicalId = `${blockId}-route${index + 1}`
+    }
+
+    return { ...item, id: canonicalId }
+  })
+
+  return typeof value === 'string' ? JSON.stringify(normalized) : normalized
 }
 
 /**

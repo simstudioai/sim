@@ -475,6 +475,7 @@ export function useCollaborativeWorkflow() {
 
       try {
         useSubBlockStore.getState().setValue(blockId, subblockId, value)
+        useWorkflowStore.getState().syncDynamicHandleSubblockValue(blockId, subblockId, value)
         const blockType = useWorkflowStore.getState().blocks?.[blockId]?.type
         if (activeWorkflowId && blockType === 'function' && subblockId === 'code') {
           useCodeUndoRedoStore.getState().clear(activeWorkflowId, blockId, subblockId)
@@ -555,7 +556,7 @@ export function useCollaborativeWorkflow() {
               isApplyingRemoteChange.current = true
               try {
                 // Update the main workflow state using the API response
-                useWorkflowStore.setState({
+                useWorkflowStore.getState().replaceWorkflowState({
                   blocks: workflowData.state.blocks || {},
                   edges: workflowData.state.edges || [],
                   loops: workflowData.state.loops || {},
@@ -1230,6 +1231,7 @@ export function useCollaborativeWorkflow() {
 
       // ALWAYS update local store first for immediate UI feedback
       useSubBlockStore.getState().setValue(blockId, subblockId, value)
+      useWorkflowStore.getState().syncDynamicHandleSubblockValue(blockId, subblockId, value)
 
       if (activeWorkflowId) {
         const operationId = crypto.randomUUID()

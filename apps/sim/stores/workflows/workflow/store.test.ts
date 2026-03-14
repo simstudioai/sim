@@ -792,6 +792,40 @@ describe('workflow store', () => {
     })
   })
 
+  describe('syncDynamicHandleSubblockValue', () => {
+    it('should sync condition topology values into the workflow store', () => {
+      addBlock('condition-1', 'condition', 'Condition 1', { x: 0, y: 0 })
+
+      useWorkflowStore.getState().syncDynamicHandleSubblockValue(
+        'condition-1',
+        'conditions',
+        JSON.stringify([
+          { id: 'condition-1-if', title: 'if', value: 'true' },
+          { id: 'condition-1-else', title: 'else', value: '' },
+        ])
+      )
+
+      const conditionBlock = useWorkflowStore.getState().blocks['condition-1']
+      expect(conditionBlock.subBlocks.conditions?.type).toBe('condition-input')
+      expect(conditionBlock.subBlocks.conditions?.value).toBe(
+        JSON.stringify([
+          { id: 'condition-1-if', title: 'if', value: 'true' },
+          { id: 'condition-1-else', title: 'else', value: '' },
+        ])
+      )
+    })
+
+    it('should ignore non-topology subblock updates', () => {
+      addBlock('function-1', 'function', 'Function 1', { x: 0, y: 0 })
+      const beforeBlock = useWorkflowStore.getState().blocks['function-1']
+
+      useWorkflowStore.getState().syncDynamicHandleSubblockValue('function-1', 'code', 'return 1')
+
+      const afterBlock = useWorkflowStore.getState().blocks['function-1']
+      expect(afterBlock).toEqual(beforeBlock)
+    })
+  })
+
   describe('getWorkflowState', () => {
     it('should return current workflow state', () => {
       const { getWorkflowState } = useWorkflowStore.getState()
