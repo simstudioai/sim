@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type { LangsmithRunPayload } from '@/tools/langsmith/types'
 
 interface NormalizedRunPayload {
@@ -20,7 +21,7 @@ const toCompactTimestamp = (startTime?: string): string => {
 }
 
 export const normalizeLangsmithRunPayload = (run: LangsmithRunPayload): NormalizedRunPayload => {
-  const runId = run.id ?? crypto.randomUUID()
+  const runId = run.id ?? randomUUID()
   const traceId = run.trace_id ?? runId
   const startTime = run.start_time ?? new Date().toISOString()
   const dottedOrder = run.dotted_order ?? `${toCompactTimestamp(startTime)}Z${runId}`
