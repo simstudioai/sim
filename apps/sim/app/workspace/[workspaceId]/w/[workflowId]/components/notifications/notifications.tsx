@@ -153,11 +153,13 @@ export const Notifications = memo(function Notifications() {
   const preventZoomRef = usePreventZoom()
 
   const [isPaused, setIsPaused] = useState(false)
+  const isPausedRef = useRef(false)
   const [exitingIds, setExitingIds] = useState<Set<string>>(new Set())
   const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
 
   const pauseAll = useCallback(() => {
     setIsPaused(true)
+    isPausedRef.current = true
     setExitingIds(new Set())
     for (const timer of timersRef.current.values()) clearTimeout(timer)
     timersRef.current.clear()
@@ -167,6 +169,10 @@ export const Notifications = memo(function Notifications() {
    * Manages per-notification dismiss timers.
    * Resets pause state when the notification stack empties so new arrivals get fresh timers.
    */
+  useEffect(() => {
+    isPausedRef.current = isPaused
+  }, [isPaused])
+
   useEffect(() => {
     if (visibleNotifications.length === 0) {
       if (isPaused) setIsPaused(false)
@@ -184,21 +190,17 @@ export const Notifications = memo(function Notifications() {
       timers.set(
         n.id,
         setTimeout(() => {
-          setExitingIds((prev) => new Set(prev).add(n.id))
-          const exitKey = `${n.id}:exit`
           timers.delete(n.id)
-          timers.set(
-            exitKey,
-            setTimeout(() => {
-              timers.delete(exitKey)
-              removeNotification(n.id)
-              setExitingIds((prev) => {
-                const next = new Set(prev)
-                next.delete(n.id)
-                return next
-              })
-            }, EXIT_ANIMATION_MS)
-          )
+          setExitingIds((prev) => new Set(prev).add(n.id))
+          setTimeout(() => {
+            if (isPausedRef.current) return
+            removeNotification(n.id)
+            setExitingIds((prev) => {
+              const next = new Set(prev)
+              next.delete(n.id)
+              return next
+            })
+          }, EXIT_ANIMATION_MS)
         }, AUTO_DISMISS_MS)
       )
     }
