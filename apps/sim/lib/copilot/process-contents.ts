@@ -786,4 +786,3 @@ async function resolveFileResource(
     content: JSON.stringify(meta, null, 2),
   }
 }
-
