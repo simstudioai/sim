@@ -87,32 +87,36 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const formData = await request.formData()
-    const file = formData.get('file') as File
+    const rawFile = formData.get('file')
 
-    if (!file) {
+    if (!rawFile || !(rawFile instanceof File)) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
-    // Validate file size (100MB limit)
+    const fileName = rawFile.name
+    if (!fileName) {
+      return NextResponse.json({ error: 'File name is missing' }, { status: 400 })
+    }
+
     const maxSize = 100 * 1024 * 1024
-    if (file.size > maxSize) {
+    if (rawFile.size > maxSize) {
       return NextResponse.json(
-        { error: `File size exceeds 100MB limit (${(file.size / (1024 * 1024)).toFixed(2)}MB)` },
+        { error: `File size exceeds 100MB limit (${(rawFile.size / (1024 * 1024)).toFixed(2)}MB)` },
         { status: 400 }
       )
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer())
+    const buffer = Buffer.from(await rawFile.arrayBuffer())
 
     const userFile = await uploadWorkspaceFile(
       workspaceId,
       session.user.id,
       buffer,
-      file.name,
-      file.type || 'application/octet-stream'
+      fileName,
+      rawFile.type || 'application/octet-stream'
     )
 
-    logger.info(`[${requestId}] Uploaded workspace file: ${file.name}`)
+    logger.info(`[${requestId}] Uploaded workspace file: ${fileName}`)
 
     recordAudit({
       workspaceId,
@@ -122,8 +126,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       action: AuditAction.FILE_UPLOADED,
       resourceType: AuditResourceType.FILE,
       resourceId: userFile.id,
-      resourceName: file.name,
-      description: `Uploaded file "${file.name}"`,
+      resourceName: fileName,
+      description: `Uploaded file "${fileName}"`,
       request,
     })
 

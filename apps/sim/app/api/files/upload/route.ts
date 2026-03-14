@@ -46,9 +46,10 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData()
 
-    const files = formData.getAll('file') as File[]
+    const rawFiles = formData.getAll('file')
+    const files = rawFiles.filter((f): f is File => f instanceof File)
 
-    if (!files || files.length === 0) {
+    if (files.length === 0) {
       throw new InvalidRequestError('No files provided')
     }
 
@@ -74,6 +75,9 @@ export async function POST(request: NextRequest) {
 
     for (const file of files) {
       const originalName = file.name
+      if (!originalName) {
+        throw new InvalidRequestError('File name is missing')
+      }
 
       if (!validateFileExtension(originalName)) {
         const extension = originalName.split('.').pop()?.toLowerCase() || 'unknown'
