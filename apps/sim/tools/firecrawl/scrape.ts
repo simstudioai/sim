@@ -39,11 +39,10 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
       type: 'custom',
       getCost: (_params, output) => {
         const creditsUsed = (output.metadata as { creditsUsed?: number })?.creditsUsed
-        if (creditsUsedString == null) {
+        if (creditsUsed == null) {
           throw new Error('Firecrawl response missing creditsUsed field')
         }
 
-        const creditsUsed = Number(creditsUsedString)
         if (Number.isNaN(creditsUsed)) {
           throw new Error('Firecrawl response returned a non-numeric creditsUsed field')
         }
