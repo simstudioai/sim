@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
-import { MAX_LOG_DETAILS_WIDTH_RATIO, MIN_LOG_DETAILS_WIDTH } from '@/stores/logs/utils'
 
 /**
  * Hook for handling log details panel resize via mouse drag.
@@ -24,12 +23,8 @@ export function useLogDetailsResize() {
     if (!isResizing) return
 
     const handleMouseMove = (e: MouseEvent) => {
-      // Calculate new width from right edge of window
       const newWidth = window.innerWidth - e.clientX
-      const maxWidth = window.innerWidth * MAX_LOG_DETAILS_WIDTH_RATIO
-      const clampedWidth = Math.max(MIN_LOG_DETAILS_WIDTH, Math.min(newWidth, maxWidth))
-
-      setPanelWidth(clampedWidth)
+      setPanelWidth(newWidth)
     }
 
     const handleMouseUp = () => {

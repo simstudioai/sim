@@ -40,6 +40,7 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { formatCost } from '@/providers/utils'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
+import { MAX_LOG_DETAILS_WIDTH_RATIO, MIN_LOG_DETAILS_WIDTH } from '@/stores/logs/utils'
 
 /**
  * Workflow Output section with code viewer, copy, search, and context menu functionality
@@ -286,6 +287,9 @@ export const LogDetails = memo(function LogDetails({
   const { handleMouseDown } = useLogDetailsResize()
   const { config: permissionConfig } = usePermissionConfig()
 
+  const maxVw = `${MAX_LOG_DETAILS_WIDTH_RATIO * 100}vw`
+  const effectiveWidth = `clamp(${MIN_LOG_DETAILS_WIDTH}px, ${panelWidth}px, ${maxVw})`
+
   useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = 0
@@ -346,7 +350,7 @@ export const LogDetails = memo(function LogDetails({
       {isOpen && (
         <div
           className='absolute top-0 bottom-0 z-[60] w-[8px] cursor-ew-resize'
-          style={{ right: `${panelWidth - 4}px` }}
+          style={{ right: `calc(${effectiveWidth} - 4px)` }}
           onMouseDown={handleMouseDown}
           role='separator'
           aria-label='Resize log details panel'
@@ -358,7 +362,7 @@ export const LogDetails = memo(function LogDetails({
         className={`absolute top-[0px] right-0 bottom-0 z-50 transform overflow-hidden border-l bg-[var(--bg)] shadow-md transition-transform duration-200 ease-out ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
-        style={{ width: `${panelWidth}px` }}
+        style={{ width: effectiveWidth }}
         aria-label='Log details sidebar'
       >
         {log && (

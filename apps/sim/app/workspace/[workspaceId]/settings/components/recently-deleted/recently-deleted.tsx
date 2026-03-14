@@ -247,7 +247,7 @@ export function RecentlyDeleted() {
       </div>
 
       <SModalTabs value={activeTab} onValueChange={(v) => setActiveTab(v as ResourceType)}>
-        <SModalTabsList activeValue={activeTab} className='border-b border-[var(--border)]'>
+        <SModalTabsList activeValue={activeTab} className='border-[var(--border)] border-b'>
           {TABS.map((tab) => (
             <SModalTabsTrigger key={tab.id} value={tab.id}>
               {tab.label}
@@ -259,7 +259,7 @@ export function RecentlyDeleted() {
       <div className='min-h-0 flex-1 overflow-y-auto'>
         {error ? (
           <div className='flex h-full flex-col items-center justify-center gap-[8px]'>
-            <p className='text-[11px] leading-tight text-[#DC2626] dark:text-[#F87171]'>
+            <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
               {error instanceof Error ? error.message : 'Failed to load deleted items'}
             </p>
           </div>
@@ -288,8 +288,8 @@ export function RecentlyDeleted() {
                 >
                   <ResourceIcon resource={resource} />
 
-                  <div className='flex flex-col min-w-0 flex-1'>
-                    <span className='text-[13px] font-medium text-[var(--text-primary)] truncate'>
+                  <div className='flex min-w-0 flex-1 flex-col'>
+                    <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
                       {resource.name}
                     </span>
                     <span className='text-[12px] text-[var(--text-tertiary)]'>
@@ -300,7 +300,7 @@ export function RecentlyDeleted() {
                   </div>
 
                   {isRestored ? (
-                    <div className='flex items-center gap-[8px] shrink-0'>
+                    <div className='flex shrink-0 items-center gap-[8px]'>
                       <span className='text-[13px] text-[var(--text-tertiary)]'>Restored</span>
                       <Button
                         variant='default'

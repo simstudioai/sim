@@ -11,3 +11,9 @@ export const MAX_LOG_DETAILS_WIDTH_RATIO = 0.65
  */
 export const getMaxLogDetailsWidth = () =>
   typeof window !== 'undefined' ? window.innerWidth * MAX_LOG_DETAILS_WIDTH_RATIO : 1040
+
+/**
+ * Clamps a width value to the valid panel range for the current viewport.
+ */
+export const clampPanelWidth = (width: number) =>
+  Math.max(MIN_LOG_DETAILS_WIDTH, Math.min(width, getMaxLogDetailsWidth()))
