@@ -1,19 +1,12 @@
 'use client'
 
-import type { ContentBlock, OptionItem, SubagentName, ToolCallStatus } from '../../types'
+import type { ContentBlock, OptionItem, SubagentName, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS } from '../../types'
 import { AgentGroup, ChatContent, CircleStop, Options } from './components'
 
 interface TextSegment {
   type: 'text'
   content: string
-}
-
-interface ToolCallData {
-  id: string
-  toolName: string
-  displayTitle: string
-  status: ToolCallStatus
 }
 
 interface AgentGroupSegment {
@@ -252,8 +245,8 @@ export function MessageContent({
           case 'stopped':
             return (
               <div key={`stopped-${i}`} className='flex items-center gap-[8px]'>
-                <CircleStop className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-secondary)]' />
-                <span className='font-base text-[14px] text-[var(--text-secondary)]'>
+                <CircleStop className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                <span className='font-base text-[14px] text-[var(--text-body)]'>
                   Stopped by user
                 </span>
               </div>

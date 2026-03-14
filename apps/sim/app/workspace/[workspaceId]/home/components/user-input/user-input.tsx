@@ -31,36 +31,22 @@ type WindowWithSpeech = Window & {
   webkitSpeechRecognition?: SpeechRecognitionStatic
 }
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  ArrowUp,
-  AtSign,
-  ChevronRight,
-  Folder,
-  Loader2,
-  Mic,
-  Paperclip,
-  Plus,
-  X,
-} from 'lucide-react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { ArrowUp, Loader2, Mic, Paperclip, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { createPortal } from 'react-dom'
 import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
+  DropdownMenuSearchInput,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
   Tooltip,
 } from '@/components/emcn'
-import { Search } from '@/components/emcn/icons'
+import { Database, Plus, Sim, Table as TableIcon } from '@/components/emcn/icons'
 import {
   AudioIcon,
   CsvIcon,
@@ -76,17 +62,10 @@ import {
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
-import {
-  type AvailableItem,
-  useAvailableResources,
-} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
+import { useAvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
-import type {
-  MothershipResource,
-  MothershipResourceType,
-} from '@/app/workspace/[workspaceId]/home/types'
+import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import {
-  useCaretViewport,
   useContextManagement,
   useFileAttachments,
   useMentionMenu,
@@ -96,12 +75,9 @@ import {
   computeMentionHighlightRanges,
   extractContextTokens,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
-import { useFolders } from '@/hooks/queries/folders'
-import { useFolderStore } from '@/stores/folders/store'
-import type { FolderTreeNode } from '@/stores/folders/types'
 import type { ChatContext } from '@/stores/panel'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useAnimatedPlaceholder } from '../../hooks'
-import { ContextPills } from './components'
 
 const TEXTAREA_BASE_CLASSES = cn(
   'm-0 box-border h-auto min-h-[24px] w-full resize-none',
@@ -115,7 +91,7 @@ const TEXTAREA_BASE_CLASSES = cn(
 
 const OVERLAY_CLASSES = cn(
   'pointer-events-none absolute top-0 left-0 m-0 box-border h-auto w-full resize-none',
-  'overflow-y-auto overflow-x-hidden break-words border-0 bg-transparent',
+  'overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-0 bg-transparent',
   'px-[4px] py-[4px] font-body text-[15px] leading-[24px] tracking-[-0.015em]',
   'text-[var(--text-primary)] outline-none',
   '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
@@ -161,432 +137,6 @@ function mapResourceToContext(resource: MothershipResource): ChatContext {
   }
 }
 
-interface ResourceMentionMenuProps {
-  workspaceId: string
-  textareaRef: React.RefObject<HTMLTextAreaElement | null>
-  message: string
-  caretPos: number
-  availableResources: ReturnType<typeof useAvailableResources>
-  onSelect: (resource: MothershipResource, fromMentionMenu: boolean) => void
-  onClose: () => void
-  query: string
-}
-
-function ResourceMentionMenu({
-  workspaceId,
-  textareaRef,
-  message,
-  caretPos,
-  availableResources,
-  onSelect,
-  onClose,
-  query,
-}: ResourceMentionMenuProps) {
-  const { caretViewport, side } = useCaretViewport({ textareaRef, message, caretPos })
-  const menuRef = useRef<HTMLDivElement>(null)
-  const [activeIndex, setActiveIndex] = useState(0)
-
-  // Flatten all items for keyboard navigation, filtered by query
-  const flatItems = useMemo(() => {
-    const searchQuery = query.trim().toLowerCase()
-    if (searchQuery) {
-      return availableResources.flatMap(({ type, items }) =>
-        items
-          .filter((item) => item.name.toLowerCase().includes(searchQuery))
-          .map((item) => ({ type, item }))
-      )
-    }
-    // When no query, show all items flat
-    return availableResources.flatMap(({ type, items }) => items.map((item) => ({ type, item })))
-  }, [availableResources, query])
-
-  // Reset active index when query changes
-  useEffect(() => {
-    setActiveIndex(0)
-  }, [query])
-
-  const handleSelect = useCallback(
-    (resource: MothershipResource) => {
-      onSelect(resource, true)
-      onClose()
-    },
-    [onSelect, onClose]
-  )
-
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault()
-        setActiveIndex((prev) => Math.min(prev + 1, flatItems.length - 1))
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault()
-        setActiveIndex((prev) => Math.max(prev - 1, 0))
-      } else if (e.key === 'Tab' || e.key === 'Enter') {
-        e.preventDefault()
-        if (flatItems.length > 0 && flatItems[activeIndex]) {
-          const { type, item } = flatItems[activeIndex]
-          handleSelect({ type, id: item.id, title: item.name })
-        }
-      } else if (e.key === 'Escape') {
-        e.preventDefault()
-        onClose()
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [flatItems, activeIndex, handleSelect, onClose])
-
-  if (!caretViewport) return null
-
-  return (
-    <Popover open={true} onOpenChange={(open) => !open && onClose()}>
-      <PopoverAnchor asChild>
-        <div
-          style={{
-            position: 'fixed',
-            top: `${caretViewport.top}px`,
-            left: `${caretViewport.left}px`,
-            width: '1px',
-            height: '1px',
-            pointerEvents: 'none',
-          }}
-        />
-      </PopoverAnchor>
-      <PopoverContent
-        ref={menuRef}
-        side={side}
-        align='start'
-        collisionPadding={6}
-        className='pointer-events-auto w-[240px] p-0'
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        onCloseAutoFocus={(e) => e.preventDefault()}
-      >
-        <div className='max-h-[280px] overflow-y-auto'>
-          {flatItems.length > 0 ? (
-            flatItems.map(({ type, item }, index) => {
-              const config = getResourceConfig(type)
-              return (
-                <div
-                  key={`${type}:${item.id}`}
-                  role='button'
-                  onClick={() => handleSelect({ type, id: item.id, title: item.name })}
-                  className={cn(
-                    'flex cursor-pointer items-center gap-[8px] px-[8px] py-[6px] text-[13px]',
-                    index === activeIndex
-                      ? 'bg-[var(--surface-active)]'
-                      : 'hover:bg-[var(--surface-active)]'
-                  )}
-                >
-                  {config.renderDropdownItem({ item })}
-                  <span className='ml-auto pl-[8px] text-[11px] text-[var(--text-tertiary)]'>
-                    {config.label}
-                  </span>
-                </div>
-              )
-            })
-          ) : (
-            <div className='px-[8px] py-[6px] text-[13px] text-[var(--text-tertiary)]'>
-              No results
-            </div>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-interface ResourceTypeFolderProps {
-  type: MothershipResourceType
-  items: AvailableItem[]
-  config: ReturnType<typeof getResourceConfig>
-  workspaceId: string
-  onSelect: (resource: MothershipResource) => void
-}
-
-function ResourceTypeFolder({
-  type,
-  items,
-  config,
-  workspaceId,
-  onSelect,
-}: ResourceTypeFolderProps) {
-  const [expanded, setExpanded] = useState(false)
-  const Icon = config.icon
-
-  if (items.length === 0) {
-    return (
-      <div className='flex items-center gap-[8px] px-[8px] py-[6px] text-[13px] text-[var(--text-tertiary)]'>
-        <Icon className='h-[14px] w-[14px]' />
-        <span>{config.label}</span>
-        <span className='ml-auto text-[11px]'>None</span>
-      </div>
-    )
-  }
-
-  return (
-    <>
-      <div
-        role='button'
-        onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          setExpanded(!expanded)
-        }}
-        className='flex cursor-pointer items-center gap-[8px] px-[8px] py-[6px] text-[13px] hover:bg-[var(--surface-active)]'
-      >
-        <ChevronRight
-          className={cn(
-            'h-[12px] w-[12px] shrink-0 text-[var(--text-tertiary)] transition-transform duration-100',
-            expanded && 'rotate-90'
-          )}
-        />
-        <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
-        <span className='text-[var(--text-primary)]'>{config.label}</span>
-        <span className='ml-auto text-[11px] text-[var(--text-tertiary)]'>{items.length}</span>
-      </div>
-      {expanded && (
-        <div className='pl-[20px]'>
-          {type === 'workflow' ? (
-            <WorkflowFolderContent
-              workspaceId={workspaceId}
-              items={items}
-              config={config}
-              onSelect={(item) => onSelect({ type, id: item.id, title: item.name })}
-            />
-          ) : (
-            items.map((item) => (
-              <div
-                key={item.id}
-                role='button'
-                onClick={() => onSelect({ type, id: item.id, title: item.name })}
-                className='flex cursor-pointer items-center gap-[8px] px-[8px] py-[6px] text-[13px] hover:bg-[var(--surface-active)]'
-              >
-                {config.renderDropdownItem({ item })}
-              </div>
-            ))
-          )}
-        </div>
-      )}
-    </>
-  )
-}
-
-function WorkflowFolderContent({
-  workspaceId,
-  items,
-  config,
-  onSelect,
-}: {
-  workspaceId: string
-  items: AvailableItem[]
-  config: ReturnType<typeof getResourceConfig>
-  onSelect: (item: AvailableItem) => void
-}) {
-  useFolders(workspaceId)
-  const folders = useFolderStore((state) => state.folders)
-  const getFolderTree = useFolderStore((state) => state.getFolderTree)
-  const folderTree = useMemo(
-    () => getFolderTree(workspaceId),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [folders, getFolderTree, workspaceId]
-  )
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
-
-  const toggleFolder = useCallback((id: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
-
-  const workflowsByFolder = useMemo(() => {
-    const grouped: Record<string, AvailableItem[]> = {}
-    for (const item of items) {
-      const fId = (item.folderId as string | null) ?? 'root'
-      if (!grouped[fId]) grouped[fId] = []
-      grouped[fId].push(item)
-    }
-    return grouped
-  }, [items])
-
-  const rootWorkflows = workflowsByFolder.root ?? []
-
-  const folderTreeHasItems = useCallback(
-    (folder: FolderTreeNode): boolean => {
-      if (workflowsByFolder[folder.id]?.length) return true
-      return folder.children.some(folderTreeHasItems)
-    },
-    [workflowsByFolder]
-  )
-
-  const visibleFolders = useMemo(
-    () => folderTree.filter(folderTreeHasItems),
-    [folderTree, folderTreeHasItems]
-  )
-
-  const renderFolder = (folder: FolderTreeNode, level: number) => {
-    const folderWorkflows = workflowsByFolder[folder.id] ?? []
-    const isExpanded = expanded.has(folder.id)
-    const indent = level * 12
-
-    return (
-      <div key={folder.id}>
-        <div
-          role='button'
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            toggleFolder(folder.id)
-          }}
-          className='flex cursor-pointer items-center gap-[6px] px-[8px] py-[6px] text-[13px] hover:bg-[var(--surface-active)]'
-          style={{ paddingLeft: `${8 + indent}px` }}
-        >
-          <ChevronRight
-            className={cn(
-              'h-[12px] w-[12px] shrink-0 text-[var(--text-tertiary)] transition-transform duration-100',
-              isExpanded && 'rotate-90'
-            )}
-          />
-          <Folder className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-          <span className='truncate text-[var(--text-primary)]'>{folder.name}</span>
-        </div>
-        {isExpanded && (
-          <>
-            {folder.children.map((child) => renderFolder(child, level + 1))}
-            {folderWorkflows.map((item) => (
-              <div
-                key={item.id}
-                role='button'
-                onClick={() => onSelect(item)}
-                className='flex cursor-pointer items-center gap-[8px] px-[8px] py-[6px] text-[13px] hover:bg-[var(--surface-active)]'
-                style={{ paddingLeft: `${8 + (level + 1) * 12}px` }}
-              >
-                {config.renderDropdownItem({ item })}
-              </div>
-            ))}
-          </>
-        )}
-      </div>
-    )
-  }
-
-  return (
-    <>
-      {visibleFolders.map((folder) => renderFolder(folder, 0))}
-      {rootWorkflows.map((item) => (
-        <div
-          key={item.id}
-          role='button'
-          onClick={() => onSelect(item)}
-          className='flex cursor-pointer items-center gap-[8px] px-[8px] py-[6px] text-[13px] hover:bg-[var(--surface-active)]'
-        >
-          {config.renderDropdownItem({ item })}
-        </div>
-      ))}
-    </>
-  )
-}
-
-interface ResourcesSubmenuContentProps {
-  workspaceId: string
-  availableResources: ReturnType<typeof useAvailableResources>
-  onSelect: (resource: MothershipResource) => void
-}
-
-function ResourcesSubmenuContent({
-  workspaceId,
-  availableResources,
-  onSelect,
-}: ResourcesSubmenuContentProps) {
-  const [search, setSearch] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
-
-  const query = search.trim().toLowerCase()
-  const filtered = useMemo(() => {
-    if (!query) return null
-    return availableResources.flatMap(({ type, items }) =>
-      items
-        .filter((item) => item.name.toLowerCase().includes(query))
-        .map((item) => ({ type, item }))
-    )
-  }, [availableResources, query])
-
-  const handleSelect = useCallback(
-    (resource: MothershipResource) => {
-      onSelect(resource)
-    },
-    [onSelect]
-  )
-
-  return (
-    <>
-      <div
-        className='flex items-center gap-[8px] px-[8px] py-[6px]'
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Search className='h-[14px] w-[14px] shrink-0 text-[var(--text-tertiary)]' />
-        <input
-          ref={inputRef}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => e.stopPropagation()}
-          placeholder='Search resources…'
-          className='h-[20px] w-full bg-transparent text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]'
-        />
-      </div>
-      <DropdownMenuSeparator className='my-0' />
-      <div className='max-h-[280px] overflow-y-auto'>
-        {filtered ? (
-          filtered.length > 0 ? (
-            filtered.map(({ type, item }) => {
-              const config = getResourceConfig(type)
-              return (
-                <div
-                  key={`${type}:${item.id}`}
-                  role='button'
-                  onClick={() => handleSelect({ type, id: item.id, title: item.name })}
-                  className='flex cursor-pointer items-center gap-[8px] px-[8px] py-[6px] text-[13px] hover:bg-[var(--surface-active)]'
-                >
-                  {config.renderDropdownItem({ item })}
-                  <span className='ml-auto pl-[8px] text-[11px] text-[var(--text-tertiary)]'>
-                    {config.label}
-                  </span>
-                </div>
-              )
-            })
-          ) : (
-            <div className='px-[8px] py-[6px] text-[13px] text-[var(--text-tertiary)]'>
-              No results
-            </div>
-          )
-        ) : (
-          availableResources.map(({ type, items }) => {
-            const config = getResourceConfig(type)
-            return (
-              <ResourceTypeFolder
-                key={type}
-                type={type}
-                items={items}
-                config={config}
-                workspaceId={workspaceId}
-                onSelect={handleSelect}
-              />
-            )
-          })
-        )}
-      </div>
-    </>
-  )
-}
-
 export interface FileAttachmentForApi {
   id: string
   key: string
@@ -622,6 +172,8 @@ export function UserInput({
   const { data: session } = useSession()
   const [value, setValue] = useState(defaultValue)
   const [plusMenuOpen, setPlusMenuOpen] = useState(false)
+  const [plusMenuSearch, setPlusMenuSearch] = useState('')
+  const [plusMenuActiveIndex, setPlusMenuActiveIndex] = useState(0)
   const overlayRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -661,6 +213,14 @@ export function UserInput({
 
   const availableResources = useAvailableResources(workspaceId, existingResourceKeys)
 
+  const filteredPlusMenuItems = useMemo(() => {
+    const q = plusMenuSearch.toLowerCase().trim()
+    if (!q) return null
+    return availableResources.flatMap(({ type, items }) =>
+      items.filter((item) => item.name.toLowerCase().includes(q)).map((item) => ({ type, item }))
+    )
+  }, [plusMenuSearch, availableResources])
+
   const mentionMenu = useMentionMenu({
     message: value,
     selectedContexts: contextManagement.selectedContexts,
@@ -690,37 +250,65 @@ export function UserInput({
 
   const textareaRef = mentionMenu.textareaRef
   const wasSendingRef = useRef(false)
+  const atInsertPosRef = useRef<number | null>(null)
+  const pendingCursorRef = useRef<number | null>(null)
+
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    const maxHeight = isInitialView ? window.innerHeight * 0.3 : MAX_CHAT_TEXTAREA_HEIGHT
+    textarea.style.height = 'auto'
+    textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`
+    if (overlayRef.current) {
+      overlayRef.current.scrollTop = textarea.scrollTop
+    }
+  }, [value, isInitialView, textareaRef])
 
   const handleResourceSelect = useCallback(
-    (resource: MothershipResource, fromMentionMenu = false) => {
-      if (fromMentionMenu) {
-        // Use replaceActiveMentionWith to replace @query with @label
-        mentionMenu.replaceActiveMentionWith(resource.title)
-      } else {
-        // Insert fresh @mention (from + menu)
-        const textarea = textareaRef.current
-        if (textarea) {
-          textarea.focus()
-          const start = textarea.selectionStart ?? value.length
-          const needsSpaceBefore = start > 0 && !/\s/.test(value.charAt(start - 1))
-          const insertText = `${needsSpaceBefore ? ' ' : ''}@${resource.title} `
-          const before = value.slice(0, start)
-          const after = value.slice(start)
-          setValue(`${before}${insertText}${after}`)
+    (resource: MothershipResource) => {
+      const textarea = textareaRef.current
+      if (textarea) {
+        const insertAt = atInsertPosRef.current ?? textarea.selectionStart ?? value.length
+        atInsertPosRef.current = null
 
-          setTimeout(() => {
-            const newPos = before.length + insertText.length
-            textarea.setSelectionRange(newPos, newPos)
-            textarea.focus()
-          }, 0)
-        }
+        const needsSpaceBefore = insertAt > 0 && !/\s/.test(value.charAt(insertAt - 1))
+        const insertText = `${needsSpaceBefore ? ' ' : ''}@${resource.title} `
+        const before = value.slice(0, insertAt)
+        const after = value.slice(insertAt)
+        const newPos = before.length + insertText.length
+        pendingCursorRef.current = newPos
+        setValue(`${before}${insertText}${after}`)
       }
 
       const context = mapResourceToContext(resource)
       handleContextAdd(context)
       setPlusMenuOpen(false)
     },
-    [textareaRef, value, handleContextAdd, mentionMenu]
+    [textareaRef, value, handleContextAdd]
+  )
+
+  const handlePlusMenuSearchKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      const items = filteredPlusMenuItems
+      if (!items) return
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setPlusMenuActiveIndex((prev) => Math.min(prev + 1, items.length - 1))
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setPlusMenuActiveIndex((prev) => Math.max(prev - 1, 0))
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        if (items.length > 0 && items[plusMenuActiveIndex]) {
+          const { type, item } = items[plusMenuActiveIndex]
+          handleResourceSelect({ type, id: item.id, title: item.name })
+          setPlusMenuOpen(false)
+          setPlusMenuSearch('')
+          setPlusMenuActiveIndex(0)
+        }
+      }
+    },
+    [filteredPlusMenuItems, plusMenuActiveIndex, handleResourceSelect]
   )
 
   const handleContainerDragOver = useCallback(
@@ -744,7 +332,7 @@ export function UserInput({
         e.stopPropagation()
         try {
           const resource = JSON.parse(resourceJson) as MothershipResource
-          handleResourceSelect(resource, false)
+          handleResourceSelect(resource)
         } catch {
           // Invalid JSON — ignore
         }
@@ -795,112 +383,108 @@ export function UserInput({
     setValue('')
     files.clearAttachedFiles()
     contextManagement.clearContexts()
-    mentionMenu.setShowMentionMenu(false)
 
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
-  }, [onSubmit, files, value, contextManagement, mentionMenu, textareaRef])
+  }, [onSubmit, files, value, contextManagement, textareaRef])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Escape' && mentionMenu.showMentionMenu) {
-        e.preventDefault()
-        mentionMenu.closeMentionMenu()
-        return
-      }
-
       if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
         e.preventDefault()
-        if (!mentionMenu.showMentionMenu && !isSending) {
+        if (!isSending) {
           handleSubmit()
         }
         return
       }
 
-      if (!mentionMenu.showMentionMenu) {
-        const textarea = textareaRef.current
-        const selStart = textarea?.selectionStart ?? 0
-        const selEnd = textarea?.selectionEnd ?? selStart
-        const selectionLength = Math.abs(selEnd - selStart)
+      const textarea = textareaRef.current
+      const selStart = textarea?.selectionStart ?? 0
+      const selEnd = textarea?.selectionEnd ?? selStart
+      const selectionLength = Math.abs(selEnd - selStart)
 
-        if (e.key === 'Backspace' || e.key === 'Delete') {
-          if (selectionLength > 0) {
-            mentionTokensWithContext.removeContextsInSelection(selStart, selEnd)
-          } else {
-            const ranges = mentionTokensWithContext.computeMentionRanges()
-            const target =
-              e.key === 'Backspace'
-                ? ranges.find((r) => selStart > r.start && selStart <= r.end)
-                : ranges.find((r) => selStart >= r.start && selStart < r.end)
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        if (selectionLength > 0) {
+          mentionTokensWithContext.removeContextsInSelection(selStart, selEnd)
+        } else {
+          const ranges = mentionTokensWithContext.computeMentionRanges()
+          const target =
+            e.key === 'Backspace'
+              ? ranges.find((r) => selStart > r.start && selStart <= r.end)
+              : ranges.find((r) => selStart >= r.start && selStart < r.end)
 
-            if (target) {
-              e.preventDefault()
-              mentionTokensWithContext.deleteRange(target)
-              return
-            }
-          }
-        }
-
-        if (selectionLength === 0 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
-          if (textarea) {
-            if (e.key === 'ArrowLeft') {
-              const nextPos = Math.max(0, selStart - 1)
-              const r = mentionTokensWithContext.findRangeContaining(nextPos)
-              if (r) {
-                e.preventDefault()
-                const target = r.start
-                setTimeout(() => textarea.setSelectionRange(target, target), 0)
-                return
-              }
-            } else if (e.key === 'ArrowRight') {
-              const nextPos = Math.min(value.length, selStart + 1)
-              const r = mentionTokensWithContext.findRangeContaining(nextPos)
-              if (r) {
-                e.preventDefault()
-                const target = r.end
-                setTimeout(() => textarea.setSelectionRange(target, target), 0)
-                return
-              }
-            }
-          }
-        }
-
-        if (e.key.length === 1 || e.key === 'Space') {
-          const blocked =
-            selectionLength === 0 && !!mentionTokensWithContext.findRangeContaining(selStart)
-          if (blocked) {
+          if (target) {
             e.preventDefault()
-            const r = mentionTokensWithContext.findRangeContaining(selStart)
-            if (r && textarea) {
-              setTimeout(() => {
-                textarea.setSelectionRange(r.end, r.end)
-              }, 0)
-            }
+            mentionTokensWithContext.deleteRange(target)
             return
           }
         }
       }
-    },
-    [handleSubmit, isSending, mentionMenu, mentionTokensWithContext, value, textareaRef]
-  )
 
-  const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const newValue = e.target.value
-      setValue(newValue)
+      if (selectionLength === 0 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        if (textarea) {
+          if (e.key === 'ArrowLeft') {
+            const nextPos = Math.max(0, selStart - 1)
+            const r = mentionTokensWithContext.findRangeContaining(nextPos)
+            if (r) {
+              e.preventDefault()
+              const target = r.start
+              setTimeout(() => textarea.setSelectionRange(target, target), 0)
+              return
+            }
+          } else if (e.key === 'ArrowRight') {
+            const nextPos = Math.min(value.length, selStart + 1)
+            const r = mentionTokensWithContext.findRangeContaining(nextPos)
+            if (r) {
+              e.preventDefault()
+              const target = r.end
+              setTimeout(() => textarea.setSelectionRange(target, target), 0)
+              return
+            }
+          }
+        }
+      }
 
-      const caret = e.target.selectionStart ?? newValue.length
-      const activeMention = mentionMenu.getActiveMentionQueryAtPosition(caret, newValue)
-
-      if (activeMention) {
-        mentionMenu.setShowMentionMenu(true)
-      } else {
-        mentionMenu.setShowMentionMenu(false)
+      if (e.key.length === 1 || e.key === 'Space') {
+        const blocked =
+          selectionLength === 0 && !!mentionTokensWithContext.findRangeContaining(selStart)
+        if (blocked) {
+          e.preventDefault()
+          const r = mentionTokensWithContext.findRangeContaining(selStart)
+          if (r && textarea) {
+            setTimeout(() => {
+              textarea.setSelectionRange(r.end, r.end)
+            }, 0)
+          }
+          return
+        }
       }
     },
-    [mentionMenu]
+    [handleSubmit, isSending, mentionTokensWithContext, value, textareaRef]
   )
+
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value
+    const caret = e.target.selectionStart ?? newValue.length
+
+    if (
+      caret > 0 &&
+      newValue.charAt(caret - 1) === '@' &&
+      (caret === 1 || /\s/.test(newValue.charAt(caret - 2)))
+    ) {
+      const before = newValue.slice(0, caret - 1)
+      const after = newValue.slice(caret)
+      setValue(`${before}${after}`)
+      atInsertPosRef.current = caret - 1
+      setPlusMenuOpen(true)
+      setPlusMenuSearch('')
+      setPlusMenuActiveIndex(0)
+      return
+    }
+
+    setValue(newValue)
+  }, [])
 
   const handleSelectAdjust = useCallback(() => {
     const textarea = textareaRef.current
@@ -1009,12 +593,57 @@ export function UserInput({
         elements.push(<span key={`text-${i}-${lastIndex}-${range.start}`}>{before}</span>)
       }
 
+      const mentionLabel =
+        range.token.startsWith('@') || range.token.startsWith('/')
+          ? range.token.slice(1)
+          : range.token
+      const matchingCtx = contexts.find((c) => c.label === mentionLabel)
+
+      let mentionIconNode: React.ReactNode = null
+      if (matchingCtx) {
+        const iconClasses = 'absolute inset-0 m-auto h-[12px] w-[12px] text-[var(--text-icon)]'
+        switch (matchingCtx.kind) {
+          case 'workflow':
+          case 'current_workflow': {
+            const wfId = (matchingCtx as { workflowId: string }).workflowId
+            const wfColor = useWorkflowRegistry.getState().workflows[wfId]?.color ?? '#888'
+            mentionIconNode = (
+              <div
+                className='absolute inset-0 m-auto h-[12px] w-[12px] rounded-[3px] border-[2px]'
+                style={{
+                  backgroundColor: wfColor,
+                  borderColor: `${wfColor}60`,
+                  backgroundClip: 'padding-box',
+                }}
+              />
+            )
+            break
+          }
+          case 'knowledge':
+            mentionIconNode = <Database className={iconClasses} />
+            break
+          case 'table':
+            mentionIconNode = <TableIcon className={iconClasses} />
+            break
+          case 'file': {
+            const FileDocIcon = getDocumentIcon('', mentionLabel)
+            mentionIconNode = <FileDocIcon className={iconClasses} />
+            break
+          }
+        }
+      }
+
       elements.push(
         <span
           key={`mention-${i}-${range.start}-${range.end}`}
-          className='rounded-[4px] bg-[rgba(50,189,126,0.65)] py-[1px]'
+          className='rounded-[5px] bg-[var(--surface-5)] py-[2px]'
+          style={{ boxShadow: '-2px 0 0 var(--surface-5), 2px 0 0 var(--surface-5)' }}
         >
-          {range.token}
+          <span className='relative'>
+            <span className='invisible'>{range.token.charAt(0)}</span>
+            {mentionIconNode}
+          </span>
+          {mentionLabel}
         </span>
       )
       lastIndex = range.end
@@ -1041,16 +670,6 @@ export function UserInput({
       onDragOver={handleContainerDragOver}
       onDrop={handleContainerDrop}
     >
-      {/* Context pills row */}
-      {contextManagement.selectedContexts.length > 0 && (
-        <div className='mb-[6px] flex flex-wrap items-center gap-[6px]'>
-          <ContextPills
-            contexts={contextManagement.selectedContexts}
-            onRemoveContext={contextManagement.removeContext}
-          />
-        </div>
-      )}
-
       {/* Attached files */}
       {files.attachedFiles.length > 0 && (
         <div className='mb-[6px] flex flex-wrap gap-[6px]'>
@@ -1137,73 +756,149 @@ export function UserInput({
           rows={1}
           className={cn(TEXTAREA_BASE_CLASSES, isInitialView ? 'max-h-[30vh]' : 'max-h-[200px]')}
         />
-
-        {/* Resource Mention Menu Portal */}
-        {mentionMenu.showMentionMenu &&
-          createPortal(
-            <ResourceMentionMenu
-              workspaceId={workspaceId}
-              textareaRef={textareaRef}
-              message={value}
-              caretPos={mentionMenu.getCaretPos()}
-              availableResources={availableResources}
-              onSelect={handleResourceSelect}
-              onClose={() => {
-                mentionMenu.closeMentionMenu()
-              }}
-              query={
-                mentionMenu.getActiveMentionQueryAtPosition(mentionMenu.getCaretPos())?.query ?? ''
-              }
-            />,
-            document.body
-          )}
       </div>
 
       <div className='flex items-center justify-between'>
         <div className='flex items-center gap-[6px]'>
-          <DropdownMenu open={plusMenuOpen} onOpenChange={setPlusMenuOpen}>
+          <DropdownMenu
+            open={plusMenuOpen}
+            onOpenChange={(open) => {
+              setPlusMenuOpen(open)
+              if (!open) {
+                setPlusMenuSearch('')
+                setPlusMenuActiveIndex(0)
+                atInsertPosRef.current = null
+              }
+            }}
+          >
             <DropdownMenuTrigger asChild>
               <button
                 type='button'
-                className={cn(
-                  'flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-full border border-[#F0F0F0] transition-colors hover:bg-[#F7F7F7] dark:border-[#3d3d3d] dark:hover:bg-[#303030]',
-                  isSending && 'cursor-not-allowed opacity-50'
-                )}
-                disabled={isSending}
+                className='flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-full border border-[#F0F0F0] transition-colors hover:bg-[#F7F7F7] dark:border-[#3d3d3d] dark:hover:bg-[#303030]'
                 title='Add attachments or resources'
               >
-                <Plus
-                  className='h-[14px] w-[14px] text-[var(--text-muted)] dark:text-[var(--text-secondary)]'
-                  strokeWidth={2}
-                />
+                <Plus className='h-[16px] w-[16px] text-[var(--text-icon)]' />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align='start' side='top' sideOffset={8}>
-              <DropdownMenuItem
-                onClick={() => {
-                  setPlusMenuOpen(false)
-                  files.handleFileSelect()
+            <DropdownMenuContent
+              align='start'
+              side='top'
+              sideOffset={8}
+              className='flex w-[240px] flex-col overflow-hidden'
+              onCloseAutoFocus={(e) => {
+                e.preventDefault()
+                const textarea = textareaRef.current
+                if (!textarea) return
+                if (pendingCursorRef.current !== null) {
+                  textarea.setSelectionRange(pendingCursorRef.current, pendingCursorRef.current)
+                  pendingCursorRef.current = null
+                }
+                textarea.focus()
+              }}
+            >
+              <DropdownMenuSearchInput
+                placeholder='Search resources...'
+                value={plusMenuSearch}
+                onChange={(e) => {
+                  setPlusMenuSearch(e.target.value)
+                  setPlusMenuActiveIndex(0)
                 }}
-              >
-                <Paperclip className='h-[14px] w-[14px]' strokeWidth={2} />
-                <span>Attachments</span>
-              </DropdownMenuItem>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <AtSign className='h-[14px] w-[14px]' strokeWidth={2} />
-                  <span>Resources</span>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className='w-[240px] p-0'>
-                  <ResourcesSubmenuContent
-                    workspaceId={workspaceId}
-                    availableResources={availableResources}
-                    onSelect={(resource) => {
-                      handleResourceSelect(resource, false)
-                      setPlusMenuOpen(false)
-                    }}
-                  />
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
+                onKeyDown={handlePlusMenuSearchKeyDown}
+              />
+              <div className='min-h-0 flex-1 overflow-y-auto'>
+                {filteredPlusMenuItems ? (
+                  filteredPlusMenuItems.length > 0 ? (
+                    filteredPlusMenuItems.map(({ type, item }, index) => {
+                      const config = getResourceConfig(type)
+                      return (
+                        <DropdownMenuItem
+                          key={`${type}:${item.id}`}
+                          className={cn(
+                            index === plusMenuActiveIndex && 'bg-[var(--surface-active)]'
+                          )}
+                          onMouseEnter={() => setPlusMenuActiveIndex(index)}
+                          onClick={() => {
+                            handleResourceSelect({ type, id: item.id, title: item.name })
+                            setPlusMenuOpen(false)
+                            setPlusMenuSearch('')
+                            setPlusMenuActiveIndex(0)
+                          }}
+                        >
+                          {config.renderDropdownItem({ item })}
+                          <span className='ml-auto pl-[8px] text-[11px] text-[var(--text-tertiary)]'>
+                            {config.label}
+                          </span>
+                        </DropdownMenuItem>
+                      )
+                    })
+                  ) : (
+                    <div className='px-[8px] py-[5px] text-center font-medium text-[12px] text-[var(--text-tertiary)]'>
+                      No results
+                    </div>
+                  )
+                ) : (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setPlusMenuOpen(false)
+                        files.handleFileSelect()
+                      }}
+                    >
+                      <Paperclip className='h-[14px] w-[14px]' strokeWidth={2} />
+                      <span>Attachments</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <Sim className='h-[14px] w-[14px]' fill='currentColor' />
+                        <span>Workspace</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        {availableResources.map(({ type, items }) => {
+                          if (items.length === 0) return null
+                          const config = getResourceConfig(type)
+                          const Icon = config.icon
+                          return (
+                            <DropdownMenuSub key={type}>
+                              <DropdownMenuSubTrigger>
+                                {type === 'workflow' ? (
+                                  <div
+                                    className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
+                                    style={{
+                                      backgroundColor: '#808080',
+                                      borderColor: '#80808060',
+                                      backgroundClip: 'padding-box',
+                                    }}
+                                  />
+                                ) : (
+                                  <Icon className='h-[14px] w-[14px]' />
+                                )}
+                                <span>{config.label}</span>
+                              </DropdownMenuSubTrigger>
+                              <DropdownMenuSubContent>
+                                {items.map((item) => (
+                                  <DropdownMenuItem
+                                    key={item.id}
+                                    onClick={() => {
+                                      handleResourceSelect({
+                                        type,
+                                        id: item.id,
+                                        title: item.name,
+                                      })
+                                      setPlusMenuOpen(false)
+                                    }}
+                                  >
+                                    {config.renderDropdownItem({ item })}
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuSubContent>
+                            </DropdownMenuSub>
+                          )
+                        })}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  </>
+                )}
+              </div>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -1215,7 +910,7 @@ export function UserInput({
               'flex h-[28px] w-[28px] items-center justify-center rounded-full transition-colors',
               isListening
                 ? 'bg-red-500 text-white hover:bg-red-600'
-                : 'text-[var(--text-muted)] hover:bg-[#F7F7F7] dark:text-[var(--text-secondary)] dark:hover:bg-[#303030]'
+                : 'text-[var(--text-icon)] hover:bg-[#F7F7F7] dark:hover:bg-[#303030]'
             )}
             title={isListening ? 'Stop listening' : 'Voice input'}
           >

@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Copy, ExternalLink, Pencil, TagIcon, Trash } from '@/components/emcn/icons'
+import { Copy, Pencil, SquareArrowUpRight, TagIcon, Trash } from '@/components/emcn/icons'
 
 interface KnowledgeBaseContextMenuProps {
   isOpen: boolean
@@ -75,7 +75,7 @@ export function KnowledgeBaseContextMenu({
       >
         {hasNavigationSection && (
           <DropdownMenuItem onSelect={onOpenInNewTab!}>
-            <ExternalLink />
+            <SquareArrowUpRight />
             Open in new tab
           </DropdownMenuItem>
         )}

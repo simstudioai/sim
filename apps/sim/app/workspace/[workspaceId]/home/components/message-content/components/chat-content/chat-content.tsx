@@ -67,7 +67,7 @@ type ThProps = ComponentPropsWithoutRef<'th'>
 const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['components'] = {
   table({ children }) {
     return (
-      <div className='not-prose my-4 w-full overflow-x-auto'>
+      <div className='not-prose my-4 w-full overflow-x-auto [&_strong]:font-[600]'>
         <table className='min-w-full border-collapse'>{children}</table>
       </div>
     )
@@ -131,7 +131,7 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
         )}
         <div className='code-editor-theme bg-[var(--surface-5)] dark:bg-[#1F1F1F]'>
           <pre
-            className='m-0 overflow-x-auto whitespace-pre p-4 font-[430] font-mono text-[13px] text-[var(--text-primary)] leading-[21px] dark:text-[#eeeeee]'
+            className='m-0 overflow-x-auto whitespace-pre p-4 font-[430] font-mono text-[13px] text-[var(--text-primary)] leading-[21px]'
             dangerouslySetInnerHTML={{ __html: html }}
           />
         </div>

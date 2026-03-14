@@ -119,10 +119,6 @@ export function getResourceConfig(type: MothershipResourceType): ResourceTypeCon
   return RESOURCE_REGISTRY[type]
 }
 
-// ---------------------------------------------------------------------------
-// Resource query invalidation
-// ---------------------------------------------------------------------------
-
 const RESOURCE_INVALIDATORS: Record<
   MothershipResourceType,
   (qc: QueryClient, workspaceId: string, resourceId: string) => void

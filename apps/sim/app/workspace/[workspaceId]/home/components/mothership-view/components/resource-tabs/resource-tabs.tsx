@@ -1,6 +1,6 @@
 import {
+  type ComponentProps,
   type ReactNode,
-  type SVGProps,
   useCallback,
   useEffect,
   useMemo,
@@ -8,11 +8,16 @@ import {
   useState,
 } from 'react'
 import { Button, Tooltip } from '@/components/emcn'
-import { PanelLeft } from '@/components/emcn/icons'
+import { Columns3, Eye, PanelLeft, Rows3 } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import {
+  RESOURCE_TAB_GAP_CLASS,
+  RESOURCE_TAB_ICON_BUTTON_CLASS,
+  RESOURCE_TAB_ICON_CLASS,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import type {
   MothershipResource,
   MothershipResourceType,
@@ -27,37 +32,14 @@ import {
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
-const LEFT_HALF =
-  'M10.25 0.75H3.25C1.86929 0.75 0.75 1.86929 0.75 3.25V16.25C0.75 17.6307 1.86929 18.75 3.25 18.75H10.25V0.75Z'
-const RIGHT_HALF =
-  'M10.25 0.75H17.25C18.6307 0.75 19.75 1.86929 19.75 3.25V16.25C19.75 17.6307 18.6307 18.75 17.25 18.75H10.25V0.75Z'
-const OUTLINE =
-  'M0.75 3.25C0.75 1.86929 1.86929 0.75 3.25 0.75H17.25C18.6307 0.75 19.75 1.86929 19.75 3.25V16.25C19.75 17.6307 18.6307 18.75 17.25 18.75H3.25C1.86929 18.75 0.75 17.6307 0.75 16.25V3.25Z'
-
-function PreviewModeIcon({ mode, ...props }: { mode: PreviewMode } & SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      width='24'
-      height='24'
-      viewBox='-1 -2 24 24'
-      fill='none'
-      stroke='currentColor'
-      strokeWidth='1.75'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-      xmlns='http://www.w3.org/2000/svg'
-      {...props}
-    >
-      {mode !== 'preview' && <path d={LEFT_HALF} fill='var(--surface-active)' stroke='none' />}
-      {mode !== 'editor' && <path d={RIGHT_HALF} fill='var(--surface-active)' stroke='none' />}
-      <path d={OUTLINE} />
-      <path d='M10.25 0.75V18.75' />
-    </svg>
-  )
-}
-
 const EDGE_ZONE = 40
 const SCROLL_SPEED = 8
+
+const PREVIEW_MODE_ICONS = {
+  editor: Rows3,
+  split: Columns3,
+  preview: Eye,
+} satisfies Record<PreviewMode, (props: ComponentProps<typeof Eye>) => ReactNode>
 
 /**
  * Builds a `type:id` -> current name lookup from live query data so resource
@@ -108,6 +90,7 @@ export function ResourceTabs({
   onCyclePreviewMode,
   actions,
 }: ResourceTabsProps) {
+  const PreviewModeIcon = PREVIEW_MODE_ICONS[previewMode ?? 'split']
   const nameLookup = useResourceNameLookup(workspaceId)
   const scrollNodeRef = useRef<HTMLDivElement>(null)
 
@@ -177,42 +160,50 @@ export function ResourceTabs({
     [resources]
   )
 
-  const handleDragOver = useCallback((e: React.DragEvent, idx: number) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    const rect = e.currentTarget.getBoundingClientRect()
-    const midpoint = rect.left + rect.width / 2
-    const gap = e.clientX < midpoint ? idx : idx + 1
-    setDropGapIdx(gap)
-
-    const container = scrollNodeRef.current
-    if (!container) return
-    const cRect = container.getBoundingClientRect()
-    const x = e.clientX
-    if (autoScrollRaf.current) cancelAnimationFrame(autoScrollRaf.current)
-    if (x < cRect.left + EDGE_ZONE) {
-      const tick = () => {
-        container.scrollLeft -= SCROLL_SPEED
-        autoScrollRaf.current = requestAnimationFrame(tick)
-      }
-      autoScrollRaf.current = requestAnimationFrame(tick)
-    } else if (x > cRect.right - EDGE_ZONE) {
-      const tick = () => {
-        container.scrollLeft += SCROLL_SPEED
-        autoScrollRaf.current = requestAnimationFrame(tick)
-      }
-      autoScrollRaf.current = requestAnimationFrame(tick)
-    } else {
-      autoScrollRaf.current = null
-    }
-  }, [])
-
   const stopAutoScroll = useCallback(() => {
     if (autoScrollRaf.current) {
       cancelAnimationFrame(autoScrollRaf.current)
       autoScrollRaf.current = null
     }
   }, [])
+
+  const startEdgeScroll = useCallback(
+    (clientX: number) => {
+      const container = scrollNodeRef.current
+      if (!container) return
+      const cRect = container.getBoundingClientRect()
+      if (autoScrollRaf.current) cancelAnimationFrame(autoScrollRaf.current)
+      if (clientX < cRect.left + EDGE_ZONE) {
+        const tick = () => {
+          container.scrollLeft -= SCROLL_SPEED
+          autoScrollRaf.current = requestAnimationFrame(tick)
+        }
+        autoScrollRaf.current = requestAnimationFrame(tick)
+      } else if (clientX > cRect.right - EDGE_ZONE) {
+        const tick = () => {
+          container.scrollLeft += SCROLL_SPEED
+          autoScrollRaf.current = requestAnimationFrame(tick)
+        }
+        autoScrollRaf.current = requestAnimationFrame(tick)
+      } else {
+        stopAutoScroll()
+      }
+    },
+    [stopAutoScroll]
+  )
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent, idx: number) => {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+      const rect = e.currentTarget.getBoundingClientRect()
+      const midpoint = rect.left + rect.width / 2
+      const gap = e.clientX < midpoint ? idx : idx + 1
+      setDropGapIdx(gap)
+      startEdgeScroll(e.clientX)
+    },
+    [startEdgeScroll]
+  )
 
   const handleDragLeave = useCallback(() => {
     setDropGapIdx(null)
@@ -261,16 +252,21 @@ export function ResourceTabs({
   }, [stopAutoScroll])
 
   return (
-    <div className='flex shrink-0 items-center border-[var(--border)] border-b px-[16px] py-[8.5px]'>
+    <div
+      className={cn(
+        'flex shrink-0 items-center border-[var(--border)] border-b px-[16px] py-[8.5px]',
+        RESOURCE_TAB_GAP_CLASS
+      )}
+    >
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <Button
             variant='subtle'
             onClick={onCollapse}
-            className='shrink-0 bg-transparent px-[8px] py-[5px] text-[12px]'
+            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
             aria-label='Collapse resource view'
           >
-            <PanelLeft className='-scale-x-100 h-[16px] w-[16px] text-[var(--text-icon)]' />
+            <PanelLeft className={cn(RESOURCE_TAB_ICON_CLASS, '-scale-x-100')} />
           </Button>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
@@ -279,29 +275,13 @@ export function ResourceTabs({
       </Tooltip.Root>
       <div
         ref={scrollNodeRef}
-        className='mx-[2px] flex min-w-0 items-center gap-[6px] overflow-x-auto px-[6px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+        className={cn(
+          'flex min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+          RESOURCE_TAB_GAP_CLASS
+        )}
         onDragOver={(e) => {
           e.preventDefault()
-          const container = scrollNodeRef.current
-          if (!container) return
-          const cRect = container.getBoundingClientRect()
-          const x = e.clientX
-          if (autoScrollRaf.current) cancelAnimationFrame(autoScrollRaf.current)
-          if (x < cRect.left + EDGE_ZONE) {
-            const tick = () => {
-              container.scrollLeft -= SCROLL_SPEED
-              autoScrollRaf.current = requestAnimationFrame(tick)
-            }
-            autoScrollRaf.current = requestAnimationFrame(tick)
-          } else if (x > cRect.right - EDGE_ZONE) {
-            const tick = () => {
-              container.scrollLeft += SCROLL_SPEED
-              autoScrollRaf.current = requestAnimationFrame(tick)
-            }
-            autoScrollRaf.current = requestAnimationFrame(tick)
-          } else {
-            stopAutoScroll()
-          }
+          startEdgeScroll(e.clientX)
         }}
         onDrop={handleDrop}
       >
@@ -366,7 +346,7 @@ export function ResourceTabs({
                         aria-label={`Close ${displayName}`}
                       >
                         <svg
-                          className='h-[10px] w-[10px] text-[var(--text-tertiary)]'
+                          className='h-[10px] w-[10px] text-[var(--text-icon)]'
                           viewBox='0 0 24 24'
                           fill='none'
                           stroke='currentColor'
@@ -390,17 +370,17 @@ export function ResourceTabs({
             </div>
           )
         })}
+        {chatId && (
+          <AddResourceDropdown
+            workspaceId={workspaceId}
+            existingKeys={existingKeys}
+            onAdd={handleAdd}
+            onSwitch={onSelect}
+          />
+        )}
       </div>
-      {chatId && (
-        <AddResourceDropdown
-          workspaceId={workspaceId}
-          existingKeys={existingKeys}
-          onAdd={handleAdd}
-          onSwitch={onSelect}
-        />
-      )}
       {(actions || (previewMode && onCyclePreviewMode)) && (
-        <div className='ml-auto flex shrink-0 items-center gap-[6px]'>
+        <div className={cn('ml-auto flex shrink-0 items-center', RESOURCE_TAB_GAP_CLASS)}>
           {actions}
           {previewMode && onCyclePreviewMode && (
             <Tooltip.Root>
@@ -408,13 +388,10 @@ export function ResourceTabs({
                 <Button
                   variant='subtle'
                   onClick={onCyclePreviewMode}
-                  className='shrink-0 bg-transparent px-[8px] py-[5px] text-[12px]'
+                  className={RESOURCE_TAB_ICON_BUTTON_CLASS}
                   aria-label='Cycle preview mode'
                 >
-                  <PreviewModeIcon
-                    mode={previewMode}
-                    className='h-[16px] w-[16px] text-[var(--text-icon)]'
-                  />
+                  <PreviewModeIcon mode={previewMode} className={RESOURCE_TAB_ICON_CLASS} />
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content side='bottom'>

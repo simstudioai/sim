@@ -23,32 +23,12 @@ import {
   UserInput,
   UserMessageContent,
 } from './components'
+import { PendingTagIndicator } from './components/message-content/components/special-tags'
 import type { FileAttachmentForApi } from './components/user-input/user-input'
 import { useAutoScroll, useChat } from './hooks'
 import type { MothershipResource, MothershipResourceType } from './types'
 
 const logger = createLogger('Home')
-
-const THINKING_BLOCKS = [
-  { color: '#2ABBF8', delay: '0s' },
-  { color: '#00F701', delay: '0.2s' },
-  { color: '#FA4EDF', delay: '0.6s' },
-  { color: '#FFCC02', delay: '0.4s' },
-] as const
-
-function ThinkingIndicator() {
-  return (
-    <div className='grid h-[16px] w-[16px] grid-cols-2 gap-[1.5px]'>
-      {THINKING_BLOCKS.map((block, i) => (
-        <div
-          key={i}
-          className='animate-thinking-block rounded-[2px]'
-          style={{ backgroundColor: block.color, animationDelay: block.delay }}
-        />
-      ))}
-    </div>
-  )
-}
 
 interface FileAttachmentPillProps {
   mediaType: string
@@ -59,8 +39,8 @@ function FileAttachmentPill({ mediaType, filename }: FileAttachmentPillProps) {
   const Icon = getDocumentIcon(mediaType, filename)
   return (
     <div className='flex max-w-[140px] items-center gap-[5px] rounded-[10px] bg-[var(--surface-5)] px-[6px] py-[3px]'>
-      <Icon className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
-      <span className='truncate text-[11px] text-[var(--text-secondary)]'>{filename}</span>
+      <Icon className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <span className='truncate text-[11px] text-[var(--text-body)]'>{filename}</span>
     </div>
   )
 }
@@ -217,8 +197,6 @@ export function Home({ chatId }: HomeProps = {}) {
     wasSendingRef.current = isSending
   }, [isSending, resolvedChatId, markRead])
 
-  const visibleResources = resources
-
   useEffect(() => {
     if (!isResourceAnimatingIn) return
     const timer = setTimeout(() => setIsResourceAnimatingIn(false), 400)
@@ -360,7 +338,7 @@ export function Home({ chatId }: HomeProps = {}) {
       <div className='flex h-full min-w-0 flex-1 flex-col'>
         <div
           ref={scrollContainerRef}
-          className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-4'
+          className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-8'
         >
           <div className='mx-auto max-w-[42rem] space-y-6'>
             {messages.map((msg, index) => {
@@ -405,12 +383,7 @@ export function Home({ chatId }: HomeProps = {}) {
               const isThisStreaming = isSending && isLastAssistant
 
               if (!hasBlocks && !msg.content && isThisStreaming) {
-                return (
-                  <div key={msg.id} className='flex items-center gap-[8px] py-[8px]'>
-                    <ThinkingIndicator />
-                    <span className='font-base text-[14px] text-[var(--text-body)]'>Thinking…</span>
-                  </div>
-                )
+                return <PendingTagIndicator key={msg.id} />
               }
 
               if (!hasBlocks && !msg.content) return null
@@ -448,7 +421,7 @@ export function Home({ chatId }: HomeProps = {}) {
       <MothershipView
         workspaceId={workspaceId}
         chatId={resolvedChatId}
-        resources={visibleResources}
+        resources={resources}
         activeResourceId={activeResourceId}
         onSelectResource={setActiveResourceId}
         onAddResource={addResource}

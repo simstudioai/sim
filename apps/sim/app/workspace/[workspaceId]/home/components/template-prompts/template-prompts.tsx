@@ -61,38 +61,36 @@ interface TemplatePromptsProps {
 
 export function TemplatePrompts({ onSelect }: TemplatePromptsProps) {
   return (
-    <div>
-      <div className='grid grid-cols-3 gap-[16px]'>
-        {TEMPLATES.map((template) => {
-          const Icon = template.icon
-          return (
-            <button
-              key={template.title}
-              type='button'
-              onClick={() => onSelect(template.prompt)}
-              className='group flex cursor-pointer flex-col text-left'
-            >
-              <div className='overflow-hidden rounded-[10px] border border-[var(--border-1)]'>
-                <div className='relative h-[120px] w-full overflow-hidden'>
-                  <Image
-                    src={template.image}
-                    alt={template.title}
-                    fill
-                    unoptimized
-                    className='object-cover transition-transform duration-300 group-hover:scale-105'
-                  />
-                </div>
-                <div className='flex items-center gap-[6px] border-[var(--border-1)] border-t bg-[var(--white)] px-[10px] py-[6px] dark:bg-[var(--surface-4)]'>
-                  <Icon className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-                  <span className='font-base text-[14px] text-[var(--text-body)]'>
-                    {template.title}
-                  </span>
-                </div>
+    <div className='grid grid-cols-3 gap-[16px]'>
+      {TEMPLATES.map((template) => {
+        const Icon = template.icon
+        return (
+          <button
+            key={template.title}
+            type='button'
+            onClick={() => onSelect(template.prompt)}
+            className='group flex cursor-pointer flex-col text-left'
+          >
+            <div className='overflow-hidden rounded-[10px] border border-[var(--border-1)]'>
+              <div className='relative h-[120px] w-full overflow-hidden'>
+                <Image
+                  src={template.image}
+                  alt={template.title}
+                  fill
+                  unoptimized
+                  className='object-cover transition-transform duration-300 group-hover:scale-105'
+                />
               </div>
-            </button>
-          )
-        })}
-      </div>
+              <div className='flex items-center gap-[6px] border-[var(--border-1)] border-t bg-[var(--white)] px-[10px] py-[6px] dark:bg-[var(--surface-4)]'>
+                <Icon className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+                <span className='font-base text-[14px] text-[var(--text-body)]'>
+                  {template.title}
+                </span>
+              </div>
+            </div>
+          </button>
+        )
+      })}
     </div>
   )
 }

@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Copy, ExternalLink, Eye, Pencil, Plus, Trash } from '@/components/emcn/icons'
+import { Copy, Eye, Pencil, Plus, SquareArrowUpRight, Trash } from '@/components/emcn/icons'
 
 interface ChunkContextMenuProps {
   isOpen: boolean
@@ -98,7 +98,7 @@ export function ChunkContextMenu({
           <>
             {hasNavigationSection && (
               <DropdownMenuItem onSelect={onOpenInNewTab!}>
-                <ExternalLink />
+                <SquareArrowUpRight />
                 Open in new tab
               </DropdownMenuItem>
             )}

@@ -15,13 +15,13 @@ import {
 import {
   Check,
   Duplicate,
-  ExternalLink,
   FolderPlus,
   Lock,
   LogOut,
   Palette,
   Pencil,
   Plus,
+  SquareArrowUpRight,
   Trash,
   Unlock,
   Upload,
@@ -384,7 +384,7 @@ export function ContextMenu({
               onClose()
             }}
           >
-            <ExternalLink />
+            <SquareArrowUpRight />
             Open in new tab
           </DropdownMenuItem>
         )}

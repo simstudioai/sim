@@ -55,22 +55,14 @@ export function ToolCallItem({ toolName, displayTitle, status }: ToolCallItemPro
         {status === 'executing' ? (
           <Loader className='h-[16px] w-[16px] text-[var(--text-icon)]' animate />
         ) : status === 'cancelled' ? (
-          <CircleStop className='h-[16px] w-[16px] text-[var(--text-secondary)]' />
+          <CircleStop className='h-[16px] w-[16px] text-[var(--text-icon)]' />
         ) : Icon ? (
           <Icon className='h-[16px] w-[16px] text-[var(--text-icon)]' />
         ) : (
           <CircleCheck className='h-[16px] w-[16px] text-[var(--text-icon)]' />
         )}
       </div>
-      <span
-        className={
-          status === 'cancelled'
-            ? 'font-base text-[14px] text-[var(--text-secondary)]'
-            : 'font-base text-[14px] text-[var(--text-body)]'
-        }
-      >
-        {displayTitle}
-      </span>
+      <span className='font-base text-[14px] text-[var(--text-body)]'>{displayTitle}</span>
     </div>
   )
 }

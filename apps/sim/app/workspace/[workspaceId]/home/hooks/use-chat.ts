@@ -11,6 +11,7 @@ import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resource-types'
 import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
+import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
   type TaskChatHistory,
   type TaskStoredContentBlock,
@@ -27,7 +28,6 @@ import { useFolderStore } from '@/stores/folders/store'
 import type { ChatContext } from '@/stores/panel'
 import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { invalidateResourceQueries } from '../components/mothership-view/components/resource-registry'
 import type { FileAttachmentForApi } from '../components/user-input/user-input'
 import type {
   ChatMessage,

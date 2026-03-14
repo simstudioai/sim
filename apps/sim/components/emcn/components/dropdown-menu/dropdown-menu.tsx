@@ -22,7 +22,7 @@
 
 import * as React from 'react'
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
-import { Check, ChevronRight, Circle } from 'lucide-react'
+import { Check, ChevronRight, Circle, Search } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
 
 const ANIMATION_CLASSES =
@@ -59,14 +59,14 @@ const DropdownMenuSubTrigger = React.forwardRef<
   <DropdownMenuPrimitive.SubTrigger
     ref={ref}
     className={cn(
-      'flex cursor-default select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors focus:bg-[var(--surface-active)] data-[state=open]:bg-[var(--surface-active)] [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
+      'flex min-w-0 cursor-default select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors focus:bg-[var(--surface-active)] data-[state=open]:bg-[var(--surface-active)] [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
       inset && 'pl-[28px]',
       className
     )}
     {...props}
   >
     {children}
-    <ChevronRight className='ml-auto' />
+    <ChevronRight className='ml-auto shrink-0' />
   </DropdownMenuPrimitive.SubTrigger>
 ))
 DropdownMenuSubTrigger.displayName = DropdownMenuPrimitive.SubTrigger.displayName
@@ -79,7 +79,7 @@ const DropdownMenuSubContent = React.forwardRef<
     ref={ref}
     className={cn(
       ANIMATION_CLASSES,
-      'z-50 min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] p-[6px] text-[var(--text-body)] shadow-sm',
+      'z-50 max-h-[240px] min-w-[8rem] max-w-[220px] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] p-[6px] text-[var(--text-body)] shadow-sm',
       className
     )}
     {...props}
@@ -97,7 +97,7 @@ const DropdownMenuContent = React.forwardRef<
       sideOffset={sideOffset}
       className={cn(
         ANIMATION_CLASSES,
-        'z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] p-[6px] text-[var(--text-body)] shadow-sm',
+        'z-50 max-h-[240px] min-w-[8rem] max-w-[220px] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] p-[6px] text-[var(--text-body)] shadow-sm',
         className
       )}
       {...props}
@@ -115,7 +115,7 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
+      'relative flex min-w-0 cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
       inset && 'pl-[28px]',
       className
     )}
@@ -199,6 +199,47 @@ const DropdownMenuSeparator = React.forwardRef<
 ))
 DropdownMenuSeparator.displayName = DropdownMenuPrimitive.Separator.displayName
 
+const stopPropagation = (e: React.KeyboardEvent) => e.stopPropagation()
+
+const DropdownMenuSearchInput = React.forwardRef<
+  HTMLInputElement,
+  React.InputHTMLAttributes<HTMLInputElement>
+>(({ className, onKeyDown, ...props }, ref) => {
+  const internalRef = React.useRef<HTMLInputElement | null>(null)
+
+  React.useEffect(() => {
+    internalRef.current?.focus()
+  }, [])
+
+  const setRefs = React.useCallback(
+    (node: HTMLInputElement | null) => {
+      internalRef.current = node
+      if (typeof ref === 'function') ref(node)
+      else if (ref) ref.current = node
+    },
+    [ref]
+  )
+
+  return (
+    <div className='mx-[2px] mt-[2px] mb-[2px] flex shrink-0 items-center gap-[8px] rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] dark:bg-[var(--surface-4)]'>
+      <Search className='h-[14px] w-[14px] shrink-0 text-[var(--text-muted)]' />
+      <input
+        ref={setRefs}
+        onKeyDown={(e) => {
+          stopPropagation(e)
+          onKeyDown?.(e)
+        }}
+        className={cn(
+          'w-full bg-transparent py-[4px] font-medium text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:outline-none',
+          className
+        )}
+        {...props}
+      />
+    </div>
+  )
+})
+DropdownMenuSearchInput.displayName = 'DropdownMenuSearchInput'
+
 const DropdownMenuShortcut = ({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) => {
   return (
     <span
@@ -218,6 +259,7 @@ export {
   DropdownMenuRadioItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSearchInput,
   DropdownMenuShortcut,
   DropdownMenuGroup,
   DropdownMenuPortal,

@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { ExternalLink, Eye, Pencil, Plus, TagIcon, Trash } from '@/components/emcn/icons'
+import { Eye, Pencil, Plus, SquareArrowUpRight, TagIcon, Trash } from '@/components/emcn/icons'
 
 interface DocumentContextMenuProps {
   isOpen: boolean
@@ -100,13 +100,13 @@ export function DocumentContextMenu({
           <>
             {!isMultiSelect && onOpenInNewTab && (
               <DropdownMenuItem onSelect={onOpenInNewTab}>
-                <ExternalLink />
+                <SquareArrowUpRight />
                 Open in new tab
               </DropdownMenuItem>
             )}
             {!isMultiSelect && onOpenSource && (
               <DropdownMenuItem onSelect={onOpenSource}>
-                <ExternalLink />
+                <SquareArrowUpRight />
                 Open source
               </DropdownMenuItem>
             )}

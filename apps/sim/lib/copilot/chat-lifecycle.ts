@@ -95,6 +95,7 @@ export async function resolveOrCreateChat(params: {
     }
   }
 
+  const now = new Date()
   const [newChat] = await db
     .insert(copilotChats)
     .values({
@@ -105,6 +106,7 @@ export async function resolveOrCreateChat(params: {
       title: null,
       model,
       messages: [],
+      lastSeenAt: now,
     })
     .returning()
 

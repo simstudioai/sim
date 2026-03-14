@@ -6,7 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Copy, ExternalLink } from '@/components/emcn/icons'
+import { Copy, SquareArrowUpRight } from '@/components/emcn/icons'
 
 interface NavItemContextMenuProps {
   isOpen: boolean
@@ -52,7 +52,7 @@ export function NavItemContextMenu({
             onClose()
           }}
         >
-          <ExternalLink />
+          <SquareArrowUpRight />
           Open in new tab
         </DropdownMenuItem>
         <DropdownMenuItem

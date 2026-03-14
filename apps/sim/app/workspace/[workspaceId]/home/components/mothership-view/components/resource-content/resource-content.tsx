@@ -4,7 +4,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo } from 'react'
 import { Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
-import { BookOpen, FileX, SquareArrowUpRight, WorkflowX } from '@/components/emcn/icons'
+import { FileX, SquareArrowUpRight, WorkflowX } from '@/components/emcn/icons'
 import {
   markRunToolManuallyStopped,
   reportManualRunToolStop,
@@ -13,6 +13,10 @@ import {
   FileViewer,
   type PreviewMode,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import {
+  RESOURCE_TAB_ICON_BUTTON_CLASS,
+  RESOURCE_TAB_ICON_CLASS,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -158,14 +162,14 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
           <Button
             variant='subtle'
             onClick={handleOpenWorkflow}
-            className='shrink-0 bg-transparent px-[8px] py-[5px] text-[12px]'
+            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
             aria-label='Open workflow'
           >
-            <SquareArrowUpRight className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
           </Button>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
-          <p>Open Workflow</p>
+          <p>Open workflow</p>
         </Tooltip.Content>
       </Tooltip.Root>
       <Tooltip.Root>
@@ -174,13 +178,13 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
             variant='subtle'
             onClick={() => void handleRun()}
             disabled={isRunButtonDisabled}
-            className='shrink-0 bg-transparent px-[8px] py-[5px] text-[12px]'
+            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
             aria-label={isExecuting ? 'Stop workflow' : 'Run workflow'}
           >
             {isExecuting ? (
-              <Square className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+              <Square className={RESOURCE_TAB_ICON_CLASS} />
             ) : (
-              <PlayOutline className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+              <PlayOutline className={RESOURCE_TAB_ICON_CLASS} />
             )}
           </Button>
         </Tooltip.Trigger>
@@ -213,14 +217,14 @@ export function EmbeddedKnowledgeBaseActions({
         <Button
           variant='subtle'
           onClick={handleOpenKnowledgeBase}
-          className='shrink-0 bg-transparent px-[8px] py-[5px] text-[12px]'
+          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
           aria-label='Open knowledge base'
         >
-          <BookOpen className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
         </Button>
       </Tooltip.Trigger>
       <Tooltip.Content side='bottom'>
-        <p>Open Knowledge Base</p>
+        <p>Open knowledge base</p>
       </Tooltip.Content>
     </Tooltip.Root>
   )
@@ -243,12 +247,10 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
   if (!workflowExists || hasLoadError) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-[12px]'>
-        <WorkflowX className='h-[32px] w-[32px] text-[var(--text-muted)]' />
+        <WorkflowX className='h-[32px] w-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-[4px]'>
-          <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>
-            Workflow not found
-          </h2>
-          <p className='text-[13px] text-[var(--text-muted)]'>
+          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Workflow not found</h2>
+          <p className='text-[13px] text-[var(--text-body)]'>
             This workflow may have been deleted or moved
           </p>
         </div>
@@ -278,10 +280,10 @@ function EmbeddedFile({ workspaceId, fileId, previewMode }: EmbeddedFileProps) {
   if (!file) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-[12px]'>
-        <FileX className='h-[32px] w-[32px] text-[var(--text-muted)]' />
+        <FileX className='h-[32px] w-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-[4px]'>
-          <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>File not found</h2>
-          <p className='text-[13px] text-[var(--text-muted)]'>
+          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>File not found</h2>
+          <p className='text-[13px] text-[var(--text-body)]'>
             This file may have been deleted or moved
           </p>
         </div>

@@ -104,6 +104,13 @@ export type ToolPhase =
 
 export type ToolCallStatus = 'executing' | 'success' | 'error' | 'cancelled'
 
+export interface ToolCallData {
+  id: string
+  toolName: string
+  displayTitle: string
+  status: ToolCallStatus
+}
+
 export interface ToolCallInfo {
   id: string
   name: string

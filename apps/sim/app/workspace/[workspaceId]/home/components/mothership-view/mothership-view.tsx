@@ -91,11 +91,11 @@ export function MothershipView({
             />
           ) : (
             <div className='flex h-full flex-col items-center justify-center gap-[4px] px-[24px]'>
-              <h2 className='font-semibold text-[20px] text-[var(--text-secondary)]'>
+              <h2 className='font-semibold text-[20px] text-[var(--text-primary)]'>
                 No resources open
               </h2>
-              <p className='text-[12px] text-[var(--text-tertiary)]'>
-                Click the <span className='font-medium text-[var(--text-secondary)]'>+</span> button
+              <p className='text-[12px] text-[var(--text-body)]'>
+                Click the <span className='font-medium text-[var(--text-primary)]'>+</span> button
                 above to add a resource to this task
               </p>
             </div>

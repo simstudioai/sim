@@ -3,16 +3,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import type { ToolCallStatus } from '../../../../types'
+import type { ToolCallData } from '../../../../types'
 import { getAgentIcon } from '../../utils'
 import { ToolCallItem } from './tool-call-item'
-
-interface ToolCallData {
-  id: string
-  toolName: string
-  displayTitle: string
-  status: ToolCallStatus
-}
 
 interface AgentGroupProps {
   agentName: string

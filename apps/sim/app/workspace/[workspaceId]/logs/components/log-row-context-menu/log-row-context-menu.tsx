@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Copy, ExternalLink, Eye, ListFilter, X } from '@/components/emcn/icons'
+import { Copy, Eye, ListFilter, SquareArrowUpRight, X } from '@/components/emcn/icons'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 
 interface LogRowContextMenuProps {
@@ -74,7 +74,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
 
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={!hasWorkflow} onSelect={onOpenWorkflow}>
-          <ExternalLink />
+          <SquareArrowUpRight />
           Open Workflow
         </DropdownMenuItem>
         <DropdownMenuItem disabled={!hasExecutionId} onSelect={onOpenPreview}>

@@ -40,7 +40,7 @@ export function PlayOutline(props: SVGProps<SVGSVGElement>) {
       xmlns='http://www.w3.org/2000/svg'
       {...props}
     >
-      <path d='M6 2L18 10L6 18Z' />
+      <path d='M6.25 3.9C6.25 3.408 6.799 3.114 7.209 3.399L15.709 9.299C16.063 9.545 16.063 10.069 15.709 10.315L7.209 16.215C6.799 16.5 6.25 16.206 6.25 15.714V3.9Z' />
     </svg>
   )
 }
