@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import type { TagItem } from '@/components/emcn'
-import { Skeleton } from '@/components/ui'
+import { Skeleton, type TagItem } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getPlanTierCredits, getPlanTierDollars } from '@/lib/billing/plan-helpers'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'

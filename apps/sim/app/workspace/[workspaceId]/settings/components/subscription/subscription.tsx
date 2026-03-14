@@ -14,10 +14,10 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Skeleton,
   Switch,
   Tooltip,
 } from '@/components/emcn'
-import { Skeleton } from '@/components/ui'
 import { useSession, useSubscription } from '@/lib/auth/auth-client'
 import { USAGE_THRESHOLDS } from '@/lib/billing/client/consts'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'

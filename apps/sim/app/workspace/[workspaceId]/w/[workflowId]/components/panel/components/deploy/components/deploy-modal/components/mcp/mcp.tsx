@@ -10,9 +10,9 @@ import {
   type ComboboxOption,
   Input,
   Label,
+  Skeleton,
   Textarea,
 } from '@/components/emcn'
-import { Skeleton } from '@/components/ui'
 import { generateToolInputSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'

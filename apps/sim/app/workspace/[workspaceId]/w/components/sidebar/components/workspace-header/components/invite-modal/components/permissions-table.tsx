@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2, RotateCw, X } from 'lucide-react'
-import { Badge, Button, Tooltip } from '@/components/emcn'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Badge, Button, Skeleton, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'

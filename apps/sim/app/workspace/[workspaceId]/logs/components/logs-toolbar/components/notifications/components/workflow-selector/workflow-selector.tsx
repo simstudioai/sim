@@ -2,8 +2,7 @@
 
 import { useMemo } from 'react'
 import { X } from 'lucide-react'
-import { Badge, Combobox, type ComboboxOption, Label } from '@/components/emcn'
-import { Skeleton } from '@/components/ui'
+import { Badge, Combobox, type ComboboxOption, Label, Skeleton } from '@/components/emcn'
 import { useWorkflows } from '@/hooks/queries/workflows'
 
 interface WorkflowSelectorProps {

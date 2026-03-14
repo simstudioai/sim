@@ -17,10 +17,11 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Skeleton,
   Textarea,
   Tooltip,
 } from '@/components/emcn'
-import { Skeleton, Input as UiInput } from '@/components/ui'
+import { Input as UiInput } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import {
   clearPendingCredentialCreateRequest,
