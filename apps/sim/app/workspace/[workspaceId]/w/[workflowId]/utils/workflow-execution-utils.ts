@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid'
+import { createLogger } from '@sim/logger'
 import type {
   BlockCompletedData,
   BlockErrorData,
@@ -12,6 +13,8 @@ import type {
   StreamingExecution,
 } from '@/executor/types'
 import { stripCloneSuffixes } from '@/executor/utils/subflow-utils'
+const logger = createLogger('workflow-execution-utils')
+
 import { useExecutionStore } from '@/stores/execution'
 import type { ConsoleEntry, ConsoleUpdate } from '@/stores/terminal'
 import { useTerminalConsoleStore } from '@/stores/terminal'
@@ -322,7 +325,12 @@ export function createBlockEventHandlers(
     if (isContainerBlockType(data.blockType) && !data.iterationContainerId) {
       const output = data.output as Record<string, any> | undefined
       const isEmptySubflow = Array.isArray(output?.results) && output.results.length === 0
-      if (!isEmptySubflow) return
+      if (!isEmptySubflow) {
+        if (includeStartConsoleEntry) {
+          updateConsoleEntry(data)
+        }
+        return
+      }
     }
 
     accumulatedBlockLogs.push(createBlockLogEntry(data, { success: true, output: data.output }))
@@ -334,7 +342,9 @@ export function createBlockEventHandlers(
     }
 
     if (onBlockCompleteCallback) {
-      onBlockCompleteCallback(data.blockId, data.output).catch(() => {})
+      onBlockCompleteCallback(data.blockId, data.output).catch((error) => {
+        logger.error('Error in onBlockComplete callback:', { blockId: data.blockId, error })
+      })
     }
   }
 
