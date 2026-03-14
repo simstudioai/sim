@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
@@ -261,18 +261,11 @@ export function useChat(
   const activeResourceIdRef = useRef(activeResourceId)
   activeResourceIdRef.current = activeResourceId
 
-  const [messageQueue, setMessageQueueRaw] = useState<QueuedMessage[]>([])
+  const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
   const messageQueueRef = useRef<QueuedMessage[]>([])
-  const setMessageQueue = useCallback(
-    (update: QueuedMessage[] | ((prev: QueuedMessage[]) => QueuedMessage[])) => {
-      setMessageQueueRaw((prev) => {
-        const next = typeof update === 'function' ? update(prev) : update
-        messageQueueRef.current = next
-        return next
-      })
-    },
-    []
-  )
+  useEffect(() => {
+    messageQueueRef.current = messageQueue
+  }, [messageQueue])
 
   const sendMessageRef = useRef<UseChatReturn['sendMessage']>(async () => {})
 
@@ -921,7 +914,9 @@ export function useChat(
     },
     [workspaceId, queryClient, processSSEStream, finalize]
   )
-  sendMessageRef.current = sendMessage
+  useLayoutEffect(() => {
+    sendMessageRef.current = sendMessage
+  })
 
   const stopGeneration = useCallback(async () => {
     if (sendingRef.current) {
