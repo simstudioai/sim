@@ -13,13 +13,12 @@ import {
   isTerminalState,
   parseWorkflowSSEChunk,
 } from '@/lib/a2a/utils'
-import { type AuthResult, checkHybridAuth } from '@/lib/auth/hybrid'
+import { type AuthResult, AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
 import { acquireLock, getRedisClient, releaseLock } from '@/lib/core/config/redis'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
-import { decrementSSEConnections, incrementSSEConnections } from '@/lib/monitoring/sse-connections'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import {
@@ -271,9 +270,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
 
     const { id, method, params: rpcParams } = body
     const requestApiKey = request.headers.get('X-API-Key')
-    const apiKey = authenticatedAuthType === 'api_key' ? requestApiKey : null
+    const apiKey = authenticatedAuthType === AuthType.API_KEY ? requestApiKey : null
     const isPersonalApiKeyCaller =
-      authenticatedAuthType === 'api_key' && authenticatedApiKeyType === 'personal'
+      authenticatedAuthType === AuthType.API_KEY && authenticatedApiKeyType === 'personal'
     const callerFingerprint = getCallerFingerprint(request, authenticatedUserId)
     const billedUserId = await getWorkspaceBilledAccountUserId(agent.workspaceId)
     if (!billedUserId) {
@@ -720,11 +719,9 @@ async function handleMessageStream(
   }
 
   const encoder = new TextEncoder()
-  let messageStreamDecremented = false
 
   const stream = new ReadableStream({
     async start(controller) {
-      incrementSSEConnections('a2a-message')
       const sendEvent = (event: string, data: unknown) => {
         try {
           const jsonRpcResponse = {
@@ -1029,19 +1026,10 @@ async function handleMessageStream(
         })
       } finally {
         await releaseLock(lockKey, lockValue)
-        if (!messageStreamDecremented) {
-          messageStreamDecremented = true
-          decrementSSEConnections('a2a-message')
-        }
         controller.close()
       }
     },
-    cancel() {
-      if (!messageStreamDecremented) {
-        messageStreamDecremented = true
-        decrementSSEConnections('a2a-message')
-      }
-    },
+    cancel() {},
   })
 
   return new NextResponse(stream, {
@@ -1229,22 +1217,16 @@ async function handleTaskResubscribe(
     { once: true }
   )
 
-  let sseDecremented = false
   const cleanup = () => {
     isCancelled = true
     if (pollTimeoutId) {
       clearTimeout(pollTimeoutId)
       pollTimeoutId = null
     }
-    if (!sseDecremented) {
-      sseDecremented = true
-      decrementSSEConnections('a2a-resubscribe')
-    }
   }
 
   const stream = new ReadableStream({
     async start(controller) {
-      incrementSSEConnections('a2a-resubscribe')
       const sendEvent = (event: string, data: unknown): boolean => {
         if (isCancelled || abortSignal.aborted) return false
         try {

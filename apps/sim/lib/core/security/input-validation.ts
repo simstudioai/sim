@@ -676,7 +676,8 @@ export function validateJiraIssueKey(
  */
 export function validateExternalUrl(
   url: string | null | undefined,
-  paramName = 'url'
+  paramName = 'url',
+  options: { allowHttp?: boolean } = {}
 ): ValidationResult {
   if (!url || typeof url !== 'string') {
     return {
@@ -709,7 +710,20 @@ export function validateExternalUrl(
     }
   }
 
-  if (protocol !== 'https:' && !(protocol === 'http:' && isLocalhost)) {
+  if (options.allowHttp) {
+    if (protocol !== 'https:' && protocol !== 'http:') {
+      return {
+        isValid: false,
+        error: `${paramName} must use http:// or https:// protocol`,
+      }
+    }
+    if (isLocalhost) {
+      return {
+        isValid: false,
+        error: `${paramName} cannot point to localhost`,
+      }
+    }
+  } else if (protocol !== 'https:' && !(protocol === 'http:' && isLocalhost)) {
     return {
       isValid: false,
       error: `${paramName} must use https:// protocol`,

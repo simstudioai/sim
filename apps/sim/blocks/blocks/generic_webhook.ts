@@ -18,6 +18,7 @@ export const GenericWebhookBlock: BlockConfig = {
   bestPractices: `
   - You can test the webhook by sending a request to the webhook URL. E.g. depending on authorization:  curl -X POST http://localhost:3000/api/webhooks/trigger/d8abcf0d-1ee5-4b77-bb07-b1e8142ea4e9 -H "Content-Type: application/json" -H "X-Sim-Secret: 1234" -d '{"message": "Test webhook trigger", "data": {"key": "v"}}'
   - Continuing example above, the body can be accessed in downstream block using dot notation. E.g. <webhook1.message> and <webhook1.data.key>
+  - To deduplicate incoming events, set the Deduplication Field to a dot-notation path of a unique field in the payload (e.g. "event.id"). Duplicate values within 7 days will be skipped.
   - Only use when there's no existing integration for the service with triggerAllowed flag set to true.
   `,
   subBlocks: [...getTrigger('generic_webhook').subBlocks],

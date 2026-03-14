@@ -447,6 +447,13 @@ import {
   exaResearchTool,
   exaSearchTool,
 } from '@/tools/exa'
+import {
+  fathomGetSummaryTool,
+  fathomGetTranscriptTool,
+  fathomListMeetingsTool,
+  fathomListTeamMembersTool,
+  fathomListTeamsTool,
+} from '@/tools/fathom'
 import { fileParserV2Tool, fileParserV3Tool, fileParseTool } from '@/tools/file'
 import {
   firecrawlAgentTool,
@@ -723,6 +730,14 @@ import {
 } from '@/tools/gong'
 import { googleSearchTool } from '@/tools/google'
 import {
+  googleAdsAdPerformanceTool,
+  googleAdsCampaignPerformanceTool,
+  googleAdsListAdGroupsTool,
+  googleAdsListCampaignsTool,
+  googleAdsListCustomersTool,
+  googleAdsSearchTool,
+} from '@/tools/google_ads'
+import {
   googleBigQueryGetTableTool,
   googleBigQueryInsertRowsTool,
   googleBigQueryListDatasetsTool,
@@ -919,6 +934,7 @@ import {
   grainListMeetingTypesTool,
   grainListRecordingsTool,
   grainListTeamsTool,
+  grainListViewsTool,
 } from '@/tools/grain'
 import {
   greenhouseGetApplicationTool,
@@ -3158,6 +3174,7 @@ export const tools: Record<string, ToolConfig> = {
   grain_get_transcript: grainGetTranscriptTool,
   grain_list_teams: grainListTeamsTool,
   grain_list_meeting_types: grainListMeetingTypesTool,
+  grain_list_views: grainListViewsTool,
   grain_create_hook: grainCreateHookTool,
   grain_list_hooks: grainListHooksTool,
   grain_delete_hook: grainDeleteHookTool,
@@ -3688,6 +3705,11 @@ export const tools: Record<string, ToolConfig> = {
   knowledge_trigger_sync: knowledgeTriggerSyncTool,
   search_tool: searchTool,
   elevenlabs_tts: elevenLabsTtsTool,
+  fathom_list_meetings: fathomListMeetingsTool,
+  fathom_get_summary: fathomGetSummaryTool,
+  fathom_get_transcript: fathomGetTranscriptTool,
+  fathom_list_team_members: fathomListTeamMembersTool,
+  fathom_list_teams: fathomListTeamsTool,
   stt_whisper: whisperSttTool,
   stt_whisper_v2: whisperSttV2Tool,
   stt_deepgram: deepgramSttTool,
@@ -4048,6 +4070,12 @@ export const tools: Record<string, ToolConfig> = {
   wordpress_list_users: wordpressListUsersTool,
   wordpress_get_user: wordpressGetUserTool,
   wordpress_search_content: wordpressSearchContentTool,
+  google_ads_list_customers: googleAdsListCustomersTool,
+  google_ads_search: googleAdsSearchTool,
+  google_ads_list_campaigns: googleAdsListCampaignsTool,
+  google_ads_campaign_performance: googleAdsCampaignPerformanceTool,
+  google_ads_list_ad_groups: googleAdsListAdGroupsTool,
+  google_ads_ad_performance: googleAdsAdPerformanceTool,
   google_bigquery_query: googleBigQueryQueryTool,
   google_bigquery_list_datasets: googleBigQueryListDatasetsTool,
   google_bigquery_list_tables: googleBigQueryListTablesTool,

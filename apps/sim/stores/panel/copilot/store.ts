@@ -1835,7 +1835,7 @@ export const useCopilotStore = create<CopilotStore>()(
           }
 
           // Apply to main workflow store
-          useWorkflowStore.setState({
+          useWorkflowStore.getState().replaceWorkflowState({
             blocks: reverted.blocks ?? {},
             edges: reverted.edges ?? [],
             loops: reverted.loops ?? {},

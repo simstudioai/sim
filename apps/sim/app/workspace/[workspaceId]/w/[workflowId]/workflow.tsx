@@ -45,6 +45,7 @@ import {
   useAutoLayout,
   useCanvasContextMenu,
   useCurrentWorkflow,
+  useDynamicHandleRefresh,
   useNodeUtilities,
   useShiftSelectionLock,
   useWorkflowExecution,
@@ -259,6 +260,7 @@ const WorkflowContent = React.memo(
     const { screenToFlowPosition, getNodes, setNodes, getIntersectingNodes } = reactFlowInstance
     const { fitViewToBounds, getViewportCenter } = useCanvasViewport(reactFlowInstance)
     const { emitCursorUpdate } = useSocket()
+    useDynamicHandleRefresh()
 
     const workspaceId = propWorkspaceId || (params.workspaceId as string)
     const workflowIdParam = propWorkflowId || (params.workflowId as string)

@@ -80,6 +80,10 @@ export class TriggerDevJobQueue implements JobQueueBackend {
       const metadata: JobMetadata = {
         workflowId: payload?.workflowId as string | undefined,
         userId: payload?.userId as string | undefined,
+        correlation:
+          payload?.correlation && typeof payload.correlation === 'object'
+            ? (payload.correlation as JobMetadata['correlation'])
+            : undefined,
       }
 
       return {

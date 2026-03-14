@@ -2,13 +2,14 @@ import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import { mergeSubblockStateWithValues } from '@/lib/workflows/subblocks'
 import { buildDefaultCanonicalModes } from '@/lib/workflows/subblocks/visibility'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
-import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks'
-import { isAnnotationOnlyBlock, normalizeName } from '@/executor/constants'
+import { normalizeName } from '@/executor/constants'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import type {
   BlockState,
   Loop,
@@ -23,29 +24,10 @@ import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 const LARGE_OFFSET_THRESHOLD = 300
 
 /**
- * Checks if an edge is valid (source and target exist, not annotation-only, target is not a trigger)
- */
-function isValidEdge(
-  edge: Edge,
-  blocks: Record<string, { type: string; triggerMode?: boolean }>
-): boolean {
-  const sourceBlock = blocks[edge.source]
-  const targetBlock = blocks[edge.target]
-  if (!sourceBlock || !targetBlock) return false
-  if (isAnnotationOnlyBlock(sourceBlock.type)) return false
-  if (isAnnotationOnlyBlock(targetBlock.type)) return false
-  if (TriggerUtils.isTriggerBlock(targetBlock)) return false
-  return true
-}
-
-/**
  * Filters edges to only include valid ones (target exists and is not a trigger block)
  */
-export function filterValidEdges(
-  edges: Edge[],
-  blocks: Record<string, { type: string; triggerMode?: boolean }>
-): Edge[] {
-  return edges.filter((edge) => isValidEdge(edge, blocks))
+export function filterValidEdges(edges: Edge[], blocks: Record<string, BlockState>): Edge[] {
+  return validateEdges(edges, blocks).valid
 }
 
 export function filterNewEdges(edgesToAdd: Edge[], currentEdges: Edge[]): Edge[] {
@@ -363,13 +345,15 @@ export function regenerateWorkflowIds(
   const nameMap = new Map<string, string>()
   const newBlocks: Record<string, BlockState> = {}
 
-  // First pass: generate new IDs
+  // First pass: generate new IDs and remap condition/router IDs in subBlocks
   Object.entries(workflowState.blocks).forEach(([oldId, block]) => {
     const newId = uuidv4()
     blockIdMap.set(oldId, newId)
     const oldNormalizedName = normalizeName(block.name)
     nameMap.set(oldNormalizedName, oldNormalizedName)
-    newBlocks[newId] = { ...block, id: newId }
+    const newBlock = { ...block, id: newId, subBlocks: JSON.parse(JSON.stringify(block.subBlocks)) }
+    remapConditionIds(newBlock.subBlocks, {}, oldId, newId)
+    newBlocks[newId] = newBlock
   })
 
   // Second pass: update parentId references
@@ -385,12 +369,21 @@ export function regenerateWorkflowIds(
     }
   })
 
-  const newEdges = workflowState.edges.map((edge) => ({
-    ...edge,
-    id: uuidv4(),
-    source: blockIdMap.get(edge.source) || edge.source,
-    target: blockIdMap.get(edge.target) || edge.target,
-  }))
+  const newEdges = workflowState.edges.map((edge) => {
+    const newSource = blockIdMap.get(edge.source) || edge.source
+    const newSourceHandle =
+      edge.sourceHandle && blockIdMap.has(edge.source)
+        ? remapConditionEdgeHandle(edge.sourceHandle, edge.source, newSource)
+        : edge.sourceHandle
+
+    return {
+      ...edge,
+      id: uuidv4(),
+      source: newSource,
+      target: blockIdMap.get(edge.target) || edge.target,
+      sourceHandle: newSourceHandle,
+    }
+  })
 
   const newLoops: Record<string, Loop> = {}
   if (workflowState.loops) {
@@ -426,6 +419,37 @@ export function regenerateWorkflowIds(
     metadata: workflowState.metadata,
     variables: workflowState.variables,
     idMap: blockIdMap,
+  }
+}
+
+/**
+ * Remaps condition/router block IDs within subBlock values when a block is duplicated.
+ * Mutates both `subBlocks` and `subBlockValues` in place (callers must pass cloned data).
+ */
+export function remapConditionIds(
+  subBlocks: Record<string, SubBlockState>,
+  subBlockValues: Record<string, unknown>,
+  oldBlockId: string,
+  newBlockId: string
+): void {
+  for (const [subBlockId, subBlock] of Object.entries(subBlocks)) {
+    if (subBlock.type !== 'condition-input' && subBlock.type !== 'router-input') continue
+
+    const value = subBlockValues[subBlockId] ?? subBlock.value
+    if (typeof value !== 'string') continue
+
+    try {
+      const parsed = JSON.parse(value)
+      if (!Array.isArray(parsed)) continue
+
+      if (remapConditionBlockIds(parsed, oldBlockId, newBlockId)) {
+        const newValue = JSON.stringify(parsed)
+        subBlock.value = newValue
+        subBlockValues[subBlockId] = newValue
+      }
+    } catch {
+      // Not valid JSON, skip
+    }
   }
 }
 
@@ -497,6 +521,7 @@ export function regenerateBlockIds(
       id: newId,
       name: newName,
       position: newPosition,
+      subBlocks: JSON.parse(JSON.stringify(block.subBlocks)),
       // Temporarily keep data as-is, we'll fix parentId in second pass
       data: block.data ? { ...block.data } : block.data,
       // Duplicated blocks are always unlocked so users can edit them
@@ -510,6 +535,9 @@ export function regenerateBlockIds(
     if (subBlockValues[oldId]) {
       newSubBlockValues[newId] = JSON.parse(JSON.stringify(subBlockValues[oldId]))
     }
+
+    // Remap condition/router IDs in the duplicated block
+    remapConditionIds(newBlock.subBlocks, newSubBlockValues[newId] || {}, oldId, newId)
   })
 
   // Second pass: update parentId references for nested blocks
@@ -542,12 +570,21 @@ export function regenerateBlockIds(
     }
   })
 
-  const newEdges = edges.map((edge) => ({
-    ...edge,
-    id: uuidv4(),
-    source: blockIdMap.get(edge.source) || edge.source,
-    target: blockIdMap.get(edge.target) || edge.target,
-  }))
+  const newEdges = edges.map((edge) => {
+    const newSource = blockIdMap.get(edge.source) || edge.source
+    const newSourceHandle =
+      edge.sourceHandle && blockIdMap.has(edge.source)
+        ? remapConditionEdgeHandle(edge.sourceHandle, edge.source, newSource)
+        : edge.sourceHandle
+
+    return {
+      ...edge,
+      id: uuidv4(),
+      source: newSource,
+      target: blockIdMap.get(edge.target) || edge.target,
+      sourceHandle: newSourceHandle,
+    }
+  })
 
   const newLoops: Record<string, Loop> = {}
   Object.entries(loops).forEach(([oldLoopId, loop]) => {

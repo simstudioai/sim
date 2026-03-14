@@ -6,13 +6,21 @@ import { verifyInternalToken } from '@/lib/auth/internal'
 
 const logger = createLogger('HybridAuth')
 
+export const AuthType = {
+  SESSION: 'session',
+  API_KEY: 'api_key',
+  INTERNAL_JWT: 'internal_jwt',
+} as const
+
+export type AuthTypeValue = (typeof AuthType)[keyof typeof AuthType]
+
 export interface AuthResult {
   success: boolean
   userId?: string
   workspaceId?: string
   userName?: string | null
   userEmail?: string | null
-  authType?: 'session' | 'api_key' | 'internal_jwt'
+  authType?: AuthTypeValue
   apiKeyType?: 'personal' | 'workspace'
   error?: string
 }
@@ -47,14 +55,14 @@ async function resolveUserFromJwt(
   }
 
   if (userId) {
-    return { success: true, userId, authType: 'internal_jwt' }
+    return { success: true, userId, authType: AuthType.INTERNAL_JWT }
   }
 
   if (options.requireWorkflowId !== false) {
     return { success: false, error: 'userId required for internal JWT calls' }
   }
 
-  return { success: true, authType: 'internal_jwt' }
+  return { success: true, authType: AuthType.INTERNAL_JWT }
 }
 
 /**
@@ -147,7 +155,7 @@ export async function checkSessionOrInternalAuth(
         userId: session.user.id,
         userName: session.user.name,
         userEmail: session.user.email,
-        authType: 'session',
+        authType: AuthType.SESSION,
       }
     }
 
@@ -196,7 +204,7 @@ export async function checkHybridAuth(
         userId: session.user.id,
         userName: session.user.name,
         userEmail: session.user.email,
-        authType: 'session',
+        authType: AuthType.SESSION,
       }
     }
 
@@ -210,7 +218,7 @@ export async function checkHybridAuth(
           success: true,
           userId: result.userId!,
           workspaceId: result.workspaceId,
-          authType: 'api_key',
+          authType: AuthType.API_KEY,
           apiKeyType: result.keyType,
         }
       }

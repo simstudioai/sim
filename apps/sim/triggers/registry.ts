@@ -1,5 +1,13 @@
 import { airtableWebhookTrigger } from '@/triggers/airtable'
 import {
+  ashbyApplicationSubmitTrigger,
+  ashbyCandidateDeleteTrigger,
+  ashbyCandidateHireTrigger,
+  ashbyCandidateStageChangeTrigger,
+  ashbyJobCreateTrigger,
+  ashbyOfferCreateTrigger,
+} from '@/triggers/ashby'
+import {
   attioCommentCreatedTrigger,
   attioCommentDeletedTrigger,
   attioCommentResolvedTrigger,
@@ -59,6 +67,7 @@ import {
   confluenceSpaceUpdatedTrigger,
   confluenceWebhookTrigger,
 } from '@/triggers/confluence'
+import { fathomNewMeetingTrigger, fathomWebhookTrigger } from '@/triggers/fathom'
 import { firefliesTranscriptionCompleteTrigger } from '@/triggers/fireflies'
 import { genericWebhookTrigger } from '@/triggers/generic'
 import {
@@ -165,6 +174,12 @@ import { whatsappWebhookTrigger } from '@/triggers/whatsapp'
 export const TRIGGER_REGISTRY: TriggerRegistry = {
   slack_webhook: slackWebhookTrigger,
   airtable_webhook: airtableWebhookTrigger,
+  ashby_application_submit: ashbyApplicationSubmitTrigger,
+  ashby_candidate_stage_change: ashbyCandidateStageChangeTrigger,
+  ashby_candidate_hire: ashbyCandidateHireTrigger,
+  ashby_candidate_delete: ashbyCandidateDeleteTrigger,
+  ashby_job_create: ashbyJobCreateTrigger,
+  ashby_offer_create: ashbyOfferCreateTrigger,
   attio_webhook: attioWebhookTrigger,
   attio_record_created: attioRecordCreatedTrigger,
   attio_record_updated: attioRecordUpdatedTrigger,
@@ -226,6 +241,8 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   github_release_published: githubReleasePublishedTrigger,
   github_workflow_run: githubWorkflowRunTrigger,
   fireflies_transcription_complete: firefliesTranscriptionCompleteTrigger,
+  fathom_new_meeting: fathomNewMeetingTrigger,
+  fathom_webhook: fathomWebhookTrigger,
   gmail_poller: gmailPollingTrigger,
   grain_webhook: grainWebhookTrigger,
   grain_recording_created: grainRecordingCreatedTrigger,

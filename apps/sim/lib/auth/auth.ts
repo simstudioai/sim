@@ -447,13 +447,14 @@ export const auth = betterAuth({
         'google-docs',
         'google-sheets',
         'google-forms',
+        'google-ads',
         'google-bigquery',
         'google-vault',
         'google-groups',
         'google-meet',
         'google-tasks',
         'vertex-ai',
-        'github-repo',
+
         'microsoft-dataverse',
         'microsoft-teams',
         'microsoft-excel',
@@ -715,83 +716,6 @@ export const auth = betterAuth({
     }),
     genericOAuth({
       config: [
-        {
-          providerId: 'github-repo',
-          clientId: env.GITHUB_REPO_CLIENT_ID as string,
-          clientSecret: env.GITHUB_REPO_CLIENT_SECRET as string,
-          authorizationUrl: 'https://github.com/login/oauth/authorize',
-          accessType: 'offline',
-          prompt: 'consent',
-          tokenUrl: 'https://github.com/login/oauth/access_token',
-          userInfoUrl: 'https://api.github.com/user',
-          scopes: getCanonicalScopesForProvider('github-repo'),
-          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/github-repo`,
-          getUserInfo: async (tokens) => {
-            try {
-              const profileResponse = await fetch('https://api.github.com/user', {
-                headers: {
-                  Authorization: `Bearer ${tokens.accessToken}`,
-                  'User-Agent': 'sim-studio',
-                },
-              })
-
-              if (!profileResponse.ok) {
-                await profileResponse.text().catch(() => {})
-                logger.error('Failed to fetch GitHub profile', {
-                  status: profileResponse.status,
-                  statusText: profileResponse.statusText,
-                })
-                throw new Error(`Failed to fetch GitHub profile: ${profileResponse.statusText}`)
-              }
-
-              const profile = await profileResponse.json()
-
-              if (!profile.email) {
-                const emailsResponse = await fetch('https://api.github.com/user/emails', {
-                  headers: {
-                    Authorization: `Bearer ${tokens.accessToken}`,
-                    'User-Agent': 'sim-studio',
-                  },
-                })
-
-                if (emailsResponse.ok) {
-                  const emails = await emailsResponse.json()
-
-                  const primaryEmail =
-                    emails.find(
-                      (email: { primary: boolean; email: string; verified: boolean }) =>
-                        email.primary
-                    ) || emails[0]
-                  if (primaryEmail) {
-                    profile.email = primaryEmail.email
-                    profile.emailVerified = primaryEmail.verified || false
-                  }
-                } else {
-                  logger.warn('Failed to fetch GitHub emails', {
-                    status: emailsResponse.status,
-                    statusText: emailsResponse.statusText,
-                  })
-                }
-              }
-
-              const now = new Date()
-
-              return {
-                id: `${profile.id.toString()}-${crypto.randomUUID()}`,
-                name: profile.name || profile.login,
-                email: profile.email,
-                image: profile.avatar_url,
-                emailVerified: profile.emailVerified || false,
-                createdAt: now,
-                updatedAt: now,
-              }
-            } catch (error) {
-              logger.error('Error in GitHub getUserInfo', { error })
-              throw error
-            }
-          },
-        },
-
         // Google providers
         {
           providerId: 'google-email',
@@ -1026,6 +950,41 @@ export const auth = betterAuth({
               })
               if (!response.ok) {
                 await response.text().catch(() => {})
+                logger.error('Failed to fetch Google user info', { status: response.status })
+                throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
+              }
+              const profile = await response.json()
+              const now = new Date()
+              return {
+                id: `${profile.sub}-${crypto.randomUUID()}`,
+                name: profile.name || 'Google User',
+                email: profile.email,
+                image: profile.picture || undefined,
+                emailVerified: profile.email_verified || false,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Google getUserInfo', { error })
+              throw error
+            }
+          },
+        },
+        {
+          providerId: 'google-ads',
+          clientId: env.GOOGLE_CLIENT_ID as string,
+          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+          discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+          accessType: 'offline',
+          scopes: getCanonicalScopesForProvider('google-ads'),
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-ads`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+                headers: { Authorization: `Bearer ${tokens.accessToken}` },
+              })
+              if (!response.ok) {
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }

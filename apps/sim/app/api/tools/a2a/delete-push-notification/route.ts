@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to delete push notification',
+        error: 'Failed to delete push notification',
       },
       { status: 500 }
     )

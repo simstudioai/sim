@@ -6,30 +6,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockSelect,
+  mockSelectDistinctOn,
   mockFrom,
+  mockLeftJoin,
   mockWhere,
   mockOrderBy,
   mockAuthenticate,
   mockCreateUnauthorizedResponse,
   mockCreateInternalServerErrorResponse,
-  mockGetActiveWorkflowRecord,
-  mockCheckWorkspaceAccess,
 } = vi.hoisted(() => ({
-  mockSelect: vi.fn(),
+  mockSelectDistinctOn: vi.fn(),
   mockFrom: vi.fn(),
+  mockLeftJoin: vi.fn(),
   mockWhere: vi.fn(),
   mockOrderBy: vi.fn(),
   mockAuthenticate: vi.fn(),
   mockCreateUnauthorizedResponse: vi.fn(),
   mockCreateInternalServerErrorResponse: vi.fn(),
-  mockGetActiveWorkflowRecord: vi.fn(),
-  mockCheckWorkspaceAccess: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({
   db: {
-    select: mockSelect,
+    selectDistinctOn: mockSelectDistinctOn,
   },
 }))
 
@@ -38,15 +36,34 @@ vi.mock('@sim/db/schema', () => ({
     id: 'id',
     title: 'title',
     workflowId: 'workflowId',
+    workspaceId: 'workspaceId',
     userId: 'userId',
     updatedAt: 'updatedAt',
+  },
+  workflow: {
+    id: 'id',
+    workspaceId: 'workspaceId',
+    archivedAt: 'archivedAt',
+  },
+  workspace: {
+    id: 'id',
+    archivedAt: 'archivedAt',
+  },
+  permissions: {
+    id: 'id',
+    entityType: 'entityType',
+    entityId: 'entityId',
+    userId: 'userId',
   },
 }))
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
   eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
+  or: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'or' })),
+  isNull: vi.fn((field: unknown) => ({ field, type: 'isNull' })),
   desc: vi.fn((field: unknown) => ({ field, type: 'desc' })),
+  sql: vi.fn(),
 }))
 
 vi.mock('@/lib/copilot/request-helpers', () => ({
@@ -55,22 +72,15 @@ vi.mock('@/lib/copilot/request-helpers', () => ({
   createInternalServerErrorResponse: mockCreateInternalServerErrorResponse,
 }))
 
-vi.mock('@/lib/workflows/active-context', () => ({
-  getActiveWorkflowRecord: mockGetActiveWorkflowRecord,
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-}))
-
 import { GET } from '@/app/api/copilot/chats/route'
 
 describe('Copilot Chats List API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockSelect.mockReturnValue({ from: mockFrom })
-    mockFrom.mockReturnValue({ where: mockWhere })
+    mockSelectDistinctOn.mockReturnValue({ from: mockFrom })
+    mockFrom.mockReturnValue({ leftJoin: mockLeftJoin })
+    mockLeftJoin.mockReturnValue({ leftJoin: mockLeftJoin, where: mockWhere })
     mockWhere.mockReturnValue({ orderBy: mockOrderBy })
     mockOrderBy.mockResolvedValue([])
 
@@ -80,8 +90,6 @@ describe('Copilot Chats List API Route', () => {
     mockCreateInternalServerErrorResponse.mockImplementation(
       (message: string) => new Response(JSON.stringify({ error: message }), { status: 500 })
     )
-    mockGetActiveWorkflowRecord.mockResolvedValue({ id: 'workflow-1' })
-    mockCheckWorkspaceAccess.mockResolvedValue({ exists: true, hasAccess: true })
   })
 
   afterEach(() => {
@@ -252,7 +260,7 @@ describe('Copilot Chats List API Route', () => {
       const request = new Request('http://localhost:3000/api/copilot/chats')
       await GET(request as any)
 
-      expect(mockSelect).toHaveBeenCalled()
+      expect(mockSelectDistinctOn).toHaveBeenCalled()
       expect(mockWhere).toHaveBeenCalled()
     })
 

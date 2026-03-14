@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'http'
 import { env } from '@/lib/core/config/env'
+import { safeCompare } from '@/lib/core/security/encryption'
 import type { IRoomManager } from '@/socket/rooms'
 
 interface Logger {
@@ -21,7 +22,8 @@ function checkInternalApiKey(req: IncomingMessage): { success: boolean; error?: 
     return { success: false, error: 'API key required' }
   }
 
-  if (apiKey !== expectedApiKey) {
+  const apiKeyStr = Array.isArray(apiKey) ? apiKey[0] : apiKey
+  if (!apiKeyStr || !safeCompare(apiKeyStr, expectedApiKey)) {
     return { success: false, error: 'Invalid API key' }
   }
 

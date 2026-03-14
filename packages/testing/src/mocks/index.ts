@@ -64,7 +64,7 @@ export {
   setupGlobalFetchMock,
 } from './fetch.mock'
 // Hybrid auth mocks
-export { type MockHybridAuthResult, mockHybridAuth } from './hybrid-auth.mock'
+export { AuthTypeMock, type MockHybridAuthResult, mockHybridAuth } from './hybrid-auth.mock'
 // Logger mocks
 export { clearLoggerMocks, createMockLogger, getLoggerCalls, loggerMock } from './logger.mock'
 // Redis mocks

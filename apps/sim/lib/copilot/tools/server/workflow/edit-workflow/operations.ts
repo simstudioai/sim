@@ -5,12 +5,12 @@ import { getBlock } from '@/blocks/registry'
 import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import {
-  addConnectionsAsEdges,
   applyTriggerConfigToBlockSubblocks,
   createBlockFromParams,
   filterDisallowedTools,
   JSON_STRING_SUBBLOCK_KEYS,
   normalizeArrayWithIds,
+  normalizeConditionRouterIds,
   normalizeResponseFormat,
   normalizeTools,
   shouldNormalizeArrayIds,
@@ -151,6 +151,8 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
           sanitizedValue = JSON.stringify(sanitizedValue)
         }
       }
+
+      sanitizedValue = normalizeConditionRouterIds(block_id, key, sanitizedValue)
 
       // Special handling for tools - normalize and filter disallowed
       if (key === 'tools' && Array.isArray(value)) {
@@ -340,38 +342,23 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     block.advancedMode = params.advancedMode
   }
 
-  // Handle nested nodes update (for loops/parallels)
+  // Handle nested nodes update (for loops/parallels) using merge strategy.
+  // Existing children that match an incoming node by name are updated in place
+  // (preserving their block ID). New children are created. Children not present
+  // in the incoming set are removed.
   if (params?.nestedNodes) {
-    // Remove all existing child blocks
-    const existingChildren = Object.keys(modifiedState.blocks).filter(
-      (id) => modifiedState.blocks[id].data?.parentId === block_id
-    )
-    existingChildren.forEach((childId) => delete modifiedState.blocks[childId])
-
-    // Remove edges to/from removed children
-    modifiedState.edges = modifiedState.edges.filter(
-      (edge: any) =>
-        !existingChildren.includes(edge.source) && !existingChildren.includes(edge.target)
+    const existingChildren: Array<[string, any]> = Object.entries(modifiedState.blocks).filter(
+      ([, b]: [string, any]) => b.data?.parentId === block_id
     )
 
-    // Add new nested blocks
+    const existingByName = new Map<string, [string, any]>()
+    for (const [id, child] of existingChildren) {
+      existingByName.set(normalizeName(child.name), [id, child])
+    }
+
+    const matchedExistingIds = new Set<string>()
+
     Object.entries(params.nestedNodes).forEach(([childId, childBlock]: [string, any]) => {
-      // Validate childId is a valid string
-      if (!isValidKey(childId)) {
-        logSkippedItem(skippedItems, {
-          type: 'missing_required_params',
-          operationType: 'add_nested_node',
-          blockId: String(childId || 'invalid'),
-          reason: `Invalid childId "${childId}" in nestedNodes - child block skipped`,
-        })
-        logger.error('Invalid childId detected in nestedNodes', {
-          parentBlockId: block_id,
-          childId,
-          childId_type: typeof childId,
-        })
-        return
-      }
-
       if (childBlock.type === 'loop' || childBlock.type === 'parallel') {
         logSkippedItem(skippedItems, {
           type: 'nested_subflow_not_allowed',
@@ -383,21 +370,107 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
         return
       }
 
-      const childBlockState = createBlockFromParams(
-        childId,
-        childBlock,
-        block_id,
-        validationErrors,
-        permissionConfig,
-        skippedItems
-      )
-      modifiedState.blocks[childId] = childBlockState
+      const incomingName = normalizeName(childBlock.name || '')
+      const existingMatch = incomingName ? existingByName.get(incomingName) : undefined
 
-      // Add connections for child block
-      if (childBlock.connections) {
-        addConnectionsAsEdges(modifiedState, childId, childBlock.connections, logger, skippedItems)
+      if (existingMatch) {
+        const [existingId, existingBlock] = existingMatch
+        matchedExistingIds.add(existingId)
+
+        if (childBlock.inputs) {
+          if (!existingBlock.subBlocks) existingBlock.subBlocks = {}
+          const childValidation = validateInputsForBlock(
+            existingBlock.type,
+            childBlock.inputs,
+            existingId
+          )
+          validationErrors.push(...childValidation.errors)
+
+          Object.entries(childValidation.validInputs).forEach(([key, value]) => {
+            if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) return
+            let sanitizedValue = value
+            if (shouldNormalizeArrayIds(key)) {
+              sanitizedValue = normalizeArrayWithIds(value)
+            }
+            sanitizedValue = normalizeConditionRouterIds(existingId, key, sanitizedValue)
+            if (key === 'tools' && Array.isArray(value)) {
+              sanitizedValue = filterDisallowedTools(
+                normalizeTools(value),
+                permissionConfig,
+                existingId,
+                skippedItems
+              )
+            }
+            if (key === 'responseFormat' && value) {
+              sanitizedValue = normalizeResponseFormat(value)
+            }
+
+            const subBlockDef = getBlock(existingBlock.type)?.subBlocks.find(
+              (sb: any) => sb.id === key
+            )
+            if (!existingBlock.subBlocks[key]) {
+              existingBlock.subBlocks[key] = {
+                id: key,
+                type: subBlockDef?.type || 'short-input',
+                value: sanitizedValue,
+              }
+            } else {
+              existingBlock.subBlocks[key].value = sanitizedValue
+            }
+          })
+        }
+
+        if (childBlock.connections) {
+          modifiedState.edges = modifiedState.edges.filter(
+            (edge: any) => edge.source !== existingId
+          )
+          deferredConnections.push({
+            blockId: existingId,
+            connections: childBlock.connections,
+          })
+        }
+      } else {
+        if (!isValidKey(childId)) {
+          logSkippedItem(skippedItems, {
+            type: 'missing_required_params',
+            operationType: 'add_nested_node',
+            blockId: String(childId || 'invalid'),
+            reason: `Invalid childId "${childId}" in nestedNodes - child block skipped`,
+          })
+          return
+        }
+
+        const childBlockState = createBlockFromParams(
+          childId,
+          childBlock,
+          block_id,
+          validationErrors,
+          permissionConfig,
+          skippedItems
+        )
+        modifiedState.blocks[childId] = childBlockState
+
+        if (childBlock.connections) {
+          deferredConnections.push({
+            blockId: childId,
+            connections: childBlock.connections,
+          })
+        }
       }
     })
+
+    const removedIds = new Set<string>()
+    for (const [existingId] of existingChildren) {
+      if (!matchedExistingIds.has(existingId)) {
+        delete modifiedState.blocks[existingId]
+        removedIds.add(existingId)
+      }
+    }
+    if (removedIds.size > 0) {
+      modifiedState.edges = modifiedState.edges.filter(
+        (edge: any) => !removedIds.has(edge.source) && !removedIds.has(edge.target)
+      )
+    }
 
     // Update loop/parallel configuration based on type (strict validation)
     if (block.type === 'loop') {
@@ -830,6 +903,8 @@ export function handleInsertIntoSubflowOperation(
             sanitizedValue = JSON.stringify(sanitizedValue)
           }
         }
+
+        sanitizedValue = normalizeConditionRouterIds(block_id, key, sanitizedValue)
 
         // Special handling for tools - normalize and filter disallowed
         if (key === 'tools' && Array.isArray(value)) {

@@ -17,6 +17,7 @@ import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
+import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
 import { applyOperationsToWorkflowState } from './engine'
 import type { EditWorkflowParams, ValidationError } from './types'
 import { preValidateCredentialInputs, validateWorkflowSelectorIds } from './validation'
@@ -34,42 +35,29 @@ async function getCurrentWorkflowStateFromDb(
   const normalized = await loadWorkflowFromNormalizedTables(workflowId)
   if (!normalized) throw new Error('Workflow has no normalized data')
 
-  // Validate and fix blocks without types
-  const blocks = { ...normalized.blocks }
-  const invalidBlocks: string[] = []
-
-  Object.entries(blocks).forEach(([id, block]: [string, any]) => {
-    if (!block.type) {
-      logger.warn(`Block ${id} loaded without type from database`, {
-        blockKeys: Object.keys(block),
-        blockName: block.name,
-      })
-      invalidBlocks.push(id)
-    }
-  })
-
-  // Remove invalid blocks
-  invalidBlocks.forEach((id) => delete blocks[id])
-
-  // Remove edges connected to invalid blocks
-  const edges = normalized.edges.filter(
-    (edge: any) => !invalidBlocks.includes(edge.source) && !invalidBlocks.includes(edge.target)
-  )
-
-  const workflowState: any = {
-    blocks,
-    edges,
+  const { state: validatedState, warnings } = normalizeWorkflowState({
+    blocks: normalized.blocks,
+    edges: normalized.edges,
     loops: normalized.loops || {},
     parallels: normalized.parallels || {},
+  })
+
+  if (warnings.length > 0) {
+    logger.warn('Normalized workflow state loaded from DB for copilot', {
+      workflowId,
+      warningCount: warnings.length,
+      warnings,
+    })
   }
+
   const subBlockValues: Record<string, Record<string, any>> = {}
-  Object.entries(normalized.blocks).forEach(([blockId, block]) => {
+  Object.entries(validatedState.blocks).forEach(([blockId, block]) => {
     subBlockValues[blockId] = {}
     Object.entries((block as any).subBlocks || {}).forEach(([subId, sub]) => {
       if ((sub as any).value !== undefined) subBlockValues[blockId][subId] = (sub as any).value
     })
   })
-  return { workflowState, subBlockValues }
+  return { workflowState: validatedState, subBlockValues }
 }
 
 export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown> = {
@@ -301,6 +289,8 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
 
     logger.info('Workflow state persisted to database', { workflowId })
 
+    const sanitizationWarnings = validation.warnings.length > 0 ? validation.warnings : undefined
+
     return {
       success: true,
       workflowId,
@@ -313,6 +303,10 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       ...(skippedMessages && {
         skippedItems: skippedMessages,
         skippedItemsMessage: `${skippedItems.length} operation(s) were skipped due to invalid references. Details: ${skippedMessages.join('; ')}`,
+      }),
+      ...(sanitizationWarnings && {
+        sanitizationWarnings,
+        sanitizationMessage: `${sanitizationWarnings.length} field(s) were automatically sanitized: ${sanitizationWarnings.join('; ')}`,
       }),
     }
   },

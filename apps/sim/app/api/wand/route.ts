@@ -10,7 +10,6 @@ import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { decrementSSEConnections, incrementSSEConnections } from '@/lib/monitoring/sse-connections'
 import { enrichTableSchema } from '@/lib/table/llm/wand'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import { extractResponseText, parseResponsesUsage } from '@/providers/openai/utils'
@@ -331,14 +330,10 @@ export async function POST(req: NextRequest) {
         const encoder = new TextEncoder()
         const decoder = new TextDecoder()
 
-        let wandStreamClosed = false
         const readable = new ReadableStream({
           async start(controller) {
-            incrementSSEConnections('wand')
             const reader = response.body?.getReader()
             if (!reader) {
-              wandStreamClosed = true
-              decrementSSEConnections('wand')
               controller.close()
               return
             }
@@ -483,18 +478,9 @@ export async function POST(req: NextRequest) {
               controller.close()
             } finally {
               reader.releaseLock()
-              if (!wandStreamClosed) {
-                wandStreamClosed = true
-                decrementSSEConnections('wand')
-              }
             }
           },
-          cancel() {
-            if (!wandStreamClosed) {
-              wandStreamClosed = true
-              decrementSSEConnections('wand')
-            }
-          },
+          cancel() {},
         })
 
         return new Response(readable, {

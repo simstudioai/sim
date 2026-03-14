@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
+import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { addConnectionsAsEdges, normalizeBlockIdsInOperations } from './builders'
 import {
@@ -242,7 +243,7 @@ export function applyOperationsToWorkflowState(
   // and deferred connections are applied so that every block has its final
   // parentId. Running it per-operation would incorrectly drop edges between
   // blocks that are both being moved into the same subflow in one batch.
-  removeInvalidScopeEdges(modifiedState)
+  removeInvalidScopeEdges(modifiedState, skippedItems)
 
   // Regenerate loops and parallels after modifications
 
@@ -291,33 +292,29 @@ export function applyOperationsToWorkflowState(
  * - Container→child: source is the parent container of the target (start handles)
  * - Child→container: target is the parent container of the source (end handles)
  */
-function removeInvalidScopeEdges(modifiedState: any): void {
-  const blocks = modifiedState.blocks || {}
-  const prevCount = modifiedState.edges?.length ?? 0
+function removeInvalidScopeEdges(modifiedState: any, skippedItems: SkippedItem[]): void {
+  const { valid, dropped } = validateEdges(modifiedState.edges || [], modifiedState.blocks || {})
+  modifiedState.edges = valid
 
-  modifiedState.edges = (modifiedState.edges || []).filter((edge: any) => {
-    const sourceBlock = blocks[edge.source]
-    const targetBlock = blocks[edge.target]
-    if (!sourceBlock || !targetBlock) return false
+  if (dropped.length > 0) {
+    for (const { edge, reason } of dropped) {
+      logSkippedItem(skippedItems, {
+        type: 'invalid_edge_scope',
+        operationType: 'add_edge',
+        blockId: edge.source,
+        reason: `Edge from "${edge.source}" to "${edge.target}" skipped - ${reason}`,
+        details: {
+          edgeId: edge.id,
+          sourceHandle: edge.sourceHandle,
+          targetHandle: edge.targetHandle,
+          targetId: edge.target,
+        },
+      })
+    }
 
-    const sourceParent = sourceBlock.data?.parentId ?? null
-    const targetParent = targetBlock.data?.parentId ?? null
-
-    // Same scope — always valid
-    if (sourceParent === targetParent) return true
-
-    // Container→child (e.g., loop-start-source → first child in loop)
-    if (targetParent === edge.source) return true
-
-    // Child→container (e.g., last child → loop-end via loop block edges)
-    if (sourceParent === edge.target) return true
-
-    // Different scopes with no parent-child relationship — invalid
-    return false
-  })
-
-  const removed = prevCount - (modifiedState.edges?.length ?? 0)
-  if (removed > 0) {
-    logger.info('Removed invalid scope-crossing edges', { removed })
+    logger.info('Removed invalid workflow edges', {
+      removed: dropped.length,
+      reasons: dropped.map(({ reason }) => reason),
+    })
   }
 }

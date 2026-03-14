@@ -171,11 +171,6 @@ describe('OAuth Token Refresh', () => {
     const bodyCredentialProviders = [
       { name: 'Google', providerId: 'google', endpoint: 'https://oauth2.googleapis.com/token' },
       {
-        name: 'GitHub',
-        providerId: 'github',
-        endpoint: 'https://github.com/login/oauth/access_token',
-      },
-      {
         name: 'Microsoft',
         providerId: 'microsoft',
         endpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
@@ -277,19 +272,6 @@ describe('OAuth Token Refresh', () => {
           expect(bodyParams.get('client_secret')).toBe(expectedClientSecret)
         }
       )
-    })
-
-    it.concurrent('should include Accept header for GitHub requests', async () => {
-      const mockFetch = createMockFetch(defaultOAuthResponse)
-      const refreshToken = 'test_refresh_token'
-
-      await withMockFetch(mockFetch, () => refreshOAuthToken('github', refreshToken))
-
-      const [, requestOptions] = mockFetch.mock.calls[0] as [
-        string,
-        { headers: Record<string, string>; body: string },
-      ]
-      expect(requestOptions.headers.Accept).toBe('application/json')
     })
 
     it.concurrent('should include User-Agent header for Reddit requests', async () => {

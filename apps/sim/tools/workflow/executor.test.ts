@@ -242,6 +242,101 @@ describe('workflowExecutorTool', () => {
     })
   })
 
+  describe('transformResponse', () => {
+    const transformResponse = workflowExecutorTool.transformResponse!
+
+    function mockResponse(body: any, status = 200): Response {
+      return {
+        ok: status >= 200 && status < 300,
+        status,
+        json: async () => body,
+      } as unknown as Response
+    }
+
+    it.concurrent('should parse standard format response', async () => {
+      const body = {
+        success: true,
+        executionId: '550e8400-e29b-41d4-a716-446655440000',
+        output: { result: 'hello' },
+        metadata: { duration: 500 },
+      }
+
+      const result = await transformResponse(mockResponse(body))
+
+      expect(result.success).toBe(true)
+      expect(result.output).toEqual({ result: 'hello' })
+      expect(result.duration).toBe(500)
+      expect(result.error).toBeUndefined()
+    })
+
+    it.concurrent('should parse standard format failure', async () => {
+      const body = {
+        success: false,
+        executionId: '550e8400-e29b-41d4-a716-446655440000',
+        output: {},
+        error: 'Something went wrong',
+      }
+
+      const result = await transformResponse(mockResponse(body))
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Something went wrong')
+    })
+
+    it.concurrent('should default success to false when missing', async () => {
+      const body = { output: { data: 'test' } }
+
+      const result = await transformResponse(mockResponse(body))
+
+      expect(result.success).toBe(false)
+      expect(result.output).toEqual({ data: 'test' })
+    })
+
+    it.concurrent('should default output to empty object when missing', async () => {
+      const body = { success: true }
+
+      const result = await transformResponse(mockResponse(body))
+
+      expect(result.success).toBe(true)
+      expect(result.output).toEqual({})
+      expect(result.result).toEqual({})
+    })
+
+    it.concurrent('should extract metadata duration', async () => {
+      const body = {
+        success: true,
+        output: {},
+        metadata: { duration: 1234 },
+      }
+
+      const result = await transformResponse(mockResponse(body))
+
+      expect(result.duration).toBe(1234)
+    })
+
+    it.concurrent('should default duration to 0 when metadata is missing', async () => {
+      const body = { success: true, output: {} }
+
+      const result = await transformResponse(mockResponse(body))
+
+      expect(result.duration).toBe(0)
+    })
+
+    it.concurrent('should extract workflowId and workflowName', async () => {
+      const body = {
+        success: true,
+        output: {},
+        workflowId: 'wf-123',
+        workflowName: 'My Workflow',
+      }
+
+      const result = await transformResponse(mockResponse(body))
+
+      expect(result.childWorkflowId).toBe('wf-123')
+      expect(result.childWorkflowName).toBe('My Workflow')
+    })
+  })
+
   describe('tool metadata', () => {
     it.concurrent('should have correct id', () => {
       expect(workflowExecutorTool.id).toBe('workflow_executor')

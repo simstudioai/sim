@@ -1,4 +1,5 @@
 import mysql from 'mysql2/promise'
+import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 
 export interface MySQLConnectionConfig {
   host: string
@@ -10,6 +11,11 @@ export interface MySQLConnectionConfig {
 }
 
 export async function createMySQLConnection(config: MySQLConnectionConfig) {
+  const hostValidation = await validateDatabaseHost(config.host, 'host')
+  if (!hostValidation.isValid) {
+    throw new Error(hostValidation.error)
+  }
+
   const connectionConfig: mysql.ConnectionOptions = {
     host: config.host,
     port: config.port,

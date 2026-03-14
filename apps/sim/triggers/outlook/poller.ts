@@ -24,6 +24,7 @@ export const outlookPollingTrigger: TriggerConfig = {
   description: 'Triggers when new emails are received in Outlook (requires Microsoft credentials)',
   version: '1.0.0',
   icon: OutlookIcon,
+  polling: true,
 
   subBlocks: [
     {

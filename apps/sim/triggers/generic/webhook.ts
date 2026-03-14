@@ -25,7 +25,7 @@ export const genericWebhookTrigger: TriggerConfig = {
       title: 'Require Authentication',
       type: 'switch',
       description: 'Require authentication for all webhook requests',
-      defaultValue: false,
+      defaultValue: true,
       mode: 'trigger',
     },
     {
@@ -36,6 +36,7 @@ export const genericWebhookTrigger: TriggerConfig = {
       description: 'Token used to authenticate webhook requests via Bearer token or custom header',
       password: true,
       required: false,
+      value: () => crypto.randomUUID(),
       mode: 'trigger',
     },
     {
@@ -47,6 +48,58 @@ export const genericWebhookTrigger: TriggerConfig = {
         'Custom HTTP header name for the auth token. If blank, uses "Authorization: Bearer TOKEN"',
       required: false,
       mode: 'trigger',
+    },
+    {
+      id: 'idempotencyField',
+      title: 'Deduplication Field (Optional)',
+      type: 'short-input',
+      placeholder: 'e.g. event.id',
+      description:
+        'Dot-notation path to a unique field in the payload for deduplication. If the same value is seen within 7 days, the duplicate webhook will be skipped.',
+      required: false,
+      mode: 'trigger',
+    },
+    {
+      id: 'responseMode',
+      title: 'Acknowledgement',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: 'default' },
+        { label: 'Custom', id: 'custom' },
+      ],
+      defaultValue: 'default',
+      mode: 'trigger',
+    },
+    {
+      id: 'verifyTestEvents',
+      title: 'Verify Test Events',
+      type: 'switch',
+      description:
+        'Return a temporary 200 response for test or verification probes on this webhook URL during setup.',
+      defaultValue: false,
+      mode: 'trigger',
+    },
+    {
+      id: 'responseStatusCode',
+      title: 'Response Status Code',
+      type: 'short-input',
+      placeholder: '200 (default)',
+      description:
+        'HTTP status code (100–599) to return to the webhook caller. Defaults to 200 if empty or invalid.',
+      required: false,
+      mode: 'trigger',
+      condition: { field: 'responseMode', value: 'custom' },
+    },
+    {
+      id: 'responseBody',
+      title: 'Response Body',
+      type: 'code',
+      language: 'json',
+      placeholder: '{"ok": true}',
+      description: 'JSON body to return to the webhook caller. Leave empty for no body.',
+      required: false,
+      mode: 'trigger',
+      condition: { field: 'responseMode', value: 'custom' },
     },
     {
       id: 'inputFormat',
@@ -75,7 +128,8 @@ export const genericWebhookTrigger: TriggerConfig = {
         'The webhook will receive any HTTP method (GET, POST, PUT, DELETE, etc.).',
         'All request data (headers, body, query parameters) will be available in your workflow.',
         'If authentication is enabled, include the token in requests using either the custom header or "Authorization: Bearer TOKEN".',
-        'Common fields like "event", "id", and "data" will be automatically extracted from the payload when available.',
+        'To deduplicate incoming events, set the Deduplication Field to the dot-notation path of a unique identifier in the payload (e.g. "event.id"). Duplicate values within 7 days will be skipped.',
+        'Enable "Verify Test Events" only if the sending service needs a temporary 200 response while validating the webhook URL.',
       ]
         .map(
           (instruction, index) =>

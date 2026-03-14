@@ -14,6 +14,7 @@ import {
 } from '@/lib/workflows/persistence/utils'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
@@ -226,12 +227,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     )
 
     const typedBlocks = filteredBlocks as Record<string, BlockState>
+    const validatedEdges = validateEdges(state.edges as WorkflowState['edges'], typedBlocks)
+    const validationWarnings = validatedEdges.dropped.map(
+      ({ edge, reason }) => `Dropped edge "${edge.id}": ${reason}`
+    )
     const canonicalLoops = generateLoopBlocks(typedBlocks)
     const canonicalParallels = generateParallelBlocks(typedBlocks)
 
     const workflowState = {
       blocks: filteredBlocks,
-      edges: state.edges,
+      edges: validatedEdges.valid,
       loops: canonicalLoops,
       parallels: canonicalParallels,
       lastSaved: state.lastSaved || Date.now(),
@@ -322,7 +327,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
-    return NextResponse.json({ success: true, warnings }, { status: 200 })
+    return NextResponse.json(
+      { success: true, warnings: [...warnings, ...validationWarnings] },
+      { status: 200 }
+    )
   } catch (error: any) {
     const elapsed = Date.now() - startTime
     logger.error(

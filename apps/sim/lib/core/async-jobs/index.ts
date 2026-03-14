@@ -1,6 +1,7 @@
 export {
   getAsyncBackendType,
   getCurrentBackendType,
+  getInlineJobQueue,
   getJobQueue,
   resetJobQueueCache,
   shouldExecuteInline,

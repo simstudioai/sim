@@ -5,7 +5,7 @@ import { and, eq, isNull, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
-import { checkHybridAuth, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { AuthType, checkHybridAuth, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { archiveWorkflow } from '@/lib/workflows/lifecycle'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const isInternalCall = auth.authType === 'internal_jwt'
+    const isInternalCall = auth.authType === AuthType.INTERNAL_JWT
     const userId = auth.userId || null
 
     let workflowData = await getWorkflowById(workflowId)

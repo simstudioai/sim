@@ -43,6 +43,7 @@ vi.mock('@/lib/auth', () => ({
 }))
 
 vi.mock('@/lib/auth/hybrid', () => ({
+  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
   checkHybridAuth: (...args: unknown[]) => mockCheckHybridAuth(...args),
   checkSessionOrInternalAuth: (...args: unknown[]) => mockCheckSessionOrInternalAuth(...args),
 }))

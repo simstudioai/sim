@@ -4,11 +4,15 @@ import { task } from '@trigger.dev/sdk'
 import { Cron } from 'croner'
 import { and, eq, isNull } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
-import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
+import {
+  executeWorkflowCore,
+  wasExecutionFinalizedByCore,
+} from '@/lib/workflows/executor/execution-core'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import {
   blockExistsInDeployment,
@@ -38,6 +42,23 @@ type RunWorkflowResult =
   | { status: 'skip'; blocks: Record<string, BlockState> }
   | { status: 'success'; blocks: Record<string, BlockState>; executionResult: ExecutionCoreResult }
   | { status: 'failure'; blocks: Record<string, BlockState>; executionResult: ExecutionCoreResult }
+
+export function buildScheduleCorrelation(
+  payload: ScheduleExecutionPayload
+): AsyncExecutionCorrelation {
+  const executionId = payload.executionId || uuidv4()
+  const requestId = payload.requestId || payload.correlation?.requestId || executionId.slice(0, 8)
+
+  return {
+    executionId,
+    requestId,
+    source: 'schedule',
+    workflowId: payload.workflowId,
+    scheduleId: payload.scheduleId,
+    triggerType: payload.correlation?.triggerType || 'schedule',
+    scheduledFor: payload.scheduledFor || payload.correlation?.scheduledFor,
+  }
+}
 
 async function applyScheduleUpdate(
   scheduleId: string,
@@ -117,6 +138,7 @@ async function determineNextRunAfterError(
 
 async function runWorkflowExecution({
   payload,
+  correlation,
   workflowRecord,
   actorUserId,
   loggingSession,
@@ -125,6 +147,7 @@ async function runWorkflowExecution({
   asyncTimeout,
 }: {
   payload: ScheduleExecutionPayload
+  correlation: AsyncExecutionCorrelation
   workflowRecord: WorkflowRecord
   actorUserId: string
   loggingSession: LoggingSession
@@ -177,6 +200,7 @@ async function runWorkflowExecution({
       useDraftState: false,
       startTime: new Date().toISOString(),
       isClientSession: false,
+      correlation,
     }
 
     const snapshot = new ExecutionSnapshot(
@@ -257,6 +281,10 @@ async function runWorkflowExecution({
   } catch (error: unknown) {
     logger.error(`[${requestId}] Early failure in scheduled workflow ${payload.workflowId}`, error)
 
+    if (wasExecutionFinalizedByCore(error, executionId)) {
+      throw error
+    }
+
     const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
     const { traceSpans } = executionResult ? buildTraceSpans(executionResult) : { traceSpans: [] }
 
@@ -275,6 +303,9 @@ async function runWorkflowExecution({
 export type ScheduleExecutionPayload = {
   scheduleId: string
   workflowId: string
+  executionId?: string
+  requestId?: string
+  correlation?: AsyncExecutionCorrelation
   blockId?: string
   cronExpression?: string
   lastRanAt?: string
@@ -309,8 +340,9 @@ function calculateNextRunTime(
 }
 
 export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
-  const executionId = uuidv4()
-  const requestId = executionId.slice(0, 8)
+  const correlation = buildScheduleCorrelation(payload)
+  const executionId = correlation.executionId
+  const requestId = correlation.requestId
   const now = new Date(payload.now)
   const scheduledFor = payload.scheduledFor ? new Date(payload.scheduledFor) : null
 
@@ -368,6 +400,7 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
       checkRateLimit: true,
       checkDeployment: true,
       loggingSession,
+      triggerData: { correlation },
     })
 
     if (!preprocessResult.success) {
@@ -503,11 +536,16 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
       return
     }
 
+    if (!workflowRecord.workspaceId) {
+      throw new Error(`Workflow ${payload.workflowId} has no associated workspace`)
+    }
+
     logger.info(`[${requestId}] Executing scheduled workflow ${payload.workflowId}`)
 
     try {
       const executionResult = await runWorkflowExecution({
         payload,
+        correlation,
         workflowRecord,
         actorUserId,
         loggingSession,
