@@ -499,6 +499,19 @@ async function processWorkspace(
 
     stats.workspacesProcessed++
 
+    const existingBYOKProviders = new Set<string>()
+    if (DRY_RUN) {
+      const existingRows = await db
+        .select({ providerId: workspaceBYOKKeys.providerId })
+        .from(workspaceBYOKKeys)
+        .where(eq(workspaceBYOKKeys.workspaceId, workspaceId))
+      for (const row of existingRows) {
+        existingBYOKProviders.add(row.providerId)
+      }
+    }
+
+    let hasNewInserts = false
+
     for (const [providerId, refs] of providerKeys) {
       const resolved: { ref: RawKeyRef; key: string; source: KeySource }[] = []
       const resolveCtx: ResolveKeyContext = { workspaceId, workspaceOwnerId }
@@ -543,6 +556,14 @@ async function processWorkspace(
       const chosen = resolved[0]
 
       if (DRY_RUN) {
+        if (existingBYOKProviders.has(providerId)) {
+          console.log(
+            `  [DRY RUN] BYOK already exists for provider "${providerId}", skipping`
+          )
+          stats.skippedExisting++
+          continue
+        }
+        hasNewInserts = true
         console.log(
           `  [DRY RUN] Would insert BYOK for provider "${providerId}": ${maskKey(chosen.key)}`
         )
@@ -579,7 +600,7 @@ async function processWorkspace(
     }
 
     console.log(`  [${index}/${total}] Done with workspace ${workspaceId}\n`)
-    return { stats, shouldWriteWorkspaceId: DRY_RUN }
+    return { stats, shouldWriteWorkspaceId: DRY_RUN && hasNewInserts }
   } catch (error) {
     console.error(`  [ERROR] Failed workspace ${workspaceId}:`, error)
     stats.errors++
@@ -600,6 +621,7 @@ async function run() {
   console.log('---\n')
 
   const stats = createEmptyStats()
+  let workspaceIdsWritten = 0
 
   try {
     // 1. Get distinct workspace IDs that have matching blocks
@@ -687,6 +709,7 @@ async function run() {
               resolve('migrate-byok-workspace-ids.txt'),
               `${workspaceIdsWithKeys.join('\n')}\n`
             )
+            workspaceIdsWritten += workspaceIdsWithKeys.length
           }
         }
 
@@ -716,7 +739,7 @@ async function run() {
 
     if (DRY_RUN) {
       console.log(
-        `\n[DRY RUN] Wrote ${stats.workspacesProcessed} workspace IDs (with keys) to migrate-byok-workspace-ids.txt`
+        `\n[DRY RUN] Wrote ${workspaceIdsWritten} workspace IDs (with new keys to insert) to migrate-byok-workspace-ids.txt`
       )
       console.log('[DRY RUN] No changes were made to the database.')
       console.log('Run without --dry-run to apply changes.')
