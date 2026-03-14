@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { permissions, workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, inArray, isNull, min } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNull, min } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
@@ -27,6 +27,9 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now()
   const url = new URL(request.url)
   const workspaceId = url.searchParams.get('workspaceId')
+  const cursor = url.searchParams.get('cursor')
+  const limitParam = url.searchParams.get('limit')
+  const limit = Math.min(Math.max(parseInt(limitParam || '100', 10) || 100, 1), 500)
 
   try {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -66,12 +69,16 @@ export async function GET(request: NextRequest) {
 
     const orderByClause = [asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id)]
 
+    // Fetch limit+1 to detect if there are more pages
+    const fetchLimit = limit + 1
+
     if (workspaceId) {
       workflows = await db
         .select()
         .from(workflow)
         .where(eq(workflow.workspaceId, workspaceId))
         .orderBy(...orderByClause)
+        .limit(fetchLimit)
     } else {
       const workspacePermissionRows = await db
         .select({ workspaceId: permissions.entityId })
@@ -86,9 +93,15 @@ export async function GET(request: NextRequest) {
         .from(workflow)
         .where(inArray(workflow.workspaceId, workspaceIds))
         .orderBy(...orderByClause)
+        .limit(fetchLimit)
     }
 
-    return NextResponse.json({ data: workflows }, { status: 200 })
+    // Determine if there are more results and set cursor
+    const hasMore = workflows.length > limit
+    const data = hasMore ? workflows.slice(0, limit) : workflows
+    const nextCursor = hasMore ? data[data.length - 1]?.id : null
+
+    return NextResponse.json({ data, nextCursor }, { status: 200 })
   } catch (error: any) {
     const elapsed = Date.now() - startTime
     logger.error(`[${requestId}] Workflow fetch error after ${elapsed}ms`, error)
