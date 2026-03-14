@@ -1212,6 +1212,13 @@
       "when": 1773395340207,
       "tag": "0173_bored_zeigeist",
       "breakpoints": true
+    },
+    {
+      "idx": 174,
+      "version": "7",
+      "when": 1773531959762,
+      "tag": "0174_strange_steel_serpent",
+      "breakpoints": true
     }
   ]
 }
