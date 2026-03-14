@@ -1,6 +1,5 @@
 'use client'
 import { generateId } from '../../lib/utils/uuid'
-'use client'
 
 import { useCallback, useMemo } from 'react'
 import type { ComboboxOption } from '@/components/emcn'
