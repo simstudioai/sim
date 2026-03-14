@@ -33,11 +33,26 @@
   opacity: 0;
 }
 
+html[data-sidebar-collapsed] .sidebar-container span,
+html[data-sidebar-collapsed] .sidebar-container .text-small {
+  opacity: 0;
+}
+
 .sidebar-container .sidebar-collapse-hide {
   transition: opacity 60ms ease;
 }
 
-.sidebar-container[data-collapsed] .sidebar-collapse-hide {
+.sidebar-container[data-collapsed] .sidebar-collapse-hide,
+html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-hide {
+  opacity: 0;
+}
+
+html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-remove {
+  display: none;
+}
+
+html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
+  width: 0;
   opacity: 0;
 }
 

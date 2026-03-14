@@ -13,6 +13,10 @@ import {
   useSidebarDragContextValue,
   useWorkflowSelection,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import {
+  compareByOrder,
+  groupWorkflowsByFolder,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useFolders } from '@/hooks/queries/folders'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
@@ -21,17 +25,6 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 const TREE_SPACING = {
   INDENT_PER_LEVEL: 20,
 } as const
-
-function compareByOrder<T extends { sortOrder: number; createdAt?: Date; id: string }>(
-  a: T,
-  b: T
-): number {
-  if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
-  const timeA = a.createdAt?.getTime() ?? 0
-  const timeB = b.createdAt?.getTime() ?? 0
-  if (timeA !== timeB) return timeA - timeB
-  return a.id.localeCompare(b.id)
-}
 
 interface WorkflowListProps {
   workspaceId: string
@@ -129,21 +122,10 @@ export const WorkflowList = memo(function WorkflowList({
     return activeWorkflow?.folderId || null
   }, [workflowId, regularWorkflows, isLoading, foldersLoading])
 
-  const workflowsByFolder = useMemo(() => {
-    const grouped = regularWorkflows.reduce(
-      (acc, workflow) => {
-        const folderId = workflow.folderId || 'root'
-        if (!acc[folderId]) acc[folderId] = []
-        acc[folderId].push(workflow)
-        return acc
-      },
-      {} as Record<string, WorkflowMetadata[]>
-    )
-    for (const folderId of Object.keys(grouped)) {
-      grouped[folderId].sort(compareByOrder)
-    }
-    return grouped
-  }, [regularWorkflows])
+  const workflowsByFolder = useMemo(
+    () => groupWorkflowsByFolder(regularWorkflows),
+    [regularWorkflows]
+  )
 
   const orderedWorkflowIds = useMemo(() => {
     const ids: string[] = []

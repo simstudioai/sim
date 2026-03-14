@@ -4,6 +4,7 @@ export { type DropIndicator, useDragDrop } from './use-drag-drop'
 export { useFolderExpand } from './use-folder-expand'
 export { useFolderOperations } from './use-folder-operations'
 export { useFolderSelection } from './use-folder-selection'
+export { useHoverMenu } from './use-hover-menu'
 export { useItemDrag } from './use-item-drag'
 export { useItemRename } from './use-item-rename'
 export {

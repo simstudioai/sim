@@ -114,6 +114,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
                     if (isCollapsed) {
                       document.documentElement.style.setProperty('--sidebar-width', '51px');
+                      document.documentElement.setAttribute('data-sidebar-collapsed', '');
                     } else {
                       var width = state && state.sidebarWidth;
                       var maxSidebarWidth = window.innerWidth * 0.3;
