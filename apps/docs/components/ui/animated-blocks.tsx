@@ -183,11 +183,11 @@ export function AnimatedBlocks() {
         <BlockGroup width={295} height={34} viewBox='0 0 295 34' rects={RECTS.topRight} />
       </div>
 
-      <div className='absolute bottom-0 -left-24 w-[calc(140px+10.76vw)] max-w-[295px] rotate-180'>
+      <div className='-left-24 absolute bottom-0 w-[calc(140px+10.76vw)] max-w-[295px] rotate-180'>
         <BlockGroup width={295} height={34} viewBox='0 0 295 34' rects={RECTS.bottomLeft} />
       </div>
 
-      <div className='absolute right-0 -bottom-2 w-[calc(16px+1.25vw)] max-w-[34px]'>
+      <div className='-bottom-2 absolute right-0 w-[calc(16px+1.25vw)] max-w-[34px]'>
         <BlockGroup width={34} height={102} viewBox='0 0 34 102' rects={RECTS.bottomRight} />
       </div>
     </div>

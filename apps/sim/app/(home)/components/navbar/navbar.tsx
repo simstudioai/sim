@@ -11,7 +11,7 @@ interface NavLink {
 }
 
 const NAV_LINKS: NavLink[] = [
-  { label: 'Docs', href: '/docs', icon: 'chevron' },
+  { label: 'Docs', href: 'https://docs.sim.ai', external: true },
   { label: 'Pricing', href: '/pricing' },
   { label: 'Careers', href: '/careers' },
   { label: 'Enterprise', href: '/enterprise' },
