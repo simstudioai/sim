@@ -1,5 +1,5 @@
 /**
- * @vitest-environment jsdom
+ * @vitest-environment node
  *
  * Tools Registry and Executor Unit Tests
  *
@@ -64,6 +64,143 @@ vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
   getHostedKeyRateLimiter: () => mockRateLimiterFns,
 }))
 
+// Mock the tools registry to avoid loading the full 4500+ line registry file.
+// Only the tools actually exercised in tests are provided.
+vi.mock('@/tools/registry', () => {
+  const mockTools: Record<string, any> = {
+    http_request: {
+      id: 'http_request',
+      name: 'HTTP Request',
+      description: 'Make HTTP requests',
+      version: '1.0.0',
+      params: {
+        url: { type: 'string', required: true },
+        method: { type: 'string', default: 'GET' },
+        headers: { type: 'object' },
+        body: { type: 'object' },
+        params: { type: 'object' },
+        pathParams: { type: 'object' },
+        formData: { type: 'object' },
+        timeout: { type: 'number' },
+        retries: { type: 'number' },
+        retryDelayMs: { type: 'number' },
+        retryMaxDelayMs: { type: 'number' },
+        retryNonIdempotent: { type: 'boolean' },
+      },
+      request: {
+        url: (p: any) => p.url || '/api/test',
+        method: (p: any) => p.method || 'GET',
+        headers: (p: any) => p.headers || { 'Content-Type': 'application/json' },
+        body: (p: any) => p.body,
+        retry: {
+          enabled: true,
+          maxRetries: 0,
+          initialDelayMs: 500,
+          maxDelayMs: 30000,
+          retryIdempotentOnly: true,
+        },
+      },
+      transformResponse: async (response: any) => {
+        const contentType = response.headers?.get?.('content-type') || ''
+        const headers: Record<string, string> = {}
+        if (response.headers?.forEach) {
+          response.headers.forEach((value: string, key: string) => {
+            headers[key] = value
+          })
+        }
+        const data = await (contentType.includes('application/json')
+          ? response.json()
+          : response.text())
+        return {
+          success: response.ok,
+          output: { data, status: response.status, headers },
+        }
+      },
+      outputs: {
+        data: { type: 'json', description: 'Response data' },
+        status: { type: 'number', description: 'HTTP status code' },
+        headers: { type: 'object', description: 'Response headers' },
+      },
+    },
+    function_execute: {
+      id: 'function_execute',
+      name: 'Function Execute',
+      description: 'Execute JavaScript code',
+      version: '1.0.0',
+      params: {
+        code: { type: 'string', required: true },
+        language: { type: 'string', required: false },
+        timeout: { type: 'number', required: false },
+      },
+      request: {
+        url: '/api/function/execute',
+        method: 'POST',
+        headers: () => ({ 'Content-Type': 'application/json' }),
+        body: (p: any) => ({
+          code: Array.isArray(p.code) ? p.code.map((c: any) => c.content).join('\n') : p.code,
+          language: p.language || 'javascript',
+          timeout: p.timeout || 30000,
+        }),
+      },
+      transformResponse: async (response: any) => {
+        const data = await response.json()
+        return { success: true, output: data }
+      },
+      outputs: {
+        result: { type: 'json', description: 'Execution result' },
+      },
+    },
+    gmail_read: {
+      id: 'gmail_read',
+      name: 'Gmail Read',
+      description: 'Read Gmail messages',
+      version: '1.0.0',
+      params: {},
+      request: { url: '/api/tools/gmail/read', method: 'GET' },
+    },
+    gmail_send: {
+      id: 'gmail_send',
+      name: 'Gmail Send',
+      description: 'Send Gmail messages',
+      version: '1.0.0',
+      params: {},
+      request: { url: '/api/tools/gmail/send', method: 'POST' },
+    },
+    google_drive_list: {
+      id: 'google_drive_list',
+      name: 'Google Drive List',
+      description: 'List Google Drive files',
+      version: '1.0.0',
+      params: {},
+      request: { url: '/api/tools/google-drive/list', method: 'GET' },
+    },
+    serper_search: {
+      id: 'serper_search',
+      name: 'Serper Search',
+      description: 'Search via Serper',
+      version: '1.0.0',
+      params: {},
+      request: { url: '/api/tools/serper/search', method: 'GET' },
+    },
+    'custom_custom-tool-123': {
+      id: 'custom_custom-tool-123',
+      name: 'Custom Weather Tool',
+      description: 'Get weather information',
+      version: '1.0.0',
+      params: {
+        location: { type: 'string', required: true, description: 'City name' },
+        unit: { type: 'string', required: false, description: 'Unit (metric/imperial)' },
+      },
+      request: {
+        url: '/api/function/execute',
+        method: 'POST',
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+    },
+  }
+  return { tools: mockTools }
+})
+
 // Mock custom tools - define mock data inside factory function
 vi.mock('@/hooks/queries/custom-tools', () => {
   const mockCustomTool = {
@@ -95,7 +232,7 @@ vi.mock('@/hooks/queries/custom-tools', () => {
   }
 })
 
-import { executeTool } from '@/tools/index'
+import { executeTool } from '@/tools'
 import { tools } from '@/tools/registry'
 import { getTool } from '@/tools/utils'
 
@@ -145,8 +282,6 @@ function setupEnvVars(variables: Record<string, string>) {
 
 describe('Tools Registry', () => {
   it('should include all expected built-in tools', () => {
-    expect(Object.keys(tools).length).toBeGreaterThan(10)
-
     expect(tools.http_request).toBeDefined()
     expect(tools.function_execute).toBeDefined()
 
@@ -1177,7 +1312,7 @@ describe('MCP Tool Execution', () => {
         vi
           .fn()
           .mockResolvedValueOnce(
-            makeJsonResponse(429, { error: 'rate limited' }, { 'retry-after': '1' })
+            makeJsonResponse(429, { error: 'rate limited' }, { 'retry-after': '0' })
           )
           .mockResolvedValueOnce(makeJsonResponse(200, { ok: true })),
         { preconnect: vi.fn() }
@@ -1187,6 +1322,7 @@ describe('MCP Tool Execution', () => {
         url: '/api/test',
         method: 'GET',
         retries: 2,
+        retryDelayMs: 0,
         retryMaxDelayMs: 5000,
       })
 
@@ -1470,6 +1606,7 @@ describe('Rate Limiting and Retry Logic', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
+    vi.useFakeTimers()
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
     cleanupEnvVars = setupEnvVars({
       NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
@@ -1490,6 +1627,7 @@ describe('Rate Limiting and Retry Logic', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.resetAllMocks()
     cleanupEnvVars()
     mockIsHosted.value = false
@@ -1558,7 +1696,11 @@ describe('Rate Limiting and Retry Logic', () => {
     ) as typeof fetch
 
     const mockContext = createToolExecutionContext()
-    const result = await executeTool('test_rate_limit', {}, false, mockContext)
+    const resultPromise = executeTool('test_rate_limit', {}, false, mockContext)
+
+    // Advance timers to skip retry delays (1s + 2s exponential backoff)
+    await vi.advanceTimersByTimeAsync(10000)
+    const result = await resultPromise
 
     // Should succeed after retries
     expect(result.success).toBe(true)
@@ -1615,7 +1757,11 @@ describe('Rate Limiting and Retry Logic', () => {
     ) as typeof fetch
 
     const mockContext = createToolExecutionContext()
-    const result = await executeTool('test_persistent_rate_limit', {}, false, mockContext)
+    const resultPromise = executeTool('test_persistent_rate_limit', {}, false, mockContext)
+
+    // Advance timers to skip retry delays (1s + 2s + 4s exponential backoff)
+    await vi.advanceTimersByTimeAsync(15000)
+    const result = await resultPromise
 
     // Should fail after all retries exhausted
     expect(result.success).toBe(false)

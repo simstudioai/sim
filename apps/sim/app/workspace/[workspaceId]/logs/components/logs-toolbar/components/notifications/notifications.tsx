@@ -38,6 +38,7 @@ import {
   useConnectedAccounts,
   useConnectOAuthService,
 } from '@/hooks/queries/oauth/oauth-connections'
+import type { CoreTriggerType } from '@/stores/logs/filters/types'
 import { SlackChannelSelector } from './components/slack-channel-selector'
 import { WorkflowSelector } from './components/workflow-selector'
 
@@ -427,7 +428,7 @@ export const NotificationSettings = memo(function NotificationSettings({
       workflowIds: formData.workflowIds,
       allWorkflows: formData.allWorkflows,
       levelFilter: formData.levelFilter,
-      triggerFilter: formData.triggerFilter,
+      triggerFilter: formData.triggerFilter as CoreTriggerType[],
       includeFinalOutput: formData.includeFinalOutput,
       // Trace spans only available for webhooks (too large for email/Slack)
       includeTraceSpans: activeTab === 'webhook' ? formData.includeTraceSpans : false,
