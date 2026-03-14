@@ -17,7 +17,6 @@ const RESOURCE_TOOL_NAMES = new Set([
   'create_workflow',
   'edit_workflow',
   'function_execute',
-  'read',
   'knowledge_base',
   'knowledge',
 ])
@@ -92,8 +91,7 @@ export function extractResourcesFromToolResult(
       return []
     }
 
-    case 'function_execute':
-    case 'read': {
+    case 'function_execute': {
       if (result.tableId) {
         return [
           {

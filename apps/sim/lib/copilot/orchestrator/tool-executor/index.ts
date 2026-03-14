@@ -992,6 +992,30 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
   glob: (p, c) => executeVfsGlob(p, c),
   read: (p, c) => executeVfsRead(p, c),
   list: (p, c) => executeVfsList(p, c),
+
+  // Resource visibility
+  open_resource: async (p) => {
+    const resourceType = p.type as string | undefined
+    const resourceId = p.id as string | undefined
+    if (!resourceType || !resourceId) {
+      return { success: false, error: 'type and id are required' }
+    }
+    const validTypes = new Set(['workflow', 'table', 'knowledgebase', 'file'])
+    if (!validTypes.has(resourceType)) {
+      return { success: false, error: `Invalid resource type: ${resourceType}` }
+    }
+    return {
+      success: true,
+      output: { message: `Opened ${resourceType} ${resourceId} for the user` },
+      resources: [
+        {
+          type: resourceType as 'workflow' | 'table' | 'knowledgebase' | 'file',
+          id: resourceId,
+          title: resourceType,
+        },
+      ],
+    }
+  },
 }
 
 /**

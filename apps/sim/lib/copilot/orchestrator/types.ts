@@ -25,6 +25,9 @@ export interface SSEEvent {
   /** Authoritative tool call state set by the Go backend */
   state?: string
   data?: Record<string, unknown>
+  /** Parent agent that produced this event */
+  agent?: string
+  /** Subagent identifier (e.g. "build", "fast_edit") */
   subagent?: string
   toolCallId?: string
   toolName?: string

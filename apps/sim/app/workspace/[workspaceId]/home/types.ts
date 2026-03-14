@@ -73,6 +73,7 @@ export type MothershipToolName =
   | 'debug'
   | 'edit'
   | 'fast_edit'
+  | 'open_resource'
 
 /**
  * Subagent identifiers dispatched via `subagent_start` SSE events.
@@ -95,6 +96,9 @@ export type SubagentName =
   | 'debug'
   | 'edit'
   | 'fast_edit'
+  | 'run'
+  | 'agent'
+  | 'job'
 
 export type ToolPhase =
   | 'workspace'
@@ -181,7 +185,10 @@ export const SUBAGENT_LABELS: Record<SubagentName, string> = {
   plan: 'Plan agent',
   debug: 'Debug agent',
   edit: 'Edit agent',
-  fast_edit: 'Edit agent',
+  fast_edit: 'Build agent',
+  run: 'Run agent',
+  agent: 'Agent manager',
+  job: 'Job agent',
 } as const
 
 export interface ToolUIMetadata {
@@ -227,6 +234,7 @@ export const TOOL_UI_METADATA: Partial<Record<MothershipToolName, ToolUIMetadata
   debug: { title: 'Debugging', phaseLabel: 'Debug', phase: 'subagent' },
   edit: { title: 'Editing workflow', phaseLabel: 'Edit', phase: 'subagent' },
   fast_edit: { title: 'Editing workflow', phaseLabel: 'Edit', phase: 'subagent' },
+  open_resource: { title: 'Opening resource', phaseLabel: 'Resource', phase: 'resource' },
 }
 
 export interface SSEPayloadUI {

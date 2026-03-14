@@ -7,6 +7,7 @@ import {
   Calendar,
   ClipboardList,
   Database,
+  Eye,
   File,
   FolderCode,
   Hammer,
@@ -59,6 +60,7 @@ const TOOL_ICONS: Record<MothershipToolName | SubagentName | 'mothership', IconC
   debug: Bug,
   edit: Pencil,
   fast_edit: Pencil,
+  open_resource: Eye,
 }
 
 export function getAgentIcon(name: string): IconComponent {

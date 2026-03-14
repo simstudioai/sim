@@ -1185,6 +1185,18 @@ const META_mark_todo_in_progress: ToolMetadata = {
   },
 }
 
+const META_open_resource: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Opening resource', icon: Eye },
+    [ClientToolCallState.pending]: { text: 'Opening resource', icon: Eye },
+    [ClientToolCallState.executing]: { text: 'Opening resource', icon: Eye },
+    [ClientToolCallState.success]: { text: 'Opened resource', icon: Eye },
+    [ClientToolCallState.error]: { text: 'Failed to open resource', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped opening resource', icon: XCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted opening resource', icon: XCircle },
+  },
+}
+
 const META_navigate_ui: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: {
@@ -2187,6 +2199,26 @@ const META_edit: ToolMetadata = {
   },
 }
 
+const META_fast_edit: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Building', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Building', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Building', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Built', icon: Wrench },
+    [ClientToolCallState.error]: { text: 'Failed to build', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped build', icon: XCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted build', icon: XCircle },
+  },
+  uiConfig: {
+    subagent: {
+      streamingLabel: 'Building',
+      completedLabel: 'Built',
+      shouldCollapse: true,
+      outputArtifacts: [],
+    },
+  },
+}
+
 const META_debug: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Debugging', icon: Loader2 },
@@ -2399,6 +2431,7 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   deploy_chat: META_deploy_chat,
   deploy_mcp: META_deploy_mcp,
   edit: META_edit,
+  fast_edit: META_fast_edit,
   edit_workflow: META_edit_workflow,
   get_block_outputs: META_get_block_outputs,
   get_block_upstream_references: META_get_block_upstream_references,
@@ -2428,6 +2461,7 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   navigate_ui: META_navigate_ui,
   oauth_get_auth_link: META_oauth_get_auth_link,
   oauth_request_access: META_oauth_request_access,
+  open_resource: META_open_resource,
   plan: META_plan,
   read: META_read,
   redeploy: META_redeploy,
