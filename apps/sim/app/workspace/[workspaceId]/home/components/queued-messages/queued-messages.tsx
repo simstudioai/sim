@@ -74,7 +74,7 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
                       type='button'
                       onClick={(e) => {
                         e.stopPropagation()
-                        onSendNow(msg.id)
+                        void onSendNow(msg.id)
                       }}
                       className='rounded-[6px] p-[5px] text-[var(--text-tertiary)] transition-colors hover:bg-black/[0.06] hover:text-[var(--text-primary)] dark:hover:bg-white/[0.06]'
                     >
