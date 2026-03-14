@@ -176,6 +176,8 @@ export const Notifications = memo(function Notifications() {
   useEffect(() => {
     if (visibleNotifications.length === 0) {
       if (isPaused) setIsPaused(false)
+      for (const timer of timersRef.current.values()) clearTimeout(timer)
+      timersRef.current.clear()
       return
     }
     if (isPaused) return
