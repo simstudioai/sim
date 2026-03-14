@@ -12,10 +12,10 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Skeleton,
   TagInput,
   Textarea,
 } from '@/components/emcn'
-import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { captureAndUploadOGImage, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH } from '@/lib/og'

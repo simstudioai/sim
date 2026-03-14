@@ -9,9 +9,9 @@ import {
   PopoverContent,
   PopoverItem,
   PopoverTrigger,
+  Skeleton,
   Tooltip,
 } from '@/components/emcn'
-import { Skeleton } from '@/components/ui'
 import { formatDateTime } from '@/lib/core/utils/formatting'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { useUpdateDeploymentVersion } from '@/hooks/queries/deployments'

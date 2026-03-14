@@ -4,14 +4,12 @@ import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { useSession } from '@/lib/auth/auth-client'
-import { useReferralAttribution } from '@/hooks/use-referral-attribution'
 
 const logger = createLogger('WorkspacePage')
 
 export default function WorkspacePage() {
   const router = useRouter()
   const { data: session, isPending } = useSession()
-  useReferralAttribution()
 
   useEffect(() => {
     const redirectToFirstWorkspace = async () => {

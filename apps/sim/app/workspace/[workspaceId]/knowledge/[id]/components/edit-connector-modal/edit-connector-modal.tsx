@@ -19,8 +19,8 @@ import {
   ModalTabsContent,
   ModalTabsList,
   ModalTabsTrigger,
+  Skeleton,
 } from '@/components/emcn'
-import { Skeleton } from '@/components/ui/skeleton'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfig } from '@/connectors/types'
 import type { ConnectorData } from '@/hooks/queries/kb/connectors'

@@ -298,49 +298,6 @@ export function useUpgradeSubscription() {
 }
 
 /**
- * Redeem referral/promo code mutation
- */
-interface RedeemReferralCodeParams {
-  code: string
-}
-
-interface RedeemReferralCodeResponse {
-  redeemed: boolean
-  bonusAmount?: number
-  error?: string
-}
-
-export function useRedeemReferralCode() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ code }: RedeemReferralCodeParams): Promise<RedeemReferralCodeResponse> => {
-      const response = await fetch('/api/referral-code/redeem', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to redeem code')
-      }
-
-      if (!data.redeemed) {
-        throw new Error(data.error || 'Code could not be redeemed')
-      }
-
-      return data
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() })
-      queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() })
-    },
-  })
-}
-
-/**
  * Purchase credits mutation
  */
 interface PurchaseCreditsParams {

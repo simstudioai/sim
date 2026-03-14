@@ -27,8 +27,8 @@ import {
   PopoverContent,
   PopoverItem,
   PopoverTrigger,
+  Skeleton,
 } from '@/components/emcn'
-import { Skeleton } from '@/components/ui/skeleton'
 import { VerifiedBadge } from '@/components/ui/verified-badge'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'

@@ -20,9 +20,10 @@ import {
   ModalTabsContent,
   ModalTabsList,
   ModalTabsTrigger,
+  Skeleton,
   Switch,
 } from '@/components/emcn'
-import { Input as BaseInput, Skeleton } from '@/components/ui'
+import { Input as BaseInput } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionStatus } from '@/lib/billing/client'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'

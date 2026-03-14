@@ -13,9 +13,9 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Skeleton,
   Tooltip,
 } from '@/components/emcn'
-import { Skeleton } from '@/components/ui'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { Preview, PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useDeploymentVersionState, useRevertToVersion } from '@/hooks/queries/workflows'

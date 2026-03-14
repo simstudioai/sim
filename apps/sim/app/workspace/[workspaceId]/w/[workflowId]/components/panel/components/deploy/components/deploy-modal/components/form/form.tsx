@@ -8,12 +8,12 @@ import {
   ButtonGroupItem,
   Input,
   Label,
+  Skeleton,
   TagInput,
   type TagItem,
   Textarea,
   Tooltip,
 } from '@/components/emcn'
-import { Skeleton } from '@/components/ui'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl, getEmailDomain } from '@/lib/core/utils/urls'
