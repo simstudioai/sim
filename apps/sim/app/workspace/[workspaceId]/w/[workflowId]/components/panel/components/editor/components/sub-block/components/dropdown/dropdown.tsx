@@ -1,3 +1,4 @@
+import { generateId } from '../../../../../../../../../../../../../lib/utils/uuid'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import isEqual from 'lodash/isEqual'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
@@ -276,7 +277,7 @@ export const Dropdown = memo(function Dropdown({
             fieldType === 'object' || fieldType === 'array' ? JSON.stringify(value, null, 2) : value
 
           return {
-            id: crypto.randomUUID(),
+            id: generateId(),
             name: key,
             type: fieldType,
             value: fieldValue,

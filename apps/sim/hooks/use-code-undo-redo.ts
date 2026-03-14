@@ -1,3 +1,4 @@
+import { generateId } from '../lib/utils/uuid'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { useShallow } from 'zustand/react/shallow'
@@ -83,7 +84,7 @@ export function useCodeUndoRedo({
     }
 
     useCodeUndoRedoStore.getState().push({
-      id: crypto.randomUUID(),
+      id: generateId(),
       createdAt: Date.now(),
       workflowId: activeWorkflowId,
       blockId,
@@ -128,7 +129,7 @@ export function useCodeUndoRedo({
       }
 
       useCodeUndoRedoStore.getState().push({
-        id: crypto.randomUUID(),
+        id: generateId(),
         createdAt: Date.now(),
         workflowId: activeWorkflowId,
         blockId,

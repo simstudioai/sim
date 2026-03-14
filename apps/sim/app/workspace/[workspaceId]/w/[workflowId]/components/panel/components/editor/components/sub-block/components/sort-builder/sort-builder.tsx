@@ -1,3 +1,4 @@
+import { generateId } from '../../../../../../../../../../../../../lib/utils/uuid'
 'use client'
 
 import { useCallback, useMemo } from 'react'
@@ -18,7 +19,7 @@ interface SortBuilderProps {
 }
 
 const createDefaultRule = (columns: ComboboxOption[]): SortRule => ({
-  id: crypto.randomUUID(),
+  id: generateId(),
   column: columns[0]?.value || '',
   direction: 'asc',
   collapsed: false,

@@ -1,3 +1,4 @@
+import { generateId } from '../../../../../../../../lib/utils/uuid'
 import { useCallback, useState } from 'react'
 
 export interface ChatFile {
@@ -53,7 +54,7 @@ export function useChatFileUpload() {
         }
 
         validNewFiles.push({
-          id: crypto.randomUUID(),
+          id: generateId(),
           name: file.name,
           size: file.size,
           type: file.type,

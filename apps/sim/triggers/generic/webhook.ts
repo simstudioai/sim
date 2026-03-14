@@ -1,3 +1,4 @@
+import { generateId } from '../../lib/utils/uuid'
 import { WebhookIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
 
@@ -36,7 +37,7 @@ export const genericWebhookTrigger: TriggerConfig = {
       description: 'Token used to authenticate webhook requests via Bearer token or custom header',
       password: true,
       required: false,
-      value: () => crypto.randomUUID(),
+      value: () => generateId(),
       mode: 'trigger',
     },
     {

@@ -1,3 +1,4 @@
+import { generateId } from '../../../lib/utils/uuid'
 'use client'
 
 import { createLogger } from '@sim/logger'
@@ -2527,7 +2528,7 @@ export const useCopilotStore = create<CopilotStore>()(
     // Message queue actions
     addToQueue: (message, options) => {
       const queuedMessage: import('./types').QueuedMessage = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         content: message,
         fileAttachments: options?.fileAttachments,
         contexts: options?.contexts,

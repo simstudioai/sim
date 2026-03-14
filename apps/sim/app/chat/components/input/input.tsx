@@ -1,3 +1,4 @@
+import { generateId } from '../../../../lib/utils/uuid'
 'use client'
 
 import type React from 'react'
@@ -147,7 +148,7 @@ export const ChatInput: React.FC<{
       }
 
       newFiles.push({
-        id: crypto.randomUUID(),
+        id: generateId(),
         name: file.name,
         size: file.size,
         type: file.type,

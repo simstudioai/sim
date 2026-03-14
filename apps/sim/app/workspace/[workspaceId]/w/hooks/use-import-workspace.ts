@@ -1,3 +1,4 @@
+import { generateId } from '../../../../../lib/utils/uuid'
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
@@ -205,7 +206,7 @@ export function useImportWorkspace({ onSuccess }: UseImportWorkspaceProps = {}) 
                 > = {}
 
                 for (const v of variablesArray) {
-                  const id = typeof v.id === 'string' && v.id.trim() ? v.id : crypto.randomUUID()
+                  const id = typeof v.id === 'string' && v.id.trim() ? v.id : generateId()
                   variablesRecord[id] = {
                     id,
                     workflowId: newWorkflow.id,

@@ -1,3 +1,4 @@
+import { generateId } from '../../../../../../../../../../../../../lib/utils/uuid'
 import { useCallback, useRef } from 'react'
 import { Plus } from 'lucide-react'
 import { Trash } from '@/components/emcn/icons/trash'
@@ -72,7 +73,7 @@ const BOOLEAN_OPTIONS: ComboboxOption[] = [
  * Creates a new field with default values
  */
 const createDefaultField = (): Field => ({
-  id: crypto.randomUUID(),
+  id: generateId(),
   name: '',
   type: 'string',
   value: '',

@@ -1,3 +1,4 @@
+import { generateId } from '../../../../../../../../../../../../../lib/utils/uuid'
 'use client'
 
 import { useCallback, useMemo } from 'react'
@@ -20,7 +21,7 @@ interface FilterBuilderProps {
 }
 
 const createDefaultRule = (columns: ComboboxOption[]): FilterRule => ({
-  id: crypto.randomUUID(),
+  id: generateId(),
   logicalOperator: 'and',
   column: columns[0]?.value || '',
   operator: 'eq',

@@ -1,3 +1,4 @@
+import { generateId } from '../../lib/utils/uuid'
 import { createLogger } from '@sim/logger'
 import { v4 as uuidv4 } from 'uuid'
 import { create } from 'zustand'
@@ -58,7 +59,7 @@ export const useChatStore = create<ChatState>()(
           set((state) => {
             const newMessage: ChatMessage = {
               ...message,
-              id: (message as any).id ?? crypto.randomUUID(),
+              id: (message as any).id ?? generateId(),
               timestamp: (message as any).timestamp ?? new Date().toISOString(),
             }
 

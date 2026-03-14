@@ -1,3 +1,4 @@
+import { generateId } from '../../../../lib/utils/uuid'
 'use client'
 
 import {
@@ -87,7 +88,7 @@ export function GlobalCommandsProvider({ children }: { children: ReactNode }) {
   const register = useCallback((commands: GlobalCommand[]) => {
     const createdIds: string[] = []
     for (const cmd of commands) {
-      const id = cmd.id ?? crypto.randomUUID()
+      const id = cmd.id ?? generateId()
       const parsed = parseShortcut(cmd.shortcut)
       registryRef.current.set(id, {
         ...cmd,

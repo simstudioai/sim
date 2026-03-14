@@ -1,3 +1,4 @@
+import { generateId } from '../../lib/utils/uuid'
 import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
@@ -172,7 +173,7 @@ export function prepareBlockState(options: PrepareBlockStateOptions): BlockState
       } else if (subBlock.type === 'input-format' || subBlock.type === 'response-format') {
         initialValue = [
           {
-            id: crypto.randomUUID(),
+            id: generateId(),
             name: '',
             type: 'string',
             value: '',

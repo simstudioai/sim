@@ -1,3 +1,4 @@
+import { generateId } from '../../../../../../../../../../../../../lib/utils/uuid'
 import { useMemo, useRef } from 'react'
 import { Plus } from 'lucide-react'
 import { Button, Input, Textarea, Tooltip } from '@/components/emcn'
@@ -30,7 +31,7 @@ interface EvalInputProps {
 
 // Default values
 const createDefaultMetric = (): EvalMetric => ({
-  id: crypto.randomUUID(),
+  id: generateId(),
   name: '',
   description: '',
   range: { min: 0, max: 1 },

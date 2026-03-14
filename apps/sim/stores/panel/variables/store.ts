@@ -1,3 +1,4 @@
+import { generateId } from '../../../lib/utils/uuid'
 import { createLogger } from '@sim/logger'
 import JSON5 from 'json5'
 import { create } from 'zustand'
@@ -108,7 +109,7 @@ export const useVariablesStore = create<VariablesStore>()(
     },
 
     addVariable: (variable, providedId?: string) => {
-      const id = providedId || crypto.randomUUID()
+      const id = providedId || generateId()
 
       const workflowVariables = get().getVariablesByWorkflowId(variable.workflowId)
 
@@ -236,7 +237,7 @@ export const useVariablesStore = create<VariablesStore>()(
 
               for (const { blockId, subBlockId, value } of changedSubBlocks) {
                 operationQueue.addToQueue({
-                  id: crypto.randomUUID(),
+                  id: generateId(),
                   operation: {
                     operation: 'subblock-update',
                     target: 'subblock',

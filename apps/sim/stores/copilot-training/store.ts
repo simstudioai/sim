@@ -1,3 +1,4 @@
+import { generateId } from '../../lib/utils/uuid'
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
@@ -94,7 +95,7 @@ export const useCopilotTrainingStore = create<CopilotTrainingState>()(
         const { activeWorkflowId } = useWorkflowStore.getState() as any
 
         const dataset: TrainingDataset = {
-          id: crypto.randomUUID(),
+          id: generateId(),
           workflowId: activeWorkflowId || 'unknown',
           title: state.currentTitle,
           prompt: state.currentPrompt,

@@ -1,3 +1,4 @@
+import { generateId } from '../../../lib/utils/uuid'
 /**
  * A2A Tasks React Query Hooks (v0.3)
  *
@@ -70,7 +71,7 @@ export interface SendA2ATaskResponse {
 async function sendA2ATask(params: SendA2ATaskParams): Promise<SendA2ATaskResponse> {
   const userMessage: Message = {
     kind: 'message',
-    messageId: crypto.randomUUID(),
+    messageId: generateId(),
     role: 'user',
     parts: [{ kind: 'text', text: params.message }],
     ...(params.taskId && { taskId: params.taskId }),
@@ -85,7 +86,7 @@ async function sendA2ATask(params: SendA2ATaskParams): Promise<SendA2ATaskRespon
     },
     body: JSON.stringify({
       jsonrpc: '2.0',
-      id: crypto.randomUUID(),
+      id: generateId(),
       method: A2A_METHODS.MESSAGE_SEND,
       params: {
         message: userMessage,
@@ -161,7 +162,7 @@ async function fetchA2ATask(params: GetA2ATaskParams): Promise<A2ATask> {
     },
     body: JSON.stringify({
       jsonrpc: '2.0',
-      id: crypto.randomUUID(),
+      id: generateId(),
       method: A2A_METHODS.TASKS_GET,
       params: {
         id: params.taskId,
@@ -224,7 +225,7 @@ async function cancelA2ATask(params: CancelA2ATaskParams): Promise<A2ATask> {
     },
     body: JSON.stringify({
       jsonrpc: '2.0',
-      id: crypto.randomUUID(),
+      id: generateId(),
       method: A2A_METHODS.TASKS_CANCEL,
       params: {
         id: params.taskId,

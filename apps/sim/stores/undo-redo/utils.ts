@@ -1,3 +1,4 @@
+import { generateId } from '../../lib/utils/uuid'
 import type { Edge } from 'reactflow'
 import { UNDO_REDO_OPERATIONS } from '@/socket/constants'
 import type {
@@ -15,7 +16,7 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 
 export function createOperationEntry(operation: Operation, inverse: Operation): OperationEntry {
   return {
-    id: crypto.randomUUID(),
+    id: generateId(),
     operation,
     inverse,
     createdAt: Date.now(),

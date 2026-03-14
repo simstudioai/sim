@@ -1,3 +1,4 @@
+import { generateId } from '../../../../../../../../../../../../lib/utils/uuid'
 'use client'
 
 import { useState } from 'react'
@@ -95,7 +96,7 @@ export function CreditBalance({
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open)
     if (open) {
-      setRequestId(crypto.randomUUID())
+      setRequestId(generateId())
     } else {
       setAmount('')
       setError(null)

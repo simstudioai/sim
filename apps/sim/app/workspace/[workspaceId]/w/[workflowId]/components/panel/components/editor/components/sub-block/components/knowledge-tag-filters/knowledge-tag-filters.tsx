@@ -1,3 +1,4 @@
+import { generateId } from '../../../../../../../../../../../../../lib/utils/uuid'
 'use client'
 
 import { useRef } from 'react'
@@ -48,7 +49,7 @@ interface KnowledgeTagFiltersProps {
  * Creates a new filter with default values
  */
 const createDefaultFilter = (): TagFilter => ({
-  id: crypto.randomUUID(),
+  id: generateId(),
   tagName: '',
   fieldType: 'text',
   operator: 'eq',

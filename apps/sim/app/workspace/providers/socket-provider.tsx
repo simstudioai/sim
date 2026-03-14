@@ -1,3 +1,4 @@
+import { generateId } from '../../../lib/utils/uuid'
 'use client'
 
 import {
@@ -25,7 +26,7 @@ function getTabSessionId(): string {
 
   let tabSessionId = sessionStorage.getItem(TAB_SESSION_ID_KEY)
   if (!tabSessionId) {
-    tabSessionId = crypto.randomUUID()
+    tabSessionId = generateId()
     sessionStorage.setItem(TAB_SESSION_ID_KEY, tabSessionId)
   }
   return tabSessionId

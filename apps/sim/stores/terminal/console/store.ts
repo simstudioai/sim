@@ -1,3 +1,4 @@
+import { generateId } from '../../../lib/utils/uuid'
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { createJSONStorage, devtools, persist } from 'zustand/middleware'
@@ -170,7 +171,7 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
 
             const newEntry: ConsoleEntry = {
               ...redactedEntry,
-              id: crypto.randomUUID(),
+              id: generateId(),
               timestamp: new Date().toISOString(),
             }
 

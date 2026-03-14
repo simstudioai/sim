@@ -1,3 +1,4 @@
+import { generateId } from '../../../../../../../../../../../../../lib/utils/uuid'
 'use client'
 
 import { useMemo, useRef } from 'react'
@@ -45,7 +46,7 @@ interface DocumentTagEntryProps {
  * Creates a new document tag with default values
  */
 const createDefaultTag = (): DocumentTag => ({
-  id: crypto.randomUUID(),
+  id: generateId(),
   tagName: '',
   fieldType: 'text',
   value: '',

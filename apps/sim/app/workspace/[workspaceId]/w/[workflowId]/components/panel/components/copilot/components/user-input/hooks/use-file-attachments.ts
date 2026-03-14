@@ -1,3 +1,4 @@
+import { generateId } from '../../../../../../../../../../../../lib/utils/uuid'
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -123,7 +124,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
         }
 
         const tempFile: AttachedFile = {
-          id: crypto.randomUUID(),
+          id: generateId(),
           name: file.name,
           size: file.size,
           type: file.type,

@@ -1,3 +1,4 @@
+import { generateId } from '../../../lib/utils/uuid'
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
@@ -44,13 +45,13 @@ export const useSubBlockStore = create<SubBlockStore>()(
             if (!row || typeof row !== 'object') {
               logger.warn('Fixing malformed table row', { blockId, subBlockId, row })
               return {
-                id: crypto.randomUUID(),
+                id: generateId(),
                 cells: { Key: '', Value: '' },
               }
             }
 
             if (!row.id) {
-              row.id = crypto.randomUUID()
+              row.id = generateId()
             }
 
             if (!row.cells || typeof row.cells !== 'object') {

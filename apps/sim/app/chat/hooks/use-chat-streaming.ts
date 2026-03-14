@@ -1,3 +1,4 @@
+import { generateId } from '../../../lib/utils/uuid'
 'use client'
 
 import { useRef, useState } from 'react'
@@ -141,7 +142,7 @@ export function useChatStreaming() {
 
     // Track which blocks have streamed content (like chat panel)
     const messageIdMap = new Map<string, string>()
-    const messageId = crypto.randomUUID()
+    const messageId = generateId()
     setMessages((prev) => [
       ...prev,
       {
