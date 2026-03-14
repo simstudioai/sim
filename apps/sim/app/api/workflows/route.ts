@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { permissions, workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, gt, inArray, isNull, min } from 'drizzle-orm'
+import { and, asc, eq, gt, gte, inArray, isNull, lt, min, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
@@ -72,11 +72,43 @@ export async function GET(request: NextRequest) {
     // Fetch limit+1 to detect if there are more pages
     const fetchLimit = limit + 1
 
+    // Build cursor condition for keyset pagination
+    // Cursor is base64-encoded JSON: { s: sortOrder, c: createdAt, i: id }
+    let cursorCondition = null
+    if (cursor) {
+      try {
+        const decoded = JSON.parse(Buffer.from(cursor, 'base64').toString())
+        const cursorSortOrder = decoded.s
+        const cursorCreatedAt = new Date(decoded.c)
+        const cursorId = decoded.i
+        // Keyset pagination for ORDER BY sortOrder ASC, createdAt ASC, id ASC:
+        // (sortOrder > cursorSortOrder) OR
+        // (sortOrder = cursorSortOrder AND createdAt > cursorCreatedAt) OR
+        // (sortOrder = cursorSortOrder AND createdAt = cursorCreatedAt AND id > cursorId)
+        cursorCondition = or(
+          gt(workflow.sortOrder, cursorSortOrder),
+          and(
+            eq(workflow.sortOrder, cursorSortOrder),
+            or(
+              gt(workflow.createdAt, cursorCreatedAt),
+              and(eq(workflow.createdAt, cursorCreatedAt), gt(workflow.id, cursorId))
+            )
+          )
+        )
+      } catch {
+        // Invalid cursor - ignore and return first page
+      }
+    }
+
     if (workspaceId) {
+      const whereClause = cursorCondition
+        ? and(eq(workflow.workspaceId, workspaceId), cursorCondition)
+        : eq(workflow.workspaceId, workspaceId)
+
       workflows = await db
         .select()
         .from(workflow)
-        .where(eq(workflow.workspaceId, workspaceId))
+        .where(whereClause)
         .orderBy(...orderByClause)
         .limit(fetchLimit)
     } else {
@@ -88,18 +120,28 @@ export async function GET(request: NextRequest) {
       if (workspaceIds.length === 0) {
         return NextResponse.json({ data: [] }, { status: 200 })
       }
+      const whereClause = cursorCondition
+        ? and(inArray(workflow.workspaceId, workspaceIds), cursorCondition)
+        : inArray(workflow.workspaceId, workspaceIds)
+
       workflows = await db
         .select()
         .from(workflow)
-        .where(inArray(workflow.workspaceId, workspaceIds))
+        .where(whereClause)
         .orderBy(...orderByClause)
         .limit(fetchLimit)
     }
 
-    // Determine if there are more results and set cursor
+    // Determine if there are more results and compute next cursor
     const hasMore = workflows.length > limit
     const data = hasMore ? workflows.slice(0, limit) : workflows
-    const nextCursor = hasMore ? data[data.length - 1]?.id : null
+    let nextCursor = null
+    if (hasMore && data.length > 0) {
+      const last = data[data.length - 1]
+      nextCursor = Buffer.from(
+        JSON.stringify({ s: last.sortOrder, c: last.createdAt, i: last.id })
+      ).toString('base64')
+    }
 
     return NextResponse.json({ data, nextCursor }, { status: 200 })
   } catch (error: any) {
