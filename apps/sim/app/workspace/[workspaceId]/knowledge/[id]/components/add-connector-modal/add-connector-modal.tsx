@@ -576,7 +576,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
               <Button variant='default' onClick={() => onOpenChange(false)} disabled={isCreating}>
                 Cancel
               </Button>
-              <Button variant='tertiary' onClick={handleSubmit} disabled={!canSubmit || isCreating}>
+              <Button variant='primary' onClick={handleSubmit} disabled={!canSubmit || isCreating}>
                 {isCreating ? (
                   <>
                     <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />

@@ -386,7 +386,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                         Cancel
                       </Button>
                       <Button
-                        variant='tertiary'
+                        variant='primary'
                         onClick={saveTagDefinition}
                         className='flex-1'
                         disabled={

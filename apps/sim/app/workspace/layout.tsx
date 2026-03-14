@@ -18,5 +18,9 @@ export default function WorkspaceRootLayout({ children }: WorkspaceRootLayoutPro
       }
     : undefined
 
-  return <SocketProvider user={user}>{children}</SocketProvider>
+  return (
+    <SocketProvider user={user}>
+      <div className='tracking-[0.02em]'>{children}</div>
+    </SocketProvider>
+  )
 }

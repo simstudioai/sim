@@ -41,7 +41,7 @@ export function Inbox() {
           </p>
         </div>
         <Button
-          variant='tertiary'
+          variant='primary'
           onClick={() => router.push(`/workspace/${workspaceId}/settings/subscription`)}
         >
           Upgrade to Max

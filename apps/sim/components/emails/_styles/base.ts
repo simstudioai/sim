@@ -20,7 +20,7 @@ export const colors = {
   /** Brand primary - purple */
   brandPrimary: '#6f3dfa',
   /** Brand tertiary - green (matches Run/Deploy buttons) */
-  brandTertiary: '#32bd7e',
+  brandTertiary: '#33C482',
   /** Border/divider color */
   divider: '#ededed',
   /** Footer background */

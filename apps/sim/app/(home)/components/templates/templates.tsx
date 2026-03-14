@@ -557,7 +557,7 @@ export default function Templates() {
                   type='button'
                   onClick={handleUseTemplate}
                   disabled={isPreparingTemplate}
-                  className='group/cta absolute top-[16px] right-[16px] z-10 inline-flex h-[32px] cursor-pointer items-center gap-[6px] rounded-[5px] border border-[#33C482] bg-[#33C482] px-[10px] font-[430] font-season text-[14px] text-black transition-[filter] hover:brightness-110'
+                  className='group/cta absolute top-[16px] right-[16px] z-10 inline-flex h-[32px] cursor-pointer items-center gap-[6px] rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] px-[10px] font-[430] font-season text-[14px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
                 >
                   {isPreparingTemplate ? 'Preparing...' : 'Use template'}
                   <span className='relative h-[10px] w-[10px] shrink-0'>

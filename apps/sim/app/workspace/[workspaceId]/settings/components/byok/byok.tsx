@@ -277,11 +277,7 @@ export function BYOK() {
                         </Button>
                       </div>
                     ) : (
-                      <Button
-                        variant='primary'
-                        className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-                        onClick={() => openEditModal(provider.id)}
-                      >
+                      <Button variant='primary' onClick={() => openEditModal(provider.id)}>
                         Add Key
                       </Button>
                     )}
@@ -391,7 +387,7 @@ export function BYOK() {
               Cancel
             </Button>
             <Button
-              variant='tertiary'
+              variant='primary'
               onClick={handleSave}
               disabled={!apiKeyInput.trim() || upsertKey.isPending}
             >

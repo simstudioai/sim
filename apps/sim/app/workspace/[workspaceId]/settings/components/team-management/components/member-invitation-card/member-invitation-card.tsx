@@ -239,7 +239,7 @@ export function MemberInvitationCard({
             </DropdownMenuContent>
           </DropdownMenu>
           <Button
-            variant='tertiary'
+            variant='primary'
             onClick={() => onInviteMember()}
             disabled={!hasValidEmails || isInviting || !hasAvailableSeats}
           >

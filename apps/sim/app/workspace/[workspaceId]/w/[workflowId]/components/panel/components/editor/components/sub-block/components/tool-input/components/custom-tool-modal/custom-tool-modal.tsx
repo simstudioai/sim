@@ -863,7 +863,7 @@ try {
                           placeholder='Generate...'
                         />
                         <Button
-                          variant='tertiary'
+                          variant='primary'
                           disabled={!schemaPromptInput.trim() || schemaGeneration.isStreaming}
                           onMouseDown={(e) => {
                             e.preventDefault()
@@ -955,7 +955,7 @@ try {
                           placeholder='Generate...'
                         />
                         <Button
-                          variant='tertiary'
+                          variant='primary'
                           disabled={!codePromptInput.trim() || codeGeneration.isStreaming}
                           onMouseDown={(e) => {
                             e.preventDefault()
@@ -1135,7 +1135,7 @@ try {
                   Cancel
                 </Button>
                 <Button
-                  variant='tertiary'
+                  variant='primary'
                   onClick={() => setActiveSection('code')}
                   disabled={!isSchemaValid || !!schemaError}
                 >
@@ -1161,7 +1161,7 @@ try {
                   Cancel
                 </Button>
                 <Button
-                  variant='tertiary'
+                  variant='primary'
                   onClick={handleSave}
                   disabled={!isSchemaValid || !!schemaError || !hasChanges}
                 >

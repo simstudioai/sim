@@ -637,11 +637,7 @@ export function MCP({ initialServerId }: MCPProps) {
               className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
             />
           </div>
-          <Button
-            onClick={() => setShowAddModal(true)}
-            variant='tertiary'
-            disabled={serversLoading}
-          >
+          <Button onClick={() => setShowAddModal(true)} variant='primary' disabled={serversLoading}>
             <Plus className='mr-[6px] h-[13px] w-[13px]' />
             Add
           </Button>

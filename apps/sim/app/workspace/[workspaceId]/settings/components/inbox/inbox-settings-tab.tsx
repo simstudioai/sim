@@ -282,7 +282,7 @@ export function InboxSettingsTab() {
               Cancel
             </Button>
             <Button
-              variant='tertiary'
+              variant='primary'
               onClick={handleAddSender}
               disabled={!newSenderEmail.trim() || addSender.isPending}
             >

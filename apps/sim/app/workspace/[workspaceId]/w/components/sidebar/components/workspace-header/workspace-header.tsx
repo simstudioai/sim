@@ -365,6 +365,7 @@ export function WorkspaceHeader({
               align='start'
               side={isCollapsed ? 'right' : 'bottom'}
               sideOffset={isCollapsed ? 16 : 8}
+              className='flex max-h-none flex-col overflow-hidden'
               style={
                 isCollapsed
                   ? {
@@ -385,7 +386,7 @@ export function WorkspaceHeader({
                 </div>
               ) : (
                 <>
-                  <div className='flex items-center gap-[8px] px-[2px] py-[4px]'>
+                  <div className='flex items-center gap-[8px] px-[2px] py-[2px]'>
                     <div
                       className='flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center rounded-[6px] font-medium text-[12px] text-white'
                       style={{
@@ -404,7 +405,7 @@ export function WorkspaceHeader({
                     </div>
                   </div>
 
-                  <DropdownMenuGroup className='mt-[4px]'>
+                  <DropdownMenuGroup className='mt-[4px] min-h-0 flex-1'>
                     <div className='flex max-h-[130px] flex-col gap-[2px] overflow-y-auto'>
                       {workspaces.map((workspace) => (
                         <div key={workspace.id}>
@@ -492,7 +493,9 @@ export function WorkspaceHeader({
                         </div>
                       ))}
                     </div>
+                  </DropdownMenuGroup>
 
+                  <div className='flex flex-col gap-[2px]'>
                     <button
                       type='button'
                       className='flex w-full cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover:bg-[var(--surface-active)] disabled:pointer-events-none disabled:opacity-50'
@@ -506,7 +509,7 @@ export function WorkspaceHeader({
                       <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
                       Create new workspace
                     </button>
-                  </DropdownMenuGroup>
+                  </div>
 
                   {!isInvitationsDisabled && (
                     <>

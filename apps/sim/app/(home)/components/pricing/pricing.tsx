@@ -123,7 +123,7 @@ function PricingCard({ tier }: PricingCardProps) {
             ) : isPro ? (
               <Link
                 href={tier.cta.href}
-                className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#33C482] bg-[#33C482] px-[10px] font-[430] font-season text-[14px] text-white transition-[filter] hover:brightness-110'
+                className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-[10px] font-[430] font-season text-[14px] text-white transition-colors hover:border-[#2A2A2A] hover:bg-[#2A2A2A]'
               >
                 {tier.cta.label}
               </Link>

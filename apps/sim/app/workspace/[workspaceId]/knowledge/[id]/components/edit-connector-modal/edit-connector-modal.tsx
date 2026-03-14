@@ -161,7 +161,7 @@ export function EditConnectorModal({
             <Button variant='default' onClick={() => onOpenChange(false)} disabled={isSaving}>
               Cancel
             </Button>
-            <Button variant='tertiary' onClick={handleSave} disabled={!hasChanges || isSaving}>
+            <Button variant='primary' onClick={handleSave} disabled={!hasChanges || isSaving}>
               {isSaving ? (
                 <>
                   <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />

@@ -1312,7 +1312,7 @@ export function CredentialsManager() {
               </Button>
               {isSelectedAdmin && (
                 <Button
-                  variant='tertiary'
+                  variant='primary'
                   onClick={handleSaveDetails}
                   disabled={!isDetailsDirty || isSavingDetails}
                 >
@@ -1415,7 +1415,7 @@ export function CredentialsManager() {
               <Button
                 onClick={handleSave}
                 disabled={isLoading || !hasChanges || hasConflicts || hasInvalidKeys}
-                variant='tertiary'
+                variant='primary'
                 className={`${hasConflicts || hasInvalidKeys ? 'cursor-not-allowed opacity-50' : ''}`}
               >
                 Save

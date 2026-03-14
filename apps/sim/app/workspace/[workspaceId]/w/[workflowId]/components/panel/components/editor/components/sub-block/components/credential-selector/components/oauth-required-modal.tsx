@@ -180,7 +180,7 @@ export function OAuthRequiredModal({
           <Button variant='default' onClick={onClose}>
             Cancel
           </Button>
-          <Button variant='tertiary' type='button' onClick={handleConnectDirectly}>
+          <Button variant='primary' type='button' onClick={handleConnectDirectly}>
             Connect
           </Button>
         </ModalFooter>

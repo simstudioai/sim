@@ -221,7 +221,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
           </Button>
           <Button
             type='button'
-            variant='tertiary'
+            variant='primary'
             onClick={handleFormSubmit}
             disabled={isSubmitting}
             className='min-w-[120px]'

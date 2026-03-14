@@ -629,7 +629,7 @@ export function CredentialSets() {
             />
           </div>
           {canManageCredentialSets && (
-            <Button variant='tertiary' onClick={() => setShowCreateModal(true)}>
+            <Button variant='primary' onClick={() => setShowCreateModal(true)}>
               <Plus className='mr-[6px] h-[13px] w-[13px]' />
               Create
             </Button>
@@ -672,7 +672,7 @@ export function CredentialSets() {
                         </div>
                       </div>
                       <Button
-                        variant='tertiary'
+                        variant='primary'
                         onClick={() => handleAcceptInvitation(invitation.token)}
                         disabled={acceptInvitation.isPending}
                       >
@@ -844,7 +844,7 @@ export function CredentialSets() {
               Cancel
             </Button>
             <Button
-              variant='tertiary'
+              variant='primary'
               onClick={handleCreateCredentialSet}
               disabled={!newSetName.trim() || createCredentialSet.isPending}
             >

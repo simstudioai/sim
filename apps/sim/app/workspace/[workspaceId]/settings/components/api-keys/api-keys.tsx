@@ -150,7 +150,7 @@ export function ApiKeys() {
             e.currentTarget.blur()
             setIsCreateDialogOpen(true)
           }}
-          variant='tertiary'
+          variant='primary'
           disabled={createButtonDisabled}
         >
           <Plus className='mr-[6px] h-[13px] w-[13px]' />

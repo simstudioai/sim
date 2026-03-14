@@ -522,7 +522,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                   Cancel
                 </Button>
                 <Button
-                  variant='tertiary'
+                  variant='primary'
                   type='submit'
                   disabled={isSubmitting || !nameValue?.trim()}
                 >

@@ -1006,12 +1006,7 @@ function GeneralFooter({
     <ModalFooter className='items-center justify-between'>
       <StatusBadge isWarning={needsRedeployment} />
       <div className='flex items-center gap-2'>
-        <Button
-          variant='default'
-          onClick={onUndeploy}
-          disabled={isUndeploying || isSubmitting}
-          className='px-[7px] py-[5px]'
-        >
+        <Button variant='default' onClick={onUndeploy} disabled={isUndeploying || isSubmitting}>
           {isUndeploying ? 'Undeploying...' : 'Undeploy'}
         </Button>
         {needsRedeployment && (

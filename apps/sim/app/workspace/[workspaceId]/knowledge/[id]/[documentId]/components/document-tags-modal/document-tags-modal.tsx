@@ -554,7 +554,7 @@ export function DocumentTagsModal({
                           Cancel
                         </Button>
                         <Button
-                          variant='tertiary'
+                          variant='primary'
                           onClick={saveDocumentTag}
                           className='flex-1'
                           disabled={!canSaveTag}
@@ -718,7 +718,7 @@ export function DocumentTagsModal({
                       </Button>
                     )}
                     <Button
-                      variant='tertiary'
+                      variant='primary'
                       onClick={saveDocumentTag}
                       className='flex-1'
                       disabled={

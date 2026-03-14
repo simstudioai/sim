@@ -71,15 +71,15 @@ export default function Hero() {
 
         <div className='mt-[12px] flex items-center gap-[8px]'>
           <Link
-            href='/login'
+            href='/enterprise'
             className={`${CTA_BASE} border-[#3d3d3d] text-[#ECECEC] transition-colors hover:bg-[#2A2A2A]`}
-            aria-label='Log in'
+            aria-label='Get a demo'
           >
-            Log in
+            Get a demo
           </Link>
           <Link
             href='/signup'
-            className={`${CTA_BASE} gap-[8px] border-[#33C482] bg-[#33C482] text-black transition-[filter] hover:brightness-110`}
+            className={`${CTA_BASE} gap-[8px] border-[#FFFFFF] bg-[#FFFFFF] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]`}
             aria-label='Get started with Sim'
           >
             Get started

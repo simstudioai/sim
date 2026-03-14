@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, type Variants } from 'framer-motion'
+import { LandingPreviewHome } from '@/app/(home)/components/landing-preview/components/landing-preview-home/landing-preview-home'
 import { LandingPreviewPanel } from '@/app/(home)/components/landing-preview/components/landing-preview-panel/landing-preview-panel'
 import { LandingPreviewSidebar } from '@/app/(home)/components/landing-preview/components/landing-preview-sidebar/landing-preview-sidebar'
 import { LandingPreviewWorkflow } from '@/app/(home)/components/landing-preview/components/landing-preview-workflow/landing-preview-workflow'
@@ -56,6 +57,7 @@ const panelVariants: Variants = {
  * load — workflow switches render instantly.
  */
 export function LandingPreview() {
+  const [activeView, setActiveView] = useState<'home' | 'workflow'>('workflow')
   const [activeWorkflowId, setActiveWorkflowId] = useState(PREVIEW_WORKFLOWS[0].id)
   const isInitialMount = useRef(true)
 
@@ -63,12 +65,23 @@ export function LandingPreview() {
     isInitialMount.current = false
   }, [])
 
+  const handleSelectWorkflow = useCallback((id: string) => {
+    setActiveWorkflowId(id)
+    setActiveView('workflow')
+  }, [])
+
+  const handleSelectHome = useCallback(() => {
+    setActiveView('home')
+  }, [])
+
   const activeWorkflow =
     PREVIEW_WORKFLOWS.find((w) => w.id === activeWorkflowId) ?? PREVIEW_WORKFLOWS[0]
 
+  const isWorkflowView = activeView === 'workflow'
+
   return (
     <motion.div
-      className='dark flex aspect-[1116/549] w-full overflow-hidden rounded bg-[#1b1b1b] antialiased'
+      className='dark flex aspect-[1116/549] w-full overflow-hidden rounded bg-[#1e1e1e] antialiased'
       initial='hidden'
       animate='visible'
       variants={containerVariants}
@@ -77,15 +90,34 @@ export function LandingPreview() {
         <LandingPreviewSidebar
           workflows={PREVIEW_WORKFLOWS}
           activeWorkflowId={activeWorkflowId}
-          onSelectWorkflow={setActiveWorkflowId}
+          activeView={activeView}
+          onSelectWorkflow={handleSelectWorkflow}
+          onSelectHome={handleSelectHome}
         />
       </motion.div>
-      <div className='relative flex-1 overflow-hidden'>
-        <LandingPreviewWorkflow workflow={activeWorkflow} animate={isInitialMount.current} />
+      <div className='flex min-w-0 flex-1 flex-col p-[8px] pl-0'>
+        <div className='flex flex-1 overflow-hidden rounded-[8px] border border-[#2c2c2c] bg-[#1b1b1b]'>
+          <div
+            className={
+              isWorkflowView
+                ? 'relative min-w-0 flex-1 overflow-hidden'
+                : 'relative flex min-w-0 flex-1 flex-col overflow-hidden'
+            }
+          >
+            {isWorkflowView ? (
+              <LandingPreviewWorkflow workflow={activeWorkflow} animate={isInitialMount.current} />
+            ) : (
+              <LandingPreviewHome />
+            )}
+          </div>
+          <motion.div
+            className={isWorkflowView ? 'hidden lg:flex' : 'hidden'}
+            variants={panelVariants}
+          >
+            <LandingPreviewPanel />
+          </motion.div>
+        </div>
       </div>
-      <motion.div className='hidden lg:flex' variants={panelVariants}>
-        <LandingPreviewPanel />
-      </motion.div>
     </motion.div>
   )
 }

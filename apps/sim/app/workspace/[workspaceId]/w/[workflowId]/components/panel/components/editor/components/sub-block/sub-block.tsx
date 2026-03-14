@@ -331,7 +331,7 @@ const renderLabel = (
                   placeholder='Generate with AI...'
                 />
                 <Button
-                  variant='tertiary'
+                  variant='primary'
                   disabled={!wandState.searchQuery.trim() || wandState.isStreaming}
                   onMouseDown={(e: React.MouseEvent) => {
                     e.preventDefault()

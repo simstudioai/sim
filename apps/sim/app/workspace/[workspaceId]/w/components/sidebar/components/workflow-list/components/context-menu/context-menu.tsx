@@ -209,7 +209,7 @@ function ColorPickerSubmenu({
               className='h-[20px] min-w-0 flex-1 rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[6px] font-medium text-[11px] text-[var(--text-primary)] uppercase transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
             />
             <Button
-              variant='tertiary'
+              variant='primary'
               disabled={!canSubmitHex}
               onClick={(e) => {
                 e.stopPropagation()

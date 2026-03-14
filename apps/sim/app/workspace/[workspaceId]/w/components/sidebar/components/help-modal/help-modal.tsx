@@ -539,7 +539,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
             <Button variant='default' onClick={handleClose} type='button' disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type='submit' variant='tertiary' disabled={isSubmitting || isProcessing}>
+            <Button type='submit' variant='primary' disabled={isSubmitting || isProcessing}>
               {isSubmitting
                 ? 'Submitting...'
                 : submitStatus === 'error'

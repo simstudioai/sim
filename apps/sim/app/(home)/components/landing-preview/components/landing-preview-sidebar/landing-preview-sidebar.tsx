@@ -1,141 +1,204 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Database, Layout, Search, Settings } from 'lucide-react'
-import { ChevronDown, Library } from '@/components/emcn'
+import { ChevronDown, Home, Library } from '@/components/emcn'
+import {
+  Calendar,
+  Database,
+  File,
+  HelpCircle,
+  Search,
+  Settings,
+  Table,
+} from '@/components/emcn/icons'
 import type { PreviewWorkflow } from '@/app/(home)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 
-/**
- * Props for the LandingPreviewSidebar component
- */
 interface LandingPreviewSidebarProps {
   workflows: PreviewWorkflow[]
   activeWorkflowId: string
+  activeView: 'home' | 'workflow'
   onSelectWorkflow: (id: string) => void
+  onSelectHome: () => void
 }
 
 /**
- * Static footer navigation items matching the real sidebar
+ * Hardcoded dark-theme equivalents of the real sidebar CSS variables.
+ * The preview lives inside a `dark` wrapper but CSS variable cascade
+ * isn't guaranteed, so we pin the hex values directly.
  */
-const FOOTER_NAV_ITEMS = [
-  { id: 'logs', label: 'Logs', icon: Library },
-  { id: 'templates', label: 'Templates', icon: Layout },
+const C = {
+  SURFACE_1: '#1e1e1e',
+  SURFACE_2: '#252525',
+  SURFACE_ACTIVE: '#363636',
+  BORDER: '#2c2c2c',
+  TEXT_PRIMARY: '#e6e6e6',
+  TEXT_BODY: '#cdcdcd',
+  TEXT_ICON: '#939393',
+  BRAND: '#33C482',
+} as const
+
+const WORKSPACE_NAV = [
+  { id: 'tables', label: 'Tables', icon: Table },
+  { id: 'files', label: 'Files', icon: File },
   { id: 'knowledge-base', label: 'Knowledge Base', icon: Database },
+  { id: 'scheduled-tasks', label: 'Scheduled Tasks', icon: Calendar },
+  { id: 'logs', label: 'Logs', icon: Library },
+] as const
+
+const FOOTER_NAV = [
+  { id: 'help', label: 'Help', icon: HelpCircle },
   { id: 'settings', label: 'Settings', icon: Settings },
 ] as const
 
+function StaticNavItem({
+  icon: Icon,
+  label,
+}: {
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>
+  label: string
+}) {
+  return (
+    <div className='pointer-events-none mx-[2px] flex h-[28px] items-center gap-[8px] rounded-[8px] px-[8px]'>
+      <Icon className='h-[14px] w-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
+      <span className='truncate text-[13px]' style={{ color: C.TEXT_BODY, fontWeight: 450 }}>
+        {label}
+      </span>
+    </div>
+  )
+}
+
 /**
- * Lightweight static sidebar replicating the real workspace sidebar styling.
+ * Lightweight sidebar replicating the real workspace sidebar layout and sizing.
+ * Starts from the workspace header (no logo/collapse row).
  * Only workflow items are interactive — everything else is pointer-events-none.
- *
- * Colors sourced from the dark theme CSS variables:
- * --surface-1: #1e1e1e, --surface-5: #363636, --border: #2c2c2c, --border-1: #3d3d3d
- * --text-primary: #e6e6e6, --text-tertiary: #b3b3b3, --text-muted: #787878
  */
 export function LandingPreviewSidebar({
   workflows,
   activeWorkflowId,
+  activeView,
   onSelectWorkflow,
+  onSelectHome,
 }: LandingPreviewSidebarProps) {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-
-  const handleToggle = useCallback(() => {
-    setIsDropdownOpen((prev) => !prev)
-  }, [])
-
-  useEffect(() => {
-    if (!isDropdownOpen) return
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setIsDropdownOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [isDropdownOpen])
+  const isHomeActive = activeView === 'home'
 
   return (
-    <div className='flex h-full w-[220px] flex-shrink-0 flex-col border-[#2c2c2c] border-r bg-[#1e1e1e]'>
-      {/* Header */}
-      <div className='relative flex-shrink-0 px-[14px] pt-[12px]' ref={dropdownRef}>
-        <div className='flex items-center justify-between'>
-          <button
-            type='button'
-            onClick={handleToggle}
-            className='group -mx-[6px] flex cursor-pointer items-center gap-[8px] rounded-[6px] bg-transparent px-[6px] py-[4px] transition-colors hover:bg-[#363636]'
+    <div
+      className='flex h-full w-[248px] flex-shrink-0 flex-col pt-[12px] tracking-[0.02em]'
+      style={{ backgroundColor: C.SURFACE_1 }}
+    >
+      {/* Workspace Header */}
+      <div className='flex-shrink-0 px-[10px]'>
+        <div
+          className='pointer-events-none flex h-[32px] w-full items-center gap-[8px] rounded-[8px] border pr-[8px] pl-[5px]'
+          style={{ borderColor: C.BORDER, backgroundColor: C.SURFACE_2 }}
+        >
+          <div className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-[4px] bg-white'>
+            <svg width='10' height='10' viewBox='0 0 10 10' fill='none'>
+              <path
+                d='M1 9C1 4.58 4.58 1 9 1'
+                stroke='#1e1e1e'
+                strokeWidth='1.8'
+                strokeLinecap='round'
+              />
+            </svg>
+          </div>
+          <span
+            className='min-w-0 flex-1 truncate text-left font-medium text-[13px]'
+            style={{ color: C.TEXT_PRIMARY }}
           >
-            <span className='truncate font-base text-[#e6e6e6] text-[14px]'>My Workspace</span>
-            <ChevronDown
-              className={`h-[8px] w-[10px] flex-shrink-0 text-[#787878] transition-all duration-100 group-hover:text-[#cccccc] ${isDropdownOpen ? 'rotate-180' : ''}`}
-            />
-          </button>
-          <div className='pointer-events-none flex flex-shrink-0 items-center'>
-            <Search className='h-[14px] w-[14px] text-[#787878]' />
+            Superark
+          </span>
+          <ChevronDown className='h-[8px] w-[10px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
+        </div>
+      </div>
+
+      {/* Top Navigation: Home (interactive), Search (static) */}
+      <div className='mt-[10px] flex flex-shrink-0 flex-col gap-[2px] px-[8px]'>
+        <button
+          type='button'
+          onClick={onSelectHome}
+          className='mx-[2px] flex h-[28px] items-center gap-[8px] rounded-[8px] px-[8px] transition-colors'
+          style={{ backgroundColor: isHomeActive ? C.SURFACE_ACTIVE : 'transparent' }}
+          onMouseEnter={(e) => {
+            if (!isHomeActive) e.currentTarget.style.backgroundColor = C.SURFACE_ACTIVE
+          }}
+          onMouseLeave={(e) => {
+            if (!isHomeActive) e.currentTarget.style.backgroundColor = 'transparent'
+          }}
+        >
+          <Home className='h-[14px] w-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
+          <span className='truncate text-[13px]' style={{ color: C.TEXT_BODY, fontWeight: 450 }}>
+            Home
+          </span>
+        </button>
+        <StaticNavItem icon={Search} label='Search' />
+      </div>
+
+      {/* Workspace */}
+      <div className='mt-[14px] flex flex-shrink-0 flex-col'>
+        <div className='px-[16px] pb-[6px]'>
+          <div className='font-base text-[12px]' style={{ color: C.TEXT_ICON }}>
+            Workspace
           </div>
         </div>
+        <div className='flex flex-col gap-[2px] px-[8px]'>
+          {WORKSPACE_NAV.map((item) => (
+            <StaticNavItem key={item.id} icon={item.icon} label={item.label} />
+          ))}
+        </div>
+      </div>
 
-        {/* Workspace switcher dropdown */}
-        {isDropdownOpen && (
-          <div className='absolute top-[42px] left-[8px] z-50 min-w-[160px] max-w-[160px] rounded-[6px] bg-[#242424] px-[6px] py-[6px] shadow-lg'>
-            <div
-              className='flex h-[26px] cursor-pointer items-center gap-[8px] rounded-[6px] bg-[#3d3d3d] px-[6px] font-base text-[#e6e6e6] text-[13px]'
-              role='menuitem'
-              onClick={() => setIsDropdownOpen(false)}
-            >
-              <span className='min-w-0 flex-1 truncate'>My Workspace</span>
+      {/* Scrollable Tasks + Workflows */}
+      <div className='flex flex-1 flex-col overflow-y-auto overflow-x-hidden pt-[14px]'>
+        {/* Workflows */}
+        <div className='flex flex-col'>
+          <div className='px-[16px]'>
+            <div className='font-base text-[12px]' style={{ color: C.TEXT_ICON }}>
+              Workflows
             </div>
           </div>
-        )}
-      </div>
-
-      {/* Workflow items */}
-      <div className='mt-[8px] space-y-[2px] overflow-x-hidden px-[8px]'>
-        {workflows.map((workflow) => {
-          const isActive = workflow.id === activeWorkflowId
-          return (
-            <button
-              key={workflow.id}
-              type='button'
-              onClick={() => onSelectWorkflow(workflow.id)}
-              className={`group flex h-[26px] w-full items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] transition-colors ${
-                isActive ? 'bg-[#363636]' : 'bg-transparent hover:bg-[#363636]'
-              }`}
-            >
-              <div
-                className='h-[14px] w-[14px] flex-shrink-0 rounded-[4px]'
-                style={{ backgroundColor: workflow.color }}
-              />
-              <div className='min-w-0 flex-1'>
-                <div
-                  className={`min-w-0 truncate text-left font-medium ${
-                    isActive ? 'text-[#e6e6e6]' : 'text-[#b3b3b3] group-hover:text-[#e6e6e6]'
-                  }`}
+          <div className='mt-[6px] flex flex-col gap-[2px] px-[8px]'>
+            {workflows.map((workflow) => {
+              const isActive = activeView === 'workflow' && workflow.id === activeWorkflowId
+              return (
+                <button
+                  key={workflow.id}
+                  type='button'
+                  onClick={() => onSelectWorkflow(workflow.id)}
+                  className='group mx-[2px] flex h-[28px] w-full items-center gap-[8px] rounded-[8px] px-[8px] transition-colors'
+                  style={{ backgroundColor: isActive ? C.SURFACE_ACTIVE : 'transparent' }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) e.currentTarget.style.backgroundColor = C.SURFACE_ACTIVE
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) e.currentTarget.style.backgroundColor = 'transparent'
+                  }}
                 >
-                  {workflow.name}
-                </div>
-              </div>
-            </button>
-          )
-        })}
+                  <div
+                    className='h-[14px] w-[14px] flex-shrink-0 rounded-[4px] border-[2.5px]'
+                    style={{
+                      backgroundColor: workflow.color,
+                      borderColor: `${workflow.color}60`,
+                      backgroundClip: 'padding-box',
+                    }}
+                  />
+                  <div
+                    className='min-w-0 flex-1 truncate text-left text-[13px]'
+                    style={{ color: C.TEXT_BODY, fontWeight: 450 }}
+                  >
+                    {workflow.name}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
       </div>
 
-      {/* Footer navigation — static */}
-      <div className='pointer-events-none mt-auto flex flex-shrink-0 flex-col gap-[2px] border-[#2c2c2c] border-t px-[7.75px] pt-[8px] pb-[8px]'>
-        {FOOTER_NAV_ITEMS.map((item) => {
-          const Icon = item.icon
-          return (
-            <div
-              key={item.id}
-              className='flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px]'
-            >
-              <Icon className='h-[14px] w-[14px] flex-shrink-0 text-[#b3b3b3]' />
-              <span className='truncate font-medium text-[#b3b3b3] text-[13px]'>{item.label}</span>
-            </div>
-          )
-        })}
+      {/* Footer */}
+      <div className='flex flex-shrink-0 flex-col gap-[2px] px-[8px] pt-[9px] pb-[8px]'>
+        {FOOTER_NAV.map((item) => (
+          <StaticNavItem key={item.id} icon={item.icon} label={item.label} />
+        ))}
       </div>
     </div>
   )

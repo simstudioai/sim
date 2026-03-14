@@ -65,7 +65,7 @@ export function CheckpointConfirmation({
         {!isRestoreVariant && onContinue && (
           <Button
             onClick={onContinue}
-            variant='tertiary'
+            variant='primary'
             size='sm'
             className='flex-1'
             disabled={isProcessing}

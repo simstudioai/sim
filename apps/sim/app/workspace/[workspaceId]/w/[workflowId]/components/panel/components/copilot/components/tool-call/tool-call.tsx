@@ -1390,7 +1390,7 @@ function RunSkipButtons({
   // Standardized buttons for all interrupt tools: Allow, Always Allow, Skip
   return (
     <div className='mt-[10px] flex gap-[6px]'>
-      <Button onClick={onRun} disabled={isProcessing} variant='tertiary'>
+      <Button onClick={onRun} disabled={isProcessing} variant='primary'>
         {isProcessing ? 'Allowing...' : 'Allow'}
       </Button>
       {showAlwaysAllow && (
@@ -2130,7 +2130,7 @@ export function ToolCall({
               onStateChange?.('background')
               await sendToolDecision(toolCall.id, 'background')
             }}
-            variant='tertiary'
+            variant='primary'
             title='Move to Background'
           >
             Move to Background
@@ -2144,7 +2144,7 @@ export function ToolCall({
               onStateChange?.('background')
               await sendToolDecision(toolCall.id, 'background')
             }}
-            variant='tertiary'
+            variant='primary'
             title='Wake'
           >
             Wake
