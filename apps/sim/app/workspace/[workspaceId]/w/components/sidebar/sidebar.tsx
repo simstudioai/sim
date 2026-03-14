@@ -115,13 +115,7 @@ function CollapsedSidebarMenu({
             </button>
           </DropdownMenuTrigger>
         </div>
-        <DropdownMenuContent
-          side='right'
-          align='start'
-          sideOffset={8}
-          className='min-w-[200px]'
-          {...hover.contentProps}
-        >
+        <DropdownMenuContent side='right' align='start' sideOffset={8} {...hover.contentProps}>
           {children}
         </DropdownMenuContent>
       </DropdownMenu>
@@ -153,7 +147,7 @@ function renderCollapsedFolderItems(
           <Folder className='h-[14px] w-[14px]' />
           <span className='truncate'>{folder.name}</span>
         </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className='min-w-[200px]'>
+        <DropdownMenuSubContent>
           {renderCollapsedFolderItems(folder.children, grouped, wsId)}
           {folderWorkflows.map((workflow) => (
             <DropdownMenuItem key={workflow.id} asChild>
@@ -1192,7 +1186,7 @@ export const Sidebar = memo(function Sidebar() {
                           <DropdownMenuItem key={task.id} asChild>
                             <Link href={task.href}>
                               <Blimp className='h-[16px] w-[16px]' />
-                              {task.name}
+                              <span>{task.name}</span>
                             </Link>
                           </DropdownMenuItem>
                         ))
