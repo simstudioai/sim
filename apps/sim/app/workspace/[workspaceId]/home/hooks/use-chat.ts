@@ -1011,6 +1011,7 @@ export function useChat(
   }, [invalidateChatQueries, persistPartialResponse, executionStream])
 
   const removeFromQueue = useCallback((id: string) => {
+    messageQueueRef.current = messageQueueRef.current.filter((m) => m.id !== id)
     setMessageQueue((prev) => prev.filter((m) => m.id !== id))
   }, [])
 
