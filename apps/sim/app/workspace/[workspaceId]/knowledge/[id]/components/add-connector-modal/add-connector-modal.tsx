@@ -143,6 +143,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
     setSourceConfig({})
     setSelectedCredentialId(null)
     setApiKeyValue('')
+    setApiKeyFocused(false)
     setDisabledTagIds(new Set())
     setCanonicalModes({})
     setError(null)
