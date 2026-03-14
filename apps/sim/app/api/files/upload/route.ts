@@ -74,10 +74,7 @@ export async function POST(request: NextRequest) {
     const uploadResults = []
 
     for (const file of files) {
-      const originalName = file.name
-      if (!originalName) {
-        throw new InvalidRequestError('File name is missing')
-      }
+      const originalName = file.name || 'untitled'
 
       if (!validateFileExtension(originalName)) {
         const extension = originalName.split('.').pop()?.toLowerCase() || 'unknown'
