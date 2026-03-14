@@ -26,6 +26,7 @@ import {
 } from '@/components/emcn'
 import { VariableIcon } from '@/components/icons'
 import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
+import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
@@ -356,7 +357,14 @@ export const Panel = memo(function Panel() {
   // Compute run button state
   const canRun = userPermissions.canRead // Running only requires read permissions
   const isLoadingPermissions = userPermissions.isLoading
-  const hasValidationErrors = false // TODO: Add validation logic if needed
+  const hasValidationErrors = useWorkflowStore((state) => {
+    if (Object.keys(state.blocks).length === 0) return false
+    const result = validateWorkflowState({
+      blocks: state.blocks,
+      edges: state.edges,
+    })
+    return !result.valid
+  })
   const isWorkflowBlocked = isExecuting || hasValidationErrors
   const isButtonDisabled = !isExecuting && (isWorkflowBlocked || (!canRun && !isLoadingPermissions))
 
