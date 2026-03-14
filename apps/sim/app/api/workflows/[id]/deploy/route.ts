@@ -134,6 +134,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse('Failed to load workflow state', 500)
     }
 
+    // Validate workflow state before allowing deployment
+    const { validateWorkflowState } = await import('@/lib/workflows/sanitization/validation')
+    const stateValidation = validateWorkflowState({
+      blocks: normalizedData.blocks,
+      edges: normalizedData.edges,
+    })
+    if (!stateValidation.valid) {
+      logger.warn(
+        `[${requestId}] Workflow validation failed for ${id}: ${stateValidation.errors.join('; ')}`
+      )
+      return createErrorResponse(
+        `Workflow has validation errors: ${stateValidation.errors.join('; ')}`,
+        400
+      )
+    }
+
     const scheduleValidation = validateWorkflowSchedules(normalizedData.blocks)
     if (!scheduleValidation.isValid) {
       logger.warn(
