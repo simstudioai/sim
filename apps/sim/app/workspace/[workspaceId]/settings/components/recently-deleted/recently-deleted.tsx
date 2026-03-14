@@ -198,20 +198,24 @@ export function RecentlyDeleted() {
       })
     }
 
+    const onError = () => {
+      toast.error(`Failed to restore ${resource.name}`)
+    }
+
     switch (resource.type) {
       case 'workflow':
-        restoreWorkflow.mutate(resource.id, { onSettled, onSuccess })
+        restoreWorkflow.mutate(resource.id, { onSettled, onSuccess, onError })
         break
       case 'table':
-        restoreTable.mutate(resource.id, { onSettled, onSuccess })
+        restoreTable.mutate(resource.id, { onSettled, onSuccess, onError })
         break
       case 'knowledge':
-        restoreKnowledgeBase.mutate(resource.id, { onSettled, onSuccess })
+        restoreKnowledgeBase.mutate(resource.id, { onSettled, onSuccess, onError })
         break
       case 'file':
         restoreWorkspaceFile.mutate(
           { workspaceId: resource.workspaceId, fileId: resource.id },
-          { onSettled, onSuccess }
+          { onSettled, onSuccess, onError }
         )
         break
     }
