@@ -1080,6 +1080,7 @@ export const Sidebar = memo(function Sidebar() {
                       }
                       hover={tasksHover}
                       onClick={() => router.push(`/workspace/${workspaceId}/home`)}
+                      ariaLabel='Tasks'
                     >
                       {tasksLoading ? (
                         <DropdownMenuItem disabled>
@@ -1201,6 +1202,7 @@ export const Sidebar = memo(function Sidebar() {
                     }
                     hover={workflowsHover}
                     onClick={handleCreateWorkflow}
+                    ariaLabel='Workflows'
                     className='mt-[14px]'
                   >
                     {workflowsLoading && regularWorkflows.length === 0 ? (

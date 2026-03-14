@@ -18,6 +18,7 @@ interface CollapsedSidebarMenuProps {
   icon: React.ReactNode
   hover: ReturnType<typeof useHoverMenu>
   onClick?: () => void
+  ariaLabel?: string
   children: React.ReactNode
   className?: string
 }
@@ -26,6 +27,7 @@ export function CollapsedSidebarMenu({
   icon,
   hover,
   onClick,
+  ariaLabel,
   children,
   className,
 }: CollapsedSidebarMenuProps) {
@@ -43,6 +45,7 @@ export function CollapsedSidebarMenu({
           <DropdownMenuTrigger asChild>
             <button
               type='button'
+              aria-label={ariaLabel}
               className='mx-[2px] flex h-[30px] items-center rounded-[8px] px-[8px] hover:bg-[var(--surface-active)]'
               onClick={onClick}
             >
