@@ -8,6 +8,7 @@ import {
   KeySquare,
   LogIn,
   Mail,
+  Send,
   Server,
   Settings,
   ShieldCheck,
@@ -130,7 +131,7 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'inbox',
     label: 'Sim Mailer',
-    icon: Mail,
+    icon: Send,
     section: 'system',
     requiresHosted: true,
     selfHostedOverride: isInboxEnabled,
