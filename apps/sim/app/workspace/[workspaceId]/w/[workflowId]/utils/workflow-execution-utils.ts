@@ -1,5 +1,5 @@
-import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@sim/logger'
+import { v4 as uuidv4 } from 'uuid'
 import type {
   BlockCompletedData,
   BlockErrorData,
@@ -13,6 +13,7 @@ import type {
   StreamingExecution,
 } from '@/executor/types'
 import { stripCloneSuffixes } from '@/executor/utils/subflow-utils'
+
 const logger = createLogger('workflow-execution-utils')
 
 import { useExecutionStore } from '@/stores/execution'
