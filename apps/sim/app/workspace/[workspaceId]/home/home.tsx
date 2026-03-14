@@ -25,9 +25,8 @@ import {
   UserMessageContent,
 } from './components'
 import { PendingTagIndicator } from './components/message-content/components/special-tags'
-import type { FileAttachmentForApi } from './components/user-input/user-input'
 import { useAutoScroll, useChat } from './hooks'
-import type { MothershipResource, MothershipResourceType } from './types'
+import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
 
 const logger = createLogger('Home')
 

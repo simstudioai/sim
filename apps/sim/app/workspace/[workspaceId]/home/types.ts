@@ -1,11 +1,18 @@
 import type { MothershipResourceType } from '@/lib/copilot/resource-types'
 import type { ChatContext } from '@/stores/panel'
-import type { FileAttachmentForApi } from './components/user-input/user-input'
 
 export type {
   MothershipResource,
   MothershipResourceType,
 } from '@/lib/copilot/resource-types'
+
+export interface FileAttachmentForApi {
+  id: string
+  key: string
+  filename: string
+  media_type: string
+  size: number
+}
 
 export interface QueuedMessage {
   id: string

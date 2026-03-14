@@ -64,7 +64,10 @@ import { cn } from '@/lib/core/utils/cn'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useAvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
-import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import type {
+  FileAttachmentForApi,
+  MothershipResource,
+} from '@/app/workspace/[workspaceId]/home/types'
 import {
   useContextManagement,
   useFileAttachments,
@@ -145,13 +148,7 @@ function mapResourceToContext(resource: MothershipResource): ChatContext {
   }
 }
 
-export interface FileAttachmentForApi {
-  id: string
-  key: string
-  filename: string
-  media_type: string
-  size: number
-}
+export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 
 interface UserInputProps {
   defaultValue?: string
@@ -200,10 +197,15 @@ export function UserInput({
   if (editValue && editValue !== prevEditValue) {
     setPrevEditValue(editValue)
     setValue(editValue)
-    onEditValueConsumed?.()
   } else if (!editValue && prevEditValue) {
     setPrevEditValue(editValue)
   }
+
+  useEffect(() => {
+    if (editValue) {
+      onEditValueConsumed?.()
+    }
+  }, [editValue, onEditValueConsumed])
 
   const animatedPlaceholder = useAnimatedPlaceholder(isInitialView)
   const placeholder = isInitialView ? animatedPlaceholder : 'Send message to Sim'
