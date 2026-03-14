@@ -47,7 +47,6 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-hide {
   opacity: 0;
 }
 
-.sidebar-container[data-collapsed] .sidebar-collapse-remove,
 html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-remove {
   display: none;
 }
