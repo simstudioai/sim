@@ -8,6 +8,7 @@ import {
   reportManualRunToolStop,
 } from '@/lib/copilot/client-sse/run-tool-execution'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
+import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resource-types'
 import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
@@ -197,6 +198,36 @@ function ensureWorkflowInRegistry(resourceId: string, title: string, workspaceId
   return true
 }
 
+function extractResourceFromReadResult(
+  path: string | undefined,
+  output: unknown
+): MothershipResource | null {
+  if (!path) return null
+
+  const segments = path.split('/')
+  const resourceType = VFS_DIR_TO_RESOURCE[segments[0]]
+  if (!resourceType || !segments[1]) return null
+
+  const obj = output && typeof output === 'object' ? (output as Record<string, unknown>) : undefined
+  if (!obj) return null
+
+  let id = obj.id as string | undefined
+  let name = obj.name as string | undefined
+
+  if (!id && typeof obj.content === 'string') {
+    try {
+      const parsed = JSON.parse(obj.content)
+      id = parsed?.id as string | undefined
+      name = parsed?.name as string | undefined
+    } catch {
+      // content is not JSON
+    }
+  }
+
+  if (!id) return null
+  return { type: resourceType, id, title: name || segments[1] }
+}
+
 export interface UseChatOptions {
   onResourceEvent?: () => void
 }
@@ -352,14 +383,6 @@ export function useChat(
         return b
       }
 
-      const ensureSubagentTextBlock = (): ContentBlock => {
-        const last = blocks[blocks.length - 1]
-        if (last?.type === 'subagent_text') return last
-        const b: ContentBlock = { type: 'subagent_text', content: '' }
-        blocks.push(b)
-        return b
-      }
-
       const flush = () => {
         streamingBlocksRef.current = [...blocks]
         setMessages((prev) =>
@@ -427,9 +450,10 @@ export function useChat(
                   lastContentSource !== contentSource &&
                   runningText.length > 0 &&
                   !runningText.endsWith('\n')
-                const tb = activeSubagent ? ensureSubagentTextBlock() : ensureTextBlock()
-                tb.content = (tb.content ?? '') + chunk
-                runningText += needsBoundaryNewline ? `\n${chunk}` : chunk
+                const tb = ensureTextBlock()
+                const normalizedChunk = needsBoundaryNewline ? `\n${chunk}` : chunk
+                tb.content = (tb.content ?? '') + normalizedChunk
+                runningText += normalizedChunk
                 lastContentSource = contentSource
                 streamingContentRef.current = runningText
                 flush()
@@ -523,6 +547,18 @@ export function useChat(
                   error: (parsed.error ?? getPayloadData(parsed)?.error) as string | undefined,
                 }
                 flush()
+
+                if (tc.name === 'read' && tc.status === 'success') {
+                  const readArgs = toolArgsMap.get(id)
+                  const resource = extractResourceFromReadResult(
+                    readArgs?.path as string | undefined,
+                    tc.result.output
+                  )
+                  if (resource) {
+                    addResource(resource)
+                    onResourceEventRef.current?.()
+                  }
+                }
               }
 
               break

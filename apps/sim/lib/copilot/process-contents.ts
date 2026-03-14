@@ -755,7 +755,6 @@ export async function resolveActiveResourceContext(
     return null
   }
 }
-
 async function resolveTableResource(tableId: string): Promise<AgentContext | null> {
   const table = await getTableById(tableId)
   if (!table) return null
@@ -787,3 +786,4 @@ async function resolveFileResource(
     content: JSON.stringify(meta, null, 2),
   }
 }
+
