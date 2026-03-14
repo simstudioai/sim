@@ -1,6 +1,5 @@
 'use client'
 import { generateId } from '../../lib/utils/uuid'
-'use client'
 
 import { useRef } from 'react'
 import { Plus } from 'lucide-react'
