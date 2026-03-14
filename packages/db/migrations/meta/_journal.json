@@ -1219,6 +1219,13 @@
       "when": 1773529490946,
       "tag": "0174_whole_lyja",
       "breakpoints": true
+    },
+    {
+      "idx": 175,
+      "version": "7",
+      "when": 1773532070072,
+      "tag": "0175_cheerful_shockwave",
+      "breakpoints": true
     }
   ]
 }
