@@ -26,9 +26,20 @@ const TEXT_EDITABLE_MIME_TYPES = new Set([
   'application/x-yaml',
   'text/csv',
   'text/html',
+  'image/svg+xml',
 ])
 
-const TEXT_EDITABLE_EXTENSIONS = new Set(['md', 'txt', 'json', 'yaml', 'yml', 'csv', 'html', 'htm'])
+const TEXT_EDITABLE_EXTENSIONS = new Set([
+  'md',
+  'txt',
+  'json',
+  'yaml',
+  'yml',
+  'csv',
+  'html',
+  'htm',
+  'svg',
+])
 
 const IFRAME_PREVIEWABLE_MIME_TYPES = new Set(['application/pdf'])
 const IFRAME_PREVIEWABLE_EXTENSIONS = new Set(['pdf'])

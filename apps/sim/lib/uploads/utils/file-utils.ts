@@ -32,7 +32,7 @@ export const MIME_TYPE_MAPPING: Record<string, 'image' | 'document' | 'audio' | 
   'image/png': 'image',
   'image/gif': 'image',
   'image/webp': 'image',
-  'image/svg+xml': 'image',
+  // SVG is XML text, not a raster image — handled separately in createFileContent
 
   // Documents
   'application/pdf': 'document',
@@ -97,16 +97,14 @@ export function isSupportedFileType(mimeType: string): boolean {
 /**
  * Check if a MIME type is an image type (for copilot uploads)
  */
+const IMAGE_MIME_TYPES = new Set(
+  Object.entries(MIME_TYPE_MAPPING)
+    .filter(([, v]) => v === 'image')
+    .map(([k]) => k)
+)
+
 export function isImageFileType(mimeType: string): boolean {
-  const imageTypes = [
-    'image/jpeg',
-    'image/jpg',
-    'image/png',
-    'image/gif',
-    'image/webp',
-    'image/svg+xml',
-  ]
-  return imageTypes.includes(mimeType.toLowerCase())
+  return IMAGE_MIME_TYPES.has(mimeType.toLowerCase())
 }
 
 /**
@@ -142,6 +140,19 @@ export function bufferToBase64(buffer: Buffer): string {
  * Create message content from file data
  */
 export function createFileContent(fileBuffer: Buffer, mimeType: string): MessageContent | null {
+  // SVG is XML text — Claude only supports raster image formats (JPEG, PNG, GIF, WebP),
+  // so send SVGs as an XML document instead
+  if (mimeType.toLowerCase() === 'image/svg+xml') {
+    return {
+      type: 'document',
+      source: {
+        type: 'base64',
+        media_type: 'text/xml',
+        data: bufferToBase64(fileBuffer),
+      },
+    }
+  }
+
   const contentType = getContentType(mimeType)
   if (!contentType) {
     return null

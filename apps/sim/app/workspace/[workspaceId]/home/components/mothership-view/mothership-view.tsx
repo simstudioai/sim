@@ -4,14 +4,15 @@ import { useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import {
+  PREVIEW_ONLY_EXTENSIONS,
+  RICH_PREVIEWABLE_EXTENSIONS,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { ResourceActions, ResourceContent, ResourceTabs } from './components'
-
-const PREVIEWABLE_EXTENSIONS = new Set(['md', 'html', 'htm', 'csv'])
-const PREVIEW_ONLY_EXTENSIONS = new Set(['html', 'htm'])
 
 const PREVIEW_CYCLE: Record<PreviewMode, PreviewMode> = {
   editor: 'split',
@@ -57,7 +58,7 @@ export function MothershipView({
   }, [active?.id])
 
   const isActivePreviewable =
-    active?.type === 'file' && PREVIEWABLE_EXTENSIONS.has(getFileExtension(active.title))
+    active?.type === 'file' && RICH_PREVIEWABLE_EXTENSIONS.has(getFileExtension(active.title))
 
   return (
     <div

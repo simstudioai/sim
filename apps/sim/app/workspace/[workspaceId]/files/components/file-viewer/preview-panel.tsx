@@ -6,12 +6,13 @@ import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 
-type PreviewType = 'markdown' | 'html' | 'csv' | null
+type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | null
 
 const PREVIEWABLE_MIME_TYPES: Record<string, PreviewType> = {
   'text/markdown': 'markdown',
   'text/html': 'html',
   'text/csv': 'csv',
+  'image/svg+xml': 'svg',
 }
 
 const PREVIEWABLE_EXTENSIONS: Record<string, PreviewType> = {
@@ -19,7 +20,14 @@ const PREVIEWABLE_EXTENSIONS: Record<string, PreviewType> = {
   html: 'html',
   htm: 'html',
   csv: 'csv',
+  svg: 'svg',
 }
+
+/** Extensions that should default to rendered preview (no raw editor). */
+export const PREVIEW_ONLY_EXTENSIONS = new Set(['html', 'htm', 'svg'])
+
+/** All extensions that have a rich preview renderer. */
+export const RICH_PREVIEWABLE_EXTENSIONS = new Set(Object.keys(PREVIEWABLE_EXTENSIONS))
 
 export function resolvePreviewType(mimeType: string | null, filename: string): PreviewType {
   if (mimeType && PREVIEWABLE_MIME_TYPES[mimeType]) return PREVIEWABLE_MIME_TYPES[mimeType]
@@ -39,6 +47,7 @@ export function PreviewPanel({ content, mimeType, filename }: PreviewPanelProps)
   if (previewType === 'markdown') return <MarkdownPreview content={content} />
   if (previewType === 'html') return <HtmlPreview content={content} />
   if (previewType === 'csv') return <CsvPreview content={content} />
+  if (previewType === 'svg') return <SvgPreview content={content} />
 
   return null
 }
@@ -170,6 +179,25 @@ function HtmlPreview({ content }: { content: string }) {
         sandbox='allow-same-origin'
         title='HTML Preview'
         className='h-full w-full border-0 bg-white'
+      />
+    </div>
+  )
+}
+
+function SvgPreview({ content }: { content: string }) {
+  const wrappedContent = useMemo(
+    () =>
+      `<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:transparent;}svg{max-width:100%;max-height:100vh;}</style></head><body>${content}</body></html>`,
+    [content]
+  )
+
+  return (
+    <div className='h-full overflow-hidden'>
+      <iframe
+        srcDoc={wrappedContent}
+        sandbox=''
+        title='SVG Preview'
+        className='h-full w-full border-0'
       />
     </div>
   )

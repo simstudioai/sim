@@ -61,6 +61,8 @@ export const contentTypeMap: Record<string, string> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   gif: 'image/gif',
+  svg: 'image/svg+xml',
+  webp: 'image/webp',
   zip: 'application/zip',
   googleFolder: 'application/vnd.google-apps.folder',
 }
@@ -77,6 +79,7 @@ export const binaryExtensions = [
   'jpg',
   'jpeg',
   'gif',
+  'webp',
   'pdf',
 ]
 
@@ -204,13 +207,15 @@ const SAFE_INLINE_TYPES = new Set([
   'image/jpeg',
   'image/jpg',
   'image/gif',
+  'image/svg+xml',
+  'image/webp',
   'application/pdf',
   'text/plain',
   'text/csv',
   'application/json',
 ])
 
-const FORCE_ATTACHMENT_EXTENSIONS = new Set(['html', 'htm', 'svg', 'js', 'css', 'xml'])
+const FORCE_ATTACHMENT_EXTENSIONS = new Set(['html', 'htm', 'js', 'css', 'xml'])
 
 function getSecureFileHeaders(filename: string, originalContentType: string) {
   const extension = filename.split('.').pop()?.toLowerCase() || ''
@@ -224,7 +229,7 @@ function getSecureFileHeaders(filename: string, originalContentType: string) {
 
   let safeContentType = originalContentType
 
-  if (originalContentType === 'text/html' || originalContentType === 'image/svg+xml') {
+  if (originalContentType === 'text/html') {
     safeContentType = 'text/plain'
   }
 
@@ -253,16 +258,18 @@ function encodeFilenameForHeader(storageKey: string): string {
 export function createFileResponse(file: FileResponse): NextResponse {
   const { contentType, disposition } = getSecureFileHeaders(file.filename, file.contentType)
 
-  return new NextResponse(file.buffer as BodyInit, {
-    status: 200,
-    headers: {
-      'Content-Type': contentType,
-      'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(file.filename)}`,
-      'Cache-Control': file.cacheControl || 'public, max-age=31536000',
-      'X-Content-Type-Options': 'nosniff',
-      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox;",
-    },
-  })
+  const headers: Record<string, string> = {
+    'Content-Type': contentType,
+    'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(file.filename)}`,
+    'Cache-Control': file.cacheControl || 'public, max-age=31536000',
+    'X-Content-Type-Options': 'nosniff',
+  }
+
+  if (contentType === 'image/svg+xml') {
+    headers['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'; sandbox;"
+  }
+
+  return new NextResponse(file.buffer as BodyInit, { status: 200, headers })
 }
 
 export function createErrorResponse(error: Error, status = 500): NextResponse {
