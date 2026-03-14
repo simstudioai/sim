@@ -1,34 +1,9 @@
 import { createLogger } from '@sim/logger'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
-import type { MothershipResource } from '@/lib/copilot/resource-types'
-import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resource-types'
-import type { WorkspaceVFS } from '@/lib/copilot/vfs'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
+import { listChatUploads, readChatUpload } from './upload-file-reader'
 
 const logger = createLogger('VfsTools')
-
-/**
- * Resolves a VFS resource path to its resource descriptor by reading the
- * sibling meta.json (already in memory) for the resource ID and name.
- */
-function resolveVfsResource(vfs: WorkspaceVFS, path: string): MothershipResource | null {
-  const segments = path.split('/')
-  const resourceType = VFS_DIR_TO_RESOURCE[segments[0]]
-  if (!resourceType || !segments[1]) return null
-
-  const metaPath = `${segments[0]}/${segments[1]}/meta.json`
-  const meta = vfs.read(metaPath)
-  if (!meta) return null
-
-  try {
-    const parsed = JSON.parse(meta.content)
-    const id = parsed?.id as string | undefined
-    if (!id) return null
-    return { type: resourceType, id, title: (parsed.name as string) || segments[1] }
-  } catch {
-    return null
-  }
-}
 
 export async function executeVfsGrep(
   params: Record<string, unknown>,
@@ -89,7 +64,14 @@ export async function executeVfsGlob(
 
   try {
     const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
-    const files = vfs.glob(pattern)
+    let files = vfs.glob(pattern)
+
+    if (context.chatId && (pattern === 'uploads/*' || pattern.startsWith('uploads/'))) {
+      const uploads = await listChatUploads(context.chatId)
+      const uploadPaths = uploads.map((f) => `uploads/${f.name}`)
+      files = [...files, ...uploadPaths]
+    }
+
     logger.debug('vfs_glob result', { pattern, fileCount: files.length })
     return { success: true, output: { files } }
   } catch (err) {
@@ -116,6 +98,23 @@ export async function executeVfsRead(
   }
 
   try {
+    // Handle chat-scoped uploads via the uploads/ virtual prefix
+    if (path.startsWith('uploads/')) {
+      if (!context.chatId) {
+        return { success: false, error: 'No chat context available for uploads/' }
+      }
+      const filename = path.slice('uploads/'.length)
+      const uploadResult = await readChatUpload(filename, context.chatId)
+      if (uploadResult) {
+        logger.debug('vfs_read resolved chat upload', { path, totalLines: uploadResult.totalLines })
+        return { success: true, output: uploadResult }
+      }
+      return {
+        success: false,
+        error: `Upload not found: ${path}. Use glob("uploads/*") to list available uploads.`,
+      }
+    }
+
     const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
     const result = vfs.read(
       path,
@@ -129,12 +128,9 @@ export async function executeVfsRead(
           path,
           totalLines: fileContent.totalLines,
         })
-        // Appends metadata of resource to tool response
-        const resource = resolveVfsResource(vfs, path)
         return {
           success: true,
           output: fileContent,
-          ...(resource && { resources: [resource] }),
         }
       }
 
@@ -147,12 +143,9 @@ export async function executeVfsRead(
       return { success: false, error: `File not found: ${path}.${hint}` }
     }
     logger.debug('vfs_read result', { path, totalLines: result.totalLines })
-    // Appends metadata of resource to tool response
-    const resource = resolveVfsResource(vfs, path)
     return {
       success: true,
       output: result,
-      ...(resource && { resources: [resource] }),
     }
   } catch (err) {
     logger.error('vfs_read failed', {

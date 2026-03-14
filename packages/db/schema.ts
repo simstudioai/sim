@@ -1041,7 +1041,8 @@ export const workspaceFiles = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
-    context: text('context').notNull(), // 'workspace', 'copilot', 'chat', 'knowledge-base', 'profile-pictures', 'general', 'execution'
+    context: text('context').notNull(), // 'workspace', 'mothership', 'copilot', 'chat', 'knowledge-base', 'profile-pictures', 'general', 'execution'
+    chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'cascade' }),
     originalName: text('original_name').notNull(),
     contentType: text('content_type').notNull(),
     size: integer('size').notNull(),
@@ -1056,6 +1057,7 @@ export const workspaceFiles = pgTable(
     userIdIdx: index('workspace_files_user_id_idx').on(table.userId),
     workspaceIdIdx: index('workspace_files_workspace_id_idx').on(table.workspaceId),
     contextIdx: index('workspace_files_context_idx').on(table.context),
+    chatIdIdx: index('workspace_files_chat_id_idx').on(table.chatId),
     deletedAtIdx: index('workspace_files_deleted_at_idx').on(table.deletedAt),
   })
 )

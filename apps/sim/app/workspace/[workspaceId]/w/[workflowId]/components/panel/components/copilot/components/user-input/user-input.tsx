@@ -188,6 +188,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const fileAttachments = useFileAttachments({
       userId: session?.user?.id,
+      workspaceId,
       disabled,
       isLoading,
     })

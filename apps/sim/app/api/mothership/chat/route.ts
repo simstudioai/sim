@@ -31,6 +31,8 @@ const FileAttachmentSchema = z.object({
 const ResourceAttachmentSchema = z.object({
   type: z.enum(['workflow', 'table', 'file', 'knowledgebase']),
   id: z.string().min(1),
+  title: z.string().optional(),
+  active: z.boolean().optional(),
 })
 
 const MothershipMessageSchema = z.object({
@@ -124,9 +126,19 @@ export async function POST(req: NextRequest) {
 
     if (Array.isArray(resourceAttachments) && resourceAttachments.length > 0) {
       const results = await Promise.allSettled(
-        resourceAttachments.map((r) =>
-          resolveActiveResourceContext(r.type, r.id, workspaceId, authenticatedUserId)
-        )
+        resourceAttachments.map(async (r) => {
+          const ctx = await resolveActiveResourceContext(
+            r.type,
+            r.id,
+            workspaceId,
+            authenticatedUserId
+          )
+          if (!ctx) return null
+          return {
+            ...ctx,
+            tag: r.active ? '@active_tab' : '@open_tab',
+          }
+        })
       )
       for (const result of results) {
         if (result.status === 'fulfilled' && result.value) {

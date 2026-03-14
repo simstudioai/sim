@@ -212,6 +212,7 @@ export function UserInput({
 
   const files = useFileAttachments({
     userId: userId || session?.user?.id,
+    workspaceId,
     disabled: false,
     isLoading: isSending,
   })

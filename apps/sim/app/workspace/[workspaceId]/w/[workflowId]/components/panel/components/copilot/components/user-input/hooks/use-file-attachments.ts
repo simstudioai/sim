@@ -43,6 +43,7 @@ export interface MessageFileAttachment {
 
 interface UseFileAttachmentsProps {
   userId?: string
+  workspaceId?: string
   disabled?: boolean
   isLoading?: boolean
 }
@@ -55,7 +56,7 @@ interface UseFileAttachmentsProps {
  * @returns File attachment state and operations
  */
 export function useFileAttachments(props: UseFileAttachmentsProps) {
-  const { userId, disabled, isLoading } = props
+  const { userId, workspaceId, disabled, isLoading } = props
 
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [isDragging, setIsDragging] = useState(false)
@@ -135,7 +136,10 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
         try {
           const formData = new FormData()
           formData.append('file', file)
-          formData.append('context', 'copilot')
+          formData.append('context', 'mothership')
+          if (workspaceId) {
+            formData.append('workspaceId', workspaceId)
+          }
 
           const uploadResponse = await fetch('/api/files/upload', {
             method: 'POST',
@@ -171,7 +175,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
         }
       }
     },
-    [userId]
+    [userId, workspaceId]
   )
 
   /**

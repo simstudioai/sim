@@ -208,6 +208,37 @@ export async function uploadWorkspaceFile(
 }
 
 /**
+ * Track a file that was already uploaded to workspace S3 as a chat-scoped upload.
+ * Creates a workspaceFiles record with context='mothership' and the given chatId.
+ * No S3 operations -- the file is already in storage from the presigned/upload step.
+ */
+export async function trackChatUpload(
+  workspaceId: string,
+  userId: string,
+  chatId: string,
+  s3Key: string,
+  fileName: string,
+  contentType: string,
+  size: number
+): Promise<void> {
+  const fileId = `wf_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+
+  await db.insert(workspaceFiles).values({
+    id: fileId,
+    key: s3Key,
+    userId,
+    workspaceId,
+    context: 'mothership',
+    chatId,
+    originalName: fileName,
+    contentType,
+    size,
+  })
+
+  logger.info(`Tracked chat upload: ${fileName} for chat ${chatId}`)
+}
+
+/**
  * Check if a file with the same name already exists in workspace
  */
 export async function fileExistsInWorkspace(

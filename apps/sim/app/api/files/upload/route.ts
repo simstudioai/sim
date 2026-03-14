@@ -4,6 +4,7 @@ import { sanitizeFileName } from '@/executor/constants'
 import '@/lib/uploads/core/setup.server'
 import { getSession } from '@/lib/auth'
 import type { StorageContext } from '@/lib/uploads/config'
+import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { isImageFileType, resolveFileType } from '@/lib/uploads/utils/file-utils'
 import {
   SUPPORTED_AUDIO_EXTENSIONS,
@@ -230,6 +231,53 @@ export async function POST(request: NextRequest) {
             { status: statusCode }
           )
         }
+      }
+
+      // Handle mothership context (chat-scoped uploads to workspace S3)
+      if (context === 'mothership') {
+        if (!workspaceId) {
+          throw new InvalidRequestError('Mothership context requires workspaceId parameter')
+        }
+
+        logger.info(`Uploading mothership file: ${originalName}`)
+
+        const storageKey = generateWorkspaceFileKey(workspaceId, originalName)
+
+        const metadata: Record<string, string> = {
+          originalName: originalName,
+          uploadedAt: new Date().toISOString(),
+          purpose: 'mothership',
+          userId: session.user.id,
+          workspaceId,
+        }
+
+        const fileInfo = await storageService.uploadFile({
+          file: buffer,
+          fileName: storageKey,
+          contentType: file.type || 'application/octet-stream',
+          context: 'mothership',
+          preserveKey: true,
+          customKey: storageKey,
+          metadata,
+        })
+
+        const finalPath = usingCloudStorage ? `${fileInfo.path}?context=mothership` : fileInfo.path
+
+        uploadResults.push({
+          fileName: originalName,
+          presignedUrl: '',
+          fileInfo: {
+            path: finalPath,
+            key: fileInfo.key,
+            name: originalName,
+            size: buffer.length,
+            type: file.type || 'application/octet-stream',
+          },
+          directUploadSupported: false,
+        })
+
+        logger.info(`Successfully uploaded mothership file: ${fileInfo.key}`)
+        continue
       }
 
       // Handle copilot, chat, profile-pictures contexts

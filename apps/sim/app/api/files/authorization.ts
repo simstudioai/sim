@@ -120,8 +120,8 @@ export async function verifyFileAccess(
       return true
     }
 
-    // 1. Workspace files: Check database first (most reliable for both local and cloud)
-    if (inferredContext === 'workspace') {
+    // 1. Workspace / mothership files: Check database first (most reliable for both local and cloud)
+    if (inferredContext === 'workspace' || inferredContext === 'mothership') {
       return await verifyWorkspaceFileAccess(cloudKey, userId, customConfig, isLocal)
     }
 
