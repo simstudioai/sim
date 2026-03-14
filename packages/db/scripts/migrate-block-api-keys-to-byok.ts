@@ -543,7 +543,9 @@ async function processWorkspace(
       const chosen = resolved[0]
 
       if (DRY_RUN) {
-        console.log(`  [DRY RUN] Would insert BYOK for provider "${providerId}": ${maskKey(chosen.key)}`)
+        console.log(
+          `  [DRY RUN] Would insert BYOK for provider "${providerId}": ${maskKey(chosen.key)}`
+        )
         continue
       }
 
@@ -675,11 +677,16 @@ async function run() {
 
         if (DRY_RUN) {
           const workspaceIdsWithKeys = results
-            .map((result, resultIndex) => (result.shouldWriteWorkspaceId ? workspaceChunk[resultIndex] : null))
+            .map((result, resultIndex) =>
+              result.shouldWriteWorkspaceId ? workspaceChunk[resultIndex] : null
+            )
             .filter((id): id is string => id !== null)
 
           if (workspaceIdsWithKeys.length > 0) {
-            appendFileSync(resolve('migrate-byok-workspace-ids.txt'), `${workspaceIdsWithKeys.join('\n')}\n`)
+            appendFileSync(
+              resolve('migrate-byok-workspace-ids.txt'),
+              `${workspaceIdsWithKeys.join('\n')}\n`
+            )
           }
         }
 
