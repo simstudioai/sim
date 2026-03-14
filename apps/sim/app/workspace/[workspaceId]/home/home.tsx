@@ -203,6 +203,10 @@ export function Home({ chatId }: HomeProps = {}) {
   )
 
   useEffect(() => {
+    setEditingInputValue('')
+  }, [chatId])
+
+  useEffect(() => {
     wasSendingRef.current = false
     if (resolvedChatId) markRead(resolvedChatId)
   }, [resolvedChatId, markRead])

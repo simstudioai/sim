@@ -726,22 +726,30 @@ export function useChat(
     queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
   }, [workspaceId, queryClient])
 
-  const finalize = useCallback(() => {
-    sendingRef.current = false
-    setIsSending(false)
-    abortControllerRef.current = null
-    invalidateChatQueries()
+  const finalize = useCallback(
+    (options?: { error?: boolean }) => {
+      sendingRef.current = false
+      setIsSending(false)
+      abortControllerRef.current = null
+      invalidateChatQueries()
 
-    const next = messageQueueRef.current[0]
-    if (next) {
-      setMessageQueue((prev) => prev.filter((m) => m.id !== next.id))
-      const gen = streamGenRef.current
-      queueMicrotask(() => {
-        if (streamGenRef.current !== gen) return
-        sendMessageRef.current(next.content, next.fileAttachments, next.contexts)
-      })
-    }
-  }, [invalidateChatQueries])
+      if (options?.error) {
+        setMessageQueue([])
+        return
+      }
+
+      const next = messageQueueRef.current[0]
+      if (next) {
+        setMessageQueue((prev) => prev.filter((m) => m.id !== next.id))
+        const gen = streamGenRef.current
+        queueMicrotask(() => {
+          if (streamGenRef.current !== gen) return
+          sendMessageRef.current(next.content, next.fileAttachments, next.contexts)
+        })
+      }
+    },
+    [invalidateChatQueries]
+  )
 
   useEffect(() => {
     const activeStreamId = chatHistory?.activeStreamId
@@ -907,10 +915,13 @@ export function useChat(
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return
         setError(err instanceof Error ? err.message : 'Failed to send message')
-      } finally {
         if (streamGenRef.current === gen) {
-          finalize()
+          finalize({ error: true })
         }
+        return
+      }
+      if (streamGenRef.current === gen) {
+        finalize()
       }
     },
     [workspaceId, queryClient, processSSEStream, finalize]
