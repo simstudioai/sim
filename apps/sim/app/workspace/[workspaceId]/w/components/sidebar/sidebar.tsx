@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
@@ -270,12 +270,17 @@ export const Sidebar = memo(function Sidebar() {
 
   const [showCollapsedContent, setShowCollapsedContent] = useState(isCollapsed)
 
+  useLayoutEffect(() => {
+    if (!isCollapsed) {
+      document.documentElement.removeAttribute('data-sidebar-collapsed')
+    }
+  }, [isCollapsed])
+
   useEffect(() => {
     if (isCollapsed) {
       const timer = setTimeout(() => setShowCollapsedContent(true), 200)
       return () => clearTimeout(timer)
     }
-    document.documentElement.removeAttribute('data-sidebar-collapsed')
     setShowCollapsedContent(false)
   }, [isCollapsed])
 
@@ -1087,8 +1092,6 @@ export const Sidebar = memo(function Sidebar() {
                           <Loader className='h-[14px] w-[14px]' animate />
                           Loading...
                         </DropdownMenuItem>
-                      ) : tasks.length === 0 ? (
-                        <DropdownMenuItem disabled>No tasks yet</DropdownMenuItem>
                       ) : (
                         tasks.map((task) => (
                           <DropdownMenuItem key={task.id} asChild>
