@@ -193,14 +193,30 @@ export const POST = withAdminAuth(async (request) => {
       ...(effectiveDuration === 'repeating' ? { duration_in_months: durationInMonths } : {}),
     })
 
-    const promoParams: Stripe.PromotionCodeCreateParams = {
-      coupon: coupon.id,
-      ...(code ? { code: code.trim().toUpperCase() } : {}),
-      ...(maxRedemptions ? { max_redemptions: maxRedemptions } : {}),
-      ...(expiresAt ? { expires_at: Math.floor(new Date(expiresAt).getTime() / 1000) } : {}),
-    }
+    let promoCode
+    try {
+      const promoParams: Stripe.PromotionCodeCreateParams = {
+        coupon: coupon.id,
+        ...(code ? { code: code.trim().toUpperCase() } : {}),
+        ...(maxRedemptions ? { max_redemptions: maxRedemptions } : {}),
+        ...(expiresAt ? { expires_at: Math.floor(new Date(expiresAt).getTime() / 1000) } : {}),
+      }
 
-    const promoCode = await stripe.promotionCodes.create(promoParams)
+      promoCode = await stripe.promotionCodes.create(promoParams)
+    } catch (promoError) {
+      try {
+        await stripe.coupons.del(coupon.id)
+      } catch (cleanupError) {
+        logger.error(
+          'Admin API: Failed to clean up orphaned coupon after promo code creation failed',
+          {
+            couponId: coupon.id,
+            cleanupError,
+          }
+        )
+      }
+      throw promoError
+    }
 
     logger.info('Admin API: Created Stripe promotion code', {
       promoCodeId: promoCode.id,
