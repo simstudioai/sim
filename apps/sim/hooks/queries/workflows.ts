@@ -76,6 +76,7 @@ function mapWorkflow(workflow: any): WorkflowMetadata {
     sortOrder: workflow.sortOrder ?? 0,
     createdAt: new Date(workflow.createdAt),
     lastModified: new Date(workflow.updatedAt || workflow.createdAt),
+    archivedAt: workflow.archivedAt ? new Date(workflow.archivedAt) : null,
   }
 }
 
@@ -763,6 +764,24 @@ export function useImportWorkflow() {
       return data
     },
     onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: workflowKeys.lists() })
+    },
+  })
+}
+
+export function useRestoreWorkflow() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (workflowId: string) => {
+      const res = await fetch(`/api/workflows/${workflowId}/restore`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to restore workflow')
+      }
+      return res.json()
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: workflowKeys.lists() })
     },
   })

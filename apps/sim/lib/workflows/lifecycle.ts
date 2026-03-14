@@ -231,6 +231,79 @@ export async function archiveWorkflow(
   }
 }
 
+interface RestoreWorkflowOptions {
+  requestId: string
+}
+
+export async function restoreWorkflow(
+  workflowId: string,
+  options: RestoreWorkflowOptions
+): Promise<{ restored: boolean; workflow: Awaited<ReturnType<typeof getWorkflowById>> | null }> {
+  const existingWorkflow = await getWorkflowById(workflowId, { includeArchived: true })
+
+  if (!existingWorkflow) {
+    return { restored: false, workflow: null }
+  }
+
+  if (!existingWorkflow.archivedAt) {
+    return { restored: false, workflow: existingWorkflow }
+  }
+
+  if (existingWorkflow.workspaceId) {
+    const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
+    const ws = await getWorkspaceWithOwner(existingWorkflow.workspaceId)
+    if (!ws || ws.archivedAt) {
+      throw new Error('Cannot restore workflow into an archived workspace')
+    }
+  }
+
+  const now = new Date()
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(workflow)
+      .set({ archivedAt: null, updatedAt: now })
+      .where(eq(workflow.id, workflowId))
+
+    await tx
+      .update(workflowSchedule)
+      .set({ archivedAt: null, updatedAt: now })
+      .where(eq(workflowSchedule.workflowId, workflowId))
+
+    await tx
+      .update(webhook)
+      .set({ archivedAt: null, updatedAt: now })
+      .where(eq(webhook.workflowId, workflowId))
+
+    await tx
+      .update(chat)
+      .set({ archivedAt: null, updatedAt: now })
+      .where(eq(chat.workflowId, workflowId))
+
+    await tx
+      .update(form)
+      .set({ archivedAt: null, updatedAt: now })
+      .where(eq(form.workflowId, workflowId))
+
+    await tx
+      .update(workflowMcpTool)
+      .set({ archivedAt: null, updatedAt: now })
+      .where(eq(workflowMcpTool.workflowId, workflowId))
+
+    await tx
+      .update(a2aAgent)
+      .set({ archivedAt: null, updatedAt: now })
+      .where(eq(a2aAgent.workflowId, workflowId))
+  })
+
+  logger.info(`[${options.requestId}] Restored workflow ${workflowId}`)
+
+  return {
+    restored: true,
+    workflow: await getWorkflowById(workflowId),
+  }
+}
+
 export async function archiveWorkflows(
   workflowIds: string[],
   options: ArchiveWorkflowOptions

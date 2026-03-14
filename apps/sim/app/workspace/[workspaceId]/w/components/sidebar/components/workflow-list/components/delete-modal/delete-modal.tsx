@@ -64,6 +64,8 @@ export function DeleteModal({
     title = 'Delete Workspace'
   }
 
+  const restorableTypes = new Set<string>(['workflow'])
+
   const renderDescription = () => {
     if (itemType === 'workflow') {
       if (isMultiple) {
@@ -73,7 +75,7 @@ export function DeleteModal({
             <span className='font-medium text-[var(--text-primary)]'>
               {displayNames.join(', ')}
             </span>
-            ? This will permanently remove all associated blocks, executions, and configuration.
+            ? All associated blocks, executions, and configuration will be removed.
           </>
         )
       }
@@ -81,12 +83,12 @@ export function DeleteModal({
         return (
           <>
             Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>? This
-            will permanently remove all associated blocks, executions, and configuration.
+            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>? All
+            associated blocks, executions, and configuration will be removed.
           </>
         )
       }
-      return 'Are you sure you want to delete this workflow? This will permanently remove all associated blocks, executions, and configuration.'
+      return 'Are you sure you want to delete this workflow? All associated blocks, executions, and configuration will be removed.'
     }
 
     if (itemType === 'folder') {
@@ -174,7 +176,13 @@ export function DeleteModal({
         <ModalBody>
           <p className='text-[var(--text-secondary)]'>
             {renderDescription()}{' '}
-            <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            {restorableTypes.has(itemType) ? (
+              <span className='text-[var(--text-tertiary)]'>
+                You can restore it from Recently Deleted in Settings.
+              </span>
+            ) : (
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            )}
           </p>
         </ModalBody>
         <ModalFooter>

@@ -26,6 +26,7 @@ export interface KnowledgeBaseWithCounts {
   chunkingConfig: ChunkingConfig
   createdAt: Date
   updatedAt: Date
+  deletedAt: Date | null
   workspaceId: string | null
   docCount: number
   connectorTypes: string[]
@@ -126,6 +127,7 @@ export interface KnowledgeBaseData {
   chunkingConfig: ExtendedChunkingConfig
   createdAt: string
   updatedAt: string
+  deletedAt?: string | null
   workspaceId?: string
   connectorTypes?: string[]
 }
