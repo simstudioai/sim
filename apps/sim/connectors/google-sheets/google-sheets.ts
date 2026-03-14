@@ -171,7 +171,7 @@ export const googleSheetsConnector: ConnectorConfig = {
   auth: {
     mode: 'oauth',
     provider: 'google-sheets',
-    requiredScopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    requiredScopes: ['https://www.googleapis.com/auth/drive'],
   },
 
   configFields: [

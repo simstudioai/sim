@@ -241,6 +241,7 @@ export const redditConnector: ConnectorConfig = {
   auth: {
     mode: 'oauth',
     provider: 'reddit',
+    requiredScopes: ['read'],
   },
 
   configFields: [

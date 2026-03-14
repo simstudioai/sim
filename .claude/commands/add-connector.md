@@ -117,6 +117,8 @@ export const {service}Connector: ConnectorConfig = {
 
 The add-connector modal renders these automatically — no custom UI needed.
 
+Three field types are supported: `short-input`, `dropdown`, and `selector`.
+
 ```typescript
 // Text input
 {
@@ -140,6 +142,136 @@ The add-connector modal renders these automatically — no custom UI needed.
   ],
 }
 ```
+
+## Dynamic Selectors (Canonical Pairs)
+
+Use `type: 'selector'` to fetch options dynamically from the existing selector registry (`hooks/selectors/registry.ts`). Selectors are always paired with a manual fallback input using the **canonical pair** pattern — a `selector` field (basic mode) and a `short-input` field (advanced mode) linked by `canonicalParamId`.
+
+The user sees a toggle button (ArrowLeftRight) to switch between the selector dropdown and manual text input. On submit, the modal resolves each canonical pair to the active mode's value, keyed by `canonicalParamId`.
+
+### Rules
+
+1. **Every selector field MUST have a canonical pair** — a corresponding `short-input` (or `dropdown`) field with the same `canonicalParamId` and `mode: 'advanced'`.
+2. **`required` must be set identically on both fields** in a pair. If the selector is required, the manual input must also be required.
+3. **`canonicalParamId` must match the key the connector expects in `sourceConfig`** (e.g. `baseId`, `channel`, `teamId`). The advanced field's `id` should typically match `canonicalParamId`.
+4. **`dependsOn` references the selector field's `id`**, not the `canonicalParamId`. The modal propagates dependency clearing across canonical siblings automatically — changing either field in a parent pair clears dependent children.
+
+### Selector canonical pair example (Airtable base → table cascade)
+
+```typescript
+configFields: [
+  // Base: selector (basic) + manual (advanced)
+  {
+    id: 'baseSelector',
+    title: 'Base',
+    type: 'selector',
+    selectorKey: 'airtable.bases',     // Must exist in hooks/selectors/registry.ts
+    canonicalParamId: 'baseId',
+    mode: 'basic',
+    placeholder: 'Select a base',
+    required: true,
+  },
+  {
+    id: 'baseId',
+    title: 'Base ID',
+    type: 'short-input',
+    canonicalParamId: 'baseId',
+    mode: 'advanced',
+    placeholder: 'e.g. appXXXXXXXXXXXXXX',
+    required: true,
+  },
+  // Table: selector depends on base (basic) + manual (advanced)
+  {
+    id: 'tableSelector',
+    title: 'Table',
+    type: 'selector',
+    selectorKey: 'airtable.tables',
+    canonicalParamId: 'tableIdOrName',
+    mode: 'basic',
+    dependsOn: ['baseSelector'],       // References the selector field ID
+    placeholder: 'Select a table',
+    required: true,
+  },
+  {
+    id: 'tableIdOrName',
+    title: 'Table Name or ID',
+    type: 'short-input',
+    canonicalParamId: 'tableIdOrName',
+    mode: 'advanced',
+    placeholder: 'e.g. Tasks',
+    required: true,
+  },
+  // Non-selector fields stay as-is
+  { id: 'maxRecords', title: 'Max Records', type: 'short-input', ... },
+]
+```
+
+### Selector with domain dependency (Jira/Confluence pattern)
+
+When a selector depends on a plain `short-input` field (no canonical pair), `dependsOn` references that field's `id` directly. The `domain` field's value maps to `SelectorContext.domain` automatically via `SELECTOR_CONTEXT_FIELDS`.
+
+```typescript
+configFields: [
+  {
+    id: 'domain',
+    title: 'Jira Domain',
+    type: 'short-input',
+    placeholder: 'yoursite.atlassian.net',
+    required: true,
+  },
+  {
+    id: 'projectSelector',
+    title: 'Project',
+    type: 'selector',
+    selectorKey: 'jira.projects',
+    canonicalParamId: 'projectKey',
+    mode: 'basic',
+    dependsOn: ['domain'],
+    placeholder: 'Select a project',
+    required: true,
+  },
+  {
+    id: 'projectKey',
+    title: 'Project Key',
+    type: 'short-input',
+    canonicalParamId: 'projectKey',
+    mode: 'advanced',
+    placeholder: 'e.g. ENG, PROJ',
+    required: true,
+  },
+]
+```
+
+### How `dependsOn` maps to `SelectorContext`
+
+The connector selector field builds a `SelectorContext` from dependency values. For the mapping to work, each dependency's `canonicalParamId` (or field `id` for non-canonical fields) must exist in `SELECTOR_CONTEXT_FIELDS` (`lib/workflows/subblocks/context.ts`):
+
+```
+oauthCredential, domain, teamId, projectId, knowledgeBaseId, planId,
+siteId, collectionId, spreadsheetId, fileId, baseId, datasetId, serviceDeskId
+```
+
+### Available selector keys
+
+Check `hooks/selectors/types.ts` for the full `SelectorKey` union. Common ones for connectors:
+
+| SelectorKey | Context Deps | Returns |
+|-------------|-------------|---------|
+| `airtable.bases` | credential | Base ID + name |
+| `airtable.tables` | credential, `baseId` | Table ID + name |
+| `slack.channels` | credential | Channel ID + name |
+| `gmail.labels` | credential | Label ID + name |
+| `google.calendar` | credential | Calendar ID + name |
+| `linear.teams` | credential | Team ID + name |
+| `linear.projects` | credential, `teamId` | Project ID + name |
+| `jira.projects` | credential, `domain` | Project key + name |
+| `confluence.spaces` | credential, `domain` | Space key + name |
+| `notion.databases` | credential | Database ID + name |
+| `asana.workspaces` | credential | Workspace GID + name |
+| `microsoft.teams` | credential | Team ID + name |
+| `microsoft.channels` | credential, `teamId` | Channel ID + name |
+| `webflow.sites` | credential | Site ID + name |
+| `outlook.folders` | credential | Folder ID + name |
 
 ## ExternalDocument Shape
 
@@ -287,6 +419,12 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
 - [ ] **Auth configured correctly:**
   - OAuth: `auth.provider` matches an existing `OAuthService` in `lib/oauth/types.ts`
   - API key: `auth.label` and `auth.placeholder` set appropriately
+- [ ] **Selector fields configured correctly (if applicable):**
+  - Every `type: 'selector'` field has a canonical pair (`short-input` or `dropdown` with same `canonicalParamId` and `mode: 'advanced'`)
+  - `required` is identical on both fields in each canonical pair
+  - `selectorKey` exists in `hooks/selectors/registry.ts`
+  - `dependsOn` references selector field IDs (not `canonicalParamId`)
+  - Dependency `canonicalParamId` values exist in `SELECTOR_CONTEXT_FIELDS`
 - [ ] `listDocuments` handles pagination and computes content hashes
 - [ ] `sourceUrl` set on each ExternalDocument (full URL, not relative)
 - [ ] `metadata` includes source-specific data for tag mapping

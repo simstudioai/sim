@@ -253,9 +253,22 @@ export const slackConnector: ConnectorConfig = {
 
   configFields: [
     {
+      id: 'channelSelector',
+      title: 'Channel',
+      type: 'selector',
+      selectorKey: 'slack.channels',
+      canonicalParamId: 'channel',
+      mode: 'basic',
+      placeholder: 'Select a channel',
+      required: true,
+      description: 'Channel to sync messages from',
+    },
+    {
       id: 'channel',
       title: 'Channel',
       type: 'short-input',
+      canonicalParamId: 'channel',
+      mode: 'advanced',
       placeholder: 'e.g. general or C01ABC23DEF',
       required: true,
       description: 'Channel name or ID to sync messages from',

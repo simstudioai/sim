@@ -140,9 +140,21 @@ export const asanaConnector: ConnectorConfig = {
 
   configFields: [
     {
+      id: 'workspaceSelector',
+      title: 'Workspace',
+      type: 'selector',
+      selectorKey: 'asana.workspaces',
+      canonicalParamId: 'workspace',
+      mode: 'basic',
+      placeholder: 'Select a workspace',
+      required: true,
+    },
+    {
       id: 'workspace',
       title: 'Workspace GID',
       type: 'short-input',
+      canonicalParamId: 'workspace',
+      mode: 'advanced',
       placeholder: 'e.g. 1234567890',
       required: true,
     },

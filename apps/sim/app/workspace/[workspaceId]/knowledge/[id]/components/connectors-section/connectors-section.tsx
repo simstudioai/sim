@@ -130,8 +130,6 @@ export function ConnectorsSection({
 
   return (
     <div className='mt-[16px]'>
-      <h2 className='font-medium text-[14px] text-[var(--text-secondary)]'>Connected Sources</h2>
-
       {error && (
         <p className='mt-[8px] text-[12px] text-[var(--text-error)] leading-tight'>{error}</p>
       )}

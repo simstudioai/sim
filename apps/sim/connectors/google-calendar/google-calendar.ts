@@ -237,14 +237,27 @@ export const googleCalendarConnector: ConnectorConfig = {
   auth: {
     mode: 'oauth',
     provider: 'google-calendar',
-    requiredScopes: ['https://www.googleapis.com/auth/calendar.readonly'],
+    requiredScopes: ['https://www.googleapis.com/auth/calendar'],
   },
 
   configFields: [
     {
+      id: 'calendarSelector',
+      title: 'Calendar',
+      type: 'selector',
+      selectorKey: 'google.calendar',
+      canonicalParamId: 'calendarId',
+      mode: 'basic',
+      placeholder: 'Select a calendar',
+      required: false,
+      description: 'The calendar to sync from. Defaults to your primary calendar.',
+    },
+    {
       id: 'calendarId',
       title: 'Calendar ID',
       type: 'short-input',
+      canonicalParamId: 'calendarId',
+      mode: 'advanced',
       placeholder: 'e.g. primary (default: primary)',
       required: false,
       description: 'The calendar to sync from. Use "primary" for your main calendar.',

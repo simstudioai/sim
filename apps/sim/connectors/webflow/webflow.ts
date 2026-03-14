@@ -88,9 +88,21 @@ export const webflowConnector: ConnectorConfig = {
 
   configFields: [
     {
+      id: 'siteSelector',
+      title: 'Site',
+      type: 'selector',
+      selectorKey: 'webflow.sites',
+      canonicalParamId: 'siteId',
+      mode: 'basic',
+      placeholder: 'Select a site',
+      required: true,
+    },
+    {
       id: 'siteId',
       title: 'Site ID',
       type: 'short-input',
+      canonicalParamId: 'siteId',
+      mode: 'advanced',
       placeholder: 'Your Webflow site ID',
       required: true,
     },
