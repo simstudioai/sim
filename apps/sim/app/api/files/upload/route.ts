@@ -46,9 +46,10 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData()
 
-    const files = formData.getAll('file') as File[]
+    const rawFiles = formData.getAll('file')
+    const files = rawFiles.filter((f): f is File => f instanceof File)
 
-    if (!files || files.length === 0) {
+    if (files.length === 0) {
       throw new InvalidRequestError('No files provided')
     }
 
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
     const uploadResults = []
 
     for (const file of files) {
-      const originalName = file.name
+      const originalName = file.name || 'untitled'
 
       if (!validateFileExtension(originalName)) {
         const extension = originalName.split('.').pop()?.toLowerCase() || 'unknown'

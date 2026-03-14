@@ -6,27 +6,36 @@ const logger = createLogger('ExecutionCancellation')
 const EXECUTION_CANCEL_PREFIX = 'execution:cancel:'
 const EXECUTION_CANCEL_EXPIRY = 60 * 60
 
+export type ExecutionCancellationRecordResult =
+  | { durablyRecorded: true; reason: 'recorded' }
+  | {
+      durablyRecorded: false
+      reason: 'redis_unavailable' | 'redis_write_failed'
+    }
+
 export function isRedisCancellationEnabled(): boolean {
   return getRedisClient() !== null
 }
 
 /**
  * Mark an execution as cancelled in Redis.
- * Returns true if Redis is available and the flag was set, false otherwise.
+ * Returns whether the cancellation was durably recorded.
  */
-export async function markExecutionCancelled(executionId: string): Promise<boolean> {
+export async function markExecutionCancelled(
+  executionId: string
+): Promise<ExecutionCancellationRecordResult> {
   const redis = getRedisClient()
   if (!redis) {
-    return false
+    return { durablyRecorded: false, reason: 'redis_unavailable' }
   }
 
   try {
     await redis.set(`${EXECUTION_CANCEL_PREFIX}${executionId}`, '1', 'EX', EXECUTION_CANCEL_EXPIRY)
     logger.info('Marked execution as cancelled', { executionId })
-    return true
+    return { durablyRecorded: true, reason: 'recorded' }
   } catch (error) {
     logger.error('Failed to mark execution as cancelled', { executionId, error })
-    return false
+    return { durablyRecorded: false, reason: 'redis_write_failed' }
   }
 }
 
