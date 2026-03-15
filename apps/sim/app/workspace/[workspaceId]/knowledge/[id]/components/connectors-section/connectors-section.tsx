@@ -27,6 +27,7 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
@@ -444,7 +445,18 @@ function ConnectorCard({
             {canEdit && (
               <Button
                 variant='active'
-                onClick={() => setShowOAuthModal(true)}
+                onClick={() => {
+                  writeOAuthReturnContext({
+                    origin: 'kb-connectors',
+                    knowledgeBaseId,
+                    displayName: connectorDef?.name ?? connector.connectorType,
+                    providerId: providerId!,
+                    preCount: credentials?.length ?? 0,
+                    workspaceId,
+                    requestedAt: Date.now(),
+                  })
+                  setShowOAuthModal(true)
+                }}
                 className='w-full px-[8px] py-[4px] font-medium text-[12px]'
               >
                 Update access

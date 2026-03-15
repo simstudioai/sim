@@ -20,6 +20,7 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
+import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
@@ -288,8 +289,25 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
       return
     }
 
+    writeOAuthReturnContext({
+      origin: 'kb-connectors',
+      knowledgeBaseId,
+      displayName,
+      providerId: connectorProviderId,
+      preCount: credentials.length,
+      workspaceId,
+      requestedAt: Date.now(),
+    })
+
     setShowOAuthModal(true)
-  }, [connectorConfig, connectorProviderId, workspaceId, session?.user?.name])
+  }, [
+    connectorConfig,
+    connectorProviderId,
+    workspaceId,
+    session?.user?.name,
+    knowledgeBaseId,
+    credentials.length,
+  ])
 
   const filteredEntries = useMemo(() => {
     const term = searchTerm.toLowerCase().trim()
