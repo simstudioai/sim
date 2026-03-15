@@ -596,20 +596,18 @@ export function useChat(
                 const wasAdded = addResource(resource)
                 invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
 
-                if (!wasAdded) {
-                  if (activeResourceIdRef.current !== resource.id) {
-                    setActiveResourceId(resource.id)
-                    onResourceEventRef.current?.()
-                  }
-                } else {
-                  onResourceEventRef.current?.()
+                if (!wasAdded && activeResourceIdRef.current !== resource.id) {
+                  setActiveResourceId(resource.id)
                 }
+                onResourceEventRef.current?.()
 
                 if (resource.type === 'workflow') {
-                  if (
-                    wasAdded &&
-                    ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)
-                  ) {
+                  const wasRegistered = ensureWorkflowInRegistry(
+                    resource.id,
+                    resource.title,
+                    workspaceId
+                  )
+                  if (wasAdded && wasRegistered) {
                     useWorkflowRegistry.getState().setActiveWorkflow(resource.id)
                   } else {
                     useWorkflowRegistry.getState().loadWorkflowState(resource.id)
