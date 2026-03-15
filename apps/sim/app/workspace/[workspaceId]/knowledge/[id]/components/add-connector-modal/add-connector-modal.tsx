@@ -597,7 +597,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
           provider={connectorProviderId}
           toolName={connectorConfig.name}
           requiredScopes={getCanonicalScopesForProvider(connectorProviderId)}
-          newScopes={connectorConfig.auth.requiredScopes || []}
+          newScopes={[]}
           serviceId={connectorConfig.auth.provider}
         />
       )}
