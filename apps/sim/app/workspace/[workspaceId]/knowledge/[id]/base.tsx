@@ -271,6 +271,13 @@ export function KnowledgeBase({
     refresh: refreshKnowledgeBase,
   } = useKnowledgeBase(id)
 
+  const { data: connectors = [], isLoading: isLoadingConnectors } = useConnectorList(id)
+  const hasSyncingConnectors = connectors.some((c) => c.status === 'syncing')
+  const hasSyncingConnectorsRef = useRef(hasSyncingConnectors)
+  useEffect(() => {
+    hasSyncingConnectorsRef.current = hasSyncingConnectors
+  }, [hasSyncingConnectors])
+
   const {
     documents,
     pagination,
@@ -292,7 +299,9 @@ export function KnowledgeBase({
       const hasPending = data?.documents?.some(
         (doc) => doc.processingStatus === 'pending' || doc.processingStatus === 'processing'
       )
-      return hasPending ? 3000 : false
+      if (hasPending) return 3000
+      if (hasSyncingConnectorsRef.current) return 5000
+      return false
     },
     enabledFilter,
     tagFilters: activeTagFilters.length > 0 ? activeTagFilters : undefined,
@@ -300,16 +309,14 @@ export function KnowledgeBase({
 
   const { tagDefinitions } = useKnowledgeBaseTagDefinitions(id)
 
-  const { data: connectors = [], isLoading: isLoadingConnectors } = useConnectorList(id)
-  const hasSyncingConnectors = connectors.some((c) => c.status === 'syncing')
-
   const prevHadSyncingRef = useRef(false)
   useEffect(() => {
     if (prevHadSyncingRef.current && !hasSyncingConnectors) {
       refreshKnowledgeBase()
+      refreshDocuments()
     }
     prevHadSyncingRef.current = hasSyncingConnectors
-  }, [hasSyncingConnectors, refreshKnowledgeBase])
+  }, [hasSyncingConnectors, refreshKnowledgeBase, refreshDocuments])
 
   const router = useRouter()
 
@@ -406,7 +413,6 @@ export function KnowledgeBase({
       },
       {
         onSuccess: () => {
-          refreshDocuments()
           logger.info(`Document retry initiated successfully for: ${docId}`)
         },
         onError: (err) => {
@@ -480,7 +486,6 @@ export function KnowledgeBase({
       { knowledgeBaseId: id, documentId: documentToDelete },
       {
         onSuccess: () => {
-          refreshDocuments()
           setSelectedDocuments((prev) => {
             const newSet = new Set(prev)
             newSet.delete(documentToDelete)
@@ -575,7 +580,6 @@ export function KnowledgeBase({
             logger.info(`Successfully enabled ${result.successCount} documents`)
             setSelectedDocuments(new Set())
             setIsSelectAllMode(false)
-            refreshDocuments()
           },
         }
       )
@@ -623,7 +627,6 @@ export function KnowledgeBase({
             logger.info(`Successfully disabled ${result.successCount} documents`)
             setSelectedDocuments(new Set())
             setIsSelectAllMode(false)
-            refreshDocuments()
           },
         }
       )
@@ -671,7 +674,6 @@ export function KnowledgeBase({
         {
           onSuccess: (result) => {
             logger.info(`Successfully deleted ${result.successCount} documents`)
-            refreshDocuments()
             setSelectedDocuments(new Set())
             setIsSelectAllMode(false)
           },
@@ -696,7 +698,6 @@ export function KnowledgeBase({
       {
         onSuccess: (result) => {
           logger.info(`Successfully deleted ${result.successCount} documents`)
-          refreshDocuments()
           setSelectedDocuments(new Set())
         },
         onSettled: () => {

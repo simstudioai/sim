@@ -153,7 +153,7 @@ export function useCreateConnector() {
     mutationFn: createConnector,
     onSuccess: (_, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
-        queryKey: connectorKeys.list(knowledgeBaseId),
+        queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
     },
   })
@@ -198,12 +198,9 @@ export function useUpdateConnector() {
 
   return useMutation({
     mutationFn: updateConnector,
-    onSuccess: (_, { knowledgeBaseId, connectorId }) => {
+    onSuccess: (_, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
-        queryKey: connectorKeys.list(knowledgeBaseId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: connectorKeys.detail(knowledgeBaseId, connectorId),
+        queryKey: connectorKeys.all(knowledgeBaseId),
       })
     },
   })
@@ -240,9 +237,6 @@ export function useDeleteConnector() {
     mutationFn: deleteConnector,
     onSuccess: (_, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
-        queryKey: connectorKeys.list(knowledgeBaseId),
-      })
-      queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
     },
@@ -270,13 +264,7 @@ export function useTriggerSync() {
 
   return useMutation({
     mutationFn: triggerSync,
-    onSuccess: (_, { knowledgeBaseId, connectorId }) => {
-      queryClient.invalidateQueries({
-        queryKey: connectorKeys.list(knowledgeBaseId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: connectorKeys.detail(knowledgeBaseId, connectorId),
-      })
+    onSuccess: (_, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
