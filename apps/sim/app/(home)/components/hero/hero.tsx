@@ -34,7 +34,7 @@ export default function Hero() {
     <section
       id='hero'
       aria-labelledby='hero-heading'
-      className='relative flex flex-col items-center overflow-hidden bg-[#1C1C1C] pt-[71px]'
+      className='relative flex flex-col items-center overflow-hidden bg-[#1C1C1C] pt-[100px] pb-[12px]'
     >
       <p className='sr-only'>
         Sim is the open-source platform to build AI agents and run your agentic workforce. Connect
@@ -53,7 +53,7 @@ export default function Hero() {
 
       <div
         aria-hidden='true'
-        className='pointer-events-none absolute top-[-2.8vw] right-[0vw] z-0 aspect-[471/470] w-[32.7vw]'
+        className='pointer-events-none absolute top-[-2.8vw] right-[-4vw] z-0 aspect-[471/470] w-[32.7vw]'
       >
         <Image src='/landing/card-right.svg' alt='' fill className='object-contain' />
       </div>
@@ -61,25 +61,27 @@ export default function Hero() {
       <div className='relative z-10 flex flex-col items-center gap-[12px]'>
         <h1
           id='hero-heading'
-          className='font-[430] font-season text-[64px] text-white leading-[100%] tracking-[-0.02em]'
+          className='font-[430] font-season text-[72px] text-white leading-[100%] tracking-[-0.02em]'
         >
-          Build Agents
+          Build AI Agents
         </h1>
-        <p className='font-[430] font-season text-[#F6F6F6]/60 text-[16px] leading-[125%] tracking-[0.02em]'>
-          Build and deploy agentic workflows
+        <p className='font-[430] font-season text-[#F6F6F6]/60 text-[18px] leading-[125%] tracking-[0.02em]'>
+          Sim is the AI Workspace for Agent Builders.
         </p>
 
         <div className='mt-[12px] flex items-center gap-[8px]'>
-          <Link
-            href='/login'
+          <a
+            href='https://form.typeform.com/to/jqCO12pF'
+            target='_blank'
+            rel='noopener noreferrer'
             className={`${CTA_BASE} border-[#3d3d3d] text-[#ECECEC] transition-colors hover:bg-[#2A2A2A]`}
-            aria-label='Log in'
+            aria-label='Get a demo'
           >
-            Log in
-          </Link>
+            Get a demo
+          </a>
           <Link
             href='/signup'
-            className={`${CTA_BASE} gap-[8px] border-[#33C482] bg-[#33C482] text-black transition-[filter] hover:brightness-110`}
+            className={`${CTA_BASE} gap-[8px] border-[#FFFFFF] bg-[#FFFFFF] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]`}
             aria-label='Get started with Sim'
           >
             Get started
@@ -101,7 +103,7 @@ export default function Hero() {
         <BlocksTopLeftAnimated animState={blockStates.topLeft} />
       </div>
 
-      <div className='relative z-10 mx-auto mt-[2.4vw] w-[78.9vw] px-[1.4vw]'>
+      <div className='relative z-10 mx-auto mt-[3.2vw] w-[78.9vw] px-[1.4vw]'>
         <div
           aria-hidden='true'
           className='-translate-y-1/2 pointer-events-none absolute top-[50%] right-[calc(100%-1.41vw)] z-20 w-[calc(16px_+_1.25vw)] max-w-[34px]'

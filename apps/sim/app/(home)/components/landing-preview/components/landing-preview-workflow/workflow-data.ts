@@ -91,11 +91,11 @@ const IT_SERVICE_WORKFLOW: PreviewWorkflow = {
 }
 
 /**
- * Content pipeline workflow — Schedule -> Agent (X + YouTube tools)
+ * Self-healing CRM workflow — Schedule -> Mothership
  */
-const CONTENT_PIPELINE_WORKFLOW: PreviewWorkflow = {
-  id: 'wf-content-pipeline',
-  name: 'Content Pipeline',
+const SELF_HEALING_CRM_WORKFLOW: PreviewWorkflow = {
+  id: 'wf-self-healing-crm',
+  name: 'Self-healing CRM',
   color: '#33C482',
   blocks: [
     {
@@ -111,23 +111,16 @@ const CONTENT_PIPELINE_WORKFLOW: PreviewWorkflow = {
       hideTargetHandle: true,
     },
     {
-      id: 'agent-2',
-      name: 'Agent',
-      type: 'agent',
-      bgColor: '#701ffc',
-      rows: [
-        { title: 'Model', value: 'grok-4' },
-        { title: 'System Prompt', value: 'Repurpose trending...' },
-      ],
-      tools: [
-        { name: 'X', type: 'x', bgColor: '#000000' },
-        { name: 'YouTube', type: 'youtube', bgColor: '#FF0000' },
-      ],
+      id: 'mothership-1',
+      name: 'Update Agent',
+      type: 'mothership',
+      bgColor: '#33C482',
+      rows: [{ title: 'Prompt', value: 'Audit CRM records, fix...' }],
       position: { x: 420, y: 180 },
       hideSourceHandle: true,
     },
   ],
-  edges: [{ id: 'e-3', source: 'schedule-1', target: 'agent-2' }],
+  edges: [{ id: 'e-3', source: 'schedule-1', target: 'mothership-1' }],
 }
 
 /**
@@ -154,7 +147,7 @@ const NEW_AGENT_WORKFLOW: PreviewWorkflow = {
 }
 
 export const PREVIEW_WORKFLOWS: PreviewWorkflow[] = [
-  CONTENT_PIPELINE_WORKFLOW,
+  SELF_HEALING_CRM_WORKFLOW,
   IT_SERVICE_WORKFLOW,
   NEW_AGENT_WORKFLOW,
 ]

@@ -9,6 +9,23 @@ import { BubbleChatPreview, ChevronDown, MoreHorizontal, Play } from '@/componen
 import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
 
 /**
+ * Stores the prompt in browser storage and redirects to /signup.
+ * Shared by both the copilot panel and the landing home view.
+ */
+export function useLandingSubmit() {
+  const router = useRouter()
+  return useCallback(
+    (text: string) => {
+      const trimmed = text.trim()
+      if (!trimmed) return
+      LandingPromptStorage.store(trimmed)
+      router.push('/signup')
+    },
+    [router]
+  )
+}
+
+/**
  * Lightweight static panel replicating the real workspace panel styling.
  * The copilot tab is active with a functional user input.
  * When submitted, stores the prompt and redirects to /signup (same as landing hero).
@@ -18,7 +35,7 @@ import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
  *     inside Content > Copilot > header-bar(mx-[-1px]) > UserInput(p-8)
  */
 export const LandingPreviewPanel = memo(function LandingPreviewPanel() {
-  const router = useRouter()
+  const landingSubmit = useLandingSubmit()
   const [inputValue, setInputValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null)
@@ -27,9 +44,8 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel() {
 
   const handleSubmit = useCallback(() => {
     if (isEmpty) return
-    LandingPromptStorage.store(inputValue)
-    router.push('/signup')
-  }, [isEmpty, inputValue, router])
+    landingSubmit(inputValue)
+  }, [isEmpty, inputValue, landingSubmit])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -60,10 +76,10 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel() {
             onMouseMove={(e) => setCursorPos({ x: e.clientX, y: e.clientY })}
             onMouseLeave={() => setCursorPos(null)}
           >
-            <div className='flex h-[30px] items-center rounded-[5px] bg-[#32bd7e] px-[10px] transition-[filter] hover:brightness-110'>
+            <div className='flex h-[30px] items-center rounded-[5px] bg-[#33C482] px-[10px] transition-colors hover:bg-[#2DAC72]'>
               <span className='font-medium text-[#1b1b1b] text-[12px]'>Deploy</span>
             </div>
-            <div className='flex h-[30px] items-center gap-[8px] rounded-[5px] bg-[#32bd7e] px-[10px] transition-[filter] hover:brightness-110'>
+            <div className='flex h-[30px] items-center gap-[8px] rounded-[5px] bg-[#33C482] px-[10px] transition-colors hover:bg-[#2DAC72]'>
               <Play className='h-[11.5px] w-[11.5px] text-[#1b1b1b]' />
               <span className='font-medium text-[#1b1b1b] text-[12px]'>Run</span>
             </div>

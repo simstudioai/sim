@@ -1226,6 +1226,13 @@
       "when": 1773532070072,
       "tag": "0175_cheerful_shockwave",
       "breakpoints": true
+    },
+    {
+      "idx": 176,
+      "version": "7",
+      "when": 1773574710090,
+      "tag": "0176_clear_luckman",
+      "breakpoints": true
     }
   ]
 }

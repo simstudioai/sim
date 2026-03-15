@@ -992,7 +992,7 @@ export const invitation = pgTable(
 export const workspace = pgTable('workspace', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
-  color: text('color').notNull().default('#32bd7e'),
+  color: text('color').notNull().default('#33C482'),
   ownerId: text('owner_id')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),

@@ -541,7 +541,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
             Cancel
           </Button>
           <Button
-            variant='tertiary'
+            variant='primary'
             onClick={handleSubmit}
             disabled={
               !isFormValid || createScheduleMutation.isPending || updateScheduleMutation.isPending

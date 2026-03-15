@@ -210,7 +210,7 @@ export function SkillModal({
             <Button variant='default' onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button variant='tertiary' onClick={handleSave} disabled={saving || !hasChanges}>
+            <Button variant='primary' onClick={handleSave} disabled={saving || !hasChanges}>
               {saving ? 'Saving...' : initialValues ? 'Update' : 'Create'}
             </Button>
           </div>

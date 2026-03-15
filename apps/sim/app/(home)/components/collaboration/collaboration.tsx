@@ -25,7 +25,7 @@ function DotGrid({ className, cols, rows, gap = 0 }: DotGridProps) {
       }}
     >
       {Array.from({ length: cols * rows }, (_, i) => (
-        <div key={i} className='h-[2px] w-[2px] rounded-full bg-[#2A2A2A]' />
+        <div key={i} className='h-[1.5px] w-[1.5px] rounded-full bg-[#2A2A2A]' />
       ))}
     </div>
   )
@@ -268,13 +268,13 @@ export default function Collaboration() {
               collaboration
             </h2>
 
-            <p className='font-[430] font-season text-[#F6F6F0]/50 text-[14px] leading-[125%] tracking-[0.02em] sm:text-[16px]'>
+            <p className='font-[430] font-season text-[#F6F6F0]/50 text-[18px] leading-[150%] tracking-[0.02em]'>
               Grab your team. Build agents together <br /> in real-time inside your workspace.
             </p>
 
             <Link
               href='/signup'
-              className='group/cta mt-[12px] inline-flex h-[32px] cursor-none items-center gap-[6px] rounded-[5px] border border-[#33C482] bg-[#33C482] px-[10px] font-[430] font-season text-[14px] text-black transition-[filter] hover:brightness-110'
+              className='group/cta mt-[12px] inline-flex h-[32px] cursor-none items-center gap-[6px] rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] px-[10px] font-[430] font-season text-[14px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
             >
               Build together
               <span className='relative h-[10px] w-[10px] shrink-0'>

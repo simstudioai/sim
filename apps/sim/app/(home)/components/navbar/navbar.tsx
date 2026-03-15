@@ -14,7 +14,7 @@ const NAV_LINKS: NavLink[] = [
   { label: 'Docs', href: 'https://docs.sim.ai', external: true },
   { label: 'Pricing', href: '/pricing' },
   { label: 'Careers', href: '/careers' },
-  { label: 'Enterprise', href: '/enterprise' },
+  { label: 'Enterprise', href: 'https://form.typeform.com/to/jqCO12pF', external: true },
 ]
 
 /** Logo and nav edge: horizontal padding (px) for left/right symmetry. */
@@ -86,7 +86,7 @@ export default function Navbar() {
         </Link>
         <Link
           href='/signup'
-          className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[#33C482] bg-[#33C482] px-[9px] text-[13.5px] text-black transition-[filter] hover:brightness-110'
+          className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] px-[9px] text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
           aria-label='Get started with Sim'
         >
           Get started

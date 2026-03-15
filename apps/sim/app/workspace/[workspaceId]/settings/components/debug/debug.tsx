@@ -50,7 +50,7 @@ export function Debug() {
           disabled={importWorkflow.isPending}
         />
         <Button
-          variant='tertiary'
+          variant='primary'
           onClick={handleImport}
           disabled={importWorkflow.isPending || !workflowId.trim()}
         >

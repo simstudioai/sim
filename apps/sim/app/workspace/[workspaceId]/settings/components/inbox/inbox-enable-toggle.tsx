@@ -108,7 +108,7 @@ export function InboxEnableToggle() {
             <Button variant='default' onClick={() => setIsEnableOpen(false)}>
               Cancel
             </Button>
-            <Button variant='tertiary' onClick={handleEnable} disabled={toggleInbox.isPending}>
+            <Button variant='primary' onClick={handleEnable} disabled={toggleInbox.isPending}>
               {toggleInbox.isPending ? 'Enabling...' : 'Enable'}
             </Button>
           </ModalFooter>

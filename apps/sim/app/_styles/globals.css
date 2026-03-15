@@ -17,6 +17,18 @@
   --terminal-height: 206px; /* TERMINAL_HEIGHT.DEFAULT */
 }
 
+.workspace-root {
+  letter-spacing: 0.02em;
+}
+
+.workspace-root code,
+.workspace-root kbd,
+.workspace-root samp,
+.workspace-root pre,
+.workspace-root .font-mono {
+  letter-spacing: normal;
+}
+
 .sidebar-container {
   width: var(--sidebar-width);
   transition: width 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
@@ -54,6 +66,19 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-remove {
 html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
   width: 0;
   opacity: 0;
+}
+
+@keyframes sidebar-collapse-guard {
+  from {
+    pointer-events: none;
+  }
+  to {
+    pointer-events: auto;
+  }
+}
+
+.sidebar-container[data-collapsed] {
+  animation: sidebar-collapse-guard 250ms step-end;
 }
 
 .sidebar-container.is-resizing {
@@ -160,7 +185,7 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --brand-400: #8e4cfb;
     --brand-secondary: #33b4ff;
     --brand-tertiary: #22c55e;
-    --brand-tertiary-2: #32bd7e;
+    --brand-tertiary-2: #33c482;
     --selection: #1a5cf6;
     --warning: #ea580c;
 
@@ -282,7 +307,7 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --brand-400: #8e4cfb;
     --brand-secondary: #33b4ff;
     --brand-tertiary: #22c55e;
-    --brand-tertiary-2: #32bd7e;
+    --brand-tertiary-2: #33c482;
     --selection: #4b83f7;
     --warning: #ff6600;
 

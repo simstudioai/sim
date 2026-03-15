@@ -111,7 +111,7 @@ export function NoOrganizationView({
               )}
               <div className='flex justify-end'>
                 <Button
-                  variant='tertiary'
+                  variant='primary'
                   onClick={onCreateOrganization}
                   disabled={!orgName || !orgSlug || isCreatingOrg}
                 >
@@ -193,7 +193,7 @@ export function NoOrganizationView({
                 Cancel
               </Button>
               <Button
-                variant='tertiary'
+                variant='primary'
                 onClick={onCreateOrganization}
                 disabled={isCreatingOrg || !orgName.trim()}
               >
@@ -217,7 +217,7 @@ export function NoOrganizationView({
       </div>
 
       <div>
-        <Button variant='tertiary' onClick={() => navigateToSettings({ section: 'subscription' })}>
+        <Button variant='primary' onClick={() => navigateToSettings({ section: 'subscription' })}>
           Upgrade to Team Plan
         </Button>
       </div>

@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { motion } from 'framer-motion'
 import { Database } from 'lucide-react'
 import { Handle, type NodeProps, Position } from 'reactflow'
+import { Blimp } from '@/components/emcn'
 import {
   AgentIcon,
   AnthropicIcon,
@@ -63,6 +64,7 @@ const BLOCK_ICONS: Record<string, React.ComponentType<{ className?: string }>> =
   reducto: ReductoIcon,
   textract: TextractIcon,
   linkedin: LinkedInIcon,
+  mothership: Blimp,
 }
 
 /** Model prefix → provider icon for the "Model" row in agent blocks. */

@@ -124,7 +124,7 @@ export function RenameDocumentModal({
                   Cancel
                 </Button>
                 <Button
-                  variant='tertiary'
+                  variant='primary'
                   type='submit'
                   disabled={isSubmitting || !name?.trim() || name.trim() === initialName}
                 >

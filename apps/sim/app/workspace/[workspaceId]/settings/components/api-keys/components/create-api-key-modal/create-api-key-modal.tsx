@@ -190,7 +190,7 @@ export function CreateApiKeyModal({
             </Button>
             <Button
               type='button'
-              variant='tertiary'
+              variant='primary'
               onClick={handleCreateKey}
               disabled={
                 !keyName.trim() ||

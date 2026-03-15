@@ -1249,7 +1249,7 @@ export default function ResumeExecutionPage({
                       {message && <Badge variant='green'>{message}</Badge>}
 
                       {/* Action */}
-                      <Button variant='tertiary' onClick={handleResume} disabled={resumeDisabled}>
+                      <Button variant='primary' onClick={handleResume} disabled={resumeDisabled}>
                         {loadingAction ? 'Resuming...' : 'Resume Execution'}
                       </Button>
                     </>

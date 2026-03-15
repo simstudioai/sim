@@ -129,7 +129,7 @@ export function ParameterWithLabel({
                   placeholder='Generate with AI...'
                 />
                 <Button
-                  variant='tertiary'
+                  variant='primary'
                   disabled={!searchQuery.trim() || isStreaming}
                   onMouseDown={(e: React.MouseEvent) => {
                     e.preventDefault()

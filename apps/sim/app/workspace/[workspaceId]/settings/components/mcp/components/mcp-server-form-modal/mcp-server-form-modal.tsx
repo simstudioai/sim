@@ -719,12 +719,12 @@ export function McpServerFormModal({
                 <Button
                   onClick={handleSubmitJson}
                   disabled={isSubmitting || !jsonInput.trim()}
-                  variant='tertiary'
+                  variant='primary'
                 >
                   {isSubmitting ? 'Adding...' : submitLabel}
                 </Button>
               ) : (
-                <Button onClick={handleSubmitForm} disabled={isSubmitDisabled} variant='tertiary'>
+                <Button onClick={handleSubmitForm} disabled={isSubmitDisabled} variant='primary'>
                   {isSubmitting ? (mode === 'add' ? 'Adding...' : 'Saving...') : submitLabel}
                 </Button>
               )}

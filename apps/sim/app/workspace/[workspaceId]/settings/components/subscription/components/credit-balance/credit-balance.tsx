@@ -160,7 +160,7 @@ export function CreditBalance({
                   </Button>
                 </ModalClose>
                 <Button
-                  variant='tertiary'
+                  variant='primary'
                   onClick={handlePurchase}
                   disabled={purchaseCredits.isPending || !amount}
                 >

@@ -303,7 +303,7 @@ export function RecentlyDeleted() {
                     <div className='flex shrink-0 items-center gap-[8px]'>
                       <span className='text-[13px] text-[var(--text-tertiary)]'>Restored</span>
                       <Button
-                        variant='default'
+                        variant='primary'
                         size='sm'
                         onClick={() =>
                           router.push(
@@ -316,7 +316,7 @@ export function RecentlyDeleted() {
                     </div>
                   ) : (
                     <Button
-                      variant='default'
+                      variant='primary'
                       size='sm'
                       disabled={isRestoring}
                       onClick={() => handleRestore(resource)}

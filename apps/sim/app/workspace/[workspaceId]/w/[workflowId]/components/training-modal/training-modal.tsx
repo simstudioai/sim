@@ -372,7 +372,7 @@ export function TrainingModal() {
                     Cancel
                   </Button>
                   <Button
-                    variant='tertiary'
+                    variant='primary'
                     onClick={() => {
                       useCopilotTrainingStore.getState().stopTraining()
                       setLocalPrompt('')
@@ -439,7 +439,7 @@ export function TrainingModal() {
               <Button
                 onClick={handleStart}
                 disabled={!localTitle.trim() || !localPrompt.trim()}
-                variant='tertiary'
+                variant='primary'
                 className='w-full'
               >
                 Start Training Session
@@ -470,7 +470,7 @@ export function TrainingModal() {
                     <div className='flex gap-[8px]'>
                       {selectedDatasets.size > 0 && (
                         <Button
-                          variant='tertiary'
+                          variant='primary'
                           onClick={handleSendSelected}
                           disabled={sendingSelected}
                         >
@@ -755,7 +755,7 @@ export function TrainingModal() {
                   sendingLiveWorkflow ||
                   currentWorkflow.getBlockCount() === 0
                 }
-                variant='tertiary'
+                variant='primary'
                 className={cn(
                   'w-full',
                   liveWorkflowSent && '!bg-green-600 !text-white hover:!bg-green-700',

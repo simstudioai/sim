@@ -200,7 +200,7 @@ export function Copilot() {
               setIsCreateDialogOpen(true)
               setCreateError(null)
             }}
-            variant='tertiary'
+            variant='primary'
             disabled={isLoading}
           >
             <Plus className='mr-[6px] h-[13px] w-[13px]' />
@@ -302,7 +302,7 @@ export function Copilot() {
             </Button>
             <Button
               type='button'
-              variant='tertiary'
+              variant='primary'
               onClick={handleCreateKey}
               disabled={!newKeyName.trim() || generateKey.isPending}
             >

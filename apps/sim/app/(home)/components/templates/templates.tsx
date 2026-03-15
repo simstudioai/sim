@@ -337,7 +337,7 @@ function DotGrid({ className, cols, rows, gap = 0 }: DotGridProps) {
       }}
     >
       {Array.from({ length: cols * rows }, (_, i) => (
-        <div key={i} className='h-[2px] w-[2px] rounded-full bg-[#2A2A2A]' />
+        <div key={i} className='h-[1.5px] w-[1.5px] rounded-full bg-[#2A2A2A]' />
       ))}
     </div>
   )
@@ -462,7 +462,7 @@ export default function Templates() {
                 Ship your agent in minutes
               </h2>
 
-              <p className='font-[430] font-season text-[#F6F6F0]/50 text-[16px] leading-[125%] tracking-[0.02em]'>
+              <p className='font-[430] font-season text-[#F6F6F0]/50 text-[18px] leading-[150%] tracking-[0.02em]'>
                 Pre-built templates for every use case—pick one, swap <br />
                 models and tools to fit your stack, and deploy.
               </p>
@@ -557,7 +557,7 @@ export default function Templates() {
                   type='button'
                   onClick={handleUseTemplate}
                   disabled={isPreparingTemplate}
-                  className='group/cta absolute top-[16px] right-[16px] z-10 inline-flex h-[32px] cursor-pointer items-center gap-[6px] rounded-[5px] border border-[#33C482] bg-[#33C482] px-[10px] font-[430] font-season text-[14px] text-black transition-[filter] hover:brightness-110'
+                  className='group/cta absolute top-[16px] right-[16px] z-10 inline-flex h-[32px] cursor-pointer items-center gap-[6px] rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] px-[10px] font-[430] font-season text-[14px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
                 >
                   {isPreparingTemplate ? 'Preparing...' : 'Use template'}
                   <span className='relative h-[10px] w-[10px] shrink-0'>

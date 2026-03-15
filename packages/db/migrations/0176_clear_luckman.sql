@@ -1,0 +1,1 @@
+ALTER TABLE "workspace" ALTER COLUMN "color" SET DEFAULT '#33C482';

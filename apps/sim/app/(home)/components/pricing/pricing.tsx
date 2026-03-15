@@ -123,7 +123,7 @@ function PricingCard({ tier }: PricingCardProps) {
             ) : isPro ? (
               <Link
                 href={tier.cta.href}
-                className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#33C482] bg-[#33C482] px-[10px] font-[430] font-season text-[14px] text-white transition-[filter] hover:brightness-110'
+                className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-[10px] font-[430] font-season text-[14px] text-white transition-colors hover:border-[#2A2A2A] hover:bg-[#2A2A2A]'
               >
                 {tier.cta.label}
               </Link>
@@ -174,7 +174,7 @@ function PricingCard({ tier }: PricingCardProps) {
 export default function Pricing() {
   return (
     <section id='pricing' aria-labelledby='pricing-heading' className='bg-[#F6F6F6]'>
-      <div className='px-4 pt-[100px] pb-8 sm:px-8 md:px-[80px]'>
+      <div className='px-4 pt-[100px] pb-[80px] sm:px-8 md:px-[80px]'>
         <div className='flex flex-col items-start gap-3 sm:gap-4 md:gap-[20px]'>
           <Badge
             variant='blue'

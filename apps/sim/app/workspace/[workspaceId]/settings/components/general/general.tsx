@@ -515,7 +515,7 @@ export function General() {
               Cancel
             </Button>
             <Button
-              variant='tertiary'
+              variant='primary'
               onClick={handleResetPasswordConfirm}
               disabled={resetPassword.isPending || resetPassword.isSuccess}
             >

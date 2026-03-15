@@ -347,7 +347,7 @@ export function AddDocumentsModal({
                 Cancel
               </Button>
               <Button
-                variant='tertiary'
+                variant='primary'
                 type='button'
                 onClick={handleUpload}
                 disabled={files.length === 0 || isUploading}

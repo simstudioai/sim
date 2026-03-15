@@ -575,7 +575,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
               </Button>
               <Button
                 type='button'
-                variant='tertiary'
+                variant='primary'
                 disabled={isSaving || isSubmitting}
                 onClick={handleSaveChanges}
                 tabIndex={hasPendingChanges && userPerms.canAdmin ? 0 : -1}
@@ -586,7 +586,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
 
             <Button
               type='button'
-              variant='tertiary'
+              variant='primary'
               onClick={() => formRef.current?.requestSubmit()}
               disabled={
                 !userPerms.canAdmin || isSubmitting || isSaving || !workspaceId || !hasNewInvites

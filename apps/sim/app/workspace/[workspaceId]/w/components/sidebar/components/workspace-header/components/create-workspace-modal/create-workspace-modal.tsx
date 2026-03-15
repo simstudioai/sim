@@ -77,7 +77,7 @@ export function CreateWorkspaceModal({
             Cancel
           </Button>
           <Button
-            variant='tertiary'
+            variant='primary'
             onClick={() => void handleSubmit()}
             disabled={!name.trim() || isCreating}
           >
