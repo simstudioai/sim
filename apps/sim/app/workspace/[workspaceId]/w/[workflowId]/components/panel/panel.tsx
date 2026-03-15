@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ArrowUp, Lock, Square, Unlock } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
@@ -357,16 +357,25 @@ export const Panel = memo(function Panel() {
   // Compute run button state
   const canRun = userPermissions.canRead // Running only requires read permissions
   const isLoadingPermissions = userPermissions.isLoading
-  const hasValidationErrors = useWorkflowStore((state) => {
-    if (Object.keys(state.blocks).length === 0) return false
+  // Memoize workflow structure to avoid re-validating on every store change
+  // (e.g. block dragging at 60fps, text input, etc.)
+  const blocks = useWorkflowStore((state) => state.blocks)
+  const edges = useWorkflowStore((state) => state.edges)
+  const loops = useWorkflowStore((state) => state.loops)
+  const parallels = useWorkflowStore((state) => state.parallels)
+
+  const hasValidationErrors = useMemo(() => {
+    if (Object.keys(blocks).length === 0) return false
+    // Pass shallow copies to validateWorkflowState to prevent any
+    // internal mutation from affecting Zustand store state
     const result = validateWorkflowState({
-      blocks: state.blocks,
-      edges: state.edges,
-      loops: state.loops || {},
-      parallels: state.parallels || {},
+      blocks: { ...blocks },
+      edges: [...edges],
+      loops: { ...(loops || {}) },
+      parallels: { ...(parallels || {}) },
     })
     return !result.valid
-  })
+  }, [blocks, edges, loops, parallels])
   const isWorkflowBlocked = isExecuting || hasValidationErrors
   const isButtonDisabled = !isExecuting && (isWorkflowBlocked || (!canRun && !isLoadingPermissions))
 
