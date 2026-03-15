@@ -33,6 +33,13 @@ export function AgentGroup({
 }: AgentGroupProps) {
   const AgentIcon = getAgentIcon(agentName)
   const hasItems = items.length > 0
+  let lastTextIdx = -1
+  for (let i = items.length - 1; i >= 0; i--) {
+    if (items[i].type === 'text') {
+      lastTextIdx = i
+      break
+    }
+  }
   const toolItems = items.filter(
     (item): item is Extract<AgentGroupItem, { type: 'tool' }> => item.type === 'tool'
   )
@@ -108,7 +115,7 @@ export function AgentGroup({
               <SubagentThinkingBlock
                 key={`text-${idx}`}
                 content={item.content}
-                isStreaming={!!isStreamingProp && duration === undefined}
+                isStreaming={!!isStreamingProp && duration === undefined && idx === lastTextIdx}
                 duration={duration}
               />
             )

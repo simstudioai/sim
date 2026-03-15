@@ -88,6 +88,7 @@ export function SubagentThinkingBlock({
     }
     if (!isStreaming) {
       setExpanded(false)
+      // Reset so the next streaming session auto-expands by default
       userCollapsedRef.current = false
     }
   }, [isStreaming, hasContent])
