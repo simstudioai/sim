@@ -521,8 +521,8 @@ export function Files() {
       ...(canPreview
         ? [
             {
-              label: showPreview ? 'Hide Preview' : 'Preview',
-              icon: Eye,
+              label: showPreview ? 'Edit' : 'Preview',
+              icon: showPreview ? Pencil : Eye,
               onClick: handleTogglePreview,
             },
           ]

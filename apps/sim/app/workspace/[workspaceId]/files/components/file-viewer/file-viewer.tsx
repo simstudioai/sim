@@ -98,7 +98,7 @@ export function FileViewer({
         file={file}
         workspaceId={workspaceId}
         canEdit={canEdit}
-        previewMode={previewMode ?? (showPreview ? 'split' : 'editor')}
+        previewMode={previewMode ?? (showPreview ? 'preview' : 'editor')}
         autoFocus={autoFocus}
         onDirtyChange={onDirtyChange}
         onSaveStatusChange={onSaveStatusChange}
