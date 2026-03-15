@@ -14,6 +14,7 @@ import {
 } from '@/lib/copilot/chat-streaming'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
+import { getStreamMeta, readStreamEvents } from '@/lib/copilot/orchestrator/stream/buffer'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -461,9 +462,6 @@ export async function GET(req: NextRequest) {
 
       if (chat.conversationId) {
         try {
-          const { getStreamMeta, readStreamEvents } = await import(
-            '@/lib/copilot/orchestrator/stream/buffer'
-          )
           const [meta, events] = await Promise.all([
             getStreamMeta(chat.conversationId),
             readStreamEvents(chat.conversationId, 0),
