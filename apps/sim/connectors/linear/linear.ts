@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { LinearIcon } from '@/components/icons'
-import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
+import type { RetryOptions } from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { computeContentHash, joinTagArray, parseTagDate } from '@/connectors/utils'
 
@@ -35,16 +36,21 @@ function markdownToPlainText(md: string): string {
 async function linearGraphQL(
   accessToken: string,
   query: string,
-  variables?: Record<string, unknown>
+  variables?: Record<string, unknown>,
+  retryOptions?: RetryOptions
 ): Promise<Record<string, unknown>> {
-  const response = await fetchWithRetry(LINEAR_API, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
+  const response = await fetchWithRetry(
+    LINEAR_API,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ query, variables }),
     },
-    body: JSON.stringify({ query, variables }),
-  })
+    retryOptions
+  )
 
   if (!response.ok) {
     const errorText = await response.text()
@@ -374,7 +380,7 @@ export const linearConnector: ConnectorConfig = {
 
     try {
       // Verify the token works by fetching teams
-      const data = await linearGraphQL(accessToken, TEAMS_QUERY)
+      const data = await linearGraphQL(accessToken, TEAMS_QUERY, undefined, VALIDATE_RETRY_OPTIONS)
       const teamsConn = data.teams as Record<string, unknown>
       const teams = (teamsConn.nodes || []) as Record<string, unknown>[]
 

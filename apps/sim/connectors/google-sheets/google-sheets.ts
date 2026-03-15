@@ -2,11 +2,12 @@ import { createLogger } from '@sim/logger'
 import { GoogleSheetsIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash } from '@/connectors/utils'
+import { computeContentHash, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('GoogleSheetsConnector')
 
 const SHEETS_API_BASE = 'https://sheets.googleapis.com/v4/spreadsheets'
+const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3/files'
 const MAX_ROWS = 10000
 const CONCURRENCY = 3
 
@@ -103,13 +104,46 @@ async function fetchSpreadsheetMetadata(
 }
 
 /**
+ * Fetches the spreadsheet's modifiedTime from the Drive API.
+ */
+async function fetchSpreadsheetModifiedTime(
+  accessToken: string,
+  spreadsheetId: string
+): Promise<string | undefined> {
+  try {
+    const url = `${DRIVE_API_BASE}/${encodeURIComponent(spreadsheetId)}?fields=modifiedTime&supportsAllDrives=true`
+    const response = await fetchWithRetry(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      logger.warn('Failed to fetch modifiedTime from Drive API', { status: response.status })
+      return undefined
+    }
+
+    const data = (await response.json()) as { modifiedTime?: string }
+    return data.modifiedTime
+  } catch (error) {
+    logger.warn('Error fetching modifiedTime from Drive API', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return undefined
+  }
+}
+
+/**
  * Converts a single sheet tab into an ExternalDocument.
  */
 async function sheetToDocument(
   accessToken: string,
   spreadsheetId: string,
   spreadsheetTitle: string,
-  sheet: SheetProperties
+  sheet: SheetProperties,
+  modifiedTime?: string
 ): Promise<ExternalDocument | null> {
   try {
     const values = await fetchSheetValues(accessToken, spreadsheetId, sheet.title)
@@ -151,6 +185,7 @@ async function sheetToDocument(
         sheetId: sheet.sheetId,
         rowCount,
         columnCount: headers.length,
+        ...(modifiedTime ? { modifiedTime } : {}),
       },
     }
   } catch (error) {
@@ -208,7 +243,10 @@ export const googleSheetsConnector: ConnectorConfig = {
 
     logger.info('Fetching spreadsheet metadata', { spreadsheetId })
 
-    const metadata = await fetchSpreadsheetMetadata(accessToken, spreadsheetId)
+    const [metadata, modifiedTime] = await Promise.all([
+      fetchSpreadsheetMetadata(accessToken, spreadsheetId),
+      fetchSpreadsheetModifiedTime(accessToken, spreadsheetId),
+    ])
     const sheetFilter = (sourceConfig.sheetFilter as string) || 'all'
 
     let sheets = metadata.sheets.map((s) => s.properties)
@@ -226,7 +264,13 @@ export const googleSheetsConnector: ConnectorConfig = {
       const batch = sheets.slice(i, i + CONCURRENCY)
       const results = await Promise.all(
         batch.map((sheet) =>
-          sheetToDocument(accessToken, spreadsheetId, metadata.properties.title, sheet)
+          sheetToDocument(
+            accessToken,
+            spreadsheetId,
+            metadata.properties.title,
+            sheet,
+            modifiedTime
+          )
         )
       )
       documents.push(...(results.filter(Boolean) as ExternalDocument[]))
@@ -257,7 +301,22 @@ export const googleSheetsConnector: ConnectorConfig = {
       return null
     }
 
-    const metadata = await fetchSpreadsheetMetadata(accessToken, spreadsheetId)
+    let metadata: SpreadsheetMetadata
+    let modifiedTime: string | undefined
+    try {
+      ;[metadata, modifiedTime] = await Promise.all([
+        fetchSpreadsheetMetadata(accessToken, spreadsheetId),
+        fetchSpreadsheetModifiedTime(accessToken, spreadsheetId),
+      ])
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.includes('404')) {
+        logger.info('Spreadsheet not found (possibly deleted)', { spreadsheetId })
+        return null
+      }
+      throw error
+    }
+
     const sheetEntry = metadata.sheets.find((s) => s.properties.sheetId === sheetId)
 
     if (!sheetEntry) {
@@ -269,7 +328,8 @@ export const googleSheetsConnector: ConnectorConfig = {
       accessToken,
       spreadsheetId,
       metadata.properties.title,
-      sheetEntry.properties
+      sheetEntry.properties,
+      modifiedTime
     )
   },
 
@@ -325,6 +385,7 @@ export const googleSheetsConnector: ConnectorConfig = {
     { id: 'sheetTitle', displayName: 'Sheet Name', fieldType: 'text' },
     { id: 'rowCount', displayName: 'Row Count', fieldType: 'number' },
     { id: 'columnCount', displayName: 'Column Count', fieldType: 'number' },
+    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
   ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
@@ -340,6 +401,11 @@ export const googleSheetsConnector: ConnectorConfig = {
 
     if (typeof metadata.columnCount === 'number') {
       result.columnCount = metadata.columnCount
+    }
+
+    const lastModified = parseTagDate(metadata.modifiedTime)
+    if (lastModified) {
+      result.lastModified = lastModified
     }
 
     return result

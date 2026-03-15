@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { GithubIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash } from '@/connectors/utils'
+import { computeContentHash, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('GitHubConnector')
 
@@ -82,7 +82,7 @@ async function fetchTree(
   const data = await response.json()
 
   if (data.truncated) {
-    logger.error('GitHub tree was truncated — some files may be missing', { owner, repo, branch })
+    logger.warn('GitHub tree was truncated — some files may be missing', { owner, repo, branch })
   }
 
   return (data.tree || []).filter((item: TreeItem) => item.type === 'blob')
@@ -139,7 +139,7 @@ async function treeItemToDocument(
     title: item.path.split('/').pop() || item.path,
     content,
     mimeType: 'text/plain',
-    sourceUrl: `https://github.com/${owner}/${repo}/blob/${branch}/${item.path}`,
+    sourceUrl: `https://github.com/${owner}/${repo}/blob/${encodeURIComponent(branch)}/${item.path.split('/').map(encodeURIComponent).join('/')}`,
     contentHash,
     metadata: {
       path: item.path,
@@ -302,6 +302,7 @@ export const githubConnector: ConnectorConfig = {
         throw new Error(`Failed to fetch file ${path}: ${response.status}`)
       }
 
+      const lastModifiedHeader = response.headers.get('last-modified') || undefined
       const data = await response.json()
       const content =
         data.encoding === 'base64'
@@ -314,7 +315,7 @@ export const githubConnector: ConnectorConfig = {
         title: path.split('/').pop() || path,
         content,
         mimeType: 'text/plain',
-        sourceUrl: `https://github.com/${owner}/${repo}/blob/${branch}/${path}`,
+        sourceUrl: `https://github.com/${owner}/${repo}/blob/${encodeURIComponent(branch)}/${path.split('/').map(encodeURIComponent).join('/')}`,
         contentHash,
         metadata: {
           path,
@@ -322,6 +323,7 @@ export const githubConnector: ConnectorConfig = {
           size: data.size as number,
           branch,
           repository: `${owner}/${repo}`,
+          lastModified: lastModifiedHeader,
         },
       }
     } catch (error) {
@@ -400,6 +402,7 @@ export const githubConnector: ConnectorConfig = {
     { id: 'repository', displayName: 'Repository', fieldType: 'text' },
     { id: 'branch', displayName: 'Branch', fieldType: 'text' },
     { id: 'size', displayName: 'File Size', fieldType: 'number' },
+    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
   ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
@@ -413,6 +416,9 @@ export const githubConnector: ConnectorConfig = {
       const num = Number(metadata.size)
       if (!Number.isNaN(num)) result.size = num
     }
+
+    const lastModified = parseTagDate(metadata.lastModified)
+    if (lastModified) result.lastModified = lastModified
 
     return result
   },

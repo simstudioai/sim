@@ -223,20 +223,15 @@ export const hubspotConnector: ConnectorConfig = {
 
     const portalId = await getPortalId(accessToken, syncContext)
 
-    const body: Record<string, unknown> = {
-      filterGroups: [],
-      sorts: [
-        {
-          propertyName: objectType === 'contacts' ? 'lastmodifieddate' : 'hs_lastmodifieddate',
-          direction: 'DESCENDING',
-        },
-      ],
-      properties: [...properties],
+    const sortProperty = objectType === 'contacts' ? 'lastmodifieddate' : 'hs_lastmodifieddate'
+
+    const searchBody: Record<string, unknown> = {
+      properties,
+      sorts: [{ propertyName: sortProperty, direction: 'DESCENDING' }],
       limit: PAGE_SIZE,
     }
-
     if (cursor) {
-      body.after = cursor
+      searchBody.after = cursor
     }
 
     logger.info(`Listing HubSpot ${objectType}`, { cursor })
@@ -248,16 +243,16 @@ export const hubspotConnector: ConnectorConfig = {
         Accept: 'application/json',
         Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(searchBody),
     })
 
     if (!response.ok) {
       const errorText = await response.text()
-      logger.error(`Failed to search HubSpot ${objectType}`, {
+      logger.error(`Failed to list HubSpot ${objectType}`, {
         status: response.status,
         error: errorText,
       })
-      throw new Error(`Failed to search HubSpot ${objectType}: ${response.status}`)
+      throw new Error(`Failed to list HubSpot ${objectType}: ${response.status}`)
     }
 
     const data = await response.json()
@@ -294,12 +289,17 @@ export const hubspotConnector: ConnectorConfig = {
   getDocument: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    externalId: string
+    externalId: string,
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     const objectType = sourceConfig.objectType as string
     const properties = OBJECT_PROPERTIES[objectType] || []
 
-    const portalId = await getPortalId(accessToken)
+    let portalId = syncContext?.portalId as string | undefined
+    if (!portalId) {
+      portalId = await getPortalId(accessToken)
+      if (syncContext) syncContext.portalId = portalId
+    }
 
     const params = new URLSearchParams()
     for (const prop of properties) {
@@ -346,19 +346,13 @@ export const hubspotConnector: ConnectorConfig = {
 
     try {
       const response = await fetchWithRetry(
-        `${BASE_URL}/crm/v3/objects/${objectType}/search`,
+        `${BASE_URL}/crm/v3/objects/${objectType}?limit=1`,
         {
-          method: 'POST',
+          method: 'GET',
           headers: {
-            'Content-Type': 'application/json',
             Accept: 'application/json',
             Authorization: `Bearer ${accessToken}`,
           },
-          body: JSON.stringify({
-            filterGroups: [],
-            limit: 1,
-            properties: ['hs_object_id'],
-          }),
         },
         VALIDATE_RETRY_OPTIONS
       )

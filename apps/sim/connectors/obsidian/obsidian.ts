@@ -200,33 +200,47 @@ export const obsidianConnector: ConnectorConfig = {
 
     const documents: ExternalDocument[] = []
 
-    for (const filePath of pageFiles) {
-      try {
-        const note = await fetchNote(baseUrl, accessToken, filePath)
-        const content = note.content || ''
-        const contentHash = await computeContentHash(content)
+    const BATCH_SIZE = 5
+    for (let i = 0; i < pageFiles.length; i += BATCH_SIZE) {
+      const batch = pageFiles.slice(i, i + BATCH_SIZE)
+      const results = await Promise.all(
+        batch.map(async (filePath) => {
+          try {
+            const note = await fetchNote(baseUrl, accessToken, filePath)
+            const content = note.content || ''
+            const contentHash = await computeContentHash(content)
 
-        documents.push({
-          externalId: filePath,
-          title: titleFromPath(filePath),
-          content,
-          mimeType: 'text/plain',
-          sourceUrl: `${baseUrl}/vault/${filePath.split('/').map(encodeURIComponent).join('/')}`,
-          contentHash,
-          metadata: {
-            tags: note.tags,
-            frontmatter: note.frontmatter,
-            createdAt: note.stat?.ctime ? new Date(note.stat.ctime).toISOString() : undefined,
-            modifiedAt: note.stat?.mtime ? new Date(note.stat.mtime).toISOString() : undefined,
-            size: note.stat?.size,
-            folder: filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '',
-          },
+            return {
+              externalId: filePath,
+              title: titleFromPath(filePath),
+              content,
+              mimeType: 'text/plain' as const,
+              sourceUrl: `${baseUrl}/vault/${filePath.split('/').map(encodeURIComponent).join('/')}`,
+              contentHash,
+              metadata: {
+                tags: note.tags,
+                frontmatter: note.frontmatter,
+                createdAt: note.stat?.ctime ? new Date(note.stat.ctime).toISOString() : undefined,
+                modifiedAt: note.stat?.mtime ? new Date(note.stat.mtime).toISOString() : undefined,
+                size: note.stat?.size,
+                folder: filePath.includes('/')
+                  ? filePath.substring(0, filePath.lastIndexOf('/'))
+                  : '',
+              },
+            }
+          } catch (error) {
+            logger.warn('Failed to fetch note', {
+              filePath,
+              error: error instanceof Error ? error.message : String(error),
+            })
+            return null
+          }
         })
-      } catch (error) {
-        logger.warn('Failed to fetch note', {
-          filePath,
-          error: error instanceof Error ? error.message : String(error),
-        })
+      )
+      for (const doc of results) {
+        if (doc) {
+          documents.push(doc)
+        }
       }
     }
 

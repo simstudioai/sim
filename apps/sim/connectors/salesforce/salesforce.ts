@@ -2,24 +2,17 @@ import { createLogger } from '@sim/logger'
 import { SalesforceIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, parseTagDate } from '@/connectors/utils'
+import { computeContentHash, htmlToPlainText, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('SalesforceConnector')
 
 const USERINFO_URL = 'https://login.salesforce.com/services/oauth2/userinfo'
-const API_VERSION = 'v59.0'
+const API_VERSION = 'v62.0'
 const PAGE_SIZE = 200
 
 /** SOQL field lists per object type. */
 const OBJECT_FIELDS: Record<string, string[]> = {
-  KnowledgeArticleVersion: [
-    'Id',
-    'Title',
-    'Summary',
-    'ArticleBody',
-    'LastModifiedDate',
-    'ArticleNumber',
-  ],
+  KnowledgeArticleVersion: ['Id', 'Title', 'Summary', 'LastModifiedDate', 'ArticleNumber'],
   Case: ['Id', 'Subject', 'Description', 'Status', 'LastModifiedDate', 'CaseNumber'],
   Account: ['Id', 'Name', 'Description', 'Industry', 'LastModifiedDate'],
   Opportunity: [
@@ -98,6 +91,9 @@ function buildRecordTitle(objectType: string, record: Record<string, unknown>): 
   }
 }
 
+/** Fields that may contain HTML content and should be stripped to plain text. */
+const HTML_FIELDS = new Set(['Description', 'Summary'])
+
 /**
  * Builds plain-text content from a Salesforce record for indexing.
  */
@@ -112,7 +108,9 @@ function buildRecordContent(objectType: string, record: Record<string, unknown>)
     const value = record[field]
     if (value != null && value !== '') {
       const label = field.replace(/([A-Z])/g, ' $1').trim()
-      parts.push(`${label}: ${String(value)}`)
+      const text =
+        HTML_FIELDS.has(field) && typeof value === 'string' ? htmlToPlainText(value) : String(value)
+      parts.push(`${label}: ${text}`)
     }
   }
 
@@ -288,7 +286,8 @@ export const salesforceConnector: ConnectorConfig = {
   getDocument: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    externalId: string
+    externalId: string,
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     const objectType = sourceConfig.objectType as string
     const fields = OBJECT_FIELDS[objectType]
@@ -297,7 +296,11 @@ export const salesforceConnector: ConnectorConfig = {
       throw new Error(`Unsupported Salesforce object type: ${objectType}`)
     }
 
-    const instanceUrl = await resolveInstanceUrl(accessToken)
+    let instanceUrl = syncContext?.instanceUrl as string | undefined
+    if (!instanceUrl) {
+      instanceUrl = await resolveInstanceUrl(accessToken)
+      if (syncContext) syncContext.instanceUrl = instanceUrl
+    }
 
     const url = `${instanceUrl}sobjects/${objectType}/${externalId}?fields=${fields.join(',')}`
 

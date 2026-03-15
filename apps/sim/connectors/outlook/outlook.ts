@@ -464,7 +464,7 @@ export const outlookConnector: ConnectorConfig = {
     try {
       // Fetch messages for this conversation
       const params = new URLSearchParams({
-        $filter: `conversationId eq '${externalId}'`,
+        $filter: `conversationId eq '${externalId.replace(/'/g, "''")}'`,
         $select: MESSAGE_FIELDS,
         $top: '50',
       })
@@ -557,7 +557,12 @@ export const outlookConnector: ConnectorConfig = {
       // If a search query is specified, verify it's valid with a dry run
       const searchQuery = sourceConfig.query as string | undefined
       if (searchQuery?.trim()) {
-        const searchUrl = `${GRAPH_API_BASE}/messages?$search="${encodeURIComponent(searchQuery.trim())}"&$top=1&$select=id`
+        const searchParams = new URLSearchParams({
+          $search: `"${searchQuery.trim()}"`,
+          $top: '1',
+          $select: 'id',
+        })
+        const searchUrl = `${GRAPH_API_BASE}/messages?${searchParams.toString()}`
         const searchResponse = await fetchWithRetry(
           searchUrl,
           {

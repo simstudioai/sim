@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { ConfluenceIcon } from '@/components/icons'
-import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { computeContentHash, htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
@@ -243,23 +243,31 @@ export const confluenceConnector: ConnectorConfig = {
     const domain = sourceConfig.domain as string
     const cloudId = await getConfluenceCloudId(domain, accessToken)
 
-    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${externalId}?body-format=storage`
+    // Try pages first, fall back to blogposts if not found
+    let page: Record<string, unknown> | null = null
+    for (const endpoint of ['pages', 'blogposts']) {
+      const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/${endpoint}/${externalId}?body-format=storage`
+      const response = await fetchWithRetry(url, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
 
-    const response = await fetchWithRetry(url, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-    })
-
-    if (!response.ok) {
-      if (response.status === 404) return null
-      throw new Error(`Failed to get Confluence page: ${response.status}`)
+      if (response.ok) {
+        page = await response.json()
+        break
+      }
+      if (response.status !== 404) {
+        throw new Error(`Failed to get Confluence content: ${response.status}`)
+      }
     }
 
-    const page = await response.json()
-    const rawContent = page.body?.storage?.value || ''
+    if (!page) return null
+    const body = page.body as Record<string, unknown> | undefined
+    const storage = body?.storage as Record<string, unknown> | undefined
+    const rawContent = (storage?.value as string) || ''
     const plainText = htmlToPlainText(rawContent)
     const contentHash = await computeContentHash(plainText)
 
@@ -267,19 +275,22 @@ export const confluenceConnector: ConnectorConfig = {
     const labelMap = await fetchLabelsForPages(cloudId, accessToken, [String(page.id)])
     const labels = labelMap.get(String(page.id)) ?? []
 
+    const links = page._links as Record<string, unknown> | undefined
+    const version = page.version as Record<string, unknown> | undefined
+
     return {
       externalId: String(page.id),
-      title: page.title || 'Untitled',
+      title: (page.title as string) || 'Untitled',
       content: plainText,
       mimeType: 'text/plain',
-      sourceUrl: page._links?.webui ? `https://${domain}/wiki${page._links.webui}` : undefined,
+      sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
       contentHash,
       metadata: {
         spaceId: page.spaceId,
         status: page.status,
-        version: page.version?.number,
+        version: version?.number,
         labels,
-        lastModified: page.version?.createdAt,
+        lastModified: version?.createdAt,
       },
     }
   },
@@ -302,7 +313,25 @@ export const confluenceConnector: ConnectorConfig = {
 
     try {
       const cloudId = await getConfluenceCloudId(domain, accessToken)
-      await resolveSpaceId(cloudId, accessToken, spaceKey)
+      const spaceUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces?keys=${encodeURIComponent(spaceKey)}&limit=1`
+      const response = await fetchWithRetry(
+        spaceUrl,
+        {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+        VALIDATE_RETRY_OPTIONS
+      )
+      if (!response.ok) {
+        return { valid: false, error: `Failed to validate space: ${response.status}` }
+      }
+      const data = await response.json()
+      if (!data.results?.length) {
+        return { valid: false, error: `Space "${spaceKey}" not found` }
+      }
       return { valid: true }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to validate configuration'

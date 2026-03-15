@@ -213,11 +213,11 @@ async function resolveChannel(
     }
   }
 
-  // Search by name through conversations.list
+  // Search by name through conversations.list (include private channels the bot is in)
   let cursor: string | undefined
   do {
     const params: Record<string, string> = {
-      types: 'public_channel',
+      types: 'public_channel,private_channel',
       limit: '200',
       exclude_archived: 'true',
     }
@@ -248,7 +248,13 @@ export const slackConnector: ConnectorConfig = {
   auth: {
     mode: 'oauth',
     provider: 'slack',
-    requiredScopes: ['channels:read', 'channels:history', 'users:read'],
+    requiredScopes: [
+      'channels:read',
+      'channels:history',
+      'groups:read',
+      'groups:history',
+      'users:read',
+    ],
   },
 
   configFields: [
@@ -356,7 +362,8 @@ export const slackConnector: ConnectorConfig = {
   getDocument: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    externalId: string
+    externalId: string,
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     const maxMessages = sourceConfig.maxMessages
       ? Number(sourceConfig.maxMessages)
@@ -372,7 +379,7 @@ export const slackConnector: ConnectorConfig = {
         maxMessages
       )
 
-      const content = await formatMessages(accessToken, messages)
+      const content = await formatMessages(accessToken, messages, syncContext)
       if (!content.trim()) return null
 
       const contentHash = await computeContentHash(content)
@@ -441,11 +448,11 @@ export const slackConnector: ConnectorConfig = {
         return { valid: true }
       }
 
-      // Otherwise search by name
+      // Otherwise search by name (include private channels the bot is in)
       let cursor: string | undefined
       do {
         const params: Record<string, string> = {
-          types: 'public_channel',
+          types: 'public_channel,private_channel',
           limit: '200',
           exclude_archived: 'true',
         }

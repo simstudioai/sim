@@ -61,7 +61,7 @@ async function resolveSiteId(
   accessToken: string,
   siteUrl: string,
   retryOptions?: Parameters<typeof fetchWithRetry>[2]
-): Promise<string> {
+): Promise<{ id: string; displayName: string }> {
   // Normalise: strip protocol, trailing slashes
   const cleaned = siteUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '')
 
@@ -108,7 +108,7 @@ async function resolveSiteId(
     siteId: site.id,
     displayName: site.displayName,
   })
-  return site.id
+  return { id: site.id, displayName: site.displayName ?? '' }
 }
 
 /**
@@ -338,17 +338,9 @@ export const sharepointConnector: ConnectorConfig = {
       siteId = syncContext.siteId as string
       siteName = (syncContext.siteName as string) ?? ''
     } else {
-      siteId = await resolveSiteId(accessToken, siteUrl)
-
-      // Fetch site display name
-      const siteResponse = await fetchWithRetry(`${GRAPH_BASE}/sites/${siteId}`, {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-      })
-      const siteData = siteResponse.ok
-        ? ((await siteResponse.json()) as { displayName?: string })
-        : {}
-      siteName = siteData.displayName ?? siteUrl
+      const site = await resolveSiteId(accessToken, siteUrl)
+      siteId = site.id
+      siteName = site.displayName || siteUrl
 
       if (syncContext) {
         syncContext.siteId = siteId
@@ -463,10 +455,22 @@ export const sharepointConnector: ConnectorConfig = {
   getDocument: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    externalId: string
+    externalId: string,
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     const siteUrl = sourceConfig.siteUrl as string
-    const siteId = await resolveSiteId(accessToken, siteUrl)
+
+    let siteId = syncContext?.siteId as string | undefined
+    let siteName = syncContext?.siteName as string | undefined
+    if (!siteId) {
+      const site = await resolveSiteId(accessToken, siteUrl)
+      siteId = site.id
+      siteName = site.displayName ?? siteUrl
+      if (syncContext) {
+        syncContext.siteId = siteId
+        syncContext.siteName = siteName
+      }
+    }
 
     const url = `${GRAPH_BASE}/sites/${siteId}/drive/items/${externalId}`
     const response = await fetchWithRetry(url, {
@@ -484,22 +488,11 @@ export const sharepointConnector: ConnectorConfig = {
 
     const item = (await response.json()) as DriveItem
 
-    // Verify it is a supported text file
     if (!item.file || !isSupportedTextFile(item.name)) {
       return null
     }
 
-    // Fetch site display name for metadata
-    const siteResponse = await fetchWithRetry(`${GRAPH_BASE}/sites/${siteId}`, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-    })
-    const siteData = siteResponse.ok
-      ? ((await siteResponse.json()) as { displayName?: string })
-      : {}
-    const siteName = siteData.displayName ?? siteUrl
-
-    return itemToDocument(accessToken, siteId, item, siteName)
+    return itemToDocument(accessToken, siteId, item, siteName ?? siteUrl)
   },
 
   validateConfig: async (
@@ -517,7 +510,8 @@ export const sharepointConnector: ConnectorConfig = {
     }
 
     try {
-      const siteId = await resolveSiteId(accessToken, siteUrl, VALIDATE_RETRY_OPTIONS)
+      const site = await resolveSiteId(accessToken, siteUrl, VALIDATE_RETRY_OPTIONS)
+      const siteId = site.id
 
       // If a folder path is configured, verify it exists
       const folderPath = (sourceConfig.folderPath as string)?.trim()

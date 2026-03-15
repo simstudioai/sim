@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { WebflowIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, parseTagDate } from '@/connectors/utils'
+import { computeContentHash, htmlToPlainText, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('WebflowConnector')
 
@@ -60,6 +60,8 @@ function itemToPlainText(item: WebflowItem, collectionName: string): string {
       lines.push(`${key}: ${items.join(', ')}`)
     } else if (typeof value === 'object') {
       lines.push(`${key}: ${JSON.stringify(value)}`)
+    } else if (typeof value === 'string' && /<[a-z][^>]*>/i.test(value)) {
+      lines.push(`${key}: ${htmlToPlainText(value)}`)
     } else {
       lines.push(`${key}: ${String(value)}`)
     }

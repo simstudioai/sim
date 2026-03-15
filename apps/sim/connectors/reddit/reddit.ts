@@ -103,18 +103,7 @@ async function fetchPostComments(
 
     if (!Array.isArray(data) || data.length < 2) return []
 
-    const commentListing = data[1]
-    const comments: string[] = []
-
-    for (const child of commentListing.data.children) {
-      if (child.kind !== 't1') continue
-      const comment = child as RedditComment
-      if (!comment.data.body || comment.data.author === 'AutoModerator') continue
-      comments.push(`[${comment.data.author} | score: ${comment.data.score}]: ${comment.data.body}`)
-      if (comments.length >= maxComments) break
-    }
-
-    return comments
+    return extractComments(data[1], maxComments)
   } catch (error) {
     logger.warn('Failed to fetch comments for post', {
       postId,
@@ -125,12 +114,31 @@ async function fetchPostComments(
 }
 
 /**
+ * Extracts formatted comment strings from a Reddit comment listing.
+ */
+function extractComments(commentListing: RedditListing, maxComments: number): string[] {
+  const comments: string[] = []
+
+  for (const child of commentListing.data.children) {
+    if (child.kind !== 't1') continue
+    const comment = child as RedditComment
+    if (!comment.data.body || comment.data.author === 'AutoModerator') continue
+    comments.push(`[${comment.data.author} | score: ${comment.data.score}]: ${comment.data.body}`)
+    if (comments.length >= maxComments) break
+  }
+
+  return comments
+}
+
+/**
  * Formats a Reddit post with its comments into a document content string.
+ * When `prefetchedComments` is provided, uses those directly instead of fetching.
  */
 async function formatPostContent(
   accessToken: string,
   post: RedditPost['data'],
-  maxComments: number
+  maxComments: number,
+  prefetchedComments?: string[]
 ): Promise<string> {
   const lines: string[] = []
 
@@ -153,7 +161,9 @@ async function formatPostContent(
   }
 
   if (maxComments > 0) {
-    const comments = await fetchPostComments(accessToken, post.subreddit, post.id, maxComments)
+    const comments =
+      prefetchedComments ??
+      (await fetchPostComments(accessToken, post.subreddit, post.id, maxComments))
     if (comments.length > 0) {
       lines.push('---')
       lines.push(`Top Comments (${comments.length}):`)
@@ -384,7 +394,9 @@ export const redditConnector: ConnectorConfig = {
       if (postChildren.length === 0) return null
 
       const post = postChildren[0].data
-      const content = await formatPostContent(accessToken, post, COMMENTS_PER_POST)
+      const comments =
+        data.length >= 2 ? extractComments(data[1] as RedditListing, COMMENTS_PER_POST) : []
+      const content = await formatPostContent(accessToken, post, COMMENTS_PER_POST, comments)
       const contentHash = await computeContentHash(content)
 
       return {

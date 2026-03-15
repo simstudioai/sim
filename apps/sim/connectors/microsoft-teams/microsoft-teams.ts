@@ -66,7 +66,6 @@ async function graphApiGet<T>(
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: 'application/json',
-        Prefer: 'outlook.body-content-type="text"',
       },
     },
     retryOptions
@@ -191,7 +190,7 @@ export const microsoftTeamsConnector: ConnectorConfig = {
   auth: {
     mode: 'oauth',
     provider: 'microsoft-teams',
-    requiredScopes: ['ChannelMessage.Read.All'],
+    requiredScopes: ['ChannelMessage.Read.All', 'Channel.ReadBasic.All'],
   },
 
   configFields: [

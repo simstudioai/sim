@@ -538,10 +538,8 @@ async function listFromParentPage(
   const data = await response.json()
   const blocks = (data.results || []) as Record<string, unknown>[]
 
-  // Filter to child_page and child_database blocks
-  const childPageIds = blocks
-    .filter((b) => b.type === 'child_page' || b.type === 'child_database')
-    .map((b) => b.id as string)
+  // Filter to child_page blocks only (child_database blocks cannot be fetched via the Pages API)
+  const childPageIds = blocks.filter((b) => b.type === 'child_page').map((b) => b.id as string)
 
   // Also include the root page itself on the first call (no cursor)
   const pageIdsToFetch = !cursor ? [rootPageId, ...childPageIds] : childPageIds

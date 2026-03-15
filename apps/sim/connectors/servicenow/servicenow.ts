@@ -513,11 +513,16 @@ export const servicenowConnector: ConnectorConfig = {
     const isKB = contentType === 'kb_knowledge'
     const tableName = isKB ? 'kb_knowledge' : 'incident'
 
+    const fields = isKB
+      ? 'sys_id,short_description,text,wiki,workflow_state,kb_category,kb_knowledge_base,number,author,sys_created_by,sys_updated_by,sys_updated_on,sys_created_on'
+      : 'sys_id,number,short_description,description,state,priority,category,assigned_to,opened_by,close_notes,resolution_notes,sys_created_by,sys_updated_by,sys_updated_on,sys_created_on'
+
     try {
       const { result } = await serviceNowApiGet(instanceUrl, tableName, authHeader, {
         sysparm_query: `sys_id=${externalId}`,
         sysparm_limit: '1',
         sysparm_offset: '0',
+        sysparm_fields: fields,
         sysparm_display_value: 'all',
       })
 

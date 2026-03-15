@@ -7,6 +7,15 @@ import { computeContentHash, htmlToPlainText, joinTagArray, parseTagDate } from 
 const logger = createLogger('WordPressConnector')
 
 const WP_API_BASE = 'https://public-api.wordpress.com/rest/v1.1/sites'
+
+/**
+ * Strips protocol prefix and trailing slashes from a site URL so the
+ * WordPress.com API receives a bare domain (e.g. "mysite.wordpress.com").
+ */
+function normalizeSiteUrl(raw: string): string {
+  return raw.replace(/^https?:\/\//, '').replace(/\/+$/, '')
+}
+
 const POSTS_PER_PAGE = 20
 const DEFAULT_MAX_POSTS = 100
 
@@ -135,10 +144,11 @@ export const wordpressConnector: ConnectorConfig = {
     cursor?: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
-    const siteUrl = (sourceConfig.siteUrl as string)?.trim()
-    if (!siteUrl) {
+    const rawSiteUrl = (sourceConfig.siteUrl as string)?.trim()
+    if (!rawSiteUrl) {
       throw new Error('Site URL is required')
     }
+    const siteUrl = normalizeSiteUrl(rawSiteUrl)
 
     const maxPosts = sourceConfig.maxPosts ? Number(sourceConfig.maxPosts) : DEFAULT_MAX_POSTS
     const type = resolvePostType(sourceConfig.postType as string | undefined)
@@ -193,10 +203,11 @@ export const wordpressConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
-    const siteUrl = (sourceConfig.siteUrl as string)?.trim()
-    if (!siteUrl) {
+    const rawSiteUrl = (sourceConfig.siteUrl as string)?.trim()
+    if (!rawSiteUrl) {
       throw new Error('Site URL is required')
     }
+    const siteUrl = normalizeSiteUrl(rawSiteUrl)
 
     const url = `${WP_API_BASE}/${encodeURIComponent(siteUrl)}/posts/${externalId}`
 
@@ -229,12 +240,13 @@ export const wordpressConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
-    const siteUrl = (sourceConfig.siteUrl as string)?.trim()
+    const rawSiteUrl = (sourceConfig.siteUrl as string)?.trim()
     const maxPosts = sourceConfig.maxPosts as string | undefined
 
-    if (!siteUrl) {
+    if (!rawSiteUrl) {
       return { valid: false, error: 'Site URL is required' }
     }
+    const siteUrl = normalizeSiteUrl(rawSiteUrl)
 
     if (maxPosts && (Number.isNaN(Number(maxPosts)) || Number(maxPosts) <= 0)) {
       return { valid: false, error: 'Max posts must be a positive number' }
