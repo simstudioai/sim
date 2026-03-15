@@ -63,6 +63,7 @@ export interface TaskStoredMessage {
 export interface TaskStoredContentBlock {
   type: string
   content?: string
+  duration?: number
   toolCall?: {
     id?: string
     name?: string

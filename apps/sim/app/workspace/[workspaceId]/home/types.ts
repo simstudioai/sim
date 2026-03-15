@@ -164,6 +164,7 @@ export interface ContentBlock {
   content?: string
   toolCall?: ToolCallInfo
   options?: OptionItem[]
+  duration?: number
 }
 
 export interface ChatMessageAttachment {

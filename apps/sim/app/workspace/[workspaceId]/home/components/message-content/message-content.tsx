@@ -16,6 +16,7 @@ interface AgentGroupSegment {
   agentName: string
   agentLabel: string
   items: AgentGroupItem[]
+  duration?: number
 }
 
 interface OptionsSegment {
@@ -105,6 +106,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
         agentName: key,
         agentLabel: resolveAgentLabel(key),
         items: [],
+        duration: block.duration,
       }
       continue
     }
@@ -246,6 +248,8 @@ export function MessageContent({
                   agentLabel={segment.agentLabel}
                   items={segment.items}
                   autoCollapse={allToolsDone && hasFollowingText}
+                  duration={segment.duration}
+                  isStreaming={isStreaming}
                 />
               </div>
             )

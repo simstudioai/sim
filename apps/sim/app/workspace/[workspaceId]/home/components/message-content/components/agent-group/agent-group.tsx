@@ -5,6 +5,7 @@ import { ChevronDown } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { ToolCallData } from '../../../../types'
 import { getAgentIcon } from '../../utils'
+import { SubagentThinkingBlock } from './subagent-thinking-block'
 import { ToolCallItem } from './tool-call-item'
 
 export type AgentGroupItem =
@@ -16,6 +17,8 @@ interface AgentGroupProps {
   agentLabel: string
   items: AgentGroupItem[]
   autoCollapse?: boolean
+  duration?: number
+  isStreaming?: boolean
 }
 
 const FADE_MS = 300
@@ -25,6 +28,8 @@ export function AgentGroup({
   agentLabel,
   items,
   autoCollapse = false,
+  duration,
+  isStreaming: isStreamingProp = false,
 }: AgentGroupProps) {
   const AgentIcon = getAgentIcon(agentName)
   const hasItems = items.length > 0
@@ -100,12 +105,12 @@ export function AgentGroup({
                 status={item.data.status}
               />
             ) : (
-              <p
+              <SubagentThinkingBlock
                 key={`text-${idx}`}
-                className='whitespace-pre-wrap pl-[24px] font-base text-[13px] text-[var(--text-secondary)]'
-              >
-                {item.content.trim()}
-              </p>
+                content={item.content}
+                isStreaming={!!isStreamingProp && duration === undefined}
+                duration={duration}
+              />
             )
           )}
         </div>

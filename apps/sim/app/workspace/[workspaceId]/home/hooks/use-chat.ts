@@ -78,6 +78,7 @@ function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
   const mapped: ContentBlock = {
     type: block.type as ContentBlockType,
     content: block.content,
+    duration: block.duration,
   }
 
   if (block.type === 'tool_call' && block.toolCall) {
@@ -486,6 +487,7 @@ export function useChat(
       const toolArgsMap = new Map<string, Record<string, unknown>>()
       const clientExecutionStarted = new Set<string>()
       let activeSubagent: string | undefined
+      let subagentStartTime: number | undefined
       let runningText = ''
       let lastContentSource: 'main' | 'subagent' | null = null
 
@@ -569,20 +571,44 @@ export function useChat(
               }
               break
             }
+            case 'reasoning': {
+              if (!activeSubagent) break
+              const reasoningChunk =
+                typeof parsed.data === 'string' ? parsed.data : (parsed.content ?? '')
+              if (reasoningChunk) {
+                const last = blocks[blocks.length - 1]
+                if (last?.type === 'subagent_text') {
+                  last.content = (last.content ?? '') + reasoningChunk
+                } else {
+                  blocks.push({ type: 'subagent_text', content: reasoningChunk })
+                }
+                lastContentSource = 'subagent'
+                flush()
+              }
+              break
+            }
             case 'content': {
               const chunk = typeof parsed.data === 'string' ? parsed.data : (parsed.content ?? '')
               if (chunk) {
-                const contentSource: 'main' | 'subagent' = activeSubagent ? 'subagent' : 'main'
-                const needsBoundaryNewline =
-                  lastContentSource !== null &&
-                  lastContentSource !== contentSource &&
-                  runningText.length > 0 &&
-                  !runningText.endsWith('\n')
-                const tb = ensureTextBlock()
-                const normalizedChunk = needsBoundaryNewline ? `\n${chunk}` : chunk
-                tb.content = (tb.content ?? '') + normalizedChunk
-                runningText += normalizedChunk
-                lastContentSource = contentSource
+                if (activeSubagent) {
+                  const last = blocks[blocks.length - 1]
+                  if (last?.type === 'subagent_text') {
+                    last.content = (last.content ?? '') + chunk
+                  } else {
+                    blocks.push({ type: 'subagent_text', content: chunk })
+                  }
+                  lastContentSource = 'subagent'
+                } else {
+                  const needsBoundaryNewline =
+                    lastContentSource === 'subagent' &&
+                    runningText.length > 0 &&
+                    !runningText.endsWith('\n')
+                  const tb = ensureTextBlock()
+                  const normalizedChunk = needsBoundaryNewline ? `\n${chunk}` : chunk
+                  tb.content = (tb.content ?? '') + normalizedChunk
+                  runningText += normalizedChunk
+                  lastContentSource = 'main'
+                }
                 streamingContentRef.current = runningText
                 flush()
               }
@@ -744,13 +770,25 @@ export function useChat(
               const name = parsed.subagent || getPayloadData(parsed)?.agent
               if (name) {
                 activeSubagent = name
+                subagentStartTime = Date.now()
                 blocks.push({ type: 'subagent', content: name })
                 flush()
               }
               break
             }
             case 'subagent_end': {
+              // Subagents are flat (not nested) — stamp duration on the most recent marker
+              if (subagentStartTime != null) {
+                const elapsed = Date.now() - subagentStartTime
+                for (let j = blocks.length - 1; j >= 0; j--) {
+                  if (blocks[j].type === 'subagent') {
+                    blocks[j].duration = elapsed
+                    break
+                  }
+                }
+              }
               activeSubagent = undefined
+              subagentStartTime = undefined
               flush()
               break
             }
@@ -800,7 +838,11 @@ export function useChat(
           },
         }
       }
-      return { type: block.type, content: block.content }
+      return {
+        type: block.type,
+        content: block.content,
+        ...(block.type === 'subagent' && block.duration != null && { duration: block.duration }),
+      }
     })
 
     if (storedBlocks.length > 0) {
