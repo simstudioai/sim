@@ -210,12 +210,8 @@ export const Dropdown = memo(function Dropdown({
     return opts
   }, [fetchOptions, normalizedFetchedOptions, evaluatedOptions, hydratedOption])
 
-  const selectableOptions = useMemo(() => {
-    return allOptions.filter((opt) => typeof opt === 'string' || !opt.hidden)
-  }, [allOptions])
-
   const comboboxOptions = useMemo((): ComboboxOption[] => {
-    return selectableOptions.map((opt) => {
+    return allOptions.map((opt) => {
       if (typeof opt === 'string') {
         return { label: opt.toLowerCase(), value: opt }
       }
@@ -223,18 +219,14 @@ export const Dropdown = memo(function Dropdown({
         label: opt.label.toLowerCase(),
         value: opt.id,
         icon: 'icon' in opt ? opt.icon : undefined,
+        hidden: opt.hidden,
       }
     })
-  }, [selectableOptions])
+  }, [allOptions])
 
   const optionMap = useMemo(() => {
-    return new Map(
-      allOptions.map((opt) => {
-        if (typeof opt === 'string') return [opt, opt.toLowerCase()]
-        return [opt.id, opt.label.toLowerCase()]
-      })
-    )
-  }, [allOptions])
+    return new Map(comboboxOptions.map((opt) => [opt.value, opt.label]))
+  }, [comboboxOptions])
 
   const defaultOptionValue = useMemo(() => {
     if (multiSelect) return undefined
