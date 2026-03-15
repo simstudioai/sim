@@ -72,7 +72,7 @@ async function downloadFileContent(accessToken: string, fileId: string): Promise
 
   const text = await response.text()
   if (Buffer.byteLength(text, 'utf8') > MAX_FILE_SIZE) {
-    return text.slice(0, MAX_FILE_SIZE)
+    return Buffer.from(text, 'utf8').subarray(0, MAX_FILE_SIZE).toString('utf8')
   }
   return text
 }

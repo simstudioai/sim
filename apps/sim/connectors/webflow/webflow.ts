@@ -60,7 +60,7 @@ function itemToPlainText(item: WebflowItem, collectionName: string): string {
       lines.push(`${key}: ${items.join(', ')}`)
     } else if (typeof value === 'object') {
       lines.push(`${key}: ${JSON.stringify(value)}`)
-    } else if (typeof value === 'string' && value.includes('<')) {
+    } else if (typeof value === 'string' && /<[a-z][^>]*>/i.test(value)) {
       lines.push(`${key}: ${htmlToPlainText(value)}`)
     } else {
       lines.push(`${key}: ${String(value)}`)

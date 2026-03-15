@@ -109,6 +109,11 @@ export async function getJiraCloudId(domain: string, accessToken: string): Promi
     }
   )
 
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Failed to fetch Jira accessible resources: ${response.status} - ${errorText}`)
+  }
+
   const resources = await response.json()
 
   if (Array.isArray(resources) && resources.length > 0) {

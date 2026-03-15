@@ -103,18 +103,7 @@ async function fetchPostComments(
 
     if (!Array.isArray(data) || data.length < 2) return []
 
-    const commentListing = data[1]
-    const comments: string[] = []
-
-    for (const child of commentListing.data.children) {
-      if (child.kind !== 't1') continue
-      const comment = child as RedditComment
-      if (!comment.data.body || comment.data.author === 'AutoModerator') continue
-      comments.push(`[${comment.data.author} | score: ${comment.data.score}]: ${comment.data.body}`)
-      if (comments.length >= maxComments) break
-    }
-
-    return comments
+    return extractComments(data[1], maxComments)
   } catch (error) {
     logger.warn('Failed to fetch comments for post', {
       postId,
