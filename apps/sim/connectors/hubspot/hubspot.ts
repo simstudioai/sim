@@ -223,28 +223,28 @@ export const hubspotConnector: ConnectorConfig = {
 
     const portalId = await getPortalId(accessToken, syncContext)
 
-    const params = new URLSearchParams({
-      limit: String(PAGE_SIZE),
-    })
-    for (const prop of properties) {
-      params.append('properties', prop)
+    const sortProperty = objectType === 'contacts' ? 'lastmodifieddate' : 'hs_lastmodifieddate'
+
+    const searchBody: Record<string, unknown> = {
+      properties,
+      sorts: [{ propertyName: sortProperty, direction: 'DESCENDING' }],
+      limit: PAGE_SIZE,
     }
     if (cursor) {
-      params.set('after', cursor)
+      searchBody.after = cursor
     }
 
     logger.info(`Listing HubSpot ${objectType}`, { cursor })
 
-    const response = await fetchWithRetry(
-      `${BASE_URL}/crm/v3/objects/${objectType}?${params.toString()}`,
-      {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    )
+    const response = await fetchWithRetry(`${BASE_URL}/crm/v3/objects/${objectType}/search`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(searchBody),
+    })
 
     if (!response.ok) {
       const errorText = await response.text()

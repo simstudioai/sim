@@ -155,7 +155,10 @@ export const jiraConnector: ConnectorConfig = {
     const params = new URLSearchParams()
     params.append('jql', jql)
     params.append('startAt', String(startAt))
-    const remaining = maxIssues > 0 ? maxIssues - startAt : PAGE_SIZE
+    const remaining = maxIssues > 0 ? Math.max(0, maxIssues - startAt) : PAGE_SIZE
+    if (remaining === 0) {
+      return { documents: [], hasMore: false }
+    }
     params.append('maxResults', String(Math.min(PAGE_SIZE, remaining)))
     params.append(
       'fields',
