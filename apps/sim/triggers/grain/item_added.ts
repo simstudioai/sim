@@ -2,11 +2,11 @@ import { GrainIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
 import { buildGenericOutputs, grainV2SetupInstructions } from './utils'
 
-export const grainWebhookTrigger: TriggerConfig = {
-  id: 'grain_webhook',
-  name: 'Grain All Events',
+export const grainItemAddedTrigger: TriggerConfig = {
+  id: 'grain_item_added',
+  name: 'Grain Item Added',
   provider: 'grain',
-  description: 'Trigger on all actions (added, updated, removed) in a Grain view',
+  description: 'Trigger when a new item is added to a Grain view (recording, highlight, or story)',
   version: '1.0.0',
   icon: GrainIcon,
 
@@ -22,7 +22,7 @@ export const grainWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
-        value: 'grain_webhook',
+        value: 'grain_item_added',
       },
     },
     {
@@ -36,7 +36,7 @@ export const grainWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
-        value: 'grain_webhook',
+        value: 'grain_item_added',
       },
     },
     {
@@ -45,10 +45,10 @@ export const grainWebhookTrigger: TriggerConfig = {
       type: 'trigger-save',
       hideFromPreview: true,
       mode: 'trigger',
-      triggerId: 'grain_webhook',
+      triggerId: 'grain_item_added',
       condition: {
         field: 'selectedTriggerId',
-        value: 'grain_webhook',
+        value: 'grain_item_added',
       },
     },
     {
@@ -56,11 +56,11 @@ export const grainWebhookTrigger: TriggerConfig = {
       title: 'Setup Instructions',
       hideFromPreview: true,
       type: 'text',
-      defaultValue: grainV2SetupInstructions('all'),
+      defaultValue: grainV2SetupInstructions('item added'),
       mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
-        value: 'grain_webhook',
+        value: 'grain_item_added',
       },
     },
   ],

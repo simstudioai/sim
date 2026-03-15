@@ -45,6 +45,8 @@ const comboboxVariants = cva(
 export type ComboboxOption = {
   label: string
   value: string
+  /** When true, hidden from the picker list but still resolves for display */
+  hidden?: boolean
   /** Icon component to render */
   icon?: React.ComponentType<{ className?: string }>
   /** Pre-rendered icon element (alternative to icon component) */
@@ -207,12 +209,11 @@ const Combobox = memo(
        * Filter options based on current value or search query
        */
       const filteredOptions = useMemo(() => {
-        let result = allOptions
+        let result = allOptions.filter((opt) => !opt.hidden)
 
-        // Filter by editable input value
         if (filterOptions && value && open) {
           const currentValue = value.toString().toLowerCase()
-          const exactMatch = allOptions.find(
+          const exactMatch = result.find(
             (opt) => opt.value === value || opt.label.toLowerCase() === currentValue
           )
           if (!exactMatch) {
@@ -224,7 +225,6 @@ const Combobox = memo(
           }
         }
 
-        // Filter by search query (for searchable mode)
         if (searchable && searchQuery) {
           const query = searchQuery.toLowerCase()
           result = result.filter((option) => {
@@ -242,10 +242,18 @@ const Combobox = memo(
        */
       const filteredGroups = useMemo(() => {
         if (!groups) return null
-        if (!searchable || !searchQuery) return groups
+
+        const baseGroups = groups
+          .map((group) => ({
+            ...group,
+            items: group.items.filter((opt) => !opt.hidden),
+          }))
+          .filter((group) => group.items.length > 0)
+
+        if (!searchable || !searchQuery) return baseGroups
 
         const query = searchQuery.toLowerCase()
-        return groups
+        return baseGroups
           .map((group) => ({
             ...group,
             items: group.items.filter((option) => {

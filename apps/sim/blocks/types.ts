@@ -233,12 +233,14 @@ export interface SubBlockConfig {
         id: string
         icon?: React.ComponentType<{ className?: string }>
         group?: string
+        hidden?: boolean
       }[]
     | (() => {
         label: string
         id: string
         icon?: React.ComponentType<{ className?: string }>
         group?: string
+        hidden?: boolean
       }[])
   min?: number
   max?: number
