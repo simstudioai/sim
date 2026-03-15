@@ -4,7 +4,6 @@ import { Suspense, useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import { BrandedButton } from '@/app/(auth)/components/branded-button'
-import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import { InviteLayout } from '@/app/invite/components'
 
 interface UnsubscribeData {
@@ -128,7 +127,6 @@ function UnsubscribeContent() {
         <div className={'mt-8 flex w-full items-center justify-center py-8'}>
           <Loader2 className='h-8 w-8 animate-spin text-[#999]' />
         </div>
-        <SupportFooter position='absolute' />
       </InviteLayout>
     )
   }
@@ -146,8 +144,6 @@ function UnsubscribeContent() {
         <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
           <BrandedButton onClick={() => window.history.back()}>Go Back</BrandedButton>
         </div>
-
-        <SupportFooter position='absolute' />
       </InviteLayout>
     )
   }
@@ -168,8 +164,6 @@ function UnsubscribeContent() {
         <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
           <BrandedButton onClick={() => window.close()}>Close</BrandedButton>
         </div>
-
-        <SupportFooter position='absolute' />
       </InviteLayout>
     )
   }
@@ -190,8 +184,6 @@ function UnsubscribeContent() {
         <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
           <BrandedButton onClick={() => window.close()}>Close</BrandedButton>
         </div>
-
-        <SupportFooter position='absolute' />
       </InviteLayout>
     )
   }
@@ -272,8 +264,6 @@ function UnsubscribeContent() {
           alerts.
         </p>
       </div>
-
-      <SupportFooter position='absolute' />
     </InviteLayout>
   )
 }
@@ -292,7 +282,6 @@ export default function Unsubscribe() {
           <div className={'mt-8 flex w-full items-center justify-center py-8'}>
             <Loader2 className='h-8 w-8 animate-spin text-[#999]' />
           </div>
-          <SupportFooter position='absolute' />
         </InviteLayout>
       }
     >

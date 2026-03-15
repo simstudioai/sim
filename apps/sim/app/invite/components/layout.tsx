@@ -1,5 +1,6 @@
 'use client'
 
+import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Navbar from '@/app/(home)/components/navbar/navbar'
 
 interface InviteLayoutProps {
@@ -17,6 +18,7 @@ export default function InviteLayout({ children }: InviteLayoutProps) {
           <div className='flex flex-col items-center justify-center'>{children}</div>
         </div>
       </main>
+      <SupportFooter position='absolute' />
     </div>
   )
 }
