@@ -95,7 +95,10 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
     if (block.type === 'subagent') {
       if (!block.content) continue
       const key = block.content
-      if (group && group.agentName === key) continue
+      if (group && group.agentName === key) {
+        if (block.duration != null) group.duration = block.duration
+        continue
+      }
       if (group) {
         segments.push(group)
         group = null
