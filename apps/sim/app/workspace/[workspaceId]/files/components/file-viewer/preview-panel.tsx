@@ -23,9 +23,6 @@ const PREVIEWABLE_EXTENSIONS: Record<string, PreviewType> = {
   svg: 'svg',
 }
 
-/** Extensions that should default to rendered preview (no raw editor). */
-export const PREVIEW_ONLY_EXTENSIONS = new Set(['html', 'htm', 'svg'])
-
 /** All extensions that have a rich preview renderer. */
 export const RICH_PREVIEWABLE_EXTENSIONS = new Set(Object.keys(PREVIEWABLE_EXTENSIONS))
 

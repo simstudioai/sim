@@ -1,3 +1,3 @@
 export type { PreviewMode } from './file-viewer'
 export { FileViewer, isPreviewable, isTextEditable } from './file-viewer'
-export { PREVIEW_ONLY_EXTENSIONS, RICH_PREVIEWABLE_EXTENSIONS } from './preview-panel'
+export { RICH_PREVIEWABLE_EXTENSIONS } from './preview-panel'
