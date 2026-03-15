@@ -545,7 +545,6 @@ export function useChat(
               break
             }
             case 'tool_result': {
-              console.log('[tool_result] received', parsed)
               const id = parsed.toolCallId || getPayloadData(parsed)?.id
               if (!id) break
               const idx = toolMap.get(id)
