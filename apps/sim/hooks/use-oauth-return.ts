@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { toast } from '@/components/emcn'
 import {
@@ -12,6 +12,7 @@ import { useNotificationStore } from '@/stores/notifications/store'
 
 const OAUTH_CREDENTIAL_UPDATED_EVENT = 'oauth-credentials-updated'
 const SETTINGS_RETURN_URL_KEY = 'settings-return-url'
+const CONTEXT_MAX_AGE_MS = 15 * 60 * 1000
 
 async function resolveOAuthMessage(ctx: OAuthReturnContext): Promise<string> {
   if (ctx.reconnect) {
@@ -28,11 +29,12 @@ async function resolveOAuthMessage(ctx: OAuthReturnContext): Promise<string> {
       providerId: string | null
     }>
 
-    if (oauthCredentials.length > ctx.preCount) {
+    const forProvider = oauthCredentials.filter((c) => c.providerId === ctx.providerId)
+    if (forProvider.length > ctx.preCount) {
       return `"${ctx.displayName}" credential connected successfully.`
     }
 
-    const existing = oauthCredentials.find((c) => c.providerId === ctx.providerId)
+    const existing = forProvider[0]
     return `This account is already connected as "${existing?.displayName || ctx.displayName}".`
   } catch {
     return `"${ctx.displayName}" credential connected successfully.`
@@ -61,14 +63,18 @@ export function useOAuthReturnRouter() {
   const router = useRouter()
   const params = useParams()
   const workspaceId = params.workspaceId as string
+  const handledRef = useRef(false)
 
   useEffect(() => {
+    if (handledRef.current) return
     const ctx = readOAuthReturnContext()
     if (!ctx) return
-    if (Date.now() - ctx.requestedAt > 15 * 60 * 1000) {
+    if (Date.now() - ctx.requestedAt > CONTEXT_MAX_AGE_MS) {
       consumeOAuthReturnContext()
       return
     }
+
+    handledRef.current = true
 
     if (ctx.origin === 'integrations') {
       consumeOAuthReturnContext()
@@ -110,6 +116,7 @@ export function useOAuthReturnForWorkflow(workflowId: string) {
     if (!ctx || ctx.origin !== 'workflow') return
     if (ctx.workflowId !== workflowId) return
     consumeOAuthReturnContext()
+    if (Date.now() - ctx.requestedAt > CONTEXT_MAX_AGE_MS) return
 
     void (async () => {
       const message = await resolveOAuthMessage(ctx)
@@ -129,6 +136,7 @@ export function useOAuthReturnForKBConnectors(knowledgeBaseId: string) {
     if (!ctx || ctx.origin !== 'kb-connectors') return
     if (ctx.knowledgeBaseId !== knowledgeBaseId) return
     consumeOAuthReturnContext()
+    if (Date.now() - ctx.requestedAt > CONTEXT_MAX_AGE_MS) return
 
     void (async () => {
       const message = await resolveOAuthMessage(ctx)

@@ -27,7 +27,7 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
+import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
@@ -475,7 +475,10 @@ function ConnectorCard({
       {showOAuthModal && serviceId && providerId && (
         <OAuthRequiredModal
           isOpen={showOAuthModal}
-          onClose={() => setShowOAuthModal(false)}
+          onClose={() => {
+            consumeOAuthReturnContext()
+            setShowOAuthModal(false)
+          }}
           provider={providerId as OAuthProvider}
           toolName={connectorDef?.name ?? connector.connectorType}
           requiredScopes={getCanonicalScopesForProvider(providerId)}

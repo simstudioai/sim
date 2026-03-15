@@ -408,7 +408,9 @@ export function IntegrationsManager() {
         }),
       })
 
-      const oauthPreCount = credentials.filter((c) => c.type === 'oauth').length
+      const oauthPreCount = credentials.filter(
+        (c) => c.type === 'oauth' && c.providerId === selectedOAuthService.providerId
+      ).length
       const returnOrigin = pendingReturnOriginRef.current
       pendingReturnOriginRef.current = undefined
 
@@ -548,7 +550,9 @@ export function IntegrationsManager() {
         }),
       })
 
-      const oauthPreCount = credentials.filter((c) => c.type === 'oauth').length
+      const oauthPreCount = credentials.filter(
+        (c) => c.type === 'oauth' && c.providerId === selectedCredential.providerId
+      ).length
       writeOAuthReturnContext({
         origin: 'integrations',
         displayName: selectedCredential.displayName,

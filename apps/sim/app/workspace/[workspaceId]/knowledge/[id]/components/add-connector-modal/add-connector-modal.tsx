@@ -20,7 +20,7 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
-import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
+import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
@@ -593,7 +593,10 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
       {connectorConfig && connectorConfig.auth.mode === 'oauth' && connectorProviderId && (
         <OAuthRequiredModal
           isOpen={showOAuthModal}
-          onClose={() => setShowOAuthModal(false)}
+          onClose={() => {
+            consumeOAuthReturnContext()
+            setShowOAuthModal(false)
+          }}
           provider={connectorProviderId}
           toolName={connectorConfig.name}
           requiredScopes={getCanonicalScopesForProvider(connectorProviderId)}
