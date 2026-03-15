@@ -82,7 +82,7 @@ export function LandingPreviewSidebar({
 
   return (
     <div
-      className='flex h-full w-[248px] flex-shrink-0 flex-col pt-[12px] tracking-[0.02em]'
+      className='flex h-full w-[248px] flex-shrink-0 flex-col pt-[12px]'
       style={{ backgroundColor: C.SURFACE_1 }}
     >
       {/* Workspace Header */}
