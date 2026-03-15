@@ -545,6 +545,7 @@ export function useChat(
               break
             }
             case 'tool_result': {
+              console.log('[tool_result] received', parsed)
               const id = parsed.toolCallId || getPayloadData(parsed)?.id
               if (!id) break
               const idx = toolMap.get(id)
@@ -582,8 +583,7 @@ export function useChat(
                     readArgs?.path as string | undefined,
                     tc.result.output
                   )
-                  if (resource) {
-                    addResource(resource)
+                  if (resource && addResource(resource)) {
                     onResourceEventRef.current?.()
                   }
                 }
@@ -594,12 +594,23 @@ export function useChat(
             case 'resource_added': {
               const resource = parsed.resource
               if (resource?.type && resource?.id) {
-                addResource(resource)
+                const wasAdded = addResource(resource)
                 invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
 
-                onResourceEventRef.current?.()
+                if (!wasAdded) {
+                  if (activeResourceIdRef.current !== resource.id) {
+                    setActiveResourceId(resource.id)
+                    onResourceEventRef.current?.()
+                  }
+                } else {
+                  onResourceEventRef.current?.()
+                }
+
                 if (resource.type === 'workflow') {
-                  if (ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)) {
+                  if (
+                    wasAdded &&
+                    ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)
+                  ) {
                     useWorkflowRegistry.getState().setActiveWorkflow(resource.id)
                   } else {
                     useWorkflowRegistry.getState().loadWorkflowState(resource.id)

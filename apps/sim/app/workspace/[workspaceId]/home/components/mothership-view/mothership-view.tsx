@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
@@ -34,7 +34,7 @@ interface MothershipViewProps {
   className?: string
 }
 
-export function MothershipView({
+export const MothershipView = memo(function MothershipView({
   workspaceId,
   chatId,
   resources,
@@ -99,4 +99,4 @@ export function MothershipView({
       </div>
     </div>
   )
-}
+})

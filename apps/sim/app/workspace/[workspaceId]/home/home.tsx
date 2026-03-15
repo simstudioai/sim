@@ -167,7 +167,6 @@ export function Home({ chatId }: HomeProps = {}) {
 
   const handleResourceEvent = useCallback(() => {
     if (isResourceCollapsedRef.current) {
-      /** Auto-collapse sidebar to give resource panel maximum width for immersive experience */
       const { isCollapsed, toggleCollapsed } = useSidebarStore.getState()
       if (!isCollapsed) toggleCollapsed()
       setIsResourceCollapsed(false)
