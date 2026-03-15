@@ -183,7 +183,7 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
   return (
     <AuthBackground className='dark font-[430] font-season'>
       <main className='relative flex min-h-screen flex-col text-[#ECECEC]'>
-        <header>
+        <header className='shrink-0 bg-[#1C1C1C]'>
           <Navbar logoOnly />
         </header>
         <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
@@ -225,10 +225,9 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
                         onChange={handleEmailChange}
                         onKeyDown={handleEmailKeyDown}
                         className={cn(
-                          'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
                           showEmailValidationError &&
                             emailErrors.length > 0 &&
-                            'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                            'border-red-500 focus:border-red-500'
                         )}
                         autoFocus
                       />
@@ -247,7 +246,7 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
                   </form>
                 ) : (
                   <div className='space-y-6'>
-                    <p className='text-center text-muted-foreground text-sm'>
+                    <p className='text-center text-[#999] text-sm'>
                       Enter the 6-digit code to verify your account. If you don't see it in your
                       inbox, check your spam folder.
                     </p>
@@ -270,13 +269,7 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
                             <InputOTPSlot
                               key={index}
                               index={index}
-                              className={cn(
-                                '!rounded-[10px] h-12 w-12 border bg-white text-center font-medium text-lg shadow-sm transition-all duration-200',
-                                'border-gray-300 hover:border-gray-400',
-                                'focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-100',
-                                authError &&
-                                  'border-red-500 focus:border-red-500 focus:ring-red-100'
-                              )}
+                              className={cn(authError && 'border-red-500')}
                             />
                           ))}
                         </InputOTPGroup>

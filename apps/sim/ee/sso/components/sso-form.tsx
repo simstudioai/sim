@@ -175,7 +175,7 @@ export default function SSOForm() {
               className={cn(
                 showEmailValidationError &&
                   emailErrors.length > 0 &&
-                  'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                  'border-red-500 focus:border-red-500'
               )}
             />
             {showEmailValidationError && emailErrors.length > 0 && (

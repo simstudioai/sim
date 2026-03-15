@@ -98,7 +98,7 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
   return (
     <AuthBackground className='dark font-[430] font-season'>
       <main className='relative flex min-h-screen flex-col text-[#ECECEC]'>
-        <header>
+        <header className='shrink-0 bg-[#1C1C1C]'>
           <Navbar logoOnly />
         </header>
         <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>

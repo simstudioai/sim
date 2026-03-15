@@ -82,7 +82,7 @@ export default function PasswordAuth({ identifier, onAuthSuccess }: PasswordAuth
   return (
     <AuthBackground className='dark font-[430] font-season'>
       <main className='relative flex min-h-screen flex-col text-[#ECECEC]'>
-        <header>
+        <header className='shrink-0 bg-[#1C1C1C]'>
           <Navbar logoOnly />
         </header>
         <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
@@ -122,10 +122,10 @@ export default function PasswordAuth({ identifier, onAuthSuccess }: PasswordAuth
                       onChange={handlePasswordChange}
                       onKeyDown={handleKeyDown}
                       className={cn(
-                        'rounded-[10px] pr-10 shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                        'pr-10',
                         showValidationError &&
                           passwordErrors.length > 0 &&
-                          'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                          'border-red-500 focus:border-red-500'
                       )}
                       autoFocus
                     />
