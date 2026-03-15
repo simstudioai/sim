@@ -55,7 +55,6 @@ import {
   TwilioIcon,
   TypeformIcon,
   WebflowIcon,
-  WhatsAppIcon,
   WordpressIcon,
   YouTubeIcon,
   ZendeskIcon,
@@ -353,15 +352,6 @@ export const TEMPLATES: TemplatePrompt[] = [
     modules: ['tables', 'scheduled', 'agent', 'workflows'],
     category: 'support',
     tags: ['product', 'analysis', 'reporting'],
-  },
-  {
-    icon: WhatsAppIcon,
-    title: 'WhatsApp customer notifications',
-    prompt:
-      'Build a workflow that reads customer data from my table and sends personalized WhatsApp messages for important updates — order confirmations, appointment reminders, shipping notifications, or payment receipts — triggered automatically when rows are added or updated.',
-    modules: ['tables', 'agent', 'workflows'],
-    category: 'support',
-    tags: ['support', 'ecommerce', 'communication', 'automation'],
   },
   {
     icon: GmailIcon,
