@@ -155,7 +155,8 @@ export const jiraConnector: ConnectorConfig = {
     const params = new URLSearchParams()
     params.append('jql', jql)
     params.append('startAt', String(startAt))
-    params.append('maxResults', String(PAGE_SIZE))
+    const remaining = maxIssues > 0 ? maxIssues - startAt : PAGE_SIZE
+    params.append('maxResults', String(Math.min(PAGE_SIZE, remaining)))
     params.append(
       'fields',
       'summary,description,comment,issuetype,status,priority,assignee,reporter,project,labels,created,updated'
@@ -203,10 +204,15 @@ export const jiraConnector: ConnectorConfig = {
   getDocument: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    externalId: string
+    externalId: string,
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     const domain = sourceConfig.domain as string
-    const cloudId = await getJiraCloudId(domain, accessToken)
+    let cloudId = syncContext?.cloudId as string | undefined
+    if (!cloudId) {
+      cloudId = await getJiraCloudId(domain, accessToken)
+      if (syncContext) syncContext.cloudId = cloudId
+    }
 
     const params = new URLSearchParams()
     params.append(

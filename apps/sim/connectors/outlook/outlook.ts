@@ -464,7 +464,7 @@ export const outlookConnector: ConnectorConfig = {
     try {
       // Fetch messages for this conversation
       const params = new URLSearchParams({
-        $filter: `conversationId eq '${externalId}'`,
+        $filter: `conversationId eq '${externalId.replace(/'/g, "''")}'`,
         $select: MESSAGE_FIELDS,
         $top: '50',
       })

@@ -391,10 +391,21 @@ export const zendeskConnector: ConnectorConfig = {
       )
       logger.info(`Fetched ${tickets.length} tickets from Zendesk`)
 
-      for (const ticket of tickets) {
-        const comments = await fetchTicketComments(subdomain, accessToken, sourceConfig, ticket.id)
-        const doc = await ticketToDocument(ticket, comments, subdomain)
-        documents.push(doc)
+      const BATCH_SIZE = 5
+      for (let i = 0; i < tickets.length; i += BATCH_SIZE) {
+        const batch = tickets.slice(i, i + BATCH_SIZE)
+        const batchResults = await Promise.all(
+          batch.map(async (ticket) => {
+            const comments = await fetchTicketComments(
+              subdomain,
+              accessToken,
+              sourceConfig,
+              ticket.id
+            )
+            return ticketToDocument(ticket, comments, subdomain)
+          })
+        )
+        documents.push(...batchResults)
       }
     }
 

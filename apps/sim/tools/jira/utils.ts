@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
 
 const logger = createLogger('JiraUtils')
 
@@ -97,13 +98,16 @@ export async function downloadJiraAttachments(
 }
 
 export async function getJiraCloudId(domain: string, accessToken: string): Promise<string> {
-  const response = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: 'application/json',
-    },
-  })
+  const response = await fetchWithRetry(
+    'https://api.atlassian.com/oauth/token/accessible-resources',
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    }
+  )
 
   const resources = await response.json()
 

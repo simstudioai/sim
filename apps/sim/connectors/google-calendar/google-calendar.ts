@@ -439,6 +439,8 @@ export const googleCalendarConnector: ConnectorConfig = {
     { id: 'attendeeCount', displayName: 'Attendee Count', fieldType: 'number' },
     { id: 'location', displayName: 'Location', fieldType: 'text' },
     { id: 'eventDate', displayName: 'Event Date', fieldType: 'date' },
+    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
+    { id: 'createdAt', displayName: 'Created', fieldType: 'date' },
   ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
@@ -458,6 +460,12 @@ export const googleCalendarConnector: ConnectorConfig = {
 
     const eventDate = parseTagDate(metadata.eventDate)
     if (eventDate) result.eventDate = eventDate
+
+    const lastModified = parseTagDate(metadata.updatedTime)
+    if (lastModified) result.lastModified = lastModified
+
+    const createdAt = parseTagDate(metadata.createdTime)
+    if (createdAt) result.createdAt = createdAt
 
     return result
   },
