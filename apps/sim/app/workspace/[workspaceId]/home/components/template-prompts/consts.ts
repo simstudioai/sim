@@ -82,10 +82,10 @@ export type ModuleTag = keyof typeof MODULE_META
 export const CATEGORY_META = {
   popular: { label: 'Popular' },
   sales: { label: 'Sales & CRM' },
-  productivity: { label: 'Productivity' },
-  engineering: { label: 'Engineering' },
   support: { label: 'Support' },
+  engineering: { label: 'Engineering' },
   marketing: { label: 'Marketing & Content' },
+  productivity: { label: 'Productivity' },
   operations: { label: 'Operations' },
 } as const
 

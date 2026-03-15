@@ -120,6 +120,7 @@ function TemplateCard({ template, onSelect }: TemplateCardProps) {
     <button
       type='button'
       onClick={() => onSelect(template.prompt)}
+      aria-label={`Select template: ${template.title}`}
       className='group flex cursor-pointer flex-col text-left'
     >
       <div className='overflow-hidden rounded-[10px] border border-[var(--border-1)]'>
