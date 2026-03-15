@@ -72,6 +72,7 @@ import {
   useUpdateKnowledgeBase,
 } from '@/hooks/queries/kb/knowledge'
 import { useInlineRename } from '@/hooks/use-inline-rename'
+import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
 
 const logger = createLogger('KnowledgeBase')
 
@@ -189,6 +190,7 @@ export function KnowledgeBase({
 }: KnowledgeBaseProps) {
   const params = useParams()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
+  useOAuthReturnForKBConnectors(id)
   const { removeKnowledgeBase } = useKnowledgeBasesList(workspaceId, { enabled: false })
   const userPermissions = useUserPermissionsContext()
 

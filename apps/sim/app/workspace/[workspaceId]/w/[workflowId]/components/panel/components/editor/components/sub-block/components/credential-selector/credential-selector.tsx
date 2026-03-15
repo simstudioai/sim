@@ -207,10 +207,13 @@ export function CredentialSelector({
       serviceId,
       requiredScopes: getCanonicalScopesForProvider(effectiveProviderId),
       requestedAt: Date.now(),
+      returnOrigin: activeWorkflowId
+        ? { type: 'workflow', workflowId: activeWorkflowId }
+        : undefined,
     })
 
     navigateToSettings({ section: 'integrations' })
-  }, [workspaceId, effectiveProviderId, serviceId])
+  }, [workspaceId, effectiveProviderId, serviceId, activeWorkflowId])
 
   const getProviderIcon = useCallback((providerName: OAuthProvider) => {
     const { baseProvider } = parseProvider(providerName)
