@@ -14,6 +14,7 @@ import {
 } from '@/lib/copilot/chat-streaming'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
+import { getStreamMeta, readStreamEvents } from '@/lib/copilot/orchestrator/stream/buffer'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -454,6 +455,30 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
       }
 
+      let streamSnapshot: {
+        events: Array<{ eventId: number; streamId: string; event: Record<string, unknown> }>
+        status: string
+      } | null = null
+
+      if (chat.conversationId) {
+        try {
+          const [meta, events] = await Promise.all([
+            getStreamMeta(chat.conversationId),
+            readStreamEvents(chat.conversationId, 0),
+          ])
+          streamSnapshot = {
+            events: events || [],
+            status: meta?.status || 'unknown',
+          }
+        } catch (err) {
+          logger.warn('Failed to read stream snapshot for chat', {
+            chatId,
+            conversationId: chat.conversationId,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+      }
+
       const transformedChat = {
         id: chat.id,
         title: chat.title,
@@ -466,6 +491,7 @@ export async function GET(req: NextRequest) {
         resources: Array.isArray(chat.resources) ? chat.resources : [],
         createdAt: chat.createdAt,
         updatedAt: chat.updatedAt,
+        ...(streamSnapshot ? { streamSnapshot } : {}),
       }
 
       logger.info(`Retrieved chat ${chatId}`)
