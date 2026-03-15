@@ -14,7 +14,7 @@ const NAV_LINKS: NavLink[] = [
   { label: 'Docs', href: 'https://docs.sim.ai', external: true },
   { label: 'Pricing', href: '/pricing' },
   { label: 'Careers', href: '/careers' },
-  { label: 'Enterprise', href: '/enterprise' },
+  { label: 'Enterprise', href: 'https://form.typeform.com/to/jqCO12pF', external: true },
 ]
 
 /** Logo and nav edge: horizontal padding (px) for left/right symmetry. */

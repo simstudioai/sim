@@ -70,13 +70,15 @@ export default function Hero() {
         </p>
 
         <div className='mt-[12px] flex items-center gap-[8px]'>
-          <Link
-            href='/enterprise'
+          <a
+            href='https://form.typeform.com/to/jqCO12pF'
+            target='_blank'
+            rel='noopener noreferrer'
             className={`${CTA_BASE} border-[#3d3d3d] text-[#ECECEC] transition-colors hover:bg-[#2A2A2A]`}
             aria-label='Get a demo'
           >
             Get a demo
-          </Link>
+          </a>
           <Link
             href='/signup'
             className={`${CTA_BASE} gap-[8px] border-[#FFFFFF] bg-[#FFFFFF] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]`}
