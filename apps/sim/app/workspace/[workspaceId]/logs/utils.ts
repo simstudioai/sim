@@ -57,7 +57,7 @@ export const STATUS_CONFIG: Record<
 > = {
   error: { variant: 'red', label: 'Error', color: 'var(--text-error)' },
   pending: { variant: 'amber', label: 'Pending', color: '#f59e0b' },
-  running: { variant: 'green', label: 'Running', color: '#22c55e' },
+  running: { variant: 'amber', label: 'Running', color: '#f59e0b' },
   cancelled: { variant: 'orange', label: 'Cancelled', color: '#f97316' },
   info: { variant: 'gray', label: 'Info', color: 'var(--terminal-status-info-color)' },
 }
