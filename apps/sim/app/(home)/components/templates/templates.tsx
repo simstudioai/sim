@@ -337,7 +337,7 @@ function DotGrid({ className, cols, rows, gap = 0 }: DotGridProps) {
       }}
     >
       {Array.from({ length: cols * rows }, (_, i) => (
-        <div key={i} className='h-[2px] w-[2px] rounded-full bg-[#2A2A2A]' />
+        <div key={i} className='h-[1.5px] w-[1.5px] rounded-full bg-[#2A2A2A]' />
       ))}
     </div>
   )

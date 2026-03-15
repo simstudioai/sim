@@ -1,9 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { type MotionValue, motion, useScroll, useTransform } from 'framer-motion'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Badge, ChevronDown } from '@/components/emcn'
+import { FeaturesPreview } from '@/app/(home)/components/features/components/features-preview'
 
 function hexToRgba(hex: string, alpha: number): string {
   const r = Number.parseInt(hex.slice(1, 3), 16)
@@ -115,6 +117,25 @@ const FEATURE_TABS = [
   },
 ]
 
+const HEADING_TEXT = 'Everything you need to build, deploy, and manage AI agents. '
+const HEADING_LETTERS = HEADING_TEXT.split('')
+
+const LETTER_REVEAL_SPAN = 0.85
+const LETTER_FADE_IN = 0.04
+
+interface ScrollLetterProps {
+  scrollYProgress: MotionValue<number>
+  charIndex: number
+  children: string
+}
+
+function ScrollLetter({ scrollYProgress, charIndex, children }: ScrollLetterProps) {
+  const threshold = (charIndex / HEADING_LETTERS.length) * LETTER_REVEAL_SPAN
+  const opacity = useTransform(scrollYProgress, [threshold, threshold + LETTER_FADE_IN], [0.4, 1])
+
+  return <motion.span style={{ opacity }}>{children}</motion.span>
+}
+
 function DotGrid({
   cols,
   rows,
@@ -139,20 +160,26 @@ function DotGrid({
       }}
     >
       {Array.from({ length: cols * rows }, (_, i) => (
-        <div key={i} className='h-[2px] w-[2px] rounded-full bg-[#DEDEDE]' />
+        <div key={i} className='h-[1.5px] w-[1.5px] rounded-full bg-[#DEDEDE]' />
       ))}
     </div>
   )
 }
 
 export default function Features() {
+  const sectionRef = useRef<HTMLDivElement>(null)
   const [activeTab, setActiveTab] = useState(0)
+
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ['start 0.9', 'start 0.2'],
+  })
 
   return (
     <section
       id='features'
       aria-labelledby='features-heading'
-      className='relative overflow-hidden bg-[#F6F6F6] pb-[144px]'
+      className='relative overflow-hidden bg-[#F6F6F6]'
     >
       <div aria-hidden='true' className='absolute top-0 left-0 w-full'>
         <Image
@@ -166,7 +193,7 @@ export default function Features() {
       </div>
 
       <div className='relative z-10 pt-[100px]'>
-        <div className='flex flex-col items-start gap-[20px] px-[80px]'>
+        <div ref={sectionRef} className='flex flex-col items-start gap-[20px] px-[80px]'>
           <Badge
             variant='blue'
             size='md'
@@ -186,7 +213,11 @@ export default function Features() {
             id='features-heading'
             className='max-w-[900px] font-[430] font-season text-[#1C1C1C] text-[40px] leading-[110%] tracking-[-0.02em]'
           >
-            Everything you need to build, deploy, and manage AI agents.{' '}
+            {HEADING_LETTERS.map((char, i) => (
+              <ScrollLetter key={i} scrollYProgress={scrollYProgress} charIndex={i}>
+                {char}
+              </ScrollLetter>
+            ))}
             <span className='text-[#1C1C1C]/40'>
               Design powerful workflows, connect your data, and monitor every run — all in one
               platform.
@@ -194,103 +225,92 @@ export default function Features() {
           </h2>
         </div>
 
-        <div className='mt-[73px] flex h-[68px] overflow-hidden border border-[#E9E9E9]'>
-          <DotGrid cols={10} rows={8} width={80} />
-
-          <div role='tablist' aria-label='Feature categories' className='flex flex-1'>
-            {FEATURE_TABS.map((tab, index) => (
-              <button
-                key={tab.label}
-                type='button'
-                role='tab'
-                aria-selected={index === activeTab}
-                onClick={() => setActiveTab(index)}
-                className='relative flex h-full flex-1 items-center justify-center border-[#E9E9E9] border-l font-medium font-season text-[#212121] text-[14px] uppercase'
-                style={{ backgroundColor: index === activeTab ? '#FDFDFD' : '#F6F6F6' }}
-              >
-                {tab.label}
-                {index === activeTab && (
-                  <div className='absolute right-0 bottom-0 left-0 flex h-[6px]'>
-                    {tab.segments.map(([opacity, width], i) => (
-                      <div
-                        key={i}
-                        className='h-full shrink-0'
-                        style={{
-                          width: `${width}%`,
-                          backgroundColor: tab.color,
-                          opacity,
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </button>
-            ))}
-          </div>
-
-          <DotGrid cols={10} rows={8} width={80} borderLeft />
-        </div>
-
-        <div className='mt-[60px] grid grid-cols-[1fr_2.8fr] gap-[60px] px-[80px]'>
-          <div className='flex h-[560px] flex-col items-start justify-between pt-[20px]'>
-            <div className='flex flex-col items-start gap-[16px]'>
-              <h3 className='font-[430] font-season text-[#1C1C1C] text-[28px] leading-[120%] tracking-[-0.02em]'>
-                {FEATURE_TABS[activeTab].title}
-              </h3>
-              <p className='font-[430] font-season text-[#1C1C1C]/50 text-[18px] leading-[150%] tracking-[0.02em]'>
-                {FEATURE_TABS[activeTab].description}
-              </p>
-            </div>
-            <Link
-              href='/signup'
-              className='group/cta inline-flex h-[32px] items-center gap-[6px] rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-[10px] font-[430] font-season text-[14px] text-white transition-colors hover:border-[#2A2A2A] hover:bg-[#2A2A2A]'
-            >
-              {FEATURE_TABS[activeTab].cta}
-              <span className='relative h-[10px] w-[10px] shrink-0'>
-                <ChevronDown className='-rotate-90 absolute inset-0 h-[10px] w-[10px] transition-opacity duration-150 group-hover/cta:opacity-0' />
-                <svg
-                  className='absolute inset-0 h-[10px] w-[10px] opacity-0 transition-opacity duration-150 group-hover/cta:opacity-100'
-                  viewBox='0 0 10 10'
-                  fill='none'
-                >
-                  <path
-                    d='M1 5H8M5.5 2L8.5 5L5.5 8'
-                    stroke='currentColor'
-                    strokeWidth='1.33'
-                    strokeLinecap='square'
-                    strokeLinejoin='miter'
-                    fill='none'
-                  />
-                </svg>
-              </span>
-            </Link>
-          </div>
-
+        <div className='relative mt-[73px] pb-[80px]'>
           <div
-            className='flex h-[560px] items-center justify-center rounded-[8px] border-2 border-dashed'
-            style={{
-              borderColor: hexToRgba(
-                FEATURE_TABS[activeTab].badgeColor ?? FEATURE_TABS[activeTab].color,
-                0.3
-              ),
-              backgroundColor: hexToRgba(
-                FEATURE_TABS[activeTab].badgeColor ?? FEATURE_TABS[activeTab].color,
-                0.04
-              ),
-            }}
-          >
-            <span
-              className='font-[430] font-season text-[14px] uppercase tracking-[0.08em]'
-              style={{
-                color: hexToRgba(
-                  FEATURE_TABS[activeTab].badgeColor ?? FEATURE_TABS[activeTab].color,
-                  0.4
-                ),
-              }}
-            >
-              {FEATURE_TABS[activeTab].label} preview
-            </span>
+            aria-hidden='true'
+            className='absolute top-0 bottom-0 left-[80px] z-20 w-px bg-[#E9E9E9]'
+          />
+          <div
+            aria-hidden='true'
+            className='absolute top-0 right-[80px] bottom-0 z-20 w-px bg-[#E9E9E9]'
+          />
+
+          <div className='flex h-[68px] overflow-hidden border border-[#E9E9E9]'>
+            <DotGrid cols={10} rows={8} width={80} />
+
+            <div role='tablist' aria-label='Feature categories' className='flex flex-1'>
+              {FEATURE_TABS.map((tab, index) => (
+                <button
+                  key={tab.label}
+                  type='button'
+                  role='tab'
+                  aria-selected={index === activeTab}
+                  onClick={() => setActiveTab(index)}
+                  className='relative flex h-full flex-1 items-center justify-center border-[#E9E9E9] border-l font-medium font-season text-[#212121] text-[14px] uppercase'
+                  style={{ backgroundColor: index === activeTab ? '#FDFDFD' : '#F6F6F6' }}
+                >
+                  {tab.label}
+                  {index === activeTab && (
+                    <div className='absolute right-0 bottom-0 left-0 flex h-[6px]'>
+                      {tab.segments.map(([opacity, width], i) => (
+                        <div
+                          key={i}
+                          className='h-full shrink-0'
+                          style={{
+                            width: `${width}%`,
+                            backgroundColor: tab.color,
+                            opacity,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <DotGrid cols={10} rows={8} width={80} borderLeft />
           </div>
+
+          <div className='mt-[60px] grid grid-cols-[1fr_2.8fr] gap-[60px] px-[120px]'>
+            <div className='flex h-[560px] flex-col items-start justify-between pt-[20px]'>
+              <div className='flex flex-col items-start gap-[16px]'>
+                <h3 className='font-[430] font-season text-[#1C1C1C] text-[28px] leading-[120%] tracking-[-0.02em]'>
+                  {FEATURE_TABS[activeTab].title}
+                </h3>
+                <p className='font-[430] font-season text-[#1C1C1C]/50 text-[18px] leading-[150%] tracking-[0.02em]'>
+                  {FEATURE_TABS[activeTab].description}
+                </p>
+              </div>
+              <Link
+                href='/signup'
+                className='group/cta inline-flex h-[32px] items-center gap-[6px] rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-[10px] font-[430] font-season text-[14px] text-white transition-colors hover:border-[#2A2A2A] hover:bg-[#2A2A2A]'
+              >
+                {FEATURE_TABS[activeTab].cta}
+                <span className='relative h-[10px] w-[10px] shrink-0'>
+                  <ChevronDown className='-rotate-90 absolute inset-0 h-[10px] w-[10px] transition-opacity duration-150 group-hover/cta:opacity-0' />
+                  <svg
+                    className='absolute inset-0 h-[10px] w-[10px] opacity-0 transition-opacity duration-150 group-hover/cta:opacity-100'
+                    viewBox='0 0 10 10'
+                    fill='none'
+                  >
+                    <path
+                      d='M1 5H8M5.5 2L8.5 5L5.5 8'
+                      stroke='currentColor'
+                      strokeWidth='1.33'
+                      strokeLinecap='square'
+                      strokeLinejoin='miter'
+                      fill='none'
+                    />
+                  </svg>
+                </span>
+              </Link>
+            </div>
+
+            <FeaturesPreview />
+          </div>
+
+          <div aria-hidden='true' className='mt-[60px] h-px bg-[#E9E9E9]' />
         </div>
       </div>
     </section>
