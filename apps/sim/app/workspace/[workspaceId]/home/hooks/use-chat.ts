@@ -608,8 +608,8 @@ export function useChat(
                   tb.content = (tb.content ?? '') + normalizedChunk
                   runningText += normalizedChunk
                   lastContentSource = 'main'
+                  streamingContentRef.current = runningText
                 }
-                streamingContentRef.current = runningText
                 flush()
               }
               break

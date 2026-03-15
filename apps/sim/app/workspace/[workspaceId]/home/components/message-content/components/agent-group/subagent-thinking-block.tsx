@@ -4,6 +4,7 @@ import { memo, useEffect, useRef, useState } from 'react'
 import { ChevronDown } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDuration } from '@/lib/core/utils/formatting'
+import styles from './subagent-thinking-block.module.css'
 
 const CHARS_PER_FRAME = 3
 const SCROLL_INTERVAL_MS = 50
@@ -54,7 +55,7 @@ const StreamingText = memo(
     }, [content, isStreaming])
 
     return (
-      <p className='whitespace-pre-wrap text-[12px] text-[var(--text-muted)] leading-[1.4]'>
+      <p className='whitespace-pre-wrap text-[12px] leading-[1.4] text-[var(--text-muted)]'>
         {displayed}
       </p>
     )
@@ -113,14 +114,6 @@ export function SubagentThinkingBlock({
 
   return (
     <div className='pl-[24px]'>
-      <style>{`
-        @keyframes subagent-shimmer {
-          0% { background-position: 150% 0; }
-          50% { background-position: 0% 0; }
-          100% { background-position: -150% 0; }
-        }
-      `}</style>
-
       <button
         type='button'
         onClick={toggle}
@@ -134,21 +127,7 @@ export function SubagentThinkingBlock({
               aria-hidden='true'
               className='pointer-events-none absolute inset-0 select-none overflow-hidden'
             >
-              <span
-                className='block text-transparent'
-                style={{
-                  backgroundImage:
-                    'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.85) 50%, rgba(255,255,255,0) 100%)',
-                  backgroundSize: '200% 100%',
-                  backgroundRepeat: 'no-repeat',
-                  WebkitBackgroundClip: 'text',
-                  backgroundClip: 'text',
-                  animation: 'subagent-shimmer 1.4s ease-in-out infinite',
-                  mixBlendMode: 'screen',
-                }}
-              >
-                {label}
-              </span>
+              <span className={cn('block text-transparent', styles.shimmer)}>{label}</span>
             </span>
           )}
         </span>
