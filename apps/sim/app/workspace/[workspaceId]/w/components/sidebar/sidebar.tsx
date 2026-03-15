@@ -138,9 +138,12 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
           {task.id !== 'new' && (
             <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
               {isActive && !isCurrentRoute && (
-                <span className='absolute h-[7px] w-[7px] animate-ping rounded-full bg-[#33C482] opacity-30 group-hover:hidden' />
+                <span className='absolute h-[7px] w-[7px] animate-ping rounded-full bg-amber-400 opacity-30 group-hover:hidden' />
               )}
-              {(isActive || isUnread) && !isCurrentRoute && (
+              {isActive && !isCurrentRoute && (
+                <span className='absolute h-[7px] w-[7px] rounded-full bg-amber-400 group-hover:hidden' />
+              )}
+              {!isActive && isUnread && !isCurrentRoute && (
                 <span className='absolute h-[7px] w-[7px] rounded-full bg-[#33C482] group-hover:hidden' />
               )}
               <button
@@ -1096,7 +1099,15 @@ export const Sidebar = memo(function Sidebar() {
                         tasks.map((task) => (
                           <DropdownMenuItem key={task.id} asChild>
                             <Link href={task.href}>
-                              <Blimp className='h-[16px] w-[16px]' />
+                              <span className='relative flex-shrink-0'>
+                                <Blimp className='h-[16px] w-[16px]' />
+                                {task.isActive && (
+                                  <span className='-bottom-[1px] -right-[1px] absolute h-[6px] w-[6px] rounded-full border border-[var(--surface-1)] bg-amber-400' />
+                                )}
+                                {!task.isActive && task.isUnread && (
+                                  <span className='-bottom-[1px] -right-[1px] absolute h-[6px] w-[6px] rounded-full border border-[var(--surface-1)] bg-[#33C482]' />
+                                )}
+                              </span>
                               <span>{task.name}</span>
                             </Link>
                           </DropdownMenuItem>
