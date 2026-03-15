@@ -682,8 +682,7 @@ export function useChat(
                     readArgs?.path as string | undefined,
                     tc.result.output
                   )
-                  if (resource) {
-                    addResource(resource)
+                  if (resource && addResource(resource)) {
                     onResourceEventRef.current?.()
                   }
                 }
@@ -694,12 +693,21 @@ export function useChat(
             case 'resource_added': {
               const resource = parsed.resource
               if (resource?.type && resource?.id) {
-                addResource(resource)
+                const wasAdded = addResource(resource)
                 invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
 
+                if (!wasAdded && activeResourceIdRef.current !== resource.id) {
+                  setActiveResourceId(resource.id)
+                }
                 onResourceEventRef.current?.()
+
                 if (resource.type === 'workflow') {
-                  if (ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)) {
+                  const wasRegistered = ensureWorkflowInRegistry(
+                    resource.id,
+                    resource.title,
+                    workspaceId
+                  )
+                  if (wasAdded && wasRegistered) {
                     useWorkflowRegistry.getState().setActiveWorkflow(resource.id)
                   } else {
                     useWorkflowRegistry.getState().loadWorkflowState(resource.id)

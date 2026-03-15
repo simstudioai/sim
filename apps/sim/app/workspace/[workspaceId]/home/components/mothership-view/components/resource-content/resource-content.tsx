@@ -1,6 +1,6 @@
 'use client'
 
-import { lazy, Suspense, useCallback, useEffect, useMemo } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -51,7 +51,11 @@ interface ResourceContentProps {
  * Handles table, file, and workflow resource types with appropriate
  * embedded rendering for each.
  */
-export function ResourceContent({ workspaceId, resource, previewMode }: ResourceContentProps) {
+export const ResourceContent = memo(function ResourceContent({
+  workspaceId,
+  resource,
+  previewMode,
+}: ResourceContentProps) {
   switch (resource.type) {
     case 'table':
       return <Table key={resource.id} workspaceId={workspaceId} tableId={resource.id} embedded />
@@ -84,7 +88,7 @@ export function ResourceContent({ workspaceId, resource, previewMode }: Resource
     default:
       return null
   }
-}
+})
 
 interface ResourceActionsProps {
   workspaceId: string
@@ -303,10 +307,12 @@ interface EmbeddedWorkflowProps {
 
 function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
   const workflowExists = useWorkflowRegistry((state) => Boolean(state.workflows[workflowId]))
-  const hydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
-  const hydrationWorkflowId = useWorkflowRegistry((state) => state.hydration.workflowId)
-  const isMetadataLoaded = hydrationPhase !== 'idle' && hydrationPhase !== 'metadata-loading'
-  const hasLoadError = hydrationPhase === 'error' && hydrationWorkflowId === workflowId
+  const isMetadataLoaded = useWorkflowRegistry(
+    (state) => state.hydration.phase !== 'idle' && state.hydration.phase !== 'metadata-loading'
+  )
+  const hasLoadError = useWorkflowRegistry(
+    (state) => state.hydration.phase === 'error' && state.hydration.workflowId === workflowId
+  )
 
   if (!isMetadataLoaded) return LOADING_SKELETON
 
