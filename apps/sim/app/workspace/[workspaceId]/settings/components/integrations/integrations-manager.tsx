@@ -361,6 +361,7 @@ export function IntegrationsManager() {
     setCreateOAuthProviderId('')
     setCreateError(null)
     setShowCreateOAuthRequiredModal(false)
+    pendingReturnOriginRef.current = undefined
   }
 
   const handleSelectCredential = (credential: WorkspaceCredential) => {
