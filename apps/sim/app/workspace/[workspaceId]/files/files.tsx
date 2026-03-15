@@ -476,10 +476,11 @@ export function Files() {
   }, [closeListContextMenu])
 
   useEffect(() => {
-    if (justCreatedFileIdRef.current && selectedFileId !== justCreatedFileIdRef.current) {
+    const isJustCreated = selectedFileId != null && justCreatedFileIdRef.current === selectedFileId
+    if (justCreatedFileIdRef.current && !isJustCreated) {
       justCreatedFileIdRef.current = null
     }
-    setShowPreview(true)
+    setShowPreview(!isJustCreated)
   }, [selectedFileId])
 
   useEffect(() => {
