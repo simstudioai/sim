@@ -249,7 +249,11 @@ export function ScheduledTasks() {
             >
               Cancel
             </Button>
-            <Button variant='default' onClick={handleDelete} disabled={deleteSchedule.isPending}>
+            <Button
+              variant='destructive'
+              onClick={handleDelete}
+              disabled={deleteSchedule.isPending}
+            >
               {deleteSchedule.isPending ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>
