@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "simstudio",
@@ -30,8 +31,8 @@
         "next": "16.1.6",
         "next-themes": "^0.4.6",
         "postgres": "^3.4.5",
-        "react": "19.2.1",
-        "react-dom": "19.2.1",
+        "react": "19.2.4",
+        "react-dom": "19.2.4",
         "shiki": "4.0.0",
         "tailwind-merge": "^3.0.2",
       },
@@ -169,8 +170,8 @@
         "posthog-js": "1.334.1",
         "posthog-node": "5.9.2",
         "prismjs": "^1.30.0",
-        "react": "19.2.1",
-        "react-dom": "19.2.1",
+        "react": "19.2.4",
+        "react-dom": "19.2.4",
         "react-hook-form": "^7.54.2",
         "react-markdown": "^10.1.0",
         "react-simple-code-editor": "^0.14.1",
@@ -325,8 +326,8 @@
     "drizzle-orm": "^0.44.5",
     "next": "16.1.6",
     "postgres": "^3.4.5",
-    "react": "19.2.1",
-    "react-dom": "19.2.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
   },
   "packages": {
     "@1password/sdk": ["@1password/sdk@0.3.1", "", { "dependencies": { "@1password/sdk-core": "0.3.1" } }, "sha512-20zbQfqsjcECT0gvnAw4zONJDt3XQgNH946pZR0NV1Qxukyaz/DKB0cBnBNCCEWZg93Bah8poaR6gJCyuNX14w=="],
@@ -3107,9 +3108,9 @@
 
     "rc9": ["rc9@2.1.2", "", { "dependencies": { "defu": "^6.1.4", "destr": "^2.0.3" } }, "sha512-btXCnMmRIBINM2LDZoEmOogIZU7Qe7zn4BpomSKZ/ykbLObuBdvG+mFq11DL6fjH1DRwHhrlgtYWG96bJiC7Cg=="],
 
-    "react": ["react@19.2.1", "", {}, "sha512-DGrYcCWK7tvYMnWh79yrPHt+vdx9tY+1gPZa7nJQtO/p8bLTDaHp4dzwEhQB7pZ4Xe3ok4XKuEPrVuc+wlpkmw=="],
+    "react": ["react@19.2.4", "", {}, "sha512-9nfp2hYpCwOjAN+8TZFGhtWEwgvWHXqESH8qT89AT/lWklpLON22Lc8pEtnpsZz7VmawabSU0gCjnj8aC0euHQ=="],
 
-    "react-dom": ["react-dom@19.2.1", "", { "dependencies": { "scheduler": "^0.27.0" }, "peerDependencies": { "react": "^19.2.1" } }, "sha512-ibrK8llX2a4eOskq1mXKu/TGZj9qzomO+sNfO98M6d9zIPOEhlBkMkBUBLd1vgS0gQsLDBzA+8jJBVXDnfHmJg=="],
+    "react-dom": ["react-dom@19.2.4", "", { "dependencies": { "scheduler": "^0.27.0" }, "peerDependencies": { "react": "^19.2.4" } }, "sha512-AXJdLo8kgMbimY95O2aKQqsz2iWi9jMgKJhRBAxECE4IFxfcazB2LmzloIoibJI3C12IlY20+KFaLv+71bUJeQ=="],
 
     "react-email": ["react-email@4.3.2", "", { "dependencies": { "@babel/parser": "^7.27.0", "@babel/traverse": "^7.27.0", "chokidar": "^4.0.3", "commander": "^13.0.0", "debounce": "^2.0.0", "esbuild": "^0.25.0", "glob": "^11.0.0", "jiti": "2.4.2", "log-symbols": "^7.0.0", "mime-types": "^3.0.0", "normalize-path": "^3.0.0", "nypm": "0.6.0", "ora": "^8.0.0", "prompts": "2.4.2", "socket.io": "^4.8.1", "tsconfig-paths": "4.2.0" }, "bin": { "email": "dist/index.js" } }, "sha512-WaZcnv9OAIRULY236zDRdk+8r511ooJGH5UOb7FnVsV33hGPI+l5aIZ6drVjXi4QrlLTmLm8PsYvmXRSv31MPA=="],
 
