@@ -311,8 +311,7 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
     (state) => state.hydration.phase !== 'idle' && state.hydration.phase !== 'metadata-loading'
   )
   const hasLoadError = useWorkflowRegistry(
-    (state) =>
-      state.hydration.phase === 'error' && state.hydration.workflowId === workflowId
+    (state) => state.hydration.phase === 'error' && state.hydration.workflowId === workflowId
   )
 
   if (!isMetadataLoaded) return LOADING_SKELETON
