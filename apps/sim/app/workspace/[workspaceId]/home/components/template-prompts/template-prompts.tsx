@@ -26,6 +26,7 @@ function getGroupedExtras() {
 
   for (const [key, meta] of Object.entries(CATEGORY_META)) {
     const cat = key as Category
+    if (cat === 'popular') continue
     const items = byCategory.get(cat)
     if (items?.length) {
       groups.push({ category: cat, label: meta.label, templates: items })
@@ -72,6 +73,7 @@ export function TemplatePrompts({ onSelect }: TemplatePromptsProps) {
       <button
         type='button'
         onClick={() => setExpanded((prev) => !prev)}
+        aria-expanded={expanded}
         className='flex items-center justify-center gap-[6px] text-[13px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-body)]'
       >
         {expanded ? (
