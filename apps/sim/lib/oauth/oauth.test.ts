@@ -180,7 +180,6 @@ describe('OAuth Token Refresh', () => {
         providerId: 'outlook',
         endpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
       },
-      { name: 'Notion', providerId: 'notion', endpoint: 'https://api.notion.com/v1/oauth/token' },
       { name: 'Slack', providerId: 'slack', endpoint: 'https://slack.com/api/oauth.v2.access' },
       {
         name: 'Dropbox',
@@ -272,6 +271,44 @@ describe('OAuth Token Refresh', () => {
           expect(bodyParams.get('client_secret')).toBe(expectedClientSecret)
         }
       )
+    })
+
+    it.concurrent('should send Notion request with Basic Auth header and JSON body', async () => {
+      const mockFetch = createMockFetch(defaultOAuthResponse)
+      const refreshToken = 'test_refresh_token'
+
+      await withMockFetch(mockFetch, () => refreshOAuthToken('notion', refreshToken))
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.notion.com/v1/oauth/token',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+            Authorization: expect.stringMatching(/^Basic /),
+          }),
+          body: expect.any(String),
+        })
+      )
+
+      const [, requestOptions] = mockFetch.mock.calls[0] as [
+        string,
+        { headers: Record<string, string>; body: string },
+      ]
+
+      const authHeader = requestOptions.headers.Authorization
+      const base64Credentials = authHeader.replace('Basic ', '')
+      const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8')
+      const [clientId, clientSecret] = credentials.split(':')
+
+      expect(clientId).toBe('notion_client_id')
+      expect(clientSecret).toBe('notion_client_secret')
+
+      const bodyParams = JSON.parse(requestOptions.body)
+      expect(bodyParams).toEqual({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      })
     })
 
     it.concurrent('should include User-Agent header for Reddit requests', async () => {
