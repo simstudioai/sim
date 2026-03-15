@@ -476,10 +476,11 @@ export function Files() {
   }, [closeListContextMenu])
 
   useEffect(() => {
-    if (justCreatedFileIdRef.current && selectedFileId !== justCreatedFileIdRef.current) {
+    const isJustCreated = selectedFileId != null && justCreatedFileIdRef.current === selectedFileId
+    if (justCreatedFileIdRef.current && !isJustCreated) {
       justCreatedFileIdRef.current = null
     }
-    setShowPreview(true)
+    setShowPreview(!isJustCreated)
   }, [selectedFileId])
 
   useEffect(() => {
@@ -521,8 +522,8 @@ export function Files() {
       ...(canPreview
         ? [
             {
-              label: showPreview ? 'Hide Preview' : 'Preview',
-              icon: Eye,
+              label: showPreview ? 'Edit' : 'Preview',
+              icon: showPreview ? Pencil : Eye,
               onClick: handleTogglePreview,
             },
           ]

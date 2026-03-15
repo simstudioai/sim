@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react'
 import { Button, Tooltip } from '@/components/emcn'
-import { Columns3, Eye, PanelLeft, Rows3 } from '@/components/emcn/icons'
+import { Columns3, Eye, PanelLeft, Pencil } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
@@ -36,9 +36,9 @@ const EDGE_ZONE = 40
 const SCROLL_SPEED = 8
 
 const PREVIEW_MODE_ICONS = {
-  editor: Rows3,
-  split: Columns3,
-  preview: Eye,
+  editor: Columns3,
+  split: Eye,
+  preview: Pencil,
 } satisfies Record<PreviewMode, (props: ComponentProps<typeof Eye>) => ReactNode>
 
 /**

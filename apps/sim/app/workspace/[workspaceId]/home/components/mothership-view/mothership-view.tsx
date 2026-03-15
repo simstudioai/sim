@@ -4,10 +4,7 @@ import { memo, useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
-import {
-  PREVIEW_ONLY_EXTENSIONS,
-  RICH_PREVIEWABLE_EXTENSIONS,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { RICH_PREVIEWABLE_EXTENSIONS } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import type {
   MothershipResource,
   MothershipResourceType,
@@ -49,12 +46,11 @@ export const MothershipView = memo(function MothershipView({
 }: MothershipViewProps) {
   const active = resources.find((r) => r.id === activeResourceId) ?? resources[0] ?? null
 
-  const [previewMode, setPreviewMode] = useState<PreviewMode>('split')
+  const [previewMode, setPreviewMode] = useState<PreviewMode>('preview')
   const handleCyclePreview = useCallback(() => setPreviewMode((m) => PREVIEW_CYCLE[m]), [])
 
   useEffect(() => {
-    const ext = active?.type === 'file' ? getFileExtension(active.title) : ''
-    setPreviewMode(PREVIEW_ONLY_EXTENSIONS.has(ext) ? 'preview' : 'split')
+    setPreviewMode('preview')
   }, [active?.id])
 
   const isActivePreviewable =
