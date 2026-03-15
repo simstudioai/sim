@@ -68,7 +68,7 @@ export async function downloadJiraAttachments(
       continue
     }
     try {
-      const response = await fetch(att.content, {
+      const response = await fetchWithRetry(att.content, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           Accept: '*/*',
