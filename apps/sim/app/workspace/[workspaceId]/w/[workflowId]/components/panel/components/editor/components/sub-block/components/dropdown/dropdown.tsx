@@ -14,11 +14,18 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /**
- * Dropdown option type - can be a simple string or an object with label, id, and optional icon
+ * Dropdown option type - can be a simple string or an object with label, id, and optional icon.
+ * Options with `hidden: true` are excluded from the picker but still resolve for label display,
+ * so existing workflows that reference them continue to work.
  */
 type DropdownOption =
   | string
-  | { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }
+  | {
+      label: string
+      id: string
+      icon?: React.ComponentType<{ className?: string }>
+      hidden?: boolean
+    }
 
 /**
  * Props for the Dropdown component
@@ -185,13 +192,12 @@ export const Dropdown = memo(function Dropdown({
     return fetchedOptions.map((opt) => ({ label: opt.label, id: opt.id }))
   }, [fetchedOptions])
 
-  const availableOptions = useMemo(() => {
+  const allOptions = useMemo(() => {
     let opts: DropdownOption[] =
       fetchOptions && normalizedFetchedOptions.length > 0
         ? normalizedFetchedOptions
         : evaluatedOptions
 
-    // Merge hydrated option if not already present
     if (hydratedOption) {
       const alreadyPresent = opts.some((o) =>
         typeof o === 'string' ? o === hydratedOption.id : o.id === hydratedOption.id
@@ -204,11 +210,12 @@ export const Dropdown = memo(function Dropdown({
     return opts
   }, [fetchOptions, normalizedFetchedOptions, evaluatedOptions, hydratedOption])
 
-  /**
-   * Convert dropdown options to Combobox format
-   */
+  const selectableOptions = useMemo(() => {
+    return allOptions.filter((opt) => typeof opt === 'string' || !opt.hidden)
+  }, [allOptions])
+
   const comboboxOptions = useMemo((): ComboboxOption[] => {
-    return availableOptions.map((opt) => {
+    return selectableOptions.map((opt) => {
       if (typeof opt === 'string') {
         return { label: opt.toLowerCase(), value: opt }
       }
@@ -218,11 +225,16 @@ export const Dropdown = memo(function Dropdown({
         icon: 'icon' in opt ? opt.icon : undefined,
       }
     })
-  }, [availableOptions])
+  }, [selectableOptions])
 
   const optionMap = useMemo(() => {
-    return new Map(comboboxOptions.map((opt) => [opt.value, opt.label]))
-  }, [comboboxOptions])
+    return new Map(
+      allOptions.map((opt) => {
+        if (typeof opt === 'string') return [opt, opt.toLowerCase()]
+        return [opt.id, opt.label.toLowerCase()]
+      })
+    )
+  }, [allOptions])
 
   const defaultOptionValue = useMemo(() => {
     if (multiSelect) return undefined

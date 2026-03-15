@@ -1258,6 +1258,8 @@ export async function createGrainWebhookSubscription(
     }
 
     const actionMap: Record<string, Array<'added' | 'updated' | 'removed'>> = {
+      grain_item_added: ['added'],
+      grain_item_updated: ['updated'],
       grain_recording_created: ['added'],
       grain_recording_updated: ['updated'],
       grain_highlight_created: ['added'],
@@ -1267,6 +1269,8 @@ export async function createGrainWebhookSubscription(
 
     const eventTypeMap: Record<string, string[]> = {
       grain_webhook: [],
+      grain_item_added: [],
+      grain_item_updated: [],
       grain_recording_created: ['recording_added'],
       grain_recording_updated: ['recording_updated'],
       grain_highlight_created: ['highlight_added'],
