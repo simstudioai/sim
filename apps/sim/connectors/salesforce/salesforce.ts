@@ -12,14 +12,7 @@ const PAGE_SIZE = 200
 
 /** SOQL field lists per object type. */
 const OBJECT_FIELDS: Record<string, string[]> = {
-  KnowledgeArticleVersion: [
-    'Id',
-    'Title',
-    'Summary',
-    'ArticleBody',
-    'LastModifiedDate',
-    'ArticleNumber',
-  ],
+  KnowledgeArticleVersion: ['Id', 'Title', 'Summary', 'LastModifiedDate', 'ArticleNumber'],
   Case: ['Id', 'Subject', 'Description', 'Status', 'LastModifiedDate', 'CaseNumber'],
   Account: ['Id', 'Name', 'Description', 'Industry', 'LastModifiedDate'],
   Opportunity: [
@@ -99,7 +92,7 @@ function buildRecordTitle(objectType: string, record: Record<string, unknown>): 
 }
 
 /** Fields that may contain HTML content and should be stripped to plain text. */
-const HTML_FIELDS = new Set(['Description', 'Summary', 'ArticleBody'])
+const HTML_FIELDS = new Set(['Description', 'Summary'])
 
 /**
  * Builds plain-text content from a Salesforce record for indexing.
