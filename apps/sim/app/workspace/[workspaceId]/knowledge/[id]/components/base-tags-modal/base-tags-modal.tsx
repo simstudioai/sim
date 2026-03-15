@@ -91,8 +91,7 @@ interface BaseTagsModalProps {
 }
 
 export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsModalProps) {
-  const { tagDefinitions: kbTagDefinitions, fetchTagDefinitions: refreshTagDefinitions } =
-    useKnowledgeBaseTagDefinitions(knowledgeBaseId)
+  const { tagDefinitions: kbTagDefinitions } = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
 
   const createTagMutation = useCreateTagDefinition()
   const deleteTagMutation = useDeleteTagDefinition()
@@ -219,7 +218,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         fieldType: createTagForm.fieldType,
       })
 
-      await Promise.all([refreshTagDefinitions(), fetchTagUsage()])
+      await fetchTagUsage()
 
       setCreateTagForm({
         displayName: '',
@@ -240,7 +239,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         tagDefinitionId: selectedTag.id,
       })
 
-      await Promise.all([refreshTagDefinitions(), fetchTagUsage()])
+      await fetchTagUsage()
 
       setDeleteTagDialogOpen(false)
       setSelectedTag(null)

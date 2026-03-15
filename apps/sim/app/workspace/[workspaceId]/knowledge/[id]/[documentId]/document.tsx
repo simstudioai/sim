@@ -2,7 +2,6 @@
 
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, ChevronUp, FileText, Pencil, Tag } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -41,7 +40,6 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useDocument, useDocumentChunks, useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import {
-  knowledgeKeys,
   useBulkChunkOperation,
   useDeleteDocument,
   useDocumentChunkSearchQuery,
@@ -137,7 +135,6 @@ export function Document({
   knowledgeBaseName,
   documentName,
 }: DocumentProps) {
-  const queryClient = useQueryClient()
   const { workspaceId } = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -704,9 +701,7 @@ export function Document({
       },
       {
         onSuccess: (result) => {
-          if (operation === 'delete' || result.errorCount > 0) {
-            refreshChunks()
-          } else {
+          if (operation !== 'delete' && result.errorCount === 0) {
             chunks.forEach((chunk) => {
               updateChunk(chunk.id, { enabled: operation === 'enable' })
             })
@@ -788,12 +783,6 @@ export function Document({
     closeContextMenu()
     setContextMenuChunk(null)
   }, [closeContextMenu])
-
-  const handleDocumentTagsUpdate = useCallback(() => {
-    queryClient.invalidateQueries({
-      queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
-    })
-  }, [knowledgeBaseId, documentId, queryClient])
 
   const prevDocumentIdRef = useRef<string>(documentId)
   const isNavigatingToNewDoc = prevDocumentIdRef.current !== documentId
@@ -1121,7 +1110,6 @@ export function Document({
         knowledgeBaseId={knowledgeBaseId}
         documentId={documentId}
         documentData={documentData}
-        onDocumentUpdate={handleDocumentTagsUpdate}
       />
 
       <DeleteChunkModal
