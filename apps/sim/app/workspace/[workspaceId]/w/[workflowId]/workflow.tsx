@@ -207,6 +207,7 @@ const reactFlowStyles = [
   '[&_.react-flow__node-subflowNode.selected]:!shadow-none',
 ].join(' ')
 const reactFlowFitViewOptions = { padding: 0.6, maxZoom: 1.0 } as const
+const embeddedFitViewOptions = { padding: 0.15, maxZoom: 0.85, minZoom: 0.35 } as const
 const reactFlowProOptions = { hideAttribution: true } as const
 
 /**
@@ -3851,11 +3852,11 @@ const WorkflowContent = React.memo(
                   onDragOver={effectivePermissions.canEdit ? onDragOver : undefined}
                   onInit={(instance) => {
                     requestAnimationFrame(() => {
-                      instance.fitView(reactFlowFitViewOptions)
+                      instance.fitView(embedded ? embeddedFitViewOptions : reactFlowFitViewOptions)
                       setIsCanvasReady(true)
                     })
                   }}
-                  fitViewOptions={reactFlowFitViewOptions}
+                  fitViewOptions={embedded ? embeddedFitViewOptions : reactFlowFitViewOptions}
                   minZoom={0.1}
                   maxZoom={1.3}
                   panOnScroll
