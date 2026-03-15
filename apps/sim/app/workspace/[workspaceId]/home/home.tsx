@@ -178,6 +178,7 @@ export function Home({ chatId }: HomeProps = {}) {
   const {
     messages,
     isSending,
+    isReconnecting,
     sendMessage,
     stopGeneration,
     resolvedChatId,
@@ -330,7 +331,7 @@ export function Home({ chatId }: HomeProps = {}) {
     return () => ro.disconnect()
   }, [hasMessages])
 
-  if (!hasMessages && chatId && isLoadingHistory) {
+  if (chatId && (isLoadingHistory || isReconnecting)) {
     return (
       <ChatSkeleton>
         <UserInput

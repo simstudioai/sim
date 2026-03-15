@@ -521,62 +521,69 @@ export async function executeWorkflowWithFullLogging(
         const data = line.substring(6).trim()
         if (data === '[DONE]') continue
 
+        let event: any
         try {
-          const event = JSON.parse(data)
+          event = JSON.parse(data)
+        } catch {
+          continue
+        }
 
-          switch (event.type) {
-            case 'execution:started': {
-              setCurrentExecutionId(wfId, event.executionId)
-              executionIdRef.current = event.executionId || executionId
-              break
-            }
-
-            case 'block:started':
-              blockHandlers.onBlockStarted(event.data)
-              break
-
-            case 'block:completed':
-              blockHandlers.onBlockCompleted(event.data)
-              break
-
-            case 'block:error':
-              blockHandlers.onBlockError(event.data)
-              break
-
-            case 'block:childWorkflowStarted':
-              blockHandlers.onBlockChildWorkflowStarted(event.data)
-              break
-
-            case 'execution:completed':
-              setCurrentExecutionId(wfId, null)
-              executionResult = {
-                success: event.data.success,
-                output: event.data.output,
-                logs: [],
-                metadata: {
-                  duration: event.data.duration,
-                  startTime: event.data.startTime,
-                  endTime: event.data.endTime,
-                },
-              }
-              break
-
-            case 'execution:cancelled':
-              setCurrentExecutionId(wfId, null)
-              executionResult = {
-                success: false,
-                output: {},
-                error: 'Execution was cancelled',
-                logs: [],
-              }
-              break
-
-            case 'execution:error':
-              setCurrentExecutionId(wfId, null)
-              throw new Error(event.data.error || 'Execution failed')
+        switch (event.type) {
+          case 'execution:started': {
+            setCurrentExecutionId(wfId, event.executionId)
+            executionIdRef.current = event.executionId || executionId
+            break
           }
-        } catch (parseError) {
-          // Skip malformed SSE events
+
+          case 'block:started':
+            blockHandlers.onBlockStarted(event.data)
+            break
+
+          case 'block:completed':
+            blockHandlers.onBlockCompleted(event.data)
+            break
+
+          case 'block:error':
+            blockHandlers.onBlockError(event.data)
+            break
+
+          case 'block:childWorkflowStarted':
+            blockHandlers.onBlockChildWorkflowStarted(event.data)
+            break
+
+          case 'execution:completed':
+            setCurrentExecutionId(wfId, null)
+            executionResult = {
+              success: event.data.success,
+              output: event.data.output,
+              logs: [],
+              metadata: {
+                duration: event.data.duration,
+                startTime: event.data.startTime,
+                endTime: event.data.endTime,
+              },
+            }
+            break
+
+          case 'execution:cancelled':
+            setCurrentExecutionId(wfId, null)
+            executionResult = {
+              success: false,
+              output: {},
+              error: 'Execution was cancelled',
+              logs: [],
+            }
+            break
+
+          case 'execution:error':
+            setCurrentExecutionId(wfId, null)
+            executionResult = {
+              success: false,
+              output: {},
+              error: event.data.error || 'Execution failed',
+              logs: [],
+            }
+            break
         }
       }
     }
