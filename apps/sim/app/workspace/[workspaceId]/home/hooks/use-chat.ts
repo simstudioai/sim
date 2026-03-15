@@ -285,6 +285,7 @@ export function useChat(
   const streamGenRef = useRef(0)
   const streamingContentRef = useRef('')
   const streamingBlocksRef = useRef<ContentBlock[]>([])
+  const subagentStartTimeRef = useRef<number | undefined>(undefined)
   const executionStream = useExecutionStream()
   const isHomePage = pathname.endsWith('/home')
 
@@ -503,8 +504,9 @@ export function useChat(
       }
 
       const flush = () => {
-        streamingBlocksRef.current = [...blocks]
-        const snapshot = { content: runningText, contentBlocks: [...blocks] }
+        const blocksCopy = [...blocks]
+        streamingBlocksRef.current = blocksCopy
+        const snapshot = { content: runningText, contentBlocks: blocksCopy }
         setMessages((prev) => {
           const idx = prev.findIndex((m) => m.id === assistantId)
           if (idx >= 0) {
@@ -771,6 +773,7 @@ export function useChat(
               if (name) {
                 activeSubagent = name
                 subagentStartTime = Date.now()
+                subagentStartTimeRef.current = subagentStartTime
                 blocks.push({ type: 'subagent', content: name })
                 flush()
               }
@@ -789,6 +792,7 @@ export function useChat(
               }
               activeSubagent = undefined
               subagentStartTime = undefined
+              subagentStartTimeRef.current = undefined
               flush()
               break
             }
@@ -819,6 +823,10 @@ export function useChat(
 
     const content = streamingContentRef.current
 
+    // If a subagent was in progress when stopped, compute its elapsed duration
+    const inProgressDuration =
+      subagentStartTimeRef.current != null ? Date.now() - subagentStartTimeRef.current : undefined
+
     const storedBlocks: TaskStoredContentBlock[] = streamingBlocksRef.current.map((block) => {
       if (block.type === 'tool_call' && block.toolCall) {
         const isCancelled =
@@ -841,7 +849,10 @@ export function useChat(
       return {
         type: block.type,
         content: block.content,
-        ...(block.type === 'subagent' && block.duration != null && { duration: block.duration }),
+        ...(block.type === 'subagent' &&
+          (block.duration ?? inProgressDuration) != null && {
+            duration: block.duration ?? inProgressDuration,
+          }),
       }
     })
 
