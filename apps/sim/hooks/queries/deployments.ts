@@ -95,8 +95,11 @@ export function useDeploymentInfo(workflowId: string | null, options?: { enabled
 /**
  * Fetches the deployed workflow state snapshot for a workflow
  */
-async function fetchDeployedWorkflowState(workflowId: string): Promise<WorkflowState | null> {
-  const response = await fetch(`/api/workflows/${workflowId}/deployed`)
+async function fetchDeployedWorkflowState(
+  workflowId: string,
+  signal?: AbortSignal
+): Promise<WorkflowState | null> {
+  const response = await fetch(`/api/workflows/${workflowId}/deployed`, { signal })
 
   if (!response.ok) {
     if (response.status === 404) return null
@@ -117,7 +120,7 @@ export function useDeployedWorkflowState(
 ) {
   return useQuery({
     queryKey: deploymentKeys.deployedState(workflowId),
-    queryFn: () => fetchDeployedWorkflowState(workflowId!),
+    queryFn: ({ signal }) => fetchDeployedWorkflowState(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
     staleTime: 30 * 1000,
   })
