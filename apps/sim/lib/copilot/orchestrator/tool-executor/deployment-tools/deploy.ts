@@ -335,9 +335,12 @@ export async function executeDeployMcp(
   }
 }
 
-export async function executeRedeploy(context: ExecutionContext): Promise<ToolCallResult> {
+export async function executeRedeploy(
+  params: { workflowId?: string },
+  context: ExecutionContext
+): Promise<ToolCallResult> {
   try {
-    const workflowId = context.workflowId
+    const workflowId = params.workflowId || context.workflowId
     if (!workflowId) {
       return { success: false, error: 'workflowId is required' }
     }

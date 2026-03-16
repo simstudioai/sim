@@ -864,7 +864,7 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
   deploy_api: (p, c) => executeDeployApi(p as DeployApiParams, c),
   deploy_chat: (p, c) => executeDeployChat(p as DeployChatParams, c),
   deploy_mcp: (p, c) => executeDeployMcp(p as DeployMcpParams, c),
-  redeploy: (_p, c) => executeRedeploy(c),
+  redeploy: (p, c) => executeRedeploy(p as { workflowId?: string }, c),
   check_deployment_status: (p, c) =>
     executeCheckDeploymentStatus(p as CheckDeploymentStatusParams, c),
   list_workspace_mcp_servers: (p, c) =>
