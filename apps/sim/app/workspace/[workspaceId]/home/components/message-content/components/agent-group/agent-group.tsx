@@ -100,12 +100,12 @@ export function AgentGroup({
                 status={item.data.status}
               />
             ) : (
-              <p
+              <div
                 key={`text-${idx}`}
-                className='whitespace-pre-wrap pl-[24px] font-base text-[13px] text-[var(--text-secondary)]'
+                className='ml-[24px] rounded-lg border border-[var(--divider)] bg-[var(--surface-4)] px-3 py-2 text-[13px] text-[var(--text-tertiary)] italic'
               >
                 {item.content.trim()}
-              </p>
+              </div>
             )
           )}
         </div>
