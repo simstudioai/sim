@@ -760,13 +760,12 @@ export function useUploadCsvToTable() {
         body: formData,
       })
 
-      const data = await response.json()
-
-      if (!data.success) {
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
         throw new Error(data.error || 'CSV import failed')
       }
 
-      return data
+      return response.json()
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })

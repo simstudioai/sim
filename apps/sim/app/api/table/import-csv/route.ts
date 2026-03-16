@@ -5,6 +5,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import {
   batchInsertRows,
   createTable,
+  deleteTable,
   getWorkspaceTableLimits,
   type TableSchema,
 } from '@/lib/table'
@@ -81,11 +82,11 @@ function inferSchema(headers: string[], rows: Record<string, unknown>[]): Column
   return headers.map((name) => {
     let colName = sanitizeName(name)
     let suffix = 2
-    while (seen.has(colName)) {
+    while (seen.has(colName.toLowerCase())) {
       colName = `${sanitizeName(name)}_${suffix}`
       suffix++
     }
-    seen.add(colName)
+    seen.add(colName.toLowerCase())
 
     return {
       name: colName,
@@ -217,38 +218,43 @@ export async function POST(request: NextRequest) {
       requestId
     )
 
-    const coerced = coerceRows(rows, columns, headerToColumn)
-    let inserted = 0
-    for (let i = 0; i < coerced.length; i += MAX_BATCH_SIZE) {
-      const batch = coerced.slice(i, i + MAX_BATCH_SIZE)
-      const batchRequestId = crypto.randomUUID().slice(0, 8)
-      const result = await batchInsertRows(
-        { tableId: table.id, rows: batch, workspaceId },
-        table,
-        batchRequestId
-      )
-      inserted += result.length
-    }
+    try {
+      const coerced = coerceRows(rows, columns, headerToColumn)
+      let inserted = 0
+      for (let i = 0; i < coerced.length; i += MAX_BATCH_SIZE) {
+        const batch = coerced.slice(i, i + MAX_BATCH_SIZE)
+        const batchRequestId = crypto.randomUUID().slice(0, 8)
+        const result = await batchInsertRows(
+          { tableId: table.id, rows: batch, workspaceId },
+          table,
+          batchRequestId
+        )
+        inserted += result.length
+      }
 
-    logger.info(`[${requestId}] CSV imported`, {
-      tableId: table.id,
-      fileName: file.name,
-      columns: columns.length,
-      rows: inserted,
-    })
+      logger.info(`[${requestId}] CSV imported`, {
+        tableId: table.id,
+        fileName: file.name,
+        columns: columns.length,
+        rows: inserted,
+      })
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        table: {
-          id: table.id,
-          name: table.name,
-          description: table.description,
-          schema: normalizedSchema,
-          rowCount: inserted,
+      return NextResponse.json({
+        success: true,
+        data: {
+          table: {
+            id: table.id,
+            name: table.name,
+            description: table.description,
+            schema: normalizedSchema,
+            rowCount: inserted,
+          },
         },
-      },
-    })
+      })
+    } catch (insertError) {
+      await deleteTable(table.id, requestId).catch(() => {})
+      throw insertError
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     logger.error(`[${requestId}] CSV import failed:`, error)

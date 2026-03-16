@@ -182,7 +182,6 @@ export function Tables() {
         for (let i = 0; i < csvFiles.length; i++) {
           try {
             const result = await uploadCsv.mutateAsync({ workspaceId, file: csvFiles[i] })
-            setUploadProgress({ completed: i + 1, total: csvFiles.length })
 
             if (csvFiles.length === 1) {
               const tableId = result?.data?.table?.id
@@ -193,6 +192,8 @@ export function Tables() {
           } catch (err) {
             failed.push(csvFiles[i].name)
             logger.error('Error uploading CSV:', err)
+          } finally {
+            setUploadProgress({ completed: i + 1, total: csvFiles.length })
           }
         }
 
