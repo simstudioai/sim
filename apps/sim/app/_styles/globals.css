@@ -590,42 +590,6 @@ input[type="search"]::-ms-clear {
     background-color: hsl(var(--input-background));
   }
 
-  .auth-card {
-    background-color: var(--white) !important;
-    border-color: var(--border-muted) !important;
-  }
-
-  .dark .auth-card {
-    background-color: var(--surface-1) !important;
-    border-color: var(--border-muted) !important;
-  }
-
-  .auth-text-primary {
-    color: var(--text-inverse) !important;
-  }
-
-  .auth-text-secondary {
-    color: var(--text-secondary) !important;
-  }
-
-  .auth-text-muted {
-    color: var(--text-muted) !important;
-  }
-
-  .auth-divider {
-    border-color: var(--border-muted) !important;
-  }
-
-  .auth-card-shadow {
-    box-shadow:
-      0 10px 15px -3px rgba(0, 0, 0, 0.05),
-      0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
-  }
-
-  .auth-link {
-    color: var(--text-muted) !important;
-  }
-
   .transition-ring {
     transition-property: box-shadow, transform;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);

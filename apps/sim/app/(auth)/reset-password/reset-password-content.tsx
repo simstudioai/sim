@@ -4,8 +4,6 @@ import { Suspense, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { inter } from '@/app/_styles/fonts/inter/inter'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import { SetNewPasswordForm } from '@/app/(auth)/reset-password/reset-password-form'
 
 const logger = createLogger('ResetPasswordPage')
@@ -76,15 +74,13 @@ function ResetPasswordContent() {
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+        <h1 className='font-[500] text-[#ECECEC] text-[32px] tracking-tight'>
           Reset your password
         </h1>
-        <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
-          Enter a new password for your account
-        </p>
+        <p className='font-[380] text-[#999] text-[16px]'>Enter a new password for your account</p>
       </div>
 
-      <div className={`${inter.className} mt-8`}>
+      <div className='mt-8'>
         <SetNewPasswordForm
           token={token}
           onSubmit={handleResetPassword}
@@ -94,10 +90,10 @@ function ResetPasswordContent() {
         />
       </div>
 
-      <div className={`${inter.className} pt-6 text-center font-light text-[14px]`}>
+      <div className='pt-6 text-center font-light text-[14px]'>
         <Link
           href='/login'
-          className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
+          className='font-medium text-[#ECECEC] underline-offset-4 transition hover:text-white hover:underline'
         >
           Back to login
         </Link>

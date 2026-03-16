@@ -17,7 +17,6 @@ import {
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
-import { inter } from '@/app/_styles/fonts/inter/inter'
 import { ENTERPRISE_PLAN_FEATURES } from '@/app/workspace/[workspaceId]/settings/components/subscription/plan-configs'
 
 const logger = createLogger('LandingPricing')
@@ -117,7 +116,6 @@ function PricingCard({
   return (
     <div
       className={cn(
-        `${inter.className}`,
         'relative flex h-full flex-col justify-between bg-[#FEFEFE]',
         tier.featured ? 'p-0' : 'px-0 py-0',
         'sm:px-5 sm:pt-4 sm:pb-4',

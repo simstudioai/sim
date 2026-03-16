@@ -23,6 +23,12 @@ const getThemeColors = (): ThemeColors => {
  * Supports runtime configuration via Docker/Kubernetes
  */
 export const getBrandConfig = (): BrandConfig => {
+  const hasCustomBrand = Boolean(
+    getEnv('NEXT_PUBLIC_BRAND_NAME') ||
+      getEnv('NEXT_PUBLIC_BRAND_LOGO_URL') ||
+      getEnv('NEXT_PUBLIC_BRAND_PRIMARY_COLOR')
+  )
+
   return {
     name: getEnv('NEXT_PUBLIC_BRAND_NAME') || defaultBrandConfig.name,
     logoUrl: getEnv('NEXT_PUBLIC_BRAND_LOGO_URL') || defaultBrandConfig.logoUrl,
@@ -34,6 +40,7 @@ export const getBrandConfig = (): BrandConfig => {
     termsUrl: getEnv('NEXT_PUBLIC_TERMS_URL') || defaultBrandConfig.termsUrl,
     privacyUrl: getEnv('NEXT_PUBLIC_PRIVACY_URL') || defaultBrandConfig.privacyUrl,
     theme: getThemeColors(),
+    isWhitelabeled: hasCustomBrand,
   }
 }
 

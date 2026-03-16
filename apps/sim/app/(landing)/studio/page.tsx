@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getAllPostMeta } from '@/lib/blog/registry'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import { PostGrid } from '@/app/(landing)/studio/post-grid'
 
 export const metadata: Metadata = {
@@ -46,13 +45,15 @@ export default async function StudioIndex({
   }
 
   return (
-    <main className={`${soehne.className} mx-auto max-w-[1200px] px-6 py-12 sm:px-8 md:px-12`}>
+    <main className='mx-auto max-w-[1200px] px-6 py-12 sm:px-8 md:px-12'>
       <script
         type='application/ld+json'
         dangerouslySetInnerHTML={{ __html: JSON.stringify(studioJsonLd) }}
       />
-      <h1 className='mb-3 font-medium text-[40px] leading-tight sm:text-[56px]'>Sim Studio</h1>
-      <p className='mb-10 text-[18px] text-gray-700'>
+      <h1 className='mb-3 font-[500] text-[#ECECEC] text-[40px] leading-tight sm:text-[56px]'>
+        Sim Studio
+      </h1>
+      <p className='mb-10 text-[#999] text-[18px]'>
         Announcements, insights, and guides for building AI agent workflows.
       </p>
 
@@ -74,18 +75,18 @@ export default async function StudioIndex({
           {pageNum > 1 && (
             <Link
               href={`/studio?page=${pageNum - 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
-              className='rounded border px-3 py-1 text-sm'
+              className='rounded-[5px] border border-[#3d3d3d] px-3 py-1 text-[#ECECEC] text-sm transition-colors hover:bg-[#2A2A2A]'
             >
               Previous
             </Link>
           )}
-          <span className='text-gray-600 text-sm'>
+          <span className='text-[#999] text-sm'>
             Page {pageNum} of {totalPages}
           </span>
           {pageNum < totalPages && (
             <Link
               href={`/studio?page=${pageNum + 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
-              className='rounded border px-3 py-1 text-sm'
+              className='rounded-[5px] border border-[#3d3d3d] px-3 py-1 text-[#ECECEC] text-sm transition-colors hover:bg-[#2A2A2A]'
             >
               Next
             </Link>

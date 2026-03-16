@@ -1,4 +1,5 @@
-import { Footer, Nav } from '@/app/(landing)/components'
+import Footer from '@/app/(home)/components/footer/footer'
+import Navbar from '@/app/(home)/components/navbar/navbar'
 
 export default function StudioLayout({ children }: { children: React.ReactNode }) {
   const orgJsonLd = {
@@ -23,7 +24,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
   }
 
   return (
-    <div className='flex min-h-screen flex-col'>
+    <div className='flex min-h-screen flex-col bg-[#1C1C1C] font-[430] font-season text-[#ECECEC]'>
       <script
         type='application/ld+json'
         dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
@@ -32,9 +33,11 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
         type='application/ld+json'
         dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
       />
-      <Nav hideAuthButtons={false} variant='landing' />
+      <header>
+        <Navbar />
+      </header>
       <main className='relative flex-1'>{children}</main>
-      <Footer fullWidth={true} />
+      <Footer />
     </div>
   )
 }

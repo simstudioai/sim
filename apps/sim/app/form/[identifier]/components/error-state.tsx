@@ -12,7 +12,7 @@ export function FormErrorState({ error }: FormErrorStateProps) {
   const router = useRouter()
 
   return (
-    <StatusPageLayout title='Form Unavailable' description={error} hideNav>
+    <StatusPageLayout title='Form Unavailable' description={error}>
       <BrandedButton onClick={() => router.push('/workspace')}>Return to Workspace</BrandedButton>
     </StatusPageLayout>
   )

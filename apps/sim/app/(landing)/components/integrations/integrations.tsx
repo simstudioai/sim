@@ -1,5 +1,4 @@
 import * as Icons from '@/components/icons'
-import { inter } from '@/app/_styles/fonts/inter/inter'
 
 const modelProviderIcons = [
   { icon: Icons.OpenAIIcon, label: 'OpenAI' },
@@ -122,7 +121,7 @@ export default function Integrations() {
   return (
     <section
       id='integrations'
-      className={`${inter.className} flex flex-col pt-[40px] pb-[27px] sm:pt-[24px]`}
+      className='flex flex-col pt-[40px] pb-[27px] sm:pt-[24px]'
       aria-labelledby='integrations-heading'
     >
       <h2

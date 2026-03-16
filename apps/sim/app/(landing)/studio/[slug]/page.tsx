@@ -6,7 +6,6 @@ import { FAQ } from '@/lib/blog/faq'
 import { getAllPostMeta, getPostBySlug, getRelatedPosts } from '@/lib/blog/registry'
 import { buildArticleJsonLd, buildBreadcrumbJsonLd, buildPostMetadata } from '@/lib/blog/seo'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import { BackLink } from '@/app/(landing)/studio/[slug]/back-link'
 import { ShareButton } from '@/app/(landing)/studio/[slug]/share-button'
 
@@ -36,11 +35,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   const related = await getRelatedPosts(slug, 3)
 
   return (
-    <article
-      className={`${soehne.className} w-full`}
-      itemScope
-      itemType='https://schema.org/BlogPosting'
-    >
+    <article className='w-full' itemScope itemType='https://schema.org/BlogPosting'>
       <script
         type='application/ld+json'
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -71,7 +66,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
           </div>
           <div className='flex flex-1 flex-col justify-between'>
             <h1
-              className='font-medium text-[36px] leading-tight tracking-tight sm:text-[48px] md:text-[56px] lg:text-[64px]'
+              className='font-[500] text-[#ECECEC] text-[36px] leading-tight tracking-tight sm:text-[48px] md:text-[56px] lg:text-[64px]'
               itemProp='headline'
             >
               {post.title}
@@ -90,7 +85,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                       href={a?.url || '#'}
                       target='_blank'
                       rel='noopener noreferrer author'
-                      className='text-[14px] text-gray-600 leading-[1.5] hover:text-gray-900 sm:text-[16px]'
+                      className='text-[#999] text-[14px] leading-[1.5] hover:text-[#ECECEC] sm:text-[16px]'
                       itemProp='author'
                       itemScope
                       itemType='https://schema.org/Person'
@@ -104,11 +99,11 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             </div>
           </div>
         </div>
-        <hr className='mt-8 border-gray-200 border-t sm:mt-12' />
+        <hr className='mt-8 border-[#2A2A2A] border-t sm:mt-12' />
         <div className='flex flex-col gap-6 py-8 sm:flex-row sm:items-start sm:justify-between sm:gap-8 sm:py-10'>
           <div className='flex flex-shrink-0 items-center gap-4'>
             <time
-              className='block text-[14px] text-gray-600 leading-[1.5] sm:text-[16px]'
+              className='block text-[#999] text-[14px] leading-[1.5] sm:text-[16px]'
               dateTime={post.date}
               itemProp='datePublished'
             >
@@ -121,7 +116,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             <meta itemProp='dateModified' content={post.updated ?? post.date} />
           </div>
           <div className='flex-1'>
-            <p className='m-0 block translate-y-[-4px] font-[400] text-[18px] leading-[1.5] sm:text-[20px] md:text-[26px]'>
+            <p className='m-0 block translate-y-[-4px] font-[400] text-[#999] text-[18px] leading-[1.5] sm:text-[20px] md:text-[26px]'>
               {post.description}
             </p>
           </div>
@@ -129,18 +124,18 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       </header>
 
       <div className='mx-auto max-w-[900px] px-6 pb-20 sm:px-8 md:px-12' itemProp='articleBody'>
-        <div className='prose prose-lg max-w-none'>
+        <div className='prose prose-lg prose-invert max-w-none prose-blockquote:border-[#3d3d3d] prose-hr:border-[#2A2A2A] prose-a:text-[#ECECEC] prose-blockquote:text-[#999] prose-code:text-[#ECECEC] prose-headings:text-[#ECECEC] prose-li:text-[#999] prose-p:text-[#999] prose-strong:text-[#ECECEC]'>
           <Article />
           {post.faq && post.faq.length > 0 ? <FAQ items={post.faq} /> : null}
         </div>
       </div>
       {related.length > 0 && (
         <div className='mx-auto max-w-[900px] px-6 pb-24 sm:px-8 md:px-12'>
-          <h2 className='mb-4 font-medium text-[24px]'>Related posts</h2>
+          <h2 className='mb-4 font-[500] text-[#ECECEC] text-[24px]'>Related posts</h2>
           <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3'>
             {related.map((p) => (
               <Link key={p.slug} href={`/studio/${p.slug}`} className='group'>
-                <div className='overflow-hidden rounded-lg border border-gray-200'>
+                <div className='overflow-hidden rounded-lg border border-[#2A2A2A]'>
                   <Image
                     src={p.ogImage}
                     alt={p.title}
@@ -152,14 +147,14 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                     unoptimized
                   />
                   <div className='p-3'>
-                    <div className='mb-1 text-gray-600 text-xs'>
+                    <div className='mb-1 text-[#999] text-xs'>
                       {new Date(p.date).toLocaleDateString('en-US', {
                         month: 'short',
                         day: 'numeric',
                         year: 'numeric',
                       })}
                     </div>
-                    <div className='font-medium text-sm leading-tight'>{p.title}</div>
+                    <div className='font-[500] text-[#ECECEC] text-sm leading-tight'>{p.title}</div>
                   </div>
                 </div>
               </Link>

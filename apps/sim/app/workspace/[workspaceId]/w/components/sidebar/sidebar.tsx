@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { MoreHorizontal } from 'lucide-react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import {
@@ -65,6 +66,7 @@ import {
   useImportWorkflow,
   useImportWorkspace,
 } from '@/app/workspace/[workspaceId]/w/hooks'
+import { getBrandConfig } from '@/ee/whitelabeling'
 import { useFolders } from '@/hooks/queries/folders'
 import { useDeleteTask, useDeleteTasks, useRenameTask, useTasks } from '@/hooks/queries/tasks'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -246,6 +248,7 @@ export const SIDEBAR_SCROLL_EVENT = 'sidebar-scroll-to-item'
  * @returns Sidebar with workflows panel
  */
 export const Sidebar = memo(function Sidebar() {
+  const brand = getBrandConfig()
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string | undefined
@@ -966,7 +969,18 @@ export const Sidebar = memo(function Sidebar() {
                     className='group flex h-[30px] w-[30px] items-center justify-center rounded-[8px] hover:bg-[var(--surface-active)]'
                     aria-label='Expand sidebar'
                   >
-                    <Sim className='h-[16px] w-[16px] text-[var(--text-icon)] group-hover:hidden' />
+                    {brand.logoUrl ? (
+                      <Image
+                        src={brand.logoUrl}
+                        alt={brand.name}
+                        width={16}
+                        height={16}
+                        className='h-[16px] w-[16px] object-contain group-hover:hidden'
+                        unoptimized
+                      />
+                    ) : (
+                      <Sim className='h-[16px] w-[16px] text-[var(--text-icon)] group-hover:hidden' />
+                    )}
                     <PanelLeft className='hidden h-[16px] w-[16px] rotate-180 text-[var(--text-icon)] group-hover:block' />
                   </button>
                 ) : (
@@ -974,7 +988,18 @@ export const Sidebar = memo(function Sidebar() {
                     href={`/workspace/${workspaceId}/home`}
                     className='flex h-[30px] w-[30px] items-center justify-center rounded-[8px] hover:bg-[var(--surface-active)]'
                   >
-                    <Sim className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+                    {brand.logoUrl ? (
+                      <Image
+                        src={brand.logoUrl}
+                        alt={brand.name}
+                        width={16}
+                        height={16}
+                        className='h-[16px] w-[16px] object-contain'
+                        unoptimized
+                      />
+                    ) : (
+                      <Sim className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+                    )}
                   </Link>
                 )}
               </Tooltip.Trigger>

@@ -1,10 +1,9 @@
 'use client'
 
 import { type ReactNode, useEffect, useState } from 'react'
+import { Button } from '@/components/emcn'
 import { GithubIcon, GoogleIcon } from '@/components/icons'
-import { Button } from '@/components/ui/button'
 import { client } from '@/lib/auth/auth-client'
-import { inter } from '@/app/_styles/fonts/inter/inter'
 
 interface SocialLoginButtonsProps {
   githubAvailable: boolean
@@ -82,7 +81,7 @@ export function SocialLoginButtons({
   const githubButton = (
     <Button
       variant='outline'
-      className='w-full rounded-[10px] shadow-sm hover:bg-gray-50'
+      className='w-full rounded-[10px]'
       disabled={!githubAvailable || isGithubLoading}
       onClick={signInWithGithub}
     >
@@ -94,7 +93,7 @@ export function SocialLoginButtons({
   const googleButton = (
     <Button
       variant='outline'
-      className='w-full rounded-[10px] shadow-sm hover:bg-gray-50'
+      className='w-full rounded-[10px]'
       disabled={!googleAvailable || isGoogleLoading}
       onClick={signInWithGoogle}
     >
@@ -110,7 +109,7 @@ export function SocialLoginButtons({
   }
 
   return (
-    <div className={`${inter.className} grid gap-3 font-light`}>
+    <div className='grid gap-3 font-light'>
       {googleAvailable && googleButton}
       {githubAvailable && githubButton}
       {children}

@@ -2,14 +2,12 @@
 
 import { useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
-import { Input } from '@/components/emcn'
+import { Input, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { inter } from '@/app/_styles/fonts/inter/inter'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import AuthBackground from '@/app/(auth)/components/auth-background'
 import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
-import Nav from '@/app/(landing)/components/nav/nav'
+import Navbar from '@/app/(home)/components/navbar/navbar'
 
 interface PasswordAuthProps {
   onSubmit: (password: string) => void
@@ -34,34 +32,26 @@ export function PasswordAuth({ onSubmit, error }: PasswordAuthProps) {
   }
 
   return (
-    <AuthBackground>
-      <main className='relative flex min-h-screen flex-col text-foreground'>
-        <Nav hideAuthButtons={true} variant='auth' />
+    <AuthBackground className='dark font-[430] font-season'>
+      <main className='relative flex min-h-screen flex-col text-[#ECECEC]'>
+        <header className='shrink-0 bg-[#1C1C1C]'>
+          <Navbar logoOnly />
+        </header>
         <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
           <div className='w-full max-w-lg px-4'>
             <div className='flex flex-col items-center justify-center'>
               <div className='space-y-1 text-center'>
-                <h1
-                  className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}
-                >
+                <h1 className='font-[500] text-[#ECECEC] text-[32px] tracking-tight'>
                   Password Required
                 </h1>
-                <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+                <p className='font-[380] text-[#999] text-[16px]'>
                   Enter the password to access this form.
                 </p>
               </div>
 
-              <form
-                onSubmit={handleSubmit}
-                className={`${inter.className} mt-8 w-full max-w-[410px] space-y-6`}
-              >
+              <form onSubmit={handleSubmit} className='mt-8 w-full max-w-[410px] space-y-6'>
                 <div className='space-y-2'>
-                  <label
-                    htmlFor='form-password'
-                    className='font-medium text-[14px] text-foreground'
-                  >
-                    Password
-                  </label>
+                  <Label htmlFor='form-password'>Password</Label>
                   <div className='relative'>
                     <Input
                       id='form-password'
@@ -69,16 +59,13 @@ export function PasswordAuth({ onSubmit, error }: PasswordAuthProps) {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder='Enter password'
-                      className={cn(
-                        'rounded-[10px] pr-10 shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
-                        error && 'border-red-500 focus:border-red-500 focus:ring-red-100'
-                      )}
+                      className={cn(error && 'border-red-500 focus:border-red-500')}
                       autoFocus
                     />
                     <button
                       type='button'
                       onClick={() => setShowPassword(!showPassword)}
-                      className='-translate-y-1/2 absolute top-1/2 right-3 text-muted-foreground hover:text-foreground'
+                      className='-translate-y-1/2 absolute top-1/2 right-3 text-[#999] hover:text-[#ECECEC]'
                     >
                       {showPassword ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
                     </button>

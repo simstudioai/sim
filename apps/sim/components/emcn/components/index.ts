@@ -56,6 +56,7 @@ export {
   DropdownMenuTrigger,
 } from './dropdown-menu/dropdown-menu'
 export { Input, type InputProps, inputVariants } from './input/input'
+export { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from './input-otp/input-otp'
 export { Label } from './label/label'
 export {
   MODAL_SIZES,

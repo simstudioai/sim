@@ -2,6 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { ChevronDown } from '@/components/emcn'
 import { GitHubStars } from '@/app/(home)/components/navbar/components/github-stars'
+import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface NavLink {
   label: string
@@ -23,7 +24,13 @@ const LOGO_CELL = 'flex items-center px-[20px]'
 /** Links: even spacing between items. */
 const LINK_CELL = 'flex items-center px-[14px]'
 
-export default function Navbar() {
+interface NavbarProps {
+  logoOnly?: boolean
+}
+
+export default function Navbar({ logoOnly = false }: NavbarProps) {
+  const brand = getBrandConfig()
+
   return (
     <nav
       aria-label='Primary navigation'
@@ -32,66 +39,82 @@ export default function Navbar() {
       itemType='https://schema.org/SiteNavigationElement'
     >
       {/* Logo */}
-      <Link href='/' className={LOGO_CELL} aria-label='Sim home' itemProp='url'>
+      <Link href='/' className={LOGO_CELL} aria-label={`${brand.name} home`} itemProp='url'>
         <span itemProp='name' className='sr-only'>
-          Sim
+          {brand.name}
         </span>
-        <Image
-          src='/logo/sim-landing.svg'
-          alt='Sim'
-          width={71}
-          height={22}
-          className='h-[22px] w-auto'
-          priority
-        />
+        {brand.logoUrl ? (
+          <Image
+            src={brand.logoUrl}
+            alt={`${brand.name} Logo`}
+            width={71}
+            height={22}
+            className='h-[22px] w-auto object-contain'
+            priority
+            unoptimized
+          />
+        ) : (
+          <Image
+            src='/logo/sim-landing.svg'
+            alt='Sim'
+            width={71}
+            height={22}
+            className='h-[22px] w-auto'
+            priority
+          />
+        )}
       </Link>
 
-      {/* Links */}
-      <ul className='mt-[0.75px] flex'>
-        {NAV_LINKS.map(({ label, href, external, icon }) => (
-          <li key={label} className='flex'>
-            {external ? (
-              <a href={href} target='_blank' rel='noopener noreferrer' className={LINK_CELL}>
-                {label}
-              </a>
-            ) : (
-              <Link
-                href={href}
-                className={icon ? `${LINK_CELL} gap-[8px]` : LINK_CELL}
-                aria-label={label}
-              >
-                {label}
-                {icon === 'chevron' && (
-                  <ChevronDown className='mt-[1.75px] h-[10px] w-[10px] flex-shrink-0 text-[#ECECEC]' />
+      {!logoOnly && (
+        <>
+          {/* Links */}
+          <ul className='mt-[0.75px] flex'>
+            {NAV_LINKS.map(({ label, href, external, icon }) => (
+              <li key={label} className='flex'>
+                {external ? (
+                  <a href={href} target='_blank' rel='noopener noreferrer' className={LINK_CELL}>
+                    {label}
+                  </a>
+                ) : (
+                  <Link
+                    href={href}
+                    className={icon ? `${LINK_CELL} gap-[8px]` : LINK_CELL}
+                    aria-label={label}
+                  >
+                    {label}
+                    {icon === 'chevron' && (
+                      <ChevronDown className='mt-[1.75px] h-[10px] w-[10px] flex-shrink-0 text-[#ECECEC]' />
+                    )}
+                  </Link>
                 )}
-              </Link>
-            )}
-          </li>
-        ))}
-        <li className='flex'>
-          <GitHubStars />
-        </li>
-      </ul>
+              </li>
+            ))}
+            <li className='flex'>
+              <GitHubStars />
+            </li>
+          </ul>
 
-      <div className='flex-1' />
+          <div className='flex-1' />
 
-      {/* CTAs */}
-      <div className='flex items-center gap-[8px] px-[20px]'>
-        <Link
-          href='/login'
-          className='inline-flex h-[30px] items-center rounded-[5px] border border-[#3d3d3d] px-[9px] text-[#ECECEC] text-[13.5px] transition-colors hover:bg-[#2A2A2A]'
-          aria-label='Log in'
-        >
-          Log in
-        </Link>
-        <Link
-          href='/signup'
-          className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] px-[9px] text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
-          aria-label='Get started with Sim'
-        >
-          Get started
-        </Link>
-      </div>
+          {/* CTAs */}
+          <div className='flex items-center gap-[8px] px-[20px]'>
+            <Link
+              href='/login'
+              className='inline-flex h-[30px] items-center rounded-[5px] border border-[#3d3d3d] px-[9px] text-[#ECECEC] text-[13.5px] transition-colors hover:bg-[#2A2A2A]'
+              aria-label='Log in'
+            >
+              Log in
+            </Link>
+            <Link
+              href='/signup'
+              className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] px-[9px] text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+              aria-label='Get started with Sim'
+            >
+              Get started
+            </Link>
+          </div>
+        </>
+      )}
     </nav>
   )
 }

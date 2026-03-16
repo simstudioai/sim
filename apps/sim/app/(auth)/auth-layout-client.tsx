@@ -2,32 +2,22 @@
 
 import { useEffect } from 'react'
 import AuthBackground from '@/app/(auth)/components/auth-background'
-import Nav from '@/app/(landing)/components/nav/nav'
-
-function isColorDark(hexColor: string): boolean {
-  const hex = hexColor.replace('#', '')
-  const r = Number.parseInt(hex.substr(0, 2), 16)
-  const g = Number.parseInt(hex.substr(2, 2), 16)
-  const b = Number.parseInt(hex.substr(4, 2), 16)
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  return luminance < 0.5
-}
+import Navbar from '@/app/(home)/components/navbar/navbar'
 
 export default function AuthLayoutClient({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    const rootStyle = getComputedStyle(document.documentElement)
-    const brandBackground = rootStyle.getPropertyValue('--brand-background-hex').trim()
-
-    if (brandBackground && isColorDark(brandBackground)) {
-      document.body.classList.add('auth-dark-bg')
-    } else {
-      document.body.classList.remove('auth-dark-bg')
+    document.documentElement.classList.add('dark')
+    return () => {
+      document.documentElement.classList.remove('dark')
     }
   }, [])
+
   return (
-    <AuthBackground>
-      <main className='relative flex min-h-screen flex-col text-foreground'>
-        <Nav hideAuthButtons={true} variant='auth' />
+    <AuthBackground className='dark font-[430] font-season'>
+      <main className='relative flex min-h-full flex-col text-[#ECECEC]'>
+        <header className='shrink-0 bg-[#1C1C1C]'>
+          <Navbar logoOnly />
+        </header>
         <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
           <div className='w-full max-w-lg px-4'>{children}</div>
         </div>

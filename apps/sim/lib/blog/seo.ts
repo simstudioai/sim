@@ -95,6 +95,10 @@ export function buildArticleJsonLd(post: BlogMeta) {
     timeRequired: post.timeRequired,
     articleSection: 'Technology',
     inLanguage: 'en-US',
+    speakable: {
+      '@type': 'SpeakableSpecification',
+      cssSelector: ['[itemprop="headline"]', '[itemprop="description"]'],
+    },
   }
 }
 

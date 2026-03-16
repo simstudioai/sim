@@ -74,6 +74,10 @@ export default function StructuredData() {
           'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows. Create agents, workflows, knowledge bases, tables, and docs.',
         breadcrumb: { '@id': 'https://sim.ai/#breadcrumb' },
         inLanguage: 'en-US',
+        speakable: {
+          '@type': 'SpeakableSpecification',
+          cssSelector: ['#hero-heading', '[id="hero"] p'],
+        },
         potentialAction: [{ '@type': 'ReadAction', target: ['https://sim.ai'] }],
       },
       {
