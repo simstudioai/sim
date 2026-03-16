@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { client } from '@/lib/auth/auth-client'
 
 const logger = createLogger('AdminUsersQuery')
@@ -14,8 +14,8 @@ interface AdminUser {
   id: string
   name: string
   email: string
-  role: string | null
-  banned: boolean | null
+  role: string
+  banned: boolean
   banReason: string | null
 }
 
@@ -29,21 +29,18 @@ async function fetchAdminUsers(offset: number, limit: number): Promise<AdminUser
     query: { limit, offset },
   })
   if (error) {
-    throw new Error((error as { message?: string }).message || 'Failed to fetch users')
+    throw new Error(error.message ?? 'Failed to fetch users')
   }
   return {
-    users: ((data as { users?: unknown[] })?.users ?? []).map((u: unknown) => {
-      const user = u as Record<string, unknown>
-      return {
-        id: user.id as string,
-        name: (user.name as string) || '',
-        email: (user.email as string) || '',
-        role: (user.role as string) ?? 'user',
-        banned: (user.banned as boolean) ?? false,
-        banReason: (user.banReason as string) ?? null,
-      }
-    }),
-    total: (data as { total?: number })?.total ?? 0,
+    users: (data?.users ?? []).map((u) => ({
+      id: u.id,
+      name: u.name || '',
+      email: u.email,
+      role: u.role ?? 'user',
+      banned: u.banned ?? false,
+      banReason: u.banReason ?? null,
+    })),
+    total: data?.total ?? 0,
   }
 }
 
@@ -53,6 +50,7 @@ export function useAdminUsers(offset: number, limit: number, enabled: boolean) {
     queryFn: () => fetchAdminUsers(offset, limit),
     enabled,
     staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
   })
 }
 
