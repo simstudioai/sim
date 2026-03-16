@@ -1086,7 +1086,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
    * Reusable styles and positioning for Handle components.
    */
   const getHandleClasses = (position: 'left' | 'right' | 'top' | 'bottom', isError = false) => {
-    const baseClasses = '!z-[10] !cursor-crosshair !border-none !transition-[colors] !duration-150'
+    const baseClasses = '!z-[0] !cursor-crosshair !border-none !transition-[colors] !duration-150'
     const colorClasses = isError ? '!bg-[var(--text-error)]' : '!bg-[var(--workflow-edge)]'
 
     const positionClasses = {
