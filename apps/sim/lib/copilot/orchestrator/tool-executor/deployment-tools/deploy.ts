@@ -87,7 +87,16 @@ export async function executeDeployChat(
         return { success: false, error: 'Unauthorized chat access' }
       }
       await db.delete(chat).where(eq(chat.id, existing[0].id))
-      return { success: true, output: { success: true, action: 'undeploy', isDeployed: false } }
+      return {
+        success: true,
+        output: {
+          workflowId,
+          success: true,
+          action: 'undeploy',
+          isDeployed: true,
+          isChatDeployed: false,
+        },
+      }
     }
 
     const { hasAccess } = await checkWorkflowAccessForChatCreation(workflowId, context.userId)
@@ -199,9 +208,11 @@ export async function executeDeployChat(
     return {
       success: true,
       output: {
+        workflowId,
         success: true,
         action: 'deploy',
         isDeployed: true,
+        isChatDeployed: true,
         identifier,
         chatUrl: `${baseUrl}/chat/${identifier}`,
         apiEndpoint: `${baseUrl}/api/workflows/${workflowId}/run`,
@@ -252,6 +263,8 @@ export async function executeDeployMcp(
 
       mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
 
+      // Intentionally omits `isDeployed` — removing from an MCP server does not
+      // affect the workflow's API deployment.
       return {
         success: true,
         output: { workflowId, serverId, action: 'undeploy', removed: true },
@@ -335,9 +348,12 @@ export async function executeDeployMcp(
   }
 }
 
-export async function executeRedeploy(context: ExecutionContext): Promise<ToolCallResult> {
+export async function executeRedeploy(
+  params: { workflowId?: string },
+  context: ExecutionContext
+): Promise<ToolCallResult> {
   try {
-    const workflowId = context.workflowId
+    const workflowId = params.workflowId || context.workflowId
     if (!workflowId) {
       return { success: false, error: 'workflowId is required' }
     }
@@ -352,6 +368,7 @@ export async function executeRedeploy(context: ExecutionContext): Promise<ToolCa
       success: true,
       output: {
         workflowId,
+        isDeployed: true,
         deployedAt: result.deployedAt || null,
         version: result.version,
         apiEndpoint: `${baseUrl}/api/workflows/${workflowId}/run`,

@@ -455,6 +455,7 @@ export async function executeToolAndReport(
       logger.info('Tool execution succeeded', {
         toolCallId: toolCall.id,
         toolName: toolCall.name,
+        output: result.output,
       })
     } else {
       logger.warn('Tool execution failed', {

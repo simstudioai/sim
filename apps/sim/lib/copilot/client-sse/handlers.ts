@@ -567,7 +567,6 @@ export const sseHandlers: Record<string, SSEHandler> = {
           }
         }
 
-        // Deploy tools: update deployment status in workflow registry
         if (
           targetState === ClientToolCallState.success &&
           (current.name === 'deploy_api' ||
@@ -579,21 +578,30 @@ export const sseHandlers: Record<string, SSEHandler> = {
             const resultPayload = asRecord(
               data?.result || eventData.result || eventData.data || data?.data
             )
-            const input = asRecord(current.params)
-            const workflowId =
-              (resultPayload?.workflowId as string) ||
-              (input?.workflowId as string) ||
-              useWorkflowRegistry.getState().activeWorkflowId
-            const isDeployed = resultPayload?.isDeployed !== false
-            if (workflowId) {
-              useWorkflowRegistry
-                .getState()
-                .setDeploymentStatus(workflowId, isDeployed, isDeployed ? new Date() : undefined)
-              logger.info('[SSE] Updated deployment status from tool result', {
-                toolName: current.name,
-                workflowId,
-                isDeployed,
-              })
+            if (typeof resultPayload?.isDeployed === 'boolean') {
+              const input = asRecord(current.params)
+              const workflowId =
+                (resultPayload?.workflowId as string) ||
+                (input?.workflowId as string) ||
+                useWorkflowRegistry.getState().activeWorkflowId
+              const isDeployed = resultPayload.isDeployed as boolean
+              const serverDeployedAt = resultPayload.deployedAt
+                ? new Date(resultPayload.deployedAt as string)
+                : undefined
+              if (workflowId) {
+                useWorkflowRegistry
+                  .getState()
+                  .setDeploymentStatus(
+                    workflowId,
+                    isDeployed,
+                    isDeployed ? (serverDeployedAt ?? new Date()) : undefined
+                  )
+                logger.info('[SSE] Updated deployment status from tool result', {
+                  toolName: current.name,
+                  workflowId,
+                  isDeployed,
+                })
+              }
             }
           } catch (err) {
             logger.warn('[SSE] Failed to hydrate deployment status', {

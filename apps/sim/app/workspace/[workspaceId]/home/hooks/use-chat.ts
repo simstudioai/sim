@@ -12,6 +12,7 @@ import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resource-types'
 import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import { deploymentKeys } from '@/hooks/queries/deployments'
 import {
   type TaskChatHistory,
   type TaskStoredContentBlock,
@@ -22,6 +23,7 @@ import {
   useChatHistory,
 } from '@/hooks/queries/tasks'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
+import { workflowKeys } from '@/hooks/queries/workflows'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useFolderStore } from '@/stores/folders/store'
@@ -73,6 +75,8 @@ const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
   rejected: 'error',
   skipped: 'success',
 } as const
+
+const DEPLOY_TOOL_NAMES = new Set(['deploy_api', 'deploy_chat', 'deploy_mcp', 'redeploy'])
 
 function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
   const mapped: ContentBlock = {
@@ -361,6 +365,15 @@ export function useChat(
 
   useEffect(() => {
     if (!chatHistory || appliedChatIdRef.current === chatHistory.id) return
+
+    const activeStreamId = chatHistory.activeStreamId
+    const snapshot = chatHistory.streamSnapshot
+
+    if (activeStreamId && !snapshot && !sendingRef.current) {
+      queryClient.invalidateQueries({ queryKey: taskKeys.detail(chatHistory.id) })
+      return
+    }
+
     appliedChatIdRef.current = chatHistory.id
     setMessages(chatHistory.messages.map(mapStoredMessage))
 
@@ -374,11 +387,6 @@ export function useChat(
       }
     }
 
-    // Kick off stream reconnection immediately if there's an active stream.
-    // The stream snapshot was fetched in parallel with the chat history (same
-    // API call), so there's no extra round-trip.
-    const activeStreamId = chatHistory.activeStreamId
-    const snapshot = chatHistory.streamSnapshot
     if (activeStreamId && !sendingRef.current) {
       const gen = ++streamGenRef.current
       const abortController = new AbortController()
@@ -396,8 +404,7 @@ export function useChat(
           const batchEvents = snapshot?.events ?? []
           const streamStatus = snapshot?.status ?? ''
 
-          if (!snapshot || (batchEvents.length === 0 && streamStatus === 'unknown')) {
-            // No snapshot available — stream buffer expired. Clean up.
+          if (batchEvents.length === 0 && streamStatus === 'unknown') {
             const cid = chatIdRef.current
             if (cid) {
               fetch('/api/mothership/chat/stop', {
@@ -462,7 +469,7 @@ export function useChat(
       }
       reconnect()
     }
-  }, [chatHistory, workspaceId])
+  }, [chatHistory, workspaceId, queryClient])
 
   useEffect(() => {
     if (resources.length === 0) {
@@ -684,6 +691,33 @@ export function useChat(
                   )
                   if (resource && addResource(resource)) {
                     onResourceEventRef.current?.()
+                  }
+                }
+
+                if (DEPLOY_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
+                  const output = tc.result?.output as Record<string, unknown> | undefined
+                  const deployedWorkflowId = (output?.workflowId as string) ?? undefined
+                  if (deployedWorkflowId && typeof output?.isDeployed === 'boolean') {
+                    const isDeployed = output.isDeployed as boolean
+                    const serverDeployedAt = output.deployedAt
+                      ? new Date(output.deployedAt as string)
+                      : undefined
+                    useWorkflowRegistry
+                      .getState()
+                      .setDeploymentStatus(
+                        deployedWorkflowId,
+                        isDeployed,
+                        isDeployed ? (serverDeployedAt ?? new Date()) : undefined
+                      )
+                    queryClient.invalidateQueries({
+                      queryKey: deploymentKeys.info(deployedWorkflowId),
+                    })
+                    queryClient.invalidateQueries({
+                      queryKey: deploymentKeys.versions(deployedWorkflowId),
+                    })
+                    queryClient.invalidateQueries({
+                      queryKey: workflowKeys.list(workspaceId),
+                    })
                   }
                 }
               }
@@ -1116,11 +1150,6 @@ export function useChat(
   useEffect(() => {
     return () => {
       streamGenRef.current++
-      // Only drop the browser→Sim read; the Sim→Go stream stays open
-      // so the backend can finish persisting. Explicit abort is only
-      // triggered by the stop button via /api/copilot/chat/abort.
-      abortControllerRef.current?.abort()
-      abortControllerRef.current = null
       sendingRef.current = false
     }
   }, [])
