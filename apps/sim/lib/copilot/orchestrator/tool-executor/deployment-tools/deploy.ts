@@ -87,7 +87,10 @@ export async function executeDeployChat(
         return { success: false, error: 'Unauthorized chat access' }
       }
       await db.delete(chat).where(eq(chat.id, existing[0].id))
-      return { success: true, output: { success: true, action: 'undeploy', isDeployed: false } }
+      return {
+        success: true,
+        output: { workflowId, success: true, action: 'undeploy', isChatDeployed: false },
+      }
     }
 
     const { hasAccess } = await checkWorkflowAccessForChatCreation(workflowId, context.userId)
@@ -199,9 +202,11 @@ export async function executeDeployChat(
     return {
       success: true,
       output: {
+        workflowId,
         success: true,
         action: 'deploy',
         isDeployed: true,
+        isChatDeployed: true,
         identifier,
         chatUrl: `${baseUrl}/chat/${identifier}`,
         apiEndpoint: `${baseUrl}/api/workflows/${workflowId}/run`,
@@ -355,6 +360,7 @@ export async function executeRedeploy(
       success: true,
       output: {
         workflowId,
+        isDeployed: true,
         deployedAt: result.deployedAt || null,
         version: result.version,
         apiEndpoint: `${baseUrl}/api/workflows/${workflowId}/run`,
