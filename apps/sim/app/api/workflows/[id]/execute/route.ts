@@ -207,8 +207,9 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
   }
 
   try {
-    const jobQueue = shouldUseBullMQ() ? null : await getJobQueue()
-    const jobId = shouldUseBullMQ()
+    const useBullMQ = shouldUseBullMQ()
+    const jobQueue = useBullMQ ? null : await getJobQueue()
+    const jobId = useBullMQ
       ? await enqueueWorkspaceDispatch({
           id: executionId,
           workspaceId,

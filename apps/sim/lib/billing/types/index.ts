@@ -5,7 +5,10 @@
 import { z } from 'zod'
 
 export const enterpriseSubscriptionMetadataSchema = z.object({
-  plan: z.literal('enterprise'),
+  plan: z
+    .string()
+    .transform((v) => v.toLowerCase())
+    .pipe(z.literal('enterprise')),
   // The referenceId must be provided in Stripe metadata to link to the organization
   // This gets stored in the subscription.referenceId column
   referenceId: z.string().min(1),

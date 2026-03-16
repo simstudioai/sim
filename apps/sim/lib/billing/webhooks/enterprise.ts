@@ -55,34 +55,8 @@ export async function handleManualEnterpriseSubscription(event: Stripe.Event) {
     })
     throw new Error('Invalid enterprise metadata for subscription')
   }
-  const metadataJson: Record<string, unknown> = {
-    ...metadata,
-    workspaceConcurrencyLimit:
-      typeof metadata.workspaceConcurrencyLimit === 'string'
-        ? Number.parseInt(metadata.workspaceConcurrencyLimit, 10)
-        : metadata.workspaceConcurrencyLimit,
-  }
 
-  const seats = enterpriseMetadata.seats
-  const monthlyPrice = enterpriseMetadata.monthlyPrice
-
-  if (!seats || seats <= 0 || Number.isNaN(seats)) {
-    logger.error('[subscription.created] Invalid or missing seats in enterprise metadata', {
-      subscriptionId: stripeSubscription.id,
-      seatsRaw: enterpriseMetadata.seats,
-      seatsParsed: seats,
-    })
-    throw new Error('Enterprise subscription must include valid seats in metadata')
-  }
-
-  if (!monthlyPrice || monthlyPrice <= 0 || Number.isNaN(monthlyPrice)) {
-    logger.error('[subscription.created] Invalid or missing monthlyPrice in enterprise metadata', {
-      subscriptionId: stripeSubscription.id,
-      monthlyPriceRaw: enterpriseMetadata.monthlyPrice,
-      monthlyPriceParsed: monthlyPrice,
-    })
-    throw new Error('Enterprise subscription must include valid monthlyPrice in metadata')
-  }
+  const { seats, monthlyPrice } = enterpriseMetadata
 
   // Get the first subscription item which contains the period information
   const referenceItem = stripeSubscription.items?.data?.[0]
@@ -106,7 +80,7 @@ export async function handleManualEnterpriseSubscription(event: Stripe.Event) {
       ? new Date(stripeSubscription.trial_start * 1000)
       : null,
     trialEnd: stripeSubscription.trial_end ? new Date(stripeSubscription.trial_end * 1000) : null,
-    metadata: metadataJson,
+    metadata: metadata as Record<string, unknown>,
   }
 
   const existing = await db
