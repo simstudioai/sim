@@ -114,6 +114,8 @@ export class MemoryWorkspaceDispatchStorage implements WorkspaceDispatchStorageA
     return Array.from(this.jobs.values()).filter((record) => statuses.includes(record.status))
   }
 
+  private static readonly TERMINAL_STATUSES = new Set(['completed', 'failed'])
+
   async updateDispatchJobRecord(
     jobId: string,
     updater: (record: WorkspaceDispatchJobRecord) => WorkspaceDispatchJobRecord
@@ -124,6 +126,13 @@ export class MemoryWorkspaceDispatchStorage implements WorkspaceDispatchStorageA
     }
 
     const updated = updater(current)
+    if (
+      MemoryWorkspaceDispatchStorage.TERMINAL_STATUSES.has(current.status) &&
+      !MemoryWorkspaceDispatchStorage.TERMINAL_STATUSES.has(updated.status)
+    ) {
+      return current
+    }
+
     this.jobs.set(jobId, updated)
     return updated
   }

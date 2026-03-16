@@ -233,6 +233,8 @@ export class RedisWorkspaceDispatchStorage implements WorkspaceDispatchStorageAd
     return jobs
   }
 
+  private static readonly TERMINAL_STATUSES = new Set(['completed', 'failed'])
+
   async updateDispatchJobRecord(
     jobId: string,
     updater: (record: WorkspaceDispatchJobRecord) => WorkspaceDispatchJobRecord
@@ -243,6 +245,13 @@ export class RedisWorkspaceDispatchStorage implements WorkspaceDispatchStorageAd
     }
 
     const updated = updater(current)
+    if (
+      RedisWorkspaceDispatchStorage.TERMINAL_STATUSES.has(current.status) &&
+      !RedisWorkspaceDispatchStorage.TERMINAL_STATUSES.has(updated.status)
+    ) {
+      return current
+    }
+
     await this.saveDispatchJob(updated)
     return updated
   }
