@@ -123,7 +123,9 @@ function coerceValue(value: unknown, colType: ColumnType): string | number | boo
     }
     case 'boolean': {
       const s = String(value).toLowerCase()
-      return s === 'true'
+      if (s === 'true') return true
+      if (s === 'false') return false
+      return null
     }
     case 'date': {
       const d = new Date(String(value))
