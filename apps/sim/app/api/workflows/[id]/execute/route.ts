@@ -118,6 +118,8 @@ const ExecuteWorkflowSchema = z.object({
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+const INLINE_TRIGGER_TYPES = new Set<CoreTriggerType>(['manual', 'workflow'])
+
 function resolveOutputIds(
   selectedOutputs: string[] | undefined,
   blocks: Record<string, any>
@@ -789,7 +791,7 @@ async function handleExecutePost(
 
       const executionVariables = cachedWorkflowData?.variables ?? workflow.variables ?? {}
 
-      if (shouldUseBullMQ() && triggerType !== 'manual') {
+      if (shouldUseBullMQ() && !INLINE_TRIGGER_TYPES.has(triggerType)) {
         try {
           const dispatchJobId = await enqueueDirectWorkflowExecution(
             {
@@ -989,7 +991,7 @@ async function handleExecutePost(
     }
 
     if (shouldUseDraftState) {
-      const shouldDispatchViaQueue = shouldUseBullMQ() && triggerType !== 'manual'
+      const shouldDispatchViaQueue = shouldUseBullMQ() && !INLINE_TRIGGER_TYPES.has(triggerType)
       if (shouldDispatchViaQueue) {
         const metadata: ExecutionMetadata = {
           requestId,
