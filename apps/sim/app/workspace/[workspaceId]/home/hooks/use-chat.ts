@@ -515,7 +515,7 @@ export function useChat(
 
       const ensureTextBlock = (): ContentBlock => {
         const last = blocks[blocks.length - 1]
-        if (last?.type === 'text') return last
+        if (last?.type === 'text' && last.subagent === activeSubagent) return last
         const b: ContentBlock = { type: 'text', content: '' }
         blocks.push(b)
         return b
