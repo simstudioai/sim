@@ -148,7 +148,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
   const [currentUserOrgRoles, setCurrentUserOrgRoles] = useState<
     Array<{ organizationId: string; role: string }>
   >([])
-  const [isSuperUser, setIsSuperUser] = useState(false)
+  const isSuperUser = session?.user?.role === 'admin'
   const [isUsing, setIsUsing] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [isApproving, setIsApproving] = useState(false)
@@ -186,21 +186,6 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
       }
     }
 
-    const fetchSuperUserStatus = async () => {
-      if (!currentUserId) return
-
-      try {
-        const response = await fetch('/api/user/super-user')
-        if (response.ok) {
-          const data = await response.json()
-          setIsSuperUser(data.isSuperUser || false)
-        }
-      } catch (error) {
-        logger.error('Error fetching super user status:', error)
-      }
-    }
-
-    fetchSuperUserStatus()
     fetchUserOrganizations()
   }, [currentUserId])
 

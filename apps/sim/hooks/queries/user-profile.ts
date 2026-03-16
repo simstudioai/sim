@@ -9,7 +9,6 @@ const logger = createLogger('UserProfileQuery')
 export const userProfileKeys = {
   all: ['userProfile'] as const,
   profile: () => [...userProfileKeys.all, 'profile'] as const,
-  superUser: (userId?: string) => [...userProfileKeys.all, 'superUser', userId ?? ''] as const,
 }
 
 /**
@@ -114,40 +113,6 @@ export function useUpdateUserProfile() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: userProfileKeys.profile() })
     },
-  })
-}
-
-/**
- * Superuser status response type
- */
-interface SuperUserStatus {
-  isSuperUser: boolean
-}
-
-/**
- * Fetch superuser status from API
- */
-async function fetchSuperUserStatus(signal?: AbortSignal): Promise<SuperUserStatus> {
-  const response = await fetch('/api/user/super-user', { signal })
-
-  if (!response.ok) {
-    return { isSuperUser: false }
-  }
-
-  const data = await response.json()
-  return { isSuperUser: data.isSuperUser ?? false }
-}
-
-/**
- * Hook to fetch superuser status
- * @param userId - User ID for cache isolation (required for proper per-user caching)
- */
-export function useSuperUserStatus(userId?: string) {
-  return useQuery({
-    queryKey: userProfileKeys.superUser(userId),
-    queryFn: ({ signal }) => fetchSuperUserStatus(signal),
-    enabled: Boolean(userId),
-    staleTime: 5 * 60 * 1000, // 5 minutes - superuser status rarely changes
   })
 }
 

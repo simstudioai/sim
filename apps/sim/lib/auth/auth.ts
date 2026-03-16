@@ -649,7 +649,10 @@ export const auth = betterAuth({
       expiresIn: 24 * 60 * 60, // 24 hours - Socket.IO handles connection persistence with heartbeats
     }),
     customSession(async ({ user, session }) => ({
-      user,
+      user: {
+        ...user,
+        role: (user as unknown as { role?: string }).role ?? 'user',
+      },
       session,
     })),
     emailOTP({
