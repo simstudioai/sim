@@ -98,7 +98,7 @@ export function useChangeDetection({
   const needsClientFallback = serverNeedsRedeployment === undefined && !isServerLoading
 
   const currentState = useMemo((): WorkflowState | null => {
-    if (!needsClientFallback || !workflowId) return null
+    if (!needsClientFallback || !workflowId || !deployedState) return null
 
     const mergedBlocks = mergeSubblockStateWithValues(blocks, subBlockValues ?? {})
 
@@ -112,6 +112,7 @@ export function useChangeDetection({
   }, [
     needsClientFallback,
     workflowId,
+    deployedState,
     blocks,
     edges,
     loops,
