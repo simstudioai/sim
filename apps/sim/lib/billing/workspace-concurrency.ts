@@ -72,7 +72,7 @@ function getPlanConcurrencyLimit(plan: string | null | undefined, metadata: unkn
     return getEnterpriseConcurrencyLimit(metadata)
   }
 
-  if (plan === 'team') {
+  if (isTeam(plan)) {
     return getTeamConcurrencyLimit()
   }
 
@@ -81,7 +81,7 @@ function getPlanConcurrencyLimit(plan: string | null | undefined, metadata: unkn
     return getTeamConcurrencyLimit()
   }
 
-  if (isPro(plan) || isTeam(plan)) {
+  if (isPro(plan)) {
     return getProConcurrencyLimit()
   }
 
