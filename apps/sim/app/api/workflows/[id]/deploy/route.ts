@@ -1,4 +1,4 @@
-import { db, workflowDeploymentVersion } from '@sim/db'
+import { db, workflow, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
