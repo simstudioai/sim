@@ -264,7 +264,7 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
                         disabled={isVerifyingOtp}
                         className={cn('gap-2', authError && 'otp-error')}
                       >
-                        <InputOTPGroup className='[&>div]:!rounded-[10px] gap-2'>
+                        <InputOTPGroup>
                           {[0, 1, 2, 3, 4, 5].map((index) => (
                             <InputOTPSlot
                               key={index}

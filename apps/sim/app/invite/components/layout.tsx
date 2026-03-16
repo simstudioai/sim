@@ -10,7 +10,7 @@ interface InviteLayoutProps {
 export default function InviteLayout({ children }: InviteLayoutProps) {
   return (
     <div className='relative flex min-h-screen flex-col bg-[#1C1C1C] font-[430] font-season text-[#ECECEC]'>
-      <header>
+      <header className='shrink-0'>
         <Navbar logoOnly />
       </header>
       <main className='flex flex-1 flex-col items-center justify-center px-4'>

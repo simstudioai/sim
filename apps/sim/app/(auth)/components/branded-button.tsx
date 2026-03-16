@@ -50,6 +50,7 @@ export const BrandedButton = forwardRef<HTMLButtonElement, BrandedButtonProps>(
     return (
       <button
         ref={ref}
+        {...props}
         disabled={disabled || loading}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -73,7 +74,6 @@ export const BrandedButton = forwardRef<HTMLButtonElement, BrandedButtonProps>(
               }
             : undefined
         }
-        {...props}
       >
         {loading ? (
           <span className='flex items-center gap-2'>
