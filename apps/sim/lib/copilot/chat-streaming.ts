@@ -174,6 +174,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
       try {
         await orchestrateCopilotStream(requestPayload, {
           ...orchestrateOptions,
+          interactive: true,
           abortSignal: abortController.signal,
           onEvent: async (event) => {
             await pushEvent(event)
