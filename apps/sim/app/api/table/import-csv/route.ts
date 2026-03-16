@@ -225,7 +225,7 @@ export async function POST(request: NextRequest) {
         const batch = coerced.slice(i, i + MAX_BATCH_SIZE)
         const batchRequestId = crypto.randomUUID().slice(0, 8)
         const result = await batchInsertRows(
-          { tableId: table.id, rows: batch, workspaceId },
+          { tableId: table.id, rows: batch, workspaceId, userId: authResult.userId },
           table,
           batchRequestId
         )
