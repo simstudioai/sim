@@ -162,6 +162,7 @@ export type ContentBlockType =
 export interface ContentBlock {
   type: ContentBlockType
   content?: string
+  subagent?: string
   toolCall?: ToolCallInfo
   options?: OptionItem[]
 }

@@ -513,11 +513,10 @@ export function useChat(
       streamingContentRef.current = ''
       streamingBlocksRef.current = []
 
-      const ensureTextBlock = (subagent?: boolean): ContentBlock => {
-        const wantType = subagent ? 'subagent_text' : 'text'
+      const ensureTextBlock = (): ContentBlock => {
         const last = blocks[blocks.length - 1]
-        if (last?.type === wantType) return last
-        const b: ContentBlock = { type: wantType, content: '' }
+        if (last?.type === 'text') return last
+        const b: ContentBlock = { type: 'text', content: '' }
         blocks.push(b)
         return b
       }
@@ -608,9 +607,10 @@ export function useChat(
                   lastContentSource !== contentSource &&
                   runningText.length > 0 &&
                   !runningText.endsWith('\n')
-                const tb = ensureTextBlock(!!activeSubagent)
+                const tb = ensureTextBlock()
                 const normalizedChunk = needsBoundaryNewline ? `\n${chunk}` : chunk
                 tb.content = (tb.content ?? '') + normalizedChunk
+                if (activeSubagent) tb.subagent = activeSubagent
                 runningText += normalizedChunk
                 lastContentSource = contentSource
                 streamingContentRef.current = runningText
