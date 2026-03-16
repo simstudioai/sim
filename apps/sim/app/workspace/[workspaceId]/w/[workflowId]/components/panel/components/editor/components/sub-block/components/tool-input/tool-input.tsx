@@ -59,12 +59,8 @@ import {
   useMcpToolsEvents,
   useStoredMcpTools,
 } from '@/hooks/queries/mcp'
-import {
-  useChildDeploymentStatus,
-  useDeployChildWorkflow,
-  useWorkflowState,
-  useWorkflows,
-} from '@/hooks/queries/workflows'
+import { useDeploymentInfo, useDeployWorkflow } from '@/hooks/queries/deployments'
+import { useWorkflowState, useWorkflows } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -210,12 +206,12 @@ function WorkflowToolDeployBadge({
   workflowId: string
   onDeploySuccess?: () => void
 }) {
-  const { data, isLoading } = useChildDeploymentStatus(workflowId)
-  const deployMutation = useDeployChildWorkflow()
+  const { data, isLoading } = useDeploymentInfo(workflowId)
+  const deployMutation = useDeployWorkflow()
   const userPermissions = useUserPermissionsContext()
 
   const isDeployed = data?.isDeployed ?? null
-  const needsRedeploy = data?.needsRedeploy ?? false
+  const needsRedeploy = data?.needsRedeployment ?? false
   const isDeploying = deployMutation.isPending
 
   const deployWorkflow = useCallback(() => {

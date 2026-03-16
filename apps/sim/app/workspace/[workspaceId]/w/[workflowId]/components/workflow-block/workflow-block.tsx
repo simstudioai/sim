@@ -45,7 +45,7 @@ import { useCredentialName } from '@/hooks/queries/oauth/oauth-credentials'
 import { useReactivateSchedule, useScheduleInfo } from '@/hooks/queries/schedules'
 import { useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
-import { useDeployChildWorkflow } from '@/hooks/queries/workflows'
+import { useDeployWorkflow } from '@/hooks/queries/deployments'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
 import { useVariablesStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -918,7 +918,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     data.subBlockValues
   )
 
-  const { mutate: deployChildWorkflow, isPending: isDeploying } = useDeployChildWorkflow()
+  const { mutate: deployChildWorkflow, isPending: isDeploying } = useDeployWorkflow()
 
   const userPermissions = useUserPermissionsContext()
 

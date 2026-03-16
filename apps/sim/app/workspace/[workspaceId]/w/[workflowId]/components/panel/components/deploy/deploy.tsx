@@ -6,10 +6,10 @@ import { Button, Tooltip } from '@/components/emcn'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {
   useChangeDetection,
-  useDeployedState,
   useDeployment,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
+import { useDeployedWorkflowState, useDeploymentInfo } from '@/hooks/queries/deployments'
 import type { WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -38,24 +38,32 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
   )
   const isDeployed = deploymentStatus?.isDeployed || false
 
-  // Fetch and manage deployed state
-  const { deployedState, isLoadingDeployedState, refetchDeployedState } = useDeployedState({
-    workflowId: activeWorkflowId,
-    isDeployed,
-    isRegistryLoading,
-  })
+  // Server-side deployment info (authoritative source for needsRedeployment)
+  const { data: deploymentInfoData, isLoading: isLoadingDeploymentInfo } = useDeploymentInfo(
+    activeWorkflowId,
+    { enabled: isDeployed && !isRegistryLoading }
+  )
+
+  // Fetch deployed state snapshot for change detection and modal
+  const isDeployedStateEnabled = Boolean(activeWorkflowId) && isDeployed && !isRegistryLoading
+  const { data: deployedStateData, isLoading: isLoadingDeployedState } = useDeployedWorkflowState(
+    activeWorkflowId,
+    { enabled: isDeployedStateEnabled }
+  )
+  const deployedState = isDeployedStateEnabled ? (deployedStateData ?? null) : null
 
   const { changeDetected } = useChangeDetection({
     workflowId: activeWorkflowId,
     deployedState,
     isLoadingDeployedState,
+    serverNeedsRedeployment: deploymentInfoData?.needsRedeployment,
+    isServerLoading: isLoadingDeploymentInfo,
   })
 
   // Handle deployment operations
   const { isDeploying, handleDeployClick } = useDeployment({
     workflowId: activeWorkflowId,
     isDeployed,
-    refetchDeployedState,
   })
 
   const isEmpty = !hasBlocks()
@@ -122,7 +130,6 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
         needsRedeployment={changeDetected}
         deployedState={deployedState!}
         isLoadingDeployedState={isLoadingDeployedState}
-        refetchDeployedState={refetchDeployedState}
       />
     </>
   )

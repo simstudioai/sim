@@ -1,6 +1,8 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison'
 import { mergeSubblockStateWithValues } from '@/lib/workflows/subblocks'
+import { deploymentKeys } from '@/hooks/queries/deployments'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -10,21 +12,34 @@ interface UseChangeDetectionProps {
   workflowId: string | null
   deployedState: WorkflowState | null
   isLoadingDeployedState: boolean
+  serverNeedsRedeployment: boolean | undefined
+  isServerLoading: boolean
 }
 
 /**
  * Detects meaningful changes between current workflow state and deployed state.
- * Performs comparison entirely on the client - no API calls needed.
+ *
+ * Uses the server-side needsRedeployment (from useDeploymentInfo) as the
+ * authoritative signal. The server compares the persisted DB state to the
+ * deployed version state, which avoids false positives from client-side
+ * representation differences.
+ *
+ * When the workflow store is updated (e.g. after auto-save), the deployment
+ * info query is invalidated so the server can recheck for changes.
  */
 export function useChangeDetection({
   workflowId,
   deployedState,
   isLoadingDeployedState,
+  serverNeedsRedeployment,
+  isServerLoading,
 }: UseChangeDetectionProps) {
+  const queryClient = useQueryClient()
   const blocks = useWorkflowStore((state) => state.blocks)
   const edges = useWorkflowStore((state) => state.edges)
   const loops = useWorkflowStore((state) => state.loops)
   const parallels = useWorkflowStore((state) => state.parallels)
+  const lastSaved = useWorkflowStore((state) => state.lastSaved)
   const subBlockValues = useSubBlockStore((state) =>
     workflowId ? state.workflowValues[workflowId] : null
   )
@@ -40,8 +55,47 @@ export function useChangeDetection({
     return vars
   }, [workflowId, allVariables])
 
+  // Track initial lastSaved to detect saves after load.
+  // Debounced to avoid redundant API calls during rapid auto-saves.
+  const initialLastSavedRef = useRef<number | undefined>(undefined)
+
+  useEffect(() => {
+    if (lastSaved !== undefined && initialLastSavedRef.current === undefined) {
+      initialLastSavedRef.current = lastSaved
+      return
+    }
+
+    if (
+      lastSaved === undefined ||
+      initialLastSavedRef.current === undefined ||
+      lastSaved === initialLastSavedRef.current ||
+      !workflowId
+    ) {
+      return
+    }
+
+    initialLastSavedRef.current = lastSaved
+
+    const timer = setTimeout(() => {
+      queryClient.invalidateQueries({
+        queryKey: deploymentKeys.info(workflowId),
+      })
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [lastSaved, workflowId, queryClient])
+
+  // Reset tracking when workflow changes
+  useEffect(() => {
+    initialLastSavedRef.current = undefined
+  }, [workflowId])
+
+  // Skip expensive state merge when server result is available (the common path).
+  // Only build currentState for the client-side fallback comparison.
+  const needsClientFallback = serverNeedsRedeployment === undefined && !isServerLoading
+
   const currentState = useMemo((): WorkflowState | null => {
-    if (!workflowId) return null
+    if (!needsClientFallback || !workflowId) return null
 
     const mergedBlocks = mergeSubblockStateWithValues(blocks, subBlockValues ?? {})
 
@@ -52,14 +106,24 @@ export function useChangeDetection({
       parallels,
       variables: workflowVariables,
     } as WorkflowState & { variables: Record<string, any> }
-  }, [workflowId, blocks, edges, loops, parallels, subBlockValues, workflowVariables])
+  }, [needsClientFallback, workflowId, blocks, edges, loops, parallels, subBlockValues, workflowVariables])
 
   const changeDetected = useMemo(() => {
-    if (!currentState || !deployedState || isLoadingDeployedState) {
-      return false
+    if (isServerLoading) return false
+
+    if (serverNeedsRedeployment !== undefined) {
+      return serverNeedsRedeployment
     }
+
+    if (!currentState || !deployedState || isLoadingDeployedState) return false
     return hasWorkflowChanged(currentState, deployedState)
-  }, [currentState, deployedState, isLoadingDeployedState])
+  }, [
+    currentState,
+    deployedState,
+    isLoadingDeployedState,
+    serverNeedsRedeployment,
+    isServerLoading,
+  ])
 
   return { changeDetected }
 }
