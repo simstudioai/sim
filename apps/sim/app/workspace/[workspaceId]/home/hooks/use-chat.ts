@@ -12,6 +12,7 @@ import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resource-types'
 import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import { deploymentKeys } from '@/hooks/queries/deployments'
 import {
   type TaskChatHistory,
   type TaskStoredContentBlock,
@@ -21,6 +22,7 @@ import {
   taskKeys,
   useChatHistory,
 } from '@/hooks/queries/tasks'
+import { workflowKeys } from '@/hooks/queries/workflows'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
@@ -73,6 +75,8 @@ const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
   rejected: 'error',
   skipped: 'success',
 } as const
+
+const DEPLOY_TOOL_NAMES = new Set(['deploy_api', 'deploy_chat', 'deploy_mcp', 'redeploy'])
 
 function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
   const mapped: ContentBlock = {
@@ -286,13 +290,6 @@ export function useChat(
   const streamingBlocksRef = useRef<ContentBlock[]>([])
   const executionStream = useExecutionStream()
   const isHomePage = pathname.endsWith('/home')
-
-  useEffect(() => {
-    return () => {
-      abortControllerRef.current?.abort()
-      abortControllerRef.current = null
-    }
-  }, [])
 
   const { data: chatHistory } = useChatHistory(initialChatId)
 
@@ -694,6 +691,30 @@ export function useChat(
                   )
                   if (resource && addResource(resource)) {
                     onResourceEventRef.current?.()
+                  }
+                }
+
+                if (DEPLOY_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
+                  const output = tc.result?.output as Record<string, unknown> | undefined
+                  const deployedWorkflowId = (output?.workflowId as string) ?? undefined
+                  if (deployedWorkflowId) {
+                    const isDeployed = output?.isDeployed !== false
+                    useWorkflowRegistry
+                      .getState()
+                      .setDeploymentStatus(
+                        deployedWorkflowId,
+                        isDeployed,
+                        isDeployed ? new Date() : undefined
+                      )
+                    queryClient.invalidateQueries({
+                      queryKey: deploymentKeys.info(deployedWorkflowId),
+                    })
+                    queryClient.invalidateQueries({
+                      queryKey: deploymentKeys.versions(deployedWorkflowId),
+                    })
+                    queryClient.invalidateQueries({
+                      queryKey: workflowKeys.list(workspaceId),
+                    })
                   }
                 }
               }
