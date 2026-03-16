@@ -931,8 +931,9 @@ export function Table({
         const lines: string[] = []
         for (const pos of sorted) {
           const row = pMap.get(pos)
+          if (!row) continue
           const cells: string[] = cols.map((col) => {
-            const value: unknown = row ? row.data[col.name] : null
+            const value: unknown = row.data[col.name]
             if (value === null || value === undefined) return ''
             return typeof value === 'object' ? JSON.stringify(value) : String(value)
           })
