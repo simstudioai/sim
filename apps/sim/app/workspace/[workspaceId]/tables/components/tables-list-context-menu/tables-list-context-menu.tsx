@@ -5,6 +5,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  Upload,
 } from '@/components/emcn'
 import { Plus } from '@/components/emcn/icons'
 
@@ -13,7 +14,9 @@ interface TablesListContextMenuProps {
   position: { x: number; y: number }
   onClose: () => void
   onCreateTable?: () => void
+  onUploadCsv?: () => void
   disableCreate?: boolean
+  disableUpload?: boolean
 }
 
 export function TablesListContextMenu({
@@ -21,7 +24,9 @@ export function TablesListContextMenu({
   position,
   onClose,
   onCreateTable,
+  onUploadCsv,
   disableCreate = false,
+  disableUpload = false,
 }: TablesListContextMenuProps) {
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -49,6 +54,12 @@ export function TablesListContextMenu({
           <DropdownMenuItem disabled={disableCreate} onSelect={onCreateTable}>
             <Plus />
             Create table
+          </DropdownMenuItem>
+        )}
+        {onUploadCsv && (
+          <DropdownMenuItem disabled={disableUpload} onSelect={onUploadCsv}>
+            <Upload />
+            Upload CSV
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

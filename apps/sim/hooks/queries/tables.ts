@@ -2,8 +2,11 @@
  * React Query hooks for managing user-defined tables.
  */
 
+import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Filter, RowData, Sort, TableDefinition, TableMetadata, TableRow } from '@/lib/table'
+
+const logger = createLogger('TableQueries')
 
 type TableQueryScope = 'active' | 'archived' | 'all'
 
@@ -731,6 +734,45 @@ export function useRestoreTable() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+    },
+  })
+}
+
+interface UploadCsvParams {
+  workspaceId: string
+  file: File
+}
+
+/**
+ * Upload a CSV file to create a new table with inferred schema.
+ */
+export function useUploadCsvToTable() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ workspaceId, file }: UploadCsvParams) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('workspaceId', workspaceId)
+
+      const response = await fetch('/api/table/import-csv', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await response.json()
+
+      if (!data.success) {
+        throw new Error(data.error || 'CSV import failed')
+      }
+
+      return data
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+    },
+    onError: (error) => {
+      logger.error('Failed to upload CSV:', error)
     },
   })
 }

@@ -1,9 +1,17 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
-import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
+import {
+  Button,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  Upload,
+} from '@/components/emcn'
 import { Columns3, Rows3, Table as TableIcon } from '@/components/emcn/icons'
 import type { TableDefinition } from '@/lib/table'
 import { generateUniqueTableName } from '@/lib/table/constants'
@@ -13,7 +21,12 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { TablesListContextMenu } from '@/app/workspace/[workspaceId]/tables/components'
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { useCreateTable, useDeleteTable, useTablesList } from '@/hooks/queries/tables'
+import {
+  useCreateTable,
+  useDeleteTable,
+  useTablesList,
+  useUploadCsvToTable,
+} from '@/hooks/queries/tables'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 
 const logger = createLogger('Tables')
@@ -41,10 +54,14 @@ export function Tables() {
   }
   const deleteTable = useDeleteTable(workspaceId)
   const createTable = useCreateTable(workspaceId)
+  const uploadCsv = useUploadCsvToTable()
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [activeTable, setActiveTable] = useState<TableDefinition | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
+  const csvInputRef = useRef<HTMLInputElement>(null)
 
   const {
     isOpen: isListContextMenuOpen,
@@ -140,6 +157,66 @@ export function Tables() {
     }
   }
 
+  const handleCsvChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const list = e.target.files
+      if (!list || list.length === 0 || !workspaceId) return
+
+      try {
+        setUploading(true)
+
+        const csvFiles = Array.from(list).filter((f) => {
+          const ext = f.name.split('.').pop()?.toLowerCase()
+          return ext === 'csv' || ext === 'tsv'
+        })
+
+        if (csvFiles.length === 0) {
+          logger.warn('No CSV/TSV files selected')
+          return
+        }
+
+        setUploadProgress({ completed: 0, total: csvFiles.length })
+
+        for (let i = 0; i < csvFiles.length; i++) {
+          try {
+            const result = await uploadCsv.mutateAsync({ workspaceId, file: csvFiles[i] })
+            setUploadProgress({ completed: i + 1, total: csvFiles.length })
+
+            if (csvFiles.length === 1) {
+              const tableId = result?.data?.table?.id
+              if (tableId) {
+                router.push(`/workspace/${workspaceId}/tables/${tableId}`)
+              }
+            }
+          } catch (err) {
+            logger.error('Error uploading CSV:', err)
+          }
+        }
+      } catch (err) {
+        logger.error('Error uploading CSV:', err)
+      } finally {
+        setUploading(false)
+        setUploadProgress({ completed: 0, total: 0 })
+        if (csvInputRef.current) {
+          csvInputRef.current.value = ''
+        }
+      }
+    },
+    [workspaceId, router]
+  )
+
+  const handleListUploadCsv = useCallback(() => {
+    csvInputRef.current?.click()
+    closeListContextMenu()
+  }, [closeListContextMenu])
+
+  const uploadButtonLabel =
+    uploading && uploadProgress.total > 0
+      ? `${uploadProgress.completed}/${uploadProgress.total}`
+      : uploading
+        ? 'Uploading...'
+        : 'Upload CSV'
+
   const handleCreateTable = useCallback(async () => {
     const existingNames = tables.map((t) => t.name)
     const name = generateUniqueTableName(existingNames)
@@ -168,7 +245,7 @@ export function Tables() {
         create={{
           label: 'New table',
           onClick: handleCreateTable,
-          disabled: userPermissions.canEdit !== true || createTable.isPending,
+          disabled: uploading || userPermissions.canEdit !== true || createTable.isPending,
         }}
         search={{
           value: searchTerm,
@@ -176,6 +253,14 @@ export function Tables() {
           placeholder: 'Search tables...',
         }}
         defaultSort='created'
+        headerActions={[
+          {
+            label: uploadButtonLabel,
+            icon: Upload,
+            onClick: () => csvInputRef.current?.click(),
+            disabled: uploading || userPermissions.canEdit !== true,
+          },
+        ]}
         columns={COLUMNS}
         rows={rows}
         onRowClick={handleRowClick}
@@ -184,12 +269,24 @@ export function Tables() {
         onContextMenu={handleContentContextMenu}
       />
 
+      <input
+        ref={csvInputRef}
+        type='file'
+        className='hidden'
+        onChange={handleCsvChange}
+        disabled={uploading}
+        accept='.csv,.tsv'
+        multiple
+      />
+
       <TablesListContextMenu
         isOpen={isListContextMenuOpen}
         position={listContextMenuPosition}
         onClose={closeListContextMenu}
         onCreateTable={handleCreateTable}
+        onUploadCsv={handleListUploadCsv}
         disableCreate={userPermissions.canEdit !== true || createTable.isPending}
+        disableUpload={uploading || userPermissions.canEdit !== true}
       />
 
       <TableContextMenu
