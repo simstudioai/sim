@@ -10,6 +10,7 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  toast,
   Upload,
 } from '@/components/emcn'
 import { Columns3, Rows3, Table as TableIcon } from '@/components/emcn/icons'
@@ -171,11 +172,12 @@ export function Tables() {
         })
 
         if (csvFiles.length === 0) {
-          logger.warn('No CSV/TSV files selected')
+          toast.error('No CSV or TSV files selected')
           return
         }
 
         setUploadProgress({ completed: 0, total: csvFiles.length })
+        const failed: string[] = []
 
         for (let i = 0; i < csvFiles.length; i++) {
           try {
@@ -189,11 +191,21 @@ export function Tables() {
               }
             }
           } catch (err) {
+            failed.push(csvFiles[i].name)
             logger.error('Error uploading CSV:', err)
           }
         }
+
+        if (failed.length > 0) {
+          toast.error(
+            failed.length === 1
+              ? `Failed to import ${failed[0]}`
+              : `Failed to import ${failed.length} file${failed.length > 1 ? 's' : ''}: ${failed.join(', ')}`
+          )
+        }
       } catch (err) {
         logger.error('Error uploading CSV:', err)
+        toast.error('Failed to import CSV')
       } finally {
         setUploading(false)
         setUploadProgress({ completed: 0, total: 0 })

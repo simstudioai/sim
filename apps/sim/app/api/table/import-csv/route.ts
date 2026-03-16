@@ -14,13 +14,15 @@ import { normalizeColumn } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportCSV')
 
+const MAX_CSV_FILE_SIZE = 50 * 1024 * 1024
 const MAX_BATCH_SIZE = 1000
 const SCHEMA_SAMPLE_SIZE = 100
 
 type ColumnType = 'string' | 'number' | 'boolean' | 'date'
 
 async function parseCsvBuffer(
-  buffer: Buffer
+  buffer: Buffer,
+  delimiter = ','
 ): Promise<{ headers: string[]; rows: Record<string, unknown>[] }> {
   const { parse } = await import('csv-parse/sync')
   const parsed = parse(buffer.toString('utf-8'), {
@@ -31,6 +33,7 @@ async function parseCsvBuffer(
     relax_quotes: true,
     skip_records_with_error: true,
     cast: false,
+    delimiter,
   }) as Record<string, unknown>[]
 
   if (parsed.length === 0) {
@@ -121,8 +124,10 @@ function coerceValue(value: unknown, colType: ColumnType): string | number | boo
       const s = String(value).toLowerCase()
       return s === 'true'
     }
-    case 'date':
-      return new Date(String(value)).toISOString()
+    case 'date': {
+      const d = new Date(String(value))
+      return Number.isNaN(d.getTime()) ? String(value) : d.toISOString()
+    }
     default:
       return String(value)
   }
@@ -164,6 +169,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'CSV file is required' }, { status: 400 })
     }
 
+    if (file.size > MAX_CSV_FILE_SIZE) {
+      return NextResponse.json(
+        { error: `File exceeds maximum allowed size of ${MAX_CSV_FILE_SIZE / (1024 * 1024)} MB` },
+        { status: 400 }
+      )
+    }
+
     if (!workspaceId) {
       return NextResponse.json({ error: 'Workspace ID is required' }, { status: 400 })
     }
@@ -179,7 +191,8 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const { headers, rows } = await parseCsvBuffer(buffer)
+    const delimiter = ext === 'tsv' ? '\t' : ','
+    const { headers, rows } = await parseCsvBuffer(buffer, delimiter)
 
     const columns = inferSchema(headers, rows)
     const headerToColumn = new Map(headers.map((h, i) => [h, columns[i].name]))
