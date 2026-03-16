@@ -48,7 +48,11 @@ export async function checkNeedsRedeployment(workflowId: string): Promise<boolea
 
   const [normalizedData, [workflowRecord]] = await Promise.all([
     loadWorkflowFromNormalizedTables(workflowId),
-    db.select({ variables: workflow.variables }).from(workflow).where(eq(workflow.id, workflowId)).limit(1),
+    db
+      .select({ variables: workflow.variables })
+      .from(workflow)
+      .where(eq(workflow.id, workflowId))
+      .limit(1),
   ])
   if (!normalizedData) return false
 

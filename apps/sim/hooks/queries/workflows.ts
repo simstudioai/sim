@@ -3,12 +3,12 @@ import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
+import { deploymentKeys } from '@/hooks/queries/deployments'
 import {
   createOptimisticMutationHandlers,
   generateTempId,
 } from '@/hooks/queries/utils/optimistic-mutation'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
-import { deploymentKeys } from '@/hooks/queries/deployments'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
