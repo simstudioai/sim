@@ -16,7 +16,6 @@ export class MemoryWorkspaceDispatchStorage implements WorkspaceDispatchStorageA
   private workspaceOrder: string[] = []
   private laneQueues = new Map<string, string[]>()
   private leases = new Map<string, Map<string, number>>()
-  private sequence = 0
   private cleanupInterval: NodeJS.Timeout | null = null
 
   constructor() {
@@ -296,7 +295,20 @@ export class MemoryWorkspaceDispatchStorage implements WorkspaceDispatchStorageA
   }
 
   async popNextWorkspaceId(): Promise<string | null> {
-    return this.workspaceOrder.shift() ?? null
+    const now = Date.now()
+    const maxScans = this.workspaceOrder.length
+    for (let i = 0; i < maxScans; i++) {
+      const id = this.workspaceOrder.shift()
+      if (!id) return null
+      const readyAt = this.workspaceReadyAt.get(id)
+      if (readyAt && readyAt > now) {
+        this.workspaceOrder.push(id)
+        continue
+      }
+      this.workspaceReadyAt.delete(id)
+      return id
+    }
+    return null
   }
 
   async getQueuedWorkspaceCount(): Promise<number> {
@@ -307,7 +319,12 @@ export class MemoryWorkspaceDispatchStorage implements WorkspaceDispatchStorageA
     return this.workspaceOrder.includes(workspaceId)
   }
 
-  async ensureWorkspaceActive(workspaceId: string): Promise<void> {
+  private workspaceReadyAt = new Map<string, number>()
+
+  async ensureWorkspaceActive(workspaceId: string, readyAt?: number): Promise<void> {
+    if (readyAt && readyAt > Date.now()) {
+      this.workspaceReadyAt.set(workspaceId, readyAt)
+    }
     this.ensureWorkspaceQueued(workspaceId)
   }
 
@@ -473,6 +490,7 @@ export class MemoryWorkspaceDispatchStorage implements WorkspaceDispatchStorageA
     this.workspaceOrder = []
     this.laneQueues.clear()
     this.leases.clear()
+    this.workspaceReadyAt.clear()
   }
 
   dispose(): void {

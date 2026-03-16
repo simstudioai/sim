@@ -501,15 +501,15 @@ export type NotificationDeliveryResult =
   | { status: 'retry'; retryDelayMs: number }
 
 async function buildRetryLog(params: NotificationDeliveryParams): Promise<WorkflowExecutionLog> {
+  const conditions = [eq(workflowExecutionLogs.executionId, params.log.executionId)]
+  if (params.log.workflowId) {
+    conditions.push(eq(workflowExecutionLogs.workflowId, params.log.workflowId))
+  }
+
   const [storedLog] = await db
     .select()
     .from(workflowExecutionLogs)
-    .where(
-      and(
-        eq(workflowExecutionLogs.executionId, params.log.executionId),
-        eq(workflowExecutionLogs.workflowId, params.log.workflowId!)
-      )
-    )
+    .where(and(...conditions))
     .limit(1)
 
   if (storedLog) {
