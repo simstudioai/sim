@@ -329,7 +329,8 @@ async function enqueueDirectWorkflowExecution(
  * Supports both SSE streaming (for interactive/manual runs) and direct JSON responses (for background jobs).
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!hasExternalApiCredentials(req.headers)) {
+  const isSessionRequest = req.headers.has('cookie') && !hasExternalApiCredentials(req.headers)
+  if (isSessionRequest) {
     return handleExecutePost(req, params)
   }
 
