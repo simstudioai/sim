@@ -74,7 +74,8 @@ If you discover a bug or have a feature request, please open an issue in our Git
   - **documentation:** Improvements or updates to documentation.
   - **feature:** New feature or request.
 
-> **Note:** If you're uncertain which label to use, mention it in your issue description and we'll help categorize it.
+> [!NOTE]
+> If you're uncertain which label to use, mention it in your issue description and we'll help categorize it.
 
 ---
 
@@ -238,6 +239,9 @@ If you prefer not to use Docker or Dev Containers:
      cd apps/sim
      ```
    - Copy `.env.example` to `.env`
+      ```bash
+      cp .env.example .env
+      ```
    - Configure required variables (DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL)
 
 3. **Set Up Database:**
