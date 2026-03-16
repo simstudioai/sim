@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     }
 
     const currentUser = await db
-      .select({ isSuperUser: user.isSuperUser })
+      .select({ role: user.role })
       .from(user)
       .where(eq(user.id, session.user.id))
       .limit(1)
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      isSuperUser: currentUser[0].isSuperUser,
+      isSuperUser: currentUser[0].role === 'admin',
     })
   } catch (error) {
     logger.error(`[${requestId}] Error checking super user status`, error)

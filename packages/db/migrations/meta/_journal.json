@@ -1233,6 +1233,13 @@
       "when": 1773574710090,
       "tag": "0176_clear_luckman",
       "breakpoints": true
+    },
+    {
+      "idx": 177,
+      "version": "7",
+      "when": 1773698715278,
+      "tag": "0177_wise_puma",
+      "breakpoints": true
     }
   ]
 }
