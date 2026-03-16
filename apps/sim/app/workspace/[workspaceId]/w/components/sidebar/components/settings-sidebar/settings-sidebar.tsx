@@ -123,6 +123,10 @@ export function SettingsSidebar({
         return false
       }
 
+      if (item.requiresAdminRole && !isSuperUser) {
+        return false
+      }
+
       return true
     })
   }, [
