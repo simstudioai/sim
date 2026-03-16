@@ -51,13 +51,13 @@ export function useChildWorkflow(
     }
   }
 
-  const { data, isLoading, isPending } = useDeploymentInfo(
+  const { data, isPending } = useDeploymentInfo(
     isWorkflowSelector ? (childWorkflowId ?? null) : null
   )
 
   const childIsDeployed = data?.isDeployed ?? null
   const childNeedsRedeploy = data?.needsRedeployment ?? false
-  const isLoadingChildVersion = isLoading || isPending
+  const isLoadingChildVersion = isPending
 
   return {
     childWorkflowId,

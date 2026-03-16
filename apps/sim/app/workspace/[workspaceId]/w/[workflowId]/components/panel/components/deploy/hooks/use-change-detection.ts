@@ -58,6 +58,14 @@ export function useChangeDetection({
   // Track initial lastSaved to detect saves after load.
   // Debounced to avoid redundant API calls during rapid auto-saves.
   const initialLastSavedRef = useRef<number | undefined>(undefined)
+  const workflowIdRef = useRef(workflowId)
+
+  // Reset tracking when workflow changes — must run before the lastSaved effect
+  // to prevent spurious invalidation with a stale ref during workflow switches.
+  useEffect(() => {
+    workflowIdRef.current = workflowId
+    initialLastSavedRef.current = undefined
+  }, [workflowId])
 
   useEffect(() => {
     if (lastSaved !== undefined && initialLastSavedRef.current === undefined) {
@@ -76,19 +84,16 @@ export function useChangeDetection({
 
     initialLastSavedRef.current = lastSaved
 
+    const capturedWorkflowId = workflowId
     const timer = setTimeout(() => {
+      if (workflowIdRef.current !== capturedWorkflowId) return
       queryClient.invalidateQueries({
-        queryKey: deploymentKeys.info(workflowId),
+        queryKey: deploymentKeys.info(capturedWorkflowId),
       })
     }, 500)
 
     return () => clearTimeout(timer)
   }, [lastSaved, workflowId, queryClient])
-
-  // Reset tracking when workflow changes
-  useEffect(() => {
-    initialLastSavedRef.current = undefined
-  }, [workflowId])
 
   // Skip expensive state merge when server result is available (the common path).
   // Only build currentState for the client-side fallback comparison.
@@ -106,7 +111,16 @@ export function useChangeDetection({
       parallels,
       variables: workflowVariables,
     } as WorkflowState & { variables: Record<string, any> }
-  }, [needsClientFallback, workflowId, blocks, edges, loops, parallels, subBlockValues, workflowVariables])
+  }, [
+    needsClientFallback,
+    workflowId,
+    blocks,
+    edges,
+    loops,
+    parallels,
+    subBlockValues,
+    workflowVariables,
+  ])
 
   const changeDetected = useMemo(() => {
     if (isServerLoading) return false

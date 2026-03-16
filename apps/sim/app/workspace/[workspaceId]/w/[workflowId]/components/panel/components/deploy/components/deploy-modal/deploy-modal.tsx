@@ -59,7 +59,7 @@ interface DeployModalProps {
   workflowId: string | null
   isDeployed: boolean
   needsRedeployment: boolean
-  deployedState: WorkflowState
+  deployedState?: WorkflowState | null
   isLoadingDeployedState: boolean
 }
 

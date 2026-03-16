@@ -15,11 +15,8 @@ interface UseDeploymentProps {
  * First deploy: runs pre-deploy checks, then deploys via mutation and opens modal.
  * Already deployed: opens modal directly (validation happens on Update in modal).
  */
-export function useDeployment({
-  workflowId,
-  isDeployed,
-}: UseDeploymentProps) {
-  const deployMutation = useDeployWorkflow()
+export function useDeployment({ workflowId, isDeployed }: UseDeploymentProps) {
+  const { mutateAsync, isPending: isDeploying } = useDeployWorkflow()
   const addNotification = useNotificationStore((state) => state.addNotification)
 
   const handleDeployClick = useCallback(async () => {
@@ -48,7 +45,7 @@ export function useDeployment({
     }
 
     try {
-      await deployMutation.mutateAsync({ workflowId, deployChatEnabled: false })
+      await mutateAsync({ workflowId, deployChatEnabled: false })
       return { success: true, shouldOpenModal: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to deploy workflow'
@@ -59,11 +56,10 @@ export function useDeployment({
       })
       return { success: false, shouldOpenModal: false }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutateAsync is a stable reference
-  }, [workflowId, isDeployed, addNotification])
+  }, [workflowId, isDeployed, addNotification, mutateAsync])
 
   return {
-    isDeploying: deployMutation.isPending,
+    isDeploying,
     handleDeployClick,
   }
 }

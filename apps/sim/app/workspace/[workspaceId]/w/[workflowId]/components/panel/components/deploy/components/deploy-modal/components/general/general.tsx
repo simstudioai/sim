@@ -26,7 +26,7 @@ const logger = createLogger('GeneralDeploy')
 
 interface GeneralDeployProps {
   workflowId: string | null
-  deployedState: WorkflowState
+  deployedState?: WorkflowState | null
   isLoadingDeployedState: boolean
   versions: WorkflowDeploymentVersionResponse[]
   versionsLoading: boolean

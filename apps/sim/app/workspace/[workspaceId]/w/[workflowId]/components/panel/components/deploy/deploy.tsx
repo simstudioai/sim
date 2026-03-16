@@ -128,7 +128,7 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
         workflowId={activeWorkflowId}
         isDeployed={isDeployed}
         needsRedeployment={changeDetected}
-        deployedState={deployedState!}
+        deployedState={deployedState}
         isLoadingDeployedState={isLoadingDeployedState}
       />
     </>
