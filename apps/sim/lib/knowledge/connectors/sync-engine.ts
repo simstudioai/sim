@@ -8,11 +8,13 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
+import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import {
+  dispatchDocumentProcessingJob,
   hardDeleteDocuments,
   isTriggerAvailable,
-  processDocumentAsync,
 } from '@/lib/knowledge/documents/service'
 import { StorageService } from '@/lib/uploads'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
@@ -131,8 +133,7 @@ export function resolveTagMapping(
 }
 
 /**
- * Dispatch a connector sync — uses Trigger.dev when available,
- * otherwise falls back to direct executeSync.
+ * Dispatch a connector sync using the configured background execution backend.
  */
 export async function dispatchSync(
   connectorId: string,
@@ -147,6 +148,38 @@ export async function dispatchSync(
       requestId,
     })
     logger.info(`Dispatched connector sync to Trigger.dev`, { connectorId, requestId })
+  } else if (isBullMQEnabled()) {
+    const connectorRows = await db
+      .select({
+        workspaceId: knowledgeBase.workspaceId,
+        userId: knowledgeBase.userId,
+      })
+      .from(knowledgeConnector)
+      .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
+      .where(eq(knowledgeConnector.id, connectorId))
+      .limit(1)
+
+    const workspaceId = connectorRows[0]?.workspaceId
+    const userId = connectorRows[0]?.userId
+    if (!workspaceId || !userId) {
+      throw new Error(`No workspace found for connector ${connectorId}`)
+    }
+
+    await enqueueWorkspaceDispatch({
+      workspaceId,
+      lane: 'knowledge',
+      queueName: 'knowledge-connector-sync',
+      bullmqJobName: 'knowledge-connector-sync',
+      bullmqPayload: createBullMQJobData({
+        connectorId,
+        fullSync: options?.fullSync,
+        requestId,
+      }),
+      metadata: {
+        userId,
+      },
+    })
+    logger.info(`Dispatched connector sync to BullMQ`, { connectorId, requestId })
   } else {
     executeSync(connectorId, { fullSync: options?.fullSync }).catch((error) => {
       logger.error(`Sync failed for connector ${connectorId}`, {
@@ -498,21 +531,17 @@ export async function executeSync(
     if (stuckDocs.length > 0) {
       logger.info(`Retrying ${stuckDocs.length} stuck documents`, { connectorId })
       for (const doc of stuckDocs) {
-        processDocumentAsync(
-          connector.knowledgeBaseId,
-          doc.id,
-          {
+        await dispatchDocumentProcessingJob({
+          knowledgeBaseId: connector.knowledgeBaseId,
+          documentId: doc.id,
+          docData: {
             filename: doc.filename ?? 'document.txt',
             fileUrl: doc.fileUrl ?? '',
             fileSize: doc.fileSize ?? 0,
             mimeType: 'text/plain',
           },
-          {}
-        ).catch((error) => {
-          logger.warn('Failed to retry stuck document', {
-            documentId: doc.id,
-            error: error instanceof Error ? error.message : String(error),
-          })
+          processingOptions: {},
+          requestId: `connector-retry-${connectorId}`,
         })
       }
     }
@@ -686,22 +715,17 @@ async function addDocument(
     throw error
   }
 
-  processDocumentAsync(
+  await dispatchDocumentProcessingJob({
     knowledgeBaseId,
     documentId,
-    {
+    docData: {
       filename: processingFilename,
       fileUrl,
       fileSize: contentBuffer.length,
       mimeType: 'text/plain',
     },
-    {}
-  ).catch((error) => {
-    logger.error('Failed to process connector document', {
-      documentId,
-      connectorId,
-      error: error instanceof Error ? error.message : String(error),
-    })
+    processingOptions: {},
+    requestId: `connector-sync-${connectorId}`,
   })
 }
 
@@ -807,21 +831,16 @@ async function updateDocument(
     }
   }
 
-  processDocumentAsync(
+  await dispatchDocumentProcessingJob({
     knowledgeBaseId,
-    existingDocId,
-    {
+    documentId: existingDocId,
+    docData: {
       filename: processingFilename,
       fileUrl,
       fileSize: contentBuffer.length,
       mimeType: 'text/plain',
     },
-    {}
-  ).catch((error) => {
-    logger.error('Failed to re-process updated connector document', {
-      documentId: existingDocId,
-      connectorId,
-      error: error instanceof Error ? error.message : String(error),
-    })
+    processingOptions: {},
+    requestId: `connector-sync-${connectorId}`,
   })
 }
