@@ -55,13 +55,11 @@ export function useChangeDetection({
     return vars
   }, [workflowId, allVariables])
 
-  // Track initial lastSaved to detect saves after load.
-  // Debounced to avoid redundant API calls during rapid auto-saves.
+  // Tracks the lastSaved timestamp at mount to distinguish real saves from initial hydration.
   const initialLastSavedRef = useRef<number | undefined>(undefined)
   const workflowIdRef = useRef(workflowId)
 
-  // Reset tracking when workflow changes — must run before the lastSaved effect
-  // to prevent spurious invalidation with a stale ref during workflow switches.
+  // Must run before the lastSaved effect to prevent stale-ref invalidation on workflow switch.
   useEffect(() => {
     workflowIdRef.current = workflowId
     initialLastSavedRef.current = undefined

@@ -53,13 +53,13 @@ import {
   type CustomTool as CustomToolDefinition,
   useCustomTools,
 } from '@/hooks/queries/custom-tools'
+import { useDeploymentInfo, useDeployWorkflow } from '@/hooks/queries/deployments'
 import {
   useForceRefreshMcpTools,
   useMcpServers,
   useMcpToolsEvents,
   useStoredMcpTools,
 } from '@/hooks/queries/mcp'
-import { useDeploymentInfo, useDeployWorkflow } from '@/hooks/queries/deployments'
 import { useWorkflowState, useWorkflows } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -196,9 +196,6 @@ function WorkflowInputMapperInput({
   )
 }
 
-/**
- * Badge component showing deployment status for workflow tools
- */
 function WorkflowToolDeployBadge({
   workflowId,
   onDeploySuccess,
@@ -207,17 +204,16 @@ function WorkflowToolDeployBadge({
   onDeploySuccess?: () => void
 }) {
   const { data, isLoading } = useDeploymentInfo(workflowId)
-  const deployMutation = useDeployWorkflow()
+  const { mutate, isPending: isDeploying } = useDeployWorkflow()
   const userPermissions = useUserPermissionsContext()
 
   const isDeployed = data?.isDeployed ?? null
   const needsRedeploy = data?.needsRedeployment ?? false
-  const isDeploying = deployMutation.isPending
 
   const deployWorkflow = useCallback(() => {
     if (isDeploying || !workflowId || !userPermissions.canAdmin) return
 
-    deployMutation.mutate(
+    mutate(
       { workflowId },
       {
         onSuccess: () => {
@@ -225,7 +221,7 @@ function WorkflowToolDeployBadge({
         },
       }
     )
-  }, [isDeploying, workflowId, userPermissions.canAdmin, deployMutation, onDeploySuccess])
+  }, [isDeploying, workflowId, userPermissions.canAdmin, mutate, onDeploySuccess])
 
   if (isLoading || (isDeployed && !needsRedeploy)) {
     return null

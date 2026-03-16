@@ -19,10 +19,6 @@ interface DeployProps {
   className?: string
 }
 
-/**
- * Deploy component that handles workflow deployment
- * Manages deployed state, change detection, and deployment operations
- */
 export function Deploy({ activeWorkflowId, userPermissions, className }: DeployProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const hydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
@@ -32,7 +28,6 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
     hydrationPhase === 'state-loading'
   const { hasBlocks } = useCurrentWorkflow()
 
-  // Get deployment status from registry
   const deploymentStatus = useWorkflowRegistry((state) =>
     state.getWorkflowDeploymentStatus(activeWorkflowId)
   )
@@ -44,7 +39,6 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
     { enabled: isDeployed && !isRegistryLoading }
   )
 
-  // Fetch deployed state snapshot for change detection and modal
   const isDeployedStateEnabled = Boolean(activeWorkflowId) && isDeployed && !isRegistryLoading
   const { data: deployedStateData, isLoading: isLoadingDeployedState } = useDeployedWorkflowState(
     activeWorkflowId,
@@ -60,7 +54,6 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
     isServerLoading: isLoadingDeploymentInfo,
   })
 
-  // Handle deployment operations
   const { isDeploying, handleDeployClick } = useDeployment({
     workflowId: activeWorkflowId,
     isDeployed,
@@ -79,9 +72,6 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
     }
   }
 
-  /**
-   * Get tooltip text based on current state
-   */
   const getTooltipText = () => {
     if (isEmpty) {
       return 'Cannot deploy an empty workflow'
