@@ -287,6 +287,13 @@ export function useChat(
   const executionStream = useExecutionStream()
   const isHomePage = pathname.endsWith('/home')
 
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort()
+      abortControllerRef.current = null
+    }
+  }, [])
+
   const { data: chatHistory } = useChatHistory(initialChatId)
 
   const addResource = useCallback((resource: MothershipResource): boolean => {
@@ -361,6 +368,15 @@ export function useChat(
 
   useEffect(() => {
     if (!chatHistory || appliedChatIdRef.current === chatHistory.id) return
+
+    const activeStreamId = chatHistory.activeStreamId
+    const snapshot = chatHistory.streamSnapshot
+
+    if (activeStreamId && !snapshot && !sendingRef.current) {
+      queryClient.invalidateQueries({ queryKey: taskKeys.detail(chatHistory.id) })
+      return
+    }
+
     appliedChatIdRef.current = chatHistory.id
     setMessages(chatHistory.messages.map(mapStoredMessage))
 
@@ -374,11 +390,6 @@ export function useChat(
       }
     }
 
-    // Kick off stream reconnection immediately if there's an active stream.
-    // The stream snapshot was fetched in parallel with the chat history (same
-    // API call), so there's no extra round-trip.
-    const activeStreamId = chatHistory.activeStreamId
-    const snapshot = chatHistory.streamSnapshot
     if (activeStreamId && !sendingRef.current) {
       const gen = ++streamGenRef.current
       const abortController = new AbortController()
@@ -396,8 +407,7 @@ export function useChat(
           const batchEvents = snapshot?.events ?? []
           const streamStatus = snapshot?.status ?? ''
 
-          if (!snapshot || (batchEvents.length === 0 && streamStatus === 'unknown')) {
-            // No snapshot available — stream buffer expired. Clean up.
+          if (batchEvents.length === 0 && streamStatus === 'unknown') {
             const cid = chatIdRef.current
             if (cid) {
               fetch('/api/mothership/chat/stop', {
@@ -462,7 +472,7 @@ export function useChat(
       }
       reconnect()
     }
-  }, [chatHistory, workspaceId])
+  }, [chatHistory, workspaceId, queryClient])
 
   useEffect(() => {
     if (resources.length === 0) {
