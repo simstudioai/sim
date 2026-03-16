@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { validate as uuidValidate, v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
-import { AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
+import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { getJobQueue, shouldExecuteInline, shouldUseBullMQ } from '@/lib/core/async-jobs'
 import { createBullMQJobData } from '@/lib/core/bullmq'
@@ -326,6 +326,10 @@ async function enqueueDirectWorkflowExecution(
  * Supports both SSE streaming (for interactive/manual runs) and direct JSON responses (for background jobs).
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!hasExternalApiCredentials(req.headers)) {
+    return handleExecutePost(req, params)
+  }
+
   const ticket = tryAdmit()
   if (!ticket) {
     return admissionRejectedResponse()
@@ -784,7 +788,7 @@ async function handleExecutePost(
 
       const executionVariables = cachedWorkflowData?.variables ?? workflow.variables ?? {}
 
-      if (shouldUseBullMQ()) {
+      if (shouldUseBullMQ() && triggerType !== 'manual') {
         try {
           const dispatchJobId = await enqueueDirectWorkflowExecution(
             {
@@ -799,7 +803,7 @@ async function handleExecutePost(
               timeoutMs: preprocessResult.executionTimeout?.sync,
               runFromBlock: resolvedRunFromBlock,
             },
-            triggerType === 'manual' ? 1 : 5,
+            5,
             'interactive'
           )
 
@@ -973,7 +977,8 @@ async function handleExecutePost(
     }
 
     if (shouldUseDraftState) {
-      if (shouldUseBullMQ()) {
+      const useDispatchForManual = shouldUseBullMQ() && triggerType !== 'manual'
+      if (useDispatchForManual) {
         const metadata: ExecutionMetadata = {
           requestId,
           executionId,

@@ -21,6 +21,7 @@ const {
 
 vi.mock('@/lib/auth/hybrid', () => ({
   checkHybridAuth: mockCheckHybridAuth,
+  hasExternalApiCredentials: vi.fn().mockReturnValue(true),
   AuthType: {
     SESSION: 'session',
     API_KEY: 'api_key',
