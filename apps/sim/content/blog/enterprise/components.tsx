@@ -23,8 +23,10 @@ export function ContactButton({ href, children }: ContactButtonProps) {
         alignItems: 'center',
         gap: '7px',
         borderRadius: '5px',
-        background: '#FFFFFF',
-        border: '1px solid #FFFFFF',
+        background: isHovered ? '#E0E0E0' : '#FFFFFF',
+        borderWidth: '1px',
+        borderStyle: 'solid',
+        borderColor: isHovered ? '#E0E0E0' : '#FFFFFF',
         paddingTop: '5px',
         paddingBottom: '5px',
         paddingLeft: '9px',
@@ -34,7 +36,6 @@ export function ContactButton({ href, children }: ContactButtonProps) {
         color: '#000000',
         textDecoration: 'none',
         transition: 'background 200ms, border-color 200ms',
-        ...(isHovered ? { background: '#E0E0E0', borderColor: '#E0E0E0' } : {}),
       }}
     >
       {children}
