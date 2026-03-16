@@ -34,16 +34,17 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
   const isDeployed = deploymentStatus?.isDeployed || false
 
   const isDeployedStateEnabled = Boolean(activeWorkflowId) && isDeployed && !isRegistryLoading
-  const { data: deployedStateData, isLoading: isLoadingDeployedState } = useDeployedWorkflowState(
-    activeWorkflowId,
-    { enabled: isDeployedStateEnabled }
-  )
+  const {
+    data: deployedStateData,
+    isLoading: isLoadingDeployedState,
+    isFetching: isFetchingDeployedState,
+  } = useDeployedWorkflowState(activeWorkflowId, { enabled: isDeployedStateEnabled })
   const deployedState = isDeployedStateEnabled ? (deployedStateData ?? null) : null
 
   const { changeDetected } = useChangeDetection({
     workflowId: activeWorkflowId,
     deployedState,
-    isLoadingDeployedState,
+    isLoadingDeployedState: isLoadingDeployedState || isFetchingDeployedState,
   })
 
   const { isDeploying, handleDeployClick } = useDeployment({
