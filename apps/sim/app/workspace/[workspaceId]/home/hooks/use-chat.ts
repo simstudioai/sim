@@ -22,8 +22,8 @@ import {
   taskKeys,
   useChatHistory,
 } from '@/hooks/queries/tasks'
-import { workflowKeys } from '@/hooks/queries/workflows'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
+import { workflowKeys } from '@/hooks/queries/workflows'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useFolderStore } from '@/stores/folders/store'
