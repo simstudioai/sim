@@ -89,7 +89,13 @@ export async function executeDeployChat(
       await db.delete(chat).where(eq(chat.id, existing[0].id))
       return {
         success: true,
-        output: { workflowId, success: true, action: 'undeploy', isChatDeployed: false },
+        output: {
+          workflowId,
+          success: true,
+          action: 'undeploy',
+          isDeployed: true,
+          isChatDeployed: false,
+        },
       }
     }
 
@@ -257,6 +263,8 @@ export async function executeDeployMcp(
 
       mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
 
+      // Intentionally omits `isDeployed` — removing from an MCP server does not
+      // affect the workflow's API deployment.
       return {
         success: true,
         output: { workflowId, serverId, action: 'undeploy', removed: true },
