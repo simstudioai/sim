@@ -32,18 +32,21 @@ export function createSuccessResponse(data: any) {
  * both the /deploy and /status endpoints to ensure consistent results.
  */
 export async function checkNeedsRedeployment(workflowId: string): Promise<boolean> {
-  const [[active], normalizedData, [workflowRecord]] = await Promise.all([
-    db
-      .select({ state: workflowDeploymentVersion.state })
-      .from(workflowDeploymentVersion)
-      .where(
-        and(
-          eq(workflowDeploymentVersion.workflowId, workflowId),
-          eq(workflowDeploymentVersion.isActive, true)
-        )
+  const [active] = await db
+    .select({ state: workflowDeploymentVersion.state })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        eq(workflowDeploymentVersion.isActive, true)
       )
-      .orderBy(desc(workflowDeploymentVersion.createdAt))
-      .limit(1),
+    )
+    .orderBy(desc(workflowDeploymentVersion.createdAt))
+    .limit(1)
+
+  if (!active?.state) return false
+
+  const [normalizedData, [workflowRecord]] = await Promise.all([
     loadWorkflowFromNormalizedTables(workflowId),
     db
       .select({ variables: workflow.variables })
@@ -51,8 +54,7 @@ export async function checkNeedsRedeployment(workflowId: string): Promise<boolea
       .where(eq(workflow.id, workflowId))
       .limit(1),
   ])
-
-  if (!active?.state || !normalizedData) return false
+  if (!normalizedData) return false
 
   const currentState = {
     blocks: normalizedData.blocks,
