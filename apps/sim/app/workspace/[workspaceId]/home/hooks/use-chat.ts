@@ -697,14 +697,17 @@ export function useChat(
                 if (DEPLOY_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
                   const output = tc.result?.output as Record<string, unknown> | undefined
                   const deployedWorkflowId = (output?.workflowId as string) ?? undefined
-                  if (deployedWorkflowId) {
-                    const isDeployed = output?.isDeployed !== false
+                  if (deployedWorkflowId && typeof output?.isDeployed === 'boolean') {
+                    const isDeployed = output.isDeployed as boolean
+                    const serverDeployedAt = output.deployedAt
+                      ? new Date(output.deployedAt as string)
+                      : undefined
                     useWorkflowRegistry
                       .getState()
                       .setDeploymentStatus(
                         deployedWorkflowId,
                         isDeployed,
-                        isDeployed ? new Date() : undefined
+                        isDeployed ? (serverDeployedAt ?? new Date()) : undefined
                       )
                     queryClient.invalidateQueries({
                       queryKey: deploymentKeys.info(deployedWorkflowId),
@@ -1147,11 +1150,6 @@ export function useChat(
   useEffect(() => {
     return () => {
       streamGenRef.current++
-      // Only drop the browser→Sim read; the Sim→Go stream stays open
-      // so the backend can finish persisting. Explicit abort is only
-      // triggered by the stop button via /api/copilot/chat/abort.
-      abortControllerRef.current?.abort()
-      abortControllerRef.current = null
       sendingRef.current = false
     }
   }, [])
