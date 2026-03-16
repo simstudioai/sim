@@ -1,9 +1,11 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
+import type { QueryClient } from '@tanstack/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { fetchDeploymentVersionState } from './workflows'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { fetchDeploymentVersionState, workflowKeys } from './workflows'
 
 const logger = createLogger('DeploymentQueries')
 
@@ -14,6 +16,8 @@ export const deploymentKeys = {
   all: ['deployments'] as const,
   infos: () => [...deploymentKeys.all, 'info'] as const,
   info: (workflowId: string | null) => [...deploymentKeys.infos(), workflowId ?? ''] as const,
+  deployedState: (workflowId: string | null) =>
+    [...deploymentKeys.all, 'deployedState', workflowId ?? ''] as const,
   allVersions: () => [...deploymentKeys.all, 'versions'] as const,
   versions: (workflowId: string | null) =>
     [...deploymentKeys.allVersions(), workflowId ?? ''] as const,
@@ -27,6 +31,18 @@ export const deploymentKeys = {
     [...deploymentKeys.formStatuses(), workflowId ?? ''] as const,
   formDetails: () => [...deploymentKeys.all, 'formDetail'] as const,
   formDetail: (formId: string | null) => [...deploymentKeys.formDetails(), formId ?? ''] as const,
+}
+
+/**
+ * Invalidates the core deployment queries (info, deployedState, versions) for a workflow.
+ * Used by mutation onSuccess callbacks and manual invalidation after chat deployments.
+ */
+export function invalidateDeploymentQueries(queryClient: QueryClient, workflowId: string) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: deploymentKeys.info(workflowId) }),
+    queryClient.invalidateQueries({ queryKey: deploymentKeys.deployedState(workflowId) }),
+    queryClient.invalidateQueries({ queryKey: deploymentKeys.versions(workflowId) }),
+  ])
 }
 
 /**
@@ -73,6 +89,40 @@ export function useDeploymentInfo(workflowId: string | null, options?: { enabled
     queryFn: ({ signal }) => fetchDeploymentInfo(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
     staleTime: 30 * 1000, // 30 seconds
+  })
+}
+
+/**
+ * Fetches the deployed workflow state snapshot for a workflow
+ */
+async function fetchDeployedWorkflowState(
+  workflowId: string,
+  signal?: AbortSignal
+): Promise<WorkflowState | null> {
+  const response = await fetch(`/api/workflows/${workflowId}/deployed`, { signal })
+
+  if (!response.ok) {
+    if (response.status === 404) return null
+    throw new Error('Failed to fetch deployed workflow state')
+  }
+
+  const data = await response.json()
+  return data.deployedState || null
+}
+
+/**
+ * Hook to fetch the deployed workflow state snapshot.
+ * Returns the full workflow state at the time of the last active deployment.
+ */
+export function useDeployedWorkflowState(
+  workflowId: string | null,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: deploymentKeys.deployedState(workflowId),
+    queryFn: ({ signal }) => fetchDeployedWorkflowState(workflowId!, signal),
+    enabled: Boolean(workflowId) && (options?.enabled ?? true),
+    staleTime: 30 * 1000,
   })
 }
 
@@ -307,12 +357,12 @@ export function useDeployWorkflow() {
 
       useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(variables.workflowId, false)
 
-      queryClient.invalidateQueries({
-        queryKey: deploymentKeys.info(variables.workflowId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: deploymentKeys.versions(variables.workflowId),
-      })
+      return Promise.all([
+        invalidateDeploymentQueries(queryClient, variables.workflowId),
+        queryClient.invalidateQueries({
+          queryKey: workflowKeys.state(variables.workflowId),
+        }),
+      ])
     },
     onError: (error) => {
       logger.error('Failed to deploy workflow', { error })
@@ -351,15 +401,12 @@ export function useUndeployWorkflow() {
 
       setDeploymentStatus(variables.workflowId, false)
 
-      queryClient.invalidateQueries({
-        queryKey: deploymentKeys.info(variables.workflowId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: deploymentKeys.versions(variables.workflowId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: deploymentKeys.chatStatus(variables.workflowId),
-      })
+      return Promise.all([
+        invalidateDeploymentQueries(queryClient, variables.workflowId),
+        queryClient.invalidateQueries({
+          queryKey: deploymentKeys.chatStatus(variables.workflowId),
+        }),
+      ])
     },
     onError: (error) => {
       logger.error('Failed to undeploy workflow', { error })
@@ -624,12 +671,7 @@ export function useActivateDeploymentVersion() {
       )
     },
     onSettled: (_, __, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: deploymentKeys.info(variables.workflowId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: deploymentKeys.versions(variables.workflowId),
-      })
+      return invalidateDeploymentQueries(queryClient, variables.workflowId)
     },
   })
 }

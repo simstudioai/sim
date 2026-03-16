@@ -14,7 +14,9 @@ interface UseChangeDetectionProps {
 
 /**
  * Detects meaningful changes between current workflow state and deployed state.
- * Performs comparison entirely on the client - no API calls needed.
+ * Performs comparison entirely on the client using hasWorkflowChanged — no API
+ * calls needed. The deployed state snapshot is fetched once via React Query and
+ * refreshed after deploy/undeploy/version-activate mutations.
  */
 export function useChangeDetection({
   workflowId,
@@ -41,7 +43,7 @@ export function useChangeDetection({
   }, [workflowId, allVariables])
 
   const currentState = useMemo((): WorkflowState | null => {
-    if (!workflowId) return null
+    if (!workflowId || !deployedState) return null
 
     const mergedBlocks = mergeSubblockStateWithValues(blocks, subBlockValues ?? {})
 
@@ -52,12 +54,19 @@ export function useChangeDetection({
       parallels,
       variables: workflowVariables,
     } as WorkflowState & { variables: Record<string, any> }
-  }, [workflowId, blocks, edges, loops, parallels, subBlockValues, workflowVariables])
+  }, [
+    workflowId,
+    deployedState,
+    blocks,
+    edges,
+    loops,
+    parallels,
+    subBlockValues,
+    workflowVariables,
+  ])
 
   const changeDetected = useMemo(() => {
-    if (!currentState || !deployedState || isLoadingDeployedState) {
-      return false
-    }
+    if (!currentState || !deployedState || isLoadingDeployedState) return false
     return hasWorkflowChanged(currentState, deployedState)
   }, [currentState, deployedState, isLoadingDeployedState])
 

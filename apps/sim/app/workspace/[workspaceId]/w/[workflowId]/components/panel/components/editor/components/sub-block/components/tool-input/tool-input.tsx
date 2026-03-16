@@ -53,18 +53,14 @@ import {
   type CustomTool as CustomToolDefinition,
   useCustomTools,
 } from '@/hooks/queries/custom-tools'
+import { useDeploymentInfo, useDeployWorkflow } from '@/hooks/queries/deployments'
 import {
   useForceRefreshMcpTools,
   useMcpServers,
   useMcpToolsEvents,
   useStoredMcpTools,
 } from '@/hooks/queries/mcp'
-import {
-  useChildDeploymentStatus,
-  useDeployChildWorkflow,
-  useWorkflowState,
-  useWorkflows,
-} from '@/hooks/queries/workflows'
+import { useWorkflowState, useWorkflows } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -200,9 +196,6 @@ function WorkflowInputMapperInput({
   )
 }
 
-/**
- * Badge component showing deployment status for workflow tools
- */
 function WorkflowToolDeployBadge({
   workflowId,
   onDeploySuccess,
@@ -210,18 +203,17 @@ function WorkflowToolDeployBadge({
   workflowId: string
   onDeploySuccess?: () => void
 }) {
-  const { data, isLoading } = useChildDeploymentStatus(workflowId)
-  const deployMutation = useDeployChildWorkflow()
+  const { data, isLoading } = useDeploymentInfo(workflowId)
+  const { mutate, isPending: isDeploying } = useDeployWorkflow()
   const userPermissions = useUserPermissionsContext()
 
   const isDeployed = data?.isDeployed ?? null
-  const needsRedeploy = data?.needsRedeploy ?? false
-  const isDeploying = deployMutation.isPending
+  const needsRedeploy = data?.needsRedeployment ?? false
 
   const deployWorkflow = useCallback(() => {
     if (isDeploying || !workflowId || !userPermissions.canAdmin) return
 
-    deployMutation.mutate(
+    mutate(
       { workflowId },
       {
         onSuccess: () => {
@@ -229,7 +221,7 @@ function WorkflowToolDeployBadge({
         },
       }
     )
-  }, [isDeploying, workflowId, userPermissions.canAdmin, deployMutation, onDeploySuccess])
+  }, [isDeploying, workflowId, userPermissions.canAdmin, mutate, onDeploySuccess])
 
   if (isLoading || (isDeployed && !needsRedeploy)) {
     return null

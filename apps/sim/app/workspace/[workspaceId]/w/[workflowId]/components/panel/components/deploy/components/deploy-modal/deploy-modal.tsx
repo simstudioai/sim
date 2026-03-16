@@ -25,7 +25,7 @@ import { startsWithUuid } from '@/executor/constants'
 import { useA2AAgentByWorkflow } from '@/hooks/queries/a2a/agents'
 import { useApiKeys } from '@/hooks/queries/api-keys'
 import {
-  deploymentKeys,
+  invalidateDeploymentQueries,
   useActivateDeploymentVersion,
   useChatDeploymentInfo,
   useDeploymentInfo,
@@ -59,9 +59,8 @@ interface DeployModalProps {
   workflowId: string | null
   isDeployed: boolean
   needsRedeployment: boolean
-  deployedState: WorkflowState
+  deployedState?: WorkflowState | null
   isLoadingDeployedState: boolean
-  refetchDeployedState: () => Promise<void>
 }
 
 interface WorkflowDeploymentInfoUI {
@@ -84,7 +83,6 @@ export function DeployModal({
   needsRedeployment,
   deployedState,
   isLoadingDeployedState,
-  refetchDeployedState,
 }: DeployModalProps) {
   const queryClient = useQueryClient()
   const { navigateToSettings } = useSettingsNavigation()
@@ -298,17 +296,17 @@ export function DeployModal({
     setDeployWarnings([])
 
     try {
+      // Deploy mutation handles query invalidation in its onSuccess callback
       const result = await deployMutation.mutateAsync({ workflowId, deployChatEnabled: false })
       if (result.warnings && result.warnings.length > 0) {
         setDeployWarnings(result.warnings)
       }
-      await refetchDeployedState()
     } catch (error: unknown) {
       logger.error('Error deploying workflow:', { error })
       const errorMessage = error instanceof Error ? error.message : 'Failed to deploy workflow'
       setDeployError(errorMessage)
     }
-  }, [workflowId, deployMutation, refetchDeployedState])
+  }, [workflowId, deployMutation])
 
   const handlePromoteToLive = useCallback(
     async (version: number) => {
@@ -321,13 +319,12 @@ export function DeployModal({
         if (result.warnings && result.warnings.length > 0) {
           setDeployWarnings(result.warnings)
         }
-        await refetchDeployedState()
       } catch (error) {
         logger.error('Error promoting version:', { error })
         throw error
       }
     },
-    [workflowId, activateVersionMutation, refetchDeployedState]
+    [workflowId, activateVersionMutation]
   )
 
   const handleUndeploy = useCallback(async () => {
@@ -367,13 +364,12 @@ export function DeployModal({
       if (result.warnings && result.warnings.length > 0) {
         setDeployWarnings(result.warnings)
       }
-      await refetchDeployedState()
     } catch (error: unknown) {
       logger.error('Error redeploying workflow:', { error })
       const errorMessage = error instanceof Error ? error.message : 'Failed to redeploy workflow'
       setDeployError(errorMessage)
     }
-  }, [workflowId, deployMutation, refetchDeployedState])
+  }, [workflowId, deployMutation])
 
   const handleCloseModal = useCallback(() => {
     setChatSubmitting(false)
@@ -385,9 +381,8 @@ export function DeployModal({
   const handleChatDeployed = useCallback(async () => {
     if (!workflowId) return
 
-    queryClient.invalidateQueries({ queryKey: deploymentKeys.versions(workflowId) })
+    invalidateDeploymentQueries(queryClient, workflowId)
 
-    await refetchDeployedState()
     useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
 
     if (chatSuccessTimeoutRef.current) {
@@ -395,7 +390,7 @@ export function DeployModal({
     }
     setChatSuccess(true)
     chatSuccessTimeoutRef.current = setTimeout(() => setChatSuccess(false), 2000)
-  }, [workflowId, queryClient, refetchDeployedState])
+  }, [workflowId, queryClient])
 
   const handleRefetchChat = useCallback(async () => {
     await refetchChatInfo()
