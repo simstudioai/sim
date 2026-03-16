@@ -59,7 +59,7 @@ export function useAdminUsers(offset: number, limit: number, enabled: boolean) {
 export function useSetUserRole() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
+    mutationFn: async ({ userId, role }: { userId: string; role: 'user' | 'admin' }) => {
       const result = await client.admin.setRole({ userId, role })
       return result
     },

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Badge, Button, Input as EmcnInput, Label, Skeleton, Switch } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 import {
   useAdminUsers,
   useBanUser,
@@ -177,15 +177,13 @@ export function Admin() {
                   </span>
                   <span className='flex-1 truncate text-[var(--text-secondary)]'>{u.email}</span>
                   <span className='w-[80px]'>
-                    <Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>
-                      {u.role || 'user'}
-                    </Badge>
+                    <Badge variant={u.role === 'admin' ? 'blue' : 'gray'}>{u.role || 'user'}</Badge>
                   </span>
                   <span className='w-[80px]'>
                     {u.banned ? (
-                      <Badge variant='destructive'>Banned</Badge>
+                      <Badge variant='red'>Banned</Badge>
                     ) : (
-                      <Badge variant='secondary'>Active</Badge>
+                      <Badge variant='green'>Active</Badge>
                     )}
                   </span>
                   <span className='flex w-[180px] justify-end gap-[4px]'>
