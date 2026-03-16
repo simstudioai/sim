@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
 import { Skeleton } from '@/components/emcn'
+import { useSession } from '@/lib/auth/auth-client'
 import { AdminSkeleton } from '@/app/workspace/[workspaceId]/settings/components/admin/admin-skeleton'
 import { ApiKeysSkeleton } from '@/app/workspace/[workspaceId]/settings/components/api-keys/api-key-skeleton'
 import { BYOKSkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
@@ -157,9 +158,15 @@ interface SettingsPageProps {
 export function SettingsPage({ section }: SettingsPageProps) {
   const searchParams = useSearchParams()
   const mcpServerId = searchParams.get('mcpServerId')
+  const { data: session } = useSession()
 
+  const isAdminRole = session?.user?.role === 'admin'
   const effectiveSection =
-    !isBillingEnabled && (section === 'subscription' || section === 'team') ? 'general' : section
+    !isBillingEnabled && (section === 'subscription' || section === 'team')
+      ? 'general'
+      : section === 'admin' && !isAdminRole
+        ? 'general'
+        : section
 
   const label =
     allNavigationItems.find((item) => item.id === effectiveSection)?.label ?? effectiveSection

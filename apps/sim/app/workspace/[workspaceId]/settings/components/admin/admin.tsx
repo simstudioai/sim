@@ -83,7 +83,7 @@ export function Admin() {
         <Label htmlFor='super-user-mode'>Super admin mode</Label>
         <Switch
           id='super-user-mode'
-          checked={settings?.superUserModeEnabled ?? true}
+          checked={settings?.superUserModeEnabled ?? false}
           onCheckedChange={handleSuperUserModeToggle}
         />
       </div>
@@ -255,7 +255,10 @@ export function Admin() {
                           <Button
                             variant='active'
                             className='h-[28px] px-[8px] text-[12px] text-[var(--text-error)]'
-                            onClick={() => setBanUserId(u.id)}
+                            onClick={() => {
+                              setBanUserId(u.id)
+                              setBanReason('')
+                            }}
                             disabled={actionPending && pendingUserId === u.id}
                           >
                             Ban
