@@ -290,7 +290,7 @@ export class MemoryWorkspaceDispatchStorage implements WorkspaceDispatchStorageA
     return count
   }
 
-  async reconcileGlobalQueueDepth(): Promise<void> {
+  async reconcileGlobalQueueDepth(_knownCount: number): Promise<void> {
     // no-op: memory store computes depth on the fly
   }
 

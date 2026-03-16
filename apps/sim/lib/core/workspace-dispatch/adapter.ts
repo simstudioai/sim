@@ -34,7 +34,7 @@ export interface WorkspaceDispatchStorageAdapter {
     lanes: readonly WorkspaceDispatchLane[]
   ): Promise<number>
   getGlobalQueueDepth(): Promise<number>
-  reconcileGlobalQueueDepth(): Promise<void>
+  reconcileGlobalQueueDepth(knownCount: number): Promise<void>
   popNextWorkspaceId(): Promise<string | null>
   getQueuedWorkspaceCount(): Promise<number>
   hasActiveWorkspace(workspaceId: string): Promise<boolean>

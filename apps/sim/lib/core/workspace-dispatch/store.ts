@@ -77,8 +77,8 @@ export async function getGlobalQueueDepth(): Promise<number> {
   return getAdapter().getGlobalQueueDepth()
 }
 
-export async function reconcileGlobalQueueDepth(): Promise<void> {
-  return getAdapter().reconcileGlobalQueueDepth()
+export async function reconcileGlobalQueueDepth(knownCount: number): Promise<void> {
+  return getAdapter().reconcileGlobalQueueDepth(knownCount)
 }
 
 export async function popNextWorkspaceId(): Promise<string | null> {

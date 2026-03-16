@@ -153,9 +153,39 @@ async function reconcileWaitingWorkspaceTracking(
 }
 
 export async function reconcileWorkspaceDispatchState(): Promise<void> {
-  const activeJobs = await listDispatchJobsByStatuses(['admitting', 'admitted', 'running'])
-  const waitingJobs = await listDispatchJobsByStatuses(['waiting'])
-  const terminalJobs = await listDispatchJobsByStatuses(['completed', 'failed'])
+  const allJobs = await listDispatchJobsByStatuses([
+    'waiting',
+    'admitting',
+    'admitted',
+    'running',
+    'completed',
+    'failed',
+  ])
+
+  const activeJobs: WorkspaceDispatchJobRecord[] = []
+  const waitingJobs: WorkspaceDispatchJobRecord[] = []
+  const terminalJobs: WorkspaceDispatchJobRecord[] = []
+  let nonTerminalCount = 0
+
+  for (const job of allJobs) {
+    switch (job.status) {
+      case 'admitting':
+      case 'admitted':
+      case 'running':
+        activeJobs.push(job)
+        nonTerminalCount++
+        break
+      case 'waiting':
+        waitingJobs.push(job)
+        nonTerminalCount++
+        break
+      case 'completed':
+      case 'failed':
+        terminalJobs.push(job)
+        break
+    }
+  }
+
   let changed = false
 
   for (const record of activeJobs) {
@@ -181,7 +211,7 @@ export async function reconcileWorkspaceDispatchState(): Promise<void> {
     }
   }
 
-  await reconcileGlobalQueueDepth().catch((error) => {
+  await reconcileGlobalQueueDepth(nonTerminalCount).catch((error) => {
     logger.error('Failed to reconcile global queue depth', { error })
   })
 

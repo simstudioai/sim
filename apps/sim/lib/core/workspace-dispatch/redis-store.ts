@@ -363,14 +363,8 @@ export class RedisWorkspaceDispatchStorage implements WorkspaceDispatchStorageAd
     return count ? Math.max(0, Number.parseInt(count, 10)) : 0
   }
 
-  async reconcileGlobalQueueDepth(): Promise<void> {
-    const allJobs = await this.listDispatchJobsByStatuses([
-      'waiting',
-      'admitting',
-      'admitted',
-      'running',
-    ])
-    await this.redis.set(GLOBAL_DEPTH_KEY, allJobs.length)
+  async reconcileGlobalQueueDepth(knownCount: number): Promise<void> {
+    await this.redis.set(GLOBAL_DEPTH_KEY, knownCount)
   }
 
   async popNextWorkspaceId(): Promise<string | null> {
