@@ -27,7 +27,7 @@ export async function GET(
 
     const dispatchJob = await getDispatchJobRecord(taskId)
     const jobQueue = await getJobQueue()
-    const job = dispatchJob ? await jobQueue.getJob(taskId) : await jobQueue.getJob(taskId)
+    const job = dispatchJob ? null : await jobQueue.getJob(taskId)
 
     if (!job && !dispatchJob) {
       return createErrorResponse('Task not found', 404)

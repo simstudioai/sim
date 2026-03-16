@@ -15,7 +15,9 @@ export interface AdmissionTicket {
 /**
  * Attempts to admit a request through the in-process gate.
  * Returns a ticket with a release() handle on success, or null if at capacity.
- * Zero external calls — purely in-process atomic counter.
+ * Zero external calls — purely in-process atomic counter. Each pod maintains its
+ * own counter, so the effective aggregate limit across N pods is N × MAX_INFLIGHT.
+ * Configure ADMISSION_GATE_MAX_INFLIGHT per pod based on what each pod can sustain.
  */
 export function tryAdmit(): AdmissionTicket | null {
   if (inflight >= MAX_INFLIGHT) {

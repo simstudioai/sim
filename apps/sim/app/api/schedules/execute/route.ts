@@ -115,11 +115,10 @@ export async function GET(request: NextRequest) {
       }
 
       try {
-        const workspaceId = schedule.workflowId
-          ? (await import('@/lib/workflows/utils')).getWorkflowById
+        const { getWorkflowById } = await import('@/lib/workflows/utils')
+        const resolvedWorkflow = schedule.workflowId
+          ? await getWorkflowById(schedule.workflowId)
           : null
-        const resolvedWorkflow =
-          schedule.workflowId && workspaceId ? await workspaceId(schedule.workflowId) : null
         const resolvedWorkspaceId = resolvedWorkflow?.workspaceId
 
         let jobId: string

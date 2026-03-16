@@ -812,6 +812,17 @@ async function handleExecutePost(
             (preprocessResult.executionTimeout?.sync ?? 300000) + 30000
           )
 
+          if (resultRecord.status === 'failed') {
+            return NextResponse.json(
+              {
+                success: false,
+                executionId,
+                error: resultRecord.error ?? 'Workflow execution failed',
+              },
+              { status: 500 }
+            )
+          }
+
           const result = resultRecord.output as QueuedWorkflowExecutionResult
 
           const resultForResponseBlock = {
@@ -977,8 +988,8 @@ async function handleExecutePost(
     }
 
     if (shouldUseDraftState) {
-      const useDispatchForManual = shouldUseBullMQ() && triggerType !== 'manual'
-      if (useDispatchForManual) {
+      const shouldDispatchViaQueue = shouldUseBullMQ() && triggerType !== 'manual'
+      if (shouldDispatchViaQueue) {
         const metadata: ExecutionMetadata = {
           requestId,
           executionId,
