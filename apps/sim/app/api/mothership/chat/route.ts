@@ -7,7 +7,11 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
-import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/copilot/chat-streaming'
+import {
+  createSSEStream,
+  SSE_RESPONSE_HEADERS,
+  waitForPendingChatStream,
+} from '@/lib/copilot/chat-streaming'
 import type { OrchestratorResult } from '@/lib/copilot/orchestrator/types'
 import { processContextsServer, resolveActiveResourceContext } from '@/lib/copilot/process-contents'
 import { createRequestTracker, createUnauthorizedResponse } from '@/lib/copilot/request-helpers'
@@ -243,6 +247,10 @@ export async function POST(req: NextRequest) {
       },
       { selectedModel: '' }
     )
+
+    if (actualChatId) {
+      await waitForPendingChatStream(actualChatId)
+    }
 
     const stream = createSSEStream({
       requestPayload,

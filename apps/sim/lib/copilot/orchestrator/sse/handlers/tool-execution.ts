@@ -610,6 +610,24 @@ export async function executeToolAndReport(
   }
 }
 
+function abortAwareSleep(ms: number, abortSignal?: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve) => {
+    if (abortSignal?.aborted) {
+      resolve()
+      return
+    }
+    const timer = setTimeout(resolve, ms)
+    abortSignal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer)
+        resolve()
+      },
+      { once: true }
+    )
+  })
+}
+
 export async function waitForToolDecision(
   toolCallId: string,
   timeoutMs: number,
@@ -624,7 +642,7 @@ export async function waitForToolDecision(
     if (decision?.status) {
       return decision
     }
-    await new Promise((resolve) => setTimeout(resolve, interval))
+    await abortAwareSleep(interval, abortSignal)
     interval = Math.min(interval * TOOL_DECISION_POLL_BACKOFF, maxInterval)
   }
   return null
@@ -663,7 +681,7 @@ export async function waitForToolCompletion(
     ) {
       return decision
     }
-    await new Promise((resolve) => setTimeout(resolve, interval))
+    await abortAwareSleep(interval, abortSignal)
     interval = Math.min(interval * TOOL_DECISION_POLL_BACKOFF, maxInterval)
   }
   return null
