@@ -95,25 +95,59 @@ function isForwardedEmail(subject: string | null, body: string | null): boolean 
 }
 
 /**
+ * Repeatedly applies a regex replacement until the string stabilises.
+ * Prevents incomplete sanitization from nested/overlapping patterns
+ * like `<scr<script>ipt>`.
+ */
+export function replaceUntilStable(input: string, pattern: RegExp, replacement: string): string {
+  let prev = input
+  let next = prev.replace(pattern, replacement)
+  while (next !== prev) {
+    prev = next
+    next = prev.replace(pattern, replacement)
+  }
+  return next
+}
+
+const HTML_ENTITY_MAP: Record<string, string> = {
+  '&nbsp;': ' ',
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&#39;': "'",
+}
+
+/**
+ * Decodes known HTML entities in a single pass to avoid double-unescaping.
+ * A two-step decode (e.g. `&amp;` -> `&` then `&lt;` -> `<`) would turn
+ * `&amp;lt;` into `<`, which is incorrect.
+ */
+function decodeHtmlEntities(text: string): string {
+  return text.replace(/&(?:nbsp|amp|lt|gt|quot|#39);/g, (match) => HTML_ENTITY_MAP[match] ?? match)
+}
+
+/**
  * Basic HTML to text extraction.
  */
 function extractTextFromHtml(html: string | null): string | null {
   if (!html) return null
 
-  return html
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+  let text = html
+  text = replaceUntilStable(text, /<style[^>]*>[\s\S]*?<\/style\s*>/gi, '')
+  text = replaceUntilStable(text, /<script[^>]*>[\s\S]*?<\/script\s*>/gi, '')
+
+  text = text
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>/gi, '\n\n')
     .replace(/<\/div>/gi, '\n')
     .replace(/<\/li>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
+
+  text = replaceUntilStable(text, /<[^>]+>/g, '')
+
+  text = decodeHtmlEntities(text)
     .replace(/\n{3,}/g, '\n\n')
     .trim()
+
+  return text
 }

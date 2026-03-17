@@ -1,7 +1,7 @@
 'use client'
 
 import type { ContentBlock, OptionItem, SubagentName, ToolCallData } from '../../types'
-import { SUBAGENT_LABELS } from '../../types'
+import { SUBAGENT_LABELS, TOOL_UI_METADATA } from '../../types'
 import type { AgentGroupItem } from './components'
 import { AgentGroup, ChatContent, CircleStop, Options, PendingTagIndicator } from './components'
 
@@ -47,7 +47,10 @@ function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
   return {
     id: tc.id,
     toolName: tc.name,
-    displayTitle: tc.displayTitle || formatToolName(tc.name),
+    displayTitle:
+      tc.displayTitle ||
+      TOOL_UI_METADATA[tc.name as keyof typeof TOOL_UI_METADATA]?.title ||
+      formatToolName(tc.name),
     status: tc.status,
     result: tc.result,
   }
