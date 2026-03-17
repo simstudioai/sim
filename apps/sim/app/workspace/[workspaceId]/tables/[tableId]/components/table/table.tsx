@@ -1582,8 +1582,6 @@ export function Table({
                             firstRowUnderHeader={prevPosition === -1}
                             onCellMouseDown={handleCellMouseDown}
                             onCellMouseEnter={handleCellMouseEnter}
-                            onRowMouseDown={handleRowMouseDown}
-                            onRowMouseEnter={handleRowMouseEnter}
                             onRowToggle={handleRowToggle}
                           />
                         )}
@@ -1609,11 +1607,8 @@ export function Table({
                           onContextMenu={handleRowContextMenu}
                           onCellMouseDown={handleCellMouseDown}
                           onCellMouseEnter={handleCellMouseEnter}
-                          onRowMouseDown={handleRowMouseDown}
-                          onRowMouseEnter={handleRowMouseEnter}
                           isRowChecked={checkedRows.has(row.position)}
                           onRowToggle={handleRowToggle}
-                          onClearSelection={handleClearSelection}
                         />
                       </React.Fragment>
                     )
@@ -1749,8 +1744,6 @@ interface PositionGapRowsProps {
   firstRowUnderHeader?: boolean
   onCellMouseDown: (rowIndex: number, colIndex: number, shiftKey: boolean) => void
   onCellMouseEnter: (rowIndex: number, colIndex: number) => void
-  onRowMouseDown: (rowIndex: number, shiftKey: boolean) => void
-  onRowMouseEnter: (rowIndex: number) => void
   onRowToggle: (rowIndex: number, shiftKey: boolean) => void
 }
 
@@ -1764,8 +1757,6 @@ const PositionGapRows = React.memo(
     firstRowUnderHeader = false,
     onCellMouseDown,
     onCellMouseEnter,
-    onRowMouseDown,
-    onRowMouseEnter,
     onRowToggle,
   }: PositionGapRowsProps) {
     const capped = Math.min(count, GAP_ROW_LIMIT)
@@ -1875,8 +1866,6 @@ const PositionGapRows = React.memo(
       prev.firstRowUnderHeader !== next.firstRowUnderHeader ||
       prev.onCellMouseDown !== next.onCellMouseDown ||
       prev.onCellMouseEnter !== next.onCellMouseEnter ||
-      prev.onRowMouseDown !== next.onRowMouseDown ||
-      prev.onRowMouseEnter !== next.onRowMouseEnter ||
       prev.onRowToggle !== next.onRowToggle
     ) {
       return false
@@ -1923,11 +1912,8 @@ interface DataRowProps {
   onContextMenu: (e: React.MouseEvent, row: TableRowType) => void
   onCellMouseDown: (rowIndex: number, colIndex: number, shiftKey: boolean) => void
   onCellMouseEnter: (rowIndex: number, colIndex: number) => void
-  onRowMouseDown: (rowIndex: number, shiftKey: boolean) => void
-  onRowMouseEnter: (rowIndex: number) => void
   isRowChecked: boolean
   onRowToggle: (rowIndex: number, shiftKey: boolean) => void
-  onClearSelection: () => void
 }
 
 function rowSelectionChanged(
@@ -1976,11 +1962,8 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.onContextMenu !== next.onContextMenu ||
     prev.onCellMouseDown !== next.onCellMouseDown ||
     prev.onCellMouseEnter !== next.onCellMouseEnter ||
-    prev.onRowMouseDown !== next.onRowMouseDown ||
-    prev.onRowMouseEnter !== next.onRowMouseEnter ||
     prev.isRowChecked !== next.isRowChecked ||
-    prev.onRowToggle !== next.onRowToggle ||
-    prev.onClearSelection !== next.onClearSelection
+    prev.onRowToggle !== next.onRowToggle
   ) {
     return false
   }
@@ -2016,10 +1999,7 @@ const DataRow = React.memo(function DataRow({
   onContextMenu,
   onCellMouseDown,
   onCellMouseEnter,
-  onRowMouseDown,
-  onRowMouseEnter,
   onRowToggle,
-  onClearSelection,
 }: DataRowProps) {
   const sel = normalizedSelection
   const isMultiCell = sel !== null && (sel.startRow !== sel.endRow || sel.startCol !== sel.endCol)
