@@ -26,7 +26,7 @@ export function PostGrid({ posts }: { posts: Post[] }) {
   return (
     <div className='grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-3'>
       {posts.map((p, index) => (
-        <Link key={p.slug} href={`/studio/${p.slug}`} className='group flex flex-col'>
+        <Link key={p.slug} href={`/blog/${p.slug}`} className='group flex flex-col'>
           <div className='flex h-full flex-col overflow-hidden rounded-xl border border-[#2A2A2A] transition-colors duration-300 hover:border-[#3d3d3d]'>
             {/* Image container with fixed aspect ratio to prevent layout shift */}
             <div className='relative aspect-video w-full overflow-hidden'>

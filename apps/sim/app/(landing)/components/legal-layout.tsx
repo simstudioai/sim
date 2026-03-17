@@ -23,7 +23,7 @@ export default function LegalLayout({ title, children }: LegalLayoutProps) {
         </div>
       </div>
 
-      {isHosted && <Footer />}
+      {isHosted && <Footer hideCTA />}
     </main>
   )
 }

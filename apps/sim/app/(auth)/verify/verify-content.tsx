@@ -59,10 +59,10 @@ function VerificationForm({
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className='font-[500] text-[#ECECEC] text-[32px] tracking-tight'>
+        <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
           {isVerified ? 'Email Verified!' : 'Verify Your Email'}
         </h1>
-        <p className='font-[380] text-[#999] text-[16px]'>
+        <p className='font-[430] font-season text-[#F6F6F6]/60 text-[18px] leading-[125%] tracking-[0.02em]'>
           {isVerified
             ? 'Your email has been verified. Redirecting to dashboard...'
             : !isEmailVerificationEnabled

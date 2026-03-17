@@ -58,7 +58,7 @@ export function AgentGroup({
   }, [expanded])
 
   return (
-    <div className='flex flex-col gap-1.5'>
+    <div className='flex flex-col gap-[6px]'>
       {hasItems ? (
         <button
           type='button'
@@ -87,7 +87,7 @@ export function AgentGroup({
       {hasItems && mounted && (
         <div
           className={cn(
-            'flex flex-col gap-3 transition-opacity duration-300 ease-out',
+            'flex flex-col gap-[6px] transition-opacity duration-300 ease-out',
             expanded ? 'opacity-100' : 'opacity-0'
           )}
         >
@@ -98,14 +98,15 @@ export function AgentGroup({
                 toolName={item.data.toolName}
                 displayTitle={item.data.displayTitle}
                 status={item.data.status}
+                result={item.data.result}
               />
             ) : (
-              <p
+              <span
                 key={`text-${idx}`}
-                className='whitespace-pre-wrap pl-[24px] font-base text-[13px] text-[var(--text-secondary)]'
+                className='pl-[24px] font-base text-[13px] text-[var(--text-secondary)]'
               >
                 {item.content.trim()}
-              </p>
+              </span>
             )
           )}
         </div>

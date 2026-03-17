@@ -1,188 +1,165 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { FOOTER_BLOCKS, FOOTER_TOOLS } from '@/app/(landing)/components/footer/consts'
+import { FooterCTA } from '@/app/(home)/components/footer/footer-cta'
 
 const LINK_CLASS = 'text-[14px] text-[#999] transition-colors hover:text-[#ECECEC]'
 
-interface FooterLink {
+interface FooterItem {
   label: string
   href: string
   external?: boolean
 }
 
-const FOOTER_LINKS: FooterLink[] = [
-  { label: 'Docs', href: 'https://docs.sim.ai', external: true },
+const PRODUCT_LINKS: FooterItem[] = [
   { label: 'Pricing', href: '#pricing' },
   { label: 'Enterprise', href: 'https://form.typeform.com/to/jqCO12pF', external: true },
-  { label: 'Sim Studio', href: '/studio' },
-  { label: 'Changelog', href: '/changelog' },
+  { label: 'Self Hosting', href: 'https://docs.sim.ai/self-hosting', external: true },
+  { label: 'MCP', href: 'https://docs.sim.ai/mcp', external: true },
   { label: 'Status', href: 'https://status.sim.ai', external: true },
-  { label: 'Careers', href: 'https://jobs.ashbyhq.com/sim', external: true },
-  { label: 'SOC2', href: 'https://trust.delve.co/sim-studio', external: true },
-  { label: 'Privacy Policy', href: '/privacy', external: true },
-  { label: 'Terms of Service', href: '/terms', external: true },
 ]
 
-export default function Footer() {
+const RESOURCES_LINKS: FooterItem[] = [
+  { label: 'Blog', href: '/blog' },
+  { label: 'Docs', href: 'https://docs.sim.ai', external: true },
+  { label: 'Careers', href: 'https://jobs.ashbyhq.com/sim', external: true },
+  { label: 'Changelog', href: '/changelog' },
+]
+
+const BLOCK_LINKS: FooterItem[] = [
+  { label: 'Agent', href: 'https://docs.sim.ai/blocks/agent', external: true },
+  { label: 'Router', href: 'https://docs.sim.ai/blocks/router', external: true },
+  { label: 'Function', href: 'https://docs.sim.ai/blocks/function', external: true },
+  { label: 'Condition', href: 'https://docs.sim.ai/blocks/condition', external: true },
+  { label: 'API', href: 'https://docs.sim.ai/blocks/api', external: true },
+  { label: 'Workflow', href: 'https://docs.sim.ai/blocks/workflow', external: true },
+  { label: 'Parallel', href: 'https://docs.sim.ai/blocks/parallel', external: true },
+  { label: 'Guardrails', href: 'https://docs.sim.ai/blocks/guardrails', external: true },
+  { label: 'Evaluator', href: 'https://docs.sim.ai/blocks/evaluator', external: true },
+  { label: 'Loop', href: 'https://docs.sim.ai/blocks/loop', external: true },
+]
+
+const INTEGRATION_LINKS: FooterItem[] = [
+  { label: 'Confluence', href: 'https://docs.sim.ai/tools/confluence', external: true },
+  { label: 'Slack', href: 'https://docs.sim.ai/tools/slack', external: true },
+  { label: 'GitHub', href: 'https://docs.sim.ai/tools/github', external: true },
+  { label: 'Gmail', href: 'https://docs.sim.ai/tools/gmail', external: true },
+  { label: 'HubSpot', href: 'https://docs.sim.ai/tools/hubspot', external: true },
+  { label: 'Salesforce', href: 'https://docs.sim.ai/tools/salesforce', external: true },
+  { label: 'Notion', href: 'https://docs.sim.ai/tools/notion', external: true },
+  { label: 'Google Drive', href: 'https://docs.sim.ai/tools/google_drive', external: true },
+  { label: 'Google Sheets', href: 'https://docs.sim.ai/tools/google_sheets', external: true },
+  { label: 'Supabase', href: 'https://docs.sim.ai/tools/supabase', external: true },
+  { label: 'Stripe', href: 'https://docs.sim.ai/tools/stripe', external: true },
+  { label: 'Jira', href: 'https://docs.sim.ai/tools/jira', external: true },
+  { label: 'Linear', href: 'https://docs.sim.ai/tools/linear', external: true },
+  { label: 'Airtable', href: 'https://docs.sim.ai/tools/airtable', external: true },
+  { label: 'Firecrawl', href: 'https://docs.sim.ai/tools/firecrawl', external: true },
+  { label: 'Pinecone', href: 'https://docs.sim.ai/tools/pinecone', external: true },
+  { label: 'Discord', href: 'https://docs.sim.ai/tools/discord', external: true },
+  { label: 'Microsoft Teams', href: 'https://docs.sim.ai/tools/microsoft_teams', external: true },
+  { label: 'Outlook', href: 'https://docs.sim.ai/tools/outlook', external: true },
+  { label: 'Telegram', href: 'https://docs.sim.ai/tools/telegram', external: true },
+]
+
+const SOCIAL_LINKS: FooterItem[] = [
+  { label: 'X (Twitter)', href: 'https://x.com/simdotai', external: true },
+  { label: 'LinkedIn', href: 'https://www.linkedin.com/company/simstudioai/', external: true },
+  { label: 'Discord', href: 'https://discord.gg/Hr4UWYEcTT', external: true },
+  { label: 'GitHub', href: 'https://github.com/simstudioai/sim', external: true },
+]
+
+const LEGAL_LINKS: FooterItem[] = [
+  { label: 'Terms of Service', href: '/terms' },
+  { label: 'Privacy Policy', href: '/privacy' },
+]
+
+function FooterColumn({ title, items }: { title: string; items: FooterItem[] }) {
+  return (
+    <div>
+      <h3 className='mb-[16px] font-medium text-[#ECECEC] text-[14px]'>{title}</h3>
+      <div className='flex flex-col gap-[10px]'>
+        {items.map(({ label, href, external }) =>
+          external ? (
+            <a
+              key={label}
+              href={href}
+              target='_blank'
+              rel='noopener noreferrer'
+              className={LINK_CLASS}
+            >
+              {label}
+            </a>
+          ) : (
+            <Link key={label} href={href} className={LINK_CLASS}>
+              {label}
+            </Link>
+          )
+        )}
+      </div>
+    </div>
+  )
+}
+
+interface FooterProps {
+  hideCTA?: boolean
+}
+
+export default function Footer({ hideCTA }: FooterProps) {
   return (
     <footer
       role='contentinfo'
-      className='relative w-full overflow-hidden bg-[#1C1C1C] font-[430] font-season text-[14px]'
+      className={`bg-[#F6F6F6] pb-[40px] font-[430] font-season text-[14px]${hideCTA ? ' pt-[40px]' : ''}`}
     >
-      <div className='px-4 pt-[80px] pb-[40px] sm:px-8 sm:pb-[340px] md:px-[80px]'>
-        <nav aria-label='Footer navigation' className='flex justify-between'>
-          {/* Brand column */}
-          <div className='flex flex-col gap-[24px]'>
-            <Link href='/' aria-label='Sim home'>
-              <Image
-                src='/logo/sim-landing.svg'
-                alt='Sim'
-                width={71}
-                height={22}
-                className='h-[22px] w-auto'
-              />
-            </Link>
-          </div>
-
-          {/* Community column */}
-          <div>
-            <h3 className='mb-[16px] font-medium text-[#ECECEC] text-[14px]'>Community</h3>
-            <div className='flex flex-col gap-[12px]'>
-              <a
-                href='https://discord.gg/Hr4UWYEcTT'
-                target='_blank'
-                rel='noopener noreferrer'
-                className={LINK_CLASS}
-              >
-                Discord
-              </a>
-              <a
-                href='https://x.com/simdotai'
-                target='_blank'
-                rel='noopener noreferrer'
-                className={LINK_CLASS}
-              >
-                X (Twitter)
-              </a>
-              <a
-                href='https://www.linkedin.com/company/simstudioai/'
-                target='_blank'
-                rel='noopener noreferrer'
-                className={LINK_CLASS}
-              >
-                LinkedIn
-              </a>
-              <a
-                href='https://github.com/simstudioai/sim'
-                target='_blank'
-                rel='noopener noreferrer'
-                className={LINK_CLASS}
-              >
-                GitHub
-              </a>
+      {!hideCTA && <FooterCTA />}
+      <div className='px-4 sm:px-8 md:px-[80px]'>
+        <div className='relative overflow-hidden rounded-lg bg-[#1C1C1C] px-6 pt-[40px] pb-[32px] sm:px-10 sm:pt-[48px] sm:pb-[40px]'>
+          <nav
+            aria-label='Footer navigation'
+            className='relative z-[1] grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-3 lg:grid-cols-7'
+          >
+            <div className='col-span-2 flex flex-col gap-[24px] sm:col-span-1'>
+              <Link href='/' aria-label='Sim home'>
+                <Image
+                  src='/logo/sim-landing.svg'
+                  alt='Sim'
+                  width={85}
+                  height={26}
+                  className='h-[26.4px] w-auto'
+                />
+              </Link>
             </div>
-          </div>
 
-          {/* Links column */}
-          <div>
-            <h3 className='mb-[16px] font-medium text-[#ECECEC] text-[14px]'>More Sim</h3>
-            <div className='flex flex-col gap-[12px]'>
-              {FOOTER_LINKS.map(({ label, href, external }) =>
-                external ? (
-                  <a
-                    key={label}
-                    href={href}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className={LINK_CLASS}
-                  >
-                    {label}
-                  </a>
-                ) : (
-                  <Link key={label} href={href} className={LINK_CLASS}>
-                    {label}
-                  </Link>
-                )
-              )}
-            </div>
-          </div>
+            <FooterColumn title='Product' items={PRODUCT_LINKS} />
+            <FooterColumn title='Resources' items={RESOURCES_LINKS} />
+            <FooterColumn title='Blocks' items={BLOCK_LINKS} />
+            <FooterColumn title='Integrations' items={INTEGRATION_LINKS} />
+            <FooterColumn title='Socials' items={SOCIAL_LINKS} />
+            <FooterColumn title='Legal' items={LEGAL_LINKS} />
+          </nav>
 
-          {/* Blocks column */}
-          <div className='hidden sm:block'>
-            <h3 className='mb-[16px] font-medium text-[#ECECEC] text-[14px]'>Blocks</h3>
-            <div className='flex flex-col gap-[12px]'>
-              {FOOTER_BLOCKS.map((block) => (
-                <a
-                  key={block}
-                  href={`https://docs.sim.ai/blocks/${block.toLowerCase().replaceAll(' ', '-')}`}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className={LINK_CLASS}
-                >
-                  {block}
-                </a>
-              ))}
-            </div>
-          </div>
-
-          {/* Tools columns */}
-          <div className='hidden sm:block'>
-            <h3 className='mb-[16px] font-medium text-[#ECECEC] text-[14px]'>Tools</h3>
-            <div className='flex gap-[80px]'>
-              {[0, 1, 2, 3].map((quarter) => {
-                const start = Math.ceil((FOOTER_TOOLS.length * quarter) / 4)
-                const end =
-                  quarter === 3
-                    ? FOOTER_TOOLS.length
-                    : Math.ceil((FOOTER_TOOLS.length * (quarter + 1)) / 4)
-                return (
-                  <div key={quarter} className='flex flex-col gap-[12px]'>
-                    {FOOTER_TOOLS.slice(start, end).map((tool) => (
-                      <a
-                        key={tool}
-                        href={`https://docs.sim.ai/tools/${tool.toLowerCase().replace(/\s+/g, '_')}`}
-                        target='_blank'
-                        rel='noopener noreferrer'
-                        className={`whitespace-nowrap ${LINK_CLASS}`}
-                      >
-                        {tool}
-                      </a>
-                    ))}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </nav>
-      </div>
-
-      {/* Large SIM wordmark — half cut off */}
-      <div className='-translate-x-1/2 pointer-events-none absolute bottom-[-240px] left-1/2 hidden sm:block'>
-        <svg
-          xmlns='http://www.w3.org/2000/svg'
-          width='1128'
-          height='550'
-          viewBox='0 0 1128 550'
-          fill='none'
-        >
-          <path
-            d='M3 420.942H77.9115C77.9115 441.473 85.4027 457.843 100.385 470.051C115.367 481.704 135.621 487.53 161.147 487.53C188.892 487.53 210.255 482.258 225.238 471.715C240.22 460.617 247.711 445.913 247.711 427.601C247.711 414.283 243.549 403.185 235.226 394.307C227.457 385.428 213.03 378.215 191.943 372.666L120.361 356.019C84.2929 347.14 57.3802 333.545 39.6234 315.234C22.4215 296.922 13.8206 272.784 13.8206 242.819C13.8206 217.849 20.2019 196.208 32.9646 177.896C46.2822 159.584 64.3165 145.434 87.0674 135.446C110.373 125.458 137.008 120.464 166.973 120.464C196.938 120.464 222.74 125.735 244.382 136.278C266.578 146.821 283.779 161.526 295.987 180.393C308.75 199.259 315.409 221.733 315.964 247.813H241.052C240.497 226.727 233.561 210.357 220.243 198.705C206.926 187.052 188.337 181.225 164.476 181.225C140.06 181.225 121.194 186.497 107.876 197.04C94.5585 207.583 87.8997 222.01 87.8997 240.322C87.8997 267.512 107.876 286.101 147.829 296.09L219.411 313.569C253.815 321.337 279.618 334.1 296.82 351.857C314.022 369.059 322.622 392.642 322.622 422.607C322.622 448.132 315.686 470.606 301.814 490.027C287.941 508.894 268.797 523.599 244.382 534.142C220.521 544.13 192.221 549.124 159.482 549.124C111.76 549.124 73.7498 537.471 45.4499 514.165C17.15 490.86 3 459.785 3 420.942Z'
-            fill='#2A2A2A'
-          />
-          <path
-            d='M377.713 539.136V132.117C408.911 143.439 422.667 143.439 455.954 132.117V539.136H377.713ZM416.001 105.211C402.129 105.211 389.921 100.217 379.378 90.2291C369.39 79.686 364.395 67.4782 364.395 53.6057C364.395 39.1783 369.39 26.9705 379.378 16.9823C389.921 6.9941 402.129 2 416.001 2C430.428 2 442.636 6.9941 452.625 16.9823C462.613 26.9705 467.607 39.1783 467.607 53.6057C467.607 67.4782 462.613 79.686 452.625 90.2291C442.636 100.217 430.428 105.211 416.001 105.211Z'
-            fill='#2A2A2A'
-          />
-          <path
-            d='M593.961 539.136H515.72V132.117H585.637V200.792C593.961 178.041 610.053 158.752 632.249 143.769C655 128.232 682.467 120.464 714.651 120.464C750.72 120.464 780.685 130.174 804.545 149.596C822.01 163.812 835.016 181.446 843.562 202.5C851.434 181.446 864.509 163.812 882.786 149.596C907.757 130.174 938.554 120.464 975.177 120.464C1021.79 120.464 1058.41 134.059 1085.05 161.249C1111.68 188.439 1125 225.617 1125 272.784V539.136H1048.42V291.928C1048.42 259.744 1040.1 235.051 1023.45 217.849C1007.36 200.092 985.443 191.213 957.698 191.213C938.276 191.213 921.074 195.653 906.092 204.531C891.665 212.855 880.289 225.062 871.966 241.154C863.642 257.247 859.48 276.113 859.48 297.754V539.136H782.072V291.095C782.072 258.911 774.026 234.496 757.934 217.849C741.841 200.647 719.923 192.046 692.178 192.046C672.756 192.046 655.555 196.485 640.572 205.363C626.145 213.687 614.769 225.895 606.446 241.987C598.122 257.524 593.961 276.113 593.961 297.754V539.136Z'
-            fill='#2A2A2A'
-          />
-          <path
-            d='M166.973 121.105C196.396 121.105 221.761 126.201 243.088 136.367L244.101 136.855L244.106 136.858C265.86 147.191 282.776 161.528 294.876 179.865L295.448 180.741L295.455 180.753C308.032 199.345 314.656 221.475 315.306 247.171H241.675C240.996 226.243 234.012 209.899 220.666 198.222C207.196 186.435 188.437 180.583 164.476 180.583C139.977 180.583 120.949 185.871 107.478 196.536C93.9928 207.212 87.2578 221.832 87.2578 240.322C87.2579 254.096 92.3262 265.711 102.444 275.127C112.542 284.524 127.641 291.704 147.673 296.712L147.677 296.713L219.259 314.192L219.27 314.195C253.065 321.827 278.469 334.271 295.552 351.48L296.358 352.304L296.365 352.311C313.42 369.365 321.98 392.77 321.98 422.606C321.98 448.005 315.082 470.343 301.297 489.646C287.502 508.408 268.456 523.046 244.134 533.55C220.369 543.498 192.157 548.482 159.481 548.482C111.864 548.482 74.0124 536.855 45.8584 513.67C17.8723 490.623 3.80059 459.948 3.64551 421.584H77.2734C77.4285 441.995 84.9939 458.338 99.9795 470.549L99.9854 470.553L99.9912 470.558C115.12 482.324 135.527 488.172 161.146 488.172C188.96 488.172 210.474 482.889 225.607 472.24L225.613 472.236L225.619 472.231C240.761 461.015 248.353 446.12 248.353 427.601C248.352 414.145 244.145 402.89 235.709 393.884C227.81 384.857 213.226 377.603 192.106 372.045L192.098 372.043L192.089 372.04L120.507 355.394C84.5136 346.533 57.7326 332.983 40.0908 314.794H40.0918C23.0227 296.624 14.4629 272.654 14.4629 242.819C14.4629 217.969 20.8095 196.463 33.4834 178.273C46.7277 160.063 64.6681 145.981 87.3252 136.034L87.3242 136.033C110.536 126.086 137.081 121.106 166.973 121.105ZM975.177 121.105C1021.66 121.105 1058.1 134.658 1084.59 161.698C1111.08 188.741 1124.36 225.743 1124.36 272.784V538.494H1049.07V291.928C1049.07 259.636 1040.71 234.76 1023.92 217.402H1023.91C1007.68 199.5 985.584 190.571 957.697 190.571C938.177 190.571 920.862 195.034 905.771 203.975C891.228 212.365 879.77 224.668 871.396 240.859C863.017 257.059 858.838 276.03 858.838 297.754V538.494H782.714V291.096C782.714 258.811 774.641 234.209 758.395 217.402C742.16 200.053 720.062 191.404 692.178 191.404C673.265 191.404 656.422 195.592 641.666 203.985L640.251 204.808C625.711 213.196 614.254 225.497 605.88 241.684C597.496 257.333 593.318 276.031 593.318 297.754V538.494H516.361V132.759H584.995V200.792L586.24 201.013C594.51 178.408 610.505 159.221 632.607 144.302L632.61 144.3C655.238 128.847 682.574 121.105 714.651 121.105C750.599 121.105 780.413 130.781 804.14 150.094C821.52 164.241 834.461 181.787 842.967 202.741L843.587 204.268L844.163 202.725C851.992 181.786 864.994 164.248 883.181 150.103C908.021 130.782 938.673 121.106 975.177 121.105ZM455.312 538.494H378.354V133.027C393.534 138.491 404.652 141.251 416.05 141.251C427.46 141.251 439.095 138.485 455.312 133.009V538.494ZM416.001 2.6416C430.262 2.6416 442.306 7.57157 452.171 17.4365C462.036 27.3014 466.965 39.3445 466.965 53.6055C466.965 67.3043 462.04 79.3548 452.16 89.7842C442.297 99.6427 430.258 104.569 416.001 104.569C402.303 104.569 390.254 99.6452 379.825 89.7676C369.957 79.3421 365.037 67.2967 365.037 53.6055C365.037 39.3444 369.966 27.3005 379.831 17.4355C390.258 7.56247 402.307 2.64163 416.001 2.6416Z'
-            stroke='#3D3D3D'
-            strokeWidth='1.28396'
-          />
-        </svg>
+          {/* <svg
+            aria-hidden='true'
+            className='pointer-events-none absolute bottom-0 left-[-60px] hidden w-[85%] sm:block'
+            viewBox='0 0 1800 316'
+            fill='none'
+            xmlns='http://www.w3.org/2000/svg'
+          >
+            <path
+              d='M18.3562 305V48.95A30.594 30.594 0 0 1 48.95 18.356H917.05A30.594 30.594 0 0 1 947.644 48.95V273H1768C1777.11 273 1784.5 280.387 1784.5 289.5C1784.5 298.613 1777.11 306 1768 306H96.8603C78.635 306 63.8604 310 63.8604 305H18.3562'
+              stroke='#2A2A2A'
+              strokeWidth='2'
+            />
+            <rect
+              x='58'
+              y='58'
+              width='849.288'
+              height='199.288'
+              rx='14'
+              stroke='#2A2A2A'
+              strokeWidth='2'
+            />
+          </svg> */}
+        </div>
       </div>
     </footer>
   )

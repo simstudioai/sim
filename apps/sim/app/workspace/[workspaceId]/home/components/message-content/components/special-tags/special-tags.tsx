@@ -27,6 +27,7 @@ export interface CredentialTagData {
 
 export type ContentSegment =
   | { type: 'text'; content: string }
+  | { type: 'thinking'; content: string }
   | { type: 'options'; data: OptionsTagData }
   | { type: 'usage_upgrade'; data: UsageUpgradeTagData }
   | { type: 'credential'; data: CredentialTagData }
@@ -36,7 +37,7 @@ export interface ParsedSpecialContent {
   hasPendingTag: boolean
 }
 
-const SPECIAL_TAG_NAMES = ['options', 'usage_upgrade', 'credential'] as const
+const SPECIAL_TAG_NAMES = ['thinking', 'options', 'usage_upgrade', 'credential'] as const
 
 /**
  * Parses inline special tags (`<options>`, `<usage_upgrade>`) from streamed
@@ -103,11 +104,17 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
     }
 
     const body = content.slice(bodyStart, closeIdx)
-    try {
-      const data = JSON.parse(body)
-      segments.push({ type: nearestTagName as 'options' | 'usage_upgrade' | 'credential', data })
-    } catch {
-      /* malformed JSON — drop the tag silently */
+    if (nearestTagName === 'thinking') {
+      if (body.trim()) {
+        segments.push({ type: 'thinking', content: body })
+      }
+    } else {
+      try {
+        const data = JSON.parse(body)
+        segments.push({ type: nearestTagName as 'options' | 'usage_upgrade' | 'credential', data })
+      } catch {
+        /* malformed JSON — drop the tag silently */
+      }
     }
 
     cursor = closeIdx + closeTag.length
@@ -137,6 +144,8 @@ interface SpecialTagsProps {
  */
 export function SpecialTags({ segment, onOptionSelect }: SpecialTagsProps) {
   switch (segment.type) {
+    case 'thinking':
+      return null
     case 'options':
       return <OptionsDisplay data={segment.data} onSelect={onOptionSelect} />
     case 'usage_upgrade':

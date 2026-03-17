@@ -383,8 +383,12 @@ export default function LoginPage({
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className='font-[500] text-[#ECECEC] text-[32px] tracking-tight'>Sign in</h1>
-        <p className='font-[380] text-[#999] text-[16px]'>Enter your details</p>
+        <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
+          Sign in
+        </h1>
+        <p className='font-[430] font-season text-[#F6F6F6]/60 text-[18px] leading-[125%] tracking-[0.02em]'>
+          Enter your details
+        </p>
       </div>
 
       {/* SSO Login Button (primary top-only when it is the only method) */}

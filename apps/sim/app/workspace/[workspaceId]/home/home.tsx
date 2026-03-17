@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
-import { Skeleton } from '@/components/emcn'
 import { PanelLeft } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useSession } from '@/lib/auth/auth-client'
@@ -46,23 +45,6 @@ function FileAttachmentPill({ mediaType, filename }: FileAttachmentPillProps) {
   )
 }
 
-const SKELETON_LINE_COUNT = 4
-
-function ChatSkeleton({ children }: { children: React.ReactNode }) {
-  return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='min-h-0 flex-1 overflow-hidden px-6 py-4'>
-        <div className='mx-auto max-w-[42rem] space-y-[10px] pt-3'>
-          {Array.from({ length: SKELETON_LINE_COUNT }).map((_, i) => (
-            <Skeleton key={i} className='h-[16px]' style={{ width: `${120 + (i % 4) * 48}px` }} />
-          ))}
-        </div>
-      </div>
-      <div className='flex-shrink-0 px-[24px] pb-[16px]'>{children}</div>
-    </div>
-  )
-}
-
 interface HomeProps {
   chatId?: string
 }
@@ -76,6 +58,8 @@ export function Home({ chatId }: HomeProps = {}) {
   const initialViewInputRef = useRef<HTMLDivElement>(null)
   const templateRef = useRef<HTMLDivElement>(null)
   const baseInputHeightRef = useRef<number | null>(null)
+
+  const [isInputEntering, setIsInputEntering] = useState(false)
 
   const createWorkflowFromLandingSeed = useCallback(
     async (seed: LandingWorkflowSeed) => {
@@ -150,7 +134,7 @@ export function Home({ chatId }: HomeProps = {}) {
 
   const wasSendingRef = useRef(false)
 
-  const { isLoading: isLoadingHistory } = useChatHistory(chatId)
+  useChatHistory(chatId)
   const { mutate: markRead } = useMarkTaskRead(workspaceId)
 
   const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
@@ -177,7 +161,6 @@ export function Home({ chatId }: HomeProps = {}) {
   const {
     messages,
     isSending,
-    isReconnecting,
     sendMessage,
     stopGeneration,
     resolvedChatId,
@@ -245,6 +228,11 @@ export function Home({ chatId }: HomeProps = {}) {
     (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
       const trimmed = text.trim()
       if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
+
+      if (initialViewInputRef.current) {
+        setIsInputEntering(true)
+      }
+
       sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
     },
     [sendMessage]
@@ -339,22 +327,7 @@ export function Home({ chatId }: HomeProps = {}) {
     return () => ro.disconnect()
   }, [hasMessages])
 
-  if (chatId && (isLoadingHistory || isReconnecting)) {
-    return (
-      <ChatSkeleton>
-        <UserInput
-          onSubmit={handleSubmit}
-          isSending={isSending}
-          onStopGeneration={stopGeneration}
-          isInitialView={false}
-          userId={session?.user?.id}
-          onContextAdd={handleContextAdd}
-        />
-      </ChatSkeleton>
-    )
-  }
-
-  if (!hasMessages) {
+  if (!hasMessages && !chatId) {
     return (
       <div className='h-full overflow-y-auto bg-[var(--bg)] [scrollbar-gutter:stable]'>
         <div className='flex min-h-full flex-col items-center justify-center px-[24px] pb-[2vh]'>
@@ -373,7 +346,10 @@ export function Home({ chatId }: HomeProps = {}) {
             />
           </div>
         </div>
-        <div ref={templateRef} className='-mt-[30vh] mx-auto w-full max-w-[42rem] pb-[32px]'>
+        <div
+          ref={templateRef}
+          className='-mt-[30vh] mx-auto w-full max-w-[68rem] px-[16px] pb-[32px] sm:px-[24px] lg:px-[40px]'
+        >
           <TemplatePrompts onSelect={handleSubmit} />
         </div>
       </div>
@@ -418,7 +394,7 @@ export function Home({ chatId }: HomeProps = {}) {
                         })}
                       </div>
                     )}
-                    <div className='max-w-[70%] rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2'>
+                    <div className='max-w-[70%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2'>
                       <UserMessageContent content={msg.content} contexts={msg.contexts} />
                     </div>
                   </div>
@@ -451,7 +427,10 @@ export function Home({ chatId }: HomeProps = {}) {
           </div>
         </div>
 
-        <div className='flex-shrink-0 px-[24px] pb-[16px]'>
+        <div
+          className={`flex-shrink-0 px-[24px] pb-[16px]${isInputEntering ? ' animate-slide-in-bottom' : ''}`}
+          onAnimationEnd={isInputEntering ? () => setIsInputEntering(false) : undefined}
+        >
           <div className='mx-auto max-w-[42rem]'>
             <QueuedMessages
               messageQueue={messageQueue}

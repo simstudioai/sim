@@ -6,7 +6,7 @@ import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/type
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const USER_MESSAGE_CLASSES =
-  'whitespace-pre-wrap font-[430] font-[family-name:var(--font-inter)] text-[15px] text-[var(--text-primary)] leading-[23px] tracking-[0] antialiased'
+  'whitespace-pre-wrap break-all font-[430] font-[family-name:var(--font-inter)] text-[15px] text-[var(--text-primary)] leading-[23px] tracking-[0] antialiased'
 
 interface UserMessageContentProps {
   content: string

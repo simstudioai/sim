@@ -31,7 +31,7 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
     '@context': 'https://schema.org',
     '@type': 'Person',
     name: author.name,
-    url: `https://sim.ai/studio/authors/${author.id}`,
+    url: `https://sim.ai/blog/authors/${author.id}`,
     sameAs: author.url ? [author.url] : [],
     image: author.avatarUrl,
   }
@@ -56,7 +56,7 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
       </div>
       <div className='grid grid-cols-1 gap-8 sm:grid-cols-2'>
         {posts.map((p) => (
-          <Link key={p.slug} href={`/studio/${p.slug}`} className='group'>
+          <Link key={p.slug} href={`/blog/${p.slug}`} className='group'>
             <div className='overflow-hidden rounded-lg border border-[#2A2A2A]'>
               <Image
                 src={p.ogImage}

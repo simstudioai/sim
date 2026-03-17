@@ -2,7 +2,6 @@ import type { ComponentType, SVGProps } from 'react'
 import {
   Asterisk,
   Blimp,
-  BubbleChatPreview,
   Bug,
   Calendar,
   ClipboardList,
@@ -23,6 +22,7 @@ import {
   Wrench,
 } from '@/components/emcn'
 import { Table as TableIcon } from '@/components/emcn/icons'
+import { AgentIcon } from '@/components/icons'
 import type { MothershipToolName, SubagentName } from '../../types'
 
 export type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
@@ -53,7 +53,7 @@ const TOOL_ICONS: Record<MothershipToolName | SubagentName | 'mothership', IconC
   knowledge_base: Database,
   table: TableIcon,
   job: Calendar,
-  agent: BubbleChatPreview,
+  agent: AgentIcon,
   custom_tool: Wrench,
   research: Search,
   plan: ClipboardList,
