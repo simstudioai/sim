@@ -64,13 +64,28 @@ export async function getTableById(
 ): Promise<TableDefinition | null> {
   const { includeArchived = false } = options ?? {}
   const results = await db
-    .select()
+    .select({
+      id: userTableDefinitions.id,
+      name: userTableDefinitions.name,
+      description: userTableDefinitions.description,
+      schema: userTableDefinitions.schema,
+      metadata: userTableDefinitions.metadata,
+      maxRows: userTableDefinitions.maxRows,
+      workspaceId: userTableDefinitions.workspaceId,
+      createdBy: userTableDefinitions.createdBy,
+      archivedAt: userTableDefinitions.archivedAt,
+      createdAt: userTableDefinitions.createdAt,
+      updatedAt: userTableDefinitions.updatedAt,
+      rowCount: sql<number>`coalesce(${count(userTableRows.id)}, 0)`.mapWith(Number),
+    })
     .from(userTableDefinitions)
+    .leftJoin(userTableRows, eq(userTableRows.tableId, userTableDefinitions.id))
     .where(
       includeArchived
         ? eq(userTableDefinitions.id, tableId)
         : and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.archivedAt))
     )
+    .groupBy(userTableDefinitions.id)
     .limit(1)
 
   if (results.length === 0) return null
