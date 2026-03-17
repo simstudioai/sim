@@ -123,19 +123,20 @@ const RESOURCE_INVALIDATORS: Record<
   MothershipResourceType,
   (qc: QueryClient, workspaceId: string, resourceId: string) => void
 > = {
-  table: (qc, wId, id) => {
-    qc.invalidateQueries({ queryKey: tableKeys.list(wId) })
+  table: (qc, _wId, id) => {
+    qc.invalidateQueries({ queryKey: tableKeys.lists() })
     qc.invalidateQueries({ queryKey: tableKeys.detail(id) })
   },
   file: (qc, wId, id) => {
-    qc.invalidateQueries({ queryKey: workspaceFilesKeys.list(wId) })
+    qc.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
     qc.invalidateQueries({ queryKey: workspaceFilesKeys.content(wId, id) })
+    qc.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
   },
-  workflow: (qc, wId) => {
-    qc.invalidateQueries({ queryKey: workflowKeys.list(wId) })
+  workflow: (qc, _wId) => {
+    qc.invalidateQueries({ queryKey: workflowKeys.lists() })
   },
-  knowledgebase: (qc, wId, id) => {
-    qc.invalidateQueries({ queryKey: knowledgeKeys.list(wId) })
+  knowledgebase: (qc, _wId, id) => {
+    qc.invalidateQueries({ queryKey: knowledgeKeys.lists() })
     qc.invalidateQueries({ queryKey: knowledgeKeys.detail(id) })
   },
 }
