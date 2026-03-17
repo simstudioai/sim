@@ -41,6 +41,12 @@ const PREVIEW_MODE_ICONS = {
   preview: Pencil,
 } satisfies Record<PreviewMode, (props: ComponentProps<typeof Eye>) => ReactNode>
 
+const PREVIEW_MODE_LABELS: Record<PreviewMode, string> = {
+  editor: 'Split Mode',
+  split: 'Preview Mode',
+  preview: 'Edit Mode',
+}
+
 /**
  * Builds a `type:id` -> current name lookup from live query data so resource
  * tabs always reflect the latest name even after a rename.
@@ -399,7 +405,7 @@ export function ResourceTabs({
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content side='bottom'>
-                <p>Preview mode</p>
+                <p>{PREVIEW_MODE_LABELS[previewMode]}</p>
               </Tooltip.Content>
             </Tooltip.Root>
           )}
