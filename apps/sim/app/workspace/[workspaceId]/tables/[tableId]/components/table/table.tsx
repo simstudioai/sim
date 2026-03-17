@@ -718,6 +718,24 @@ export function Table({
         return
       }
 
+      if (e.key === ' ' && e.shiftKey) {
+        const a = selectionAnchorRef.current
+        if (!a || editingCellRef.current) return
+        e.preventDefault()
+        setSelectionFocus(null)
+        setCheckedRows((prev) => {
+          const next = new Set(prev)
+          if (next.has(a.rowIndex)) {
+            next.delete(a.rowIndex)
+          } else {
+            next.add(a.rowIndex)
+          }
+          return next
+        })
+        lastCheckboxRowRef.current = a.rowIndex
+        return
+      }
+
       const anchor = selectionAnchorRef.current
       if (!anchor || editingCellRef.current) return
 
@@ -770,23 +788,6 @@ export function Table({
         if (row) {
           setEditingRow(row)
         }
-        return
-      }
-
-      if (e.key === ' ' && e.shiftKey) {
-        e.preventDefault()
-        setSelectionAnchor(null)
-        setSelectionFocus(null)
-        setCheckedRows((prev) => {
-          const next = new Set(prev)
-          if (next.has(anchor.rowIndex)) {
-            next.delete(anchor.rowIndex)
-          } else {
-            next.add(anchor.rowIndex)
-          }
-          return next
-        })
-        lastCheckboxRowRef.current = anchor.rowIndex
         return
       }
 
