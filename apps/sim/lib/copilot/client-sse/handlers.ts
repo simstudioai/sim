@@ -3,6 +3,7 @@ import { STREAM_STORAGE_KEY } from '@/lib/copilot/constants'
 import { asRecord } from '@/lib/copilot/orchestrator/sse/utils'
 import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
 import {
+  abortAllInProgressTools,
   isBackgroundState,
   isRejectedState,
   isReviewState,
@@ -956,7 +957,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     }))
     context.streamComplete = true
   },
-  stream_end: (_data, context, _get, set) => {
+  stream_end: (_data, context, get, set) => {
     if (context.pendingContent) {
       if (context.isInThinkingBlock && context.currentThinkingBlock) {
         appendThinkingContent(context, context.pendingContent)
@@ -967,6 +968,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     }
     finalizeThinkingBlock(context)
     updateStreamingMessage(set, context)
+    abortAllInProgressTools(set, get)
   },
   default: () => {},
 }
