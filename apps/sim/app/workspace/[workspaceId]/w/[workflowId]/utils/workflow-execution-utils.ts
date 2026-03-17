@@ -492,6 +492,7 @@ export async function executeWorkflowWithFullLogging(
   if (!response.ok) {
     const error = await response.json()
     const errorMessage = error.error || 'Workflow execution failed'
+    const isValidationError = response.status >= 400 && response.status < 500
     const now = new Date().toISOString()
     addConsole({
       input: {},
@@ -503,10 +504,10 @@ export async function executeWorkflowWithFullLogging(
       executionOrder: 0,
       endedAt: now,
       workflowId: wfId,
-      blockId: 'execution-error',
+      blockId: isValidationError ? 'validation' : 'execution-error',
       executionId,
-      blockName: 'Execution Error',
-      blockType: 'error',
+      blockName: isValidationError ? 'Workflow Validation' : 'Execution Error',
+      blockType: isValidationError ? 'validation' : 'error',
     })
     throw new Error(errorMessage)
   }
