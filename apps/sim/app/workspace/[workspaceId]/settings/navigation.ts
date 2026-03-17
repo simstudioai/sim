@@ -5,6 +5,7 @@ import {
   HexSimple,
   Key,
   KeySquare,
+  Lock,
   LogIn,
   Mail,
   Send,
@@ -167,7 +168,7 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'admin',
     label: 'Admin',
-    icon: ShieldCheck,
+    icon: Lock,
     section: 'superuser',
     requiresAdminRole: true,
   },

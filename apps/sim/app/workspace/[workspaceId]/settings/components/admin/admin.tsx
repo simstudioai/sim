@@ -209,12 +209,13 @@ export function Admin() {
                         <Button
                           variant='active'
                           className='h-[28px] px-[8px] text-[12px]'
-                          onClick={() =>
+                          onClick={() => {
+                            setUserRole.reset()
                             setUserRole.mutate({
                               userId: u.id,
                               role: u.role === 'admin' ? 'user' : 'admin',
                             })
-                          }
+                          }}
                           disabled={pendingUserIds.has(u.id)}
                         >
                           {u.role === 'admin' ? 'Demote' : 'Promote'}
@@ -223,7 +224,10 @@ export function Admin() {
                           <Button
                             variant='active'
                             className='h-[28px] px-[8px] text-[12px]'
-                            onClick={() => unbanUser.mutate({ userId: u.id })}
+                            onClick={() => {
+                              unbanUser.reset()
+                              unbanUser.mutate({ userId: u.id })
+                            }}
                             disabled={pendingUserIds.has(u.id)}
                           >
                             Unban
@@ -240,6 +244,7 @@ export function Admin() {
                               variant='primary'
                               className='h-[28px] px-[8px] text-[12px]'
                               onClick={() => {
+                                banUser.reset()
                                 banUser.mutate(
                                   {
                                     userId: u.id,

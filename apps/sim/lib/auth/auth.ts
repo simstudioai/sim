@@ -116,6 +116,15 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
+        before: async (user) => {
+          if (blockedSignupDomains) {
+            const emailDomain = user.email?.split('@')[1]?.toLowerCase()
+            if (emailDomain && blockedSignupDomains.has(emailDomain)) {
+              throw new Error('Sign-ups from this email domain are not allowed.')
+            }
+          }
+          return { data: user }
+        },
         after: async (user) => {
           logger.info('[databaseHooks.user.create.after] User created, initializing stats', {
             userId: user.id,
