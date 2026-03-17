@@ -3922,7 +3922,7 @@ const WorkflowContent = React.memo(
               </>
             )}
 
-            <Notifications />
+            <Notifications embedded={embedded} />
 
             {!embedded && isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && (
               <CommandList />

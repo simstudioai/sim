@@ -9,6 +9,7 @@ import {
   type Notification,
   type NotificationAction,
   openCopilotWithMessage,
+  sendMothershipMessage,
   useNotificationStore,
 } from '@/stores/notifications'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -81,7 +82,11 @@ function CountdownRing({ onPause }: { onPause: () => void }) {
  * Workflow error notifications auto-dismiss after {@link AUTO_DISMISS_MS}ms with a countdown
  * ring. Clicking the ring pauses all timers until the notification stack clears.
  */
-export const Notifications = memo(function Notifications() {
+interface NotificationsProps {
+  embedded?: boolean
+}
+
+export const Notifications = memo(function Notifications({ embedded }: NotificationsProps) {
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
   const allNotifications = useNotificationStore((state) => state.notifications)
@@ -112,7 +117,11 @@ export const Notifications = memo(function Notifications() {
 
         switch (action.type) {
           case 'copilot':
-            openCopilotWithMessage(action.message)
+            if (embedded) {
+              sendMothershipMessage(action.message)
+            } else {
+              openCopilotWithMessage(action.message)
+            }
             break
           case 'refresh':
             window.location.reload()
@@ -133,7 +142,7 @@ export const Notifications = memo(function Notifications() {
         })
       }
     },
-    [removeNotification]
+    [embedded, removeNotification]
   )
 
   useRegisterGlobalCommands(() =>
@@ -281,7 +290,9 @@ export const Notifications = memo(function Notifications() {
                   onClick={() => executeAction(notification.id, notification.action!)}
                   className='w-full rounded-[5px] px-[8px] py-[4px] font-medium text-[12px]'
                 >
-                  {ACTION_LABELS[notification.action!.type] ?? 'Take action'}
+                  {embedded && notification.action!.type === 'copilot'
+                    ? 'Fix in Mothership'
+                    : (ACTION_LABELS[notification.action!.type] ?? 'Take action')}
                 </Button>
               )}
             </div>
