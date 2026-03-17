@@ -79,7 +79,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
 
     if (block.type === 'text') {
       if (!block.content?.trim()) continue
-      if (block.subagent && group) {
+      if (block.subagent && group && group.agentName === block.subagent) {
         const lastItem = group.items[group.items.length - 1]
         if (lastItem?.type === 'text') {
           lastItem.content += block.content
