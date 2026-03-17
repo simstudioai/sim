@@ -216,10 +216,11 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
       pkce: process.env.SSO_OIDC_PKCE !== 'false',
       authorizationEndpoint: process.env.SSO_OIDC_AUTHORIZATION_ENDPOINT,
       tokenEndpoint: process.env.SSO_OIDC_TOKEN_ENDPOINT,
-      tokenEndpointAuthentication: process.env.SSO_OIDC_TOKEN_ENDPOINT_AUTH as
-        | 'client_secret_post'
-        | 'client_secret_basic'
-        | undefined,
+      tokenEndpointAuthentication:
+        process.env.SSO_OIDC_TOKEN_ENDPOINT_AUTH === 'client_secret_post' ||
+        process.env.SSO_OIDC_TOKEN_ENDPOINT_AUTH === 'client_secret_basic'
+          ? process.env.SSO_OIDC_TOKEN_ENDPOINT_AUTH
+          : undefined,
       userInfoEndpoint: process.env.SSO_OIDC_USERINFO_ENDPOINT,
       jwksEndpoint: process.env.SSO_OIDC_JWKS_ENDPOINT,
       discoveryEndpoint:
