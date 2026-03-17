@@ -657,11 +657,15 @@ export function useChat(
                     : useWorkflowRegistry.getState().activeWorkflowId
                 if (targetWorkflowId) {
                   const meta = useWorkflowRegistry.getState().workflows[targetWorkflowId]
-                  addResource({
-                    type: 'workflow',
-                    id: targetWorkflowId,
-                    title: meta?.name ?? 'Workflow',
-                  })
+                  if (
+                    addResource({
+                      type: 'workflow',
+                      id: targetWorkflowId,
+                      title: meta?.name ?? 'Workflow',
+                    })
+                  ) {
+                    onResourceEventRef.current?.()
+                  }
                 }
                 executeRunToolOnClient(id, name, args as Record<string, unknown>)
               }
