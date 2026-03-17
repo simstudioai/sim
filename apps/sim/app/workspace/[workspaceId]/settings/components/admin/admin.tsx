@@ -70,12 +70,23 @@ export function Admin() {
     }
   }
 
-  const actionPending = setUserRole.isPending || banUser.isPending || unbanUser.isPending
-  const pendingUserId =
-    (setUserRole.isPending ? (setUserRole.variables as { userId?: string })?.userId : undefined) ??
-    (banUser.isPending ? (banUser.variables as { userId?: string })?.userId : undefined) ??
-    (unbanUser.isPending ? (unbanUser.variables as { userId?: string })?.userId : undefined) ??
-    null
+  const pendingUserIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (setUserRole.isPending && (setUserRole.variables as { userId?: string })?.userId)
+      ids.add((setUserRole.variables as { userId: string }).userId)
+    if (banUser.isPending && (banUser.variables as { userId?: string })?.userId)
+      ids.add((banUser.variables as { userId: string }).userId)
+    if (unbanUser.isPending && (unbanUser.variables as { userId?: string })?.userId)
+      ids.add((unbanUser.variables as { userId: string }).userId)
+    return ids
+  }, [
+    setUserRole.isPending,
+    setUserRole.variables,
+    banUser.isPending,
+    banUser.variables,
+    unbanUser.isPending,
+    unbanUser.variables,
+  ])
   return (
     <div className='flex h-full flex-col gap-[24px]'>
       <div className='flex items-center justify-between'>
@@ -204,7 +215,7 @@ export function Admin() {
                               role: u.role === 'admin' ? 'user' : 'admin',
                             })
                           }
-                          disabled={actionPending && pendingUserId === u.id}
+                          disabled={pendingUserIds.has(u.id)}
                         >
                           {u.role === 'admin' ? 'Demote' : 'Promote'}
                         </Button>
@@ -213,7 +224,7 @@ export function Admin() {
                             variant='active'
                             className='h-[28px] px-[8px] text-[12px]'
                             onClick={() => unbanUser.mutate({ userId: u.id })}
-                            disabled={actionPending && pendingUserId === u.id}
+                            disabled={pendingUserIds.has(u.id)}
                           >
                             Unban
                           </Button>
@@ -242,7 +253,7 @@ export function Admin() {
                                   }
                                 )
                               }}
-                              disabled={actionPending && pendingUserId === u.id}
+                              disabled={pendingUserIds.has(u.id)}
                             >
                               Confirm
                             </Button>
@@ -265,7 +276,7 @@ export function Admin() {
                               setBanUserId(u.id)
                               setBanReason('')
                             }}
-                            disabled={actionPending && pendingUserId === u.id}
+                            disabled={pendingUserIds.has(u.id)}
                           >
                             Ban
                           </Button>

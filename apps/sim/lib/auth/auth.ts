@@ -79,6 +79,10 @@ const logger = createLogger('Auth')
 import { getMicrosoftRefreshTokenExpiry, isMicrosoftProvider } from '@/lib/oauth/microsoft'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 
+const blockedSignupDomains = env.BLOCKED_SIGNUP_DOMAINS
+  ? new Set(env.BLOCKED_SIGNUP_DOMAINS.split(',').map((d) => d.trim().toLowerCase()))
+  : null
+
 const validStripeKey = env.STRIPE_SECRET_KEY
 
 let stripeClient = null
@@ -595,6 +599,16 @@ export const auth = betterAuth({
 
           if (!isAllowed) {
             throw new Error('Access restricted. Please contact your administrator.')
+          }
+        }
+      }
+
+      if (ctx.path.startsWith('/sign-up') && blockedSignupDomains) {
+        const requestEmail = ctx.body?.email?.toLowerCase()
+        if (requestEmail) {
+          const emailDomain = requestEmail.split('@')[1]
+          if (emailDomain && blockedSignupDomains.has(emailDomain)) {
+            throw new Error('Sign-ups from this email domain are not allowed.')
           }
         }
       }

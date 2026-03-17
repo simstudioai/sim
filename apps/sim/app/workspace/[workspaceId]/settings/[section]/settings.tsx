@@ -158,13 +158,13 @@ interface SettingsPageProps {
 export function SettingsPage({ section }: SettingsPageProps) {
   const searchParams = useSearchParams()
   const mcpServerId = searchParams.get('mcpServerId')
-  const { data: session } = useSession()
+  const { data: session, isPending: sessionLoading } = useSession()
 
   const isAdminRole = session?.user?.role === 'admin'
   const effectiveSection =
     !isBillingEnabled && (section === 'subscription' || section === 'team')
       ? 'general'
-      : section === 'admin' && !isAdminRole
+      : section === 'admin' && !sessionLoading && !isAdminRole
         ? 'general'
         : section
 
