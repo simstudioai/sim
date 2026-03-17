@@ -737,6 +737,31 @@ export function Table({
         return
       }
 
+      if ((e.key === 'Delete' || e.key === 'Backspace') && checkedRowsRef.current.size > 0) {
+        if (editingCellRef.current) return
+        e.preventDefault()
+        const checked = checkedRowsRef.current
+        const pMap = positionMapRef.current
+        const currentCols = columnsRef.current
+        const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
+        for (const pos of checked) {
+          const row = pMap.get(pos)
+          if (!row) continue
+          const updates: Record<string, unknown> = {}
+          const previousData: Record<string, unknown> = {}
+          for (const col of currentCols) {
+            previousData[col.name] = row.data[col.name] ?? null
+            updates[col.name] = null
+          }
+          undoCells.push({ rowId: row.id, data: previousData })
+          mutateRef.current({ rowId: row.id, data: updates })
+        }
+        if (undoCells.length > 0) {
+          pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
+        }
+        return
+      }
+
       const anchor = selectionAnchorRef.current
       if (!anchor || editingCellRef.current) return
 
@@ -837,41 +862,24 @@ export function Table({
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault()
-        const checked = checkedRowsRef.current
+        const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
+        if (!sel) return
         const pMap = positionMapRef.current
         const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
-
-        if (checked.size > 0) {
-          for (const pos of checked) {
-            const row = pMap.get(pos)
-            if (!row) continue
-            const updates: Record<string, unknown> = {}
-            const previousData: Record<string, unknown> = {}
-            for (const col of cols) {
-              previousData[col.name] = row.data[col.name] ?? null
-              updates[col.name] = null
+        for (let r = sel.startRow; r <= sel.endRow; r++) {
+          const row = pMap.get(r)
+          if (!row) continue
+          const updates: Record<string, unknown> = {}
+          const previousData: Record<string, unknown> = {}
+          for (let c = sel.startCol; c <= sel.endCol; c++) {
+            if (c < cols.length) {
+              const colName = cols[c].name
+              previousData[colName] = row.data[colName] ?? null
+              updates[colName] = null
             }
-            undoCells.push({ rowId: row.id, data: previousData })
-            mutateRef.current({ rowId: row.id, data: updates })
           }
-        } else {
-          const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
-          if (!sel) return
-          for (let r = sel.startRow; r <= sel.endRow; r++) {
-            const row = pMap.get(r)
-            if (!row) continue
-            const updates: Record<string, unknown> = {}
-            const previousData: Record<string, unknown> = {}
-            for (let c = sel.startCol; c <= sel.endCol; c++) {
-              if (c < cols.length) {
-                const colName = cols[c].name
-                previousData[colName] = row.data[colName] ?? null
-                updates[colName] = null
-              }
-            }
-            undoCells.push({ rowId: row.id, data: previousData })
-            mutateRef.current({ rowId: row.id, data: updates })
-          }
+          undoCells.push({ rowId: row.id, data: previousData })
+          mutateRef.current({ rowId: row.id, data: updates })
         }
         if (undoCells.length > 0) {
           pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
