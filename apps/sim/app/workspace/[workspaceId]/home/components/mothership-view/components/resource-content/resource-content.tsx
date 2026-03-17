@@ -197,7 +197,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
           </Button>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
-          <p>{isExecuting ? 'Stop' : 'Run'}</p>
+          <p>{isExecuting ? 'Stop' : 'Run workflow'}</p>
         </Tooltip.Content>
       </Tooltip.Root>
     </>
