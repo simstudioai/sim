@@ -113,10 +113,15 @@ export function useWorkflows(
   })
 
   useEffect(() => {
-    if (syncRegistry && scope === 'active' && workspaceId && query.status === 'pending') {
+    if (
+      syncRegistry &&
+      scope === 'active' &&
+      workspaceId &&
+      (query.status === 'pending' || query.isPlaceholderData)
+    ) {
       beginMetadataLoad(workspaceId)
     }
-  }, [syncRegistry, scope, workspaceId, query.status, beginMetadataLoad])
+  }, [syncRegistry, scope, workspaceId, query.status, query.isPlaceholderData, beginMetadataLoad])
 
   useEffect(() => {
     if (
@@ -124,11 +129,20 @@ export function useWorkflows(
       scope === 'active' &&
       workspaceId &&
       query.status === 'success' &&
-      query.data
+      query.data &&
+      !query.isPlaceholderData
     ) {
       completeMetadataLoad(workspaceId, query.data)
     }
-  }, [syncRegistry, scope, workspaceId, query.status, query.data, completeMetadataLoad])
+  }, [
+    syncRegistry,
+    scope,
+    workspaceId,
+    query.status,
+    query.data,
+    query.isPlaceholderData,
+    completeMetadataLoad,
+  ])
 
   useEffect(() => {
     if (syncRegistry && scope === 'active' && workspaceId && query.status === 'error') {
