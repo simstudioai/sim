@@ -215,6 +215,10 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
       pkce: process.env.SSO_OIDC_PKCE !== 'false',
       authorizationEndpoint: process.env.SSO_OIDC_AUTHORIZATION_ENDPOINT,
       tokenEndpoint: process.env.SSO_OIDC_TOKEN_ENDPOINT,
+      tokenEndpointAuthentication: process.env.SSO_OIDC_TOKEN_ENDPOINT_AUTH as
+        | 'client_secret_post'
+        | 'client_secret_basic'
+        | undefined,
       userInfoEndpoint: process.env.SSO_OIDC_USERINFO_ENDPOINT,
       jwksEndpoint: process.env.SSO_OIDC_JWKS_ENDPOINT,
       discoveryEndpoint:
@@ -511,7 +515,7 @@ async function registerSSOProvider(): Promise<boolean> {
         // credentials without URL-encoding per RFC 6749 §2.3.1, so '+' in secrets
         // is decoded as space by OIDC providers, causing invalid_client errors.
         tokenEndpointAuthentication:
-          ssoConfig.oidcConfig.tokenEndpointAuthentication || 'client_secret_post',
+          ssoConfig.oidcConfig.tokenEndpointAuthentication ?? 'client_secret_post',
         jwksEndpoint: ssoConfig.oidcConfig.jwksEndpoint,
         pkce: ssoConfig.oidcConfig.pkce,
         discoveryEndpoint:
