@@ -1,6 +1,6 @@
-import { Search } from 'lucide-react'
 import { getAllPostMeta } from '@/lib/blog/registry'
 import { CategoryList } from '@/app/(landing)/blog/category-list'
+import { SearchInput } from '@/app/(landing)/blog/search-input'
 import { CATEGORIES, getPrimaryCategory } from '@/app/(landing)/blog/tag-colors'
 
 interface StudioSidebarProps {
@@ -45,22 +45,9 @@ export async function StudioSidebar({ activeTag }: StudioSidebarProps) {
           <h2 className='mb-4 font-season text-[10px] uppercase tracking-widest text-[#666]'>
             Find Insights
           </h2>
-          <div className='relative'>
-            <input
-              type='text'
-              placeholder='SEARCH COMING SOON...'
-              disabled
-              className='w-full cursor-not-allowed border border-[#2A2A2A] bg-[#232323] px-4 py-2 font-season text-[11px] text-[#ECECEC] opacity-50 placeholder:text-[#666]'
-              style={{ borderRadius: '5px' }}
-              aria-label='Search blog posts (coming soon)'
-            />
-            <Search
-              className='absolute right-3 top-2.5 h-3.5 w-3.5 text-[#666]'
-              aria-hidden='true'
-            />
-          </div>
+          <SearchInput />
         </div>
-        <div className='flex flex-col'>
+        <div className='flex flex-col pt-6'>
           <h2 className='mb-3 font-season text-[10px] uppercase tracking-widest text-[#ECECEC]'>
             Categories
           </h2>

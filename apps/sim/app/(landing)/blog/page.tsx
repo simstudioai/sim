@@ -16,11 +16,12 @@ export const revalidate = 3600
 export default async function BlogIndex({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; tag?: string }>
+  searchParams: Promise<{ page?: string; tag?: string; q?: string }>
 }) {
-  const { page, tag } = await searchParams
+  const { page, tag, q } = await searchParams
   const pageNum = Math.max(1, Number(page || 1))
   const perPage = 20
+  const query = q?.trim().toLowerCase() ?? ''
 
   const all = await getAllPostMeta()
 
@@ -38,6 +39,22 @@ export default async function BlogIndex({
       }
     }
   }
+
+  if (query) {
+    filtered = filtered.filter((p) => {
+      const haystack = [
+        p.title,
+        p.description,
+        ...p.tags,
+        p.author.name,
+        ...(p.authors?.map((a) => a.name) ?? []),
+      ]
+        .join(' ')
+        .toLowerCase()
+      return haystack.includes(query)
+    })
+  }
+
   const activeCategory = resolvedTag ? getCategoryById(resolvedTag) : null
 
   const sorted = filtered.sort((a, b) => {
@@ -68,9 +85,28 @@ export default async function BlogIndex({
           type='application/ld+json'
           dangerouslySetInnerHTML={{ __html: JSON.stringify(studioJsonLd) }}
         />
-        {pageNum === 1 && !tag && <StudioHero />}
+        {pageNum === 1 && !tag && !query && <StudioHero />}
         <div className='mx-auto w-full max-w-5xl py-12'>
-          {activeCategory && (
+          {query && (
+            <div className='mb-8 flex items-center gap-3'>
+              <span className='font-season text-[10px] uppercase tracking-widest text-[#666]'>
+                Results for:
+              </span>
+              <span
+                className='px-2 py-0.5 font-season text-[10px] uppercase tracking-wider text-[#ECECEC]'
+                style={{ border: '1px solid #3d3d3d' }}
+              >
+                {q}
+              </span>
+              <Link
+                href='/studio'
+                className='font-mono text-[10px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
+              >
+                Clear
+              </Link>
+            </div>
+          )}
+          {activeCategory && !query && (
             <div className='mb-8 flex items-center gap-3'>
               <span className='font-mono text-[10px] uppercase tracking-widest text-[#666]'>
                 Filtered by:
@@ -105,14 +141,16 @@ export default async function BlogIndex({
             <section>
               <h2 className='mb-8 flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-[#666]'>
                 <span className='inline-block h-2 w-2 bg-[#00F701]' aria-hidden='true' />
-                {activeCategory ? activeCategory.label : 'All Posts'}
+                {query ? 'Search Results' : activeCategory ? activeCategory.label : 'All Posts'}
               </h2>
               <PostGrid posts={feed} />
             </section>
           )}
           {pagePosts.length === 0 && (
             <div className='py-20 text-center'>
-              <p className='text-[14px] text-[#666]'>No posts found.</p>
+              <p className='text-[14px] text-[#666]'>
+                {query ? `No posts matching "${q}".` : 'No posts found.'}
+              </p>
               <Link
                 href='/studio'
                 className='mt-4 inline-block font-mono text-[12px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
