@@ -507,7 +507,11 @@ async function registerSSOProvider(): Promise<boolean> {
         clientSecret: ssoConfig.oidcConfig.clientSecret,
         authorizationEndpoint: ssoConfig.oidcConfig.authorizationEndpoint,
         tokenEndpoint: ssoConfig.oidcConfig.tokenEndpoint,
-        tokenEndpointAuthentication: ssoConfig.oidcConfig.tokenEndpointAuthentication,
+        // Default to client_secret_post: better-auth sends client_secret_basic
+        // credentials without URL-encoding per RFC 6749 §2.3.1, so '+' in secrets
+        // is decoded as space by OIDC providers, causing invalid_client errors.
+        tokenEndpointAuthentication:
+          ssoConfig.oidcConfig.tokenEndpointAuthentication || 'client_secret_post',
         jwksEndpoint: ssoConfig.oidcConfig.jwksEndpoint,
         pkce: ssoConfig.oidcConfig.pkce,
         discoveryEndpoint:
