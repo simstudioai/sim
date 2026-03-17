@@ -348,7 +348,7 @@ export function Home({ chatId }: HomeProps = {}) {
         </div>
         <div
           ref={templateRef}
-          className='-mt-[30vh] mx-auto w-full max-w-[68rem] px-[40px] pb-[32px]'
+          className='-mt-[30vh] mx-auto w-full max-w-[68rem] px-[16px] pb-[32px] sm:px-[24px] lg:px-[40px]'
         >
           <TemplatePrompts onSelect={handleSubmit} />
         </div>
