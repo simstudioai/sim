@@ -225,7 +225,7 @@ export async function trackChatUpload(
   const updated = await db
     .update(workspaceFiles)
     .set({ chatId, context: 'mothership' })
-    .where(and(eq(workspaceFiles.key, s3Key), isNull(workspaceFiles.deletedAt)))
+    .where(and(eq(workspaceFiles.key, s3Key), eq(workspaceFiles.workspaceId, workspaceId), isNull(workspaceFiles.deletedAt)))
     .returning({ id: workspaceFiles.id })
 
   if (updated.length > 0) {
