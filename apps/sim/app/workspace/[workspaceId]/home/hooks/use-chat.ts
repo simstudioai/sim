@@ -1067,7 +1067,7 @@ export function useChat(
 
         if (!response.body) throw new Error('No response body')
 
-        await processSSEStream(response.body.getReader(), assistantId)
+        await processSSEStream(response.body.getReader(), assistantId, gen)
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return
         setError(err instanceof Error ? err.message : 'Failed to send message')
