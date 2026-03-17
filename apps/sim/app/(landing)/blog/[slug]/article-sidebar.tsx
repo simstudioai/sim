@@ -7,7 +7,6 @@ import { getTagColor } from '@/app/(landing)/studio/tag-colors'
 interface ArticleSidebarProps {
   author: Author
   authors: Author[]
-  tags: string[]
   headings: { text: string; id: string }[]
   related: BlogMeta[]
 }
@@ -20,7 +19,7 @@ function formatDate(iso: string) {
   })
 }
 
-export function ArticleSidebar({ author, authors, tags, headings, related }: ArticleSidebarProps) {
+export function ArticleSidebar({ author, authors, headings, related }: ArticleSidebarProps) {
   const displayAuthors = authors.length > 0 ? authors : [author]
 
   return (
@@ -71,35 +70,7 @@ export function ArticleSidebar({ author, authors, tags, headings, related }: Art
           <TableOfContents headings={headings} />
         </div>
       )}
-      {tags.length > 0 && (
-        <div className='border border-[#2A2A2A] bg-[#232323] p-5' style={{ borderRadius: '5px' }}>
-          <div className='mb-4 flex items-center gap-2 border-b border-[#2A2A2A] pb-3 font-mono text-[11px] uppercase tracking-widest text-[#ECECEC]'>
-            <span className='inline-block h-1.5 w-1.5 bg-[#FA4EDF]' aria-hidden='true' />
-            Topics
-          </div>
-          <div className='flex flex-wrap gap-2'>
-            {tags.map((tag) => {
-              const color = getTagColor(tag)
-              return (
-                <Link
-                  key={tag}
-                  href={`/studio?tag=${encodeURIComponent(tag)}`}
-                  className='font-mono text-[10px] uppercase tracking-wider transition-colors'
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: '5px',
-                    border: `1px solid ${color || '#3d3d3d'}`,
-                    color: color || '#999',
-                    backgroundColor: color ? `${color}08` : 'transparent',
-                  }}
-                >
-                  {tag}
-                </Link>
-              )
-            })}
-          </div>
-        </div>
-      )}
+
       {related.length > 0 && (
         <div className='border border-[#2A2A2A] bg-[#232323] p-5' style={{ borderRadius: '5px' }}>
           <div className='mb-4 flex items-center gap-2 border-b border-[#2A2A2A] pb-3 font-mono text-[11px] uppercase tracking-widest text-[#ECECEC]'>

@@ -1,5 +1,6 @@
 'use client'
 
+import { List } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 interface Heading {
@@ -65,21 +66,8 @@ export function TableOfContents({ headings }: TableOfContentsProps) {
   return (
     <div>
       <div className='mb-4 flex items-center gap-2 border-b border-[#2A2A2A] pb-3 font-mono text-[11px] uppercase tracking-widest text-[#ECECEC]'>
-        <svg
-          className='h-3 w-3 text-[#2ABBF8]'
-          fill='none'
-          stroke='currentColor'
-          viewBox='0 0 24 24'
-          aria-hidden='true'
-        >
-          <path
-            strokeLinecap='round'
-            strokeLinejoin='round'
-            strokeWidth={2}
-            d='M4 6h16M4 12h16M4 18h7'
-          />
-        </svg>
-        Outline
+        <List className='h-3 w-3 text-[#2ABBF8]' aria-hidden />
+        Contents
       </div>
       <nav className='flex flex-col space-y-2 font-mono text-[12px] font-medium text-[#999]'>
         {headings.map((h, idx) => {

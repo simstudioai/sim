@@ -12,7 +12,7 @@ import {
 } from '@/app/(landing)/blog/[slug]/animated-blocks'
 import { ArticleSidebar } from '@/app/(landing)/blog/[slug]/article-sidebar'
 import { ShareButtons } from '@/app/(landing)/blog/[slug]/share-button'
-import { getPrimaryCategory } from '@/app/(landing)/blog/tag-colors'
+import { getPrimaryCategory, getTagCategory } from '@/app/(landing)/blog/tag-colors'
 
 export async function generateStaticParams() {
   const posts = await getAllPostMeta()
@@ -56,7 +56,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       />
 
       <div className='mx-auto flex w-full max-w-[1400px] flex-col items-start gap-8 px-6 pb-24 pt-16 xl:flex-row'>
-        <div className='max-w-3xl flex-grow xl:mx-auto'>
+        <div className='max-w-4xl flex-grow xl:mx-auto'>
           <Link
             href='/studio'
             className='group mb-8 inline-flex items-center gap-2 border border-[#2A2A2A] bg-[#232323] px-4 py-2 font-mono text-[11px] uppercase tracking-widest text-[#999] transition-colors hover:text-[#ECECEC]'
@@ -99,9 +99,24 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             >
               {post.title}
             </h1>
-            <p className='text-[18px] leading-relaxed text-[#999]' itemProp='description'>
+            <p className='mb-6 text-[18px] leading-relaxed text-[#999]' itemProp='description'>
               {post.description}
             </p>
+            {post.tags.length > 0 && (
+              <div className='flex flex-wrap items-center gap-x-1.5 gap-y-1 font-mono text-[11px] text-[#666]'>
+                {post.tags.map((tag, i) => (
+                  <span key={tag}>
+                    <Link
+                      href={`/studio?tag=${encodeURIComponent(getTagCategory(tag))}`}
+                      className='transition-colors hover:text-[#999]'
+                    >
+                      {tag}
+                    </Link>
+                    {i < post.tags.length - 1 && <span className='ml-1.5 text-[#3d3d3d]'>/</span>}
+                  </span>
+                ))}
+              </div>
+            )}
 
             <meta itemProp='dateModified' content={post.updated ?? post.date} />
           </header>
@@ -119,7 +134,6 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
         <ArticleSidebar
           author={post.author}
           authors={displayAuthors}
-          tags={post.tags}
           headings={post.headings ?? []}
           related={related}
         />
