@@ -24,6 +24,18 @@ program
   .option('-y, --yes', 'Skip interactive prompts and use defaults')
   .option('--no-pull', 'Skip pulling the latest Docker images')
 
+async function runCommandQuiet(command: string[]): Promise<boolean> {
+  return new Promise((resolve) => {
+    const process = spawn(command[0], command.slice(1), { stdio: 'ignore' })
+    process.on('error', () => {
+      resolve(false)
+    })
+    process.on('close', (code) => {
+      resolve(code === 0)
+    })
+  })
+}
+
 function isDockerRunning(): Promise<boolean> {
   return new Promise((resolve) => {
     const docker = spawn('docker', ['info'])
@@ -66,12 +78,8 @@ async function pullImage(image: string): Promise<boolean> {
 }
 
 async function stopAndRemoveContainer(name: string): Promise<void> {
-  try {
-    execSync(`docker stop ${name} 2>/dev/null || true`)
-    execSync(`docker rm ${name} 2>/dev/null || true`)
-  } catch (_error) {
-    // Ignore errors, container might not exist
-  }
+  await runCommandQuiet(['docker', 'stop', name])
+  await runCommandQuiet(['docker', 'rm', name])
 }
 
 async function cleanupExistingContainers(): Promise<void> {
