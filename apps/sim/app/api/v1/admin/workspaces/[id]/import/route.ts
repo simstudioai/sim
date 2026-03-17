@@ -24,7 +24,7 @@
  */
 
 import { db } from '@sim/db'
-import { workflow, workflowFolder, workspace } from '@sim/db/schema'
+import { workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
@@ -34,6 +34,8 @@ import {
   parseWorkflowJson,
 } from '@/lib/workflows/operations/import-export'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { deduplicateWorkflowName } from '@/lib/workflows/utils'
+import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -67,11 +69,7 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
   const rootFolderName = url.searchParams.get('rootFolderName')
 
   try {
-    const [workspaceData] = await db
-      .select({ id: workspace.id, ownerId: workspace.ownerId })
-      .from(workspace)
-      .where(eq(workspace.id, workspaceId))
-      .limit(1)
+    const workspaceData = await getWorkspaceWithOwner(workspaceId)
 
     if (!workspaceData) {
       return notFoundResponse('Workspace')
@@ -238,13 +236,14 @@ async function importSingleWorkflow(
     const { color: workflowColor } = extractWorkflowMetadata(parsedContent)
     const workflowId = crypto.randomUUID()
     const now = new Date()
+    const dedupedName = await deduplicateWorkflowName(workflowName, workspaceId, targetFolderId)
 
     await db.insert(workflow).values({
       id: workflowId,
       userId: ownerId,
       workspaceId,
       folderId: targetFolderId,
-      name: workflowName,
+      name: dedupedName,
       description: workflowData.metadata?.description || 'Imported via Admin API',
       color: workflowColor,
       lastSynced: now,
@@ -261,7 +260,7 @@ async function importSingleWorkflow(
       await db.delete(workflow).where(eq(workflow.id, workflowId))
       return {
         workflowId: '',
-        name: workflowName,
+        name: dedupedName,
         success: false,
         error: `Failed to save state: ${saveResult.error}`,
       }
@@ -287,7 +286,7 @@ async function importSingleWorkflow(
 
     return {
       workflowId,
-      name: workflowName,
+      name: dedupedName,
       success: true,
     }
   } catch (error) {

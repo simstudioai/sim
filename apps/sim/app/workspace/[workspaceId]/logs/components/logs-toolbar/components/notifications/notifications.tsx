@@ -18,11 +18,13 @@ import {
   ModalTabsContent,
   ModalTabsList,
   ModalTabsTrigger,
+  Skeleton,
   TagInput,
   type TagItem,
 } from '@/components/emcn'
 import { SlackIcon } from '@/components/icons'
-import { Skeleton } from '@/components/ui'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import {
   type NotificationSubscription,
@@ -32,12 +34,18 @@ import {
   useTestNotification,
   useUpdateNotification,
 } from '@/hooks/queries/notifications'
-import { useConnectedAccounts, useConnectOAuthService } from '@/hooks/queries/oauth-connections'
-import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
+import {
+  useConnectedAccounts,
+  useConnectOAuthService,
+} from '@/hooks/queries/oauth/oauth-connections'
+import type { CoreTriggerType } from '@/stores/logs/filters/types'
 import { SlackChannelSelector } from './components/slack-channel-selector'
 import { WorkflowSelector } from './components/workflow-selector'
 
 const logger = createLogger('NotificationSettings')
+
+const TRIGGER_OPTIONS = getTriggerOptions()
+const ALL_TRIGGER_VALUES = TRIGGER_OPTIONS.map((t) => t.value)
 
 type NotificationType = 'webhook' | 'email' | 'slack'
 type LogLevel = 'info' | 'error'
@@ -68,7 +76,7 @@ const ALERT_RULES: { value: AlertRule; label: string; description: string }[] = 
   {
     value: 'cost_threshold',
     label: 'Cost Threshold',
-    description: 'When execution cost exceeds $',
+    description: 'When execution cost exceeds credits',
   },
   { value: 'no_activity', label: 'No Activity', description: 'When no executions in time window' },
   { value: 'error_count', label: 'Error Count', description: 'When errors exceed count in window' },
@@ -103,7 +111,7 @@ function formatAlertConfigLabel(config: {
     case 'latency_spike':
       return `${config.latencySpikePercent}% above avg in ${config.windowHours}h`
     case 'cost_threshold':
-      return `>$${config.costThresholdDollars} per execution`
+      return `>${dollarsToCredits(config.costThresholdDollars ?? 0).toLocaleString()} credits per execution`
     case 'no_activity':
       return `No activity in ${config.inactivityHours}h`
     case 'error_count':
@@ -133,7 +141,7 @@ export const NotificationSettings = memo(function NotificationSettings({
     workflowIds: [] as string[],
     allWorkflows: true,
     levelFilter: ['info', 'error'] as LogLevel[],
-    triggerFilter: [...CORE_TRIGGER_TYPES] as CoreTriggerType[],
+    triggerFilter: ALL_TRIGGER_VALUES,
     includeFinalOutput: false,
     includeTraceSpans: false,
     includeRateLimits: false,
@@ -201,7 +209,7 @@ export const NotificationSettings = memo(function NotificationSettings({
       workflowIds: [],
       allWorkflows: true,
       levelFilter: ['info', 'error'],
-      triggerFilter: [...CORE_TRIGGER_TYPES],
+      triggerFilter: ALL_TRIGGER_VALUES,
       includeFinalOutput: false,
       includeTraceSpans: false,
       includeRateLimits: false,
@@ -420,7 +428,7 @@ export const NotificationSettings = memo(function NotificationSettings({
       workflowIds: formData.workflowIds,
       allWorkflows: formData.allWorkflows,
       levelFilter: formData.levelFilter,
-      triggerFilter: formData.triggerFilter,
+      triggerFilter: formData.triggerFilter as CoreTriggerType[],
       includeFinalOutput: formData.includeFinalOutput,
       // Trace spans only available for webhooks (too large for email/Slack)
       includeTraceSpans: activeTab === 'webhook' ? formData.includeTraceSpans : false,
@@ -473,7 +481,7 @@ export const NotificationSettings = memo(function NotificationSettings({
       workflowIds: subscription.workflowIds || [],
       allWorkflows: subscription.allWorkflows,
       levelFilter: subscription.levelFilter as LogLevel[],
-      triggerFilter: subscription.triggerFilter as CoreTriggerType[],
+      triggerFilter: subscription.triggerFilter,
       includeFinalOutput: subscription.includeFinalOutput,
       includeTraceSpans: subscription.includeTraceSpans,
       includeRateLimits: subscription.includeRateLimits,
@@ -572,7 +580,7 @@ export const NotificationSettings = memo(function NotificationSettings({
 
           <div className='flex flex-shrink-0 items-center gap-[8px]'>
             <Button
-              variant='tertiary'
+              variant='primary'
               onClick={() => handleTest(subscription.id)}
               disabled={testNotification.isPending && testStatus?.id !== subscription.id}
             >
@@ -622,10 +630,11 @@ export const NotificationSettings = memo(function NotificationSettings({
           {activeTab === 'webhook' && (
             <>
               <div className='flex flex-col gap-[8px]'>
-                <Label className='text-[var(--text-secondary)]'>Webhook URL</Label>
+                <Label>Webhook URL</Label>
                 <EmcnInput
                   type='url'
                   placeholder='https://your-app.com/webhook'
+                  autoComplete='off'
                   value={formData.webhookUrl}
                   onChange={(e) => {
                     setFormData({ ...formData, webhookUrl: e.target.value })
@@ -637,10 +646,11 @@ export const NotificationSettings = memo(function NotificationSettings({
                 )}
               </div>
               <div className='flex flex-col gap-[8px]'>
-                <Label className='text-[var(--text-secondary)]'>Secret (optional)</Label>
+                <Label>Secret (optional)</Label>
                 <EmcnInput
                   type='password'
                   placeholder='Webhook secret for signature verification'
+                  autoComplete='new-password'
                   value={formData.webhookSecret}
                   onChange={(e) => setFormData({ ...formData, webhookSecret: e.target.value })}
                 />
@@ -650,7 +660,7 @@ export const NotificationSettings = memo(function NotificationSettings({
 
           {activeTab === 'email' && (
             <div className='flex flex-col gap-[8px]'>
-              <Label className='text-[var(--text-secondary)]'>Email Recipients</Label>
+              <Label>Email Recipients</Label>
               <TagInput
                 items={emailItems}
                 onAdd={(value) => addEmail(value)}
@@ -667,7 +677,7 @@ export const NotificationSettings = memo(function NotificationSettings({
           {activeTab === 'slack' && (
             <>
               <div className='flex flex-col gap-[8px]'>
-                <Label className='text-[var(--text-secondary)]'>Slack Account</Label>
+                <Label>Slack Account</Label>
                 {isLoadingSlackAccounts ? (
                   <Skeleton className='h-[34px] w-full rounded-[6px]' />
                 ) : slackAccounts.length === 0 ? (
@@ -713,7 +723,7 @@ export const NotificationSettings = memo(function NotificationSettings({
               </div>
               {slackAccounts.length > 0 && (
                 <div className='flex flex-col gap-[8px]'>
-                  <Label className='text-[var(--text-secondary)]'>Channel</Label>
+                  <Label>Channel</Label>
                   <SlackChannelSelector
                     accountId={formData.slackAccountId}
                     value={formData.slackChannelId}
@@ -734,7 +744,7 @@ export const NotificationSettings = memo(function NotificationSettings({
           )}
 
           <div className='flex flex-col gap-[8px]'>
-            <Label className='text-[var(--text-secondary)]'>Log Level Filters</Label>
+            <Label>Log Level Filters</Label>
             <Combobox
               options={LOG_LEVELS.map((level) => ({
                 label: level.charAt(0).toUpperCase() + level.slice(1),
@@ -780,23 +790,23 @@ export const NotificationSettings = memo(function NotificationSettings({
           </div>
 
           <div className='flex flex-col gap-[8px]'>
-            <Label className='text-[var(--text-secondary)]'>Trigger Type Filters</Label>
+            <Label>Trigger Type Filters</Label>
             <Combobox
-              options={CORE_TRIGGER_TYPES.map((trigger) => ({
-                label: trigger.charAt(0).toUpperCase() + trigger.slice(1),
-                value: trigger,
+              options={TRIGGER_OPTIONS.map((t) => ({
+                label: t.label,
+                value: t.value,
               }))}
               multiSelect
               multiSelectValues={formData.triggerFilter}
               onMultiSelectChange={(values) => {
-                setFormData({ ...formData, triggerFilter: values as CoreTriggerType[] })
+                setFormData({ ...formData, triggerFilter: values })
                 setFormErrors({ ...formErrors, triggerFilter: '' })
               }}
               placeholder='Select trigger types...'
               overlayContent={
                 formData.triggerFilter.length > 0 ? (
                   <div className='flex items-center gap-[4px] overflow-hidden'>
-                    {formData.triggerFilter.map((trigger) => (
+                    {formData.triggerFilter.slice(0, 6).map((trigger) => (
                       <Badge
                         key={trigger}
                         variant='outline'
@@ -814,6 +824,14 @@ export const NotificationSettings = memo(function NotificationSettings({
                         <X className='h-3 w-3' />
                       </Badge>
                     ))}
+                    {formData.triggerFilter.length > 6 && (
+                      <Badge
+                        variant='outline'
+                        className='rounded-[6px] px-[8px] py-[2px] text-[11px]'
+                      >
+                        +{formData.triggerFilter.length - 6}
+                      </Badge>
+                    )}
                   </div>
                 ) : null
               }
@@ -826,7 +844,7 @@ export const NotificationSettings = memo(function NotificationSettings({
           </div>
 
           <div className='flex flex-col gap-[8px]'>
-            <Label className='text-[var(--text-secondary)]'>Include in Payload</Label>
+            <Label>Include in Payload</Label>
             <Combobox
               options={[
                 { label: 'Final Output', value: 'includeFinalOutput' },
@@ -906,7 +924,7 @@ export const NotificationSettings = memo(function NotificationSettings({
           </div>
 
           <div className='flex flex-col gap-[8px]'>
-            <Label className='text-[var(--text-secondary)]'>Rule</Label>
+            <Label>Rule</Label>
             <Combobox
               options={ALERT_RULES.map((rule) => ({
                 value: rule.value,
@@ -923,7 +941,7 @@ export const NotificationSettings = memo(function NotificationSettings({
 
           {formData.alertRule === 'consecutive_failures' && (
             <div className='flex flex-col gap-[8px]'>
-              <Label className='text-[var(--text-secondary)]'>Failure Count</Label>
+              <Label>Failure Count</Label>
               <EmcnInput
                 type='number'
                 min={1}
@@ -947,7 +965,7 @@ export const NotificationSettings = memo(function NotificationSettings({
           {formData.alertRule === 'failure_rate' && (
             <div className='flex gap-[8px]'>
               <div className='flex flex-1 flex-col gap-[8px]'>
-                <Label className='text-[var(--text-secondary)]'>Failure Rate (%)</Label>
+                <Label>Failure Rate (%)</Label>
                 <EmcnInput
                   type='number'
                   min={1}
@@ -967,7 +985,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                 )}
               </div>
               <div className='flex flex-1 flex-col gap-[8px]'>
-                <Label className='text-[var(--text-secondary)]'>Window (hours)</Label>
+                <Label>Window (hours)</Label>
                 <EmcnInput
                   type='number'
                   min={1}
@@ -989,7 +1007,7 @@ export const NotificationSettings = memo(function NotificationSettings({
 
           {formData.alertRule === 'latency_threshold' && (
             <div className='flex flex-col gap-[8px]'>
-              <Label className='text-[var(--text-secondary)]'>Duration Threshold (seconds)</Label>
+              <Label>Duration Threshold (seconds)</Label>
               <EmcnInput
                 type='number'
                 min={1}
@@ -1013,7 +1031,7 @@ export const NotificationSettings = memo(function NotificationSettings({
           {formData.alertRule === 'latency_spike' && (
             <div className='flex gap-[8px]'>
               <div className='flex flex-1 flex-col gap-[8px]'>
-                <Label className='text-[var(--text-secondary)]'>Above Average (%)</Label>
+                <Label>Above Average (%)</Label>
                 <EmcnInput
                   type='number'
                   min={10}
@@ -1033,7 +1051,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                 )}
               </div>
               <div className='flex flex-1 flex-col gap-[8px]'>
-                <Label className='text-[var(--text-secondary)]'>Window (hours)</Label>
+                <Label>Window (hours)</Label>
                 <EmcnInput
                   type='number'
                   min={1}
@@ -1055,7 +1073,7 @@ export const NotificationSettings = memo(function NotificationSettings({
 
           {formData.alertRule === 'cost_threshold' && (
             <div className='flex flex-col gap-[8px]'>
-              <Label className='text-[var(--text-secondary)]'>Cost Threshold ($)</Label>
+              <Label>Cost Threshold ($)</Label>
               <EmcnInput
                 type='number'
                 min={0.01}
@@ -1079,7 +1097,7 @@ export const NotificationSettings = memo(function NotificationSettings({
 
           {formData.alertRule === 'no_activity' && (
             <div className='flex flex-col gap-[8px]'>
-              <Label className='text-[var(--text-secondary)]'>Inactivity Period (hours)</Label>
+              <Label>Inactivity Period (hours)</Label>
               <EmcnInput
                 type='number'
                 min={1}
@@ -1101,7 +1119,7 @@ export const NotificationSettings = memo(function NotificationSettings({
           {formData.alertRule === 'error_count' && (
             <div className='flex gap-[8px]'>
               <div className='flex flex-1 flex-col gap-[8px]'>
-                <Label className='text-[var(--text-secondary)]'>Error Count</Label>
+                <Label>Error Count</Label>
                 <EmcnInput
                   type='number'
                   min={1}
@@ -1121,7 +1139,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                 )}
               </div>
               <div className='flex flex-1 flex-col gap-[8px]'>
-                <Label className='text-[var(--text-secondary)]'>Window (hours)</Label>
+                <Label>Window (hours)</Label>
                 <EmcnInput
                   type='number'
                   min={1}
@@ -1154,23 +1172,11 @@ export const NotificationSettings = memo(function NotificationSettings({
       <div className='flex h-full flex-col gap-[16px]'>
         <div className='min-h-0 flex-1 overflow-y-auto'>
           {isLoading ? (
-            <div className='flex flex-col gap-[8px]'>
-              {[1, 2].map((i) => (
-                <div key={i} className='rounded-[6px] border p-[10px]'>
-                  <div className='flex items-center justify-between gap-[12px]'>
-                    <div className='flex min-w-0 flex-1 flex-col gap-[6px]'>
-                      <Skeleton className='h-[16px] w-[200px]' />
-                      <div className='flex items-center gap-[6px]'>
-                        <Skeleton className='h-[18px] w-[80px] rounded-[4px]' />
-                        <Skeleton className='h-[18px] w-[50px] rounded-[4px]' />
-                      </div>
-                    </div>
-                    <div className='flex flex-shrink-0 items-center gap-[8px]'>
-                      <Skeleton className='h-[30px] w-[40px] rounded-[4px]' />
-                      <Skeleton className='h-[30px] w-[40px] rounded-[4px]' />
-                      <Skeleton className='h-[30px] w-[54px] rounded-[4px]' />
-                    </div>
-                  </div>
+            <div className='flex flex-col gap-[16px]'>
+              {[120, 80, 100, 90].map((labelWidth, i) => (
+                <div key={i} className='flex flex-col gap-[8px]'>
+                  <Skeleton className='h-[14px] rounded-[4px]' style={{ width: labelWidth }} />
+                  <Skeleton className='h-[34px] w-full rounded-[6px]' />
                 </div>
               ))}
             </div>
@@ -1207,7 +1213,7 @@ export const NotificationSettings = memo(function NotificationSettings({
               <ModalTabsTrigger value='slack'>Slack</ModalTabsTrigger>
             </ModalTabsList>
 
-            <ModalBody className='min-h-0 flex-1'>
+            <ModalBody className='min-h-0 pt-4'>
               <ModalTabsContent value='webhook'>{renderTabContent()}</ModalTabsContent>
               <ModalTabsContent value='email'>{renderTabContent()}</ModalTabsContent>
               <ModalTabsContent value='slack'>{renderTabContent()}</ModalTabsContent>
@@ -1229,7 +1235,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                   </Button>
                 )}
                 <Button
-                  variant='tertiary'
+                  variant='primary'
                   onClick={handleSave}
                   disabled={createNotification.isPending || updateNotification.isPending}
                 >
@@ -1248,7 +1254,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                   resetForm()
                   setShowForm(true)
                 }}
-                variant='tertiary'
+                variant='primary'
                 disabled={isLoading}
               >
                 <Plus className='mr-[6px] h-[13px] w-[13px]' />

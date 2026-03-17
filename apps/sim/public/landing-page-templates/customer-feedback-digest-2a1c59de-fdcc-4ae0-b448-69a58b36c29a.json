@@ -1,0 +1,985 @@
+{
+  "version": "1.0",
+  "exportedAt": "2026-03-09T21:40:19.011Z",
+  "state": {
+    "blocks": {
+      "8c66431f-268e-4a9f-8a82-911a87852551": {
+        "id": "8c66431f-268e-4a9f-8a82-911a87852551",
+        "type": "schedule",
+        "name": "Schedule",
+        "position": {
+          "x": 150,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": true,
+        "height": 143,
+        "subBlocks": {
+          "timezone": {
+            "id": "timezone",
+            "type": "short-input",
+            "value": "UTC"
+          },
+          "dailyTime": {
+            "id": "dailyTime",
+            "type": "short-input",
+            "value": "09:00"
+          },
+          "inputFormat": {
+            "id": "inputFormat",
+            "type": "input-format",
+            "value": [
+              {
+                "id": "302f0e72-397c-447a-a606-7288ed3a4783",
+                "name": "",
+                "type": "string",
+                "value": "",
+                "collapsed": false
+              }
+            ]
+          },
+          "scheduleType": {
+            "id": "scheduleType",
+            "type": "short-input",
+            "value": "daily"
+          }
+        },
+        "outputs": {
+          "files": {
+            "type": "file[]",
+            "description": "User uploaded files"
+          },
+          "input": {
+            "type": "string",
+            "description": "Primary user input or message"
+          },
+          "conversationId": {
+            "type": "string",
+            "description": "Conversation thread identifier"
+          }
+        },
+        "data": {},
+        "locked": false
+      },
+      "cc8cb3bb-ed7b-434e-b04e-8156ecf238af": {
+        "id": "cc8cb3bb-ed7b-434e-b04e-8156ecf238af",
+        "type": "slack",
+        "name": "Slack",
+        "position": {
+          "x": 1147.930096816991,
+          "y": 147.9300968169909
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 346,
+        "subBlocks": {
+          "text": {
+            "id": "text",
+            "type": "short-input",
+            "value": "<agent.content>"
+          },
+          "files": {
+            "id": "files",
+            "type": "short-input",
+            "value": null
+          },
+          "limit": {
+            "id": "limit",
+            "type": "short-input",
+            "value": null
+          },
+          "title": {
+            "id": "title",
+            "type": "short-input",
+            "value": null
+          },
+          "blocks": {
+            "id": "blocks",
+            "type": "code",
+            "value": null
+          },
+          "fileId": {
+            "id": "fileId",
+            "type": "short-input",
+            "value": null
+          },
+          "oldest": {
+            "id": "oldest",
+            "type": "short-input",
+            "value": null
+          },
+          "userId": {
+            "id": "userId",
+            "type": "user-selector",
+            "value": null
+          },
+          "viewId": {
+            "id": "viewId",
+            "type": "short-input",
+            "value": null
+          },
+          "channel": {
+            "id": "channel",
+            "type": "channel-selector",
+            "value": null
+          },
+          "content": {
+            "id": "content",
+            "type": "long-input",
+            "value": null
+          },
+          "botToken": {
+            "id": "botToken",
+            "type": "short-input",
+            "value": null
+          },
+          "dmUserId": {
+            "id": "dmUserId",
+            "type": "user-selector",
+            "value": null
+          },
+          "threadTs": {
+            "id": "threadTs",
+            "type": "short-input",
+            "value": null
+          },
+          "viewHash": {
+            "id": "viewHash",
+            "type": "short-input",
+            "value": null
+          },
+          "emojiName": {
+            "id": "emojiName",
+            "type": "short-input",
+            "value": null
+          },
+          "operation": {
+            "id": "operation",
+            "type": "short-input",
+            "value": "send"
+          },
+          "sectionId": {
+            "id": "sectionId",
+            "type": "short-input",
+            "value": null
+          },
+          "userLimit": {
+            "id": "userLimit",
+            "type": "short-input",
+            "value": null
+          },
+          "authMethod": {
+            "id": "authMethod",
+            "type": "short-input",
+            "value": "oauth"
+          },
+          "credential": {
+            "id": "credential",
+            "type": "oauth-input",
+            "value": null
+          },
+          "updateText": {
+            "id": "updateText",
+            "type": "long-input",
+            "value": null
+          },
+          "canvasTitle": {
+            "id": "canvasTitle",
+            "type": "short-input",
+            "value": null
+          },
+          "memberLimit": {
+            "id": "memberLimit",
+            "type": "short-input",
+            "value": null
+          },
+          "threadLimit": {
+            "id": "threadLimit",
+            "type": "short-input",
+            "value": null
+          },
+          "viewPayload": {
+            "id": "viewPayload",
+            "type": "code",
+            "value": null
+          },
+          "channelLimit": {
+            "id": "channelLimit",
+            "type": "short-input",
+            "value": null
+          },
+          "editCanvasId": {
+            "id": "editCanvasId",
+            "type": "short-input",
+            "value": null
+          },
+          "includeFiles": {
+            "id": "includeFiles",
+            "type": "switch",
+            "value": null
+          },
+          "manualUserId": {
+            "id": "manualUserId",
+            "type": "short-input",
+            "value": null
+          },
+          "canvasContent": {
+            "id": "canvasContent",
+            "type": "long-input",
+            "value": null
+          },
+          "ephemeralUser": {
+            "id": "ephemeralUser",
+            "type": "user-selector",
+            "value": null
+          },
+          "manualChannel": {
+            "id": "manualChannel",
+            "type": "short-input",
+            "value": ""
+          },
+          "messageFormat": {
+            "id": "messageFormat",
+            "type": "short-input",
+            "value": "text"
+          },
+          "publishUserId": {
+            "id": "publishUserId",
+            "type": "user-selector",
+            "value": null
+          },
+          "signingSecret": {
+            "id": "signingSecret",
+            "type": "short-input",
+            "value": null
+          },
+          "viewTriggerId": {
+            "id": "viewTriggerId",
+            "type": "short-input",
+            "value": null
+          },
+          "includeDeleted": {
+            "id": "includeDeleted",
+            "type": "dropdown",
+            "value": null
+          },
+          "includePrivate": {
+            "id": "includePrivate",
+            "type": "dropdown",
+            "value": null
+          },
+          "manualDmUserId": {
+            "id": "manualDmUserId",
+            "type": "short-input",
+            "value": null
+          },
+          "presenceUserId": {
+            "id": "presenceUserId",
+            "type": "user-selector",
+            "value": null
+          },
+          "viewExternalId": {
+            "id": "viewExternalId",
+            "type": "short-input",
+            "value": null
+          },
+          "attachmentFiles": {
+            "id": "attachmentFiles",
+            "type": "file-upload",
+            "value": null
+          },
+          "canvasOperation": {
+            "id": "canvasOperation",
+            "type": "dropdown",
+            "value": null
+          },
+          "deleteTimestamp": {
+            "id": "deleteTimestamp",
+            "type": "short-input",
+            "value": null
+          },
+          "destinationType": {
+            "id": "destinationType",
+            "type": "short-input",
+            "value": "channel"
+          },
+          "updateTimestamp": {
+            "id": "updateTimestamp",
+            "type": "short-input",
+            "value": null
+          },
+          "downloadFileName": {
+            "id": "downloadFileName",
+            "type": "short-input",
+            "value": null
+          },
+          "manualCredential": {
+            "id": "manualCredential",
+            "type": "short-input",
+            "value": null
+          },
+          "includeNumMembers": {
+            "id": "includeNumMembers",
+            "type": "dropdown",
+            "value": null
+          },
+          "reactionTimestamp": {
+            "id": "reactionTimestamp",
+            "type": "short-input",
+            "value": null
+          },
+          "webhookUrlDisplay": {
+            "id": "webhookUrlDisplay",
+            "type": "short-input",
+            "value": null
+          },
+          "channelCanvasTitle": {
+            "id": "channelCanvasTitle",
+            "type": "short-input",
+            "value": null
+          },
+          "getThreadTimestamp": {
+            "id": "getThreadTimestamp",
+            "type": "short-input",
+            "value": null
+          },
+          "getMessageTimestamp": {
+            "id": "getMessageTimestamp",
+            "type": "short-input",
+            "value": null
+          },
+          "manualEphemeralUser": {
+            "id": "manualEphemeralUser",
+            "type": "short-input",
+            "value": null
+          },
+          "manualPublishUserId": {
+            "id": "manualPublishUserId",
+            "type": "short-input",
+            "value": null
+          },
+          "triggerInstructions": {
+            "id": "triggerInstructions",
+            "type": "text",
+            "value": null
+          },
+          "channelCanvasContent": {
+            "id": "channelCanvasContent",
+            "type": "long-input",
+            "value": null
+          },
+          "manualPresenceUserId": {
+            "id": "manualPresenceUserId",
+            "type": "short-input",
+            "value": null
+          },
+          "viewInteractivityPointer": {
+            "id": "viewInteractivityPointer",
+            "type": "short-input",
+            "value": null
+          },
+          "samplePayload_slack_webhook": {
+            "id": "samplePayload_slack_webhook",
+            "type": "code",
+            "value": null
+          }
+        },
+        "outputs": {
+          "ts": {
+            "type": "string",
+            "description": "Message timestamp"
+          },
+          "files": {
+            "type": "file[]",
+            "description": "Files attached to the message"
+          },
+          "channel": {
+            "type": "string",
+            "description": "Channel ID where message was sent"
+          },
+          "message": {
+            "type": "object",
+            "properties": {
+              "ts": {
+                "type": "string",
+                "description": "Message timestamp (unique identifier)"
+              },
+              "team": {
+                "type": "string",
+                "optional": true,
+                "description": "Team/workspace ID"
+              },
+              "text": {
+                "type": "string",
+                "description": "Message text content"
+              },
+              "type": {
+                "type": "string",
+                "description": "Message type (usually \"message\")"
+              },
+              "user": {
+                "type": "string",
+                "optional": true,
+                "description": "User ID who sent the message"
+              },
+              "files": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Unique file identifier"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "File mode (hosted, external, etc.)"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "File name"
+                    },
+                    "size": {
+                      "type": "number",
+                      "description": "File size in bytes"
+                    },
+                    "mimetype": {
+                      "type": "string",
+                      "description": "MIME type of the file"
+                    },
+                    "permalink": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Permanent link to the file"
+                    },
+                    "url_private": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Private download URL (requires auth)"
+                    }
+                  }
+                },
+                "description": "Files attached to the message"
+              },
+              "blocks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "description": "Block type (section, divider, image, actions, etc.)"
+                    },
+                    "block_id": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Unique block identifier"
+                    }
+                  }
+                },
+                "description": "Block Kit blocks in the message"
+              },
+              "bot_id": {
+                "type": "string",
+                "optional": true,
+                "description": "Bot ID if sent by a bot"
+              },
+              "edited": {
+                "type": "object",
+                "optional": true,
+                "properties": {
+                  "ts": {
+                    "type": "string",
+                    "description": "Timestamp of the edit"
+                  },
+                  "user": {
+                    "type": "string",
+                    "description": "User ID who edited the message"
+                  }
+                },
+                "description": "Edit information if message was edited"
+              },
+              "channel": {
+                "type": "string",
+                "optional": true,
+                "description": "Channel ID"
+              },
+              "subtype": {
+                "type": "string",
+                "optional": true,
+                "description": "Message subtype (bot_message, file_share, etc.)"
+              },
+              "username": {
+                "type": "string",
+                "optional": true,
+                "description": "Display username"
+              },
+              "last_read": {
+                "type": "string",
+                "optional": true,
+                "description": "Timestamp of last read message"
+              },
+              "permalink": {
+                "type": "string",
+                "optional": true,
+                "description": "Permanent URL to the message"
+              },
+              "pinned_to": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "description": "Channel ID"
+                },
+                "optional": true,
+                "description": "Channel IDs where message is pinned"
+              },
+              "reactions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Emoji name (without colons)"
+                    },
+                    "count": {
+                      "type": "number",
+                      "description": "Number of times this reaction was added"
+                    },
+                    "users": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": "User ID"
+                      },
+                      "description": "Array of user IDs who reacted"
+                    }
+                  }
+                },
+                "description": "Reactions on this message"
+              },
+              "thread_ts": {
+                "type": "string",
+                "optional": true,
+                "description": "Parent message timestamp (for threaded replies)"
+              },
+              "is_starred": {
+                "type": "boolean",
+                "optional": true,
+                "description": "Whether message is starred by user"
+              },
+              "subscribed": {
+                "type": "boolean",
+                "optional": true,
+                "description": "Whether user is subscribed to thread"
+              },
+              "attachments": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "number",
+                      "optional": true,
+                      "description": "Attachment ID"
+                    },
+                    "ts": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Timestamp shown in footer"
+                    },
+                    "text": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Main attachment text"
+                    },
+                    "color": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Color bar hex code or preset"
+                    },
+                    "title": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Attachment title"
+                    },
+                    "footer": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Footer text"
+                    },
+                    "pretext": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Text shown before attachment"
+                    },
+                    "fallback": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Plain text summary"
+                    },
+                    "image_url": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Image URL"
+                    },
+                    "thumb_url": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Thumbnail URL"
+                    },
+                    "title_link": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Title link URL"
+                    },
+                    "author_icon": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Author icon URL"
+                    },
+                    "author_link": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Author link URL"
+                    },
+                    "author_name": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Author display name"
+                    },
+                    "footer_icon": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Footer icon URL"
+                    }
+                  }
+                },
+                "description": "Legacy attachments on the message"
+              },
+              "reply_count": {
+                "type": "number",
+                "optional": true,
+                "description": "Total number of replies in thread"
+              },
+              "latest_reply": {
+                "type": "string",
+                "optional": true,
+                "description": "Timestamp of most recent reply"
+              },
+              "unread_count": {
+                "type": "number",
+                "optional": true,
+                "description": "Number of unread messages in thread"
+              },
+              "parent_user_id": {
+                "type": "string",
+                "optional": true,
+                "description": "User ID of thread parent message author"
+              },
+              "reply_users_count": {
+                "type": "number",
+                "optional": true,
+                "description": "Number of unique users who replied"
+              }
+            },
+            "description": "Complete message object with all properties returned by Slack"
+          },
+          "fileCount": {
+            "type": "number",
+            "description": "Number of files uploaded (when files are attached)"
+          }
+        },
+        "data": {
+          "canonicalModes": {
+            "files": "basic",
+            "userId": "basic",
+            "channel": "basic",
+            "dmUserId": "basic",
+            "ephemeralUser": "basic",
+            "publishUserId": "basic",
+            "presenceUserId": "basic",
+            "oauthCredential": "basic"
+          }
+        },
+        "locked": false
+      },
+      "1d05547e-1846-4049-9fc4-702f2f485ae6": {
+        "id": "1d05547e-1846-4049-9fc4-702f2f485ae6",
+        "type": "agent",
+        "name": "Agent",
+        "position": {
+          "x": 650,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 288,
+        "subBlocks": {
+          "model": {
+            "id": "model",
+            "type": "short-input",
+            "value": ""
+          },
+          "tools": {
+            "id": "tools",
+            "type": "short-input",
+            "value": [
+              {
+                "type": "airtable",
+                "title": "Airtable - List Records",
+                "params": {
+                  "credential": "cred_0fe457b3f0f1dde225e2d8154ee805e7"
+                },
+                "toolId": "airtable_list",
+                "operation": "list",
+                "isExpanded": true,
+                "usageControl": "auto"
+              }
+            ]
+          },
+          "apiKey": {
+            "id": "apiKey",
+            "type": "short-input",
+            "value": null
+          },
+          "skills": {
+            "id": "skills",
+            "type": "skill-input",
+            "value": null
+          },
+          "messages": {
+            "id": "messages",
+            "type": "messages-input",
+            "value": [
+              {
+                "role": "system",
+                "content": "Analyze customer feedback from Airtable and provide a summary of key themes, sentiment, and actionable insights."
+              },
+              {
+                "role": "user",
+                "content": "Please analyze the customer feedback data from Airtable. Use the Airtable tool to read records, then provide:\n1. Key themes and patterns\n2. Overall sentiment analysis\n3. Actionable insights and recommendations"
+              }
+            ]
+          },
+          "maxTokens": {
+            "id": "maxTokens",
+            "type": "short-input",
+            "value": null
+          },
+          "verbosity": {
+            "id": "verbosity",
+            "type": "dropdown",
+            "value": null
+          },
+          "memoryType": {
+            "id": "memoryType",
+            "type": "dropdown",
+            "value": "none"
+          },
+          "temperature": {
+            "id": "temperature",
+            "type": "short-input",
+            "value": 0.3
+          },
+          "azureEndpoint": {
+            "id": "azureEndpoint",
+            "type": "short-input",
+            "value": null
+          },
+          "bedrockRegion": {
+            "id": "bedrockRegion",
+            "type": "short-input",
+            "value": null
+          },
+          "thinkingLevel": {
+            "id": "thinkingLevel",
+            "type": "dropdown",
+            "value": null
+          },
+          "vertexProject": {
+            "id": "vertexProject",
+            "type": "short-input",
+            "value": null
+          },
+          "conversationId": {
+            "id": "conversationId",
+            "type": "short-input",
+            "value": null
+          },
+          "responseFormat": {
+            "id": "responseFormat",
+            "type": "code",
+            "value": null
+          },
+          "vertexLocation": {
+            "id": "vertexLocation",
+            "type": "short-input",
+            "value": null
+          },
+          "azureApiVersion": {
+            "id": "azureApiVersion",
+            "type": "short-input",
+            "value": null
+          },
+          "reasoningEffort": {
+            "id": "reasoningEffort",
+            "type": "dropdown",
+            "value": null
+          },
+          "bedrockSecretKey": {
+            "id": "bedrockSecretKey",
+            "type": "short-input",
+            "value": null
+          },
+          "manualCredential": {
+            "id": "manualCredential",
+            "type": "short-input",
+            "value": null
+          },
+          "vertexCredential": {
+            "id": "vertexCredential",
+            "type": "oauth-input",
+            "value": null
+          },
+          "slidingWindowSize": {
+            "id": "slidingWindowSize",
+            "type": "short-input",
+            "value": null
+          },
+          "bedrockAccessKeyId": {
+            "id": "bedrockAccessKeyId",
+            "type": "short-input",
+            "value": null
+          },
+          "slidingWindowTokens": {
+            "id": "slidingWindowTokens",
+            "type": "short-input",
+            "value": null
+          },
+          "previousInteractionId": {
+            "id": "previousInteractionId",
+            "type": "short-input",
+            "value": null
+          }
+        },
+        "outputs": {
+          "cost": {
+            "type": "json",
+            "description": "Cost of the API call"
+          },
+          "model": {
+            "type": "string",
+            "description": "Model used for generation"
+          },
+          "tokens": {
+            "type": "json",
+            "description": "Token usage statistics"
+          },
+          "content": {
+            "type": "string",
+            "description": "Generated response content"
+          },
+          "toolCalls": {
+            "type": "json",
+            "description": "Tool calls made"
+          },
+          "providerTiming": {
+            "type": "json",
+            "description": "Provider timing information"
+          }
+        },
+        "data": {
+          "canonicalModes": {
+            "oauthCredential": "basic"
+          }
+        },
+        "locked": false
+      },
+      "d8d12249-8b91-4a3b-bbc8-1d51c67c092f": {
+        "id": "d8d12249-8b91-4a3b-bbc8-1d51c67c092f",
+        "type": "note",
+        "name": "Agent Setup",
+        "position": {
+          "x": 650.9694391022937,
+          "y": 11.624006617722983
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 0,
+        "subBlocks": {
+          "content": {
+            "id": "content",
+            "type": "long-input",
+            "value": "- Select Airtable Base, Table and any additional configuration "
+          }
+        },
+        "outputs": {},
+        "data": {},
+        "locked": false
+      },
+      "3e14e5e6-ff10-4898-a701-85248ab19835": {
+        "id": "3e14e5e6-ff10-4898-a701-85248ab19835",
+        "type": "note",
+        "name": "Slack Setup",
+        "position": {
+          "x": 1146.9403940050252,
+          "y": -6.047832905104045
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 114,
+        "subBlocks": {
+          "content": {
+            "id": "content",
+            "type": "long-input",
+            "value": "- Select Slack Account \n- Select Slack Channel"
+          }
+        },
+        "outputs": {},
+        "data": {},
+        "locked": false
+      }
+    },
+    "edges": [
+      {
+        "id": "a0c1c15f-3c37-4b59-93b4-7503f1ec7c62",
+        "source": "8c66431f-268e-4a9f-8a82-911a87852551",
+        "target": "1d05547e-1846-4049-9fc4-702f2f485ae6",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      },
+      {
+        "id": "19ed0fc8-5643-41e2-9025-3c7809572f33",
+        "source": "1d05547e-1846-4049-9fc4-702f2f485ae6",
+        "target": "cc8cb3bb-ed7b-434e-b04e-8156ecf238af",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      }
+    ],
+    "loops": {},
+    "parallels": {},
+    "metadata": {
+      "name": "customer-feedback-digest",
+      "description": "New workflow",
+      "color": "#c92626",
+      "exportedAt": "2026-03-09T21:40:19.011Z"
+    },
+    "variables": {}
+  }
+}

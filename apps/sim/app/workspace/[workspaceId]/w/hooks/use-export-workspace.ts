@@ -68,10 +68,16 @@ export function useExportWorkspace({ onSuccess }: UseExportWorkspaceProps = {}) 
           })
         )
 
+        const workspaceResponse = await fetch(`/api/workspaces/${workspaceId}`)
+        const workspaceColor = workspaceResponse.ok
+          ? ((await workspaceResponse.json()).workspace?.color as string | undefined)
+          : undefined
+
         const zipBlob = await exportWorkspaceToZip(
           workspaceName,
           workflowsToExport,
-          foldersToExport
+          foldersToExport,
+          workspaceColor
         )
 
         const zipFilename = `${sanitizePathSegment(workspaceName)}-${Date.now()}.zip`

@@ -11,11 +11,13 @@ import { createMcpToolId } from '@/lib/mcp/shared'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import type { FilterRule, SortRule } from '@/lib/table/types'
 import { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
+import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
 import {
   buildCanonicalIndex,
   evaluateSubBlockCondition,
   hasAdvancedValues,
   isSubBlockFeatureEnabled,
+  isSubBlockHiddenByHostedKey,
   isSubBlockVisibleForMode,
   resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'
@@ -38,12 +40,12 @@ import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks
 import { getDependsOnFields } from '@/blocks/utils'
 import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import { useCustomTools } from '@/hooks/queries/custom-tools'
+import { useDeployWorkflow } from '@/hooks/queries/deployments'
 import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
-import { useCredentialName } from '@/hooks/queries/oauth-credentials'
+import { useCredentialName } from '@/hooks/queries/oauth/oauth-credentials'
 import { useReactivateSchedule, useScheduleInfo } from '@/hooks/queries/schedules'
 import { useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
-import { useDeployChildWorkflow } from '@/hooks/queries/workflows'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
 import { useVariablesStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -916,7 +918,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     data.subBlockValues
   )
 
-  const { mutate: deployChildWorkflow, isPending: isDeploying } = useDeployChildWorkflow()
+  const { mutate: deployChildWorkflow, isPending: isDeploying } = useDeployWorkflow()
 
   const userPermissions = useUserPermissionsContext()
 
@@ -977,6 +979,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       if (block.hidden) return false
       if (block.hideFromPreview) return false
       if (!isSubBlockFeatureEnabled(block)) return false
+      if (isSubBlockHiddenByHostedKey(block)) return false
 
       const isPureTriggerBlock = config?.triggers?.enabled && config.category === 'triggers'
 
@@ -1049,6 +1052,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
   const subBlockRows = subBlockRowsData.rows
   const subBlockState = subBlockRowsData.stateToUse
+  const topologySubBlocks = data.isPreview
+    ? (data.blockState?.subBlocks ?? {})
+    : (currentStoreBlock?.subBlocks ?? {})
   const effectiveAdvanced = useMemo(() => {
     const rawValues = Object.entries(subBlockState).reduce<Record<string, unknown>>(
       (acc, [key, entry]) => {
@@ -1080,7 +1086,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
    * Reusable styles and positioning for Handle components.
    */
   const getHandleClasses = (position: 'left' | 'right' | 'top' | 'bottom', isError = false) => {
-    const baseClasses = '!z-[10] !cursor-crosshair !border-none !transition-[colors] !duration-150'
+    const baseClasses = '!z-[0] !cursor-crosshair !border-none !transition-[colors] !duration-150'
     const colorClasses = isError ? '!bg-[var(--text-error)]' : '!bg-[var(--workflow-edge)]'
 
     const positionClasses = {
@@ -1108,34 +1114,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
    */
   const conditionRows = useMemo(() => {
     if (type !== 'condition') return [] as { id: string; title: string; value: string }[]
-
-    const conditionsValue = subBlockState.conditions?.value
-    const raw = typeof conditionsValue === 'string' ? conditionsValue : undefined
-
-    try {
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown
-        if (Array.isArray(parsed)) {
-          return parsed.map((item: unknown, index: number) => {
-            const conditionItem = item as { id?: string; value?: unknown }
-            const title = index === 0 ? 'if' : index === parsed.length - 1 ? 'else' : 'else if'
-            return {
-              id: conditionItem?.id ?? `${id}-cond-${index}`,
-              title,
-              value: typeof conditionItem?.value === 'string' ? conditionItem.value : '',
-            }
-          })
-        }
-      }
-    } catch (error) {
-      logger.warn('Failed to parse condition subblock value', { error, blockId: id })
-    }
-
-    return [
-      { id: `${id}-if`, title: 'if', value: '' },
-      { id: `${id}-else`, title: 'else', value: '' },
-    ]
-  }, [type, subBlockState, id])
+    return getConditionRows(id, topologySubBlocks.conditions?.value)
+  }, [type, topologySubBlocks, id])
 
   /**
    * Compute per-route rows (id/value) for router_v2 blocks so we can render
@@ -1144,31 +1124,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
    */
   const routerRows = useMemo(() => {
     if (type !== 'router_v2') return [] as { id: string; value: string }[]
-
-    const routesValue = subBlockState.routes?.value
-    const raw = typeof routesValue === 'string' ? routesValue : undefined
-
-    try {
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown
-        if (Array.isArray(parsed)) {
-          return parsed.map((item: unknown, index: number) => {
-            const routeItem = item as { id?: string; value?: string }
-            return {
-              // Use stable ID format that matches ConditionInput's generateStableId
-              id: routeItem?.id ?? `${id}-route${index + 1}`,
-              value: routeItem?.value ?? '',
-            }
-          })
-        }
-      }
-    } catch (error) {
-      logger.warn('Failed to parse router routes value', { error, blockId: id })
-    }
-
-    // Fallback must match ConditionInput's default: generateStableId(blockId, 'route1') = `${blockId}-route1`
-    return [{ id: `${id}-route1`, value: '' }]
-  }, [type, subBlockState, id])
+    return getRouterRows(id, topologySubBlocks.routes?.value)
+  }, [type, topologySubBlocks, id])
 
   /**
    * Compute and publish deterministic layout metrics for workflow blocks.
@@ -1246,7 +1203,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
           </div>
         )}
 
-        {!data.isPreview && (
+        {!data.isPreview && !data.isEmbedded && (
           <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
         )}
 

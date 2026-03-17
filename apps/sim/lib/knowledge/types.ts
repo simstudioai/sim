@@ -17,6 +17,7 @@ export interface ChunkingConfig {
 
 export interface KnowledgeBaseWithCounts {
   id: string
+  userId: string
   name: string
   description: string | null
   tokenCount: number
@@ -25,8 +26,10 @@ export interface KnowledgeBaseWithCounts {
   chunkingConfig: ChunkingConfig
   createdAt: Date
   updatedAt: Date
+  deletedAt: Date | null
   workspaceId: string | null
   docCount: number
+  connectorTypes: string[]
 }
 
 export interface CreateKnowledgeBaseData {
@@ -115,6 +118,7 @@ export interface ExtendedChunkingConfig extends ChunkingConfig {
 /** Knowledge base data for API responses */
 export interface KnowledgeBaseData {
   id: string
+  userId: string
   name: string
   description?: string
   tokenCount: number
@@ -123,7 +127,9 @@ export interface KnowledgeBaseData {
   chunkingConfig: ExtendedChunkingConfig
   createdAt: string
   updatedAt: string
+  deletedAt?: string | null
   workspaceId?: string
+  connectorTypes?: string[]
 }
 
 /** Document data for API responses */
@@ -160,6 +166,9 @@ export interface DocumentData {
   boolean1?: boolean | null
   boolean2?: boolean | null
   boolean3?: boolean | null
+  connectorId?: string | null
+  connectorType?: string | null
+  sourceUrl?: string | null
 }
 
 /** Chunk data for API responses */

@@ -332,7 +332,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             return
           }
 
-          useWorkflowStore.setState(workflowState)
+          useWorkflowStore.getState().replaceWorkflowState(workflowState)
           useSubBlockStore.getState().initializeFromWorkflow(workflowId, workflowState.blocks || {})
 
           if (workflowData?.variables && typeof workflowData.variables === 'object') {
@@ -637,7 +637,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             useSubBlockStore.setState({ workflowValues: originalState.subBlockValues })
 
             if (originalState.workflowStoreState) {
-              useWorkflowStore.setState(originalState.workflowStoreState)
+              useWorkflowStore.getState().replaceWorkflowState(originalState.workflowStoreState)
               logger.info(`Restored workflow store state for workflow ${id}`)
             }
 

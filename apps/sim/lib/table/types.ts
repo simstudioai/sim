@@ -32,15 +32,22 @@ export interface TableSchema {
   columns: ColumnDefinition[]
 }
 
+/** UI-only metadata stored alongside the table definition. */
+export interface TableMetadata {
+  columnWidths?: Record<string, number>
+}
+
 export interface TableDefinition {
   id: string
   name: string
   description?: string | null
   schema: TableSchema
+  metadata?: TableMetadata | null
   rowCount: number
   maxRows: number
   workspaceId: string
   createdBy: string
+  archivedAt?: Date | string | null
   createdAt: Date | string
   updatedAt: Date | string
 }
@@ -57,6 +64,7 @@ export interface TableSummary {
 export interface TableRow {
   id: string
   data: RowData
+  position: number
   createdAt: Date | string
   updatedAt: Date | string
 }
@@ -153,18 +161,42 @@ export interface CreateTableData {
   userId: string
   /** Optional max rows override based on billing plan. Defaults to TABLE_LIMITS.MAX_ROWS_PER_TABLE. */
   maxRows?: number
+  /** Optional max tables override based on billing plan. Defaults to TABLE_LIMITS.MAX_TABLES_PER_WORKSPACE. */
+  maxTables?: number
+  /** Number of empty rows to create with the table. Defaults to 0. */
+  initialRowCount?: number
 }
 
 export interface InsertRowData {
   tableId: string
   data: RowData
   workspaceId: string
+  userId?: string
+  /** Optional explicit position. When omitted, the row is appended after the last position. */
+  position?: number
 }
 
 export interface BatchInsertData {
   tableId: string
   rows: RowData[]
   workspaceId: string
+  userId?: string
+  /** Optional per-row target positions. Length must equal `rows.length`. */
+  positions?: number[]
+}
+
+export interface UpsertRowData {
+  tableId: string
+  workspaceId: string
+  data: RowData
+  userId?: string
+  /** Which unique column to match on. Required when multiple unique columns exist. */
+  conflictTarget?: string
+}
+
+export interface UpsertResult {
+  row: TableRow
+  operation: 'insert' | 'update'
 }
 
 export interface UpdateRowData {
@@ -182,9 +214,52 @@ export interface BulkUpdateData {
   workspaceId: string
 }
 
+export interface BatchUpdateByIdData {
+  tableId: string
+  updates: Array<{ rowId: string; data: RowData }>
+  workspaceId: string
+}
+
 export interface BulkDeleteData {
   tableId: string
   filter: Filter
   limit?: number
   workspaceId: string
+}
+
+export interface BulkDeleteByIdsData {
+  tableId: string
+  rowIds: string[]
+  workspaceId: string
+}
+
+export interface BulkDeleteByIdsResult {
+  deletedCount: number
+  deletedRowIds: string[]
+  requestedCount: number
+  missingRowIds: string[]
+}
+
+export interface RenameColumnData {
+  tableId: string
+  oldName: string
+  newName: string
+}
+
+export interface UpdateColumnTypeData {
+  tableId: string
+  columnName: string
+  newType: (typeof COLUMN_TYPES)[number]
+}
+
+export interface UpdateColumnConstraintsData {
+  tableId: string
+  columnName: string
+  required?: boolean
+  unique?: boolean
+}
+
+export interface DeleteColumnData {
+  tableId: string
+  columnName: string
 }

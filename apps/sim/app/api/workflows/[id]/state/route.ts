@@ -8,9 +8,13 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
-import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  loadWorkflowFromNormalizedTables,
+  saveWorkflowToNormalizedTables,
+} from '@/lib/workflows/persistence/utils'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
@@ -109,6 +113,49 @@ const WorkflowStateSchema = z.object({
 })
 
 /**
+ * GET /api/workflows/[id]/state
+ * Fetch the current workflow state from normalized tables.
+ * Used by the client after server-side edits (edit_workflow) to stay in sync.
+ */
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id: workflowId } = await params
+
+  try {
+    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const authorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId,
+      userId: auth.userId,
+      action: 'read',
+    })
+    if (!authorization.allowed) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const normalized = await loadWorkflowFromNormalizedTables(workflowId)
+    if (!normalized) {
+      return NextResponse.json({ error: 'Workflow state not found' }, { status: 404 })
+    }
+
+    return NextResponse.json({
+      blocks: normalized.blocks,
+      edges: normalized.edges,
+      loops: normalized.loops || {},
+      parallels: normalized.parallels || {},
+    })
+  } catch (error) {
+    logger.error('Failed to fetch workflow state', {
+      workflowId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+/**
  * PUT /api/workflows/[id]/state
  * Save complete workflow state to normalized database tables
  */
@@ -180,12 +227,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     )
 
     const typedBlocks = filteredBlocks as Record<string, BlockState>
+    const validatedEdges = validateEdges(state.edges as WorkflowState['edges'], typedBlocks)
+    const validationWarnings = validatedEdges.dropped.map(
+      ({ edge, reason }) => `Dropped edge "${edge.id}": ${reason}`
+    )
     const canonicalLoops = generateLoopBlocks(typedBlocks)
     const canonicalParallels = generateParallelBlocks(typedBlocks)
 
     const workflowState = {
       blocks: filteredBlocks,
-      edges: state.edges,
+      edges: validatedEdges.valid,
       loops: canonicalLoops,
       parallels: canonicalParallels,
       lastSaved: state.lastSaved || Date.now(),
@@ -276,7 +327,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
-    return NextResponse.json({ success: true, warnings }, { status: 200 })
+    return NextResponse.json(
+      { success: true, warnings: [...warnings, ...validationWarnings] },
+      { status: 200 }
+    )
   } catch (error: any) {
     const elapsed = Date.now() - startTime
     logger.error(

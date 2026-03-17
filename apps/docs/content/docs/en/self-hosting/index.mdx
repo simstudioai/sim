@@ -5,6 +5,7 @@ description: Deploy Sim on your own infrastructure
 
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
 
 Deploy Sim on your own infrastructure with Docker or Kubernetes.
 
@@ -62,4 +63,14 @@ Open [http://localhost:3000](http://localhost:3000)
 | realtime | 3002 | WebSocket server |
 | db | 5432 | PostgreSQL with pgvector |
 | migrations | - | Database migrations (runs once) |
+
+<FAQ items={[
+  { question: "What are the minimum requirements to self-host Sim?", answer: "At minimum you need 2 CPU cores, 12 GB RAM, 20 GB SSD storage, and Docker 20.10 or later. Memory is typically the constraining factor due to workflow execution (isolated-vm sandboxing), file processing, and vector operations (pgvector)." },
+  { question: "Which database does Sim use?", answer: "Sim uses PostgreSQL 17 with the pgvector extension for vector similarity search. The Docker setup uses the pgvector/pgvector:pg17 image, which comes with the vector extension pre-installed." },
+  { question: "What are the required environment variables for production?", answer: "Three secrets are required: BETTER_AUTH_SECRET (authentication), ENCRYPTION_KEY (data encryption), and INTERNAL_API_SECRET (service-to-service auth). Generate each with openssl rand -hex 32. You also need to set NEXT_PUBLIC_APP_URL and BETTER_AUTH_URL to your domain." },
+  { question: "What does the realtime service do?", answer: "The realtime service is a dedicated WebSocket server that runs on port 3002. It handles real-time communication for features like live workflow execution updates. It has a 1 GB memory limit and requires its own DATABASE_URL and BETTER_AUTH_SECRET configuration." },
+  { question: "How does the migrations service work?", answer: "The migrations container runs once at startup (restart: no) and executes bun run db:migrate to apply database schema changes. It depends on the database being healthy before running and must complete successfully before the main application starts." },
+  { question: "Can I use Sim with local AI models?", answer: "Yes. Sim supports Ollama for local model inference. Use docker-compose.ollama.yml instead of docker-compose.prod.yml. It offers both GPU (with NVIDIA support) and CPU-only profiles, and automatically pulls gemma3:4b as a starter model." },
+]} />
+
 

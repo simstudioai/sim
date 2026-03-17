@@ -2,7 +2,6 @@
 
 import { memo, useCallback, useEffect, useMemo } from 'react'
 import clsx from 'clsx'
-import { useParams, usePathname } from 'next/navigation'
 import { EmptyAreaContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/empty-area-context-menu'
 import { FolderItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/folder-item/folder-item'
 import { WorkflowItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/workflow-item'
@@ -14,6 +13,10 @@ import {
   useSidebarDragContextValue,
   useWorkflowSelection,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import {
+  compareByOrder,
+  groupWorkflowsByFolder,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useFolders } from '@/hooks/queries/folders'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
@@ -23,18 +26,9 @@ const TREE_SPACING = {
   INDENT_PER_LEVEL: 20,
 } as const
 
-function compareByOrder<T extends { sortOrder: number; createdAt?: Date; id: string }>(
-  a: T,
-  b: T
-): number {
-  if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
-  const timeA = a.createdAt?.getTime() ?? 0
-  const timeB = b.createdAt?.getTime() ?? 0
-  if (timeA !== timeB) return timeA - timeB
-  return a.id.localeCompare(b.id)
-}
-
 interface WorkflowListProps {
+  workspaceId: string
+  workflowId: string | undefined
   regularWorkflows: WorkflowMetadata[]
   isLoading?: boolean
   canReorder?: boolean
@@ -64,12 +58,14 @@ const DropIndicatorLine = memo(function DropIndicatorLine({
       className='pointer-events-none absolute right-0 left-0 z-20'
       style={{ ...positionStyle, paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}
     >
-      <div className='h-[2px] rounded-full bg-[#33b4ff]/70' />
+      <div className='h-[2px] rounded-full bg-[var(--text-subtle)]' />
     </div>
   )
 })
 
-export function WorkflowList({
+export const WorkflowList = memo(function WorkflowList({
+  workspaceId,
+  workflowId,
   regularWorkflows,
   isLoading = false,
   canReorder = true,
@@ -80,12 +76,8 @@ export function WorkflowList({
   onCreateFolder,
   disableCreate = false,
 }: WorkflowListProps) {
-  const pathname = usePathname()
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
-  const workflowId = params.workflowId as string
-
   const { isLoading: foldersLoading } = useFolders(workspaceId)
+  const folders = useFolderStore((state) => state.folders)
   const { getFolderTree, expandedFolders, getFolderPath, setExpanded } = useFolderStore()
 
   const {
@@ -119,7 +111,10 @@ export function WorkflowList({
     }
   }, [scrollContainerRef, setScrollContainer])
 
-  const folderTree = workspaceId ? getFolderTree(workspaceId) : []
+  const folderTree = useMemo(
+    () => (workspaceId ? getFolderTree(workspaceId) : []),
+    [workspaceId, folders, getFolderTree]
+  )
 
   const activeWorkflowFolderId = useMemo(() => {
     if (!workflowId || isLoading || foldersLoading) return null
@@ -127,42 +122,85 @@ export function WorkflowList({
     return activeWorkflow?.folderId || null
   }, [workflowId, regularWorkflows, isLoading, foldersLoading])
 
-  const workflowsByFolder = useMemo(() => {
-    const grouped = regularWorkflows.reduce(
-      (acc, workflow) => {
-        const folderId = workflow.folderId || 'root'
-        if (!acc[folderId]) acc[folderId] = []
-        acc[folderId].push(workflow)
-        return acc
-      },
-      {} as Record<string, WorkflowMetadata[]>
-    )
-    for (const folderId of Object.keys(grouped)) {
-      grouped[folderId].sort(compareByOrder)
-    }
-    return grouped
-  }, [regularWorkflows])
+  const workflowsByFolder = useMemo(
+    () => groupWorkflowsByFolder(regularWorkflows),
+    [regularWorkflows]
+  )
 
   const orderedWorkflowIds = useMemo(() => {
     const ids: string[] = []
 
-    const collectWorkflowIds = (folder: FolderTreeNode) => {
+    const collectFromFolder = (folder: FolderTreeNode) => {
       const workflowsInFolder = workflowsByFolder[folder.id] || []
-      for (const workflow of workflowsInFolder) {
-        ids.push(workflow.id)
+      const childItems: Array<{
+        type: 'folder' | 'workflow'
+        id: string
+        sortOrder: number
+        createdAt?: Date
+        data: FolderTreeNode | WorkflowMetadata
+      }> = []
+      for (const child of folder.children) {
+        childItems.push({
+          type: 'folder',
+          id: child.id,
+          sortOrder: child.sortOrder,
+          createdAt: child.createdAt,
+          data: child,
+        })
       }
-      for (const childFolder of folder.children) {
-        collectWorkflowIds(childFolder)
+      for (const wf of workflowsInFolder) {
+        childItems.push({
+          type: 'workflow',
+          id: wf.id,
+          sortOrder: wf.sortOrder,
+          createdAt: wf.createdAt,
+          data: wf,
+        })
+      }
+      childItems.sort(compareByOrder)
+      for (const item of childItems) {
+        if (item.type === 'workflow') {
+          ids.push(item.id)
+        } else {
+          collectFromFolder(item.data as FolderTreeNode)
+        }
       }
     }
 
+    const rootLevelItems: Array<{
+      type: 'folder' | 'workflow'
+      id: string
+      sortOrder: number
+      createdAt?: Date
+      data: FolderTreeNode | WorkflowMetadata
+    }> = []
     for (const folder of folderTree) {
-      collectWorkflowIds(folder)
+      rootLevelItems.push({
+        type: 'folder',
+        id: folder.id,
+        sortOrder: folder.sortOrder,
+        createdAt: folder.createdAt,
+        data: folder,
+      })
     }
+    const rootWfs = workflowsByFolder.root || []
+    for (const wf of rootWfs) {
+      rootLevelItems.push({
+        type: 'workflow',
+        id: wf.id,
+        sortOrder: wf.sortOrder,
+        createdAt: wf.createdAt,
+        data: wf,
+      })
+    }
+    rootLevelItems.sort(compareByOrder)
 
-    const rootWorkflows = workflowsByFolder.root || []
-    for (const workflow of rootWorkflows) {
-      ids.push(workflow.id)
+    for (const item of rootLevelItems) {
+      if (item.type === 'workflow') {
+        ids.push(item.id)
+      } else {
+        collectFromFolder(item.data as FolderTreeNode)
+      }
     }
 
     return ids
@@ -171,33 +209,138 @@ export function WorkflowList({
   const orderedFolderIds = useMemo(() => {
     const ids: string[] = []
 
-    const collectFolderIds = (folder: FolderTreeNode) => {
+    const collectFromFolder = (folder: FolderTreeNode) => {
       ids.push(folder.id)
-      for (const childFolder of folder.children) {
-        collectFolderIds(childFolder)
+      const workflowsInFolder = workflowsByFolder[folder.id] || []
+      const childItems: Array<{
+        type: 'folder' | 'workflow'
+        id: string
+        sortOrder: number
+        createdAt?: Date
+        data: FolderTreeNode | WorkflowMetadata
+      }> = []
+      for (const child of folder.children) {
+        childItems.push({
+          type: 'folder',
+          id: child.id,
+          sortOrder: child.sortOrder,
+          createdAt: child.createdAt,
+          data: child,
+        })
+      }
+      for (const wf of workflowsInFolder) {
+        childItems.push({
+          type: 'workflow',
+          id: wf.id,
+          sortOrder: wf.sortOrder,
+          createdAt: wf.createdAt,
+          data: wf,
+        })
+      }
+      childItems.sort(compareByOrder)
+      for (const item of childItems) {
+        if (item.type === 'folder') {
+          collectFromFolder(item.data as FolderTreeNode)
+        }
       }
     }
 
+    const rootLevelItems: Array<{
+      type: 'folder' | 'workflow'
+      id: string
+      sortOrder: number
+      createdAt?: Date
+      data: FolderTreeNode | WorkflowMetadata
+    }> = []
     for (const folder of folderTree) {
-      collectFolderIds(folder)
+      rootLevelItems.push({
+        type: 'folder',
+        id: folder.id,
+        sortOrder: folder.sortOrder,
+        createdAt: folder.createdAt,
+        data: folder,
+      })
+    }
+    const rootWfs = workflowsByFolder.root || []
+    for (const wf of rootWfs) {
+      rootLevelItems.push({
+        type: 'workflow',
+        id: wf.id,
+        sortOrder: wf.sortOrder,
+        createdAt: wf.createdAt,
+        data: wf,
+      })
+    }
+    rootLevelItems.sort(compareByOrder)
+
+    for (const item of rootLevelItems) {
+      if (item.type === 'folder') {
+        collectFromFolder(item.data as FolderTreeNode)
+      }
     }
 
     return ids
-  }, [folderTree])
+  }, [folderTree, workflowsByFolder])
+
+  const {
+    workflowAncestorFolderIds,
+    folderDescendantWorkflowIds,
+    folderAncestorIds,
+    folderDescendantIds,
+  } = useMemo(() => {
+    const wfAncestors: Record<string, string[]> = {}
+    const fDescWfs: Record<string, string[]> = {}
+    const fAncestors: Record<string, string[]> = {}
+    const fDescendants: Record<string, string[]> = {}
+
+    const buildMaps = (folder: FolderTreeNode, ancestors: string[]) => {
+      fAncestors[folder.id] = ancestors
+      const wfsInFolder = (workflowsByFolder[folder.id] || []).map((w) => w.id)
+      const allDescWfs = [...wfsInFolder]
+      const allDescFolders: string[] = []
+
+      for (const child of folder.children) {
+        buildMaps(child, [...ancestors, folder.id])
+        allDescFolders.push(child.id, ...(fDescendants[child.id] || []))
+        allDescWfs.push(...(fDescWfs[child.id] || []))
+      }
+
+      fDescendants[folder.id] = allDescFolders
+      fDescWfs[folder.id] = allDescWfs
+    }
+
+    for (const folder of folderTree) {
+      buildMaps(folder, [])
+    }
+
+    for (const wf of regularWorkflows) {
+      if (wf.folderId && fAncestors[wf.folderId] !== undefined) {
+        wfAncestors[wf.id] = [wf.folderId, ...fAncestors[wf.folderId]]
+      }
+    }
+
+    return {
+      workflowAncestorFolderIds: wfAncestors,
+      folderDescendantWorkflowIds: fDescWfs,
+      folderAncestorIds: fAncestors,
+      folderDescendantIds: fDescendants,
+    }
+  }, [folderTree, workflowsByFolder, regularWorkflows])
 
   const { handleWorkflowClick } = useWorkflowSelection({
     workflowIds: orderedWorkflowIds,
     activeWorkflowId: workflowId,
+    workflowAncestorFolderIds,
   })
 
   const { handleFolderClick } = useFolderSelection({
     folderIds: orderedFolderIds,
+    folderDescendantWorkflowIds,
+    folderAncestorIds,
+    folderDescendantIds,
   })
 
-  const isWorkflowActive = useCallback(
-    (wfId: string) => pathname === `/workspace/${workspaceId}/w/${wfId}`,
-    [pathname, workspaceId]
-  )
+  const isWorkflowActive = useCallback((wfId: string) => wfId === workflowId, [workflowId])
 
   useEffect(() => {
     if (!workflowId || isLoading || foldersLoading) return
@@ -301,7 +444,7 @@ export function WorkflowList({
           <div
             className={clsx(
               'pointer-events-none absolute inset-0 z-10 rounded-[4px]',
-              showInside && isDragging ? 'bg-[#33b4ff1a]' : 'hidden'
+              showInside && isDragging ? 'bg-[var(--text-subtle)] opacity-10' : 'hidden'
             )}
           />
           <div
@@ -392,17 +535,12 @@ export function WorkflowList({
   const firstItemId = rootItems[0]?.id ?? null
   const lastItemId = rootItems[rootItems.length - 1]?.id ?? null
   const showRootInside = dropIndicator?.targetId === 'root' && dropIndicator?.position === 'inside'
-  const showTopIndicator =
-    firstItemId && dropIndicator?.targetId === firstItemId && dropIndicator?.position === 'before'
-  const showBottomIndicator =
-    lastItemId && dropIndicator?.targetId === lastItemId && dropIndicator?.position === 'after'
 
   const handleContainerClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (e.target !== e.currentTarget) return
-      const { selectOnly, clearSelection, clearFolderSelection } = useFolderStore.getState()
-      clearFolderSelection()
-      workflowId ? selectOnly(workflowId) : clearSelection()
+      const { selectOnly, clearAllSelection } = useFolderStore.getState()
+      workflowId ? selectOnly(workflowId) : clearAllSelection()
     },
     [workflowId]
   )
@@ -437,7 +575,7 @@ export function WorkflowList({
           <div
             className={clsx(
               'pointer-events-none absolute inset-0 z-10 rounded-[4px]',
-              showRootInside && isDragging ? 'bg-[#33b4ff1a]' : 'hidden'
+              showRootInside && isDragging ? 'bg-[var(--text-subtle)] opacity-10' : 'hidden'
             )}
           />
           {isDragging && hasRootItems && (
@@ -445,11 +583,6 @@ export function WorkflowList({
               className='absolute top-0 right-0 left-0 z-30 h-[12px]'
               {...createEdgeDropZone(firstItemId, 'before')}
             />
-          )}
-          {showTopIndicator && (
-            <div className='pointer-events-none absolute top-0 right-0 left-0 z-20'>
-              <div className='h-[2px] rounded-full bg-[#33b4ff]/70' />
-            </div>
           )}
           <div className='space-y-[2px]' data-empty-area>
             {rootItems.map((item) =>
@@ -463,11 +596,6 @@ export function WorkflowList({
               className='absolute right-0 bottom-0 left-0 z-30 h-[12px]'
               {...createEdgeDropZone(lastItemId, 'after')}
             />
-          )}
-          {showBottomIndicator && (
-            <div className='pointer-events-none absolute right-0 bottom-0 left-0 z-20'>
-              <div className='h-[2px] rounded-full bg-[#33b4ff]/70' />
-            </div>
           )}
         </div>
 
@@ -495,4 +623,4 @@ export function WorkflowList({
       )}
     </SidebarDragContext.Provider>
   )
-}
+})

@@ -22,6 +22,21 @@ export type JobStatus = (typeof JOB_STATUS)[keyof typeof JOB_STATUS]
 
 export type JobType = 'workflow-execution' | 'schedule-execution' | 'webhook-execution'
 
+export type AsyncExecutionCorrelationSource = 'workflow' | 'schedule' | 'webhook'
+
+export interface AsyncExecutionCorrelation {
+  executionId: string
+  requestId: string
+  source: AsyncExecutionCorrelationSource
+  workflowId: string
+  triggerType?: string
+  webhookId?: string
+  scheduleId?: string
+  path?: string
+  provider?: string
+  scheduledFor?: string
+}
+
 export interface Job<TPayload = unknown, TOutput = unknown> {
   id: string
   type: JobType
@@ -40,6 +55,7 @@ export interface Job<TPayload = unknown, TOutput = unknown> {
 export interface JobMetadata {
   workflowId?: string
   userId?: string
+  correlation?: AsyncExecutionCorrelation
   [key: string]: unknown
 }
 

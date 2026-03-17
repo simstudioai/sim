@@ -6,6 +6,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
 
 Variables in Sim act as a global store for data that can be accessed and modified by any block in your workflow, allowing you to store and share data across your workflow with global variables. They provide a powerful way to share information between different parts of your workflow, maintain state, and create more dynamic applications.
 
@@ -119,7 +120,7 @@ Variables in Sim have global scope, meaning:
 
 - They are accessible from any block in your workflow
 - Changes to variables persist throughout workflow execution
-- Variables maintain their values between runs, unless explicitly reset
+- Variables start fresh from their defined values on each run. Changes during execution are visible within that run only
 
 ## Best Practices
 
@@ -129,3 +130,12 @@ Variables in Sim have global scope, meaning:
 - **Initialize Variables Early**: Set up and initialize your variables at the beginning of your workflow to ensure they're available when needed.
 - **Handle Missing Variables**: Always consider the case where a variable might not yet exist or might have an unexpected value. Add appropriate validation in your blocks.
 - **Limit Variable Count**: Keep the number of variables manageable. Too many variables can make your workflow difficult to understand and maintain.
+
+<FAQ items={[
+  { question: "What is the difference between workflow variables and environment variables (secrets)?", answer: "Workflow variables are defined per workflow and store data like text, numbers, objects, or arrays that blocks can read and modify during execution. They are referenced with <variable.name> syntax. Environment variables (secrets) are workspace-level credentials referenced with {{KEY}} syntax, designed for sensitive values like API keys that should never appear in logs." },
+  { question: "How are variables resolved during execution?", answer: "The execution engine uses a chain of resolvers that run in order: loop variables, parallel variables, workflow variables, environment variables, and then block references. When a block input contains a variable reference, the resolver matches it by normalized name (case-insensitive, spaces removed) or exact ID, then substitutes the resolved value before the block runs." },
+  { question: "Can I use nested paths to access properties inside an object variable?", answer: "Yes. If your variable stores an object or array, you can use dot notation to access nested properties. For example, <variable.config.retryCount> will navigate into the config object and return the retryCount value." },
+  { question: "Do workflow variables persist between separate workflow runs?", answer: "Variables maintain their initial values as defined in the Variables panel. Each execution starts with those configured values. If a block modifies a variable during execution, that change is visible to subsequent blocks in the same run, but does not alter the saved initial value for future runs." },
+  { question: "What happens if I reference a variable that does not exist?", answer: "If the resolver cannot find a matching variable, the raw reference string is left in place without substitution. This typically causes downstream blocks to receive unexpected input, so make sure all referenced variables are defined before running the workflow." },
+  { question: "Can I store JSON objects or arrays as variable values?", answer: "Yes. Variables support text, numbers, booleans, JSON objects, and arrays. When the value is parsed for execution, the engine determines the type and resolves it accordingly, so downstream blocks receive the proper JavaScript object or array rather than a raw string." },
+]} />

@@ -6,10 +6,11 @@
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDelete, mockWhere, mockGetSession } = vi.hoisted(() => ({
+const { mockDelete, mockWhere, mockGetSession, mockGetAccessibleCopilotChat } = vi.hoisted(() => ({
   mockDelete: vi.fn(),
   mockWhere: vi.fn(),
   mockGetSession: vi.fn(),
+  mockGetAccessibleCopilotChat: vi.fn(),
 }))
 
 vi.mock('@/lib/auth', () => ({
@@ -26,14 +27,24 @@ vi.mock('@sim/db/schema', () => ({
   copilotChats: {
     id: 'id',
     userId: 'userId',
+    workspaceId: 'workspaceId',
   },
 }))
 
 vi.mock('drizzle-orm', () => ({
+  and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
   eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
 }))
 
-import { DELETE } from '@/app/api/copilot/chat/delete/route'
+vi.mock('@/lib/copilot/chat-lifecycle', () => ({
+  getAccessibleCopilotChat: mockGetAccessibleCopilotChat,
+}))
+
+vi.mock('@/lib/copilot/task-events', () => ({
+  taskPubSub: { publishStatusChanged: vi.fn() },
+}))
+
+import { DELETE } from './route'
 
 function createMockRequest(method: string, body: Record<string, unknown>): NextRequest {
   return new NextRequest('http://localhost:3000/api/copilot/chat/delete', {
@@ -49,8 +60,10 @@ describe('Copilot Chat Delete API Route', () => {
 
     mockGetSession.mockResolvedValue(null)
 
+    const mockReturning = vi.fn().mockResolvedValue([{ workspaceId: 'ws-1' }])
+    mockWhere.mockReturnValue({ returning: mockReturning })
     mockDelete.mockReturnValue({ where: mockWhere })
-    mockWhere.mockResolvedValue([])
+    mockGetAccessibleCopilotChat.mockResolvedValue({ id: 'chat-123', userId: 'user-123' })
   })
 
   afterEach(() => {
@@ -74,8 +87,6 @@ describe('Copilot Chat Delete API Route', () => {
 
     it('should successfully delete a chat', async () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
-
-      mockWhere.mockResolvedValueOnce([{ id: 'chat-123' }])
 
       const req = createMockRequest('DELETE', {
         chatId: 'chat-123',
@@ -154,7 +165,7 @@ describe('Copilot Chat Delete API Route', () => {
     it('should delete chat even if it does not exist (idempotent)', async () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      mockWhere.mockResolvedValueOnce([])
+      mockGetAccessibleCopilotChat.mockResolvedValueOnce(null)
 
       const req = createMockRequest('DELETE', {
         chatId: 'non-existent-chat',

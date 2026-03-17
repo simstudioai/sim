@@ -3,7 +3,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { listWorkspaceFiles, uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
+import {
+  listWorkspaceFiles,
+  uploadWorkspaceFile,
+  type WorkspaceFileScope,
+} from '@/lib/uploads/contexts/workspace'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
@@ -34,7 +38,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const files = await listWorkspaceFiles(workspaceId)
+    const scope = (new URL(request.url).searchParams.get('scope') ?? 'active') as WorkspaceFileScope
+    if (!['active', 'archived', 'all'].includes(scope)) {
+      return NextResponse.json({ error: 'Invalid scope' }, { status: 400 })
+    }
+
+    const files = await listWorkspaceFiles(workspaceId, { scope })
 
     logger.info(`[${requestId}] Listed ${files.length} files for workspace ${workspaceId}`)
 
@@ -78,32 +87,33 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const formData = await request.formData()
-    const file = formData.get('file') as File
+    const rawFile = formData.get('file')
 
-    if (!file) {
+    if (!rawFile || !(rawFile instanceof File)) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
-    // Validate file size (100MB limit)
+    const fileName = rawFile.name || 'untitled'
+
     const maxSize = 100 * 1024 * 1024
-    if (file.size > maxSize) {
+    if (rawFile.size > maxSize) {
       return NextResponse.json(
-        { error: `File size exceeds 100MB limit (${(file.size / (1024 * 1024)).toFixed(2)}MB)` },
+        { error: `File size exceeds 100MB limit (${(rawFile.size / (1024 * 1024)).toFixed(2)}MB)` },
         { status: 400 }
       )
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer())
+    const buffer = Buffer.from(await rawFile.arrayBuffer())
 
     const userFile = await uploadWorkspaceFile(
       workspaceId,
       session.user.id,
       buffer,
-      file.name,
-      file.type || 'application/octet-stream'
+      fileName,
+      rawFile.type || 'application/octet-stream'
     )
 
-    logger.info(`[${requestId}] Uploaded workspace file: ${file.name}`)
+    logger.info(`[${requestId}] Uploaded workspace file: ${fileName}`)
 
     recordAudit({
       workspaceId,
@@ -113,8 +123,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       action: AuditAction.FILE_UPLOADED,
       resourceType: AuditResourceType.FILE,
       resourceId: userFile.id,
-      resourceName: file.name,
-      description: `Uploaded file "${file.name}"`,
+      resourceName: fileName,
+      description: `Uploaded file "${fileName}"`,
       request,
     })
 

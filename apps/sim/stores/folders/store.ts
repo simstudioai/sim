@@ -11,6 +11,8 @@ interface FolderState {
   selectedWorkflows: Set<string>
   selectedFolders: Set<string>
   lastSelectedFolderId: string | null
+  selectedTasks: Set<string>
+  lastSelectedTaskId: string | null
 
   setFolders: (folders: WorkflowFolder[]) => void
   toggleExpanded: (folderId: string) => void
@@ -34,8 +36,15 @@ interface FolderState {
   selectFolderRange: (folderIds: string[], fromId: string, toId: string) => void
   isFolderSelected: (folderId: string) => boolean
 
+  // Task selection actions
+  selectTaskOnly: (taskId: string) => void
+  toggleTaskSelection: (taskId: string) => void
+  selectTaskRange: (taskIds: string[], fromId: string, toId: string) => void
+  clearTaskSelection: () => void
+  isTaskSelected: (taskId: string) => boolean
+
   // Unified selection helpers
-  getFullSelection: () => { workflowIds: string[]; folderIds: string[] }
+  getFullSelection: () => { workflowIds: string[]; folderIds: string[]; taskIds: string[] }
   hasAnySelection: () => boolean
   isMixedSelection: () => boolean
   clearAllSelection: () => void
@@ -55,6 +64,8 @@ export const useFolderStore = create<FolderState>()(
       selectedWorkflows: new Set(),
       selectedFolders: new Set(),
       lastSelectedFolderId: null,
+      selectedTasks: new Set(),
+      lastSelectedTaskId: null,
 
       setFolders: (folders) =>
         set(() => ({
@@ -112,12 +123,25 @@ export const useFolderStore = create<FolderState>()(
           } else {
             newSelected.add(workflowId)
           }
-          return { selectedWorkflows: newSelected }
+          return {
+            selectedWorkflows: newSelected,
+            ...(state.selectedTasks.size > 0 && {
+              selectedTasks: new Set<string>(),
+              lastSelectedTaskId: null,
+            }),
+          }
         }),
 
       clearSelection: () => set({ selectedWorkflows: new Set() }),
 
-      selectOnly: (workflowId) => set({ selectedWorkflows: new Set([workflowId]) }),
+      selectOnly: (workflowId) =>
+        set({
+          selectedWorkflows: new Set([workflowId]),
+          selectedFolders: new Set(),
+          lastSelectedFolderId: null,
+          selectedTasks: new Set(),
+          lastSelectedTaskId: null,
+        }),
 
       selectRange: (workflowIds, fromId, toId) => {
         const fromIndex = workflowIds.indexOf(fromId)
@@ -169,13 +193,25 @@ export const useFolderStore = create<FolderState>()(
             // Always update anchor to the most recently clicked folder
             newLastSelected = folderId
           }
-          return { selectedFolders: newSelected, lastSelectedFolderId: newLastSelected }
+          return {
+            selectedFolders: newSelected,
+            lastSelectedFolderId: newLastSelected,
+            ...(state.selectedTasks.size > 0 && {
+              selectedTasks: new Set<string>(),
+              lastSelectedTaskId: null,
+            }),
+          }
         }),
 
       clearFolderSelection: () => set({ selectedFolders: new Set(), lastSelectedFolderId: null }),
 
       selectFolderOnly: (folderId) =>
-        set({ selectedFolders: new Set([folderId]), lastSelectedFolderId: folderId }),
+        set({
+          selectedFolders: new Set([folderId]),
+          lastSelectedFolderId: folderId,
+          selectedTasks: new Set(),
+          lastSelectedTaskId: null,
+        }),
 
       selectFolderRange: (folderIds, fromId, toId) => {
         const fromIndex = folderIds.indexOf(fromId)
@@ -192,13 +228,79 @@ export const useFolderStore = create<FolderState>()(
 
       isFolderSelected: (folderId) => get().selectedFolders.has(folderId),
 
+      // Task selection actions
+      selectTaskOnly: (taskId) =>
+        set((state) => ({
+          selectedTasks: new Set([taskId]),
+          lastSelectedTaskId: taskId,
+          ...(state.selectedWorkflows.size > 0 && { selectedWorkflows: new Set<string>() }),
+          ...(state.selectedFolders.size > 0 && {
+            selectedFolders: new Set<string>(),
+            lastSelectedFolderId: null,
+          }),
+        })),
+
+      toggleTaskSelection: (taskId) =>
+        set((state) => {
+          const newSelected = new Set(state.selectedTasks)
+          let newLastSelected: string | null
+          if (newSelected.has(taskId)) {
+            newSelected.delete(taskId)
+            newLastSelected =
+              state.lastSelectedTaskId === taskId
+                ? (Array.from(newSelected)[0] ?? null)
+                : state.lastSelectedTaskId
+          } else {
+            newSelected.add(taskId)
+            newLastSelected = taskId
+          }
+          return {
+            selectedTasks: newSelected,
+            lastSelectedTaskId: newLastSelected,
+            ...(state.selectedWorkflows.size > 0 && { selectedWorkflows: new Set<string>() }),
+            ...(state.selectedFolders.size > 0 && {
+              selectedFolders: new Set<string>(),
+              lastSelectedFolderId: null,
+            }),
+          }
+        }),
+
+      selectTaskRange: (taskIds, fromId, toId) => {
+        const fromIndex = taskIds.indexOf(fromId)
+        const toIndex = taskIds.indexOf(toId)
+
+        if (fromIndex === -1 || toIndex === -1) return
+
+        const [start, end] = fromIndex < toIndex ? [fromIndex, toIndex] : [toIndex, fromIndex]
+        const rangeIds = taskIds.slice(start, end + 1)
+
+        const state = get()
+        set({
+          selectedTasks: new Set(rangeIds),
+          lastSelectedTaskId: toId,
+          ...(state.selectedWorkflows.size > 0 && { selectedWorkflows: new Set<string>() }),
+          ...(state.selectedFolders.size > 0 && {
+            selectedFolders: new Set<string>(),
+            lastSelectedFolderId: null,
+          }),
+        })
+      },
+
+      clearTaskSelection: () => set({ selectedTasks: new Set(), lastSelectedTaskId: null }),
+
+      isTaskSelected: (taskId) => get().selectedTasks.has(taskId),
+
       // Unified selection helpers
       getFullSelection: () => ({
         workflowIds: Array.from(get().selectedWorkflows),
         folderIds: Array.from(get().selectedFolders),
+        taskIds: Array.from(get().selectedTasks),
       }),
 
-      hasAnySelection: () => get().selectedWorkflows.size > 0 || get().selectedFolders.size > 0,
+      hasAnySelection: () =>
+        get().selectedWorkflows.size > 0 ||
+        get().selectedFolders.size > 0 ||
+        get().selectedTasks.size > 0,
 
       isMixedSelection: () => get().selectedWorkflows.size > 0 && get().selectedFolders.size > 0,
 
@@ -207,6 +309,8 @@ export const useFolderStore = create<FolderState>()(
           selectedWorkflows: new Set(),
           selectedFolders: new Set(),
           lastSelectedFolderId: null,
+          selectedTasks: new Set(),
+          lastSelectedTaskId: null,
         }),
 
       getFolderTree: (workspaceId) => {
@@ -215,7 +319,10 @@ export const useFolderStore = create<FolderState>()(
         const buildTree = (parentId: string | null, level = 0): FolderTreeNode[] => {
           return folders
             .filter((folder) => folder.parentId === parentId)
-            .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+            .sort(
+              (a: WorkflowFolder, b: WorkflowFolder) =>
+                a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)
+            )
             .map((folder) => ({
               ...folder,
               children: buildTree(folder.id, level + 1),
@@ -231,7 +338,10 @@ export const useFolderStore = create<FolderState>()(
       getChildFolders: (parentId) =>
         Object.values(get().folders)
           .filter((folder) => folder.parentId === parentId)
-          .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
+          .sort(
+            (a: WorkflowFolder, b: WorkflowFolder) =>
+              a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)
+          ),
 
       getFolderPath: (folderId) => {
         const folders = get().folders
@@ -256,3 +366,6 @@ export const useIsWorkflowSelected = (workflowId: string) =>
 
 export const useIsFolderSelected = (folderId: string) =>
   useFolderStore((state) => state.selectedFolders.has(folderId))
+
+export const useIsTaskSelected = (taskId: string) =>
+  useFolderStore((state) => state.selectedTasks.has(taskId))

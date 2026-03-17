@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from 'crypto'
 import { db } from '@sim/db'
-import { document, embedding } from '@sim/db/schema'
+import { document, embedding, knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, ilike, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm'
 import type {
   BatchOperationResult,
   ChunkData,
@@ -108,6 +108,25 @@ export async function createChunk(
 
   // Use transaction to atomically get next index and insert chunk
   const newChunk = await db.transaction(async (tx) => {
+    const activeDocument = await tx
+      .select({ id: document.id })
+      .from(document)
+      .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
+      .where(
+        and(
+          eq(document.id, documentId),
+          eq(document.knowledgeBaseId, knowledgeBaseId),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt),
+          isNull(knowledgeBase.deletedAt)
+        )
+      )
+      .limit(1)
+
+    if (activeDocument.length === 0) {
+      throw new Error('Document not found')
+    }
+
     // Get the next chunk index atomically within the transaction
     const lastChunk = await tx
       .select({ chunkIndex: embedding.chunkIndex })

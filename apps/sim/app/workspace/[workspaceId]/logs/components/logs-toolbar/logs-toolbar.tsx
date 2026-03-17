@@ -7,13 +7,11 @@ import {
   Button,
   Combobox,
   type ComboboxOption,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Loader,
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverItem,
-  PopoverScrollArea,
-  PopoverTrigger,
 } from '@/components/emcn'
 import { DatePicker } from '@/components/emcn/components/date-picker/date-picker'
 import { cn } from '@/lib/core/utils/cn'
@@ -104,20 +102,33 @@ const colorIconCache = new Map<string, React.ComponentType<{ className?: string 
  * Uses a cache to ensure the same color always returns the same component reference,
  * which prevents unnecessary React reconciliation.
  * @param color - CSS color value for the icon background
+ * @param withRing - Whether to render the semi-transparent outer ring
  * @returns A React component that renders a colored square icon
  */
-function getColorIcon(color: string): React.ComponentType<{ className?: string }> {
-  const cached = colorIconCache.get(color)
+function getColorIcon(
+  color: string,
+  withRing = false
+): React.ComponentType<{ className?: string }> {
+  const cacheKey = withRing ? `${color}-ring` : color
+  const cached = colorIconCache.get(cacheKey)
   if (cached) return cached
 
   const ColorIcon = ({ className }: { className?: string }) => (
     <div
-      className={cn(className, 'flex-shrink-0 rounded-[3px]')}
-      style={{ backgroundColor: color, width: 10, height: 10 }}
+      className={cn(className, 'flex-shrink-0 rounded-[3px]', withRing && 'border-[1.5px]')}
+      style={{
+        backgroundColor: color,
+        width: 10,
+        height: 10,
+        ...(withRing && {
+          borderColor: `${color}60`,
+          backgroundClip: 'padding-box' as const,
+        }),
+      }}
     />
   )
-  ColorIcon.displayName = `ColorIcon(${color})`
-  colorIconCache.set(color, ColorIcon)
+  ColorIcon.displayName = `ColorIcon(${color}${withRing ? '-ring' : ''})`
+  colorIconCache.set(cacheKey, ColorIcon)
   return ColorIcon
 }
 
@@ -248,7 +259,7 @@ export const LogsToolbar = memo(function LogsToolbar({
   }, [selectedStatuses])
 
   const workflowOptions: ComboboxOption[] = useMemo(
-    () => workflows.map((w) => ({ value: w.id, label: w.name, icon: getColorIcon(w.color) })),
+    () => workflows.map((w) => ({ value: w.id, label: w.name, icon: getColorIcon(w.color, true) })),
     [workflows]
   )
 
@@ -373,27 +384,25 @@ export const LogsToolbar = memo(function LogsToolbar({
           <h1 className='font-medium text-[18px]'>Logs</h1>
         </div>
         <div className='flex items-center gap-[8px]'>
-          {/* More options popover */}
-          <Popover size='sm'>
-            <PopoverTrigger asChild>
+          {/* More options menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button variant='default' className='h-[32px] w-[32px] rounded-[6px] p-0'>
                 <MoreHorizontal className='h-[14px] w-[14px]' />
                 <span className='sr-only'>More options</span>
               </Button>
-            </PopoverTrigger>
-            <PopoverContent align='end' sideOffset={4}>
-              <PopoverScrollArea>
-                <PopoverItem onClick={onExport} disabled={!canEdit || isExporting || !hasLogs}>
-                  <ArrowUp className='h-3 w-3' />
-                  <span>Export as CSV</span>
-                </PopoverItem>
-                <PopoverItem onClick={onOpenNotificationSettings}>
-                  <Bell className='h-3 w-3' />
-                  <span>Configure Notifications</span>
-                </PopoverItem>
-              </PopoverScrollArea>
-            </PopoverContent>
-          </Popover>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='end' sideOffset={4}>
+              <DropdownMenuItem onSelect={onExport} disabled={!canEdit || isExporting || !hasLogs}>
+                <ArrowUp className='h-3 w-3' />
+                <span>Export as CSV</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onOpenNotificationSettings}>
+                <Bell className='h-3 w-3' />
+                <span>Configure Notifications</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Refresh button */}
           <Button
@@ -470,17 +479,17 @@ export const LogsToolbar = memo(function LogsToolbar({
             </Button>
           )}
 
-          {/* Filters Popover - Small screens only */}
-          <Popover>
-            <PopoverTrigger asChild>
+          {/* Filters dropdown - Small screens only */}
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
               <Button
                 variant='active'
                 className='h-[32px] gap-[6px] rounded-[6px] px-[10px] xl:hidden'
               >
                 <span>Filters</span>
               </Button>
-            </PopoverTrigger>
-            <PopoverContent align='end' sideOffset={4} className='w-[280px] p-[12px]'>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='end' sideOffset={4} className='w-[280px] p-[12px]'>
               <div className='flex flex-col gap-[12px]'>
                 {/* Status Filter */}
                 <div className='flex flex-col gap-[6px]'>
@@ -526,8 +535,12 @@ export const LogsToolbar = memo(function LogsToolbar({
                       <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
                         {selectedWorkflow && (
                           <div
-                            className='h-[8px] w-[8px] flex-shrink-0 rounded-[2px]'
-                            style={{ backgroundColor: selectedWorkflow.color }}
+                            className='h-[8px] w-[8px] flex-shrink-0 rounded-[2px] border-[1.5px]'
+                            style={{
+                              backgroundColor: selectedWorkflow.color,
+                              borderColor: `${selectedWorkflow.color}60`,
+                              backgroundClip: 'padding-box',
+                            }}
                           />
                         )}
                         <span className='truncate'>{workflowDisplayLabel}</span>
@@ -612,8 +625,8 @@ export const LogsToolbar = memo(function LogsToolbar({
                   />
                 </div>
               </div>
-            </PopoverContent>
-          </Popover>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Inline Filters - Large screens only */}
           <div className='hidden items-center gap-[8px] xl:flex'>
@@ -653,8 +666,12 @@ export const LogsToolbar = memo(function LogsToolbar({
                 <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
                   {selectedWorkflow && (
                     <div
-                      className='h-[8px] w-[8px] flex-shrink-0 rounded-[2px]'
-                      style={{ backgroundColor: selectedWorkflow.color }}
+                      className='h-[8px] w-[8px] flex-shrink-0 rounded-[2px] border-[1.5px]'
+                      style={{
+                        backgroundColor: selectedWorkflow.color,
+                        borderColor: `${selectedWorkflow.color}60`,
+                        backgroundClip: 'padding-box',
+                      }}
                     />
                   )}
                   <span className='truncate'>{workflowDisplayLabel}</span>
@@ -708,8 +725,8 @@ export const LogsToolbar = memo(function LogsToolbar({
             />
 
             {/* Timeline Filter */}
-            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-              <PopoverAnchor asChild>
+            <DropdownMenu open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+              <DropdownMenuTrigger asChild>
                 <div>
                   <Combobox
                     options={TIME_RANGE_OPTIONS as unknown as ComboboxOption[]}
@@ -726,8 +743,8 @@ export const LogsToolbar = memo(function LogsToolbar({
                     className='h-[32px] w-[120px] rounded-[6px]'
                   />
                 </div>
-              </PopoverAnchor>
-              <PopoverContent
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
                 side='bottom'
                 align='end'
                 sideOffset={4}
@@ -742,8 +759,8 @@ export const LogsToolbar = memo(function LogsToolbar({
                   onCancel={handleDatePickerCancel}
                   inline
                 />
-              </PopoverContent>
-            </Popover>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>

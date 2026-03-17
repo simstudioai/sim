@@ -7,8 +7,10 @@ export interface WorkspaceEnvironmentData {
   conflicts: string[]
 }
 
-export async function fetchPersonalEnvironment(): Promise<Record<string, EnvironmentVariable>> {
-  const response = await fetch(API_ENDPOINTS.ENVIRONMENT)
+export async function fetchPersonalEnvironment(
+  signal?: AbortSignal
+): Promise<Record<string, EnvironmentVariable>> {
+  const response = await fetch(API_ENDPOINTS.ENVIRONMENT, { signal })
 
   if (!response.ok) {
     await response.text().catch(() => {})
@@ -25,9 +27,10 @@ export async function fetchPersonalEnvironment(): Promise<Record<string, Environ
 }
 
 export async function fetchWorkspaceEnvironment(
-  workspaceId: string
+  workspaceId: string,
+  signal?: AbortSignal
 ): Promise<WorkspaceEnvironmentData> {
-  const response = await fetch(API_ENDPOINTS.WORKSPACE_ENVIRONMENT(workspaceId))
+  const response = await fetch(API_ENDPOINTS.WORKSPACE_ENVIRONMENT(workspaceId), { signal })
 
   if (!response.ok) {
     await response.text().catch(() => {})

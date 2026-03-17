@@ -159,7 +159,7 @@ export function EditKnowledgeBaseModal({
                   Cancel
                 </Button>
                 <Button
-                  variant='tertiary'
+                  variant='primary'
                   type='submit'
                   disabled={isSubmitting || !nameValue?.trim() || !isDirty}
                 >

@@ -1,5 +1,5 @@
 import { existsSync } from 'fs'
-import { join, resolve, sep } from 'path'
+import path from 'path'
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { UPLOAD_DIR } from '@/lib/uploads/config'
@@ -21,6 +21,7 @@ export interface FileResponse {
   buffer: Buffer
   contentType: string
   filename: string
+  cacheControl?: string
 }
 
 export class FileNotFoundError extends Error {
@@ -60,6 +61,8 @@ export const contentTypeMap: Record<string, string> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   gif: 'image/gif',
+  svg: 'image/svg+xml',
+  webp: 'image/webp',
   zip: 'application/zip',
   googleFolder: 'application/vnd.google-apps.folder',
 }
@@ -76,6 +79,7 @@ export const binaryExtensions = [
   'jpg',
   'jpeg',
   'gif',
+  'webp',
   'pdf',
 ]
 
@@ -155,7 +159,7 @@ function sanitizeFilename(filename: string): string {
     return sanitized
   })
 
-  return sanitizedSegments.join(sep)
+  return sanitizedSegments.join(path.sep)
 }
 
 export function findLocalFile(filename: string): string | null {
@@ -168,17 +172,18 @@ export function findLocalFile(filename: string): string | null {
     }
 
     const possiblePaths = [
-      join(UPLOAD_DIR, sanitizedFilename),
-      join(process.cwd(), 'uploads', sanitizedFilename),
+      path.join(UPLOAD_DIR, sanitizedFilename),
+      path.join(process.cwd(), 'uploads', sanitizedFilename),
     ]
 
-    for (const path of possiblePaths) {
-      const resolvedPath = resolve(path)
-      const allowedDirs = [resolve(UPLOAD_DIR), resolve(process.cwd(), 'uploads')]
+    for (const filePath of possiblePaths) {
+      const resolvedPath = path.resolve(filePath)
+      const allowedDirs = [path.resolve(UPLOAD_DIR), path.resolve(process.cwd(), 'uploads')]
 
       // Must be within allowed directory but NOT the directory itself
       const isWithinAllowedDir = allowedDirs.some(
-        (allowedDir) => resolvedPath.startsWith(allowedDir + sep) && resolvedPath !== allowedDir
+        (allowedDir) =>
+          resolvedPath.startsWith(allowedDir + path.sep) && resolvedPath !== allowedDir
       )
 
       if (!isWithinAllowedDir) {
@@ -202,13 +207,15 @@ const SAFE_INLINE_TYPES = new Set([
   'image/jpeg',
   'image/jpg',
   'image/gif',
+  'image/svg+xml',
+  'image/webp',
   'application/pdf',
   'text/plain',
   'text/csv',
   'application/json',
 ])
 
-const FORCE_ATTACHMENT_EXTENSIONS = new Set(['html', 'htm', 'svg', 'js', 'css', 'xml'])
+const FORCE_ATTACHMENT_EXTENSIONS = new Set(['html', 'htm', 'js', 'css', 'xml'])
 
 function getSecureFileHeaders(filename: string, originalContentType: string) {
   const extension = filename.split('.').pop()?.toLowerCase() || ''
@@ -222,7 +229,7 @@ function getSecureFileHeaders(filename: string, originalContentType: string) {
 
   let safeContentType = originalContentType
 
-  if (originalContentType === 'text/html' || originalContentType === 'image/svg+xml') {
+  if (originalContentType === 'text/html') {
     safeContentType = 'text/plain'
   }
 
@@ -251,16 +258,18 @@ function encodeFilenameForHeader(storageKey: string): string {
 export function createFileResponse(file: FileResponse): NextResponse {
   const { contentType, disposition } = getSecureFileHeaders(file.filename, file.contentType)
 
-  return new NextResponse(file.buffer as BodyInit, {
-    status: 200,
-    headers: {
-      'Content-Type': contentType,
-      'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(file.filename)}`,
-      'Cache-Control': 'public, max-age=31536000',
-      'X-Content-Type-Options': 'nosniff',
-      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox;",
-    },
-  })
+  const headers: Record<string, string> = {
+    'Content-Type': contentType,
+    'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(file.filename)}`,
+    'Cache-Control': file.cacheControl || 'public, max-age=31536000',
+    'X-Content-Type-Options': 'nosniff',
+  }
+
+  if (contentType === 'image/svg+xml') {
+    headers['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'; sandbox;"
+  }
+
+  return new NextResponse(file.buffer as BodyInit, { status: 200, headers })
 }
 
 export function createErrorResponse(error: Error, status = 500): NextResponse {

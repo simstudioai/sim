@@ -12,6 +12,8 @@ export interface WorkflowBlockProps {
   isPreview?: boolean
   /** Whether this block is selected in preview mode */
   isPreviewSelected?: boolean
+  /** Whether this block is rendered inside an embedded (read-only) workflow view */
+  isEmbedded?: boolean
   subBlockValues?: Record<string, any>
   blockState?: any
 }

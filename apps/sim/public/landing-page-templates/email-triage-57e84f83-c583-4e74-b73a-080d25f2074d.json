@@ -1,0 +1,551 @@
+{
+  "version": "1.0",
+  "exportedAt": "2026-03-09T21:40:19.013Z",
+  "state": {
+    "blocks": {
+      "9a5153ed-d5ae-40a1-a5c6-b17f1c4b8174": {
+        "id": "9a5153ed-d5ae-40a1-a5c6-b17f1c4b8174",
+        "type": "gmail_v2",
+        "name": "Gmail1",
+        "position": {
+          "x": 150,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": true,
+        "height": 230,
+        "subBlocks": {
+          "cc": {
+            "id": "cc",
+            "type": "short-input",
+            "value": null
+          },
+          "to": {
+            "id": "to",
+            "type": "short-input",
+            "value": null
+          },
+          "bcc": {
+            "id": "bcc",
+            "type": "short-input",
+            "value": null
+          },
+          "body": {
+            "id": "body",
+            "type": "long-input",
+            "value": null
+          },
+          "query": {
+            "id": "query",
+            "type": "short-input",
+            "value": null
+          },
+          "folder": {
+            "id": "folder",
+            "type": "folder-selector",
+            "value": null
+          },
+          "subject": {
+            "id": "subject",
+            "type": "short-input",
+            "value": null
+          },
+          "labelIds": {
+            "id": "labelIds",
+            "type": "dropdown",
+            "value": null
+          },
+          "threadId": {
+            "id": "threadId",
+            "type": "short-input",
+            "value": null
+          },
+          "messageId": {
+            "id": "messageId",
+            "type": "short-input",
+            "value": null
+          },
+          "operation": {
+            "id": "operation",
+            "type": "dropdown",
+            "value": null
+          },
+          "credential": {
+            "id": "credential",
+            "type": "oauth-input",
+            "value": null
+          },
+          "markAsRead": {
+            "id": "markAsRead",
+            "type": "short-input",
+            "value": false
+          },
+          "maxResults": {
+            "id": "maxResults",
+            "type": "short-input",
+            "value": null
+          },
+          "unreadOnly": {
+            "id": "unreadOnly",
+            "type": "switch",
+            "value": null
+          },
+          "attachments": {
+            "id": "attachments",
+            "type": "short-input",
+            "value": null
+          },
+          "contentType": {
+            "id": "contentType",
+            "type": "dropdown",
+            "value": null
+          },
+          "searchQuery": {
+            "id": "searchQuery",
+            "type": "short-input",
+            "value": null
+          },
+          "sourceLabel": {
+            "id": "sourceLabel",
+            "type": "folder-selector",
+            "value": null
+          },
+          "manualFolder": {
+            "id": "manualFolder",
+            "type": "short-input",
+            "value": null
+          },
+          "labelSelector": {
+            "id": "labelSelector",
+            "type": "folder-selector",
+            "value": null
+          },
+          "manualLabelId": {
+            "id": "manualLabelId",
+            "type": "short-input",
+            "value": null
+          },
+          "moveMessageId": {
+            "id": "moveMessageId",
+            "type": "short-input",
+            "value": null
+          },
+          "actionMessageId": {
+            "id": "actionMessageId",
+            "type": "short-input",
+            "value": null
+          },
+          "attachmentFiles": {
+            "id": "attachmentFiles",
+            "type": "file-upload",
+            "value": null
+          },
+          "destinationLabel": {
+            "id": "destinationLabel",
+            "type": "folder-selector",
+            "value": null
+          },
+          "manualCredential": {
+            "id": "manualCredential",
+            "type": "short-input",
+            "value": null
+          },
+          "replyToMessageId": {
+            "id": "replyToMessageId",
+            "type": "short-input",
+            "value": null
+          },
+          "manualSourceLabel": {
+            "id": "manualSourceLabel",
+            "type": "short-input",
+            "value": null
+          },
+          "includeAttachments": {
+            "id": "includeAttachments",
+            "type": "short-input",
+            "value": false
+          },
+          "triggerCredentials": {
+            "id": "triggerCredentials",
+            "type": "oauth-input",
+            "value": null
+          },
+          "labelFilterBehavior": {
+            "id": "labelFilterBehavior",
+            "type": "short-input",
+            "value": "INCLUDE"
+          },
+          "triggerInstructions": {
+            "id": "triggerInstructions",
+            "type": "text",
+            "value": null
+          },
+          "labelActionMessageId": {
+            "id": "labelActionMessageId",
+            "type": "short-input",
+            "value": null
+          },
+          "manualDestinationLabel": {
+            "id": "manualDestinationLabel",
+            "type": "short-input",
+            "value": null
+          },
+          "samplePayload_gmail_poller": {
+            "id": "samplePayload_gmail_poller",
+            "type": "code",
+            "value": null
+          }
+        },
+        "outputs": {
+          "email": {
+            "cc": {
+              "type": "string",
+              "description": "CC recipients"
+            },
+            "id": {
+              "type": "string",
+              "description": "Gmail message ID"
+            },
+            "to": {
+              "type": "string",
+              "description": "Recipient email address"
+            },
+            "date": {
+              "type": "string",
+              "description": "Email date in ISO format"
+            },
+            "from": {
+              "type": "string",
+              "description": "Sender email address"
+            },
+            "labels": {
+              "type": "string",
+              "description": "Email labels array"
+            },
+            "subject": {
+              "type": "string",
+              "description": "Email subject line"
+            },
+            "bodyHtml": {
+              "type": "string",
+              "description": "HTML email body"
+            },
+            "bodyText": {
+              "type": "string",
+              "description": "Plain text email body"
+            },
+            "threadId": {
+              "type": "string",
+              "description": "Gmail thread ID"
+            },
+            "attachments": {
+              "type": "file[]",
+              "description": "Array of email attachments as files (if includeAttachments is enabled)"
+            },
+            "hasAttachments": {
+              "type": "boolean",
+              "description": "Whether email has attachments"
+            }
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "Event timestamp"
+          }
+        },
+        "data": {
+          "canonicalModes": {
+            "folder": "basic",
+            "addLabelIds": "basic",
+            "attachments": "basic",
+            "manageLabelId": "basic",
+            "removeLabelIds": "basic",
+            "oauthCredential": "basic"
+          }
+        },
+        "locked": false
+      },
+      "8b2cb83b-86ad-45c1-9af6-d03ea645128e": {
+        "id": "8b2cb83b-86ad-45c1-9af6-d03ea645128e",
+        "type": "note",
+        "name": "Gmail Setup",
+        "position": {
+          "x": 156.1976672520025,
+          "y": -43.44719468951199
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 114,
+        "subBlocks": {
+          "content": {
+            "id": "content",
+            "type": "short-input",
+            "value": "- Connect Gmail Account \n- Select Relevant Labels to Monitor (Optional)"
+          }
+        },
+        "outputs": {},
+        "data": {},
+        "locked": false
+      },
+      "73ccae2c-cdef-435e-a1d6-4fa2f8b798aa": {
+        "id": "73ccae2c-cdef-435e-a1d6-4fa2f8b798aa",
+        "type": "agent",
+        "name": "Agent1",
+        "position": {
+          "x": 650,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 288,
+        "subBlocks": {
+          "model": {
+            "id": "model",
+            "type": "short-input",
+            "value": "claude-sonnet-4-5"
+          },
+          "tools": {
+            "id": "tools",
+            "type": "tool-input",
+            "value": [
+              {
+                "type": "linear",
+                "title": "Linear",
+                "params": {
+                  "priority": "0",
+                  "manualTeamId": "",
+                  "manualProjectId": ""
+                },
+                "toolId": "linear_create_issue",
+                "operation": "linear_create_issue",
+                "isExpanded": false,
+                "credentialId": "VASXEoZWRpOraVP2Exmm9X62lT3ofDmZ",
+                "usageControl": "auto"
+              },
+              {
+                "type": "slack",
+                "title": "Slack",
+                "params": {
+                  "authMethod": "oauth",
+                  "destinationType": "channel"
+                },
+                "toolId": "slack_message",
+                "operation": "send",
+                "isExpanded": false,
+                "usageControl": "auto"
+              }
+            ]
+          },
+          "apiKey": {
+            "id": "apiKey",
+            "type": "short-input",
+            "value": null
+          },
+          "skills": {
+            "id": "skills",
+            "type": "skill-input",
+            "value": null
+          },
+          "messages": {
+            "id": "messages",
+            "type": "messages-input",
+            "value": [
+              {
+                "role": "system",
+                "content": "Classify and route incoming emails. You have access to tools for Slack notifications and Linear issue creation.\n\nWhen you determine an email is urgent, use the Slack tool to send a notification to the #urgent channel.\nWhen you determine an email needs a support issue, use the Linear tool to create an issue in the Support project.\n\nYou can use both tools if an email is both urgent AND needs a support issue."
+              },
+              {
+                "role": "user",
+                "content": "Classify this email:\n\nFrom: <gmail1.email.from>\nSubject: <gmail1.email.subject>\nBody: <gmail1.email.bodyText>\n\nDetermine if it is urgent (needs immediate Slack notification) or support-related (needs a Linear issue). Take appropriate action using your tools."
+              }
+            ]
+          },
+          "maxTokens": {
+            "id": "maxTokens",
+            "type": "short-input",
+            "value": null
+          },
+          "verbosity": {
+            "id": "verbosity",
+            "type": "dropdown",
+            "value": null
+          },
+          "memoryType": {
+            "id": "memoryType",
+            "type": "dropdown",
+            "value": "none"
+          },
+          "temperature": {
+            "id": "temperature",
+            "type": "short-input",
+            "value": 0.3
+          },
+          "azureEndpoint": {
+            "id": "azureEndpoint",
+            "type": "short-input",
+            "value": null
+          },
+          "bedrockRegion": {
+            "id": "bedrockRegion",
+            "type": "short-input",
+            "value": null
+          },
+          "thinkingLevel": {
+            "id": "thinkingLevel",
+            "type": "dropdown",
+            "value": null
+          },
+          "vertexProject": {
+            "id": "vertexProject",
+            "type": "short-input",
+            "value": null
+          },
+          "conversationId": {
+            "id": "conversationId",
+            "type": "short-input",
+            "value": null
+          },
+          "responseFormat": {
+            "id": "responseFormat",
+            "type": "code",
+            "value": null
+          },
+          "vertexLocation": {
+            "id": "vertexLocation",
+            "type": "short-input",
+            "value": null
+          },
+          "azureApiVersion": {
+            "id": "azureApiVersion",
+            "type": "short-input",
+            "value": null
+          },
+          "reasoningEffort": {
+            "id": "reasoningEffort",
+            "type": "dropdown",
+            "value": null
+          },
+          "bedrockSecretKey": {
+            "id": "bedrockSecretKey",
+            "type": "short-input",
+            "value": null
+          },
+          "manualCredential": {
+            "id": "manualCredential",
+            "type": "short-input",
+            "value": null
+          },
+          "vertexCredential": {
+            "id": "vertexCredential",
+            "type": "oauth-input",
+            "value": null
+          },
+          "slidingWindowSize": {
+            "id": "slidingWindowSize",
+            "type": "short-input",
+            "value": null
+          },
+          "bedrockAccessKeyId": {
+            "id": "bedrockAccessKeyId",
+            "type": "short-input",
+            "value": null
+          },
+          "slidingWindowTokens": {
+            "id": "slidingWindowTokens",
+            "type": "short-input",
+            "value": null
+          },
+          "previousInteractionId": {
+            "id": "previousInteractionId",
+            "type": "short-input",
+            "value": null
+          }
+        },
+        "outputs": {
+          "cost": {
+            "type": "json",
+            "description": "Cost of the API call"
+          },
+          "model": {
+            "type": "string",
+            "description": "Model used for generation"
+          },
+          "tokens": {
+            "type": "json",
+            "description": "Token usage statistics"
+          },
+          "content": {
+            "type": "string",
+            "description": "Generated response content"
+          },
+          "toolCalls": {
+            "type": "json",
+            "description": "Tool calls made"
+          },
+          "providerTiming": {
+            "type": "json",
+            "description": "Provider timing information"
+          }
+        },
+        "data": {
+          "canonicalModes": {
+            "linear:teamId": "basic",
+            "slack:channel": "basic",
+            "oauthCredential": "basic",
+            "linear:projectId": "basic"
+          }
+        },
+        "locked": false
+      },
+      "74ce7030-0faf-4efd-9439-8a0d516871e2": {
+        "id": "74ce7030-0faf-4efd-9439-8a0d516871e2",
+        "type": "note",
+        "name": "Agent Setup",
+        "position": {
+          "x": 647.4883532288753,
+          "y": -66.95469058004684
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 114,
+        "subBlocks": {
+          "content": {
+            "id": "content",
+            "type": "short-input",
+            "value": "- Connect Linear Account \n- Connect Slack Account and select channel"
+          }
+        },
+        "outputs": {},
+        "data": {},
+        "locked": false
+      }
+    },
+    "edges": [
+      {
+        "id": "aa9449b6-2d66-4009-b931-682e45d841a0",
+        "source": "9a5153ed-d5ae-40a1-a5c6-b17f1c4b8174",
+        "target": "73ccae2c-cdef-435e-a1d6-4fa2f8b798aa",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      }
+    ],
+    "loops": {},
+    "parallels": {},
+    "metadata": {
+      "name": "email-triage",
+      "description": "New workflow",
+      "color": "#048628",
+      "exportedAt": "2026-03-09T21:40:19.012Z"
+    },
+    "variables": {}
+  }
+}

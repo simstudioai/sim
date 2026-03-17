@@ -40,6 +40,14 @@ export async function GET(
         logger.warn(`[${requestId}] Access denied to workflow ${job.metadata.workflowId}`)
         return createErrorResponse('Access denied', 403)
       }
+
+      if (authResult.apiKeyType === 'workspace' && authResult.workspaceId) {
+        const { getWorkflowById } = await import('@/lib/workflows/utils')
+        const workflow = await getWorkflowById(job.metadata.workflowId as string)
+        if (!workflow?.workspaceId || workflow.workspaceId !== authResult.workspaceId) {
+          return createErrorResponse('API key is not authorized for this workspace', 403)
+        }
+      }
     } else if (job.metadata?.userId && job.metadata.userId !== authenticatedUserId) {
       logger.warn(`[${requestId}] Access denied to user ${job.metadata.userId}`)
       return createErrorResponse('Access denied', 403)

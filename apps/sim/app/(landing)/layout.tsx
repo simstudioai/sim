@@ -4,8 +4,8 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://sim.ai'),
   manifest: '/manifest.json',
   icons: {
-    icon: '/favicon.ico',
-    apple: '/apple-icon.png',
+    icon: [{ url: '/icon.svg', type: 'image/svg+xml', sizes: 'any' }],
+    apple: '/favicon/apple-touch-icon.png',
   },
   other: {
     'msapplication-TileColor': '#000000',

@@ -3,7 +3,11 @@ import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import { applyAutoLayout } from '@/lib/workflows/autolayout'
+import { applyTargetedLayout } from '@/lib/workflows/autolayout'
+import {
+  DEFAULT_HORIZONTAL_SPACING,
+  DEFAULT_VERTICAL_SPACING,
+} from '@/lib/workflows/autolayout/constants'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import {
   loadWorkflowFromNormalizedTables,
@@ -13,6 +17,7 @@ import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
+import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
 import { applyOperationsToWorkflowState } from './engine'
 import type { EditWorkflowParams, ValidationError } from './types'
 import { preValidateCredentialInputs, validateWorkflowSelectorIds } from './validation'
@@ -30,42 +35,29 @@ async function getCurrentWorkflowStateFromDb(
   const normalized = await loadWorkflowFromNormalizedTables(workflowId)
   if (!normalized) throw new Error('Workflow has no normalized data')
 
-  // Validate and fix blocks without types
-  const blocks = { ...normalized.blocks }
-  const invalidBlocks: string[] = []
-
-  Object.entries(blocks).forEach(([id, block]: [string, any]) => {
-    if (!block.type) {
-      logger.warn(`Block ${id} loaded without type from database`, {
-        blockKeys: Object.keys(block),
-        blockName: block.name,
-      })
-      invalidBlocks.push(id)
-    }
-  })
-
-  // Remove invalid blocks
-  invalidBlocks.forEach((id) => delete blocks[id])
-
-  // Remove edges connected to invalid blocks
-  const edges = normalized.edges.filter(
-    (edge: any) => !invalidBlocks.includes(edge.source) && !invalidBlocks.includes(edge.target)
-  )
-
-  const workflowState: any = {
-    blocks,
-    edges,
+  const { state: validatedState, warnings } = normalizeWorkflowState({
+    blocks: normalized.blocks,
+    edges: normalized.edges,
     loops: normalized.loops || {},
     parallels: normalized.parallels || {},
+  })
+
+  if (warnings.length > 0) {
+    logger.warn('Normalized workflow state loaded from DB for copilot', {
+      workflowId,
+      warningCount: warnings.length,
+      warnings,
+    })
   }
+
   const subBlockValues: Record<string, Record<string, any>> = {}
-  Object.entries(normalized.blocks).forEach(([blockId, block]) => {
+  Object.entries(validatedState.blocks).forEach(([blockId, block]) => {
     subBlockValues[blockId] = {}
     Object.entries((block as any).subBlocks || {}).forEach(([subId, sub]) => {
       if ((sub as any).value !== undefined) subBlockValues[blockId][subId] = (sub as any).value
     })
   })
-  return { workflowState, subBlockValues }
+  return { workflowState: validatedState, subBlockValues }
 }
 
 export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown> = {
@@ -137,17 +129,18 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     // Add credential validation errors
     validationErrors.push(...credentialErrors)
 
-    // Get workspaceId for selector validation
     let workspaceId: string | undefined
+    let workflowName: string | undefined
     try {
       const [workflowRecord] = await db
-        .select({ workspaceId: workflowTable.workspaceId })
+        .select({ workspaceId: workflowTable.workspaceId, name: workflowTable.name })
         .from(workflowTable)
         .where(eq(workflowTable.id, workflowId))
         .limit(1)
       workspaceId = workflowRecord?.workspaceId ?? undefined
+      workflowName = workflowRecord?.name ?? undefined
     } catch (error) {
-      logger.warn('Failed to get workspaceId for selector validation', { error, workflowId })
+      logger.warn('Failed to get workflow metadata for validation', { error, workflowId })
     }
 
     // Validate selector IDs exist in the database
@@ -233,21 +226,38 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     // Persist the workflow state to the database
     const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
 
-    // Apply autolayout to position blocks properly
-    const layoutResult = applyAutoLayout(finalWorkflowState.blocks, finalWorkflowState.edges, {
-      horizontalSpacing: 250,
-      verticalSpacing: 100,
-      padding: { x: 100, y: 100 },
+    // Identify blocks that need layout by comparing against the pre-operation
+    // state. New blocks and blocks inserted into subflows (position reset to
+    // 0,0) need repositioning. Extracted blocks are excluded — their handler
+    // already computed valid absolute positions from the container offset.
+    const preOperationBlockIds = new Set(Object.keys(workflowState.blocks || {}))
+    const blocksNeedingLayout = Object.keys(finalWorkflowState.blocks).filter((id) => {
+      if (!preOperationBlockIds.has(id)) return true
+      const prevParent = workflowState.blocks[id]?.data?.parentId ?? null
+      const currParent = finalWorkflowState.blocks[id]?.data?.parentId ?? null
+      if (prevParent === currParent) return false
+      // Parent changed — only needs layout if position was reset to (0,0)
+      // by insert_into_subflow. extract_from_subflow computes absolute
+      // positions directly, so those blocks don't need repositioning.
+      const pos = finalWorkflowState.blocks[id]?.position
+      return pos?.x === 0 && pos?.y === 0
     })
 
-    const layoutedBlocks =
-      layoutResult.success && layoutResult.blocks ? layoutResult.blocks : finalWorkflowState.blocks
+    let layoutedBlocks = finalWorkflowState.blocks
 
-    if (!layoutResult.success) {
-      logger.warn('Autolayout failed, using default positions', {
-        workflowId,
-        error: layoutResult.error,
-      })
+    if (blocksNeedingLayout.length > 0) {
+      try {
+        layoutedBlocks = applyTargetedLayout(finalWorkflowState.blocks, finalWorkflowState.edges, {
+          changedBlockIds: blocksNeedingLayout,
+          horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
+          verticalSpacing: DEFAULT_VERTICAL_SPACING,
+        })
+      } catch (error) {
+        logger.warn('Targeted autolayout failed, using default positions', {
+          workflowId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
     }
 
     const workflowStateForDb = {
@@ -279,19 +289,24 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
 
     logger.info('Workflow state persisted to database', { workflowId })
 
-    // Return the modified workflow state with autolayout applied
+    const sanitizationWarnings = validation.warnings.length > 0 ? validation.warnings : undefined
+
     return {
       success: true,
+      workflowId,
+      workflowName: workflowName ?? 'Workflow',
       workflowState: { ...finalWorkflowState, blocks: layoutedBlocks },
-      // Include input validation errors so the LLM can see what was rejected
       ...(inputErrors && {
         inputValidationErrors: inputErrors,
         inputValidationMessage: `${inputErrors.length} input(s) were rejected due to validation errors. The workflow was still updated with valid inputs only. Errors: ${inputErrors.join('; ')}`,
       }),
-      // Include skipped items so the LLM can see what operations were skipped
       ...(skippedMessages && {
         skippedItems: skippedMessages,
         skippedItemsMessage: `${skippedItems.length} operation(s) were skipped due to invalid references. Details: ${skippedMessages.join('; ')}`,
+      }),
+      ...(sanitizationWarnings && {
+        sanitizationWarnings,
+        sanitizationMessage: `${sanitizationWarnings.length} field(s) were automatically sanitized: ${sanitizationWarnings.join('; ')}`,
       }),
     }
   },

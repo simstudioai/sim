@@ -1,33 +1,18 @@
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { WorkflowBlockProps } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types'
-import { useChildDeploymentStatus } from '@/hooks/queries/workflows'
+import { useDeploymentInfo } from '@/hooks/queries/deployments'
 
-/**
- * Return type for the useChildWorkflow hook
- */
 export interface UseChildWorkflowReturn {
-  /** The ID of the child workflow if configured */
   childWorkflowId: string | undefined
-  /** The active version of the child workflow */
-  childActiveVersion: number | null
-  /** Whether the child workflow is deployed */
   childIsDeployed: boolean | null
-  /** Whether the child workflow needs redeployment due to changes */
   childNeedsRedeploy: boolean
-  /** Whether the child version information is loading */
   isLoadingChildVersion: boolean
 }
 
 /**
- * Custom hook for managing child workflow information for workflow selector blocks.
- * Cache invalidation is handled automatically by React Query when using
- * the useDeployChildWorkflow mutation.
- *
- * @param blockId - The ID of the block
- * @param blockType - The type of the block
- * @param isPreview - Whether the block is in preview mode
- * @param previewSubBlockValues - The subblock values in preview mode
- * @returns Child workflow configuration and deployment status
+ * Manages child workflow deployment status for workflow selector blocks.
+ * Uses the shared useDeploymentInfo query (same source of truth as the
+ * editor header's Deploy button) for consistent deployment detection.
  */
 export function useChildWorkflow(
   blockId: string,
@@ -53,18 +38,16 @@ export function useChildWorkflow(
     }
   }
 
-  const { data, isLoading, isPending } = useChildDeploymentStatus(
-    isWorkflowSelector ? childWorkflowId : undefined
+  const { data, isPending } = useDeploymentInfo(
+    isWorkflowSelector ? (childWorkflowId ?? null) : null
   )
 
-  const childActiveVersion = data?.activeVersion ?? null
   const childIsDeployed = data?.isDeployed ?? null
-  const childNeedsRedeploy = data?.needsRedeploy ?? false
-  const isLoadingChildVersion = isLoading || isPending
+  const childNeedsRedeploy = data?.needsRedeployment ?? false
+  const isLoadingChildVersion = isPending
 
   return {
     childWorkflowId,
-    childActiveVersion,
     childIsDeployed,
     childNeedsRedeploy,
     isLoadingChildVersion,

@@ -6,10 +6,7 @@ import clsx from 'clsx'
 import { ChevronUp, LayoutList } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
 import { Button, Code, getCodeEditorProps, highlight, languages } from '@/components/emcn'
-import {
-  CLIENT_EXECUTABLE_RUN_TOOLS,
-  executeRunToolOnClient,
-} from '@/lib/copilot/client-sse/run-tool-execution'
+import { executeRunToolOnClient } from '@/lib/copilot/client-sse/run-tool-execution'
 import {
   ClientToolCallState,
   TOOL_DISPLAY_REGISTRY,
@@ -1231,36 +1228,17 @@ const WorkflowEditSummary = memo(function WorkflowEditSummary({
   )
 })
 
-/** Checks if a tool is server-side executed (not a client tool) */
-function isIntegrationTool(toolName: string): boolean {
-  return !TOOL_DISPLAY_REGISTRY[toolName]
-}
-
+/**
+ * Show approval buttons when the tool is in pending state.
+ * The Go backend already decided whether confirmation is needed via
+ * `requiresConfirmation` — if set, the SSE handler puts the tool in
+ * `pending`; otherwise it goes straight to `executing`.
+ */
 function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
   if (!toolCall.name || toolCall.name === 'unknown_tool') {
     return false
   }
-
-  if (toolCall.state !== ClientToolCallState.pending) {
-    return false
-  }
-
-  // Never show buttons for tools the user has marked as always-allowed
-  if (useCopilotStore.getState().isToolAutoAllowed(toolCall.name)) {
-    return false
-  }
-
-  const hasInterrupt = !!TOOL_DISPLAY_REGISTRY[toolCall.name]?.uiConfig?.interrupt
-  if (hasInterrupt) {
-    return true
-  }
-
-  // Integration tools (user-installed) always require approval
-  if (isIntegrationTool(toolCall.name)) {
-    return true
-  }
-
-  return false
+  return toolCall.state === ClientToolCallState.pending
 }
 
 const toolCallLogger = createLogger('CopilotToolCall')
@@ -1294,10 +1272,7 @@ async function handleRun(
   onStateChange?.('executing')
   await sendToolDecision(toolCall.id, 'accepted')
 
-  // Client-executable run tools: execute on the client for real-time feedback
-  // (block pulsing, console logs, stop button). The server defers execution
-  // for these tools; the client reports back via mark-complete.
-  if (CLIENT_EXECUTABLE_RUN_TOOLS.has(toolCall.name)) {
+  if (toolCall.clientExecutable) {
     const params = editedParams || toolCall.params || {}
     executeRunToolOnClient(toolCall.id, toolCall.name, params)
   }
@@ -1415,7 +1390,7 @@ function RunSkipButtons({
   // Standardized buttons for all interrupt tools: Allow, Always Allow, Skip
   return (
     <div className='mt-[10px] flex gap-[6px]'>
-      <Button onClick={onRun} disabled={isProcessing} variant='tertiary'>
+      <Button onClick={onRun} disabled={isProcessing} variant='primary'>
         {isProcessing ? 'Allowing...' : 'Allow'}
       </Button>
       {showAlwaysAllow && (
@@ -1444,9 +1419,6 @@ export function ToolCall({
   )
   const toolCall = liveToolCall || toolCallProp
 
-  // Guard: nothing to render without a toolCall
-  if (!toolCall) return null
-
   const isExpandablePending =
     toolCall?.state === 'pending' &&
     (toolCall.name === 'make_api_request' || toolCall.name === 'set_global_workflow_variables')
@@ -1455,14 +1427,14 @@ export function ToolCall({
   const [showRemoveAutoAllow, setShowRemoveAutoAllow] = useState(false)
 
   // State for editable parameters
-  const params = (toolCall as any).parameters || (toolCall as any).input || toolCall.params || {}
+  const params = (toolCall as any)?.parameters || (toolCall as any)?.input || toolCall?.params || {}
   const [editedParams, setEditedParams] = useState(params)
   const paramsRef = useRef(params)
 
   // Check if this integration tool is auto-allowed
   const { removeAutoAllowedTool, setToolCallState } = useCopilotStore()
-  const isAutoAllowed = useCopilotStore(
-    (s) => isIntegrationTool(toolCall.name) && s.isToolAutoAllowed(toolCall.name)
+  const isAutoAllowed = useCopilotStore((s) =>
+    toolCall ? s.isToolAutoAllowed(toolCall.name) : false
   )
 
   // Update edited params when toolCall params change (deep comparison to avoid resetting user edits on ref change)
@@ -1472,6 +1444,18 @@ export function ToolCall({
       paramsRef.current = params
     }
   }, [params])
+
+  // Sync expanded state when toolCall arrives from store after initial render
+  const prevToolCallRef = useRef(toolCall)
+  useEffect(() => {
+    if (!prevToolCallRef.current && toolCall && isExpandablePending) {
+      setExpanded(true)
+    }
+    prevToolCallRef.current = toolCall
+  }, [toolCall, isExpandablePending])
+
+  // Guard: nothing to render without a toolCall
+  if (!toolCall) return null
 
   // Skip rendering some internal tools
   if (
@@ -1528,9 +1512,9 @@ export function ToolCall({
   // 2. We're in build mode (integration tools are executed server-side), OR
   // 3. Tool call is already completed (historical - should always render)
   const isClientTool = !!TOOL_DISPLAY_REGISTRY[toolCall.name]
-  const isIntegrationToolInBuildMode = mode === 'build' && !isClientTool
+  const isServerToolInBuildMode = mode === 'build' && !isClientTool
 
-  if (!isClientTool && !isIntegrationToolInBuildMode && !isCompletedToolCall) {
+  if (!isClientTool && !isServerToolInBuildMode && !isCompletedToolCall) {
     return null
   }
   const toolUIConfig = TOOL_DISPLAY_REGISTRY[toolCall.name]?.uiConfig
@@ -2146,7 +2130,7 @@ export function ToolCall({
               onStateChange?.('background')
               await sendToolDecision(toolCall.id, 'background')
             }}
-            variant='tertiary'
+            variant='primary'
             title='Move to Background'
           >
             Move to Background
@@ -2160,7 +2144,7 @@ export function ToolCall({
               onStateChange?.('background')
               await sendToolDecision(toolCall.id, 'background')
             }}
-            variant='tertiary'
+            variant='primary'
             title='Wake'
           >
             Wake

@@ -24,11 +24,22 @@ vi.mock('@sim/db', () => databaseMock)
 
 vi.mock('@sim/db/schema', () => ({
   workflow: { id: 'id', userId: 'userId', workspaceId: 'workspaceId' },
-  workflowSchedule: { id: 'id', workflowId: 'workflowId', status: 'status' },
+  workflowSchedule: {
+    id: 'id',
+    workflowId: 'workflowId',
+    status: 'status',
+    cronExpression: 'cronExpression',
+    timezone: 'timezone',
+    sourceType: 'sourceType',
+    sourceWorkspaceId: 'sourceWorkspaceId',
+    archivedAt: 'archivedAt',
+  },
 }))
 
 vi.mock('drizzle-orm', () => ({
+  and: vi.fn(),
   eq: vi.fn(),
+  isNull: vi.fn(),
 }))
 
 vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
@@ -100,13 +111,13 @@ describe('Schedule PUT API (Reactivate)', () => {
   })
 
   describe('Request Validation', () => {
-    it('returns 400 when action is not reactivate', async () => {
+    it('returns 400 when action is not a valid enum value', async () => {
       mockDbChain([
         [{ id: 'sched-1', workflowId: 'wf-1', status: 'disabled' }],
         [{ userId: 'user-1', workspaceId: null }],
       ])
 
-      const res = await PUT(createRequest({ action: 'disable' }), createParams('sched-1'))
+      const res = await PUT(createRequest({ action: 'invalid-action' }), createParams('sched-1'))
 
       expect(res.status).toBe(400)
       const data = await res.json()

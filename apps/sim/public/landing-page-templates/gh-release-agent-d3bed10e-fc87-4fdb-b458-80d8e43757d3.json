@@ -1,0 +1,2075 @@
+{
+  "version": "1.0",
+  "exportedAt": "2026-03-09T21:40:19.014Z",
+  "state": {
+    "blocks": {
+      "e398e133-7e54-4e7e-93da-d689e6e24c62": {
+        "id": "e398e133-7e54-4e7e-93da-d689e6e24c62",
+        "type": "github_v2",
+        "name": "githubtrigger",
+        "position": {
+          "x": 150,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": true,
+        "height": 201,
+        "subBlocks": {
+          "q": {
+            "id": "q",
+            "type": "short-input",
+            "value": null
+          },
+          "ref": {
+            "id": "ref",
+            "type": "short-input",
+            "value": null
+          },
+          "sha": {
+            "id": "sha",
+            "type": "short-input",
+            "value": null
+          },
+          "base": {
+            "id": "base",
+            "type": "short-input",
+            "value": null
+          },
+          "body": {
+            "id": "body",
+            "type": "long-input",
+            "value": null
+          },
+          "head": {
+            "id": "head",
+            "type": "short-input",
+            "value": null
+          },
+          "line": {
+            "id": "line",
+            "type": "short-input",
+            "value": null
+          },
+          "name": {
+            "id": "name",
+            "type": "short-input",
+            "value": null
+          },
+          "path": {
+            "id": "path",
+            "type": "short-input",
+            "value": null
+          },
+          "repo": {
+            "id": "repo",
+            "type": "short-input",
+            "value": null
+          },
+          "sort": {
+            "id": "sort",
+            "type": "dropdown",
+            "value": null
+          },
+          "draft": {
+            "id": "draft",
+            "type": "dropdown",
+            "value": null
+          },
+          "files": {
+            "id": "files",
+            "type": "long-input",
+            "value": null
+          },
+          "order": {
+            "id": "order",
+            "type": "dropdown",
+            "value": null
+          },
+          "owner": {
+            "id": "owner",
+            "type": "short-input",
+            "value": null
+          },
+          "since": {
+            "id": "since",
+            "type": "short-input",
+            "value": null
+          },
+          "state": {
+            "id": "state",
+            "type": "dropdown",
+            "value": null
+          },
+          "title": {
+            "id": "title",
+            "type": "short-input",
+            "value": null
+          },
+          "until": {
+            "id": "until",
+            "type": "short-input",
+            "value": null
+          },
+          "apiKey": {
+            "id": "apiKey",
+            "type": "short-input",
+            "value": null
+          },
+          "author": {
+            "id": "author",
+            "type": "short-input",
+            "value": null
+          },
+          "branch": {
+            "id": "branch",
+            "type": "short-input",
+            "value": null
+          },
+          "due_on": {
+            "id": "due_on",
+            "type": "short-input",
+            "value": null
+          },
+          "inputs": {
+            "id": "inputs",
+            "type": "long-input",
+            "value": null
+          },
+          "labels": {
+            "id": "labels",
+            "type": "short-input",
+            "value": null
+          },
+          "run_id": {
+            "id": "run_id",
+            "type": "short-input",
+            "value": null
+          },
+          "status": {
+            "id": "status",
+            "type": "dropdown",
+            "value": null
+          },
+          "content": {
+            "id": "content",
+            "type": "long-input",
+            "value": null
+          },
+          "gist_id": {
+            "id": "gist_id",
+            "type": "short-input",
+            "value": null
+          },
+          "message": {
+            "id": "message",
+            "type": "short-input",
+            "value": null
+          },
+          "owner_id": {
+            "id": "owner_id",
+            "type": "short-input",
+            "value": null
+          },
+          "per_page": {
+            "id": "per_page",
+            "type": "short-input",
+            "value": null
+          },
+          "tag_name": {
+            "id": "tag_name",
+            "type": "short-input",
+            "value": null
+          },
+          "username": {
+            "id": "username",
+            "type": "short-input",
+            "value": null
+          },
+          "assignees": {
+            "id": "assignees",
+            "type": "short-input",
+            "value": null
+          },
+          "fork_name": {
+            "id": "fork_name",
+            "type": "short-input",
+            "value": null
+          },
+          "fork_sort": {
+            "id": "fork_sort",
+            "type": "dropdown",
+            "value": null
+          },
+          "operation": {
+            "id": "operation",
+            "type": "dropdown",
+            "value": null
+          },
+          "protected": {
+            "id": "protected",
+            "type": "dropdown",
+            "value": null
+          },
+          "reviewers": {
+            "id": "reviewers",
+            "type": "short-input",
+            "value": null
+          },
+          "comment_id": {
+            "id": "comment_id",
+            "type": "short-input",
+            "value": null
+          },
+          "owner_type": {
+            "id": "owner_type",
+            "type": "dropdown",
+            "value": null
+          },
+          "prerelease": {
+            "id": "prerelease",
+            "type": "dropdown",
+            "value": null
+          },
+          "project_id": {
+            "id": "project_id",
+            "type": "short-input",
+            "value": null
+          },
+          "pullNumber": {
+            "id": "pullNumber",
+            "type": "short-input",
+            "value": null
+          },
+          "release_id": {
+            "id": "release_id",
+            "type": "short-input",
+            "value": null
+          },
+          "commentType": {
+            "id": "commentType",
+            "type": "dropdown",
+            "value": null
+          },
+          "contentType": {
+            "id": "contentType",
+            "type": "short-input",
+            "value": "application/json"
+          },
+          "description": {
+            "id": "description",
+            "type": "short-input",
+            "value": null
+          },
+          "gist_public": {
+            "id": "gist_public",
+            "type": "dropdown",
+            "value": null
+          },
+          "owner_login": {
+            "id": "owner_login",
+            "type": "short-input",
+            "value": null
+          },
+          "reaction_id": {
+            "id": "reaction_id",
+            "type": "short-input",
+            "value": null
+          },
+          "workflow_id": {
+            "id": "workflow_id",
+            "type": "short-input",
+            "value": null
+          },
+          "commit_title": {
+            "id": "commit_title",
+            "type": "short-input",
+            "value": null
+          },
+          "issue_number": {
+            "id": "issue_number",
+            "type": "short-input",
+            "value": null
+          },
+          "merge_method": {
+            "id": "merge_method",
+            "type": "dropdown",
+            "value": null
+          },
+          "organization": {
+            "id": "organization",
+            "type": "short-input",
+            "value": null
+          },
+          "webhookSecret": {
+            "id": "webhookSecret",
+            "type": "short-input",
+            "value": "{{GITHUB_WEBHOOK_SECRET}}"
+          },
+          "enforce_admins": {
+            "id": "enforce_admins",
+            "type": "dropdown",
+            "value": null
+          },
+          "milestone_sort": {
+            "id": "milestone_sort",
+            "type": "dropdown",
+            "value": null
+          },
+          "project_number": {
+            "id": "project_number",
+            "type": "short-input",
+            "value": null
+          },
+          "project_public": {
+            "id": "project_public",
+            "type": "dropdown",
+            "value": null
+          },
+          "team_reviewers": {
+            "id": "team_reviewers",
+            "type": "short-input",
+            "value": null
+          },
+          "milestone_state": {
+            "id": "milestone_state",
+            "type": "dropdown",
+            "value": null
+          },
+          "milestone_title": {
+            "id": "milestone_title",
+            "type": "short-input",
+            "value": null
+          },
+          "sslVerification": {
+            "id": "sslVerification",
+            "type": "short-input",
+            "value": "enabled"
+          },
+          "milestone_number": {
+            "id": "milestone_number",
+            "type": "short-input",
+            "value": null
+          },
+          "reaction_content": {
+            "id": "reaction_content",
+            "type": "dropdown",
+            "value": null
+          },
+          "selectedTriggerId": {
+            "id": "selectedTriggerId",
+            "type": "short-input",
+            "value": "github_release_published"
+          },
+          "default_branch_only": {
+            "id": "default_branch_only",
+            "type": "dropdown",
+            "value": null
+          },
+          "milestone_description": {
+            "id": "milestone_description",
+            "type": "long-input",
+            "value": null
+          },
+          "required_status_checks": {
+            "id": "required_status_checks",
+            "type": "short-input",
+            "value": null
+          },
+          "samplePayload_github_push": {
+            "id": "samplePayload_github_push",
+            "type": "code",
+            "value": null
+          },
+          "required_pull_request_reviews": {
+            "id": "required_pull_request_reviews",
+            "type": "short-input",
+            "value": null
+          },
+          "webhookUrlDisplay_github_push": {
+            "id": "webhookUrlDisplay_github_push",
+            "type": "short-input",
+            "value": null
+          },
+          "samplePayload_github_pr_closed": {
+            "id": "samplePayload_github_pr_closed",
+            "type": "code",
+            "value": null
+          },
+          "samplePayload_github_pr_merged": {
+            "id": "samplePayload_github_pr_merged",
+            "type": "code",
+            "value": null
+          },
+          "samplePayload_github_pr_opened": {
+            "id": "samplePayload_github_pr_opened",
+            "type": "code",
+            "value": null
+          },
+          "samplePayload_github_pr_comment": {
+            "id": "samplePayload_github_pr_comment",
+            "type": "code",
+            "value": null
+          },
+          "triggerInstructions_github_push": {
+            "id": "triggerInstructions_github_push",
+            "type": "text",
+            "value": null
+          },
+          "samplePayload_github_pr_reviewed": {
+            "id": "samplePayload_github_pr_reviewed",
+            "type": "code",
+            "value": null
+          },
+          "samplePayload_github_issue_closed": {
+            "id": "samplePayload_github_issue_closed",
+            "type": "code",
+            "value": null
+          },
+          "samplePayload_github_issue_opened": {
+            "id": "samplePayload_github_issue_opened",
+            "type": "code",
+            "value": null
+          },
+          "samplePayload_github_workflow_run": {
+            "id": "samplePayload_github_workflow_run",
+            "type": "code",
+            "value": null
+          },
+          "samplePayload_github_issue_comment": {
+            "id": "samplePayload_github_issue_comment",
+            "type": "code",
+            "value": null
+          },
+          "webhookUrlDisplay_github_pr_closed": {
+            "id": "webhookUrlDisplay_github_pr_closed",
+            "type": "short-input",
+            "value": null
+          },
+          "webhookUrlDisplay_github_pr_merged": {
+            "id": "webhookUrlDisplay_github_pr_merged",
+            "type": "short-input",
+            "value": null
+          },
+          "webhookUrlDisplay_github_pr_opened": {
+            "id": "webhookUrlDisplay_github_pr_opened",
+            "type": "short-input",
+            "value": null
+          },
+          "webhookUrlDisplay_github_pr_comment": {
+            "id": "webhookUrlDisplay_github_pr_comment",
+            "type": "short-input",
+            "value": null
+          },
+          "triggerInstructions_github_pr_closed": {
+            "id": "triggerInstructions_github_pr_closed",
+            "type": "text",
+            "value": null
+          },
+          "triggerInstructions_github_pr_merged": {
+            "id": "triggerInstructions_github_pr_merged",
+            "type": "text",
+            "value": null
+          },
+          "triggerInstructions_github_pr_opened": {
+            "id": "triggerInstructions_github_pr_opened",
+            "type": "text",
+            "value": null
+          },
+          "webhookUrlDisplay_github_pr_reviewed": {
+            "id": "webhookUrlDisplay_github_pr_reviewed",
+            "type": "short-input",
+            "value": null
+          },
+          "triggerInstructions_github_pr_comment": {
+            "id": "triggerInstructions_github_pr_comment",
+            "type": "text",
+            "value": null
+          },
+          "webhookUrlDisplay_github_issue_closed": {
+            "id": "webhookUrlDisplay_github_issue_closed",
+            "type": "short-input",
+            "value": null
+          },
+          "webhookUrlDisplay_github_issue_opened": {
+            "id": "webhookUrlDisplay_github_issue_opened",
+            "type": "short-input",
+            "value": null
+          },
+          "webhookUrlDisplay_github_workflow_run": {
+            "id": "webhookUrlDisplay_github_workflow_run",
+            "type": "short-input",
+            "value": null
+          },
+          "samplePayload_github_release_published": {
+            "id": "samplePayload_github_release_published",
+            "type": "code",
+            "value": null
+          },
+          "triggerInstructions_github_pr_reviewed": {
+            "id": "triggerInstructions_github_pr_reviewed",
+            "type": "text",
+            "value": null
+          },
+          "webhookUrlDisplay_github_issue_comment": {
+            "id": "webhookUrlDisplay_github_issue_comment",
+            "type": "short-input",
+            "value": null
+          },
+          "triggerInstructions_github_issue_closed": {
+            "id": "triggerInstructions_github_issue_closed",
+            "type": "text",
+            "value": null
+          },
+          "triggerInstructions_github_issue_opened": {
+            "id": "triggerInstructions_github_issue_opened",
+            "type": "text",
+            "value": null
+          },
+          "triggerInstructions_github_workflow_run": {
+            "id": "triggerInstructions_github_workflow_run",
+            "type": "text",
+            "value": null
+          },
+          "triggerInstructions_github_issue_comment": {
+            "id": "triggerInstructions_github_issue_comment",
+            "type": "text",
+            "value": null
+          },
+          "webhookUrlDisplay_github_release_published": {
+            "id": "webhookUrlDisplay_github_release_published",
+            "type": "short-input",
+            "value": null
+          },
+          "triggerInstructions_github_release_published": {
+            "id": "triggerInstructions_github_release_published",
+            "type": "text",
+            "value": null
+          }
+        },
+        "outputs": {
+          "action": {
+            "type": "string",
+            "description": "Action performed (published, unpublished, created, edited, deleted, prereleased, released)"
+          },
+          "sender": {
+            "id": {
+              "type": "number",
+              "description": "User ID"
+            },
+            "url": {
+              "type": "string",
+              "description": "User API URL"
+            },
+            "login": {
+              "type": "string",
+              "description": "Username"
+            },
+            "node_id": {
+              "type": "string",
+              "description": "User node ID"
+            },
+            "html_url": {
+              "type": "string",
+              "description": "Profile URL"
+            },
+            "gists_url": {
+              "type": "string",
+              "description": "Gists API URL"
+            },
+            "repos_url": {
+              "type": "string",
+              "description": "Repositories API URL"
+            },
+            "user_type": {
+              "type": "string",
+              "description": "User type (User, Bot, Organization)"
+            },
+            "avatar_url": {
+              "type": "string",
+              "description": "Avatar URL"
+            },
+            "events_url": {
+              "type": "string",
+              "description": "Events API URL"
+            },
+            "site_admin": {
+              "type": "boolean",
+              "description": "Whether user is a site administrator"
+            },
+            "gravatar_id": {
+              "type": "string",
+              "description": "Gravatar ID"
+            },
+            "starred_url": {
+              "type": "string",
+              "description": "Starred repositories API URL"
+            },
+            "followers_url": {
+              "type": "string",
+              "description": "Followers API URL"
+            },
+            "following_url": {
+              "type": "string",
+              "description": "Following API URL"
+            },
+            "organizations_url": {
+              "type": "string",
+              "description": "Organizations API URL"
+            },
+            "subscriptions_url": {
+              "type": "string",
+              "description": "Subscriptions API URL"
+            },
+            "received_events_url": {
+              "type": "string",
+              "description": "Received events API URL"
+            }
+          },
+          "release": {
+            "id": {
+              "type": "number",
+              "description": "Release ID"
+            },
+            "url": {
+              "type": "string",
+              "description": "Release API URL"
+            },
+            "body": {
+              "type": "string",
+              "description": "Release description/notes in markdown format"
+            },
+            "name": {
+              "type": "string",
+              "description": "Release name/title"
+            },
+            "draft": {
+              "type": "boolean",
+              "description": "Whether the release is a draft"
+            },
+            "assets": {
+              "type": "array",
+              "description": "Array of release asset objects with download URLs"
+            },
+            "author": {
+              "id": {
+                "type": "number",
+                "description": "User ID"
+              },
+              "url": {
+                "type": "string",
+                "description": "User API URL"
+              },
+              "login": {
+                "type": "string",
+                "description": "Username"
+              },
+              "node_id": {
+                "type": "string",
+                "description": "User node ID"
+              },
+              "html_url": {
+                "type": "string",
+                "description": "Profile URL"
+              },
+              "gists_url": {
+                "type": "string",
+                "description": "Gists API URL"
+              },
+              "repos_url": {
+                "type": "string",
+                "description": "Repositories API URL"
+              },
+              "user_type": {
+                "type": "string",
+                "description": "User type (User, Bot, Organization)"
+              },
+              "avatar_url": {
+                "type": "string",
+                "description": "Avatar URL"
+              },
+              "events_url": {
+                "type": "string",
+                "description": "Events API URL"
+              },
+              "site_admin": {
+                "type": "boolean",
+                "description": "Whether user is a site administrator"
+              },
+              "gravatar_id": {
+                "type": "string",
+                "description": "Gravatar ID"
+              },
+              "starred_url": {
+                "type": "string",
+                "description": "Starred repositories API URL"
+              },
+              "followers_url": {
+                "type": "string",
+                "description": "Followers API URL"
+              },
+              "following_url": {
+                "type": "string",
+                "description": "Following API URL"
+              },
+              "organizations_url": {
+                "type": "string",
+                "description": "Organizations API URL"
+              },
+              "subscriptions_url": {
+                "type": "string",
+                "description": "Subscriptions API URL"
+              },
+              "received_events_url": {
+                "type": "string",
+                "description": "Received events API URL"
+              }
+            },
+            "node_id": {
+              "type": "string",
+              "description": "Release node ID"
+            },
+            "html_url": {
+              "type": "string",
+              "description": "Release HTML URL"
+            },
+            "tag_name": {
+              "type": "string",
+              "description": "Git tag name for the release"
+            },
+            "assets_url": {
+              "type": "string",
+              "description": "Release assets API URL"
+            },
+            "created_at": {
+              "type": "string",
+              "description": "Release creation timestamp"
+            },
+            "prerelease": {
+              "type": "boolean",
+              "description": "Whether the release is a pre-release"
+            },
+            "upload_url": {
+              "type": "string",
+              "description": "URL for uploading release assets"
+            },
+            "tarball_url": {
+              "type": "string",
+              "description": "Source code tarball download URL"
+            },
+            "zipball_url": {
+              "type": "string",
+              "description": "Source code zipball download URL"
+            },
+            "published_at": {
+              "type": "string",
+              "description": "Release publication timestamp"
+            },
+            "discussion_url": {
+              "type": "string",
+              "description": "Discussion URL if available"
+            },
+            "target_commitish": {
+              "type": "string",
+              "description": "Target branch or commit SHA"
+            }
+          },
+          "event_type": {
+            "type": "string",
+            "description": "GitHub event type from X-GitHub-Event header (e.g., release)"
+          },
+          "repository": {
+            "id": {
+              "type": "number",
+              "description": "Repository ID"
+            },
+            "url": {
+              "type": "string",
+              "description": "Repository API URL"
+            },
+            "fork": {
+              "type": "boolean",
+              "description": "Whether the repository is a fork"
+            },
+            "name": {
+              "type": "string",
+              "description": "Repository name"
+            },
+            "size": {
+              "type": "number",
+              "description": "Repository size in KB"
+            },
+            "forks": {
+              "type": "number",
+              "description": "Number of forks"
+            },
+            "owner": {
+              "id": {
+                "type": "number",
+                "description": "Owner ID"
+              },
+              "url": {
+                "type": "string",
+                "description": "Owner API URL"
+              },
+              "login": {
+                "type": "string",
+                "description": "Owner username"
+              },
+              "node_id": {
+                "type": "string",
+                "description": "Owner node ID"
+              },
+              "html_url": {
+                "type": "string",
+                "description": "Owner profile URL"
+              },
+              "gists_url": {
+                "type": "string",
+                "description": "Gists API URL"
+              },
+              "repos_url": {
+                "type": "string",
+                "description": "Repositories API URL"
+              },
+              "avatar_url": {
+                "type": "string",
+                "description": "Owner avatar URL"
+              },
+              "events_url": {
+                "type": "string",
+                "description": "Events API URL"
+              },
+              "owner_type": {
+                "type": "string",
+                "description": "Owner type (User, Organization)"
+              },
+              "site_admin": {
+                "type": "boolean",
+                "description": "Whether owner is a site administrator"
+              },
+              "gravatar_id": {
+                "type": "string",
+                "description": "Owner gravatar ID"
+              },
+              "starred_url": {
+                "type": "string",
+                "description": "Starred repositories API URL"
+              },
+              "followers_url": {
+                "type": "string",
+                "description": "Followers API URL"
+              },
+              "following_url": {
+                "type": "string",
+                "description": "Following API URL"
+              },
+              "organizations_url": {
+                "type": "string",
+                "description": "Organizations API URL"
+              },
+              "subscriptions_url": {
+                "type": "string",
+                "description": "Subscriptions API URL"
+              },
+              "received_events_url": {
+                "type": "string",
+                "description": "Received events API URL"
+              }
+            },
+            "topics": {
+              "type": "array",
+              "description": "Array of repository topics"
+            },
+            "license": {
+              "key": {
+                "type": "string",
+                "description": "License key"
+              },
+              "url": {
+                "type": "string",
+                "description": "License API URL"
+              },
+              "name": {
+                "type": "string",
+                "description": "License name"
+              },
+              "node_id": {
+                "type": "string",
+                "description": "License node ID"
+              },
+              "spdx_id": {
+                "type": "string",
+                "description": "SPDX license identifier"
+              }
+            },
+            "node_id": {
+              "type": "string",
+              "description": "Repository node ID"
+            },
+            "private": {
+              "type": "boolean",
+              "description": "Whether the repository is private"
+            },
+            "archived": {
+              "type": "boolean",
+              "description": "Whether the repository is archived"
+            },
+            "disabled": {
+              "type": "boolean",
+              "description": "Whether the repository is disabled"
+            },
+            "has_wiki": {
+              "type": "boolean",
+              "description": "Whether wiki is enabled"
+            },
+            "homepage": {
+              "type": "string",
+              "description": "Repository homepage URL"
+            },
+            "html_url": {
+              "type": "string",
+              "description": "Repository HTML URL"
+            },
+            "keys_url": {
+              "type": "string",
+              "description": "Keys API URL"
+            },
+            "language": {
+              "type": "string",
+              "description": "Primary programming language"
+            },
+            "tags_url": {
+              "type": "string",
+              "description": "Tags API URL"
+            },
+            "watchers": {
+              "type": "number",
+              "description": "Number of watchers"
+            },
+            "blobs_url": {
+              "type": "string",
+              "description": "Blobs API URL"
+            },
+            "forks_url": {
+              "type": "string",
+              "description": "Forks API URL"
+            },
+            "full_name": {
+              "type": "string",
+              "description": "Repository full name (owner/repo)"
+            },
+            "has_pages": {
+              "type": "boolean",
+              "description": "Whether GitHub Pages is enabled"
+            },
+            "hooks_url": {
+              "type": "string",
+              "description": "Hooks API URL"
+            },
+            "pulls_url": {
+              "type": "string",
+              "description": "Pull requests API URL"
+            },
+            "pushed_at": {
+              "type": "string",
+              "description": "Repository last push timestamp"
+            },
+            "teams_url": {
+              "type": "string",
+              "description": "Teams API URL"
+            },
+            "trees_url": {
+              "type": "string",
+              "description": "Trees API URL"
+            },
+            "created_at": {
+              "type": "string",
+              "description": "Repository creation timestamp"
+            },
+            "events_url": {
+              "type": "string",
+              "description": "Events API URL"
+            },
+            "has_issues": {
+              "type": "boolean",
+              "description": "Whether issues are enabled"
+            },
+            "issues_url": {
+              "type": "string",
+              "description": "Issues API URL"
+            },
+            "labels_url": {
+              "type": "string",
+              "description": "Labels API URL"
+            },
+            "merges_url": {
+              "type": "string",
+              "description": "Merges API URL"
+            },
+            "mirror_url": {
+              "type": "string",
+              "description": "Mirror URL if repository is a mirror"
+            },
+            "updated_at": {
+              "type": "string",
+              "description": "Repository last update timestamp"
+            },
+            "visibility": {
+              "type": "string",
+              "description": "Repository visibility (public, private, internal)"
+            },
+            "archive_url": {
+              "type": "string",
+              "description": "Archive API URL"
+            },
+            "commits_url": {
+              "type": "string",
+              "description": "Commits API URL"
+            },
+            "compare_url": {
+              "type": "string",
+              "description": "Compare API URL"
+            },
+            "forks_count": {
+              "type": "number",
+              "description": "Number of forks"
+            },
+            "is_template": {
+              "type": "boolean",
+              "description": "Whether repository is a template"
+            },
+            "open_issues": {
+              "type": "number",
+              "description": "Number of open issues"
+            },
+            "branches_url": {
+              "type": "string",
+              "description": "Branches API URL"
+            },
+            "comments_url": {
+              "type": "string",
+              "description": "Comments API URL"
+            },
+            "contents_url": {
+              "type": "string",
+              "description": "Contents API URL"
+            },
+            "git_refs_url": {
+              "type": "string",
+              "description": "Git refs API URL"
+            },
+            "git_tags_url": {
+              "type": "string",
+              "description": "Git tags API URL"
+            },
+            "has_projects": {
+              "type": "boolean",
+              "description": "Whether projects are enabled"
+            },
+            "releases_url": {
+              "type": "string",
+              "description": "Releases API URL"
+            },
+            "statuses_url": {
+              "type": "string",
+              "description": "Statuses API URL"
+            },
+            "allow_forking": {
+              "type": "boolean",
+              "description": "Whether forking is allowed"
+            },
+            "assignees_url": {
+              "type": "string",
+              "description": "Assignees API URL"
+            },
+            "downloads_url": {
+              "type": "string",
+              "description": "Downloads API URL"
+            },
+            "has_downloads": {
+              "type": "boolean",
+              "description": "Whether downloads are enabled"
+            },
+            "languages_url": {
+              "type": "string",
+              "description": "Languages API URL"
+            },
+            "default_branch": {
+              "type": "string",
+              "description": "Default branch name"
+            },
+            "milestones_url": {
+              "type": "string",
+              "description": "Milestones API URL"
+            },
+            "stargazers_url": {
+              "type": "string",
+              "description": "Stargazers API URL"
+            },
+            "watchers_count": {
+              "type": "number",
+              "description": "Number of watchers"
+            },
+            "deployments_url": {
+              "type": "string",
+              "description": "Deployments API URL"
+            },
+            "git_commits_url": {
+              "type": "string",
+              "description": "Git commits API URL"
+            },
+            "subscribers_url": {
+              "type": "string",
+              "description": "Subscribers API URL"
+            },
+            "contributors_url": {
+              "type": "string",
+              "description": "Contributors API URL"
+            },
+            "issue_events_url": {
+              "type": "string",
+              "description": "Issue events API URL"
+            },
+            "repo_description": {
+              "type": "string",
+              "description": "Repository description"
+            },
+            "stargazers_count": {
+              "type": "number",
+              "description": "Number of stars"
+            },
+            "subscription_url": {
+              "type": "string",
+              "description": "Subscription API URL"
+            },
+            "collaborators_url": {
+              "type": "string",
+              "description": "Collaborators API URL"
+            },
+            "issue_comment_url": {
+              "type": "string",
+              "description": "Issue comment API URL"
+            },
+            "notifications_url": {
+              "type": "string",
+              "description": "Notifications API URL"
+            },
+            "open_issues_count": {
+              "type": "number",
+              "description": "Number of open issues"
+            }
+          }
+        },
+        "data": {},
+        "locked": false
+      },
+      "4091cfe9-ca13-456d-a041-e543426f2f61": {
+        "id": "4091cfe9-ca13-456d-a041-e543426f2f61",
+        "type": "agent",
+        "name": "summarizer",
+        "position": {
+          "x": 650,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 259,
+        "subBlocks": {
+          "model": {
+            "id": "model",
+            "type": "short-input",
+            "value": "claude-sonnet-4-5"
+          },
+          "tools": {
+            "id": "tools",
+            "type": "tool-input",
+            "value": []
+          },
+          "apiKey": {
+            "id": "apiKey",
+            "type": "short-input",
+            "value": null
+          },
+          "skills": {
+            "id": "skills",
+            "type": "skill-input",
+            "value": null
+          },
+          "messages": {
+            "id": "messages",
+            "type": "messages-input",
+            "value": [
+              {
+                "role": "system",
+                "content": "Summarize changes from this GitHub release"
+              },
+              {
+                "role": "user",
+                "content": "Here is the release information:\n\nRelease Name: <githubtrigger.release.name>\nTag: <githubtrigger.release.tag_name>\nRepository: <githubtrigger.repository.full_name>\n\nRelease Notes:\n<githubtrigger.release.body>\n\nPlease provide a concise summary of what changed in this release."
+              }
+            ]
+          },
+          "maxTokens": {
+            "id": "maxTokens",
+            "type": "short-input",
+            "value": null
+          },
+          "verbosity": {
+            "id": "verbosity",
+            "type": "dropdown",
+            "value": null
+          },
+          "memoryType": {
+            "id": "memoryType",
+            "type": "dropdown",
+            "value": "none"
+          },
+          "temperature": {
+            "id": "temperature",
+            "type": "slider",
+            "value": null
+          },
+          "azureEndpoint": {
+            "id": "azureEndpoint",
+            "type": "short-input",
+            "value": null
+          },
+          "bedrockRegion": {
+            "id": "bedrockRegion",
+            "type": "short-input",
+            "value": null
+          },
+          "thinkingLevel": {
+            "id": "thinkingLevel",
+            "type": "dropdown",
+            "value": null
+          },
+          "vertexProject": {
+            "id": "vertexProject",
+            "type": "short-input",
+            "value": null
+          },
+          "conversationId": {
+            "id": "conversationId",
+            "type": "short-input",
+            "value": null
+          },
+          "responseFormat": {
+            "id": "responseFormat",
+            "type": "code",
+            "value": null
+          },
+          "vertexLocation": {
+            "id": "vertexLocation",
+            "type": "short-input",
+            "value": null
+          },
+          "azureApiVersion": {
+            "id": "azureApiVersion",
+            "type": "short-input",
+            "value": null
+          },
+          "reasoningEffort": {
+            "id": "reasoningEffort",
+            "type": "dropdown",
+            "value": null
+          },
+          "bedrockSecretKey": {
+            "id": "bedrockSecretKey",
+            "type": "short-input",
+            "value": null
+          },
+          "manualCredential": {
+            "id": "manualCredential",
+            "type": "short-input",
+            "value": null
+          },
+          "vertexCredential": {
+            "id": "vertexCredential",
+            "type": "oauth-input",
+            "value": null
+          },
+          "slidingWindowSize": {
+            "id": "slidingWindowSize",
+            "type": "short-input",
+            "value": null
+          },
+          "bedrockAccessKeyId": {
+            "id": "bedrockAccessKeyId",
+            "type": "short-input",
+            "value": null
+          },
+          "slidingWindowTokens": {
+            "id": "slidingWindowTokens",
+            "type": "short-input",
+            "value": null
+          },
+          "previousInteractionId": {
+            "id": "previousInteractionId",
+            "type": "short-input",
+            "value": null
+          }
+        },
+        "outputs": {
+          "cost": {
+            "type": "json",
+            "description": "Cost of the API call"
+          },
+          "model": {
+            "type": "string",
+            "description": "Model used for generation"
+          },
+          "tokens": {
+            "type": "json",
+            "description": "Token usage statistics"
+          },
+          "content": {
+            "type": "string",
+            "description": "Generated response content"
+          },
+          "toolCalls": {
+            "type": "json",
+            "description": "Tool calls made"
+          },
+          "providerTiming": {
+            "type": "json",
+            "description": "Provider timing information"
+          }
+        },
+        "data": {
+          "canonicalModes": {
+            "oauthCredential": "basic"
+          }
+        },
+        "locked": false
+      },
+      "41946933-796d-4323-8d77-1eb93ac96e54": {
+        "id": "41946933-796d-4323-8d77-1eb93ac96e54",
+        "type": "note",
+        "name": "Slack Setup",
+        "position": {
+          "x": 1135.1947032073822,
+          "y": -52.60391712035047
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 0,
+        "subBlocks": {
+          "content": {
+            "id": "content",
+            "type": "short-input",
+            "value": "- Connect Slack Account and select Channel \n**Permissions needed:** `chat:write` to post messages"
+          }
+        },
+        "outputs": {},
+        "data": {},
+        "locked": false
+      },
+      "3da20fec-f985-4add-95a5-04a7a92f4c9f": {
+        "id": "3da20fec-f985-4add-95a5-04a7a92f4c9f",
+        "type": "note",
+        "name": "GitHub Trigger Setup",
+        "position": {
+          "x": 136.62026670610456,
+          "y": -353.4306899570966
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 0,
+        "subBlocks": {
+          "content": {
+            "id": "content",
+            "type": "short-input",
+            "value": "**Required:**\n- GitHub OAuth connection\n- `GITHUB_WEBHOOK_SECRET` environment variable\n\n**Setup Steps:**\n1. Connect GitHub OAuth\n2. Generate a webhook secret: `openssl rand -hex 32`\n3. Set `GITHUB_WEBHOOK_SECRET` environment variable with the generated secret\n4. In your GitHub repo, configure webhook URL pointing to this workflow\n5. Use the same secret in GitHub webhook settings"
+          }
+        },
+        "outputs": {},
+        "data": {},
+        "locked": false
+      },
+      "bab8b677-b2aa-47be-86d6-d87a5572b390": {
+        "id": "bab8b677-b2aa-47be-86d6-d87a5572b390",
+        "type": "slack",
+        "name": "slacknotify",
+        "position": {
+          "x": 1150,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 346,
+        "subBlocks": {
+          "text": {
+            "id": "text",
+            "type": "short-input",
+            "value": "*New Release: <githubtrigger.release.name>* (<githubtrigger.release.tag_name>)\n\n<summarizer.content>\n\n<githubtrigger.release.html_url>"
+          },
+          "files": {
+            "id": "files",
+            "type": "short-input",
+            "value": null
+          },
+          "limit": {
+            "id": "limit",
+            "type": "short-input",
+            "value": null
+          },
+          "title": {
+            "id": "title",
+            "type": "short-input",
+            "value": null
+          },
+          "blocks": {
+            "id": "blocks",
+            "type": "code",
+            "value": null
+          },
+          "fileId": {
+            "id": "fileId",
+            "type": "short-input",
+            "value": null
+          },
+          "oldest": {
+            "id": "oldest",
+            "type": "short-input",
+            "value": null
+          },
+          "userId": {
+            "id": "userId",
+            "type": "user-selector",
+            "value": null
+          },
+          "viewId": {
+            "id": "viewId",
+            "type": "short-input",
+            "value": null
+          },
+          "channel": {
+            "id": "channel",
+            "type": "channel-selector",
+            "value": null
+          },
+          "content": {
+            "id": "content",
+            "type": "long-input",
+            "value": null
+          },
+          "botToken": {
+            "id": "botToken",
+            "type": "short-input",
+            "value": null
+          },
+          "dmUserId": {
+            "id": "dmUserId",
+            "type": "user-selector",
+            "value": null
+          },
+          "threadTs": {
+            "id": "threadTs",
+            "type": "short-input",
+            "value": null
+          },
+          "viewHash": {
+            "id": "viewHash",
+            "type": "short-input",
+            "value": null
+          },
+          "emojiName": {
+            "id": "emojiName",
+            "type": "short-input",
+            "value": null
+          },
+          "operation": {
+            "id": "operation",
+            "type": "short-input",
+            "value": "send"
+          },
+          "sectionId": {
+            "id": "sectionId",
+            "type": "short-input",
+            "value": null
+          },
+          "userLimit": {
+            "id": "userLimit",
+            "type": "short-input",
+            "value": null
+          },
+          "authMethod": {
+            "id": "authMethod",
+            "type": "short-input",
+            "value": "oauth"
+          },
+          "credential": {
+            "id": "credential",
+            "type": "oauth-input",
+            "value": null
+          },
+          "updateText": {
+            "id": "updateText",
+            "type": "long-input",
+            "value": null
+          },
+          "canvasTitle": {
+            "id": "canvasTitle",
+            "type": "short-input",
+            "value": null
+          },
+          "memberLimit": {
+            "id": "memberLimit",
+            "type": "short-input",
+            "value": null
+          },
+          "threadLimit": {
+            "id": "threadLimit",
+            "type": "short-input",
+            "value": null
+          },
+          "viewPayload": {
+            "id": "viewPayload",
+            "type": "code",
+            "value": null
+          },
+          "channelLimit": {
+            "id": "channelLimit",
+            "type": "short-input",
+            "value": null
+          },
+          "editCanvasId": {
+            "id": "editCanvasId",
+            "type": "short-input",
+            "value": null
+          },
+          "includeFiles": {
+            "id": "includeFiles",
+            "type": "switch",
+            "value": null
+          },
+          "manualUserId": {
+            "id": "manualUserId",
+            "type": "short-input",
+            "value": null
+          },
+          "canvasContent": {
+            "id": "canvasContent",
+            "type": "long-input",
+            "value": null
+          },
+          "ephemeralUser": {
+            "id": "ephemeralUser",
+            "type": "user-selector",
+            "value": null
+          },
+          "manualChannel": {
+            "id": "manualChannel",
+            "type": "short-input",
+            "value": ""
+          },
+          "messageFormat": {
+            "id": "messageFormat",
+            "type": "short-input",
+            "value": "text"
+          },
+          "publishUserId": {
+            "id": "publishUserId",
+            "type": "user-selector",
+            "value": null
+          },
+          "signingSecret": {
+            "id": "signingSecret",
+            "type": "short-input",
+            "value": null
+          },
+          "viewTriggerId": {
+            "id": "viewTriggerId",
+            "type": "short-input",
+            "value": null
+          },
+          "includeDeleted": {
+            "id": "includeDeleted",
+            "type": "dropdown",
+            "value": null
+          },
+          "includePrivate": {
+            "id": "includePrivate",
+            "type": "dropdown",
+            "value": null
+          },
+          "manualDmUserId": {
+            "id": "manualDmUserId",
+            "type": "short-input",
+            "value": null
+          },
+          "presenceUserId": {
+            "id": "presenceUserId",
+            "type": "user-selector",
+            "value": null
+          },
+          "viewExternalId": {
+            "id": "viewExternalId",
+            "type": "short-input",
+            "value": null
+          },
+          "attachmentFiles": {
+            "id": "attachmentFiles",
+            "type": "file-upload",
+            "value": null
+          },
+          "canvasOperation": {
+            "id": "canvasOperation",
+            "type": "dropdown",
+            "value": null
+          },
+          "deleteTimestamp": {
+            "id": "deleteTimestamp",
+            "type": "short-input",
+            "value": null
+          },
+          "destinationType": {
+            "id": "destinationType",
+            "type": "short-input",
+            "value": "channel"
+          },
+          "updateTimestamp": {
+            "id": "updateTimestamp",
+            "type": "short-input",
+            "value": null
+          },
+          "downloadFileName": {
+            "id": "downloadFileName",
+            "type": "short-input",
+            "value": null
+          },
+          "manualCredential": {
+            "id": "manualCredential",
+            "type": "short-input",
+            "value": null
+          },
+          "includeNumMembers": {
+            "id": "includeNumMembers",
+            "type": "dropdown",
+            "value": null
+          },
+          "reactionTimestamp": {
+            "id": "reactionTimestamp",
+            "type": "short-input",
+            "value": null
+          },
+          "webhookUrlDisplay": {
+            "id": "webhookUrlDisplay",
+            "type": "short-input",
+            "value": null
+          },
+          "channelCanvasTitle": {
+            "id": "channelCanvasTitle",
+            "type": "short-input",
+            "value": null
+          },
+          "getThreadTimestamp": {
+            "id": "getThreadTimestamp",
+            "type": "short-input",
+            "value": null
+          },
+          "getMessageTimestamp": {
+            "id": "getMessageTimestamp",
+            "type": "short-input",
+            "value": null
+          },
+          "manualEphemeralUser": {
+            "id": "manualEphemeralUser",
+            "type": "short-input",
+            "value": null
+          },
+          "manualPublishUserId": {
+            "id": "manualPublishUserId",
+            "type": "short-input",
+            "value": null
+          },
+          "triggerInstructions": {
+            "id": "triggerInstructions",
+            "type": "text",
+            "value": null
+          },
+          "channelCanvasContent": {
+            "id": "channelCanvasContent",
+            "type": "long-input",
+            "value": null
+          },
+          "manualPresenceUserId": {
+            "id": "manualPresenceUserId",
+            "type": "short-input",
+            "value": null
+          },
+          "viewInteractivityPointer": {
+            "id": "viewInteractivityPointer",
+            "type": "short-input",
+            "value": null
+          },
+          "samplePayload_slack_webhook": {
+            "id": "samplePayload_slack_webhook",
+            "type": "code",
+            "value": null
+          }
+        },
+        "outputs": {
+          "ts": {
+            "type": "string",
+            "description": "Message timestamp"
+          },
+          "files": {
+            "type": "file[]",
+            "description": "Files attached to the message"
+          },
+          "channel": {
+            "type": "string",
+            "description": "Channel ID where message was sent"
+          },
+          "message": {
+            "type": "object",
+            "properties": {
+              "ts": {
+                "type": "string",
+                "description": "Message timestamp (unique identifier)"
+              },
+              "team": {
+                "type": "string",
+                "optional": true,
+                "description": "Team/workspace ID"
+              },
+              "text": {
+                "type": "string",
+                "description": "Message text content"
+              },
+              "type": {
+                "type": "string",
+                "description": "Message type (usually \"message\")"
+              },
+              "user": {
+                "type": "string",
+                "optional": true,
+                "description": "User ID who sent the message"
+              },
+              "files": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Unique file identifier"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "File mode (hosted, external, etc.)"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "File name"
+                    },
+                    "size": {
+                      "type": "number",
+                      "description": "File size in bytes"
+                    },
+                    "mimetype": {
+                      "type": "string",
+                      "description": "MIME type of the file"
+                    },
+                    "permalink": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Permanent link to the file"
+                    },
+                    "url_private": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Private download URL (requires auth)"
+                    }
+                  }
+                },
+                "description": "Files attached to the message"
+              },
+              "blocks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "description": "Block type (section, divider, image, actions, etc.)"
+                    },
+                    "block_id": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Unique block identifier"
+                    }
+                  }
+                },
+                "description": "Block Kit blocks in the message"
+              },
+              "bot_id": {
+                "type": "string",
+                "optional": true,
+                "description": "Bot ID if sent by a bot"
+              },
+              "edited": {
+                "type": "object",
+                "optional": true,
+                "properties": {
+                  "ts": {
+                    "type": "string",
+                    "description": "Timestamp of the edit"
+                  },
+                  "user": {
+                    "type": "string",
+                    "description": "User ID who edited the message"
+                  }
+                },
+                "description": "Edit information if message was edited"
+              },
+              "channel": {
+                "type": "string",
+                "optional": true,
+                "description": "Channel ID"
+              },
+              "subtype": {
+                "type": "string",
+                "optional": true,
+                "description": "Message subtype (bot_message, file_share, etc.)"
+              },
+              "username": {
+                "type": "string",
+                "optional": true,
+                "description": "Display username"
+              },
+              "last_read": {
+                "type": "string",
+                "optional": true,
+                "description": "Timestamp of last read message"
+              },
+              "permalink": {
+                "type": "string",
+                "optional": true,
+                "description": "Permanent URL to the message"
+              },
+              "pinned_to": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "description": "Channel ID"
+                },
+                "optional": true,
+                "description": "Channel IDs where message is pinned"
+              },
+              "reactions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Emoji name (without colons)"
+                    },
+                    "count": {
+                      "type": "number",
+                      "description": "Number of times this reaction was added"
+                    },
+                    "users": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": "User ID"
+                      },
+                      "description": "Array of user IDs who reacted"
+                    }
+                  }
+                },
+                "description": "Reactions on this message"
+              },
+              "thread_ts": {
+                "type": "string",
+                "optional": true,
+                "description": "Parent message timestamp (for threaded replies)"
+              },
+              "is_starred": {
+                "type": "boolean",
+                "optional": true,
+                "description": "Whether message is starred by user"
+              },
+              "subscribed": {
+                "type": "boolean",
+                "optional": true,
+                "description": "Whether user is subscribed to thread"
+              },
+              "attachments": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "number",
+                      "optional": true,
+                      "description": "Attachment ID"
+                    },
+                    "ts": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Timestamp shown in footer"
+                    },
+                    "text": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Main attachment text"
+                    },
+                    "color": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Color bar hex code or preset"
+                    },
+                    "title": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Attachment title"
+                    },
+                    "footer": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Footer text"
+                    },
+                    "pretext": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Text shown before attachment"
+                    },
+                    "fallback": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Plain text summary"
+                    },
+                    "image_url": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Image URL"
+                    },
+                    "thumb_url": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Thumbnail URL"
+                    },
+                    "title_link": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Title link URL"
+                    },
+                    "author_icon": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Author icon URL"
+                    },
+                    "author_link": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Author link URL"
+                    },
+                    "author_name": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Author display name"
+                    },
+                    "footer_icon": {
+                      "type": "string",
+                      "optional": true,
+                      "description": "Footer icon URL"
+                    }
+                  }
+                },
+                "description": "Legacy attachments on the message"
+              },
+              "reply_count": {
+                "type": "number",
+                "optional": true,
+                "description": "Total number of replies in thread"
+              },
+              "latest_reply": {
+                "type": "string",
+                "optional": true,
+                "description": "Timestamp of most recent reply"
+              },
+              "unread_count": {
+                "type": "number",
+                "optional": true,
+                "description": "Number of unread messages in thread"
+              },
+              "parent_user_id": {
+                "type": "string",
+                "optional": true,
+                "description": "User ID of thread parent message author"
+              },
+              "reply_users_count": {
+                "type": "number",
+                "optional": true,
+                "description": "Number of unique users who replied"
+              }
+            },
+            "description": "Complete message object with all properties returned by Slack"
+          },
+          "fileCount": {
+            "type": "number",
+            "description": "Number of files uploaded (when files are attached)"
+          }
+        },
+        "data": {
+          "canonicalModes": {
+            "files": "basic",
+            "userId": "basic",
+            "channel": "advanced",
+            "dmUserId": "basic",
+            "ephemeralUser": "basic",
+            "publishUserId": "basic",
+            "presenceUserId": "basic",
+            "oauthCredential": "basic"
+          }
+        },
+        "locked": false
+      }
+    },
+    "edges": [
+      {
+        "id": "f67e253e-651d-4393-8d87-1cfd401f3298",
+        "source": "e398e133-7e54-4e7e-93da-d689e6e24c62",
+        "target": "4091cfe9-ca13-456d-a041-e543426f2f61",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      },
+      {
+        "id": "cc1d5f2b-f1db-4349-8be3-1a46082bb1c5",
+        "source": "4091cfe9-ca13-456d-a041-e543426f2f61",
+        "target": "bab8b677-b2aa-47be-86d6-d87a5572b390",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      }
+    ],
+    "loops": {},
+    "parallels": {},
+    "metadata": {
+      "name": "gh-release-agent",
+      "description": "New workflow",
+      "color": "#0a6fb8",
+      "exportedAt": "2026-03-09T21:40:19.013Z"
+    },
+    "variables": {}
+  }
+}

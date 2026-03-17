@@ -35,6 +35,20 @@ export const googleMapsGeocodeTool: ToolConfig<GoogleMapsGeocodeParams, GoogleMa
       },
     },
 
+    hosting: {
+      envKeyPrefix: 'GOOGLE_CLOUD_API_KEY',
+      apiKeyParam: 'apiKey',
+      byokProviderId: 'google_cloud',
+      pricing: {
+        type: 'per_request',
+        cost: 0.005,
+      },
+      rateLimit: {
+        mode: 'per_request',
+        requestsPerMinute: 60,
+      },
+    },
+
     request: {
       url: (params) => {
         const url = new URL('https://maps.googleapis.com/maps/api/geocode/json')

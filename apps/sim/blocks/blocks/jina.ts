@@ -144,6 +144,7 @@ export const JinaBlock: BlockConfig<ReadUrlResponse | SearchResponse> = {
       required: true,
       placeholder: 'Enter your Jina API key',
       password: true,
+      hideWhenHosted: true,
     },
   ],
   tools: {

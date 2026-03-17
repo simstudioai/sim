@@ -5,6 +5,7 @@ title: Guardrails
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
 
 The Guardrails block validates and protects your AI workflows by checking content against multiple validation types. Ensure data quality, prevent hallucinations, detect PII, and enforce format requirements before content moves through your workflow.
 
@@ -66,8 +67,8 @@ Uses Retrieval-Augmented Generation (RAG) with LLM scoring to detect when AI-gen
 - **Knowledge Base**: Select from your existing knowledge bases
 - **Model**: Choose LLM for scoring (requires strong reasoning - GPT-4o, Claude 3.7 Sonnet recommended)
 - **API Key**: Authentication for selected LLM provider (auto-hidden for hosted/Ollama or VLLM compatible models)
-- **Confidence Threshold**: Minimum score to pass (0-10, default: 3)
-- **Top K** (Advanced): Number of knowledge base chunks to retrieve (default: 10)
+- **Confidence**: Minimum score to pass (0-10, default: 3)
+- **Top K** (Advanced): Number of knowledge base chunks to retrieve (default: 5)
 
 **Output:**
 - `passed`: `true` if confidence score ≥ threshold
@@ -83,7 +84,7 @@ Uses Retrieval-Augmented Generation (RAG) with LLM scoring to detect when AI-gen
 
 ### PII Detection
 
-Detects personally identifiable information using Microsoft Presidio. Supports 40+ entity types across multiple countries and languages.
+Detects personally identifiable information using Microsoft Presidio. Supports over 30 entity types across multiple countries and languages.
 
 <div className="flex justify-center">
   <Image
@@ -98,7 +99,7 @@ Detects personally identifiable information using Microsoft Presidio. Supports 4
 **How It Works:**
 1. Pass content to validate (e.g., `<agent1.content>`)
 2. Select PII types to detect using the modal selector
-3. Choose detection mode (Detect or Mask)
+3. Choose the action (Block Request or Mask PII)
 4. Content is scanned for matching PII entities
 5. Returns detection results and optionally masked text
 
@@ -109,17 +110,17 @@ Detects personally identifiable information using Microsoft Presidio. Supports 4
 **Configuration:**
 - **PII Types to Detect**: Select from grouped categories via modal selector
   - **Common**: Person name, Email, Phone, Credit card, IP address, etc.
-  - **USA**: SSN, Driver's license, Passport, etc.
+  - **USA**: SSN, Driver's license, Passport, Bank account number, ITIN
   - **UK**: NHS number, National insurance number
-  - **Spain**: NIF, NIE, CIF
-  - **Italy**: Fiscal code, Driver's license, VAT code
-  - **Poland**: PESEL, NIP, REGON
-  - **Singapore**: NRIC/FIN, UEN
+  - **Spain**: NIF, NIE
+  - **Italy**: Fiscal code, Driver's license, Identity card, Passport
+  - **Poland**: PESEL
+  - **Singapore**: NRIC/FIN
   - **Australia**: ABN, ACN, TFN, Medicare
-  - **India**: Aadhaar, PAN, Passport, Voter number
-- **Mode**: 
-  - **Detect**: Only identify PII (default)
-  - **Mask**: Replace detected PII with masked values
+  - **India**: Aadhaar, PAN, Vehicle registration, Voter number, Passport
+- **Action**:
+  - **Block Request**: Only identify PII (default)
+  - **Mask PII**: Replace detected PII with masked values
 - **Language**: Detection language (default: English)
 
 **Output:**
@@ -140,7 +141,7 @@ Detects personally identifiable information using Microsoft Presidio. Supports 4
 
 The input content to validate. This typically comes from:
 - Agent block outputs: `<agent.content>`
-- Function block results: `<function.output>`
+- Function block results: `<function.result>`
 - API responses: `<api.output>`
 - Any other block output
 
@@ -202,4 +203,14 @@ Input → Guardrails (Detect PII) → Condition (No PII) → Process or Reject
 <Callout type="info">
   Guardrails validation happens synchronously in your workflow. For hallucination detection, choose faster models (like GPT-4o-mini) if latency is critical.
 </Callout>
+
+<FAQ items={[
+  { question: "Can I run multiple validation types on the same content?", answer: "Each Guardrails block performs one validation type at a time. To apply multiple validations, chain several Guardrails blocks in sequence — for example, first validate JSON format, then check for PII." },
+  { question: "What does the hallucination confidence score mean?", answer: "The score ranges from 0 to 10. A score of 0 means the content is completely ungrounded (full hallucination), and 10 means it is fully supported by the knowledge base. Validation passes when the score meets or exceeds your configured threshold (default: 3)." },
+  { question: "How many knowledge base chunks are retrieved for hallucination detection?", answer: "By default, 5 chunks are retrieved. You can adjust this up to 20 in the Advanced settings using the 'Number of Chunks to Retrieve' slider. More chunks provide broader context but increase latency and token usage." },
+  { question: "What PII detection engine is used?", answer: "PII detection is powered by Microsoft Presidio. It supports over 30 entity types across multiple countries including the US, UK, Spain, Italy, Poland, Singapore, Australia, and India." },
+  { question: "What is the difference between Block and Mask modes for PII?", answer: "Block mode fails the validation (passed = false) if any selected PII types are detected. Mask mode also detects PII but replaces it with masked values in the output, making the content safe to use downstream. Both modes return the list of detected entities." },
+  { question: "Which languages does PII detection support?", answer: "PII detection supports English, Spanish, Italian, Polish, and Finnish. The language setting affects the NLP models used for entity recognition, so selecting the correct language improves detection accuracy." },
+  { question: "Does JSON validation check schema structure or just syntax?", answer: "JSON validation only checks that the content is syntactically valid JSON (i.e., it can be parsed without errors). It does not validate against a specific schema. For schema validation, use a Function block after the Guardrails check." },
+]} />
 

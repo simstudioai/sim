@@ -2,17 +2,13 @@
 
 import { type KeyboardEvent, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Input } from '@/components/emcn'
-import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
-import { Label } from '@/components/ui/label'
+import { Input, InputOTP, InputOTPGroup, InputOTPSlot, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { inter } from '@/app/_styles/fonts/inter/inter'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import AuthBackground from '@/app/(auth)/components/auth-background'
 import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
-import Nav from '@/app/(landing)/components/nav/nav'
+import Navbar from '@/app/(home)/components/navbar/navbar'
 
 const logger = createLogger('EmailAuth')
 
@@ -52,7 +48,7 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
 
   useEffect(() => {
     if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
+      const timer = setTimeout(() => setCountdown((c) => c - 1), 1000)
       return () => clearTimeout(timer)
     }
     if (countdown === 0 && isResendDisabled) {
@@ -185,26 +181,26 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
   }
 
   return (
-    <AuthBackground>
-      <main className='relative flex min-h-screen flex-col text-foreground'>
-        <Nav hideAuthButtons={true} variant='auth' />
+    <AuthBackground className='dark font-[430] font-season'>
+      <main className='relative flex min-h-screen flex-col text-[#ECECEC]'>
+        <header className='shrink-0 bg-[#1C1C1C]'>
+          <Navbar logoOnly />
+        </header>
         <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
           <div className='w-full max-w-lg px-4'>
             <div className='flex flex-col items-center justify-center'>
               <div className='space-y-1 text-center'>
-                <h1
-                  className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}
-                >
+                <h1 className='font-[500] text-[#ECECEC] text-[32px] tracking-tight'>
                   {showOtpVerification ? 'Verify Your Email' : 'Email Verification'}
                 </h1>
-                <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+                <p className='font-[380] text-[#999] text-[16px]'>
                   {showOtpVerification
                     ? `A verification code has been sent to ${email}`
                     : 'This chat requires email verification'}
                 </p>
               </div>
 
-              <div className={`${inter.className} mt-8 w-full max-w-[410px]`}>
+              <div className='mt-8 w-full max-w-[410px]'>
                 {!showOtpVerification ? (
                   <form
                     onSubmit={(e) => {
@@ -229,10 +225,9 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
                         onChange={handleEmailChange}
                         onKeyDown={handleEmailKeyDown}
                         className={cn(
-                          'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
                           showEmailValidationError &&
                             emailErrors.length > 0 &&
-                            'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                            'border-red-500 focus:border-red-500'
                         )}
                         autoFocus
                       />
@@ -251,7 +246,7 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
                   </form>
                 ) : (
                   <div className='space-y-6'>
-                    <p className='text-center text-muted-foreground text-sm'>
+                    <p className='text-center text-[#999] text-sm'>
                       Enter the 6-digit code to verify your account. If you don't see it in your
                       inbox, check your spam folder.
                     </p>
@@ -269,18 +264,12 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
                         disabled={isVerifyingOtp}
                         className={cn('gap-2', authError && 'otp-error')}
                       >
-                        <InputOTPGroup className='[&>div]:!rounded-[10px] gap-2'>
+                        <InputOTPGroup>
                           {[0, 1, 2, 3, 4, 5].map((index) => (
                             <InputOTPSlot
                               key={index}
                               index={index}
-                              className={cn(
-                                '!rounded-[10px] h-12 w-12 border bg-white text-center font-medium text-lg shadow-sm transition-all duration-200',
-                                'border-gray-300 hover:border-gray-400',
-                                'focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-100',
-                                authError &&
-                                  'border-red-500 focus:border-red-500 focus:ring-red-100'
-                              )}
+                              className={cn(authError && 'border-red-500')}
                             />
                           ))}
                         </InputOTPGroup>

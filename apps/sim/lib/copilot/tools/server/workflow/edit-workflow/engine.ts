@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
+import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { addConnectionsAsEdges, normalizeBlockIdsInOperations } from './builders'
 import {
@@ -213,8 +214,8 @@ export function applyOperationsToWorkflowState(
     handler(operation, ctx)
   }
 
-  // Pass 2: Add all deferred connections from add/insert operations
-  // Now all blocks exist, so connections can be safely created
+  // Pass 2: Create all edges from deferred connections
+  // All blocks exist at this point, so forward references resolve correctly
   if (ctx.deferredConnections.length > 0) {
     logger.info('Processing deferred connections from add/insert operations', {
       deferredConnectionCount: ctx.deferredConnections.length,
@@ -238,6 +239,12 @@ export function applyOperationsToWorkflowState(
       totalEdges: (modifiedState as any).edges?.length,
     })
   }
+  // Remove edges that cross scope boundaries. This runs after all operations
+  // and deferred connections are applied so that every block has its final
+  // parentId. Running it per-operation would incorrectly drop edges between
+  // blocks that are both being moved into the same subflow in one batch.
+  removeInvalidScopeEdges(modifiedState, skippedItems)
+
   // Regenerate loops and parallels after modifications
 
   ;(modifiedState as any).loops = generateLoopBlocks((modifiedState as any).blocks)
@@ -271,4 +278,43 @@ export function applyOperationsToWorkflowState(
   }
 
   return { state: modifiedState, validationErrors, skippedItems }
+}
+
+/**
+ * Removes edges that cross scope boundaries after all operations are applied.
+ * An edge is invalid if:
+ * - Either endpoint no longer exists (dangling reference)
+ * - The source and target are in incompatible scopes
+ * - A child block connects to its own parent container (non-handle edge)
+ *
+ * Valid scope relationships:
+ * - Same scope: both blocks share the same parentId
+ * - Container→child: source is the parent container of the target (start handles)
+ * - Child→container: target is the parent container of the source (end handles)
+ */
+function removeInvalidScopeEdges(modifiedState: any, skippedItems: SkippedItem[]): void {
+  const { valid, dropped } = validateEdges(modifiedState.edges || [], modifiedState.blocks || {})
+  modifiedState.edges = valid
+
+  if (dropped.length > 0) {
+    for (const { edge, reason } of dropped) {
+      logSkippedItem(skippedItems, {
+        type: 'invalid_edge_scope',
+        operationType: 'add_edge',
+        blockId: edge.source,
+        reason: `Edge from "${edge.source}" to "${edge.target}" skipped - ${reason}`,
+        details: {
+          edgeId: edge.id,
+          sourceHandle: edge.sourceHandle,
+          targetHandle: edge.targetHandle,
+          targetId: edge.target,
+        },
+      })
+    }
+
+    logger.info('Removed invalid workflow edges', {
+      removed: dropped.length,
+      reasons: dropped.map(({ reason }) => reason),
+    })
+  }
 }

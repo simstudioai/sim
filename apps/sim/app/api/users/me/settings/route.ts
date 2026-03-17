@@ -31,7 +31,7 @@ const SettingsSchema = z.object({
 })
 
 const defaultSettings = {
-  theme: 'dark',
+  theme: 'system',
   autoConnect: true,
   telemetryEnabled: true,
   emailPreferences: {},

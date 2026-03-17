@@ -19,10 +19,9 @@ export const ashbyTriggerOptions = [
  */
 export function ashbySetupInstructions(eventType: string): string {
   const instructions = [
-    'Enter your Ashby API Key above.',
-    'You can find your API key in Ashby at <strong>Settings > API Keys</strong>. The key must have the <strong>apiKeysWrite</strong> permission.',
-    `Click <strong>"Save Configuration"</strong> to automatically create the webhook in Ashby for <strong>${eventType}</strong> events.`,
-    'The webhook will be automatically deleted when you remove this trigger.',
+    'Enter your Ashby API Key above. You can find your API key in Ashby at <strong>Settings &gt; API Keys</strong>.',
+    `The webhook for <strong>${eventType}</strong> events will be automatically created in Ashby when you save the trigger.`,
+    'The webhook will be automatically deleted if you remove this trigger.',
   ]
 
   return instructions
@@ -34,24 +33,54 @@ export function ashbySetupInstructions(eventType: string): string {
 }
 
 /**
- * Ashby-specific extra fields for triggers.
- * Includes API key (required for automatic webhook creation).
+ * Builds the complete subBlocks array for an Ashby trigger.
+ * Ashby webhooks are managed via API, so no webhook URL is displayed.
+ *
+ * Structure: [dropdown?] -> apiKey -> instructions
  */
-export function buildAshbyExtraFields(triggerId: string): SubBlockConfig[] {
-  return [
-    {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
-      placeholder: 'Enter your Ashby API key',
-      description: 'Required to create the webhook in Ashby. Must have apiKeysWrite permission.',
-      password: true,
-      required: true,
-      paramVisibility: 'user-only',
+export function buildAshbySubBlocks(options: {
+  triggerId: string
+  eventType: string
+  includeDropdown?: boolean
+}): SubBlockConfig[] {
+  const { triggerId, eventType, includeDropdown = false } = options
+  const blocks: SubBlockConfig[] = []
+
+  if (includeDropdown) {
+    blocks.push({
+      id: 'selectedTriggerId',
+      title: 'Trigger Type',
+      type: 'dropdown',
       mode: 'trigger',
-      condition: { field: 'selectedTriggerId', value: triggerId },
-    },
-  ]
+      options: ashbyTriggerOptions,
+      value: () => triggerId,
+      required: true,
+    })
+  }
+
+  blocks.push({
+    id: 'apiKey',
+    title: 'API Key',
+    type: 'short-input',
+    placeholder: 'Enter your Ashby API key',
+    password: true,
+    required: true,
+    paramVisibility: 'user-only',
+    mode: 'trigger',
+    condition: { field: 'selectedTriggerId', value: triggerId },
+  })
+
+  blocks.push({
+    id: 'triggerInstructions',
+    title: 'Setup Instructions',
+    hideFromPreview: true,
+    type: 'text',
+    defaultValue: ashbySetupInstructions(eventType),
+    mode: 'trigger',
+    condition: { field: 'selectedTriggerId', value: triggerId },
+  })
+
+  return blocks
 }
 
 /**

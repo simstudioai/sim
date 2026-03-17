@@ -13,10 +13,12 @@
  */
 
 import { db } from '@sim/db'
-import { workflow, workflowBlocks, workflowEdges, workflowSchedule } from '@sim/db/schema'
+import { templates, workflowBlocks, workflowEdges } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
+import { archiveWorkflow } from '@/lib/workflows/lifecycle'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   internalErrorResponse,
@@ -35,11 +37,7 @@ export const GET = withAdminAuthParams<RouteParams>(async (request, context) => 
   const { id: workflowId } = await context.params
 
   try {
-    const [workflowData] = await db
-      .select()
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .limit(1)
+    const workflowData = await getActiveWorkflowRecord(workflowId)
 
     if (!workflowData) {
       return notFoundResponse('Workflow')
@@ -75,24 +73,16 @@ export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) 
   const { id: workflowId } = await context.params
 
   try {
-    const [workflowData] = await db
-      .select({ id: workflow.id, name: workflow.name })
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .limit(1)
+    const workflowData = await getActiveWorkflowRecord(workflowId)
 
     if (!workflowData) {
       return notFoundResponse('Workflow')
     }
 
-    await db.transaction(async (tx) => {
-      await Promise.all([
-        tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
-        tx.delete(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)),
-        tx.delete(workflowSchedule).where(eq(workflowSchedule.workflowId, workflowId)),
-      ])
+    await db.update(templates).set({ workflowId: null }).where(eq(templates.workflowId, workflowId))
 
-      await tx.delete(workflow).where(eq(workflow.id, workflowId))
+    await archiveWorkflow(workflowId, {
+      requestId: `admin-workflow-${workflowId}`,
     })
 
     logger.info(`Admin API: Deleted workflow ${workflowId} (${workflowData.name})`)

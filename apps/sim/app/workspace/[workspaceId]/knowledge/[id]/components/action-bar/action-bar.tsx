@@ -51,7 +51,8 @@ export function ActionBar({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 10 }}
       transition={{ duration: 0.2 }}
-      className={cn('-translate-x-1/2 fixed bottom-6 left-1/2 z-50 transform', className)}
+      className={cn('-translate-x-1/2 fixed bottom-6 z-50 transform', className)}
+      style={{ left: '50%' }}
     >
       <div className='flex items-center gap-[8px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-[8px] py-[6px]'>
         <span className='px-[4px] text-[13px] text-[var(--text-secondary)]'>

@@ -94,6 +94,7 @@ export type OAuthService =
   | 'wordpress'
   | 'spotify'
   | 'calcom'
+  | 'github'
 
 export interface OAuthProviderConfig {
   name: string

@@ -28,6 +28,7 @@ export function EmailFooter({
   showUnsubscribe = true,
 }: EmailFooterProps) {
   const brand = getBrandConfig()
+  const isWhitelabeled = brand.isWhitelabeled
 
   const footerLinkStyle = {
     color: colors.textMuted,
@@ -58,79 +59,87 @@ export function EmailFooter({
               </td>
             </tr>
 
-            {/* Social links row */}
-            <tr>
-              <td style={baseStyles.gutter} width={spacing.gutter}>
-                &nbsp;
-              </td>
-              <td>
-                <table cellPadding={0} cellSpacing={0} style={{ border: 0 }}>
-                  <tbody>
-                    <tr>
-                      <td align='left' style={{ padding: '0 8px 0 0' }}>
-                        <Link href={`${baseUrl}/x`} rel='noopener noreferrer'>
-                          <Img
-                            src={`${baseUrl}/static/x-icon.png`}
-                            width='20'
-                            height='20'
-                            alt='X'
-                          />
-                        </Link>
-                      </td>
-                      <td align='left' style={{ padding: '0 8px' }}>
-                        <Link href={`${baseUrl}/discord`} rel='noopener noreferrer'>
-                          <Img
-                            src={`${baseUrl}/static/discord-icon.png`}
-                            width='20'
-                            height='20'
-                            alt='Discord'
-                          />
-                        </Link>
-                      </td>
-                      <td align='left' style={{ padding: '0 8px' }}>
-                        <Link href={`${baseUrl}/github`} rel='noopener noreferrer'>
-                          <Img
-                            src={`${baseUrl}/static/github-icon.png`}
-                            width='20'
-                            height='20'
-                            alt='GitHub'
-                          />
-                        </Link>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </td>
-              <td style={baseStyles.gutter} width={spacing.gutter}>
-                &nbsp;
-              </td>
-            </tr>
+            {/* Social links row — hidden for whitelabeled instances */}
+            {!isWhitelabeled && (
+              <>
+                <tr>
+                  <td style={baseStyles.gutter} width={spacing.gutter}>
+                    &nbsp;
+                  </td>
+                  <td>
+                    <table cellPadding={0} cellSpacing={0} style={{ border: 0 }}>
+                      <tbody>
+                        <tr>
+                          <td align='left' style={{ padding: '0 8px 0 0' }}>
+                            <Link href={`${baseUrl}/x`} rel='noopener noreferrer'>
+                              <Img
+                                src={`${baseUrl}/static/x-icon.png`}
+                                width='20'
+                                height='20'
+                                alt='X'
+                              />
+                            </Link>
+                          </td>
+                          <td align='left' style={{ padding: '0 8px' }}>
+                            <Link href={`${baseUrl}/discord`} rel='noopener noreferrer'>
+                              <Img
+                                src={`${baseUrl}/static/discord-icon.png`}
+                                width='20'
+                                height='20'
+                                alt='Discord'
+                              />
+                            </Link>
+                          </td>
+                          <td align='left' style={{ padding: '0 8px' }}>
+                            <Link href={`${baseUrl}/github`} rel='noopener noreferrer'>
+                              <Img
+                                src={`${baseUrl}/static/github-icon.png`}
+                                width='20'
+                                height='20'
+                                alt='GitHub'
+                              />
+                            </Link>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </td>
+                  <td style={baseStyles.gutter} width={spacing.gutter}>
+                    &nbsp;
+                  </td>
+                </tr>
 
-            <tr>
-              <td style={baseStyles.spacer} height={16}>
-                &nbsp;
-              </td>
-            </tr>
+                <tr>
+                  <td style={baseStyles.spacer} height={16}>
+                    &nbsp;
+                  </td>
+                </tr>
+              </>
+            )}
 
-            {/* Address row */}
-            <tr>
-              <td style={baseStyles.gutter} width={spacing.gutter}>
-                &nbsp;
-              </td>
-              <td style={baseStyles.footerText}>
-                {brand.name}
-                {isHosted && <>, 80 Langton St, San Francisco, CA 94103, USA</>}
-              </td>
-              <td style={baseStyles.gutter} width={spacing.gutter}>
-                &nbsp;
-              </td>
-            </tr>
+            {/* Address row — hidden for whitelabeled instances */}
+            {!isWhitelabeled && (
+              <>
+                <tr>
+                  <td style={baseStyles.gutter} width={spacing.gutter}>
+                    &nbsp;
+                  </td>
+                  <td style={baseStyles.footerText}>
+                    {brand.name}
+                    {isHosted && <>, 80 Langton St, San Francisco, CA 94103, USA</>}
+                  </td>
+                  <td style={baseStyles.gutter} width={spacing.gutter}>
+                    &nbsp;
+                  </td>
+                </tr>
 
-            <tr>
-              <td style={baseStyles.spacer} height={8}>
-                &nbsp;
-              </td>
-            </tr>
+                <tr>
+                  <td style={baseStyles.spacer} height={8}>
+                    &nbsp;
+                  </td>
+                </tr>
+              </>
+            )}
 
             {/* Contact row */}
             <tr>

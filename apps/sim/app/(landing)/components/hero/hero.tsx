@@ -23,7 +23,6 @@ import {
   SupabaseIcon,
 } from '@/components/icons'
 import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import {
   CARD_WIDTH,
   IconButton,
@@ -364,7 +363,7 @@ export default function Hero() {
   return (
     <section
       id='hero'
-      className={`${soehne.className} flex w-full flex-col items-center justify-center pt-[36px] sm:pt-[80px]`}
+      className='flex w-full flex-col items-center justify-center pt-[36px] sm:pt-[80px]'
       aria-labelledby='hero-heading'
     >
       <h1

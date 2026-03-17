@@ -5,12 +5,7 @@
  *
  * @vitest-environment node
  */
-import {
-  createEnvMock,
-  createMockRequest,
-  mockKnowledgeSchemas,
-  requestUtilsMock,
-} from '@sim/testing'
+import { createEnvMock, createMockRequest, requestUtilsMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -61,7 +56,74 @@ vi.mock('drizzle-orm', () => ({
   })),
 }))
 
-mockKnowledgeSchemas()
+vi.mock('@sim/db/schema', () => ({
+  knowledgeBase: {
+    id: 'kb_id',
+    userId: 'user_id',
+    name: 'kb_name',
+    description: 'description',
+    tokenCount: 'token_count',
+    embeddingModel: 'embedding_model',
+    embeddingDimension: 'embedding_dimension',
+    chunkingConfig: 'chunking_config',
+    workspaceId: 'workspace_id',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+    deletedAt: 'deleted_at',
+  },
+  document: {
+    id: 'doc_id',
+    knowledgeBaseId: 'kb_id',
+    filename: 'filename',
+    fileUrl: 'file_url',
+    fileSize: 'file_size',
+    mimeType: 'mime_type',
+    chunkCount: 'chunk_count',
+    tokenCount: 'token_count',
+    characterCount: 'character_count',
+    processingStatus: 'processing_status',
+    processingStartedAt: 'processing_started_at',
+    processingCompletedAt: 'processing_completed_at',
+    processingError: 'processing_error',
+    enabled: 'enabled',
+    tag1: 'tag1',
+    tag2: 'tag2',
+    tag3: 'tag3',
+    tag4: 'tag4',
+    tag5: 'tag5',
+    tag6: 'tag6',
+    tag7: 'tag7',
+    uploadedAt: 'uploaded_at',
+    deletedAt: 'deleted_at',
+  },
+  embedding: {
+    id: 'embedding_id',
+    documentId: 'doc_id',
+    knowledgeBaseId: 'kb_id',
+    chunkIndex: 'chunk_index',
+    content: 'content',
+    embedding: 'embedding',
+    tokenCount: 'token_count',
+    characterCount: 'character_count',
+    tag1: 'tag1',
+    tag2: 'tag2',
+    tag3: 'tag3',
+    tag4: 'tag4',
+    tag5: 'tag5',
+    tag6: 'tag6',
+    tag7: 'tag7',
+    createdAt: 'created_at',
+  },
+  permissions: {
+    id: 'permission_id',
+    userId: 'user_id',
+    entityType: 'entity_type',
+    entityId: 'entity_id',
+    permissionType: 'permission_type',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  },
+}))
 
 vi.mock('@sim/db', () => ({
   db: mockDbChain,

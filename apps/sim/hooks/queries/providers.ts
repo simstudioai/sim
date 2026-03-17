@@ -16,8 +16,16 @@ interface ProviderModelsResponse {
   modelInfo?: Record<string, OpenRouterModelInfo>
 }
 
-async function fetchProviderModels(provider: ProviderName): Promise<ProviderModelsResponse> {
-  const response = await fetch(providerEndpoints[provider])
+export const providerKeys = {
+  all: ['provider-models'] as const,
+  models: (provider: string) => [...providerKeys.all, provider] as const,
+}
+
+async function fetchProviderModels(
+  provider: ProviderName,
+  signal?: AbortSignal
+): Promise<ProviderModelsResponse> {
+  const response = await fetch(providerEndpoints[provider], { signal })
 
   if (!response.ok) {
     logger.warn(`Failed to fetch ${provider} models`, {
@@ -39,8 +47,8 @@ async function fetchProviderModels(provider: ProviderName): Promise<ProviderMode
 
 export function useProviderModels(provider: ProviderName) {
   return useQuery({
-    queryKey: ['provider-models', provider],
-    queryFn: () => fetchProviderModels(provider),
+    queryKey: providerKeys.models(provider),
+    queryFn: ({ signal }) => fetchProviderModels(provider, signal),
     staleTime: 5 * 60 * 1000,
   })
 }

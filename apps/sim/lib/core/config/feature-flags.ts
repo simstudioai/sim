@@ -101,6 +101,12 @@ export const isOrganizationsEnabled =
   isBillingEnabled || isTruthy(env.ORGANIZATIONS_ENABLED) || isAccessControlEnabled
 
 /**
+ * Is inbox (Sim Mailer) enabled via env var override
+ * This bypasses hosted requirements for self-hosted deployments
+ */
+export const isInboxEnabled = isTruthy(env.INBOX_ENABLED)
+
+/**
  * Is E2B enabled for remote code execution
  */
 export const isE2bEnabled = isTruthy(env.E2B_ENABLED)

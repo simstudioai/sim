@@ -90,7 +90,7 @@ const ModalOverlay = React.forwardRef<
       <DialogPrimitive.Overlay
         ref={ref}
         className={cn(
-          'fixed inset-0 z-[500] bg-[#E4E4E4]/50 backdrop-blur-[0.75px] dark:bg-[#0D0D0D]/50',
+          'fixed inset-0 z-[500] bg-black/10 backdrop-blur-[2px]',
           ANIMATION_CLASSES,
           className
         )}
@@ -159,11 +159,14 @@ const ModalContent = React.forwardRef<
         className={cn(
           ANIMATION_CLASSES,
           CONTENT_ANIMATION_CLASSES,
-          'fixed top-[50%] left-[50%] z-[500] flex max-h-[84vh] translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded-[8px] border bg-[var(--bg)] shadow-sm duration-200',
+          'fixed top-[50%] z-[500] flex max-h-[84vh] translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded-xl bg-[var(--bg)] text-[13px] ring-1 ring-foreground/10 duration-200',
           MODAL_SIZES[size],
           className
         )}
-        style={style}
+        style={{
+          left: '50%',
+          ...style,
+        }}
         onEscapeKeyDown={(e) => {
           if (!isInteractionReady) {
             e.preventDefault()
@@ -194,13 +197,10 @@ const ModalHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
   ({ className, children, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn(
-        'flex min-w-0 items-center justify-between gap-[8px] px-[16px] py-[10px]',
-        className
-      )}
+      className={cn('flex min-w-0 items-center justify-between gap-2 px-4 pt-4 pb-2', className)}
       {...props}
     >
-      <DialogPrimitive.Title className='min-w-0 font-medium text-[16px] text-[var(--text-primary)] leading-snug'>
+      <DialogPrimitive.Title className='min-w-0 font-medium text-[var(--text-primary)] text-base leading-none'>
         {children}
       </DialogPrimitive.Title>
       <DialogPrimitive.Close asChild>
@@ -296,7 +296,7 @@ const ModalTabsList = React.forwardRef<
     <TabsPrimitive.List
       ref={ref}
       className={cn(
-        'relative flex gap-[16px] px-4',
+        'relative flex gap-[16px] px-4 pt-1',
         disabled && 'pointer-events-none opacity-50',
         className
       )}
@@ -356,14 +356,7 @@ ModalTabsContent.displayName = 'ModalTabsContent'
  */
 const ModalBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn(
-        'flex-1 overflow-y-auto border-t bg-[var(--surface-2)] px-[14px] py-[10px]',
-        className
-      )}
-      {...props}
-    />
+    <div ref={ref} className={cn('flex-1 overflow-y-auto px-4 pt-3 pb-4', className)} {...props} />
   )
 )
 
@@ -377,7 +370,7 @@ const ModalFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
     <div
       ref={ref}
       className={cn(
-        'flex justify-end gap-[8px] border-t bg-[var(--surface-2)] px-[16px] py-[10px]',
+        'flex justify-end gap-2 rounded-b-xl border-t bg-muted/50 px-4 py-3',
         className
       )}
       {...props}

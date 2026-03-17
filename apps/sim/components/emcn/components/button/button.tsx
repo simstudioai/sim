@@ -14,12 +14,14 @@ const buttonVariants = cva(
         '3d': 'text-[var(--text-tertiary)] border-t border-l border-r border-[var(--border-1)] shadow-[0_2px_0_0_var(--border-1)] hover:shadow-[0_4px_0_0_var(--border-1)] transition-all hover:-translate-y-0.5 hover:text-[var(--text-primary)]',
         outline:
           'border border-[var(--text-muted)] bg-transparent hover:border-[var(--text-secondary)]',
-        primary: 'bg-[var(--brand-400)] text-[var(--text-primary)] hover:brightness-106',
+        primary:
+          'bg-[#1D1D1D] text-[var(--text-inverse)] hover:text-[var(--text-inverse)] hover:bg-[#2A2A2A] dark:bg-white dark:hover:bg-[#E0E0E0]',
         destructive: 'bg-[var(--text-error)] text-white hover:text-white hover:brightness-106',
         secondary: 'bg-[var(--brand-secondary)] text-[var(--text-primary)]',
         tertiary:
-          '!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:brightness-106 hover:!text-[var(--text-inverse)] ![transition-property:background-color,border-color,fill,stroke]',
+          '!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!text-[var(--text-inverse)] hover:!bg-[#2DAC72] dark:!bg-[var(--brand-tertiary-2)] dark:hover:!bg-[#2DAC72] dark:!text-[var(--text-inverse)] dark:hover:!text-[var(--text-inverse)]',
         ghost: '',
+        subtle: 'text-[var(--text-body)] hover:text-[var(--text-body)] hover:bg-[var(--surface-4)]',
         'ghost-secondary': 'text-[var(--text-muted)]',
         /** Branded button - requires branded-button-gradient or branded-button-custom class for colors */
         branded:

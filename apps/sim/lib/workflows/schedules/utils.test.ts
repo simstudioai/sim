@@ -504,11 +504,11 @@ describe('Schedule Utilities', () => {
       // cronstrue produces "At 30 minutes past the hour" for '30 * * * *'
       expect(parseCronToHumanReadable('30 * * * *')).toContain('30 minutes past the hour')
 
-      // cronstrue produces "At 09:00 AM" for '0 9 * * *'
-      expect(parseCronToHumanReadable('0 9 * * *')).toContain('09:00 AM')
+      // cronstrue produces "At 9:00 AM" for '0 9 * * *' (no leading zero on hour)
+      expect(parseCronToHumanReadable('0 9 * * *')).toContain('9:00 AM')
 
-      // cronstrue produces "At 02:30 PM" for '30 14 * * *'
-      expect(parseCronToHumanReadable('30 14 * * *')).toContain('02:30 PM')
+      // cronstrue produces "At 2:30 PM" for '30 14 * * *' (no leading zero on hour)
+      expect(parseCronToHumanReadable('30 14 * * *')).toContain('2:30 PM')
 
       // cronstrue produces "At 09:00 AM, only on Monday" for '0 9 * * 1'
       expect(parseCronToHumanReadable('0 9 * * 1')).toContain('Monday')
@@ -521,12 +521,12 @@ describe('Schedule Utilities', () => {
       const resultPT = parseCronToHumanReadable('0 9 * * *', 'America/Los_Angeles')
       // Intl.DateTimeFormat returns PST or PDT depending on DST
       expect(resultPT).toMatch(/\(P[SD]T\)/)
-      expect(resultPT).toContain('09:00 AM')
+      expect(resultPT).toContain('9:00 AM')
 
       const resultET = parseCronToHumanReadable('30 14 * * *', 'America/New_York')
       // Intl.DateTimeFormat returns EST or EDT depending on DST
       expect(resultET).toMatch(/\(E[SD]T\)/)
-      expect(resultET).toContain('02:30 PM')
+      expect(resultET).toContain('2:30 PM')
 
       const resultUTC = parseCronToHumanReadable('0 12 * * *', 'UTC')
       expect(resultUTC).not.toContain('(UTC)') // UTC should not be explicitly shown

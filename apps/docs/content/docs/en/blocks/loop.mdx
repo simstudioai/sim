@@ -5,6 +5,7 @@ title: Loop
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
 
 The Loop block is a container that executes blocks repeatedly. Iterate over collections, repeat operations a fixed number of times, or continue while a condition is met.
 
@@ -184,13 +185,8 @@ Variables (i=0) → Loop (While i<10) → Agent (Process) → Variables (i++)
 
 ### Limitations
 
-<Callout type="warning">
-  Container blocks (Loops and Parallels) cannot be nested inside each other. This means:
-  - You cannot place a Loop block inside another Loop block
-  - You cannot place a Parallel block inside a Loop block
-  - You cannot place any container block inside another container block
-  
-  If you need multi-dimensional iteration, consider restructuring your workflow to use sequential loops or process data in stages.
+<Callout type="info">
+  Container blocks (Loops and Parallels) support nesting. You can place loops inside loops, parallels inside loops, and any combination of container blocks to build complex multi-dimensional workflows.
 </Callout>
 
 <Callout type="info">
@@ -250,3 +246,13 @@ Variables (i=0) → Loop (While i<10) → Agent (Process) → Variables (i++)
 - **Set reasonable limits**: Keep iteration counts reasonable to avoid long execution times
 - **Use ForEach for collections**: When processing arrays or objects, use ForEach instead of For loops
 - **Handle errors gracefully**: Consider adding error handling inside loops for robust workflows
+
+<FAQ items={[
+  { question: "What is the maximum number of iterations a loop can run?", answer: "For loops (fixed count) and ForEach loops are capped at 1,000 iterations/items (from executor constants). While loops and Do-While loops with a condition have no hard iteration cap — they run until the condition evaluates to false. Do-While loops without a condition fall back to a fixed iteration count, which is capped at 1,000. Always ensure your While/Do-While conditions will eventually become false to avoid infinite loops." },
+  { question: "Do loops execute iterations in parallel or sequentially?", answer: "Loops execute all iterations sequentially, one after another. If you need concurrent execution across items, use the Parallel block instead. You can also nest a Parallel block inside a Loop if you need both iteration patterns." },
+  { question: "How do I access the current item inside a ForEach loop?", answer: "Inside the loop, use <loop.currentItem> to get the current item being processed and <loop.index> for the zero-based iteration number. These references are only available to blocks placed inside the loop container — blocks outside the loop cannot access them." },
+  { question: "How do I access loop results after it finishes?", answer: "After the loop completes, reference the loop block by its normalized name (lowercase, no spaces) using <blockname.results>. This returns an array of all iteration results in order. For example, if your loop block is named 'Process Items', use <processitems.results>. Do not use <loop.> syntax outside the loop — that only works inside." },
+  { question: "Can I nest loops inside each other?", answer: "Yes. Container blocks (Loops and Parallels) fully support nesting. You can place loops inside loops, parallels inside loops, loops inside parallels, and any combination. Each nested container maintains its own scope and iteration context independently." },
+  { question: "What is the difference between a While loop and a Do-While loop?", answer: "A While loop checks its condition before each iteration, so it may execute zero times if the condition is false initially. A Do-While loop executes its body at least once, then checks the condition after each iteration to decide whether to continue. Use Do-While when you need guaranteed first execution." },
+  { question: "What happens if a ForEach loop receives an empty collection?", answer: "If the ForEach loop's collection is empty, the loop body is skipped entirely and the loop outputs an empty results array. The workflow continues normally to any blocks connected after the loop." },
+]} />

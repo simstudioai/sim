@@ -1,10 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { SIM_AGENT_VERSION } from '@/lib/copilot/constants'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
-import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
+import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
 
 const logger = createLogger('CopilotHeadlessAPI')
@@ -48,7 +47,8 @@ export async function POST(req: NextRequest) {
     const resolved = await resolveWorkflowIdForUser(
       auth.userId,
       parsed.workflowId,
-      parsed.workflowName
+      parsed.workflowName,
+      auth.keyType === 'workspace' ? auth.workspaceId : undefined
     )
     if (!resolved) {
       return NextResponse.json(
@@ -58,6 +58,16 @@ export async function POST(req: NextRequest) {
         },
         { status: 400 }
       )
+    }
+
+    if (auth.keyType === 'workspace' && auth.workspaceId) {
+      const workflow = await getWorkflowById(resolved.workflowId)
+      if (!workflow?.workspaceId || workflow.workspaceId !== auth.workspaceId) {
+        return NextResponse.json(
+          { success: false, error: 'API key is not authorized for this workspace' },
+          { status: 403 }
+        )
+      }
     }
 
     // Transform mode to transport mode (same as client API)
@@ -75,8 +85,6 @@ export async function POST(req: NextRequest) {
       model: selectedModel,
       mode: transportMode,
       messageId: crypto.randomUUID(),
-      version: SIM_AGENT_VERSION,
-      headless: true,
       chatId,
     }
 
@@ -84,6 +92,7 @@ export async function POST(req: NextRequest) {
       userId: auth.userId,
       workflowId: resolved.workflowId,
       chatId,
+      goRoute: '/api/mcp',
       autoExecuteTools: parsed.autoExecuteTools,
       timeout: parsed.timeout,
       interactive: false,
@@ -93,8 +102,7 @@ export async function POST(req: NextRequest) {
       success: result.success,
       content: result.content,
       toolCalls: result.toolCalls,
-      chatId: result.chatId || chatId, // Return the chatId for conversation continuity
-      conversationId: result.conversationId,
+      chatId: result.chatId || chatId,
       error: result.error,
     })
   } catch (error) {

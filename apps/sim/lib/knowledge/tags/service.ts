@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import { document, embedding, knowledgeBaseTagDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import type { DbOrTx } from '@/lib/db/types'
 import { getSlotsForFieldType, SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
 import type { BulkTagDefinitionsData, DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type {
@@ -374,6 +375,7 @@ export async function cleanupUnusedTagDefinitions(
       .where(
         and(
           eq(document.knowledgeBaseId, knowledgeBaseId),
+          isNull(document.archivedAt),
           isNull(document.deletedAt),
           sql`${sql.raw(tagSlot)} IS NOT NULL`
         )
@@ -382,8 +384,14 @@ export async function cleanupUnusedTagDefinitions(
     const chunkCountResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(embedding)
+      .innerJoin(document, eq(embedding.documentId, document.id))
       .where(
-        and(eq(embedding.knowledgeBaseId, knowledgeBaseId), sql`${sql.raw(tagSlot)} IS NOT NULL`)
+        and(
+          eq(embedding.knowledgeBaseId, knowledgeBaseId),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt),
+          sql`${sql.raw(`embedding.${tagSlot}`)} IS NOT NULL`
+        )
       )
 
     const docCount = Number(docCountResult[0]?.count || 0)
@@ -410,12 +418,37 @@ export async function deleteAllTagDefinitions(
   knowledgeBaseId: string,
   requestId: string
 ): Promise<number> {
-  const result = await db
-    .delete(knowledgeBaseTagDefinitions)
+  const definitions = await db
+    .select({ id: knowledgeBaseTagDefinitions.id, tagSlot: knowledgeBaseTagDefinitions.tagSlot })
+    .from(knowledgeBaseTagDefinitions)
     .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
-    .returning({ id: knowledgeBaseTagDefinitions.id })
 
-  const deletedCount = result.length
+  await db.transaction(async (tx) => {
+    for (const definition of definitions) {
+      const tagSlot = definition.tagSlot as string
+      validateTagSlot(tagSlot)
+
+      await tx
+        .update(document)
+        .set({ [tagSlot]: null })
+        .where(
+          and(eq(document.knowledgeBaseId, knowledgeBaseId), isNotNull(sql`${sql.raw(tagSlot)}`))
+        )
+
+      await tx
+        .update(embedding)
+        .set({ [tagSlot]: null })
+        .where(
+          and(eq(embedding.knowledgeBaseId, knowledgeBaseId), isNotNull(sql`${sql.raw(tagSlot)}`))
+        )
+    }
+
+    await tx
+      .delete(knowledgeBaseTagDefinitions)
+      .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
+  })
+
+  const deletedCount = definitions.length
   logger.info(`[${requestId}] Deleted ${deletedCount} tag definitions for KB: ${knowledgeBaseId}`)
 
   return deletedCount
@@ -426,6 +459,7 @@ export async function deleteAllTagDefinitions(
  * This removes the definition and clears all document/chunk references
  */
 export async function deleteTagDefinition(
+  knowledgeBaseId: string,
   tagDefinitionId: string,
   requestId: string
 ): Promise<{ tagSlot: string; displayName: string }> {
@@ -437,7 +471,12 @@ export async function deleteTagDefinition(
       displayName: knowledgeBaseTagDefinitions.displayName,
     })
     .from(knowledgeBaseTagDefinitions)
-    .where(eq(knowledgeBaseTagDefinitions.id, tagDefinitionId))
+    .where(
+      and(
+        eq(knowledgeBaseTagDefinitions.id, tagDefinitionId),
+        eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId)
+      )
+    )
     .limit(1)
 
   if (tagDef.length === 0) {
@@ -445,7 +484,7 @@ export async function deleteTagDefinition(
   }
 
   const definition = tagDef[0]
-  const knowledgeBaseId = definition.knowledgeBaseId
+  const definitionKnowledgeBaseId = definition.knowledgeBaseId
   const tagSlot = definition.tagSlot as string
 
   validateTagSlot(tagSlot)
@@ -455,14 +494,20 @@ export async function deleteTagDefinition(
       .update(document)
       .set({ [tagSlot]: null })
       .where(
-        and(eq(document.knowledgeBaseId, knowledgeBaseId), isNotNull(sql`${sql.raw(tagSlot)}`))
+        and(
+          eq(document.knowledgeBaseId, definitionKnowledgeBaseId),
+          isNotNull(sql`${sql.raw(tagSlot)}`)
+        )
       )
 
     await tx
       .update(embedding)
       .set({ [tagSlot]: null })
       .where(
-        and(eq(embedding.knowledgeBaseId, knowledgeBaseId), isNotNull(sql`${sql.raw(tagSlot)}`))
+        and(
+          eq(embedding.knowledgeBaseId, definitionKnowledgeBaseId),
+          isNotNull(sql`${sql.raw(tagSlot)}`)
+        )
       )
 
     await tx
@@ -485,8 +530,10 @@ export async function deleteTagDefinition(
  */
 export async function createTagDefinition(
   data: CreateTagDefinitionData,
-  requestId: string
+  requestId: string,
+  txDb?: DbOrTx
 ): Promise<TagDefinition> {
+  const dbInstance = txDb ?? db
   const tagDefinitionId = randomUUID()
   const now = new Date()
 
@@ -500,7 +547,7 @@ export async function createTagDefinition(
     updatedAt: now,
   }
 
-  await db.insert(knowledgeBaseTagDefinitions).values(newDefinition)
+  await dbInstance.insert(knowledgeBaseTagDefinitions).values(newDefinition)
 
   logger.info(
     `[${requestId}] Created tag definition: ${data.displayName} -> ${data.tagSlot} in KB ${data.knowledgeBaseId}`
@@ -597,6 +644,8 @@ export async function getTagUsage(
 
     const whereConditions = [
       eq(document.knowledgeBaseId, knowledgeBaseId),
+      eq(document.userExcluded, false),
+      isNull(document.archivedAt),
       isNull(document.deletedAt),
       isNotNull(sql`${sql.raw(tagSlot)}`),
     ]
@@ -660,6 +709,8 @@ export async function getTagUsageStats(
       .where(
         and(
           eq(document.knowledgeBaseId, knowledgeBaseId),
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
           isNull(document.deletedAt),
           sql`${sql.raw(tagSlot)} IS NOT NULL`
         )
@@ -668,8 +719,15 @@ export async function getTagUsageStats(
     const chunkCountResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(embedding)
+      .innerJoin(document, eq(embedding.documentId, document.id))
       .where(
-        and(eq(embedding.knowledgeBaseId, knowledgeBaseId), sql`${sql.raw(tagSlot)} IS NOT NULL`)
+        and(
+          eq(embedding.knowledgeBaseId, knowledgeBaseId),
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt),
+          sql`${sql.raw(`embedding.${tagSlot}`)} IS NOT NULL`
+        )
       )
 
     stats.push({

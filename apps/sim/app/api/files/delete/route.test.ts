@@ -124,6 +124,10 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
   hasCloudStorage: mocks.mockHasCloudStorage,
 }))
 
+vi.mock('@/lib/uploads/server/metadata', () => ({
+  deleteFileMetadata: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('@/lib/uploads/setup.server', () => ({}))
 
 vi.mock('fs/promises', () => ({

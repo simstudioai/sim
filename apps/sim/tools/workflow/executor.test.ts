@@ -15,7 +15,7 @@ describe('workflowExecutorTool', () => {
 
       expect(result).toEqual({
         input: { firstName: 'John', lastName: 'Doe', age: 30 },
-        triggerType: 'api',
+        triggerType: 'workflow',
         useDraftState: true,
       })
     })
@@ -31,7 +31,7 @@ describe('workflowExecutorTool', () => {
 
       expect(result).toEqual({
         input: { name: 'Test' },
-        triggerType: 'api',
+        triggerType: 'workflow',
         useDraftState: false,
       })
     })
@@ -47,7 +47,7 @@ describe('workflowExecutorTool', () => {
 
       expect(result).toEqual({
         input: { name: 'Test' },
-        triggerType: 'api',
+        triggerType: 'workflow',
         useDraftState: true,
       })
     })
@@ -62,7 +62,7 @@ describe('workflowExecutorTool', () => {
 
       expect(result).toEqual({
         input: { firstName: 'John', lastName: 'Doe' },
-        triggerType: 'api',
+        triggerType: 'workflow',
         useDraftState: true,
       })
     })
@@ -77,7 +77,7 @@ describe('workflowExecutorTool', () => {
 
       expect(result).toEqual({
         input: { user: { name: 'John', email: 'john@example.com' }, count: 5 },
-        triggerType: 'api',
+        triggerType: 'workflow',
         useDraftState: true,
       })
     })
@@ -92,7 +92,7 @@ describe('workflowExecutorTool', () => {
 
       expect(result).toEqual({
         input: { tags: ['a', 'b', 'c'], ids: [1, 2, 3] },
-        triggerType: 'api',
+        triggerType: 'workflow',
         useDraftState: true,
       })
     })
@@ -107,7 +107,7 @@ describe('workflowExecutorTool', () => {
 
       expect(result).toEqual({
         input: {},
-        triggerType: 'api',
+        triggerType: 'workflow',
         useDraftState: true,
       })
     })
@@ -122,7 +122,7 @@ describe('workflowExecutorTool', () => {
 
       expect(result).toEqual({
         input: {},
-        triggerType: 'api',
+        triggerType: 'workflow',
         useDraftState: true,
       })
     })
@@ -137,7 +137,7 @@ describe('workflowExecutorTool', () => {
 
       expect(result).toEqual({
         input: {},
-        triggerType: 'api',
+        triggerType: 'workflow',
         useDraftState: true,
       })
     })
@@ -152,7 +152,7 @@ describe('workflowExecutorTool', () => {
 
       expect(result).toEqual({
         input: {},
-        triggerType: 'api',
+        triggerType: 'workflow',
         useDraftState: true,
       })
     })
@@ -167,7 +167,7 @@ describe('workflowExecutorTool', () => {
 
       expect(result).toEqual({
         input: {},
-        triggerType: 'api',
+        triggerType: 'workflow',
         useDraftState: true,
       })
     })
@@ -182,7 +182,7 @@ describe('workflowExecutorTool', () => {
 
       expect(result).toEqual({
         input: {},
-        triggerType: 'api',
+        triggerType: 'workflow',
         useDraftState: true,
       })
     })
@@ -197,7 +197,7 @@ describe('workflowExecutorTool', () => {
 
       expect(result).toEqual({
         input: { message: 'Hello\nWorld', path: 'C:\\Users' },
-        triggerType: 'api',
+        triggerType: 'workflow',
         useDraftState: true,
       })
     })
@@ -212,7 +212,7 @@ describe('workflowExecutorTool', () => {
 
       expect(result).toEqual({
         input: { greeting: 'こんにちは', emoji: '👋' },
-        triggerType: 'api',
+        triggerType: 'workflow',
         useDraftState: true,
       })
     })
@@ -227,7 +227,7 @@ describe('workflowExecutorTool', () => {
 
       expect(result).toEqual({
         input: { data: '{"nested": "json"}' },
-        triggerType: 'api',
+        triggerType: 'workflow',
         useDraftState: true,
       })
     })

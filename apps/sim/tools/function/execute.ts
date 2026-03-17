@@ -80,7 +80,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
         ? params.code.map((c: { content: string }) => c.content).join('\n')
         : params.code
 
-      return {
+      const body: Record<string, unknown> = {
         code: codeContent,
         language: params.language || DEFAULT_CODE_LANGUAGE,
         timeout: params.timeout || DEFAULT_EXECUTION_TIMEOUT_MS,
@@ -93,6 +93,12 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
         userId: params._context?.userId,
         isCustomTool: params.isCustomTool || false,
       }
+
+      if (params._sandboxFiles) {
+        body._sandboxFiles = params._sandboxFiles
+      }
+
+      return body
     },
   },
 

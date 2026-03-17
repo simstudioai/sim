@@ -41,6 +41,9 @@ type ResizeDirection =
  */
 const EDGE_THRESHOLD = 8
 
+/** Inset gap between the viewport edge and the content window */
+const CONTENT_WINDOW_GAP = 8
+
 /**
  * Hook for handling multi-directional resize functionality of floating panels.
  * Supports resizing from all 8 directions: 4 corners and 4 edges.
@@ -202,14 +205,15 @@ export function useFloatResize({
       )
 
       if (direction === 'top' || direction === 'top-left' || direction === 'top-right') {
-        const maxUpwardDelta = initial.y
+        const minTop = CONTENT_WINDOW_GAP
+        const maxUpwardDelta = initial.y - minTop
         if (deltaY < -maxUpwardDelta) {
           deltaY = -maxUpwardDelta
         }
       }
 
       if (direction === 'bottom' || direction === 'bottom-left' || direction === 'bottom-right') {
-        const maxBottom = window.innerHeight - terminalHeight
+        const maxBottom = window.innerHeight - CONTENT_WINDOW_GAP - terminalHeight
         const initialBottom = initial.y + initial.height
         const maxDeltaY = maxBottom - initialBottom
 
@@ -228,7 +232,7 @@ export function useFloatResize({
       }
 
       if (direction === 'right' || direction === 'top-right' || direction === 'bottom-right') {
-        const maxRight = window.innerWidth - panelWidth
+        const maxRight = window.innerWidth - CONTENT_WINDOW_GAP - panelWidth
         const initialRight = initial.x + initial.width
         const maxDeltaX = maxRight - initialRight
 
@@ -303,9 +307,9 @@ export function useFloatResize({
       }
 
       const minX = sidebarWidth
-      const maxX = window.innerWidth - panelWidth - constrainedWidth
-      const minY = 0
-      const maxY = window.innerHeight - terminalHeight - constrainedHeight
+      const maxX = window.innerWidth - CONTENT_WINDOW_GAP - panelWidth - constrainedWidth
+      const minY = CONTENT_WINDOW_GAP
+      const maxY = window.innerHeight - CONTENT_WINDOW_GAP - terminalHeight - constrainedHeight
 
       const finalX = Math.max(minX, Math.min(maxX, newX))
       const finalY = Math.max(minY, Math.min(maxY, newY))

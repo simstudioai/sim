@@ -1,4 +1,20 @@
+import type { HostedKeyRateLimitConfig } from '@/lib/core/rate-limiter'
 import type { OAuthService } from '@/lib/oauth'
+
+export type BYOKProviderId =
+  | 'openai'
+  | 'anthropic'
+  | 'google'
+  | 'mistral'
+  | 'firecrawl'
+  | 'exa'
+  | 'serper'
+  | 'jina'
+  | 'perplexity'
+  | 'google_cloud'
+  | 'linkup'
+  | 'brandfetch'
+  | 'parallel_ai'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 
@@ -147,12 +163,18 @@ export interface ToolConfig<P = any, R = any> {
    * Maps param IDs to their enrichment configuration.
    */
   schemaEnrichment?: Record<string, SchemaEnrichmentConfig>
-
   /**
    * Optional tool-level enrichment that modifies description and all parameters.
    * Use when multiple params depend on a single runtime value.
    */
   toolEnrichment?: ToolEnrichmentConfig
+
+  /**
+   * Hosted API key configuration for this tool.
+   * When configured, the tool can use Sim's hosted API keys if user doesn't provide their own.
+   * Usage is billed according to the pricing config.
+   */
+  hosting?: ToolHostingConfig<P>
 }
 
 export interface TableRow {
@@ -221,4 +243,75 @@ export interface ToolEnrichmentConfig {
       required: string[]
     }
   } | null>
+}
+
+/**
+ * Pricing models for hosted API key usage
+ */
+/** Flat fee per API call (e.g., Serper search) */
+export interface PerRequestPricing {
+  type: 'per_request'
+  /** Cost per request in dollars */
+  cost: number
+}
+
+/** Result from custom pricing calculation */
+export interface CustomPricingResult {
+  /** Cost in dollars */
+  cost: number
+  /** Optional metadata about the cost calculation (e.g., breakdown from API) */
+  metadata?: Record<string, unknown>
+}
+
+/** Custom pricing calculated from params and response (e.g., Exa with different modes/result counts) */
+export interface CustomPricing<P = Record<string, unknown>> {
+  type: 'custom'
+  /** Calculate cost based on request params and response output. Fields starting with _ are internal. */
+  getCost: (params: P, output: Record<string, unknown>) => number | CustomPricingResult
+}
+
+/** Union of all pricing models */
+export type ToolHostingPricing<P = Record<string, unknown>> = PerRequestPricing | CustomPricing<P>
+
+/**
+ * Configuration for hosted API key support.
+ * When configured, the tool can use Sim's hosted API keys if user doesn't provide their own.
+ *
+ * ### Hosted key env var convention
+ *
+ * Keys follow a numbered naming convention driven by a count env var:
+ *
+ * 1. Set `{envKeyPrefix}_COUNT` to the number of keys available.
+ * 2. Provide each key as `{envKeyPrefix}_1`, `{envKeyPrefix}_2`, ..., `{envKeyPrefix}_N`.
+ *
+ * **Example** — for `envKeyPrefix: 'EXA_API_KEY'` with 5 keys:
+ * ```
+ * EXA_API_KEY_COUNT=5
+ * EXA_API_KEY_1=sk-...
+ * EXA_API_KEY_2=sk-...
+ * EXA_API_KEY_3=sk-...
+ * EXA_API_KEY_4=sk-...
+ * EXA_API_KEY_5=sk-...
+ * ```
+ *
+ * Adding more keys only requires updating the count and adding the new env var —
+ * no code changes needed.
+ */
+export interface ToolHostingConfig<P = Record<string, unknown>> {
+  /**
+   * Env var name prefix for hosted keys.
+   * At runtime, `{envKeyPrefix}_COUNT` is read to determine how many keys exist,
+   * then `{envKeyPrefix}_1` through `{envKeyPrefix}_N` are resolved.
+   */
+  envKeyPrefix: string
+  /** The parameter name that receives the API key */
+  apiKeyParam: string
+  /** BYOK provider ID for workspace key lookup */
+  byokProviderId?: BYOKProviderId
+  /** Pricing when using hosted key */
+  pricing: ToolHostingPricing<P>
+  /** Hosted key rate limit configuration (required for hosted key distribution) */
+  rateLimit: HostedKeyRateLimitConfig
+  /** When true, skip the fixed usage log entry (useful for tools that log custom dimensions instead) */
+  skipFixedUsageLog?: boolean
 }

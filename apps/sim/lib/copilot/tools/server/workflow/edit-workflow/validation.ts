@@ -244,6 +244,35 @@ export function validateValueForSubBlockType(
       return { valid: true, value }
     }
 
+    case 'condition-input':
+    case 'router-input': {
+      const parsedValue =
+        typeof value === 'string'
+          ? (() => {
+              try {
+                return JSON.parse(value)
+              } catch {
+                return null
+              }
+            })()
+          : value
+
+      if (!Array.isArray(parsedValue)) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid ${type} value for field "${fieldName}" - expected a JSON array`,
+          },
+        }
+      }
+
+      return { valid: true, value }
+    }
+
     case 'tool-input': {
       // Should be an array of tool objects
       if (!Array.isArray(value)) {

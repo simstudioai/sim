@@ -70,7 +70,7 @@ export function DiffControlsDemo() {
             height: '100%',
             alignItems: 'center',
             border: '1px solid rgba(0, 0, 0, 0.15)',
-            backgroundColor: '#32bd7e',
+            backgroundColor: '#33C482',
             paddingRight: '12px',
             paddingLeft: '20px',
             fontWeight: 500,

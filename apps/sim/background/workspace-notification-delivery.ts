@@ -2,7 +2,6 @@ import { createHmac } from 'crypto'
 import { db } from '@sim/db'
 import {
   account,
-  workflow as workflowTable,
   workspaceNotificationDelivery,
   workspaceNotificationSubscription,
 } from '@sim/db/schema'
@@ -17,6 +16,7 @@ import {
 } from '@/components/emails'
 import { checkUsageStatus } from '@/lib/billing/calculations/usage-monitor'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
@@ -25,6 +25,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import type { AlertConfig } from '@/lib/notifications/alert-rules'
+import { getActiveWorkflowContext } from '@/lib/workflows/active-context'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 
 const logger = createLogger('WorkspaceNotificationDelivery')
@@ -70,23 +71,20 @@ async function buildPayload(
   log: WorkflowExecutionLog,
   subscription: typeof workspaceNotificationSubscription.$inferSelect
 ): Promise<NotificationPayload | null> {
-  // Skip notifications for deleted workflows
+  /**
+   * Skip notifications when the workflow or workspace has already been archived.
+   */
   if (!log.workflowId) return null
 
-  const workflowData = await db
-    .select({
-      name: workflowTable.name,
-      workspaceId: workflowTable.workspaceId,
-    })
-    .from(workflowTable)
-    .where(eq(workflowTable.id, log.workflowId))
-    .limit(1)
+  const workflowContext = await getActiveWorkflowContext(log.workflowId)
 
   const timestamp = Date.now()
   const executionData = (log.executionData || {}) as Record<string, unknown>
-  const workflowRecord = workflowData[0]
-  const userId = workflowRecord?.workspaceId
-    ? await getWorkspaceBilledAccountUserId(workflowRecord.workspaceId)
+  if (!workflowContext?.workspaceId) {
+    return null
+  }
+  const userId = workflowContext.workspaceId
+    ? await getWorkspaceBilledAccountUserId(workflowContext.workspaceId)
     : null
 
   const payload: NotificationPayload = {
@@ -95,7 +93,7 @@ async function buildPayload(
     timestamp,
     data: {
       workflowId: log.workflowId,
-      workflowName: workflowData[0]?.name || 'Unknown Workflow',
+      workflowName: workflowContext.workflow.name || 'Unknown Workflow',
       executionId: log.executionId,
       status: log.level === 'error' ? 'error' : 'success',
       level: log.level,
@@ -241,7 +239,7 @@ async function deliverWebhook(
 function formatCost(cost?: Record<string, unknown>): string {
   if (!cost?.total) return 'N/A'
   const total = cost.total as number
-  return `$${total.toFixed(4)}`
+  return `${dollarsToCredits(total).toLocaleString()} credits`
 }
 
 function buildLogUrl(workspaceId: string, executionId: string): string {
@@ -259,7 +257,7 @@ function formatAlertReason(alertConfig: AlertConfig): string {
     case 'latency_spike':
       return `Execution was ${alertConfig.latencySpikePercent}% slower than average`
     case 'cost_threshold':
-      return `Execution cost exceeded $${alertConfig.costThresholdDollars} threshold`
+      return `Execution cost exceeded ${dollarsToCredits(alertConfig.costThresholdDollars || 0).toLocaleString()} credits threshold`
     case 'no_activity':
       return `No workflow activity detected in ${alertConfig.inactivityHours}h`
     case 'error_count':
@@ -539,8 +537,8 @@ export async function executeNotificationDelivery(params: NotificationDeliveryPa
 
     // Skip delivery for deleted workflows
     if (!payload) {
-      await updateDeliveryStatus(deliveryId, 'failed', 'Workflow was deleted')
-      logger.info(`Skipping delivery ${deliveryId} - workflow was deleted`)
+      await updateDeliveryStatus(deliveryId, 'failed', 'Workflow was archived or deleted')
+      logger.info(`Skipping delivery ${deliveryId} - workflow was archived or deleted`)
       return
     }
 

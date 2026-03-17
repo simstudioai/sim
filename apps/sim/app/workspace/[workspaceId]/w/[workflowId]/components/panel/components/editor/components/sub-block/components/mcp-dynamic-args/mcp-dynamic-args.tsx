@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { Combobox, Label, Slider, Switch } from '@/components/emcn/components'
@@ -154,14 +154,10 @@ export function McpDynamicArgs({
         )
 
       case 'dropdown': {
-        const dropdownOptions = useMemo(
-          () =>
-            (paramSchema.enum || []).map((option: any) => ({
-              label: String(option),
-              value: String(option),
-            })),
-          [paramSchema.enum]
-        )
+        const dropdownOptions = (paramSchema.enum || []).map((option: any) => ({
+          label: String(option),
+          value: String(option),
+        }))
 
         return (
           <div key={`${paramName}-dropdown`}>

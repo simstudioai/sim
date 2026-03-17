@@ -19,6 +19,37 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getUserEntityPermissions: mockGetUserEntityPermissions,
 }))
 
+vi.mock('@/lib/events/sse-endpoint', () => ({
+  createWorkspaceSSE: (_config: any) => {
+    return async (request: any) => {
+      const session = await mockGetSession()
+      if (!session?.user?.id) {
+        return new Response('Unauthorized', { status: 401 })
+      }
+      const url = new URL(request.url)
+      const workspaceId = url.searchParams.get('workspaceId')
+      if (!workspaceId) {
+        return new Response('Missing workspaceId query parameter', { status: 400 })
+      }
+      const permissions = await mockGetUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        workspaceId
+      )
+      if (!permissions) {
+        return new Response('Access denied to workspace', { status: 403 })
+      }
+      return new Response(new ReadableStream({ start() {} }), {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        },
+      })
+    }
+  },
+}))
+
 vi.mock('@/lib/mcp/connection-manager', () => ({
   mcpConnectionManager: null,
 }))

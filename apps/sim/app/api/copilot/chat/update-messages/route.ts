@@ -1,9 +1,10 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getAccessibleCopilotChat } from '@/lib/copilot/chat-lifecycle'
 import { COPILOT_MODES } from '@/lib/copilot/models'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -91,11 +92,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify that the chat belongs to the user
-    const [chat] = await db
-      .select()
-      .from(copilotChats)
-      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
-      .limit(1)
+    const chat = await getAccessibleCopilotChat(chatId, userId)
 
     if (!chat) {
       return createNotFoundResponse('Chat not found or unauthorized')

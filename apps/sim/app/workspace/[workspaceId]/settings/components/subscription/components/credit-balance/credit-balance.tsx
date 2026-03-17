@@ -1,0 +1,176 @@
+'use client'
+
+import { useState } from 'react'
+import {
+  Button,
+  Input,
+  Label,
+  Modal,
+  ModalBody,
+  ModalClose,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalTrigger,
+} from '@/components/emcn'
+import { dollarsToCredits, formatCredits } from '@/lib/billing/credits/conversion'
+import { usePurchaseCredits } from '@/hooks/queries/subscription'
+
+interface CreditBalanceProps {
+  balance: number
+  canPurchase: boolean
+  entityType: 'user' | 'organization'
+  isLoading?: boolean
+  onPurchaseComplete?: () => void
+}
+
+/**
+ * Displays credit balance with optional purchase modal.
+ */
+export function CreditBalance({
+  balance,
+  canPurchase,
+  entityType,
+  isLoading,
+  onPurchaseComplete,
+}: CreditBalanceProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [amount, setAmount] = useState('')
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const [requestId, setRequestId] = useState<string | null>(null)
+  const purchaseCredits = usePurchaseCredits()
+
+  const dollarAmount = Number.parseInt(amount, 10) || 0
+  const creditPreview = dollarsToCredits(dollarAmount)
+
+  const handleAmountChange = (value: string) => {
+    const numericValue = value.replace(/[^0-9]/g, '')
+    setAmount(numericValue)
+    setValidationError(null)
+  }
+
+  const handlePurchase = () => {
+    if (!requestId || purchaseCredits.isPending) return
+
+    const numAmount = Number.parseInt(amount, 10)
+
+    if (Number.isNaN(numAmount) || numAmount < 10) {
+      setValidationError('Minimum purchase is $10')
+      return
+    }
+
+    if (numAmount > 1000) {
+      setValidationError('Maximum purchase is $1,000')
+      return
+    }
+
+    purchaseCredits.mutate(
+      { amount: numAmount, requestId },
+      {
+        onSuccess: () => {
+          setTimeout(() => {
+            setIsOpen(false)
+            onPurchaseComplete?.()
+          }, 1500)
+        },
+      }
+    )
+  }
+
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open)
+    if (open) {
+      setRequestId(crypto.randomUUID())
+    } else {
+      setAmount('')
+      setValidationError(null)
+      purchaseCredits.reset()
+      setRequestId(null)
+    }
+  }
+
+  const displayError = validationError || purchaseCredits.error?.message
+
+  return (
+    <div className='flex items-center justify-between'>
+      <div className='flex items-center gap-[8px]'>
+        <Label>Additional Credits Balance:</Label>
+        <span className='text-[13px] text-[var(--text-secondary)]'>
+          {isLoading ? '...' : `${formatCredits(balance)} credits`}
+        </span>
+      </div>
+
+      {canPurchase && (
+        <Modal open={isOpen} onOpenChange={handleOpenChange}>
+          <ModalTrigger asChild>
+            <Button variant='default' className='h-[32px] text-[13px]'>
+              Add Credits
+            </Button>
+          </ModalTrigger>
+          <ModalContent size='sm'>
+            <ModalHeader>Add Credits</ModalHeader>
+            <ModalBody>
+              {purchaseCredits.isSuccess ? (
+                <p className='text-center text-[13px] text-[var(--text-primary)]'>
+                  Credits added successfully!
+                </p>
+              ) : (
+                <div className='space-y-[12px]'>
+                  <div className='flex flex-col gap-[8px]'>
+                    <Label htmlFor='credit-amount'>Amount (USD)</Label>
+                    <div className='relative'>
+                      <span className='-translate-y-1/2 absolute top-1/2 left-[12px] text-[13px] text-[var(--text-muted)]'>
+                        $
+                      </span>
+                      <Input
+                        id='credit-amount'
+                        type='text'
+                        inputMode='numeric'
+                        value={amount}
+                        onChange={(e) => handleAmountChange(e.target.value)}
+                        placeholder='50'
+                        className='pl-[28px]'
+                        disabled={purchaseCredits.isPending}
+                      />
+                    </div>
+                    {dollarAmount > 0 && !displayError && (
+                      <span className='text-[12px] text-[var(--text-secondary)]'>
+                        You'll receive {creditPreview.toLocaleString()} credits
+                      </span>
+                    )}
+                    {displayError && (
+                      <span className='text-[13px] text-[var(--text-error)]'>{displayError}</span>
+                    )}
+                  </div>
+
+                  <div className='rounded-[6px] bg-[var(--surface-4)] p-[12px]'>
+                    <p className='text-[var(--text-secondary)]'>
+                      Credits are non-refundable and don't expire. They'll be applied automatically
+                      to your {entityType === 'organization' ? 'team' : ''} usage.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </ModalBody>
+            {!purchaseCredits.isSuccess && (
+              <ModalFooter>
+                <ModalClose asChild>
+                  <Button variant='default' disabled={purchaseCredits.isPending}>
+                    Cancel
+                  </Button>
+                </ModalClose>
+                <Button
+                  variant='primary'
+                  onClick={handlePurchase}
+                  disabled={purchaseCredits.isPending || !amount}
+                >
+                  {purchaseCredits.isPending ? 'Processing...' : 'Purchase'}
+                </Button>
+              </ModalFooter>
+            )}
+          </ModalContent>
+        </Modal>
+      )}
+    </div>
+  )
+}

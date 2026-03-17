@@ -27,7 +27,17 @@ export function BlockIcon({
 }
 
 export function WorkflowColorDot({ color }: { color?: string }) {
-  return <div className={ICON_CONTAINER} style={{ backgroundColor: color || '#3972F6' }} />
+  const c = color || '#3972F6'
+  return (
+    <div
+      className={`${ICON_CONTAINER} border-[2px]`}
+      style={{
+        backgroundColor: c,
+        borderColor: `${c}60`,
+        backgroundClip: 'padding-box',
+      }}
+    />
+  )
 }
 
 interface FolderContentProps {

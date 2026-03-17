@@ -5,6 +5,7 @@ import { ArrowUpRight, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { List, type RowComponentProps, useListRef } from 'react-window'
 import { Badge, buttonVariants } from '@/components/emcn'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDuration } from '@/lib/core/utils/formatting'
 import {
@@ -43,11 +44,18 @@ const LogRow = memo(
     selectedRowRef,
   }: LogRowProps) {
     const formattedDate = useMemo(() => formatDate(log.createdAt), [log.createdAt])
-    const isDeletedWorkflow = !log.workflow?.id && !log.workflowId
-    const workflowName = isDeletedWorkflow
-      ? DELETED_WORKFLOW_LABEL
-      : log.workflow?.name || 'Unknown'
-    const workflowColor = isDeletedWorkflow ? DELETED_WORKFLOW_COLOR : log.workflow?.color
+    const isMothershipJob = log.trigger === 'mothership'
+    const isDeletedWorkflow = !isMothershipJob && !log.workflow?.id && !log.workflowId
+    const workflowName = isMothershipJob
+      ? log.jobTitle || 'Untitled Job'
+      : isDeletedWorkflow
+        ? DELETED_WORKFLOW_LABEL
+        : log.workflow?.name || 'Unknown'
+    const workflowColor = isMothershipJob
+      ? '#ec4899'
+      : isDeletedWorkflow
+        ? DELETED_WORKFLOW_COLOR
+        : log.workflow?.color
 
     const handleClick = useCallback(() => onClick(log), [onClick, log])
 
@@ -75,28 +83,16 @@ const LogRow = memo(
         onContextMenu={handleContextMenu}
       >
         <div className='flex flex-1 items-center'>
-          <span
-            className={`${LOG_COLUMNS.date.width} ${LOG_COLUMNS.date.minWidth} font-medium text-[12px] text-[var(--text-primary)]`}
-          >
-            {formattedDate.compactDate}
-          </span>
-
-          <span
-            className={`${LOG_COLUMNS.time.width} ${LOG_COLUMNS.time.minWidth} font-medium text-[12px] text-[var(--text-primary)]`}
-          >
-            {formattedDate.compactTime}
-          </span>
-
-          <div className={`${LOG_COLUMNS.status.width} ${LOG_COLUMNS.status.minWidth}`}>
-            <StatusBadge status={getDisplayStatus(log.status)} />
-          </div>
-
           <div
             className={`flex ${LOG_COLUMNS.workflow.width} ${LOG_COLUMNS.workflow.minWidth} items-center gap-[8px] pr-[8px]`}
           >
             <div
-              className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px]'
-              style={{ backgroundColor: workflowColor }}
+              className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
+              style={{
+                backgroundColor: workflowColor,
+                borderColor: `${workflowColor}60`,
+                backgroundClip: 'padding-box',
+              }}
             />
             <span
               className={cn(
@@ -109,9 +105,21 @@ const LogRow = memo(
           </div>
 
           <span
+            className={`${LOG_COLUMNS.date.width} ${LOG_COLUMNS.date.minWidth} font-medium text-[12px] text-[var(--text-primary)]`}
+          >
+            {formattedDate.compactDate} {formattedDate.compactTime}
+          </span>
+
+          <div className={`${LOG_COLUMNS.status.width} ${LOG_COLUMNS.status.minWidth}`}>
+            <StatusBadge status={getDisplayStatus(log.status)} />
+          </div>
+
+          <span
             className={`${LOG_COLUMNS.cost.width} ${LOG_COLUMNS.cost.minWidth} font-medium text-[12px] text-[var(--text-primary)]`}
           >
-            {typeof log.cost?.total === 'number' ? `$${log.cost.total.toFixed(4)}` : '—'}
+            {typeof log.cost?.total === 'number'
+              ? `${dollarsToCredits(log.cost.total).toLocaleString()} credits`
+              : '—'}
           </span>
 
           <div className={`${LOG_COLUMNS.trigger.width} ${LOG_COLUMNS.trigger.minWidth}`}>

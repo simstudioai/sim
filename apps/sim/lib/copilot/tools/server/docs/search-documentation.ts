@@ -3,6 +3,7 @@ import { docsEmbeddings } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sql } from 'drizzle-orm'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
+import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 
 interface DocsSearchParams {
   query: string
@@ -23,7 +24,6 @@ export const searchDocumentationServerTool: BaseServerTool<DocsSearchParams, any
 
     const similarityThreshold = threshold ?? DEFAULT_DOCS_SIMILARITY_THRESHOLD
 
-    const { generateSearchEmbedding } = await import('@/lib/knowledge/embeddings')
     const queryEmbedding = await generateSearchEmbedding(query)
     if (!queryEmbedding || queryEmbedding.length === 0) {
       return { results: [], query, totalResults: 0 }

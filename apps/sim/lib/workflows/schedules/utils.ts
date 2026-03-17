@@ -464,10 +464,12 @@ function getTimezoneAbbreviation(timezone: string): string {
  */
 export const parseCronToHumanReadable = (cronExpression: string, timezone?: string): string => {
   try {
-    const baseDescription = cronstrue.toString(cronExpression, {
-      use24HourTimeFormat: false, // Use 12-hour format with AM/PM
-      verbose: false, // Keep it concise
-    })
+    const baseDescription = cronstrue
+      .toString(cronExpression, {
+        use24HourTimeFormat: false,
+        verbose: false,
+      })
+      .replace(/\b0(\d:\d{2})/g, '$1')
 
     if (timezone && timezone !== 'UTC') {
       const tzAbbr = getTimezoneAbbreviation(timezone)
@@ -482,6 +484,136 @@ export const parseCronToHumanReadable = (cronExpression: string, timezone?: stri
     })
     return `Schedule: ${cronExpression}${timezone && timezone !== 'UTC' ? ` (${getTimezoneAbbreviation(timezone)})` : ''}`
   }
+}
+
+const REVERSE_DAY_MAP: Record<number, string> = {
+  0: 'SUN',
+  1: 'MON',
+  2: 'TUE',
+  3: 'WED',
+  4: 'THU',
+  5: 'FRI',
+  6: 'SAT',
+  7: 'SUN',
+}
+
+export type ScheduleType = 'minutes' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom'
+
+export interface CronFormState {
+  scheduleType: ScheduleType
+  minutesInterval: string
+  hourlyMinute: string
+  dailyTime: string
+  weeklyDay: string
+  weeklyDayTime: string
+  monthlyDay: string
+  monthlyTime: string
+  cronExpression: string
+}
+
+const CRON_FORM_DEFAULTS: CronFormState = {
+  scheduleType: 'custom',
+  minutesInterval: '15',
+  hourlyMinute: '0',
+  dailyTime: '09:00',
+  weeklyDay: 'MON',
+  weeklyDayTime: '09:00',
+  monthlyDay: '1',
+  monthlyTime: '09:00',
+  cronExpression: '',
+}
+
+/**
+ * Reverse-parses a cron expression into schedule type and form field values.
+ * Used to pre-populate the schedule modal when editing an existing schedule.
+ */
+export function parseCronToScheduleType(cronExpression: string | null | undefined): CronFormState {
+  if (!cronExpression?.trim()) {
+    return { ...CRON_FORM_DEFAULTS }
+  }
+
+  const parts = cronExpression.trim().split(/\s+/)
+  if (parts.length !== 5) {
+    return { ...CRON_FORM_DEFAULTS, cronExpression }
+  }
+
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts
+  const pad = (n: number) => String(n).padStart(2, '0')
+
+  if (
+    minute.startsWith('*/') &&
+    hour === '*' &&
+    dayOfMonth === '*' &&
+    month === '*' &&
+    dayOfWeek === '*'
+  ) {
+    const interval = Number.parseInt(minute.slice(2), 10)
+    if (!Number.isNaN(interval) && interval > 0) {
+      return { ...CRON_FORM_DEFAULTS, scheduleType: 'minutes', minutesInterval: String(interval) }
+    }
+  }
+
+  const m = Number.parseInt(minute, 10)
+  const h = Number.parseInt(hour, 10)
+
+  if (
+    !Number.isNaN(m) &&
+    hour === '*' &&
+    dayOfMonth === '*' &&
+    month === '*' &&
+    dayOfWeek === '*'
+  ) {
+    return { ...CRON_FORM_DEFAULTS, scheduleType: 'hourly', hourlyMinute: String(m) }
+  }
+
+  if (
+    !Number.isNaN(m) &&
+    !Number.isNaN(h) &&
+    dayOfMonth === '*' &&
+    month === '*' &&
+    dayOfWeek === '*'
+  ) {
+    return { ...CRON_FORM_DEFAULTS, scheduleType: 'daily', dailyTime: `${pad(h)}:${pad(m)}` }
+  }
+
+  if (
+    !Number.isNaN(m) &&
+    !Number.isNaN(h) &&
+    dayOfMonth === '*' &&
+    month === '*' &&
+    dayOfWeek !== '*'
+  ) {
+    const dow = Number.parseInt(dayOfWeek, 10)
+    const dayName = REVERSE_DAY_MAP[dow]
+    if (dayName) {
+      return {
+        ...CRON_FORM_DEFAULTS,
+        scheduleType: 'weekly',
+        weeklyDay: dayName,
+        weeklyDayTime: `${pad(h)}:${pad(m)}`,
+      }
+    }
+  }
+
+  if (
+    !Number.isNaN(m) &&
+    !Number.isNaN(h) &&
+    dayOfMonth !== '*' &&
+    month === '*' &&
+    dayOfWeek === '*'
+  ) {
+    const dom = Number.parseInt(dayOfMonth, 10)
+    if (!Number.isNaN(dom) && dom >= 1 && dom <= 31) {
+      return {
+        ...CRON_FORM_DEFAULTS,
+        scheduleType: 'monthly',
+        monthlyDay: String(dom),
+        monthlyTime: `${pad(h)}:${pad(m)}`,
+      }
+    }
+  }
+
+  return { ...CRON_FORM_DEFAULTS, cronExpression }
 }
 
 /**

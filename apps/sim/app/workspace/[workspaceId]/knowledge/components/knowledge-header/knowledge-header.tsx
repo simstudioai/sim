@@ -2,19 +2,21 @@
 
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { AlertTriangle, ChevronDown, LibraryBig, MoreHorizontal } from 'lucide-react'
+import { AlertTriangle, LibraryBig, MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import {
   Button,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverTrigger,
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Tooltip,
 } from '@/components/emcn'
+import { ChevronDown } from '@/components/emcn/icons'
 import { Trash } from '@/components/emcn/icons/trash'
 import { filterButtonClass } from '@/app/workspace/[workspaceId]/knowledge/components/constants'
-import { useUpdateKnowledgeBase } from '@/hooks/queries/knowledge'
+import { useUpdateKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 
 const logger = createLogger('KnowledgeHeader')
 
@@ -27,10 +29,10 @@ interface BreadcrumbItem {
 const HEADER_STYLES = {
   container: 'flex items-center justify-between px-6 pt-[14px] pb-6',
   breadcrumbs: 'flex items-center gap-2',
-  icon: 'h-[18px] w-[18px] text-muted-foreground transition-colors group-hover:text-muted-foreground/70',
-  link: 'group flex items-center gap-2 font-medium text-sm transition-colors hover:text-muted-foreground',
-  label: 'font-medium text-sm',
-  separator: 'text-muted-foreground',
+  icon: 'h-[18px] w-[18px] text-[var(--text-icon)] transition-colors',
+  link: 'group flex items-center gap-2 font-medium text-sm text-[var(--text-body)] transition-colors hover:text-[var(--text-secondary)]',
+  label: 'font-medium text-sm text-[var(--text-body)]',
+  separator: 'text-[var(--text-icon)]',
   actionsContainer: 'flex items-center gap-2',
 } as const
 
@@ -53,8 +55,8 @@ interface Workspace {
 }
 
 export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) {
-  const [isActionsPopoverOpen, setIsActionsPopoverOpen] = useState(false)
-  const [isWorkspacePopoverOpen, setIsWorkspacePopoverOpen] = useState(false)
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false)
+  const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false)
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [isLoadingWorkspaces, setIsLoadingWorkspaces] = useState(false)
 
@@ -96,7 +98,7 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
   const handleWorkspaceChange = async (workspaceId: string | null) => {
     if (updateKnowledgeBase.isPending || !options?.knowledgeBaseId) return
 
-    setIsWorkspacePopoverOpen(false)
+    setIsWorkspaceMenuOpen(false)
 
     updateKnowledgeBase.mutate(
       {
@@ -161,8 +163,8 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
               )}
 
               {/* Workspace selector dropdown */}
-              <Popover open={isWorkspacePopoverOpen} onOpenChange={setIsWorkspacePopoverOpen}>
-                <PopoverTrigger asChild>
+              <DropdownMenu open={isWorkspaceMenuOpen} onOpenChange={setIsWorkspaceMenuOpen}>
+                <DropdownMenuTrigger asChild>
                   <Button
                     variant='outline'
                     disabled={isLoadingWorkspaces || updateKnowledgeBase.isPending}
@@ -175,47 +177,43 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
                           ? 'Updating...'
                           : currentWorkspace?.name || 'No workspace'}
                     </span>
-                    <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
+                    <ChevronDown className='ml-2 h-4 w-4 text-[var(--text-icon)]' />
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent align='end' side='bottom' sideOffset={4}>
-                  {/* No workspace option */}
-                  <PopoverItem
-                    active={!options.currentWorkspaceId}
-                    showCheck
-                    onClick={() => handleWorkspaceChange(null)}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='end' side='bottom' sideOffset={4}>
+                  <DropdownMenuCheckboxItem
+                    checked={!options.currentWorkspaceId}
+                    onSelect={() => handleWorkspaceChange(null)}
                   >
-                    <span className='text-muted-foreground'>No workspace</span>
-                  </PopoverItem>
+                    <span className='text-[var(--text-secondary)]'>No workspace</span>
+                  </DropdownMenuCheckboxItem>
 
-                  {/* Available workspaces */}
                   {workspaces.map((workspace) => (
-                    <PopoverItem
+                    <DropdownMenuCheckboxItem
                       key={workspace.id}
-                      active={options.currentWorkspaceId === workspace.id}
-                      showCheck
-                      onClick={() => handleWorkspaceChange(workspace.id)}
+                      checked={options.currentWorkspaceId === workspace.id}
+                      onSelect={() => handleWorkspaceChange(workspace.id)}
                     >
                       {workspace.name}
-                    </PopoverItem>
+                    </DropdownMenuCheckboxItem>
                   ))}
 
                   {workspaces.length === 0 && !isLoadingWorkspaces && (
-                    <PopoverItem disabled>
-                      <span className='text-muted-foreground text-xs'>
+                    <DropdownMenuItem disabled>
+                      <span className='text-[var(--text-secondary)] text-xs'>
                         No workspaces with write access
                       </span>
-                    </PopoverItem>
+                    </DropdownMenuItem>
                   )}
-                </PopoverContent>
-              </Popover>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
 
           {/* Actions Menu */}
           {options.onDeleteKnowledgeBase && (
-            <Popover open={isActionsPopoverOpen} onOpenChange={setIsActionsPopoverOpen}>
-              <PopoverTrigger asChild>
+            <DropdownMenu open={isActionsMenuOpen} onOpenChange={setIsActionsMenuOpen}>
+              <DropdownMenuTrigger asChild>
                 <Button
                   variant='outline'
                   className={filterButtonClass}
@@ -223,20 +221,14 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
                 >
                   <MoreHorizontal className='h-4 w-4' />
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent align='end' side='bottom' sideOffset={4}>
-                <PopoverItem
-                  onClick={() => {
-                    options.onDeleteKnowledgeBase?.()
-                    setIsActionsPopoverOpen(false)
-                  }}
-                  className='text-red-600 hover:text-red-600 focus:text-red-600'
-                >
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end' side='bottom' sideOffset={4}>
+                <DropdownMenuItem onSelect={() => options.onDeleteKnowledgeBase?.()}>
                   <Trash className='h-4 w-4' />
                   <span>Delete Knowledge Base</span>
-                </PopoverItem>
-              </PopoverContent>
-            </Popover>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       )}

@@ -337,30 +337,30 @@ const nextConfig: NextConfig = {
       }
     )
 
-    // Redirect /building and /blog to /studio (legacy URL support)
+    // Redirect /building and /studio to /blog (legacy URL support)
     redirects.push(
       {
         source: '/building/:path*',
-        destination: 'https://sim.ai/studio/:path*',
+        destination: 'https://sim.ai/blog/:path*',
         permanent: true,
       },
       {
-        source: '/blog/:path*',
-        destination: 'https://sim.ai/studio/:path*',
+        source: '/studio/:path*',
+        destination: 'https://sim.ai/blog/:path*',
         permanent: true,
       }
     )
 
-    // Move root feeds to studio namespace
+    // Move root feeds to blog namespace
     redirects.push(
       {
         source: '/rss.xml',
-        destination: '/studio/rss.xml',
+        destination: '/blog/rss.xml',
         permanent: true,
       },
       {
         source: '/sitemap-images.xml',
-        destination: '/studio/sitemap-images.xml',
+        destination: '/blog/sitemap-images.xml',
         permanent: true,
       }
     )
@@ -369,6 +369,10 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
+      {
+        source: '/favicon.ico',
+        destination: '/icon.svg',
+      },
       {
         source: '/r/:shortCode',
         destination: 'https://go.trybeluga.ai/:shortCode',

@@ -1,10 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { API_ENDPOINTS } from '@/stores/constants'
+import type { BYOKProviderId } from '@/tools/types'
 
 const logger = createLogger('BYOKKeysQueries')
-
-export type BYOKProviderId = 'openai' | 'anthropic' | 'google' | 'mistral'
 
 export interface BYOKKey {
   id: string
@@ -24,8 +23,8 @@ export const byokKeysKeys = {
   workspace: (workspaceId: string) => [...byokKeysKeys.all, 'workspace', workspaceId] as const,
 }
 
-async function fetchBYOKKeys(workspaceId: string): Promise<BYOKKeysResponse> {
-  const response = await fetch(API_ENDPOINTS.WORKSPACE_BYOK_KEYS(workspaceId))
+async function fetchBYOKKeys(workspaceId: string, signal?: AbortSignal): Promise<BYOKKeysResponse> {
+  const response = await fetch(API_ENDPOINTS.WORKSPACE_BYOK_KEYS(workspaceId), { signal })
   if (!response.ok) {
     throw new Error(`Failed to load BYOK keys: ${response.statusText}`)
   }
@@ -38,11 +37,10 @@ async function fetchBYOKKeys(workspaceId: string): Promise<BYOKKeysResponse> {
 export function useBYOKKeys(workspaceId: string) {
   return useQuery({
     queryKey: byokKeysKeys.workspace(workspaceId),
-    queryFn: () => fetchBYOKKeys(workspaceId),
+    queryFn: ({ signal }) => fetchBYOKKeys(workspaceId, signal),
     enabled: !!workspaceId,
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
-    select: (data) => data,
   })
 }
 

@@ -1,11 +1,14 @@
 import crypto from 'crypto'
 import { db } from '@sim/db'
 import { chat, workflowMcpTool } from '@sim/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
-import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
+import {
+  generateParameterSchemaForWorkflow,
+  removeMcpToolsForWorkflow,
+} from '@/lib/mcp/workflow-mcp-sync'
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { deployWorkflow, undeployWorkflow } from '@/lib/workflows/persistence/utils'
 import { checkChatAccess, checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
@@ -29,6 +32,7 @@ export async function executeDeployApi(
       if (!result.success) {
         return { success: false, error: result.error || 'Failed to undeploy workflow' }
       }
+      await removeMcpToolsForWorkflow(workflowId, crypto.randomUUID().slice(0, 8))
       return { success: true, output: { workflowId, isDeployed: false } }
     }
 
@@ -70,7 +74,11 @@ export async function executeDeployChat(
 
     const action = params.action === 'undeploy' ? 'undeploy' : 'deploy'
     if (action === 'undeploy') {
-      const existing = await db.select().from(chat).where(eq(chat.workflowId, workflowId)).limit(1)
+      const existing = await db
+        .select()
+        .from(chat)
+        .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt)))
+        .limit(1)
       if (!existing.length) {
         return { success: false, error: 'No active chat deployment found for this workflow' }
       }
@@ -79,7 +87,16 @@ export async function executeDeployChat(
         return { success: false, error: 'Unauthorized chat access' }
       }
       await db.delete(chat).where(eq(chat.id, existing[0].id))
-      return { success: true, output: { success: true, action: 'undeploy', isDeployed: false } }
+      return {
+        success: true,
+        output: {
+          workflowId,
+          success: true,
+          action: 'undeploy',
+          isDeployed: true,
+          isChatDeployed: false,
+        },
+      }
     }
 
     const { hasAccess } = await checkWorkflowAccessForChatCreation(workflowId, context.userId)
@@ -87,7 +104,11 @@ export async function executeDeployChat(
       return { success: false, error: 'Workflow not found or access denied' }
     }
 
-    const existing = await db.select().from(chat).where(eq(chat.workflowId, workflowId)).limit(1)
+    const existing = await db
+      .select()
+      .from(chat)
+      .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt)))
+      .limit(1)
     const existingDeployment = existing[0] || null
 
     const identifier = String(params.identifier || existingDeployment?.identifier || '').trim()
@@ -107,7 +128,7 @@ export async function executeDeployChat(
     const existingIdentifier = await db
       .select()
       .from(chat)
-      .where(eq(chat.identifier, identifier))
+      .where(and(eq(chat.identifier, identifier), isNull(chat.archivedAt)))
       .limit(1)
     if (existingIdentifier.length > 0 && existingIdentifier[0].id !== existingDeployment?.id) {
       return { success: false, error: 'Identifier already in use' }
@@ -187,9 +208,11 @@ export async function executeDeployChat(
     return {
       success: true,
       output: {
+        workflowId,
         success: true,
         action: 'deploy',
         isDeployed: true,
+        isChatDeployed: true,
         identifier,
         chatUrl: `${baseUrl}/chat/${identifier}`,
         apiEndpoint: `${baseUrl}/api/workflows/${workflowId}/run`,
@@ -217,13 +240,6 @@ export async function executeDeployMcp(
       return { success: false, error: 'workspaceId is required' }
     }
 
-    if (!workflowRecord.isDeployed) {
-      return {
-        success: false,
-        error: 'Workflow must be deployed before adding as an MCP tool. Use deploy_api first.',
-      }
-    }
-
     const serverId = params.serverId
     if (!serverId) {
       return {
@@ -232,11 +248,45 @@ export async function executeDeployMcp(
       }
     }
 
+    // Handle undeploy action — remove workflow from MCP server
+    if (params.action === 'undeploy') {
+      const deleted = await db
+        .delete(workflowMcpTool)
+        .where(
+          and(eq(workflowMcpTool.serverId, serverId), eq(workflowMcpTool.workflowId, workflowId))
+        )
+        .returning({ id: workflowMcpTool.id })
+
+      if (deleted.length === 0) {
+        return { success: false, error: 'Workflow is not deployed to this MCP server' }
+      }
+
+      mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
+
+      // Intentionally omits `isDeployed` — removing from an MCP server does not
+      // affect the workflow's API deployment.
+      return {
+        success: true,
+        output: { workflowId, serverId, action: 'undeploy', removed: true },
+      }
+    }
+
+    if (!workflowRecord.isDeployed) {
+      return {
+        success: false,
+        error: 'Workflow must be deployed before adding as an MCP tool. Use deploy_api first.',
+      }
+    }
+
     const existingTool = await db
       .select()
       .from(workflowMcpTool)
       .where(
-        and(eq(workflowMcpTool.serverId, serverId), eq(workflowMcpTool.workflowId, workflowId))
+        and(
+          eq(workflowMcpTool.serverId, serverId),
+          eq(workflowMcpTool.workflowId, workflowId),
+          isNull(workflowMcpTool.archivedAt)
+        )
       )
       .limit(1)
 
@@ -298,9 +348,12 @@ export async function executeDeployMcp(
   }
 }
 
-export async function executeRedeploy(context: ExecutionContext): Promise<ToolCallResult> {
+export async function executeRedeploy(
+  params: { workflowId?: string },
+  context: ExecutionContext
+): Promise<ToolCallResult> {
   try {
-    const workflowId = context.workflowId
+    const workflowId = params.workflowId || context.workflowId
     if (!workflowId) {
       return { success: false, error: 'workflowId is required' }
     }
@@ -315,6 +368,7 @@ export async function executeRedeploy(context: ExecutionContext): Promise<ToolCa
       success: true,
       output: {
         workflowId,
+        isDeployed: true,
         deployedAt: result.deployedAt || null,
         version: result.version,
         apiEndpoint: `${baseUrl}/api/workflows/${workflowId}/run`,

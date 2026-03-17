@@ -15,6 +15,7 @@ const {
   mockDeleteWhere,
   mockAuthorize,
   mockGetSession,
+  mockGetAccessibleCopilotChat,
 } = vi.hoisted(() => ({
   mockSelect: vi.fn(),
   mockFrom: vi.fn(),
@@ -24,6 +25,7 @@ const {
   mockDeleteWhere: vi.fn(),
   mockAuthorize: vi.fn(),
   mockGetSession: vi.fn(),
+  mockGetAccessibleCopilotChat: vi.fn(),
 }))
 
 vi.mock('@/lib/auth', () => ({
@@ -39,6 +41,10 @@ vi.mock('@/lib/core/utils/urls', () => ({
 
 vi.mock('@/lib/workflows/utils', () => ({
   authorizeWorkflowByWorkspacePermission: mockAuthorize,
+}))
+
+vi.mock('@/lib/copilot/chat-lifecycle', () => ({
+  getAccessibleCopilotChat: mockGetAccessibleCopilotChat,
 }))
 
 vi.mock('@sim/db', () => ({
@@ -102,6 +108,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
     // Mock delete chain
     mockDelete.mockReturnValue({ where: mockDeleteWhere })
     mockDeleteWhere.mockResolvedValue(undefined)
+    mockGetAccessibleCopilotChat.mockResolvedValue({ id: 'chat-123', userId: 'user-123' })
 
     global.fetch = vi.fn()
 

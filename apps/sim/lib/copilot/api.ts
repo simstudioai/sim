@@ -64,9 +64,10 @@ export interface MessageFileAttachment {
  */
 export interface SendMessageRequest {
   message: string
-  userMessageId?: string // ID from frontend for the user message
+  userMessageId?: string
   chatId?: string
   workflowId?: string
+  workspaceId?: string
   mode?: CopilotMode | CopilotTransportMode
   model?: CopilotModelId
   provider?: string
@@ -85,6 +86,7 @@ export interface SendMessageRequest {
   }>
   commands?: string[]
   resumeFromEventId?: number
+  userTimezone?: string
 }
 
 /**
@@ -188,12 +190,16 @@ export async function sendStreamingMessage(
       }
     }
 
+    const userTimezone =
+      requestBody.userTimezone ||
+      (typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined)
+
     const response = await fetch(COPILOT_CHAT_API_PATH, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...requestBody, stream: true }),
+      body: JSON.stringify({ ...requestBody, stream: true, userTimezone }),
       signal: abortSignal,
-      credentials: 'include', // Include cookies for session authentication
+      credentials: 'include',
     })
 
     if (!response.ok) {

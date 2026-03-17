@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowUp, Lock, Square, Unlock } from 'lucide-react'
+import { Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import {
@@ -10,6 +10,10 @@ import {
   BubbleChatPreview,
   Button,
   Copy,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Layout,
   Modal,
   ModalBody,
@@ -18,12 +22,9 @@ import {
   ModalHeader,
   MoreHorizontal,
   Play,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverTrigger,
   Trash,
 } from '@/components/emcn'
+import { Lock, Unlock, Upload } from '@/components/emcn/icons'
 import { VariableIcon } from '@/components/icons'
 import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -47,6 +48,7 @@ import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workf
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useChatStore } from '@/stores/chat/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import type { PanelTab } from '@/stores/panel'
@@ -137,6 +139,7 @@ export const Panel = memo(function Panel() {
   const hasBlocks = useWorkflowStore((state) => Object.keys(state.blocks).length > 0)
 
   const { collaborativeBatchToggleLocked } = useCollaborativeWorkflow()
+  const { navigateToSettings } = useSettingsNavigation()
 
   // Delete workflow hook
   const { isDeleting, handleDeleteWorkflow } = useDeleteWorkflow({
@@ -162,13 +165,7 @@ export const Panel = memo(function Panel() {
    * Opens subscription settings modal
    */
   const openSubscriptionSettings = () => {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(
-        new CustomEvent('open-settings', {
-          detail: { tab: 'subscription' },
-        })
-      )
-    }
+    navigateToSettings({ section: 'subscription' })
   }
 
   /**
@@ -398,7 +395,7 @@ export const Panel = memo(function Panel() {
     <>
       <aside
         ref={panelRef}
-        className='panel-container fixed inset-y-0 right-0 z-10 overflow-hidden bg-[var(--surface-1)]'
+        className='panel-container relative shrink-0 overflow-hidden bg-[var(--bg)]'
         aria-label='Workflow panel'
       >
         <div className='flex h-full flex-col border-[var(--border)] border-l pt-[14px]'>
@@ -406,73 +403,58 @@ export const Panel = memo(function Panel() {
           <div className='flex flex-shrink-0 items-center justify-between px-[8px]'>
             {/* More and Chat */}
             <div className='flex gap-[6px]'>
-              <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-                <PopoverTrigger asChild>
+              <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+                <DropdownMenuTrigger asChild>
                   <Button className='h-[30px] w-[30px] rounded-[5px]'>
                     <MoreHorizontal />
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent align='start' side='bottom' sideOffset={8}>
-                  <PopoverItem
-                    onClick={handleAutoLayout}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='start' side='bottom' sideOffset={8}>
+                  <DropdownMenuItem
+                    onSelect={handleAutoLayout}
                     disabled={
                       isExecuting || !userPermissions.canEdit || isAutoLayouting || hasLockedBlocks
                     }
                     title={hasLockedBlocks ? 'Unlock blocks to use auto-layout' : undefined}
                   >
-                    <Layout className='h-3 w-3' animate={isAutoLayouting} variant='clockwise' />
-                    <span>Auto layout</span>
-                  </PopoverItem>
-                  {
-                    <PopoverItem onClick={() => setVariablesOpen(!isVariablesOpen)}>
-                      <VariableIcon className='h-3 w-3' />
-                      <span>Variables</span>
-                    </PopoverItem>
-                  }
+                    <Layout animate={isAutoLayouting} variant='clockwise' />
+                    Auto layout
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setVariablesOpen(!isVariablesOpen)}>
+                    <VariableIcon />
+                    Variables
+                  </DropdownMenuItem>
                   {userPermissions.canAdmin && !isSnapshotView && (
-                    <PopoverItem onClick={handleToggleWorkflowLock} disabled={!hasBlocks}>
-                      {allBlocksLocked ? (
-                        <Unlock className='h-3 w-3' />
-                      ) : (
-                        <Lock className='h-3 w-3' />
-                      )}
-                      <span>{allBlocksLocked ? 'Unlock workflow' : 'Lock workflow'}</span>
-                    </PopoverItem>
+                    <DropdownMenuItem onSelect={handleToggleWorkflowLock} disabled={!hasBlocks}>
+                      {allBlocksLocked ? <Unlock /> : <Lock />}
+                      {allBlocksLocked ? 'Unlock workflow' : 'Lock workflow'}
+                    </DropdownMenuItem>
                   )}
-                  {/* <PopoverItem>
-                    <Bug className='h-3 w-3' />
-                    <span>Debug</span>
-                  </PopoverItem> */}
-                  {/* <PopoverItem onClick={() => setIsMenuOpen(false)}>
-                    <Webhook className='h-3 w-3' />
-                    <span>Log webhook</span>
-                  </PopoverItem> */}
-                  <PopoverItem
-                    onClick={handleExportJson}
+                  <DropdownMenuItem
+                    onSelect={handleExportJson}
                     disabled={!userPermissions.canEdit || isExporting || !currentWorkflow}
                   >
-                    <ArrowUp className='h-3 w-3' />
-                    <span>Export workflow</span>
-                  </PopoverItem>
-                  <PopoverItem
-                    onClick={handleDuplicateWorkflow}
+                    <Upload />
+                    Export workflow
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={handleDuplicateWorkflow}
                     disabled={!userPermissions.canEdit || isDuplicating}
                   >
-                    <Copy className='h-3 w-3' animate={isDuplicating} />
-                    <span>Duplicate workflow</span>
-                  </PopoverItem>
-                  <PopoverItem
-                    onClick={() => {
-                      setIsMenuOpen(false)
+                    <Copy animate={isDuplicating} />
+                    Duplicate workflow
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => {
                       setIsDeleteModalOpen(true)
                     }}
                     disabled={!userPermissions.canEdit || Object.keys(workflows).length <= 1}
                   >
-                    <Trash className='h-3 w-3' />
-                    <span>Delete workflow</span>
-                  </PopoverItem>
-                </PopoverContent>
-              </Popover>
+                    <Trash />
+                    Delete workflow
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 className='h-[30px] w-[30px] rounded-[5px]'
                 variant={isChatOpen ? 'active' : 'default'}
@@ -587,29 +569,31 @@ export const Panel = memo(function Panel() {
             </div>
           </div>
         </div>
-      </aside>
 
-      {/* Resize Handle */}
-      <div
-        className='fixed top-0 right-[calc(var(--panel-width)-4px)] bottom-0 z-20 w-[8px] cursor-ew-resize'
-        onMouseDown={handleMouseDown}
-        role='separator'
-        aria-orientation='vertical'
-        aria-label='Resize panel'
-      />
+        {/* Resize Handle */}
+        <div
+          className='absolute top-0 bottom-0 left-[-4px] z-20 w-[8px] cursor-ew-resize'
+          onMouseDown={handleMouseDown}
+          role='separator'
+          aria-orientation='vertical'
+          aria-label='Resize panel'
+        />
+      </aside>
 
       {/* Delete Confirmation Modal */}
       <Modal open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
         <ModalContent size='sm'>
           <ModalHeader>Delete Workflow</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {currentWorkflow?.name ?? 'this workflow'}
               </span>
-              ? This will permanently remove all associated blocks, executions, and configuration.{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              ? All associated blocks, executions, and configuration will be removed.{' '}
+              <span className='text-[var(--text-tertiary)]'>
+                You can restore it from Recently Deleted in Settings.
+              </span>
             </p>
           </ModalBody>
           <ModalFooter>

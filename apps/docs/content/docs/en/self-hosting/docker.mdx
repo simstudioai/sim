@@ -5,6 +5,7 @@ description: Deploy Sim with Docker Compose
 
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
 
 ## Quick Start
 
@@ -148,3 +149,14 @@ docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compo
 # Backup database
 docker compose -f docker-compose.prod.yml exec db pg_dump -U postgres simstudio > backup.sql
 ```
+
+<FAQ items={[
+  { question: "What containers are started by docker-compose.prod.yml?", answer: "Four services are started: simstudio (main app on port 3000, 8 GB memory limit), realtime (WebSocket server on port 3002, 1 GB memory limit), db (PostgreSQL 17 with pgvector on port 5432), and migrations (runs once to apply database schema changes, then exits)." },
+  { question: "How do I configure SSL for production?", answer: "You can use either Caddy (recommended, handles certificates automatically) or Nginx with Certbot. Both need to reverse-proxy port 3000 for the main app and port 3002 for WebSocket connections at the /socket.io/ path." },
+  { question: "Why can I not connect to Ollama running on my host from inside Docker?", answer: "Inside a Docker container, localhost refers to the container itself, not your host machine. On macOS and Windows, use http://host.docker.internal:11434. On Linux, use your host machine's actual IP address (e.g., http://192.168.1.100:11434)." },
+  { question: "What is the difference between the GPU and CPU Ollama profiles?", answer: "The GPU profile (--profile gpu) configures NVIDIA driver capabilities and reserves GPU devices for accelerated inference. The CPU profile (--profile cpu) runs Ollama without GPU acceleration. Both use the --profile setup flag to automatically pull the gemma3:4b starter model." },
+  { question: "How do I update Sim to the latest version?", answer: "Run docker compose -f docker-compose.prod.yml pull to fetch the latest images, then docker compose -f docker-compose.prod.yml up -d to restart with the new versions. The migrations container will automatically apply any new database schema changes on startup." },
+  { question: "How do I back up and restore the database?", answer: "Back up with: docker compose -f docker-compose.prod.yml exec db pg_dump -U postgres simstudio > backup.sql. Restore with: docker compose -f docker-compose.prod.yml exec -T db psql -U postgres simstudio < backup.sql. The database data is persisted in a Docker volume named postgres_data." },
+  { question: "Can I customize the PostgreSQL credentials?", answer: "Yes. The docker-compose.prod.yml uses environment variable defaults: POSTGRES_USER (default: postgres), POSTGRES_PASSWORD (default: postgres), POSTGRES_DB (default: simstudio), and POSTGRES_PORT (default: 5432). Set these in your .env file to override them." },
+]} />
+

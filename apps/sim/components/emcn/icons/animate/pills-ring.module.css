@@ -1,0 +1,22 @@
+/**
+ * PillsRing icon animation
+ * Pills arranged in a ring fade in/out sequentially,
+ * creating a chasing spinner effect.
+ * Individual pill delays are set via inline style.
+ */
+
+@keyframes pill-fade {
+  0%,
+  50%,
+  100% {
+    opacity: 0.15;
+  }
+  25% {
+    opacity: 1;
+  }
+}
+
+.animated-pills-ring-svg .pill {
+  animation: pill-fade 1.2s ease-in-out infinite;
+  will-change: opacity;
+}

@@ -113,6 +113,7 @@ export interface WorkflowLog {
   trigger: string | null
   createdAt: string
   workflow?: WorkflowData | null
+  jobTitle?: string | null
   files?: Array<{
     id: string
     name: string
@@ -191,6 +192,8 @@ export const CORE_TRIGGER_TYPES = [
   'mcp',
   'a2a',
   'copilot',
+  'mothership',
+  'workflow',
 ] as const
 
 export type CoreTriggerType = (typeof CORE_TRIGGER_TYPES)[number]

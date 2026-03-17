@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import Nav from '@/app/(landing)/components/nav/nav'
+import Navbar from '@/app/(home)/components/navbar/navbar'
 import { useBrandConfig } from '@/ee/whitelabeling'
 import type { ResumeStatus } from '@/executor/types'
 
@@ -809,8 +809,10 @@ export default function ResumeExecutionPage({
   if (!executionDetail) {
     return (
       <Tooltip.Provider>
-        <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-          <Nav variant='auth' />
+        <div className='font-season' style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+          <header>
+            <Navbar />
+          </header>
           <div
             style={{
               display: 'flex',
@@ -846,8 +848,10 @@ export default function ResumeExecutionPage({
 
   return (
     <Tooltip.Provider>
-      <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-        <Nav variant='auth' />
+      <div className='font-season' style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+        <header>
+          <Navbar />
+        </header>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 24px' }}>
           {/* Header */}
           <div
@@ -1249,7 +1253,7 @@ export default function ResumeExecutionPage({
                       {message && <Badge variant='green'>{message}</Badge>}
 
                       {/* Action */}
-                      <Button variant='tertiary' onClick={handleResume} disabled={resumeDisabled}>
+                      <Button variant='primary' onClick={handleResume} disabled={resumeDisabled}>
                         {loadingAction ? 'Resuming...' : 'Resume Execution'}
                       </Button>
                     </>

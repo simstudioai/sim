@@ -1,8 +1,13 @@
+import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { Knowledge } from './knowledge'
+
+export const metadata: Metadata = {
+  title: 'Knowledge Base',
+}
 
 interface KnowledgePageProps {
   params: Promise<{

@@ -3,7 +3,6 @@
  *
  * @vitest-environment node
  */
-import { createEnvMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -14,9 +13,17 @@ const {
   mockGetObjectCommand,
   mockDeleteObjectCommand,
   mockGetSignedUrl,
+  mockEnv,
 } = vi.hoisted(() => {
   const mockSend = vi.fn()
   const mockS3Client = { send: mockSend }
+  const mockEnv: Record<string, string | undefined> = {
+    NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
+    S3_BUCKET_NAME: 'test-bucket',
+    AWS_REGION: 'test-region',
+    AWS_ACCESS_KEY_ID: 'test-access-key',
+    AWS_SECRET_ACCESS_KEY: 'test-secret-key',
+  }
   return {
     mockSend,
     mockS3Client,
@@ -25,6 +32,7 @@ const {
     mockGetObjectCommand: vi.fn(),
     mockDeleteObjectCommand: vi.fn(),
     mockGetSignedUrl: vi.fn(),
+    mockEnv,
   }
 })
 
@@ -39,14 +47,16 @@ vi.mock('@aws-sdk/s3-request-presigner', () => ({
   getSignedUrl: mockGetSignedUrl,
 }))
 
-vi.mock('@/lib/core/config/env', () =>
-  createEnvMock({
-    S3_BUCKET_NAME: 'test-bucket',
-    AWS_REGION: 'test-region',
-    AWS_ACCESS_KEY_ID: 'test-access-key',
-    AWS_SECRET_ACCESS_KEY: 'test-secret-key',
-  })
-)
+vi.mock('@/lib/core/config/env', () => ({
+  env: mockEnv,
+  getEnv: (key: string) => mockEnv[key],
+  isTruthy: (value: string | boolean | number | undefined) =>
+    typeof value === 'string' ? value.toLowerCase() === 'true' || value === '1' : Boolean(value),
+  isFalsy: (value: string | boolean | number | undefined) =>
+    typeof value === 'string'
+      ? value.toLowerCase() === 'false' || value === '0'
+      : value === false,
+}))
 
 vi.mock('@/lib/uploads/setup', () => ({
   S3_CONFIG: {
@@ -70,6 +80,8 @@ import {
   deleteFromS3,
   downloadFromS3,
   getPresignedUrl,
+  getS3Client,
+  resetS3ClientForTesting,
   uploadToS3,
 } from '@/lib/uploads/providers/s3/client'
 
@@ -78,6 +90,9 @@ describe('S3 Client', () => {
     vi.clearAllMocks()
     vi.spyOn(Date, 'now').mockReturnValue(1672603200000)
     vi.spyOn(Date.prototype, 'toISOString').mockReturnValue('2025-06-16T01:13:10.765Z')
+    mockEnv.AWS_ACCESS_KEY_ID = 'test-access-key'
+    mockEnv.AWS_SECRET_ACCESS_KEY = 'test-secret-key'
+    resetS3ClientForTesting()
   })
 
   afterEach(() => {
@@ -291,56 +306,15 @@ describe('S3 Client', () => {
   })
 
   describe('s3Client initialization', () => {
-    beforeEach(() => {
-      vi.resetModules()
-    })
+    it('should initialize with correct configuration when credentials are available', () => {
+      mockEnv.AWS_ACCESS_KEY_ID = 'test-access-key'
+      mockEnv.AWS_SECRET_ACCESS_KEY = 'test-secret-key'
+      resetS3ClientForTesting()
 
-    it('should initialize with correct configuration when credentials are available', async () => {
-      vi.doMock('@aws-sdk/client-s3', () => ({
-        S3Client: mockS3ClientConstructor,
-        PutObjectCommand: mockPutObjectCommand,
-        GetObjectCommand: mockGetObjectCommand,
-        DeleteObjectCommand: mockDeleteObjectCommand,
-      }))
-
-      vi.doMock('@aws-sdk/s3-request-presigner', () => ({
-        getSignedUrl: mockGetSignedUrl,
-      }))
-
-      vi.doMock('@/lib/core/config/env', () =>
-        createEnvMock({
-          S3_BUCKET_NAME: 'test-bucket',
-          AWS_REGION: 'test-region',
-          AWS_ACCESS_KEY_ID: 'test-access-key',
-          AWS_SECRET_ACCESS_KEY: 'test-secret-key',
-        })
-      )
-
-      vi.doMock('@/lib/uploads/setup', () => ({
-        S3_CONFIG: {
-          bucket: 'test-bucket',
-          region: 'test-region',
-        },
-      }))
-
-      vi.doMock('@/lib/uploads/config', () => ({
-        S3_CONFIG: {
-          bucket: 'test-bucket',
-          region: 'test-region',
-        },
-        S3_KB_CONFIG: {
-          bucket: 'test-kb-bucket',
-          region: 'test-region',
-        },
-      }))
-
-      const { getS3Client: freshGetS3Client } = await import('@/lib/uploads/providers/s3/client')
-      const { S3Client } = await import('@aws-sdk/client-s3')
-
-      const client = freshGetS3Client()
+      const client = getS3Client()
 
       expect(client).toBeDefined()
-      expect(S3Client).toHaveBeenCalledWith({
+      expect(mockS3ClientConstructor).toHaveBeenCalledWith({
         region: 'test-region',
         credentials: {
           accessKeyId: 'test-access-key',
@@ -349,52 +323,15 @@ describe('S3 Client', () => {
       })
     })
 
-    it('should initialize without credentials when env vars are not available', async () => {
-      vi.doMock('@aws-sdk/client-s3', () => ({
-        S3Client: mockS3ClientConstructor,
-        PutObjectCommand: mockPutObjectCommand,
-        GetObjectCommand: mockGetObjectCommand,
-        DeleteObjectCommand: mockDeleteObjectCommand,
-      }))
+    it('should initialize without credentials when env vars are not available', () => {
+      mockEnv.AWS_ACCESS_KEY_ID = undefined
+      mockEnv.AWS_SECRET_ACCESS_KEY = undefined
+      resetS3ClientForTesting()
 
-      vi.doMock('@aws-sdk/s3-request-presigner', () => ({
-        getSignedUrl: mockGetSignedUrl,
-      }))
-
-      vi.doMock('@/lib/core/config/env', () =>
-        createEnvMock({
-          S3_BUCKET_NAME: 'test-bucket',
-          AWS_REGION: 'test-region',
-          AWS_ACCESS_KEY_ID: undefined,
-          AWS_SECRET_ACCESS_KEY: undefined,
-        })
-      )
-
-      vi.doMock('@/lib/uploads/setup', () => ({
-        S3_CONFIG: {
-          bucket: 'test-bucket',
-          region: 'test-region',
-        },
-      }))
-
-      vi.doMock('@/lib/uploads/config', () => ({
-        S3_CONFIG: {
-          bucket: 'test-bucket',
-          region: 'test-region',
-        },
-        S3_KB_CONFIG: {
-          bucket: 'test-kb-bucket',
-          region: 'test-region',
-        },
-      }))
-
-      const { getS3Client: freshGetS3Client } = await import('@/lib/uploads/providers/s3/client')
-      const { S3Client } = await import('@aws-sdk/client-s3')
-
-      const client = freshGetS3Client()
+      const client = getS3Client()
 
       expect(client).toBeDefined()
-      expect(S3Client).toHaveBeenCalledWith({
+      expect(mockS3ClientConstructor).toHaveBeenCalledWith({
         region: 'test-region',
         credentials: undefined,
       })

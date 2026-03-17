@@ -13,9 +13,9 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Skeleton,
   Tooltip,
 } from '@/components/emcn'
-import { Skeleton } from '@/components/ui'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { Preview, PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useDeploymentVersionState, useRevertToVersion } from '@/hooks/queries/workflows'
@@ -26,7 +26,7 @@ const logger = createLogger('GeneralDeploy')
 
 interface GeneralDeployProps {
   workflowId: string | null
-  deployedState: WorkflowState
+  deployedState?: WorkflowState | null
   isLoadingDeployedState: boolean
   versions: WorkflowDeploymentVersionResponse[]
   versionsLoading: boolean
@@ -235,7 +235,7 @@ export function GeneralDeploy({
         <ModalContent size='sm'>
           <ModalHeader>Load Deployment</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to load{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {versionToLoadInfo?.name || `v${versionToLoad}`}
@@ -261,7 +261,7 @@ export function GeneralDeploy({
         <ModalContent size='sm'>
           <ModalHeader>Promote to live</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to promote{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {versionToPromoteInfo?.name || `v${versionToPromote}`}

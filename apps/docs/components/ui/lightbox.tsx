@@ -55,8 +55,9 @@ export function Lightbox({ isOpen, onClose, src, alt, type }: LightboxProps) {
           <img
             src={src}
             alt={alt}
-            className='max-h-[calc(100vh-6rem)] max-w-[calc(100vw-6rem)] rounded-xl object-contain'
+            className='max-h-[75vh] max-w-[75vw] cursor-pointer rounded-xl object-contain'
             loading='lazy'
+            onClick={onClose}
           />
         ) : (
           <video
@@ -65,7 +66,8 @@ export function Lightbox({ isOpen, onClose, src, alt, type }: LightboxProps) {
             loop
             muted
             playsInline
-            className='max-h-[calc(100vh-6rem)] max-w-[calc(100vw-6rem)] rounded-xl outline-none focus:outline-none'
+            className='max-h-[75vh] max-w-[75vw] cursor-pointer rounded-xl outline-none focus:outline-none'
+            onClick={onClose}
           />
         )}
       </div>

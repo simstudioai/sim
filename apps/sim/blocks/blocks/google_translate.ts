@@ -192,6 +192,7 @@ export const GoogleTranslateBlock: BlockConfig = {
       placeholder: 'Enter your Google Cloud API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
     },
   ],
   tools: {

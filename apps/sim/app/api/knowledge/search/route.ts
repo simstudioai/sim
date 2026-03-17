@@ -28,7 +28,7 @@ const logger = createLogger('VectorSearchAPI')
 const StructuredTagFilterSchema = z.object({
   tagName: z.string(),
   tagSlot: z.string().optional(),
-  fieldType: z.enum(['text', 'number', 'date', 'boolean']).default('text'),
+  fieldType: z.enum(['text', 'number', 'date', 'boolean']).optional(),
   operator: z.string().default('eq'),
   value: z.union([z.string(), z.number(), z.boolean()]),
   valueTo: z.union([z.string(), z.number()]).optional(),
@@ -117,17 +117,56 @@ export async function POST(request: NextRequest) {
 
       // Handle tag filters
       if (validatedData.tagFilters && accessibleKbIds.length > 0) {
-        const kbId = accessibleKbIds[0]
-        const tagDefs = await getDocumentTagDefinitions(kbId)
+        const kbTagDefs = await Promise.all(
+          accessibleKbIds.map(async (kbId) => ({
+            kbId,
+            tagDefs: await getDocumentTagDefinitions(kbId),
+          }))
+        )
 
-        // Create mapping from display name to tag slot and fieldType
         const displayNameToTagDef: Record<string, { tagSlot: string; fieldType: string }> = {}
-        tagDefs.forEach((def) => {
-          displayNameToTagDef[def.displayName] = {
-            tagSlot: def.tagSlot,
-            fieldType: def.fieldType,
+        for (const { kbId, tagDefs } of kbTagDefs) {
+          const perKbMap = new Map(
+            tagDefs.map((def) => [
+              def.displayName,
+              { tagSlot: def.tagSlot, fieldType: def.fieldType },
+            ])
+          )
+
+          for (const filter of validatedData.tagFilters) {
+            const current = perKbMap.get(filter.tagName)
+            if (!current) {
+              if (accessibleKbIds.length > 1) {
+                return NextResponse.json(
+                  {
+                    error: `Tag "${filter.tagName}" does not exist in all selected knowledge bases. Search those knowledge bases separately.`,
+                  },
+                  { status: 400 }
+                )
+              }
+              continue
+            }
+
+            const existing = displayNameToTagDef[filter.tagName]
+            if (
+              existing &&
+              (existing.tagSlot !== current.tagSlot || existing.fieldType !== current.fieldType)
+            ) {
+              return NextResponse.json(
+                {
+                  error: `Tag "${filter.tagName}" is not mapped consistently across the selected knowledge bases. Search those knowledge bases separately.`,
+                },
+                { status: 400 }
+              )
+            }
+
+            displayNameToTagDef[filter.tagName] = current
           }
-        })
+
+          logger.debug(`[${requestId}] Loaded tag definitions for KB ${kbId}`, {
+            tagCount: tagDefs.length,
+          })
+        }
 
         // Validate all tag filters first
         const undefinedTags: string[] = []
@@ -171,8 +210,8 @@ export async function POST(request: NextRequest) {
         // Build structured filters with validated data
         structuredFilters = validatedData.tagFilters.map((filter) => {
           const tagDef = displayNameToTagDef[filter.tagName]!
-          const tagSlot = filter.tagSlot || tagDef.tagSlot
-          const fieldType = filter.fieldType || tagDef.fieldType
+          const tagSlot = tagDef.tagSlot
+          const fieldType = tagDef.fieldType
 
           logger.debug(
             `[${requestId}] Structured filter: ${filter.tagName} -> ${tagSlot} (${fieldType}) ${filter.operator} ${filter.value}`
@@ -210,6 +249,28 @@ export async function POST(request: NextRequest) {
           { error: `Knowledge bases not found or access denied: ${inaccessibleKbIds.join(', ')}` },
           { status: 404 }
         )
+      }
+
+      if (workflowId) {
+        const authorization = await authorizeWorkflowByWorkspacePermission({
+          workflowId,
+          userId,
+          action: 'read',
+        })
+        const workflowWorkspaceId = authorization.workflow?.workspaceId ?? null
+        if (
+          workflowWorkspaceId &&
+          accessChecks.some(
+            (accessCheck) =>
+              accessCheck?.hasAccess &&
+              accessCheck.knowledgeBase?.workspaceId !== workflowWorkspaceId
+          )
+        ) {
+          return NextResponse.json(
+            { error: 'Knowledge base does not belong to the workflow workspace' },
+            { status: 400 }
+          )
+        }
       }
 
       let results: SearchResult[]

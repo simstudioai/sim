@@ -200,7 +200,7 @@ export default function Invite() {
   }, [searchParams, inviteId])
 
   useEffect(() => {
-    if (!session?.user || !token) return
+    if (!session?.user) return
 
     async function fetchInvitationDetails() {
       setIsLoading(true)
@@ -301,7 +301,7 @@ export default function Invite() {
     }
 
     fetchInvitationDetails()
-  }, [session?.user, inviteId, token])
+  }, [session?.user, inviteId])
 
   const handleAcceptInvitation = async () => {
     if (!session?.user) return

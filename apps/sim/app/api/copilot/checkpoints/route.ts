@@ -1,9 +1,10 @@
 import { db } from '@sim/db'
-import { copilotChats, workflowCheckpoints } from '@sim/db/schema'
+import { workflowCheckpoints } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getAccessibleCopilotChat } from '@/lib/copilot/chat-lifecycle'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -11,6 +12,7 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowCheckpointsAPI')
 
@@ -42,21 +44,29 @@ export async function POST(req: NextRequest) {
       workflowId,
       chatId,
       messageId,
-      fullRequestBody: body,
       parsedData: { workflowId, chatId, messageId },
       messageIdType: typeof messageId,
       messageIdExists: !!messageId,
     })
 
     // Verify that the chat belongs to the user
-    const [chat] = await db
-      .select()
-      .from(copilotChats)
-      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
-      .limit(1)
+    const chat = await getAccessibleCopilotChat(chatId, userId)
 
     if (!chat) {
       return createBadRequestResponse('Chat not found or unauthorized')
+    }
+
+    if (chat.workflowId !== workflowId) {
+      return createBadRequestResponse('Chat does not belong to the requested workflow')
+    }
+
+    const authorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId,
+      userId,
+      action: 'write',
+    })
+    if (!authorization.allowed) {
+      return createUnauthorizedResponse()
     }
 
     // Parse the workflow state to validate it's valid JSON
@@ -133,6 +143,11 @@ export async function GET(req: NextRequest) {
       userId,
       chatId,
     })
+
+    const chat = await getAccessibleCopilotChat(chatId, userId)
+    if (!chat) {
+      return createBadRequestResponse('Chat not found or unauthorized')
+    }
 
     // Fetch checkpoints for this user and chat
     const checkpoints = await db

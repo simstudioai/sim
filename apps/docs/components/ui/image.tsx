@@ -30,7 +30,7 @@ export function Image({
       <NextImage
         className={cn(
           'overflow-hidden rounded-xl border border-border object-cover shadow-sm',
-          enableLightbox && 'cursor-pointer transition-opacity hover:opacity-90',
+          enableLightbox && 'cursor-pointer transition-opacity hover:opacity-95',
           className
         )}
         alt={alt}

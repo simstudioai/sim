@@ -6,6 +6,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
 
 The Human in the Loop block pauses workflow execution and waits for human intervention before continuing. Use it to add approval gates, collect feedback, or gather additional input at critical decision points.
 
@@ -33,7 +34,7 @@ When execution reaches this block, the workflow pauses indefinitely until a huma
 
 ## Configuration Options
 
-### Paused Output
+### Display Data
 
 Defines what data is displayed to the approver. This is the context shown in the approval portal to help them make an informed decision.
 
@@ -60,7 +61,7 @@ Configures how approvers are alerted when approval is needed. Supported channels
 
 Include the approval URL (`<blockId.url>`) in your notification messages so approvers can access the portal.
 
-### Resume Input
+### Resume Form
 
 Defines the fields approvers fill in when responding. This data becomes available to downstream blocks after the workflow resumes.
 
@@ -136,8 +137,12 @@ Agent (Generate) → Human in the Loop (QA) → Gmail (Send)
 
 ## Block Outputs
 
-**`url`** - Unique URL for the approval portal  
-**`resumeInput.*`** - All fields defined in Resume Input become available after the workflow resumes
+**`url`** - Unique URL for the approval portal
+**`resumeEndpoint`** - Resume API endpoint URL
+**`response`** - Display data shown to the approver (json)
+**`submission`** - Form submission data from the approver (json)
+**`submittedAt`** - ISO timestamp when the workflow was resumed
+**`resumeInput.*`** - All fields defined in Resume Form become available after the workflow resumes
 
 Access using `<blockId.resumeInput.fieldName>`.
 
@@ -176,3 +181,12 @@ The example below shows an approval portal as seen by an approver after the work
 - **[Condition](/blocks/condition)** - Branch based on approval decisions
 - **[Variables](/blocks/variables)** - Store approval history and metadata
 - **[Response](/blocks/response)** - Return workflow results to API callers
+
+<FAQ items={[
+  { question: "How long does the workflow stay paused?", answer: "The workflow pauses indefinitely until a human provides input through the approval portal, the REST API, or a webhook. There is no automatic timeout — it will wait until someone responds." },
+  { question: "What notification channels can I use to alert approvers?", answer: "You can configure notifications through Slack, Gmail, Microsoft Teams, SMS (via Twilio), or custom webhooks. Include the approval URL in your notification message so approvers can access the portal directly." },
+  { question: "How do I access the approver's input in downstream blocks?", answer: "Use the syntax <blockId.resumeInput.fieldName> to reference specific fields from the resume form. For example, if your block ID is 'approval1' and the form has an 'approved' field, use <approval1.resumeInput.approved>." },
+  { question: "Can I chain multiple Human in the Loop blocks for multi-stage approvals?", answer: "Yes. You can place multiple Human in the Loop blocks in sequence to create multi-stage approval workflows. Each block pauses independently and can have its own notification configuration and resume form fields." },
+  { question: "Can I resume the workflow programmatically without the portal?", answer: "Yes. Each block exposes a resume API endpoint that you can call with a POST request containing the form data as JSON. This lets you build custom approval UIs or integrate with existing systems like Jira or ServiceNow." },
+  { question: "What outputs are available after the workflow resumes?", answer: "The block outputs include the approval portal URL, the resume API endpoint URL, the display data shown to the approver, the form submission data, the raw resume input, and an ISO timestamp of when the workflow was resumed." },
+]} />

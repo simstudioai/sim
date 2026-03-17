@@ -144,6 +144,18 @@ vi.mock('@sim/db', () => {
       }),
       transaction: vi.fn(async (fn: any) => {
         await fn({
+          select: () => ({
+            from: () => ({
+              innerJoin: () => ({
+                where: () => ({
+                  limit: () => Promise.resolve([{ id: 'doc1' }]),
+                }),
+              }),
+              where: () => ({
+                limit: () => Promise.resolve([{}]),
+              }),
+            }),
+          }),
           delete: () => ({
             where: () => Promise.resolve(),
           }),

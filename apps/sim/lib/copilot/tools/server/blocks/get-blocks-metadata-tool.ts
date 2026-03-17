@@ -1,9 +1,10 @@
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { createLogger } from '@sim/logger'
+import { getCopilotToolDescription } from '@/lib/copilot/tool-descriptions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { GetBlocksMetadataInput, GetBlocksMetadataResult } from '@/lib/copilot/tools/shared/schemas'
-import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
+import { getAllowedIntegrationsFromEnv, isHosted } from '@/lib/core/config/feature-flags'
 import { registry as blockRegistry } from '@/blocks/registry'
 import { AuthMode, type BlockConfig, isHiddenFromDisplay } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
@@ -161,7 +162,10 @@ export const getBlocksMetadataServerTool: BaseServerTool<
               return {
                 id: toolId,
                 name: tool.name || toolId,
-                description: tool.description || '',
+                description: getCopilotToolDescription(tool, {
+                  isHosted,
+                  fallbackName: toolId,
+                }),
                 inputs: tool.params || {},
                 outputs: tool.outputs || {},
               }
@@ -246,7 +250,12 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           operations[opId] = {
             toolId: resolvedToolId,
             toolName: toolCfg?.name || resolvedToolId,
-            description: toolCfg?.description || undefined,
+            description: toolCfg
+              ? getCopilotToolDescription(toolCfg, {
+                  isHosted,
+                  fallbackName: resolvedToolId,
+                })
+              : undefined,
             inputs: { ...filteredToolParams, ...(operationInputs[opId] || {}) },
             outputs: toolOutputs,
             inputSchema: operationParameters[opId] || [],

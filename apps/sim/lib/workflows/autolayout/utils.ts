@@ -4,6 +4,8 @@ import {
   CONTAINER_PADDING,
   CONTAINER_PADDING_X,
   CONTAINER_PADDING_Y,
+  ESTIMATED_BLOCK_BOTTOM_PADDING,
+  ESTIMATED_SUBBLOCK_HEIGHT,
   ROOT_PADDING_X,
   ROOT_PADDING_Y,
 } from '@/lib/workflows/autolayout/constants'
@@ -131,7 +133,26 @@ function getContainerMetrics(block: BlockState): BlockMetrics {
 }
 
 /**
- * Gets metrics for a regular (non-container) block
+ * Estimates block height from subblock count when no measurement is available.
+ * Provides a reasonable approximation to prevent overlaps in layout before
+ * the block has been rendered and measured by the browser.
+ */
+function estimateBlockHeight(block: BlockState): number {
+  const subBlockCount = Object.keys(block.subBlocks || {}).length
+  if (subBlockCount === 0) return BLOCK_DIMENSIONS.MIN_HEIGHT
+
+  return Math.max(
+    BLOCK_DIMENSIONS.HEADER_HEIGHT +
+      subBlockCount * ESTIMATED_SUBBLOCK_HEIGHT +
+      ESTIMATED_BLOCK_BOTTOM_PADDING,
+    BLOCK_DIMENSIONS.MIN_HEIGHT
+  )
+}
+
+/**
+ * Gets metrics for a regular (non-container) block.
+ * Falls back to subblock-based height estimation when no measurement exists,
+ * which prevents overlaps for newly added blocks that haven't been rendered.
  */
 function getRegularBlockMetrics(block: BlockState): BlockMetrics {
   const minWidth = BLOCK_DIMENSIONS.FIXED_WIDTH
@@ -139,8 +160,9 @@ function getRegularBlockMetrics(block: BlockState): BlockMetrics {
   const measuredH = block.layout?.measuredHeight ?? block.height
   const measuredW = block.layout?.measuredWidth
 
+  const hasMeasurement = typeof measuredH === 'number' && measuredH > 0
+  const height = hasMeasurement ? Math.max(measuredH, minHeight) : estimateBlockHeight(block)
   const width = Math.max(measuredW ?? minWidth, minWidth)
-  const height = Math.max(measuredH ?? minHeight, minHeight)
 
   return {
     width,

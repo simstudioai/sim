@@ -19,18 +19,16 @@ import {
   Breadcrumb,
   Button,
   Copy,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverTrigger,
-} from '@/components/emcn'
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Skeleton } from '@/components/ui/skeleton'
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverTrigger,
+  Skeleton,
+} from '@/components/emcn'
 import { VerifiedBadge } from '@/components/ui/verified-badge'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
@@ -704,9 +702,9 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                           <ChevronDown className='ml-2 h-4 w-4' />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align='end' className='w-56'>
+                      <DropdownMenuContent align='end'>
                         {workspaces.length === 0 ? (
-                          <DropdownMenuItem disabled className='text-muted-foreground text-sm'>
+                          <DropdownMenuItem disabled>
                             No workspaces with write access
                           </DropdownMenuItem>
                         ) : (
@@ -714,11 +712,10 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                             <DropdownMenuItem
                               key={workspace.id}
                               onClick={() => handleWorkspaceSelectForEdit(workspace.id)}
-                              className='flex cursor-pointer items-center justify-between'
                             >
                               <div className='flex flex-col'>
-                                <span className='font-medium text-sm'>{workspace.name}</span>
-                                <span className='text-muted-foreground text-xs capitalize'>
+                                <span>{workspace.name}</span>
+                                <span className='text-[11px] text-[var(--text-tertiary)] capitalize'>
                                   {workspace.permissions} access
                                 </span>
                               </div>
@@ -736,7 +733,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                 <>
                   {!currentUserId ? (
                     <Button
-                      variant='tertiary'
+                      variant='primary'
                       onClick={() => {
                         const callbackUrl =
                           isWorkspaceContext && workspaceId
@@ -752,7 +749,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                     </Button>
                   ) : isWorkspaceContext ? (
                     <Button
-                      variant='tertiary'
+                      variant='primary'
                       onClick={handleUseTemplate}
                       disabled={isUsing}
                       className='!text-[#FFFFFF] h-[32px] rounded-[6px] px-[12px] text-[14px]'

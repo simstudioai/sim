@@ -6,14 +6,13 @@
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
   checkStorageQuota,
   decrementStorageUsage,
   incrementStorageUsage,
 } from '@/lib/billing/storage'
 import {
-  deleteFile,
   downloadFile,
   hasCloudStorage,
   uploadFile,
@@ -23,6 +22,15 @@ import { isUuid, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('WorkspaceFileStorage')
+
+export type WorkspaceFileScope = 'active' | 'archived' | 'all'
+
+export class FileConflictError extends Error {
+  readonly code = 'FILE_EXISTS' as const
+  constructor(name: string) {
+    super(`A file named "${name}" already exists in this workspace`)
+  }
+}
 
 export interface WorkspaceFileRecord {
   id: string
@@ -34,6 +42,7 @@ export interface WorkspaceFileRecord {
   size: number
   type: string
   uploadedBy: string
+  deletedAt?: Date | null
   uploadedAt: Date
 }
 
@@ -199,6 +208,37 @@ export async function uploadWorkspaceFile(
 }
 
 /**
+ * Track a file that was already uploaded to workspace S3 as a chat-scoped upload.
+ * Creates a workspaceFiles record with context='mothership' and the given chatId.
+ * No S3 operations -- the file is already in storage from the presigned/upload step.
+ */
+export async function trackChatUpload(
+  workspaceId: string,
+  userId: string,
+  chatId: string,
+  s3Key: string,
+  fileName: string,
+  contentType: string,
+  size: number
+): Promise<void> {
+  const fileId = `wf_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+
+  await db.insert(workspaceFiles).values({
+    id: fileId,
+    key: s3Key,
+    userId,
+    workspaceId,
+    context: 'mothership',
+    chatId,
+    originalName: fileName,
+    contentType,
+    size,
+  })
+
+  logger.info(`Tracked chat upload: ${fileName} for chat ${chatId}`)
+}
+
+/**
  * Check if a file with the same name already exists in workspace
  */
 export async function fileExistsInWorkspace(
@@ -213,7 +253,8 @@ export async function fileExistsInWorkspace(
         and(
           eq(workspaceFiles.workspaceId, workspaceId),
           eq(workspaceFiles.originalName, fileName),
-          eq(workspaceFiles.context, 'workspace')
+          eq(workspaceFiles.context, 'workspace'),
+          isNull(workspaceFiles.deletedAt)
         )
       )
       .limit(1)
@@ -228,13 +269,29 @@ export async function fileExistsInWorkspace(
 /**
  * List all files for a workspace
  */
-export async function listWorkspaceFiles(workspaceId: string): Promise<WorkspaceFileRecord[]> {
+export async function listWorkspaceFiles(
+  workspaceId: string,
+  options?: { scope?: WorkspaceFileScope }
+): Promise<WorkspaceFileRecord[]> {
   try {
+    const { scope = 'active' } = options ?? {}
     const files = await db
       .select()
       .from(workspaceFiles)
       .where(
-        and(eq(workspaceFiles.workspaceId, workspaceId), eq(workspaceFiles.context, 'workspace'))
+        scope === 'all'
+          ? and(eq(workspaceFiles.workspaceId, workspaceId), eq(workspaceFiles.context, 'workspace'))
+          : scope === 'archived'
+            ? and(
+                eq(workspaceFiles.workspaceId, workspaceId),
+                eq(workspaceFiles.context, 'workspace'),
+                sql`${workspaceFiles.deletedAt} IS NOT NULL`
+              )
+            : and(
+                eq(workspaceFiles.workspaceId, workspaceId),
+                eq(workspaceFiles.context, 'workspace'),
+                isNull(workspaceFiles.deletedAt)
+              )
       )
       .orderBy(workspaceFiles.uploadedAt)
 
@@ -250,6 +307,7 @@ export async function listWorkspaceFiles(workspaceId: string): Promise<Workspace
       size: file.size,
       type: file.contentType,
       uploadedBy: file.userId,
+      deletedAt: file.deletedAt,
       uploadedAt: file.uploadedAt,
     }))
   } catch (error) {
@@ -263,18 +321,27 @@ export async function listWorkspaceFiles(workspaceId: string): Promise<Workspace
  */
 export async function getWorkspaceFile(
   workspaceId: string,
-  fileId: string
+  fileId: string,
+  options?: { includeDeleted?: boolean }
 ): Promise<WorkspaceFileRecord | null> {
   try {
+    const { includeDeleted = false } = options ?? {}
     const files = await db
       .select()
       .from(workspaceFiles)
       .where(
-        and(
-          eq(workspaceFiles.id, fileId),
-          eq(workspaceFiles.workspaceId, workspaceId),
-          eq(workspaceFiles.context, 'workspace')
-        )
+        includeDeleted
+          ? and(
+              eq(workspaceFiles.id, fileId),
+              eq(workspaceFiles.workspaceId, workspaceId),
+              eq(workspaceFiles.context, 'workspace')
+            )
+          : and(
+              eq(workspaceFiles.id, fileId),
+              eq(workspaceFiles.workspaceId, workspaceId),
+              eq(workspaceFiles.context, 'workspace'),
+              isNull(workspaceFiles.deletedAt)
+            )
       )
       .limit(1)
 
@@ -293,6 +360,7 @@ export async function getWorkspaceFile(
       size: file.size,
       type: file.contentType,
       uploadedBy: file.userId,
+      deletedAt: file.deletedAt,
       uploadedAt: file.uploadedAt,
     }
   } catch (error) {
@@ -325,7 +393,140 @@ export async function downloadWorkspaceFile(fileRecord: WorkspaceFileRecord): Pr
 }
 
 /**
- * Delete a workspace file (both from storage and database)
+ * Update a workspace file's content (re-uploads to same storage key)
+ */
+export async function updateWorkspaceFileContent(
+  workspaceId: string,
+  fileId: string,
+  userId: string,
+  content: Buffer
+): Promise<WorkspaceFileRecord> {
+  logger.info(`Updating workspace file content: ${fileId} for workspace ${workspaceId}`)
+
+  const fileRecord = await getWorkspaceFile(workspaceId, fileId)
+  if (!fileRecord) {
+    throw new Error('File not found')
+  }
+
+  const sizeDiff = content.length - fileRecord.size
+  if (sizeDiff > 0) {
+    const quotaCheck = await checkStorageQuota(userId, sizeDiff)
+    if (!quotaCheck.allowed) {
+      throw new Error(quotaCheck.error || 'Storage limit exceeded')
+    }
+  }
+
+  try {
+    const metadata: Record<string, string> = {
+      originalName: fileRecord.name,
+      uploadedAt: new Date().toISOString(),
+      purpose: 'workspace',
+      userId,
+      workspaceId,
+    }
+
+    await uploadFile({
+      file: content,
+      fileName: fileRecord.key,
+      contentType: fileRecord.type,
+      context: 'workspace',
+      preserveKey: true,
+      customKey: fileRecord.key,
+      metadata,
+    })
+
+    await db
+      .update(workspaceFiles)
+      .set({ size: content.length })
+      .where(
+        and(
+          eq(workspaceFiles.id, fileId),
+          eq(workspaceFiles.workspaceId, workspaceId),
+          eq(workspaceFiles.context, 'workspace')
+        )
+      )
+
+    if (sizeDiff !== 0) {
+      try {
+        if (sizeDiff > 0) {
+          await incrementStorageUsage(userId, sizeDiff)
+        } else {
+          await decrementStorageUsage(userId, Math.abs(sizeDiff))
+        }
+      } catch (storageError) {
+        logger.error(`Failed to update storage tracking:`, storageError)
+      }
+    }
+
+    logger.info(`Successfully updated workspace file content: ${fileRecord.name}`)
+
+    return {
+      ...fileRecord,
+      size: content.length,
+    }
+  } catch (error) {
+    logger.error(`Failed to update workspace file content ${fileId}:`, error)
+    throw new Error(
+      `Failed to update file content: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
+  }
+}
+
+/**
+ * Rename a workspace file (updates the display name in the database)
+ */
+export async function renameWorkspaceFile(
+  workspaceId: string,
+  fileId: string,
+  newName: string
+): Promise<WorkspaceFileRecord> {
+  logger.info(`Renaming workspace file: ${fileId} to "${newName}" in workspace ${workspaceId}`)
+
+  const trimmedName = newName.trim()
+  if (!trimmedName) {
+    throw new Error('File name cannot be empty')
+  }
+
+  const fileRecord = await getWorkspaceFile(workspaceId, fileId)
+  if (!fileRecord) {
+    throw new Error('File not found')
+  }
+
+  if (fileRecord.name === trimmedName) {
+    return fileRecord
+  }
+
+  const exists = await fileExistsInWorkspace(workspaceId, trimmedName)
+  if (exists) {
+    throw new FileConflictError(trimmedName)
+  }
+
+  const updated = await db
+    .update(workspaceFiles)
+    .set({ originalName: trimmedName })
+    .where(
+      and(
+        eq(workspaceFiles.id, fileId),
+        eq(workspaceFiles.workspaceId, workspaceId),
+        eq(workspaceFiles.context, 'workspace')
+      )
+    )
+    .returning({ id: workspaceFiles.id })
+
+  if (updated.length === 0) {
+    throw new Error('File not found or could not be renamed')
+  }
+
+  logger.info(`Successfully renamed workspace file ${fileId} to "${trimmedName}"`)
+
+  return {
+    ...fileRecord,
+    name: trimmedName,
+  }
+}
+
+/**
+ * Soft delete a workspace file.
  */
 export async function deleteWorkspaceFile(workspaceId: string, fileId: string): Promise<void> {
   logger.info(`Deleting workspace file: ${fileId}`)
@@ -336,32 +537,58 @@ export async function deleteWorkspaceFile(workspaceId: string, fileId: string): 
       throw new Error('File not found')
     }
 
-    await deleteFile({
-      key: fileRecord.key,
-      context: 'workspace',
-    })
-
     await db
-      .delete(workspaceFiles)
+      .update(workspaceFiles)
+      .set({ deletedAt: new Date() })
       .where(
         and(
           eq(workspaceFiles.id, fileId),
           eq(workspaceFiles.workspaceId, workspaceId),
-          eq(workspaceFiles.context, 'workspace')
+          eq(workspaceFiles.context, 'workspace'),
+          isNull(workspaceFiles.deletedAt)
         )
       )
 
-    try {
-      await decrementStorageUsage(fileRecord.uploadedBy, fileRecord.size)
-    } catch (storageError) {
-      logger.error(`Failed to update storage tracking:`, storageError)
-    }
-
-    logger.info(`Successfully deleted workspace file: ${fileRecord.name}`)
+    logger.info(`Successfully archived workspace file: ${fileRecord.name}`)
   } catch (error) {
     logger.error(`Failed to delete workspace file ${fileId}:`, error)
     throw new Error(
       `Failed to delete file: ${error instanceof Error ? error.message : 'Unknown error'}`
     )
   }
+}
+
+/**
+ * Restore a soft-deleted workspace file.
+ */
+export async function restoreWorkspaceFile(workspaceId: string, fileId: string): Promise<void> {
+  logger.info(`Restoring workspace file: ${fileId}`)
+
+  const fileRecord = await getWorkspaceFile(workspaceId, fileId, { includeDeleted: true })
+  if (!fileRecord) {
+    throw new Error('File not found')
+  }
+
+  if (!fileRecord.deletedAt) {
+    throw new Error('File is not archived')
+  }
+
+  const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
+  const ws = await getWorkspaceWithOwner(workspaceId)
+  if (!ws || ws.archivedAt) {
+    throw new Error('Cannot restore file into an archived workspace')
+  }
+
+  await db
+    .update(workspaceFiles)
+    .set({ deletedAt: null })
+    .where(
+      and(
+        eq(workspaceFiles.id, fileId),
+        eq(workspaceFiles.workspaceId, workspaceId),
+        eq(workspaceFiles.context, 'workspace')
+      )
+    )
+
+  logger.info(`Successfully restored workspace file: ${fileRecord.name}`)
 }

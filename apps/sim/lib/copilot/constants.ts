@@ -80,6 +80,9 @@ export const OPTIMISTIC_TITLE_MAX_LENGTH = 50
 /** POST — send a chat message to the copilot. */
 export const COPILOT_CHAT_API_PATH = '/api/copilot/chat'
 
+/** POST — send a workspace-scoped chat message (mothership). */
+export const MOTHERSHIP_CHAT_API_PATH = '/api/mothership/chat'
+
 /** GET — resume/replay a copilot SSE stream. */
 export const COPILOT_CHAT_STREAM_API_PATH = '/api/copilot/chat/stream'
 

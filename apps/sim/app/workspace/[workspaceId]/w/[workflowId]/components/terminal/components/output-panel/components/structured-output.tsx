@@ -38,7 +38,7 @@ const SearchContext = createContext<SearchContextValue | null>(null)
  * Configuration for virtualized rendering.
  */
 const CONFIG = {
-  ROW_HEIGHT: 22,
+  ROW_HEIGHT: 30,
   INDENT_PER_LEVEL: 12,
   BASE_PADDING: 20,
   MAX_SEARCH_DEPTH: 100,
@@ -60,17 +60,16 @@ const BADGE_VARIANTS: Record<ValueType, BadgeVariant> = {
  * Styling constants matching the original non-virtualized implementation.
  */
 const STYLES = {
-  row: 'group flex min-h-[22px] cursor-pointer items-center gap-[6px] rounded-[8px] px-[6px] -mx-[6px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
+  row: 'group flex min-h-[30px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[8px] -mx-[8px] hover:bg-[var(--surface-active)]',
   chevron:
-    'h-[8px] w-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
-  keyName:
-    'font-medium text-[13px] text-[var(--text-primary)] group-hover:text-[var(--text-primary)]',
+    'h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
+  keyName: 'font-base text-[14px] text-[var(--text-primary)]',
   badge: 'rounded-[4px] px-[4px] py-[0px] text-[11px]',
-  summary: 'text-[12px] text-[var(--text-tertiary)]',
+  summary: 'text-[14px] text-[var(--text-secondary)]',
   indent:
     'mt-[2px] ml-[3px] flex min-w-0 flex-col gap-[2px] border-[var(--border)] border-l pl-[9px]',
-  value: 'min-w-0 py-[2px] text-[13px] text-[var(--text-primary)]',
-  emptyValue: 'py-[2px] text-[13px] text-[var(--text-tertiary)]',
+  value: 'min-w-0 py-[2px] text-[14px] text-[var(--text-primary)]',
+  emptyValue: 'py-[2px] text-[14px] text-[var(--text-secondary)]',
   matchHighlight: 'bg-yellow-200/60 dark:bg-yellow-500/40',
   currentMatchHighlight: 'bg-orange-400',
 } as const
@@ -87,6 +86,7 @@ function getTypeLabel(value: unknown): ValueType {
 function formatPrimitive(value: unknown): string {
   if (value === null) return 'null'
   if (value === undefined) return 'undefined'
+  if (typeof value === 'string') return JSON.stringify(value)
   return String(value)
 }
 

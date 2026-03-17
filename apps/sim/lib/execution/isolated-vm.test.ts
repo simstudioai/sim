@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { EventEmitter } from 'node:events'
-import { createEnvMock, loggerMock } from '@sim/testing'
+import { loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type MockProc = EventEmitter & {
@@ -13,8 +13,8 @@ type MockProc = EventEmitter & {
 }
 
 type SpawnFactory = () => MockProc
-type RedisEval = (...args: any[]) => unknown | Promise<unknown>
-type SecureFetchImpl = (...args: any[]) => unknown | Promise<unknown>
+type RedisEval = (...args: unknown[]) => unknown | Promise<unknown>
+type SecureFetchImpl = (...args: unknown[]) => unknown | Promise<unknown>
 
 function createBaseProc(): MockProc {
   const proc = new EventEmitter() as MockProc
@@ -117,47 +117,22 @@ function createReadyFetchProxyProc(fetchMessage: { url: string; optionsJson?: st
   return proc
 }
 
-async function loadExecutionModule(options: {
-  envOverrides?: Record<string, string>
-  spawns: SpawnFactory[]
-  redisEvalImpl?: RedisEval
-  secureFetchImpl?: SecureFetchImpl
-}) {
-  vi.resetModules()
-
-  const spawnQueue = [...options.spawns]
-  const spawnMock = vi.fn(() => {
-    const next = spawnQueue.shift()
-    if (!next) {
-      throw new Error('No mock spawn factory configured')
-    }
-    return next() as any
-  })
-
-  vi.doMock('@sim/logger', () => loggerMock)
-
-  const secureFetchMock = vi.fn(
-    options.secureFetchImpl ??
-      (async () => ({
-        ok: true,
-        status: 200,
-        statusText: 'OK',
-        headers: new Map<string, string>(),
-        text: async () => '',
-        json: async () => ({}),
-        arrayBuffer: async () => new ArrayBuffer(0),
-      }))
-  )
-  vi.doMock('@/lib/core/security/input-validation.server', () => ({
-    secureFetchWithValidation: secureFetchMock,
-  }))
-
-  vi.doMock('@/lib/core/utils/logging', () => ({
-    sanitizeUrlForLog: vi.fn((url: string) => url),
-  }))
-
-  vi.doMock('@/lib/core/config/env', () =>
-    createEnvMock({
+const { mockSpawn, mockExecSync, mockSecureFetch, mockSanitizeUrl, mockGetRedisClient, mockEnv } =
+  vi.hoisted(() => ({
+    mockSpawn: vi.fn(),
+    mockExecSync: vi.fn(() => Buffer.from('v23.11.0')),
+    mockSecureFetch: vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Map<string, string>(),
+      text: async () => '',
+      json: async () => ({}),
+      arrayBuffer: async () => new ArrayBuffer(0),
+    })),
+    mockSanitizeUrl: vi.fn((url: string) => url),
+    mockGetRedisClient: vi.fn(() => null),
+    mockEnv: {
       IVM_POOL_SIZE: '1',
       IVM_MAX_CONCURRENT: '100',
       IVM_MAX_PER_WORKER: '100',
@@ -169,28 +144,94 @@ async function loadExecutionModule(options: {
       IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: '100',
       IVM_DISTRIBUTED_LEASE_MIN_TTL_MS: '1000',
       IVM_QUEUE_TIMEOUT_MS: '1000',
-      ...(options.envOverrides ?? {}),
-    })
-  )
+      IVM_MAX_FETCH_RESPONSE_BYTES: '',
+      IVM_MAX_FETCH_RESPONSE_CHARS: '',
+      IVM_MAX_FETCH_URL_LENGTH: '',
+      IVM_MAX_FETCH_OPTIONS_JSON_CHARS: '',
+      REDIS_URL: '',
+    } as Record<string, string>,
+  }))
+
+vi.mock('@sim/logger', () => loggerMock)
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  secureFetchWithValidation: mockSecureFetch,
+}))
+vi.mock('@/lib/core/utils/logging', () => ({
+  sanitizeUrlForLog: mockSanitizeUrl,
+}))
+vi.mock('@/lib/core/config/env', () => ({
+  env: mockEnv,
+}))
+vi.mock('@/lib/core/config/redis', () => ({
+  getRedisClient: mockGetRedisClient,
+}))
+vi.mock('node:child_process', () => ({
+  execSync: mockExecSync,
+  spawn: mockSpawn,
+}))
+
+async function loadExecutionModule(options: {
+  envOverrides?: Record<string, string>
+  spawns: SpawnFactory[]
+  redisEvalImpl?: RedisEval
+  secureFetchImpl?: SecureFetchImpl
+}) {
+  const spawnQueue = [...options.spawns]
+  mockSpawn.mockImplementation(() => {
+    const next = spawnQueue.shift()
+    if (!next) {
+      throw new Error('No mock spawn factory configured')
+    }
+    return next() as ReturnType<typeof mockSpawn>
+  })
+
+  if (options.secureFetchImpl) {
+    mockSecureFetch.mockImplementation(options.secureFetchImpl)
+  } else {
+    mockSecureFetch.mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Map<string, string>(),
+      text: async () => '',
+      json: async () => ({}),
+      arrayBuffer: async () => new ArrayBuffer(0),
+    }))
+  }
+
+  Object.assign(mockEnv, {
+    IVM_POOL_SIZE: '1',
+    IVM_MAX_CONCURRENT: '100',
+    IVM_MAX_PER_WORKER: '100',
+    IVM_WORKER_IDLE_TIMEOUT_MS: '60000',
+    IVM_MAX_QUEUE_SIZE: '10',
+    IVM_MAX_ACTIVE_PER_OWNER: '100',
+    IVM_MAX_QUEUED_PER_OWNER: '10',
+    IVM_MAX_OWNER_WEIGHT: '5',
+    IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: '100',
+    IVM_DISTRIBUTED_LEASE_MIN_TTL_MS: '1000',
+    IVM_QUEUE_TIMEOUT_MS: '1000',
+    IVM_MAX_FETCH_RESPONSE_BYTES: '',
+    IVM_MAX_FETCH_RESPONSE_CHARS: '',
+    IVM_MAX_FETCH_URL_LENGTH: '',
+    IVM_MAX_FETCH_OPTIONS_JSON_CHARS: '',
+    REDIS_URL: '',
+    ...(options.envOverrides ?? {}),
+  })
 
   const redisEval = options.redisEvalImpl ? vi.fn(options.redisEvalImpl) : undefined
-  vi.doMock('@/lib/core/config/redis', () => ({
-    getRedisClient: vi.fn(() =>
-      redisEval
-        ? ({
-            eval: redisEval,
-          } as any)
-        : null
-    ),
-  }))
+  mockGetRedisClient.mockImplementation(() =>
+    redisEval
+      ? ({
+          eval: redisEval,
+        } as unknown)
+      : null
+  )
 
-  vi.doMock('node:child_process', () => ({
-    execSync: vi.fn(() => Buffer.from('v23.11.0')),
-    spawn: spawnMock,
-  }))
+  vi.resetModules()
 
   const mod = await import('@/lib/execution/isolated-vm')
-  return { ...mod, spawnMock, secureFetchMock }
+  return { ...mod, spawnMock: mockSpawn, secureFetchMock: mockSecureFetch }
 }
 
 describe('isolated-vm scheduler', () => {
@@ -302,7 +343,7 @@ describe('isolated-vm scheduler', () => {
         REDIS_URL: 'redis://localhost:6379',
       },
       spawns: [() => createReadyProc('ok')],
-      redisEvalImpl: (...args: any[]) => {
+      redisEvalImpl: (...args: unknown[]) => {
         const script = String(args[0] ?? '')
         if (script.includes('ZREMRANGEBYSCORE')) {
           return 0
@@ -352,7 +393,7 @@ describe('isolated-vm scheduler', () => {
         REDIS_URL: 'redis://localhost:6379',
       },
       spawns: [() => createReadyProc('ok')],
-      redisEvalImpl: (...args: any[]) => {
+      redisEvalImpl: (...args: unknown[]) => {
         const script = String(args[0] ?? '')
         if (script.includes('ZREMRANGEBYSCORE')) {
           throw new Error('redis timeout')

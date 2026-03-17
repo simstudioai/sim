@@ -1,9 +1,5 @@
 import { db } from '@sim/db'
-import {
-  workflow,
-  workspaceNotificationDelivery,
-  workspaceNotificationSubscription,
-} from '@sim/db/schema'
+import { workspaceNotificationDelivery, workspaceNotificationSubscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
@@ -14,6 +10,7 @@ import {
   type AlertConfig,
   shouldTriggerAlert,
 } from '@/lib/notifications/alert-rules'
+import { getActiveWorkflowContext } from '@/lib/workflows/active-context'
 import {
   executeNotificationDelivery,
   workspaceNotificationDeliveryTask,
@@ -52,15 +49,10 @@ export async function emitWorkflowExecutionCompleted(log: WorkflowExecutionLog):
   try {
     if (!log.workflowId) return
 
-    const workflowData = await db
-      .select({ workspaceId: workflow.workspaceId })
-      .from(workflow)
-      .where(eq(workflow.id, log.workflowId))
-      .limit(1)
+    const workflowContext = await getActiveWorkflowContext(log.workflowId)
+    if (!workflowContext?.workspaceId) return
 
-    if (workflowData.length === 0 || !workflowData[0].workspaceId) return
-
-    const workspaceId = workflowData[0].workspaceId
+    const workspaceId = workflowContext.workspaceId
 
     const subscriptions = await db
       .select()
@@ -84,7 +76,8 @@ export async function emitWorkflowExecutionCompleted(log: WorkflowExecutionLog):
 
     for (const subscription of subscriptions) {
       const levelMatches = subscription.levelFilter.includes(log.level)
-      const triggerMatches = subscription.triggerFilter.includes(log.trigger)
+      const triggerMatches =
+        subscription.triggerFilter.length === 0 || subscription.triggerFilter.includes(log.trigger)
 
       if (!levelMatches || !triggerMatches) {
         logger.debug(`Skipping subscription ${subscription.id} due to filter mismatch`)

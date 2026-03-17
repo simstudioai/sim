@@ -1,15 +1,10 @@
 import { db } from '@sim/db'
-import { document, workspaceFile } from '@sim/db/schema'
+import { document, knowledgeBase, workspaceFile } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq, like, or } from 'drizzle-orm'
+import { and, eq, isNull, like, or } from 'drizzle-orm'
 import { getFileMetadata } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
-import {
-  BLOB_CHAT_CONFIG,
-  BLOB_KB_CONFIG,
-  S3_CHAT_CONFIG,
-  S3_KB_CONFIG,
-} from '@/lib/uploads/config'
+import { BLOB_CHAT_CONFIG, S3_CHAT_CONFIG } from '@/lib/uploads/config'
 import type { StorageConfig } from '@/lib/uploads/core/storage-client'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
@@ -30,11 +25,13 @@ export interface AuthorizationResult {
  * @returns Workspace file info or null if not found
  */
 export async function lookupWorkspaceFileByKey(
-  key: string
+  key: string,
+  options?: { includeDeleted?: boolean }
 ): Promise<{ workspaceId: string; uploadedBy: string } | null> {
   try {
+    const { includeDeleted = false } = options ?? {}
     // Priority 1: Check new workspaceFiles table
-    const fileRecord = await getFileMetadataByKey(key, 'workspace')
+    const fileRecord = await getFileMetadataByKey(key, 'workspace', { includeDeleted })
 
     if (fileRecord) {
       return {
@@ -51,7 +48,11 @@ export async function lookupWorkspaceFileByKey(
           uploadedBy: workspaceFile.uploadedBy,
         })
         .from(workspaceFile)
-        .where(eq(workspaceFile.key, key))
+        .where(
+          includeDeleted
+            ? eq(workspaceFile.key, key)
+            : and(eq(workspaceFile.key, key), isNull(workspaceFile.deletedAt))
+        )
         .limit(1)
 
       if (legacyFile) {
@@ -119,8 +120,8 @@ export async function verifyFileAccess(
       return true
     }
 
-    // 1. Workspace files: Check database first (most reliable for both local and cloud)
-    if (inferredContext === 'workspace') {
+    // 1. Workspace / mothership files: Check database first (most reliable for both local and cloud)
+    if (inferredContext === 'workspace' || inferredContext === 'mothership') {
       return await verifyWorkspaceFileAccess(cloudKey, userId, customConfig, isLocal)
     }
 
@@ -165,6 +166,17 @@ async function verifyWorkspaceFileAccess(
   isLocal?: boolean
 ): Promise<boolean> {
   try {
+    const anyWorkspaceFileRecord = await getFileMetadataByKey(cloudKey, 'workspace', {
+      includeDeleted: true,
+    })
+    if (anyWorkspaceFileRecord?.deletedAt) {
+      logger.warn('Workspace file access denied for archived file', {
+        userId,
+        cloudKey,
+      })
+      return false
+    }
+
     // Priority 1: Check database (most reliable, works for both local and cloud)
     const workspaceFileRecord = await lookupWorkspaceFileByKey(cloudKey)
     if (workspaceFileRecord) {
@@ -351,94 +363,57 @@ async function verifyKBFileAccess(
   customConfig?: StorageConfig
 ): Promise<boolean> {
   try {
-    // Priority 1: Check workspaceFiles table (new system)
-    const fileRecord = await getFileMetadataByKey(cloudKey, 'knowledge-base')
-
-    if (fileRecord?.workspaceId) {
-      const permission = await getUserEntityPermissions(userId, 'workspace', fileRecord.workspaceId)
-      if (permission !== null) {
-        logger.debug('KB file access granted (workspaceFiles table)', {
-          userId,
-          workspaceId: fileRecord.workspaceId,
-          cloudKey,
-        })
-        return true
-      }
-      logger.warn('User does not have workspace access for KB file', {
-        userId,
-        workspaceId: fileRecord.workspaceId,
-        cloudKey,
+    const activeKbFileDocuments = await db
+      .select({
+        workspaceId: knowledgeBase.workspaceId,
       })
-      return false
-    }
-
-    // Priority 2: Check document table via fileUrl (legacy knowledge base files)
-    try {
-      // Try to find document with matching fileUrl
-      const documents = await db
-        .select({
-          knowledgeBaseId: document.knowledgeBaseId,
-        })
-        .from(document)
-        .where(
+      .from(document)
+      .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
+      .where(
+        and(
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt),
+          isNull(knowledgeBase.deletedAt),
           or(
             like(document.fileUrl, `%${cloudKey}%`),
             like(document.fileUrl, `%${encodeURIComponent(cloudKey)}%`)
           )
         )
-        .limit(10) // Limit to avoid scanning too many
+      )
+      .limit(10)
 
-      // Check each document's knowledge base for workspace access
-      for (const doc of documents) {
-        const { knowledgeBase } = await import('@sim/db/schema')
-        const [kb] = await db
-          .select({
-            workspaceId: knowledgeBase.workspaceId,
-          })
-          .from(knowledgeBase)
-          .where(eq(knowledgeBase.id, doc.knowledgeBaseId))
-          .limit(1)
-
-        if (kb?.workspaceId) {
-          const permission = await getUserEntityPermissions(userId, 'workspace', kb.workspaceId)
-          if (permission !== null) {
-            logger.debug('KB file access granted (document table lookup)', {
-              userId,
-              workspaceId: kb.workspaceId,
-              cloudKey,
-            })
-            return true
-          }
-        }
+    for (const doc of activeKbFileDocuments) {
+      if (!doc.workspaceId) {
+        continue
       }
-    } catch (docError) {
-      logger.debug('Document table lookup failed:', docError)
-    }
 
-    // Priority 3: Check cloud storage metadata
-    const config: StorageConfig = customConfig || (await getKBStorageConfig())
-    const metadata = await getFileMetadata(cloudKey, config)
-    const workspaceId = metadata.workspaceId
-
-    if (workspaceId) {
-      const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+      const permission = await getUserEntityPermissions(userId, 'workspace', doc.workspaceId)
       if (permission !== null) {
-        logger.debug('KB file access granted (cloud metadata)', {
+        logger.debug('KB file access granted (active document lookup)', {
           userId,
-          workspaceId,
+          workspaceId: doc.workspaceId,
           cloudKey,
         })
         return true
       }
-      logger.warn('User does not have workspace access for KB file', {
-        userId,
-        workspaceId,
-        cloudKey,
-      })
+    }
+
+    // KB file access must resolve through an active KB document. Metadata alone is not enough
+    // because parent archives intentionally keep the underlying file bytes around for history.
+    const fileRecord = await getFileMetadataByKey(cloudKey, 'knowledge-base', {
+      includeDeleted: true,
+    })
+
+    if (fileRecord?.deletedAt) {
+      logger.warn('KB file access denied for deleted file metadata', { userId, cloudKey })
       return false
     }
 
-    logger.warn('KB file missing workspaceId in all sources', { cloudKey, userId })
+    logger.warn('KB file access denied because no active KB document matched the file', {
+      cloudKey,
+      userId,
+    })
     return false
   } catch (error) {
     logger.error('Error verifying KB file access', { cloudKey, userId, error })
@@ -602,31 +577,6 @@ export async function authorizeFileAccess(
     granted: false,
     reason: 'Access denied - insufficient permissions or file not found',
   }
-}
-
-/**
- * Get KB storage configuration based on current storage provider
- */
-async function getKBStorageConfig(): Promise<StorageConfig> {
-  const { USE_S3_STORAGE, USE_BLOB_STORAGE } = await import('@/lib/uploads/config')
-
-  if (USE_BLOB_STORAGE) {
-    return {
-      containerName: BLOB_KB_CONFIG.containerName,
-      accountName: BLOB_KB_CONFIG.accountName,
-      accountKey: BLOB_KB_CONFIG.accountKey,
-      connectionString: BLOB_KB_CONFIG.connectionString,
-    }
-  }
-
-  if (USE_S3_STORAGE) {
-    return {
-      bucket: S3_KB_CONFIG.bucket,
-      region: S3_KB_CONFIG.region,
-    }
-  }
-
-  return {}
 }
 
 /**

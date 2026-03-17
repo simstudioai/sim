@@ -610,6 +610,7 @@ export async function POST(req: NextRequest) {
       workflowVariables = {},
       workflowId,
       isCustomTool = false,
+      _sandboxFiles,
     } = body
 
     const executionParams = { ...params }
@@ -722,6 +723,7 @@ export async function POST(req: NextRequest) {
           code: codeForE2B,
           language: CodeLanguage.JavaScript,
           timeoutMs: timeout,
+          sandboxFiles: _sandboxFiles,
         })
         const executionTime = Date.now() - execStart
         stdout += e2bStdout
@@ -785,6 +787,7 @@ export async function POST(req: NextRequest) {
         code: codeForE2B,
         language: CodeLanguage.Python,
         timeoutMs: timeout,
+        sandboxFiles: _sandboxFiles,
       })
       const executionTime = Date.now() - execStart
       stdout += e2bStdout

@@ -11,6 +11,9 @@
     "(generated)/workflows",
     "(generated)/logs",
     "(generated)/usage",
-    "(generated)/audit-logs"
+    "(generated)/audit-logs",
+    "(generated)/tables",
+    "(generated)/files",
+    "(generated)/knowledge-bases"
   ]
 }

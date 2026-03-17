@@ -36,6 +36,7 @@ export interface StreamingContext {
   wasAborted?: boolean
   suppressContinueOption?: boolean
   subAgentParentToolCallId?: string
+  subAgentParentStack: string[]
   subAgentContent: Record<string, string>
   subAgentToolCalls: Record<string, CopilotToolCall[]>
   subAgentBlocks: Record<string, SubAgentContentBlock[]>

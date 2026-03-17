@@ -17,6 +17,7 @@ import {
   maybeSendUsageThresholdEmail,
 } from '@/lib/billing/core/usage'
 import { logWorkflowUsageBatch } from '@/lib/billing/core/usage-log'
+import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
@@ -49,6 +50,46 @@ export interface ToolCall {
 const logger = createLogger('ExecutionLogger')
 
 export class ExecutionLogger implements IExecutionLoggerService {
+  private buildCompletedExecutionData(params: {
+    existingExecutionData?: WorkflowExecutionLog['executionData']
+    traceSpans?: TraceSpan[]
+    finalOutput: BlockOutputData
+    executionCost: {
+      tokens: {
+        input: number
+        output: number
+        total: number
+      }
+      models: NonNullable<WorkflowExecutionLog['executionData']['models']>
+    }
+    executionState?: SerializableExecutionState
+  }): WorkflowExecutionLog['executionData'] {
+    const { existingExecutionData, traceSpans, finalOutput, executionCost, executionState } = params
+
+    return {
+      ...(existingExecutionData?.environment
+        ? { environment: existingExecutionData.environment }
+        : {}),
+      ...(existingExecutionData?.trigger ? { trigger: existingExecutionData.trigger } : {}),
+      ...(existingExecutionData?.correlation || existingExecutionData?.trigger?.data?.correlation
+        ? {
+            correlation:
+              existingExecutionData?.correlation ||
+              existingExecutionData?.trigger?.data?.correlation,
+          }
+        : {}),
+      traceSpans,
+      finalOutput,
+      tokens: {
+        input: executionCost.tokens.input,
+        output: executionCost.tokens.output,
+        total: executionCost.tokens.total,
+      },
+      models: executionCost.models,
+      ...(executionState ? { executionState } : {}),
+    }
+  }
+
   async startWorkflowExecution(params: {
     workflowId: string
     workspaceId: string
@@ -131,6 +172,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
         executionData: {
           environment,
           trigger,
+          ...(trigger.data?.correlation ? { correlation: trigger.data.correlation } : {}),
         },
         cost: {
           total: BASE_EXECUTION_CHARGE,
@@ -181,6 +223,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           input: number
           output: number
           total: number
+          toolCost?: number
           tokens: { input: number; output: number; total: number }
         }
       >
@@ -216,7 +259,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       .limit(1)
     const billingUserId = this.extractBillingUserId(existingLog?.executionData)
     const existingExecutionData = existingLog?.executionData as
-      | { traceSpans?: TraceSpan[] }
+      | WorkflowExecutionLog['executionData']
       | undefined
 
     // Determine if workflow failed by checking trace spans for unhandled errors
@@ -280,17 +323,13 @@ export class ExecutionLogger implements IExecutionLoggerService {
         endedAt: new Date(endedAt),
         totalDurationMs: totalDuration,
         files: executionFiles.length > 0 ? executionFiles : null,
-        executionData: {
+        executionData: this.buildCompletedExecutionData({
+          existingExecutionData,
           traceSpans: redactedTraceSpans,
           finalOutput: redactedFinalOutput,
-          tokens: {
-            input: executionCost.tokens.input,
-            output: executionCost.tokens.output,
-            total: executionCost.tokens.total,
-          },
-          models: executionCost.models,
-          ...(executionState ? { executionState } : {}),
-        },
+          executionCost,
+          executionState,
+        }),
         cost: executionCost,
       })
       .where(eq(workflowExecutionLogs.executionId, executionId))
@@ -317,9 +356,10 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
           const costDelta = costSummary.totalCost
 
-          const planName = sub?.plan || 'Free'
+          const { getDisplayPlanName } = await import('@/lib/billing/plan-helpers')
+          const planName = getDisplayPlanName(sub?.plan)
           const scope: 'user' | 'organization' =
-            sub && (sub.plan === 'team' || sub.plan === 'enterprise') ? 'organization' : 'user'
+            sub && isOrgPlan(sub.plan) ? 'organization' : 'user'
 
           if (scope === 'user') {
             const before = await checkUsageStatus(usr.id)
@@ -507,6 +547,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           input: number
           output: number
           total: number
+          toolCost?: number
           tokens: { input: number; output: number; total: number }
         }
       >

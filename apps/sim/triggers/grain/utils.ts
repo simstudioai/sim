@@ -1,15 +1,19 @@
 import type { TriggerOutput } from '@/triggers/types'
 
 /**
- * Shared trigger dropdown options for all Grain triggers
+ * Trigger dropdown options for Grain triggers.
+ * New options (Item Added / Item Updated / All Events) correctly scope by view_id only.
+ * Legacy options are hidden from the picker but still resolve for existing workflows.
  */
 export const grainTriggerOptions = [
-  { label: 'General Webhook (All Events)', id: 'grain_webhook' },
-  { label: 'Recording Created', id: 'grain_recording_created' },
-  { label: 'Recording Updated', id: 'grain_recording_updated' },
-  { label: 'Highlight Created', id: 'grain_highlight_created' },
-  { label: 'Highlight Updated', id: 'grain_highlight_updated' },
-  { label: 'Story Created', id: 'grain_story_created' },
+  { label: 'Item Added', id: 'grain_item_added' },
+  { label: 'Item Updated', id: 'grain_item_updated' },
+  { label: 'All Events', id: 'grain_webhook' },
+  { label: 'Recording Created', id: 'grain_recording_created', hidden: true },
+  { label: 'Recording Updated', id: 'grain_recording_updated', hidden: true },
+  { label: 'Highlight Created', id: 'grain_highlight_created', hidden: true },
+  { label: 'Highlight Updated', id: 'grain_highlight_updated', hidden: true },
+  { label: 'Story Created', id: 'grain_story_created', hidden: true },
 ]
 
 /**
@@ -22,6 +26,30 @@ export function grainSetupInstructions(eventType: string): string {
     'Use the Grain "List Views" tool or GET <code>/_/public-api/views</code> to find the correct view ID.',
     'You can find or create your API key in Grain at <strong>Workspace Settings > API</strong> under Integrations on <a href="https://grain.com/app/settings/integrations?tab=api" target="_blank" rel="noopener noreferrer">grain.com</a>.',
     'The webhook will be automatically deleted when you remove this trigger.',
+  ]
+
+  return instructions
+    .map(
+      (instruction, index) =>
+        `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
+    )
+    .join('')
+}
+
+/**
+ * Setup instructions for the v2 triggers that correctly explain view-based scoping.
+ */
+export function grainV2SetupInstructions(action: 'item added' | 'item updated' | 'all'): string {
+  const viewSentence =
+    action === 'all'
+      ? 'Enter a Grain <strong>view ID</strong>. Each view has a type &mdash; <em>recordings</em>, <em>highlights</em>, or <em>stories</em> &mdash; and this trigger will fire on every event (added, updated, or removed) for items in that view.'
+      : `Enter a Grain <strong>view ID</strong>. Each view has a type &mdash; <em>recordings</em>, <em>highlights</em>, or <em>stories</em> &mdash; and only items matching that type will fire the <strong>${action}</strong> event.`
+
+  const instructions = [
+    'Enter your Grain API Key (Personal Access Token). You can find or create one in Grain at <strong>Workspace Settings &gt; API</strong> under Integrations on <a href="https://grain.com/app/settings/integrations?tab=api" target="_blank" rel="noopener noreferrer">grain.com</a>.',
+    viewSentence,
+    'To find your view IDs, use the <strong>List Views</strong> operation on this block or call <code>GET /_/public-api/views</code> directly.',
+    'The webhook is created automatically when you save and will be deleted when you remove this trigger.',
   ]
 
   return instructions

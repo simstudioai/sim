@@ -89,6 +89,8 @@ import { googleFormsWebhookTrigger } from '@/triggers/googleforms'
 import {
   grainHighlightCreatedTrigger,
   grainHighlightUpdatedTrigger,
+  grainItemAddedTrigger,
+  grainItemUpdatedTrigger,
   grainRecordingCreatedTrigger,
   grainRecordingUpdatedTrigger,
   grainStoryCreatedTrigger,
@@ -245,6 +247,8 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   fathom_webhook: fathomWebhookTrigger,
   gmail_poller: gmailPollingTrigger,
   grain_webhook: grainWebhookTrigger,
+  grain_item_added: grainItemAddedTrigger,
+  grain_item_updated: grainItemUpdatedTrigger,
   grain_recording_created: grainRecordingCreatedTrigger,
   grain_recording_updated: grainRecordingUpdatedTrigger,
   grain_highlight_created: grainHighlightCreatedTrigger,

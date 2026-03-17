@@ -1,21 +1,27 @@
 import { db } from '@sim/db'
 import { permissions, workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, inArray, isNull, min } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, min, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { getNextWorkflowColor } from '@/lib/workflows/colors'
+import { listWorkflows, type WorkflowScope } from '@/lib/workflows/utils'
 import { getUserEntityPermissions, workspaceExists } from '@/lib/workspaces/permissions/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
 const logger = createLogger('WorkflowAPI')
 
 const CreateWorkflowSchema = z.object({
+  id: z.string().uuid().optional(),
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional().default(''),
-  color: z.string().optional().default('#3972F6'),
+  color: z
+    .string()
+    .optional()
+    .transform((c) => c || getNextWorkflowColor()),
   workspaceId: z.string().optional(),
   folderId: z.string().nullable().optional(),
   sortOrder: z.number().int().optional(),
@@ -27,6 +33,7 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now()
   const url = new URL(request.url)
   const workspaceId = url.searchParams.get('workspaceId')
+  const scope = (url.searchParams.get('scope') ?? 'active') as WorkflowScope
 
   try {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -62,16 +69,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    if (!['active', 'archived', 'all'].includes(scope)) {
+      return NextResponse.json({ error: 'Invalid scope' }, { status: 400 })
+    }
+
     let workflows
 
     const orderByClause = [asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id)]
 
     if (workspaceId) {
-      workflows = await db
-        .select()
-        .from(workflow)
-        .where(eq(workflow.workspaceId, workspaceId))
-        .orderBy(...orderByClause)
+      workflows = await listWorkflows(workspaceId, { scope })
     } else {
       const workspacePermissionRows = await db
         .select({ workspaceId: permissions.entityId })
@@ -84,7 +91,16 @@ export async function GET(request: NextRequest) {
       workflows = await db
         .select()
         .from(workflow)
-        .where(inArray(workflow.workspaceId, workspaceIds))
+        .where(
+          scope === 'all'
+            ? inArray(workflow.workspaceId, workspaceIds)
+            : scope === 'archived'
+              ? and(
+                  inArray(workflow.workspaceId, workspaceIds),
+                  sql`${workflow.archivedAt} IS NOT NULL`
+                )
+              : and(inArray(workflow.workspaceId, workspaceIds), isNull(workflow.archivedAt))
+        )
         .orderBy(...orderByClause)
     }
 
@@ -109,6 +125,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const {
+      id: clientId,
       name,
       description,
       color,
@@ -140,7 +157,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const workflowId = crypto.randomUUID()
+    const workflowId = clientId || crypto.randomUUID()
     const now = new Date()
 
     logger.info(`[${requestId}] Creating workflow ${workflowId} for user ${userId}`)
@@ -173,7 +190,13 @@ export async function POST(req: NextRequest) {
         db
           .select({ minOrder: min(workflow.sortOrder) })
           .from(workflow)
-          .where(and(eq(workflow.workspaceId, workspaceId), workflowParentCondition)),
+          .where(
+            and(
+              eq(workflow.workspaceId, workspaceId),
+              workflowParentCondition,
+              isNull(workflow.archivedAt)
+            )
+          ),
         db
           .select({ minOrder: min(workflowFolder.sortOrder) })
           .from(workflowFolder)
@@ -189,6 +212,31 @@ export async function POST(req: NextRequest) {
       }, null)
 
       sortOrder = minSortOrder != null ? minSortOrder - 1 : 0
+    }
+
+    const duplicateConditions = [
+      eq(workflow.workspaceId, workspaceId),
+      isNull(workflow.archivedAt),
+      eq(workflow.name, name),
+    ]
+
+    if (folderId) {
+      duplicateConditions.push(eq(workflow.folderId, folderId))
+    } else {
+      duplicateConditions.push(isNull(workflow.folderId))
+    }
+
+    const [duplicateWorkflow] = await db
+      .select({ id: workflow.id })
+      .from(workflow)
+      .where(and(...duplicateConditions))
+      .limit(1)
+
+    if (duplicateWorkflow) {
+      return NextResponse.json(
+        { error: `A workflow named "${name}" already exists in this folder` },
+        { status: 409 }
+      )
     }
 
     await db.insert(workflow).values({

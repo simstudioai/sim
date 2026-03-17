@@ -159,25 +159,58 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
     },
   },
 
+  hosting: {
+    envKeyPrefix: 'JINA_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'jina',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, output) => {
+        if (output.tokensUsed == null) {
+          throw new Error('Jina read_url response missing tokensUsed field')
+        }
+        // Jina bills per output token — $0.20 per 1M tokens
+        // Source: https://cloud.jina.ai/pricing (token-based billing)
+        const tokens = output.tokensUsed as number
+        const cost = tokens * 0.0000002
+        return { cost, metadata: { tokensUsed: tokens } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 200,
+    },
+  },
+
   transformResponse: async (response: Response) => {
+    let tokensUsed: number | undefined
+
+    const tokensHeader = response.headers.get('x-tokens')
+    if (tokensHeader) {
+      const parsed = Number.parseInt(tokensHeader, 10)
+      if (!Number.isNaN(parsed)) {
+        tokensUsed = parsed
+      }
+    }
+
     const contentType = response.headers.get('content-type')
 
     if (contentType?.includes('application/json')) {
       const data = await response.json()
+      tokensUsed ??= data.data?.usage?.tokens ?? data.usage?.tokens
+      const content = data.data?.content || data.content || JSON.stringify(data)
+      tokensUsed ??= Math.ceil(content.length / 4)
       return {
         success: response.ok,
-        output: {
-          content: data.data?.content || data.content || JSON.stringify(data),
-        },
+        output: { content, tokensUsed },
       }
     }
 
     const content = await response.text()
+    tokensUsed ??= Math.ceil(content.length / 4)
     return {
       success: response.ok,
-      output: {
-        content,
-      },
+      output: { content, tokensUsed },
     }
   },
 
@@ -185,6 +218,11 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
     content: {
       type: 'string',
       description: 'The extracted content from the URL, processed into clean, LLM-friendly text',
+    },
+    tokensUsed: {
+      type: 'number',
+      description: 'Number of Jina tokens consumed by this request',
+      optional: true,
     },
   },
 }

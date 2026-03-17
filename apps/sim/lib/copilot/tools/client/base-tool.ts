@@ -8,6 +8,7 @@ export enum ClientToolCallState {
   rejected = 'rejected',
   success = 'success',
   error = 'error',
+  cancelled = 'cancelled',
   review = 'review',
   background = 'background',
 }

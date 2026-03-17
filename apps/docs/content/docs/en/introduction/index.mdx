@@ -6,6 +6,7 @@ import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
 
 Sim is an open-source visual workflow builder for building and deploying AI agent workflows. Design intelligent automation systems using a no-code interface—connect AI models, databases, APIs, and business tools through an intuitive drag-and-drop canvas. Whether you're building chatbots, automating business processes, or orchestrating complex data pipelines, Sim provides the tools to bring your AI workflows to life.
 
@@ -57,11 +58,11 @@ Enable your team to build together. Multiple users can edit workflows simultaneo
 
 ## Integrations
 
-Sim provides native integrations with 80+ services across multiple categories:
+Sim provides native integrations with 160+ services across multiple categories:
 
 - **AI Models**: OpenAI, Anthropic, Google Gemini, Groq, Cerebras, local models via Ollama or VLLM
 - **Communication**: Gmail, Slack, Microsoft Teams, Telegram, WhatsApp  
-- **Productivity**: Notion, Google Workspace, Airtable, Monday.com
+- **Productivity**: Notion, Google Workspace, Airtable
 - **Development**: GitHub, Jira, Linear, automated browser testing
 - **Search & Data**: Google Search, Perplexity, Firecrawl, Exa AI
 - **Databases**: PostgreSQL, MySQL, Supabase, Pinecone, Qdrant
@@ -109,9 +110,20 @@ Ready to build your first AI workflow?
     Learn about the building blocks
   </Card>
   <Card title="Tools & Integrations" href="/tools">
-    Explore 80+ built-in integrations
+    Explore 160+ built-in integrations
   </Card>
   <Card title="Team Permissions" href="/permissions/roles-and-permissions">
     Set up workspace roles and permissions
   </Card>
 </Cards>
+
+<FAQ items={[
+  { question: "Is Sim free to use?", answer: "Sim offers a free Community plan with 1,000 one-time credits to get started. Paid plans start at $25/month (Pro) with 5,000 credits and go up to $100/month (Max) with 20,000 credits. Annual billing is available at a 15% discount. You can also self-host Sim for free on your own infrastructure." },
+  { question: "Is Sim open source?", answer: "Yes. Sim is open source under the Apache 2.0 license. The full source code is available on GitHub and you can self-host it, contribute to development, or modify it for your own needs. Enterprise features (SSO, access control) have a separate license that requires a subscription for production use." },
+  { question: "Which AI models and providers are supported?", answer: "Sim supports 15+ providers including OpenAI, Anthropic, Google Gemini, Groq, Cerebras, DeepSeek, Mistral, xAI, and OpenRouter. You can also run local models through Ollama or VLLM at no API cost. Bring Your Own Key (BYOK) is supported so you can use your own API keys at base provider pricing with no markup." },
+  { question: "Do I need coding experience to use Sim?", answer: "No. Sim is a no-code visual builder where you design workflows by dragging blocks onto a canvas and connecting them. For advanced use cases, the Function block lets you write custom JavaScript, but it is entirely optional." },
+  { question: "Can I self-host Sim?", answer: "Yes. Sim provides Docker Compose configurations for self-hosted deployments. The stack includes the Sim application, a PostgreSQL database with pgvector, and a realtime collaboration server. You can also integrate local AI models via Ollama for a fully offline setup." },
+  { question: "Is there a limit on how many workflows I can create?", answer: "There is no limit on the number of workflows you can create on any plan. Usage limits apply to execution credits, rate limits, and file storage, which vary by plan tier." },
+  { question: "What integrations are available?", answer: "Sim offers 160+ native integrations across categories including AI models, communication tools (Gmail, Slack, Teams, Telegram), productivity apps (Notion, Google Workspace, Airtable), development tools (GitHub, Jira, Linear), search services (Google Search, Perplexity, Exa), and databases (PostgreSQL, Supabase, Pinecone). For anything not built in, you can use the MCP (Model Context Protocol) support to connect custom services." },
+  { question: "How does Sim compare to other workflow automation tools?", answer: "Sim is purpose-built for AI agent workflows rather than general task automation. It provides a visual canvas for orchestrating LLM-powered agents with built-in support for tool use, structured outputs, conditional branching, and real-time collaboration. The Copilot feature also lets you build and modify workflows using natural language." },
+]} />

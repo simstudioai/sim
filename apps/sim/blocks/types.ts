@@ -132,9 +132,7 @@ export type ToolOutputToValueType<T> = T extends Record<string, any>
     }
   : never
 
-export type BlockOutput =
-  | PrimitiveValueType
-  | { [key: string]: PrimitiveValueType | Record<string, any> }
+export type BlockOutput = PrimitiveValueType | { [key: string]: any }
 
 /**
  * Condition for showing an output field.
@@ -235,12 +233,14 @@ export interface SubBlockConfig {
         id: string
         icon?: React.ComponentType<{ className?: string }>
         group?: string
+        hidden?: boolean
       }[]
     | (() => {
         label: string
         id: string
         icon?: React.ComponentType<{ className?: string }>
         group?: string
+        hidden?: boolean
       }[])
   min?: number
   max?: number
@@ -253,6 +253,7 @@ export interface SubBlockConfig {
   hidden?: boolean
   hideFromPreview?: boolean // Hide this subblock from the workflow block preview
   requiresFeature?: string // Environment variable name that must be truthy for this subblock to be visible
+  hideWhenHosted?: boolean // Hide this subblock when running on hosted sim
   description?: string
   tooltip?: string // Tooltip text displayed via info icon next to the title
   value?: (params: Record<string, any>) => string

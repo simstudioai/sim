@@ -175,6 +175,7 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
       placeholder: 'Enter your Parallel AI API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
     },
   ],
   tools: {

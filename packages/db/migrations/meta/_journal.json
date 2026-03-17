@@ -1121,6 +1121,118 @@
       "when": 1772138479896,
       "tag": "0160_classy_tyger_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 161,
+      "version": "7",
+      "when": 1772651559844,
+      "tag": "0161_nostalgic_nightmare",
+      "breakpoints": true
+    },
+    {
+      "idx": 162,
+      "version": "7",
+      "when": 1772745951633,
+      "tag": "0162_odd_christian_walker",
+      "breakpoints": true
+    },
+    {
+      "idx": 163,
+      "version": "7",
+      "when": 1772760965146,
+      "tag": "0163_legal_randall",
+      "breakpoints": true
+    },
+    {
+      "idx": 164,
+      "version": "7",
+      "when": 1772824148549,
+      "tag": "0164_mean_roulette",
+      "breakpoints": true
+    },
+    {
+      "idx": 165,
+      "version": "7",
+      "when": 1772842945935,
+      "tag": "0165_short_thunderbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 166,
+      "version": "7",
+      "when": 1773042085248,
+      "tag": "0166_windy_lockjaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 167,
+      "version": "7",
+      "when": 1773188556477,
+      "tag": "0167_confused_gorilla_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 168,
+      "version": "7",
+      "when": 1773203900807,
+      "tag": "0168_regular_jane_foster",
+      "breakpoints": true
+    },
+    {
+      "idx": 169,
+      "version": "7",
+      "when": 1773207052828,
+      "tag": "0169_quiet_marvel_boy",
+      "breakpoints": true
+    },
+    {
+      "idx": 170,
+      "version": "7",
+      "when": 1773209025121,
+      "tag": "0170_careful_saracen",
+      "breakpoints": true
+    },
+    {
+      "idx": 171,
+      "version": "7",
+      "when": 1773353601402,
+      "tag": "0171_yielding_venom",
+      "breakpoints": true
+    },
+    {
+      "idx": 172,
+      "version": "7",
+      "when": 1773390821375,
+      "tag": "0172_silky_magma",
+      "breakpoints": true
+    },
+    {
+      "idx": 173,
+      "version": "7",
+      "when": 1773395340207,
+      "tag": "0173_bored_zeigeist",
+      "breakpoints": true
+    },
+    {
+      "idx": 174,
+      "version": "7",
+      "when": 1773529490946,
+      "tag": "0174_whole_lyja",
+      "breakpoints": true
+    },
+    {
+      "idx": 175,
+      "version": "7",
+      "when": 1773532070072,
+      "tag": "0175_cheerful_shockwave",
+      "breakpoints": true
+    },
+    {
+      "idx": 176,
+      "version": "7",
+      "when": 1773574710090,
+      "tag": "0176_clear_luckman",
+      "breakpoints": true
     }
   ]
 }

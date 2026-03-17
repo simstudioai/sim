@@ -16,6 +16,8 @@ const {
   mockValues,
   mockReturning,
   mockGetSession,
+  mockGetAccessibleCopilotChat,
+  mockAuthorizeWorkflowByWorkspacePermission,
 } = vi.hoisted(() => ({
   mockSelect: vi.fn(),
   mockFrom: vi.fn(),
@@ -26,6 +28,8 @@ const {
   mockValues: vi.fn(),
   mockReturning: vi.fn(),
   mockGetSession: vi.fn(),
+  mockGetAccessibleCopilotChat: vi.fn(),
+  mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
 }))
 
 vi.mock('@/lib/auth', () => ({
@@ -58,7 +62,15 @@ vi.mock('drizzle-orm', () => ({
   desc: vi.fn((field: unknown) => ({ field, type: 'desc' })),
 }))
 
-import { GET, POST } from '@/app/api/copilot/checkpoints/route'
+vi.mock('@/lib/copilot/chat-lifecycle', () => ({
+  getAccessibleCopilotChat: mockGetAccessibleCopilotChat,
+}))
+
+vi.mock('@/lib/workflows/utils', () => ({
+  authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflowByWorkspacePermission,
+}))
+
+import { GET, POST } from './route'
 
 function createMockRequest(method: string, body: Record<string, unknown>): NextRequest {
   return new NextRequest('http://localhost:3000/api/copilot/checkpoints', {
@@ -84,6 +96,12 @@ describe('Copilot Checkpoints API Route', () => {
     mockLimit.mockResolvedValue([])
     mockInsert.mockReturnValue({ values: mockValues })
     mockValues.mockReturnValue({ returning: mockReturning })
+    mockGetAccessibleCopilotChat.mockResolvedValue({
+      id: 'chat-123',
+      userId: 'user-123',
+      workflowId: 'workflow-123',
+    })
+    mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({ allowed: true })
   })
 
   afterEach(() => {
@@ -123,8 +141,7 @@ describe('Copilot Checkpoints API Route', () => {
 
     it('should return 400 when chat not found or unauthorized', async () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
-
-      mockLimit.mockResolvedValue([])
+      mockGetAccessibleCopilotChat.mockResolvedValueOnce(null)
 
       const req = createMockRequest('POST', {
         workflowId: 'workflow-123',
@@ -142,12 +159,6 @@ describe('Copilot Checkpoints API Route', () => {
     it('should return 400 for invalid workflow state JSON', async () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      const chat = {
-        id: 'chat-123',
-        userId: 'user-123',
-      }
-      mockLimit.mockResolvedValue([chat])
-
       const req = createMockRequest('POST', {
         workflowId: 'workflow-123',
         chatId: 'chat-123',
@@ -163,12 +174,6 @@ describe('Copilot Checkpoints API Route', () => {
 
     it('should successfully create a checkpoint', async () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
-
-      const chat = {
-        id: 'chat-123',
-        userId: 'user-123',
-      }
-      mockLimit.mockResolvedValue([chat])
 
       const checkpoint = {
         id: 'checkpoint-123',
@@ -219,12 +224,6 @@ describe('Copilot Checkpoints API Route', () => {
     it('should create checkpoint without messageId', async () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      const chat = {
-        id: 'chat-123',
-        userId: 'user-123',
-      }
-      mockLimit.mockResolvedValue([chat])
-
       const checkpoint = {
         id: 'checkpoint-123',
         userId: 'user-123',
@@ -254,12 +253,6 @@ describe('Copilot Checkpoints API Route', () => {
     it('should handle database errors during checkpoint creation', async () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      const chat = {
-        id: 'chat-123',
-        userId: 'user-123',
-      }
-      mockLimit.mockResolvedValue([chat])
-
       mockReturning.mockRejectedValue(new Error('Database insert failed'))
 
       const req = createMockRequest('POST', {
@@ -278,7 +271,7 @@ describe('Copilot Checkpoints API Route', () => {
     it('should handle database errors during chat lookup', async () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      mockLimit.mockRejectedValue(new Error('Database query failed'))
+      mockGetAccessibleCopilotChat.mockRejectedValueOnce(new Error('Database query failed'))
 
       const req = createMockRequest('POST', {
         workflowId: 'workflow-123',

@@ -5,6 +5,7 @@ title: Schedule
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
 
 The Schedule block automatically triggers workflows on a recurring schedule at specified intervals or times.
 
@@ -75,3 +76,13 @@ Schedules automatically disable after **100 consecutive failures** to prevent ru
 <Callout>
 Schedule blocks cannot receive incoming connections and serve as workflow entry points only.
 </Callout>
+
+<FAQ items={[
+  { question: "Do I need to deploy my workflow for the schedule to start?", answer: "Yes. Schedules are created in the database only when you deploy the workflow. Undeploying removes the schedule, and redeploying recreates it with the current configuration." },
+  { question: "What exactly happens after 100 consecutive failures?", answer: "After 100 consecutive failures, the schedule is automatically set to a disabled status to prevent runaway errors. A warning badge appears on the schedule block in the editor. You can click the badge to reactivate it. The failure counter resets to zero on any successful execution." },
+  { question: "Does the schedule support timezones?", answer: "Yes. The schedule configuration includes a timezone setting. Cron expressions and simple intervals are evaluated relative to the configured timezone, which defaults to UTC if not specified." },
+  { question: "What happens if my scheduled workflow is rate-limited?", answer: "If a rate limit (HTTP 429) is encountered during execution, the schedule automatically retries after a 5-minute delay rather than counting it as a failure." },
+  { question: "Can I have multiple schedule blocks in one workflow?", answer: "Yes. The deployment process finds all schedule blocks in the workflow and creates a separate schedule record for each one. Each schedule operates independently with its own cron expression and failure counter." },
+  { question: "What happens if the workflow is undeployed while a schedule execution is in progress?", answer: "The currently running execution will complete, but no new executions will be triggered. When the schedule next tries to fire, it checks that the workflow is still deployed and the schedule record still exists before executing." },
+]} />
+

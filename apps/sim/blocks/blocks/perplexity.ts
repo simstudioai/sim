@@ -171,6 +171,7 @@ Return ONLY the date string in MM/DD/YYYY format - no explanations, no quotes, n
       placeholder: 'Enter your Perplexity API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
     },
   ],
   tools: {

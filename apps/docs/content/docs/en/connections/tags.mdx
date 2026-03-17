@@ -4,6 +4,7 @@ title: Tags
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
 
 Connection tags are visual representations of the data available from connected blocks, providing an easy way to reference data between blocks and outputs from previous blocks in your workflow.
 
@@ -107,3 +108,14 @@ const total = <apiBlock.data.total> * 1.1; // Add 10% tax
   When using connection tags in numeric contexts, make sure the referenced data is actually a number
   to avoid type conversion issues.
 </Callout>
+
+<FAQ items={[
+  { question: "How are tag references resolved at runtime?", answer: "The executor uses a chain of resolvers. Each reference like <blockName.path> is matched against resolvers in order: loop references, parallel references, workflow variables, environment variables, and finally block output references. The first resolver that recognizes the reference handles it." },
+  { question: "Does the block name in a tag reference need to match exactly?", answer: "Block names are normalized by converting to lowercase and removing spaces before matching. So <My Agent.content> and <myagent.content> resolve to the same block. However, the field path after the block name (e.g., content, data.users) is case-sensitive." },
+  { question: "Can I reference environment variables in tag syntax?", answer: "Yes, but environment variables use double-brace syntax instead of angle brackets: {{MY_VAR}}. These are resolved by a dedicated environment variable resolver during execution." },
+  { question: "What happens if I reference a block that did not execute on the current path?", answer: "If the referenced block exists in the workflow but did not produce output (for example, it was on an unselected condition branch), the reference resolves to an empty value. In most blocks this becomes an empty string; in Function blocks it becomes null." },
+  { question: "Can I access array elements inside a tag reference?", answer: "Yes. Use bracket notation for array indices within the dot path, for example <api1.data.users[0].name>. The resolver supports multiple levels of array indexing like items[0][1] as well." },
+  { question: "How are tag values formatted inside Function blocks versus other blocks?", answer: "In Function blocks, resolved values are formatted as code literals (strings are quoted, objects are JSON, null stays as null) so they can be used directly in JavaScript or Python code. In other block types, objects are JSON-stringified and primitives are converted to plain strings." },
+  { question: "Can I mix static text with tag references?", answer: "Yes. You can embed tag references anywhere in a text string, such as \"Hello, <agent1.content>! Your order total is <api1.data.total>.\" The resolver replaces each tag in place while leaving the surrounding text intact." },
+]} />
+

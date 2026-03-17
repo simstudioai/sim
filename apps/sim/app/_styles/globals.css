@@ -10,15 +10,79 @@
  * @see stores/constants.ts for the source of truth
  */
 :root {
-  --sidebar-width: 232px; /* SIDEBAR_WIDTH.DEFAULT */
+  --sidebar-width: 248px; /* SIDEBAR_WIDTH.DEFAULT */
   --panel-width: 320px; /* PANEL_WIDTH.DEFAULT */
   --toolbar-triggers-height: 300px; /* TOOLBAR_TRIGGERS_HEIGHT.DEFAULT */
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
   --terminal-height: 206px; /* TERMINAL_HEIGHT.DEFAULT */
 }
 
+.workspace-root {
+  letter-spacing: 0.02em;
+}
+
+.workspace-root code,
+.workspace-root kbd,
+.workspace-root samp,
+.workspace-root pre,
+.workspace-root .font-mono {
+  letter-spacing: normal;
+}
+
 .sidebar-container {
   width: var(--sidebar-width);
+  transition: width 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.sidebar-container span,
+.sidebar-container .text-small {
+  transition: opacity 120ms ease;
+  white-space: nowrap;
+}
+
+.sidebar-container[data-collapsed] span,
+.sidebar-container[data-collapsed] .text-small {
+  opacity: 0;
+}
+
+html[data-sidebar-collapsed] .sidebar-container span,
+html[data-sidebar-collapsed] .sidebar-container .text-small {
+  opacity: 0;
+}
+
+.sidebar-container .sidebar-collapse-hide {
+  transition: opacity 60ms ease;
+}
+
+.sidebar-container[data-collapsed] .sidebar-collapse-hide,
+html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-hide {
+  opacity: 0;
+}
+
+html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-remove {
+  display: none;
+}
+
+html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
+  width: 0;
+  opacity: 0;
+}
+
+@keyframes sidebar-collapse-guard {
+  from {
+    pointer-events: none;
+  }
+  to {
+    pointer-events: auto;
+  }
+}
+
+.sidebar-container[data-collapsed] {
+  animation: sidebar-collapse-guard 250ms step-end;
+}
+
+.sidebar-container.is-resizing {
+  transition: none;
 }
 
 .panel-container {
@@ -86,24 +150,28 @@
   :root,
   .light {
     --bg: #fefefe; /* main canvas - neutral near-white */
-    --surface-1: #fefefe; /* sidebar, panels */
+    --surface-1: #f9f9f9; /* sidebar, panels */
     --surface-2: #ffffff; /* blocks, cards, modals - pure white */
     --surface-3: #f7f7f7; /* popovers, headers */
     --surface-4: #f5f5f5; /* buttons base */
-    --border: #e0e0e0; /* primary border */
+    --border: #dedede; /* primary border */
     --surface-5: #f3f3f3; /* inputs, form elements */
     --border-1: #e0e0e0; /* stronger border */
-    --surface-6: #f0f0f0; /* popovers, elevated surfaces */
-    --surface-7: #ececec;
+    --surface-6: #e5e5e5; /* popovers, elevated surfaces */
+    --surface-7: #d9d9d9;
+    --surface-active: #ececec; /* hover/active state */
 
     --workflow-edge: #e0e0e0; /* workflow handles/edges - matches border-1 */
 
     /* Text - neutral */
-    --text-primary: #2d2d2d;
-    --text-secondary: #404040;
+    --text-primary: #1a1a1a;
+    --text-secondary: #525252;
     --text-tertiary: #5c5c5c;
-    --text-muted: #737373;
+    --text-muted: #707070;
     --text-subtle: #8c8c8c;
+    --text-body: #3b3b3b;
+    --text-icon: #5e5e5e;
+
     --text-inverse: #ffffff;
     --text-muted-inverse: #a0a0a0;
     --text-error: #ef4444;
@@ -117,15 +185,16 @@
     --brand-400: #8e4cfb;
     --brand-secondary: #33b4ff;
     --brand-tertiary: #22c55e;
-    --brand-tertiary-2: #32bd7e;
+    --brand-tertiary-2: #33c482;
+    --selection: #1a5cf6;
     --warning: #ea580c;
 
     /* Utility */
     --white: #ffffff;
 
     /* Font weights - lighter for light mode */
-    --font-weight-base: 430;
-    --font-weight-medium: 450;
+    --font-weight-base: 420;
+    --font-weight-medium: 440;
     --font-weight-semibold: 500;
 
     /* Extended palette */
@@ -207,11 +276,12 @@
     --surface-2: #232323;
     --surface-3: #242424;
     --surface-4: #292929;
-    --border: #2c2c2c;
+    --border: #333333;
     --surface-5: #363636;
     --border-1: #3d3d3d;
     --surface-6: #454545;
-    --surface-7: #454545;
+    --surface-7: #505050;
+    --surface-active: #2c2c2c; /* hover/active state */
 
     --workflow-edge: #454545; /* workflow handles/edges - same as surface-6 in dark */
 
@@ -221,6 +291,9 @@
     --text-tertiary: #b3b3b3;
     --text-muted: #787878;
     --text-subtle: #7d7d7d;
+    --text-body: #cdcdcd;
+    --text-icon: #939393;
+
     --text-inverse: #1b1b1b;
     --text-muted-inverse: #b3b3b3;
     --text-error: #ef4444;
@@ -234,14 +307,15 @@
     --brand-400: #8e4cfb;
     --brand-secondary: #33b4ff;
     --brand-tertiary: #22c55e;
-    --brand-tertiary-2: #32bd7e;
+    --brand-tertiary-2: #33c482;
+    --selection: #4b83f7;
     --warning: #ff6600;
 
     /* Utility */
     --white: #ffffff;
 
     /* Font weights - standard weights for dark mode */
-    --font-weight-base: 440;
+    --font-weight-base: 420;
     --font-weight-medium: 480;
     --font-weight-semibold: 550;
 
@@ -516,42 +590,6 @@ input[type="search"]::-ms-clear {
     background-color: hsl(var(--input-background));
   }
 
-  .auth-card {
-    background-color: var(--white) !important;
-    border-color: var(--border-muted) !important;
-  }
-
-  .dark .auth-card {
-    background-color: var(--surface-1) !important;
-    border-color: var(--border-muted) !important;
-  }
-
-  .auth-text-primary {
-    color: var(--text-inverse) !important;
-  }
-
-  .auth-text-secondary {
-    color: var(--text-secondary) !important;
-  }
-
-  .auth-text-muted {
-    color: var(--text-muted) !important;
-  }
-
-  .auth-divider {
-    border-color: var(--border-muted) !important;
-  }
-
-  .auth-card-shadow {
-    box-shadow:
-      0 10px 15px -3px rgba(0, 0, 0, 0.05),
-      0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
-  }
-
-  .auth-link {
-    color: var(--text-muted) !important;
-  }
-
   .transition-ring {
     transition-property: box-shadow, transform;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
@@ -629,20 +667,6 @@ input[type="search"]::-ms-clear {
   html[data-panel-active-tab="editor"] .panel-container [data-tab-button="toolbar"] {
     background-color: transparent !important;
     color: var(--text-tertiary) !important;
-  }
-}
-
-/**
- * Notification toast enter animation
- */
-@keyframes notification-enter {
-  from {
-    opacity: 0;
-    transform: translateX(-16px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(var(--stack-offset, 0px));
   }
 }
 
@@ -767,6 +791,59 @@ input[type="search"]::-ms-clear {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+@keyframes notification-enter {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--stack-offset, 0px) - 8px)) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(var(--stack-offset, 0px)) scale(1);
+  }
+}
+
+@keyframes notification-countdown {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: 34.56;
+  }
+}
+
+@keyframes notification-exit {
+  from {
+    opacity: 1;
+    transform: translateX(var(--stack-offset, 0px)) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(calc(var(--stack-offset, 0px) + 8px)) scale(0.97);
+  }
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toast-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
   }
 }
 

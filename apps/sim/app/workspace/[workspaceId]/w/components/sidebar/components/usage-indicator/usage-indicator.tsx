@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
-import { Badge } from '@/components/emcn'
-import { Skeleton } from '@/components/ui'
+import { Badge, Skeleton } from '@/components/emcn'
 import { USAGE_PILL_COLORS, USAGE_THRESHOLDS } from '@/lib/billing/client/consts'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
 import {
@@ -13,9 +12,11 @@ import {
   getSubscriptionStatus,
   getUsage,
 } from '@/lib/billing/client/utils'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { UsageIndicatorContextMenu } from './usage-indicator-context-menu'
@@ -152,7 +153,7 @@ function getStatusTextConfig(
     }
   }
   return {
-    text: `$${usage.current.toFixed(2)} / $${usage.limit.toFixed(2)}`,
+    text: `${dollarsToCredits(usage.current).toLocaleString()} / ${dollarsToCredits(usage.limit).toLocaleString()} credits`,
     isError: false,
   }
 }
@@ -203,6 +204,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   const { onOperationConfirmed } = useSocket()
   const queryClient = useQueryClient()
   const { handleUpgrade } = useSubscriptionUpgrade()
+  const { navigateToSettings } = useSettingsNavigation()
 
   const {
     isOpen: isContextMenuOpen,
@@ -304,12 +306,12 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   }, [handleUpgrade])
 
   const handleSetLimit = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'subscription' } }))
-  }, [])
+    navigateToSettings({ section: 'subscription' })
+  }, [navigateToSettings])
 
   const handleManageSeats = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'team' } }))
-  }, [])
+    navigateToSettings({ section: 'team' })
+  }, [navigateToSettings])
 
   const handleUpgradeToEnterprise = useCallback(() => {
     window.open(TYPEFORM_ENTERPRISE_URL, '_blank')
@@ -455,10 +457,8 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
         }
       }
 
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'subscription' } }))
-        logger.info('Opened settings to subscription tab')
-      }
+      navigateToSettings({ section: 'subscription' })
+      logger.info('Opened settings to subscription tab')
     } catch (error) {
       logger.error('Failed to handle usage indicator click', { error })
     }
@@ -468,7 +468,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     return (
       <div className='flex flex-shrink-0 flex-col border-t px-[13.5px] pt-[8px] pb-[10px]'>
         <div className='flex h-[18px] items-center'>
-          <span className='font-medium text-[12px] text-[var(--text-primary)]'>
+          <span className='font-base text-[12px] text-[var(--text-primary)]'>
             {PLAN_NAMES[planType]}
           </span>
         </div>
@@ -490,7 +490,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
           <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
             {showPlanText && (
               <>
-                <span className='flex-shrink-0 font-medium text-[12px] text-[var(--text-primary)]'>
+                <span className='flex-shrink-0 font-base text-[12px] text-[var(--text-primary)]'>
                   {PLAN_NAMES[planType]}
                 </span>
                 <div className='h-[14px] w-[1.5px] flex-shrink-0 bg-[var(--divider)]' />
@@ -498,17 +498,17 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
             )}
             <div className='flex min-w-0 flex-1 items-center gap-[4px]'>
               {statusText.isError ? (
-                <span className='font-medium text-[12px] text-[var(--text-error)]'>
+                <span className='font-base text-[12px] text-[var(--text-error)]'>
                   {statusText.text}
                 </span>
               ) : (
                 <>
-                  <span className='font-medium text-[12px] text-[var(--text-secondary)] tabular-nums'>
-                    ${usage.current.toFixed(2)}
+                  <span className='font-base text-[12px] text-[var(--text-secondary)] tabular-nums'>
+                    {dollarsToCredits(usage.current).toLocaleString()}
                   </span>
-                  <span className='font-medium text-[12px] text-[var(--text-secondary)]'>/</span>
-                  <span className='font-medium text-[12px] text-[var(--text-secondary)] tabular-nums'>
-                    ${usage.limit.toFixed(2)}
+                  <span className='font-base text-[12px] text-[var(--text-secondary)]'>/</span>
+                  <span className='font-base text-[12px] text-[var(--text-secondary)] tabular-nums'>
+                    {dollarsToCredits(usage.limit).toLocaleString()} credits
                   </span>
                 </>
               )}

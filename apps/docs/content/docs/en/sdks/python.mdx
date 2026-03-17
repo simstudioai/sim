@@ -65,14 +65,14 @@ Execute a workflow with optional input data.
 ```python
 result = client.execute_workflow(
     "workflow-id",
-    input_data={"message": "Hello, world!"},
+    input={"message": "Hello, world!"},
     timeout=30.0  # 30 seconds
 )
 ```
 
 **Parameters:**
 - `workflow_id` (str): The ID of the workflow to execute
-- `input_data` (dict, optional): Input data to pass to the workflow
+- `input` (dict, optional): Input data to pass to the workflow
 - `timeout` (float, optional): Timeout in seconds (default: 30.0)
 - `stream` (bool, optional): Enable streaming responses (default: False)
 - `selected_outputs` (list[str], optional): Block outputs to stream in `blockName.attribute` format (e.g., `["agent1.content"]`)
@@ -144,7 +144,7 @@ Execute a workflow with automatic retry on rate limit errors using exponential b
 ```python
 result = client.execute_with_retry(
     "workflow-id",
-    input_data={"message": "Hello"},
+    input={"message": "Hello"},
     timeout=30.0,
     max_retries=3,           # Maximum number of retries
     initial_delay=1.0,       # Initial delay in seconds
@@ -155,7 +155,7 @@ result = client.execute_with_retry(
 
 **Parameters:**
 - `workflow_id` (str): The ID of the workflow to execute
-- `input_data` (dict, optional): Input data to pass to the workflow
+- `input` (dict, optional): Input data to pass to the workflow
 - `timeout` (float, optional): Timeout in seconds
 - `stream` (bool, optional): Enable streaming responses
 - `selected_outputs` (list, optional): Block outputs to stream
@@ -359,7 +359,7 @@ def run_workflow():
         # Execute the workflow
         result = client.execute_workflow(
             "my-workflow-id",
-            input_data={
+            input={
                 "message": "Process this data",
                 "user_id": "12345"
             }
@@ -488,7 +488,7 @@ def execute_async():
         # Start async execution
         result = client.execute_workflow(
             "workflow-id",
-            input_data={"data": "large dataset"},
+            input={"data": "large dataset"},
             async_execution=True  # Execute asynchronously
         )
 
@@ -533,7 +533,7 @@ def execute_with_retry_handling():
         # Automatically retries on rate limit
         result = client.execute_with_retry(
             "workflow-id",
-            input_data={"message": "Process this"},
+            input={"message": "Process this"},
             max_retries=5,
             initial_delay=1.0,
             max_delay=60.0,
@@ -615,7 +615,7 @@ def execute_with_streaming():
         # Enable streaming for specific block outputs
         result = client.execute_workflow(
             "workflow-id",
-            input_data={"message": "Count to five"},
+            input={"message": "Count to five"},
             stream=True,
             selected_outputs=["agent1.content"]  # Use blockName.attribute format
         )
@@ -758,4 +758,15 @@ Configure the client using environment variables:
 
 ## License
 
-Apache-2.0 
+Apache-2.0
+
+import { FAQ } from '@/components/ui/faq'
+
+<FAQ items={[
+  { question: "Do I need to deploy a workflow before I can execute it via the SDK?", answer: "Yes. Workflows must be deployed before they can be executed through the SDK. You can use the validate_workflow() method to check whether a workflow is deployed and ready. If it returns False, deploy the workflow from the Sim UI first and create or select an API key during deployment." },
+  { question: "What is the difference between sync and async execution?", answer: "Sync execution (the default) blocks until the workflow completes and returns the full result. Async execution (async_execution=True) returns immediately with a task ID that you can poll using get_job_status(). Use async mode for long-running workflows to avoid request timeouts. Async job statuses include queued, processing, completed, failed, and cancelled." },
+  { question: "How does the SDK handle rate limiting?", answer: "The SDK provides built-in rate limiting support through the execute_with_retry() method. It uses exponential backoff (1s, 2s, 4s, 8s...) with 25% jitter to avoid thundering herd problems. If the API returns a retry-after header, that value is used instead. You can configure max_retries, initial_delay, max_delay, and backoff_multiplier. Use get_rate_limit_info() to check your current rate limit status." },
+  { question: "Can I use the Python SDK as a context manager?", answer: "Yes. The SimStudioClient supports Python's context manager protocol. Use it with the 'with' statement to automatically close the underlying HTTP session when you are done, which is especially useful for scripts that create and discard client instances." },
+  { question: "How do I handle different types of errors from the SDK?", answer: "The SDK raises SimStudioError with a code property for API-specific errors. Common error codes are UNAUTHORIZED (invalid API key), TIMEOUT (request timed out), RATE_LIMIT_EXCEEDED (too many requests), USAGE_LIMIT_EXCEEDED (billing limit reached), and EXECUTION_ERROR (workflow failed). Use the error code to implement targeted error handling and recovery logic." },
+  { question: "How do I monitor my API usage and remaining quota?", answer: "Use the get_usage_limits() method to check your current usage. It returns sync and async rate limit details (limit, remaining, reset time, whether you are currently limited), plus your current period cost, usage limit, and plan tier. This lets you monitor consumption and alert before hitting limits." },
+]} />

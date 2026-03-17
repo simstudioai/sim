@@ -11,6 +11,21 @@ export const brandfetchSearchTool: ToolConfig<BrandfetchSearchParams, Brandfetch
   description: 'Search for brands by name and find their domains and logos',
   version: '1.0.0',
 
+  hosting: {
+    envKeyPrefix: 'BRANDFETCH_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'brandfetch',
+    pricing: {
+      type: 'per_request',
+      // Brand Search API is free (fair-use 500K/month) — https://docs.brandfetch.com/brand-search-api/rate-limits
+      cost: 0,
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 30,
+    },
+  },
+
   params: {
     apiKey: {
       type: 'string',

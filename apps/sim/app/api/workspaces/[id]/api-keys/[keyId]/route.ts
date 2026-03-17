@@ -32,7 +32,7 @@ export async function PUT(
     const userId = session.user.id
 
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-    if (!permission || (permission !== 'admin' && permission !== 'write')) {
+    if (permission !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -128,7 +128,7 @@ export async function DELETE(
     const userId = session.user.id
 
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-    if (!permission || (permission !== 'admin' && permission !== 'write')) {
+    if (permission !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

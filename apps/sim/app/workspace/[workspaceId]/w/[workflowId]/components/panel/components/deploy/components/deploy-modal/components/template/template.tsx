@@ -12,10 +12,10 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Skeleton,
   TagInput,
   Textarea,
 } from '@/components/emcn'
-import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { captureAndUploadOGImage, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH } from '@/lib/og'
@@ -27,6 +27,7 @@ import {
   useTemplateByWorkflow,
   useUpdateTemplate,
 } from '@/hooks/queries/templates'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -62,6 +63,7 @@ export function TemplateDeploy({
   onSubmittingChange,
 }: TemplateDeployProps) {
   const { data: session } = useSession()
+  const { navigateToSettings } = useSettingsNavigation()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isCapturing, setIsCapturing] = useState(false)
   const previewContainerRef = useRef<HTMLDivElement>(null)
@@ -103,8 +105,7 @@ export function TemplateDeploy({
 
   useEffect(() => {
     const handleCreatorProfileSaved = () => {
-      logger.info('Creator profile saved, reopening deploy modal...')
-      window.dispatchEvent(new CustomEvent('close-settings'))
+      logger.info('Creator profile saved, returning to deploy modal...')
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('open-deploy-modal', { detail: { tab: 'template' } }))
       }, 100)
@@ -301,17 +302,7 @@ export function TemplateDeploy({
                 type='button'
                 variant='tertiary'
                 onClick={() => {
-                  try {
-                    const event = new CustomEvent('open-settings', {
-                      detail: { tab: 'template-profile' },
-                    })
-                    window.dispatchEvent(event)
-                    logger.info('Opened Settings modal at template-profile section')
-                  } catch (error) {
-                    logger.error('Failed to open Settings modal for template profile', {
-                      error,
-                    })
-                  }
+                  navigateToSettings({ section: 'template-profile' })
                 }}
                 className='gap-[8px]'
               >
@@ -374,7 +365,7 @@ export function TemplateDeploy({
         <ModalContent size='sm'>
           <ModalHeader>Delete Template</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {existingTemplate?.name || formData.name || 'this template'}

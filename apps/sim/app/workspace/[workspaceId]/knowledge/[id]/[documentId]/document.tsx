@@ -1,63 +1,91 @@
 'use client'
 
-import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useQueryClient } from '@tanstack/react-query'
-import {
-  ChevronLeft,
-  ChevronRight,
-  Circle,
-  CircleOff,
-  FileText,
-  Loader2,
-  Search,
-  X,
-} from 'lucide-react'
+import { ChevronDown, ChevronUp, FileText, Pencil, Tag } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   Badge,
-  Breadcrumb,
   Button,
-  Checkbox,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  Tooltip,
   Trash,
 } from '@/components/emcn'
-import { Input } from '@/components/ui/input'
 import { SearchHighlight } from '@/components/ui/search-highlight'
-import { Skeleton } from '@/components/ui/skeleton'
-import { formatAbsoluteDate, formatRelativeTime } from '@/lib/core/utils/formatting'
+import { cn } from '@/lib/core/utils/cn'
 import type { ChunkData } from '@/lib/knowledge/types'
+import { formatTokenCount } from '@/lib/tokenization'
+import type {
+  BreadcrumbItem,
+  FilterTag,
+  HeaderAction,
+  PaginationConfig,
+  ResourceColumn,
+  ResourceRow,
+  SearchConfig,
+  SelectableConfig,
+} from '@/app/workspace/[workspaceId]/components'
+import { Resource, ResourceHeader } from '@/app/workspace/[workspaceId]/components'
 import {
   ChunkContextMenu,
-  CreateChunkModal,
+  ChunkEditor,
   DeleteChunkModal,
   DocumentTagsModal,
-  EditChunkModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useDocument, useDocumentChunks, useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import {
-  knowledgeKeys,
   useBulkChunkOperation,
   useDeleteDocument,
   useDocumentChunkSearchQuery,
   useUpdateChunk,
-} from '@/hooks/queries/knowledge'
+  useUpdateDocument,
+} from '@/hooks/queries/kb/knowledge'
+import { useInlineRename } from '@/hooks/use-inline-rename'
 
 const logger = createLogger('Document')
+
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+
+interface UnsavedChangesModalProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onKeepEditing: () => void
+  onDiscard: () => void
+}
+
+function UnsavedChangesModal({
+  open,
+  onOpenChange,
+  onKeepEditing,
+  onDiscard,
+}: UnsavedChangesModalProps) {
+  return (
+    <Modal open={open} onOpenChange={onOpenChange}>
+      <ModalContent size='sm'>
+        <ModalHeader>Unsaved Changes</ModalHeader>
+        <ModalBody>
+          <p className='text-[var(--text-secondary)]'>
+            You have unsaved changes. Are you sure you want to discard them?
+          </p>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant='default' onClick={onKeepEditing}>
+            Keep Editing
+          </Button>
+          <Button variant='destructive' onClick={onDiscard}>
+            Discard Changes
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
+  )
+}
 
 interface DocumentProps {
   knowledgeBaseId: string
@@ -94,143 +122,12 @@ function truncateContent(content: string, maxLength = 150, searchQuery = ''): st
   return `${content.substring(0, maxLength)}...`
 }
 
-function ChunkTableRowSkeleton() {
-  return (
-    <TableRow className='hover:bg-transparent'>
-      <TableCell className='w-[52px] py-[8px]' style={{ paddingLeft: '20.5px', paddingRight: 0 }}>
-        <div className='flex items-center'>
-          <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
-        </div>
-      </TableCell>
-      <TableCell className='w-[60px] py-[8px] pr-[12px] pl-[15px]'>
-        <Skeleton className='h-[21px] w-[24px]' />
-      </TableCell>
-      <TableCell className='px-[12px] py-[8px]'>
-        <Skeleton className='h-[21px] w-full' />
-      </TableCell>
-      <TableCell className='w-[8%] px-[12px] py-[8px]'>
-        <Skeleton className='h-[18px] w-[32px]' />
-      </TableCell>
-      <TableCell className='w-[12%] px-[12px] py-[8px]'>
-        <Skeleton className='h-[24px] w-[64px] rounded-md' />
-      </TableCell>
-      <TableCell className='w-[14%] py-[8px] pr-[4px] pl-[12px]'>
-        <div className='flex items-center gap-[4px]'>
-          <Skeleton className='h-[28px] w-[28px] rounded-[4px]' />
-          <Skeleton className='h-[28px] w-[28px] rounded-[4px]' />
-        </div>
-      </TableCell>
-    </TableRow>
-  )
-}
-
-function ChunkTableSkeleton({ rowCount = 8 }: { rowCount?: number }) {
-  return (
-    <Table className='min-w-[700px] table-fixed text-[13px]'>
-      <TableHeader>
-        <TableRow className='hover:bg-transparent'>
-          <TableHead
-            className='w-[52px] py-[8px]'
-            style={{ paddingLeft: '20.5px', paddingRight: 0 }}
-          >
-            <div className='flex items-center'>
-              <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
-            </div>
-          </TableHead>
-          <TableHead className='w-[60px] py-[8px] pr-[12px] pl-[15px] text-[12px] text-[var(--text-secondary)]'>
-            Index
-          </TableHead>
-          <TableHead className='px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-            Content
-          </TableHead>
-          <TableHead className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-            Tokens
-          </TableHead>
-          <TableHead className='w-[12%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-            Status
-          </TableHead>
-          <TableHead className='w-[14%] py-[8px] pr-[4px] pl-[12px] text-[12px] text-[var(--text-secondary)]'>
-            Actions
-          </TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {Array.from({ length: rowCount }).map((_, i) => (
-          <ChunkTableRowSkeleton key={i} />
-        ))}
-      </TableBody>
-    </Table>
-  )
-}
-
-interface DocumentLoadingProps {
-  knowledgeBaseId: string
-  knowledgeBaseName: string
-  documentName: string
-}
-
-function DocumentLoading({
-  knowledgeBaseId,
-  knowledgeBaseName,
-  documentName,
-}: DocumentLoadingProps) {
-  const { workspaceId } = useParams()
-
-  const breadcrumbItems = [
-    { label: 'Knowledge Base', href: `/workspace/${workspaceId}/knowledge` },
-    {
-      label: knowledgeBaseName,
-      href: `/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`,
-    },
-    { label: documentName },
-  ]
-
-  return (
-    <div className='flex h-full flex-1 flex-col'>
-      <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto bg-white px-[24px] pt-[24px] pb-[24px] dark:bg-[var(--bg)]'>
-          <Breadcrumb items={breadcrumbItems} />
-
-          <div className='mt-[14px] flex items-center justify-between'>
-            <Skeleton className='h-[27px] w-[200px] rounded-[4px]' />
-            <div className='flex items-center gap-2'>
-              <Skeleton className='h-[32px] w-[52px] rounded-[6px]' />
-              <Skeleton className='h-[32px] w-[32px] rounded-[6px]' />
-            </div>
-          </div>
-
-          <div className='mt-[4px]'>
-            <Skeleton className='h-[21px] w-[80px] rounded-[4px]' />
-          </div>
-
-          <div className='mt-[16px] flex items-center gap-[8px]'>
-            <Skeleton className='h-[21px] w-[80px] rounded-[4px]' />
-            <div className='mb-[-1.5px] h-[18px] w-[1.25px] rounded-full bg-[#3A3A3A]' />
-            <Skeleton className='h-[21px] w-[140px] rounded-[4px]' />
-          </div>
-
-          <div className='mt-[14px] flex items-center justify-between'>
-            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-3)] px-[8px] dark:bg-[var(--surface-4)]'>
-              <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
-              <Input
-                placeholder='Search chunks...'
-                disabled
-                className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-            </div>
-            <Button disabled variant='tertiary' className='h-[32px] rounded-[6px]'>
-              Create Chunk
-            </Button>
-          </div>
-
-          <div className='mt-[12px] flex flex-1 flex-col overflow-hidden'>
-            <ChunkTableSkeleton rowCount={8} />
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
+const CHUNK_COLUMNS: ResourceColumn[] = [
+  { id: 'content', header: 'Content' },
+  { id: 'index', header: 'Index' },
+  { id: 'tokens', header: 'Tokens' },
+  { id: 'status', header: 'Status' },
+]
 
 export function Document({
   knowledgeBaseId,
@@ -238,7 +135,6 @@ export function Document({
   knowledgeBaseName,
   documentName,
 }: DocumentProps) {
-  const queryClient = useQueryClient()
   const { workspaceId } = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -256,6 +152,7 @@ export function Document({
 
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
+  const [enabledFilter, setEnabledFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
 
   const {
     chunks: initialChunks,
@@ -268,13 +165,9 @@ export function Document({
     refreshChunks: initialRefreshChunks,
     updateChunk: initialUpdateChunk,
     isFetching: isFetchingChunks,
-  } = useDocumentChunks(knowledgeBaseId, documentId, currentPageFromURL)
+  } = useDocumentChunks(knowledgeBaseId, documentId, currentPageFromURL, '', enabledFilter)
 
-  const {
-    data: searchResults = [],
-    isLoading: isLoadingSearch,
-    error: searchQueryError,
-  } = useDocumentChunkSearchQuery(
+  const { data: searchResults = [], error: searchQueryError } = useDocumentChunkSearchQuery(
     {
       knowledgeBaseId,
       documentId,
@@ -287,9 +180,27 @@ export function Document({
 
   const searchError = searchQueryError instanceof Error ? searchQueryError.message : null
 
-  const [selectedChunks, setSelectedChunks] = useState<Set<string>>(new Set())
-  const [selectedChunk, setSelectedChunk] = useState<ChunkData | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedChunks, setSelectedChunks] = useState<Set<string>>(() => new Set())
+
+  // Inline editor state
+  const [selectedChunkId, setSelectedChunkId] = useState<string | null>(null)
+  const [isCreatingNewChunk, setIsCreatingNewChunk] = useState(false)
+  const [isDirty, setIsDirty] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null)
+  const saveRef = useRef<(() => Promise<void>) | null>(null)
+  const saveStatusRef = useRef<SaveStatus>('idle')
+  saveStatusRef.current = saveStatus
+
+  // Auto-select chunk from URL param on mount
+  const initialChunkParam = useRef(searchParams.get('chunk'))
+  useEffect(() => {
+    if (initialChunkParam.current) {
+      setSelectedChunkId(initialChunkParam.current)
+      initialChunkParam.current = null
+    }
+  }, [])
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -324,6 +235,12 @@ export function Document({
   const hasNextPage = showingSearch ? searchCurrentPage < searchTotalPages : initialHasNextPage
   const hasPrevPage = showingSearch ? searchCurrentPage > 1 : initialHasPrevPage
 
+  // Keep refs to displayChunks and totalPages so polling callbacks can read fresh data
+  const displayChunksRef = useRef(displayChunks)
+  displayChunksRef.current = displayChunks
+  const totalPagesRef = useRef(totalPages)
+  totalPagesRef.current = totalPages
+
   const goToPage = useCallback(
     async (page: number) => {
       const params = new URLSearchParams(window.location.search)
@@ -342,22 +259,11 @@ export function Document({
     [showingSearch, initialGoToPage]
   )
 
-  const nextPage = useCallback(async () => {
-    if (hasNextPage) {
-      await goToPage(currentPage + 1)
-    }
-  }, [hasNextPage, currentPage, goToPage])
-
-  const prevPage = useCallback(async () => {
-    if (hasPrevPage) {
-      await goToPage(currentPage - 1)
-    }
-  }, [hasPrevPage, currentPage, goToPage])
-
   const refreshChunks = showingSearch ? async () => {} : initialRefreshChunks
-  const updateChunk = showingSearch ? (id: string, updates: any) => {} : initialUpdateChunk
+  const updateChunk = showingSearch
+    ? (_id: string, _updates: Record<string, unknown>) => {}
+    : initialUpdateChunk
 
-  const [isCreateChunkModalOpen, setIsCreateChunkModalOpen] = useState(false)
   const [chunkToDelete, setChunkToDelete] = useState<ChunkData | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [showDeleteDocumentDialog, setShowDeleteDocumentDialog] = useState(false)
@@ -366,6 +272,12 @@ export function Document({
   const { mutate: updateChunkMutation } = useUpdateChunk()
   const { mutate: deleteDocumentMutation, isPending: isDeletingDocument } = useDeleteDocument()
   const { mutate: bulkChunkMutation, isPending: isBulkOperating } = useBulkChunkOperation()
+  const { mutate: updateDocumentMutation } = useUpdateDocument()
+
+  const docRename = useInlineRename({
+    onSave: (docId, filename) =>
+      updateDocumentMutation({ knowledgeBaseId, documentId: docId, updates: { filename } }),
+  })
 
   const {
     isOpen: isContextMenuOpen,
@@ -377,54 +289,357 @@ export function Document({
 
   const combinedError = documentError || searchError || initialError
 
+  const isConnectorDocument = Boolean(documentData?.connectorId)
   const effectiveKnowledgeBaseName = knowledgeBase?.name || knowledgeBaseName || 'Knowledge Base'
   const effectiveDocumentName = documentData?.filename || documentName || 'Document'
+  const isCompleted = documentData?.processingStatus === 'completed'
+  const canEdit = userPermissions.canEdit === true
 
-  const breadcrumbItems = [
-    { label: 'Knowledge Base', href: `/workspace/${workspaceId}/knowledge` },
-    {
-      label: effectiveKnowledgeBaseName,
-      href: `/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`,
+  const isInEditorView = selectedChunkId !== null || isCreatingNewChunk
+
+  const selectedChunk = useMemo(
+    () => (selectedChunkId ? (displayChunks.find((c) => c.id === selectedChunkId) ?? null) : null),
+    [selectedChunkId, displayChunks]
+  )
+
+  const currentChunkIndex = useMemo(
+    () => (selectedChunk ? displayChunks.findIndex((c) => c.id === selectedChunk.id) : -1),
+    [selectedChunk, displayChunks]
+  )
+  const canNavigatePrev = currentChunkIndex > 0 || currentPage > 1
+  const canNavigateNext = currentChunkIndex < displayChunks.length - 1 || currentPage < totalPages
+
+  const closeEditor = useCallback(() => {
+    setSelectedChunkId(null)
+    setIsCreatingNewChunk(false)
+    setIsDirty(false)
+    setSaveStatus('idle')
+  }, [])
+
+  const guardDirtyAction = useCallback(
+    (action: () => void) => {
+      if (isDirty) {
+        setPendingAction(() => action)
+        setShowUnsavedChangesAlert(true)
+      } else {
+        action()
+      }
     },
-    { label: effectiveDocumentName },
+    [isDirty]
+  )
+
+  const handleBackAttempt = useCallback(() => {
+    guardDirtyAction(closeEditor)
+  }, [guardDirtyAction, closeEditor])
+
+  const handleSave = useCallback(async () => {
+    if (!saveRef.current || !isDirty || saveStatusRef.current === 'saving') return
+    if (isCreatingNewChunk) {
+      setSaveStatus('saving')
+      try {
+        await saveRef.current()
+        setSaveStatus('saved')
+      } catch {
+        setSaveStatus('error')
+        setTimeout(() => setSaveStatus('idle'), 2000)
+      }
+    } else {
+      await saveRef.current()
+    }
+  }, [isDirty, isCreatingNewChunk])
+
+  const handleDiscardChanges = useCallback(() => {
+    setShowUnsavedChangesAlert(false)
+    const action = pendingAction
+    setPendingAction(null)
+    if (action) {
+      setIsDirty(false)
+      action()
+    } else {
+      closeEditor()
+    }
+  }, [pendingAction, closeEditor])
+
+  useEffect(() => {
+    if (!isInEditorView) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault()
+        handleSave()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isInEditorView, handleSave])
+
+  useEffect(() => {
+    if (!isDirty) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isDirty])
+
+  const navigateToChunk = useCallback(
+    async (direction: 'prev' | 'next') => {
+      if (!selectedChunk) return
+
+      if (direction === 'prev') {
+        if (currentChunkIndex > 0) {
+          setSelectedChunkId(displayChunks[currentChunkIndex - 1].id)
+        } else if (currentPage > 1) {
+          await goToPage(currentPage - 1)
+          // Use ref to read fresh displayChunks after page change
+          let retries = 0
+          const checkAndSelect = () => {
+            const chunks = displayChunksRef.current
+            if (chunks.length > 0 && chunks !== displayChunks) {
+              setSelectedChunkId(chunks[chunks.length - 1].id)
+            } else if (retries < 50) {
+              retries++
+              setTimeout(checkAndSelect, 100)
+            }
+          }
+          setTimeout(checkAndSelect, 0)
+        }
+      } else {
+        if (currentChunkIndex < displayChunks.length - 1) {
+          setSelectedChunkId(displayChunks[currentChunkIndex + 1].id)
+        } else if (currentPage < totalPages) {
+          await goToPage(currentPage + 1)
+          let retries = 0
+          const checkAndSelect = () => {
+            const chunks = displayChunksRef.current
+            if (chunks.length > 0 && chunks !== displayChunks) {
+              setSelectedChunkId(chunks[0].id)
+            } else if (retries < 50) {
+              retries++
+              setTimeout(checkAndSelect, 100)
+            }
+          }
+          setTimeout(checkAndSelect, 0)
+        }
+      }
+    },
+    [selectedChunk, currentChunkIndex, displayChunks, currentPage, totalPages, goToPage]
+  )
+
+  const handleNavigateChunk = useCallback(
+    (direction: 'prev' | 'next') => {
+      guardDirtyAction(() => void navigateToChunk(direction))
+    },
+    [guardDirtyAction, navigateToChunk]
+  )
+
+  const handleNavToKB = useCallback(() => {
+    router.push(`/workspace/${workspaceId}/knowledge`)
+  }, [router, workspaceId])
+
+  const handleNavToKBDetail = useCallback(() => {
+    router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`)
+  }, [router, workspaceId, knowledgeBaseId])
+
+  const handleStartDocRename = useCallback(() => {
+    docRename.startRename(documentId, effectiveDocumentName)
+  }, [docRename.startRename, documentId, effectiveDocumentName])
+
+  const handleShowTags = useCallback(() => setShowTagsModal(true), [])
+  const handleShowDeleteDoc = useCallback(() => setShowDeleteDocumentDialog(true), [])
+  const handleClearSelectedChunk = useCallback(() => setSelectedChunkId(null), [])
+
+  const breadcrumbs = useMemo<BreadcrumbItem[]>(
+    () =>
+      combinedError
+        ? [
+            { label: 'Knowledge Base', onClick: handleNavToKB },
+            { label: effectiveKnowledgeBaseName, onClick: handleNavToKBDetail },
+            { label: 'Error' },
+          ]
+        : [
+            { label: 'Knowledge Base', onClick: handleNavToKB },
+            { label: effectiveKnowledgeBaseName, onClick: handleNavToKBDetail },
+            {
+              label: effectiveDocumentName,
+              editing: docRename.editingId
+                ? {
+                    isEditing: true,
+                    value: docRename.editValue,
+                    onChange: docRename.setEditValue,
+                    onSubmit: docRename.submitRename,
+                    onCancel: docRename.cancelRename,
+                  }
+                : undefined,
+              dropdownItems: [
+                ...(userPermissions.canEdit
+                  ? [
+                      { label: 'Rename', icon: Pencil, onClick: handleStartDocRename },
+                      { label: 'Tags', icon: Tag, onClick: handleShowTags },
+                      { label: 'Delete', icon: Trash, onClick: handleShowDeleteDoc },
+                    ]
+                  : []),
+              ],
+            },
+          ],
+    [
+      combinedError,
+      handleNavToKB,
+      handleNavToKBDetail,
+      effectiveKnowledgeBaseName,
+      effectiveDocumentName,
+      docRename.editingId,
+      docRename.editValue,
+      docRename.setEditValue,
+      docRename.submitRename,
+      docRename.cancelRename,
+      userPermissions.canEdit,
+      handleStartDocRename,
+      handleShowTags,
+      handleShowDeleteDoc,
+    ]
+  )
+
+  const handleNewChunk = useCallback(() => {
+    guardDirtyAction(() => {
+      setIsCreatingNewChunk(true)
+      setSelectedChunkId(null)
+      setIsDirty(false)
+      setSaveStatus('idle')
+    })
+  }, [guardDirtyAction])
+
+  const handleChunkCreated = useCallback(
+    async (chunkId: string) => {
+      setIsCreatingNewChunk(false)
+      setIsDirty(false)
+      setSaveStatus('idle')
+
+      // New chunks append at the end — navigate to last page so the chunk is visible.
+      // totalPages in the closure may be stale if the new chunk creates a new page,
+      // so we start at the current last page, then poll displayChunksRef. If the chunk
+      // isn't found, totalPagesRef will have the updated count after React Query refetches,
+      // so we navigate to the new last page and keep polling.
+      await goToPage(totalPages)
+      let retries = 0
+      let navigatedToNewPage = false
+      const checkAndSelect = () => {
+        const found = displayChunksRef.current.some((c) => c.id === chunkId)
+        if (found) {
+          setSelectedChunkId(chunkId)
+        } else if (!navigatedToNewPage && totalPagesRef.current > totalPages) {
+          // A new page was created — navigate to it
+          navigatedToNewPage = true
+          retries = 0
+          void goToPage(totalPagesRef.current)
+          setTimeout(checkAndSelect, 100)
+        } else if (retries < 50) {
+          retries++
+          setTimeout(checkAndSelect, 100)
+        }
+      }
+      setTimeout(checkAndSelect, 0)
+    },
+    [goToPage, totalPages]
+  )
+
+  const createAction = useMemo(
+    () => ({
+      label: 'New chunk',
+      onClick: handleNewChunk,
+      disabled:
+        documentData?.processingStatus === 'failed' ||
+        !userPermissions.canEdit ||
+        isConnectorDocument,
+    }),
+    [handleNewChunk, documentData?.processingStatus, userPermissions.canEdit, isConnectorDocument]
+  )
+
+  const searchConfig: SearchConfig | undefined = isCompleted
+    ? {
+        value: searchQuery,
+        onChange: (value: string) => setSearchQuery(value),
+        placeholder: 'Search chunks...',
+      }
+    : undefined
+
+  const filterContent = (
+    <div className='w-[200px]'>
+      <div className='border-[var(--border-1)] border-b px-[12px] py-[8px]'>
+        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>Status</span>
+      </div>
+      <div className='flex flex-col gap-[2px] px-[12px] py-[8px]'>
+        {(['all', 'enabled', 'disabled'] as const).map((value) => (
+          <button
+            key={value}
+            type='button'
+            className={cn(
+              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-secondary)] outline-none transition-colors hover:bg-[var(--surface-active)]',
+              enabledFilter === value && 'bg-[var(--surface-active)]'
+            )}
+            onClick={() => {
+              setEnabledFilter(value)
+              setSelectedChunks(new Set())
+              void goToPage(1)
+            }}
+          >
+            {value.charAt(0).toUpperCase() + value.slice(1)}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
+  const filterTags: FilterTag[] = [
+    ...(enabledFilter !== 'all'
+      ? [
+          {
+            label: `Status: ${enabledFilter === 'enabled' ? 'Enabled' : 'Disabled'}`,
+            onRemove: () => {
+              setEnabledFilter('all')
+              setSelectedChunks(new Set())
+              void goToPage(1)
+            },
+          },
+        ]
+      : []),
   ]
 
-  const handleChunkClick = (chunk: ChunkData) => {
-    setSelectedChunk(chunk)
-    setIsModalOpen(true)
-  }
+  const handleChunkClick = useCallback((rowId: string) => {
+    setSelectedChunkId(rowId)
+  }, [])
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false)
-    setSelectedChunk(null)
-  }
+  const handleToggleEnabled = useCallback(
+    (chunkId: string) => {
+      const chunk = displayChunks.find((c) => c.id === chunkId)
+      if (!chunk) return
 
-  const handleToggleEnabled = (chunkId: string) => {
-    const chunk = displayChunks.find((c) => c.id === chunkId)
-    if (!chunk) return
-
-    updateChunkMutation(
-      {
-        knowledgeBaseId,
-        documentId,
-        chunkId,
-        enabled: !chunk.enabled,
-      },
-      {
-        onSuccess: () => {
-          updateChunk(chunkId, { enabled: !chunk.enabled })
+      updateChunkMutation(
+        {
+          knowledgeBaseId,
+          documentId,
+          chunkId,
+          enabled: !chunk.enabled,
         },
-      }
-    )
-  }
+        {
+          onSuccess: () => {
+            updateChunk(chunkId, { enabled: !chunk.enabled })
+          },
+        }
+      )
+    },
+    [displayChunks, knowledgeBaseId, documentId, updateChunk]
+  )
 
-  const handleDeleteChunk = (chunkId: string) => {
-    const chunk = displayChunks.find((c) => c.id === chunkId)
-    if (chunk) {
-      setChunkToDelete(chunk)
-      setIsDeleteModalOpen(true)
-    }
-  }
+  const handleDeleteChunk = useCallback(
+    (chunkId: string) => {
+      const chunk = displayChunks.find((c) => c.id === chunkId)
+      if (chunk) {
+        setChunkToDelete(chunk)
+        setIsDeleteModalOpen(true)
+      }
+    },
+    [displayChunks]
+  )
 
   const handleCloseDeleteModal = () => {
     if (chunkToDelete) {
@@ -458,9 +673,6 @@ export function Document({
     }
   }
 
-  /**
-   * Handles deleting the document
-   */
   const handleDeleteDocument = () => {
     if (!documentData) return
 
@@ -489,9 +701,7 @@ export function Document({
       },
       {
         onSuccess: (result) => {
-          if (operation === 'delete' || result.errorCount > 0) {
-            refreshChunks()
-          } else {
+          if (operation !== 'delete' && result.errorCount === 0) {
             chunks.forEach((chunk) => {
               updateChunk(chunk.id, { enabled: operation === 'enable' })
             })
@@ -522,34 +732,45 @@ export function Document({
     performBulkChunkOperation('delete', chunksToDelete)
   }
 
-  const selectedChunksList = displayChunks.filter((chunk) => selectedChunks.has(chunk.id))
-  const enabledCount = selectedChunksList.filter((chunk) => chunk.enabled).length
-  const disabledCount = selectedChunksList.filter((chunk) => !chunk.enabled).length
+  const [enabledCount, disabledCount] = useMemo(() => {
+    let enabled = 0
+    let disabled = 0
+    for (const chunk of displayChunks) {
+      if (selectedChunks.has(chunk.id)) {
+        if (chunk.enabled) enabled++
+        else disabled++
+      }
+    }
+    return [enabled, disabled]
+  }, [displayChunks, selectedChunks])
 
   const isAllSelected = displayChunks.length > 0 && selectedChunks.size === displayChunks.length
 
-  /**
-   * Handle right-click on a chunk row
-   * If right-clicking on an unselected chunk, select only that chunk
-   * If right-clicking on a selected chunk with multiple selections, keep all selections
-   */
   const handleChunkContextMenu = useCallback(
-    (e: React.MouseEvent, chunk: ChunkData) => {
-      const isCurrentlySelected = selectedChunks.has(chunk.id)
+    (e: React.MouseEvent, rowId: string) => {
+      const chunk = displayChunks.find((c) => c.id === rowId)
+      if (!chunk) return
 
-      if (!isCurrentlySelected) {
-        setSelectedChunks(new Set([chunk.id]))
+      if (userPermissions.canEdit && !isConnectorDocument) {
+        const isCurrentlySelected = selectedChunks.has(chunk.id)
+
+        if (!isCurrentlySelected) {
+          setSelectedChunks(new Set([chunk.id]))
+        }
       }
 
       setContextMenuChunk(chunk)
       baseHandleContextMenu(e)
     },
-    [selectedChunks, baseHandleContextMenu]
+    [
+      displayChunks,
+      selectedChunks,
+      baseHandleContextMenu,
+      userPermissions.canEdit,
+      isConnectorDocument,
+    ]
   )
 
-  /**
-   * Handle right-click on empty space (table container)
-   */
   const handleEmptyContextMenu = useCallback(
     (e: React.MouseEvent) => {
       setContextMenuChunk(null)
@@ -558,19 +779,10 @@ export function Document({
     [baseHandleContextMenu]
   )
 
-  /**
-   * Handle context menu close
-   */
   const handleContextMenuClose = useCallback(() => {
     closeContextMenu()
     setContextMenuChunk(null)
   }, [closeContextMenu])
-
-  const handleDocumentTagsUpdate = useCallback(() => {
-    queryClient.invalidateQueries({
-      queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
-    })
-  }, [knowledgeBaseId, documentId, queryClient])
 
   const prevDocumentIdRef = useRef<string>(documentId)
   const isNavigatingToNewDoc = prevDocumentIdRef.current !== documentId
@@ -583,411 +795,314 @@ export function Document({
 
   const isFetchingNewDoc = isNavigatingToNewDoc && isFetchingChunks
 
-  if (isLoadingDocument || isFetchingNewDoc) {
+  const selectableConfig: SelectableConfig | undefined = isCompleted
+    ? {
+        selectedIds: selectedChunks,
+        onSelectRow: handleSelectChunk,
+        onSelectAll: handleSelectAll,
+        isAllSelected,
+        disabled: !userPermissions.canEdit || isConnectorDocument,
+      }
+    : undefined
+
+  const paginationConfig: PaginationConfig | undefined =
+    isCompleted && totalPages > 1
+      ? {
+          currentPage,
+          totalPages,
+          onPageChange: goToPage,
+        }
+      : undefined
+
+  const chunkRows: ResourceRow[] = useMemo(() => {
+    if (!isCompleted) {
+      return [
+        {
+          id: 'processing-status',
+          cells: {
+            content: {
+              content: (
+                <div className='flex items-center gap-[8px]'>
+                  <FileText className='h-5 w-5 flex-shrink-0 text-[var(--text-muted)]' />
+                  <span className='text-[14px] text-[var(--text-muted)] italic'>
+                    {documentData?.processingStatus === 'pending' &&
+                      'Document processing pending...'}
+                    {documentData?.processingStatus === 'processing' &&
+                      'Document processing in progress...'}
+                    {documentData?.processingStatus === 'failed' && 'Document processing failed'}
+                    {!documentData?.processingStatus && 'Document not ready'}
+                  </span>
+                </div>
+              ),
+            },
+            index: { label: '—' },
+            tokens: { label: '—' },
+            status: { label: '—' },
+          },
+        },
+      ]
+    }
+
+    return displayChunks.map((chunk: ChunkData) => ({
+      id: chunk.id,
+      cells: {
+        content: {
+          content: (
+            <span
+              className='block min-w-0 truncate text-[14px] text-[var(--text-primary)]'
+              title={chunk.content}
+            >
+              <SearchHighlight
+                text={truncateContent(chunk.content, 150, searchQuery)}
+                searchQuery={searchQuery}
+              />
+            </span>
+          ),
+        },
+        index: {
+          content: (
+            <span className='font-mono text-[14px] text-[var(--text-primary)]'>
+              {chunk.chunkIndex}
+            </span>
+          ),
+        },
+        tokens: {
+          label: formatTokenCount(chunk.tokenCount),
+        },
+        status: {
+          content: (
+            <Badge variant={chunk.enabled ? 'green' : 'gray'} size='sm'>
+              {chunk.enabled ? 'Enabled' : 'Disabled'}
+            </Badge>
+          ),
+        },
+      },
+    }))
+  }, [isCompleted, documentData?.processingStatus, displayChunks, searchQuery])
+
+  const emptyMessage = combinedError ? 'Error loading document' : undefined
+
+  const saveLabel =
+    saveStatus === 'saving'
+      ? isCreatingNewChunk
+        ? 'Creating...'
+        : 'Saving...'
+      : saveStatus === 'saved'
+        ? isCreatingNewChunk
+          ? 'Created'
+          : 'Saved'
+        : saveStatus === 'error'
+          ? isCreatingNewChunk
+            ? 'Create failed'
+            : 'Save failed'
+          : isCreatingNewChunk
+            ? 'Create Chunk'
+            : 'Save'
+
+  const editorBreadcrumbBase = useMemo<BreadcrumbItem[]>(
+    () => [
+      { label: 'Knowledge Base', onClick: handleNavToKB },
+      { label: effectiveKnowledgeBaseName, onClick: handleNavToKBDetail },
+      { label: effectiveDocumentName, onClick: handleBackAttempt },
+    ],
+    [
+      handleNavToKB,
+      handleNavToKBDetail,
+      effectiveKnowledgeBaseName,
+      effectiveDocumentName,
+      handleBackAttempt,
+    ]
+  )
+
+  const newChunkBreadcrumbs = useMemo(
+    () => [...editorBreadcrumbBase, { label: 'New Chunk' }],
+    [editorBreadcrumbBase]
+  )
+
+  const editChunkBreadcrumbs = useMemo(
+    () => [
+      ...editorBreadcrumbBase,
+      { label: selectedChunk ? `Chunk #${selectedChunk.chunkIndex}` : '' },
+    ],
+    [editorBreadcrumbBase, selectedChunk?.chunkIndex]
+  )
+
+  const loadingBreadcrumbs = useMemo<BreadcrumbItem[]>(
+    () => [
+      { label: 'Knowledge Base', onClick: handleNavToKB },
+      { label: effectiveKnowledgeBaseName, onClick: handleNavToKBDetail },
+      { label: effectiveDocumentName, onClick: handleClearSelectedChunk },
+      { label: 'Loading...' },
+    ],
+    [
+      handleNavToKB,
+      handleNavToKBDetail,
+      effectiveKnowledgeBaseName,
+      effectiveDocumentName,
+      handleClearSelectedChunk,
+    ]
+  )
+
+  const handleSaveClick = useCallback(() => {
+    void handleSave()
+  }, [handleSave])
+
+  const handleNavigatePrev = useCallback(() => handleNavigateChunk('prev'), [handleNavigateChunk])
+
+  const handleNavigateNextChunk = useCallback(
+    () => handleNavigateChunk('next'),
+    [handleNavigateChunk]
+  )
+
+  const createActions = useMemo<HeaderAction[]>(
+    () => [
+      {
+        label: saveLabel,
+        onClick: handleSaveClick,
+        disabled: !isDirty || saveStatus === 'saving',
+      },
+    ],
+    [saveLabel, handleSaveClick, isDirty, saveStatus]
+  )
+
+  const editorActions = useMemo<HeaderAction[]>(() => {
+    const actions: HeaderAction[] = [
+      {
+        label: 'Previous chunk',
+        icon: ChevronUp,
+        onClick: handleNavigatePrev,
+        disabled: !canNavigatePrev,
+      },
+      {
+        label: 'Next chunk',
+        icon: ChevronDown,
+        onClick: handleNavigateNextChunk,
+        disabled: !canNavigateNext,
+      },
+    ]
+    if (canEdit && !isConnectorDocument) {
+      actions.push({
+        label: saveLabel,
+        onClick: handleSaveClick,
+        disabled: !isDirty || saveStatus === 'saving',
+      })
+    }
+    return actions
+  }, [
+    handleNavigatePrev,
+    canNavigatePrev,
+    handleNavigateNextChunk,
+    canNavigateNext,
+    canEdit,
+    isConnectorDocument,
+    saveLabel,
+    handleSaveClick,
+    isDirty,
+    saveStatus,
+  ])
+
+  if (isCreatingNewChunk && documentData) {
     return (
-      <DocumentLoading
-        knowledgeBaseId={knowledgeBaseId}
-        knowledgeBaseName={effectiveKnowledgeBaseName}
-        documentName={effectiveDocumentName}
-      />
+      <>
+        <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
+          <ResourceHeader
+            icon={FileText}
+            breadcrumbs={newChunkBreadcrumbs}
+            actions={createActions}
+          />
+          <ChunkEditor
+            key='new-chunk'
+            mode='create'
+            document={documentData}
+            knowledgeBaseId={knowledgeBaseId}
+            canEdit
+            maxChunkSize={knowledgeBase?.chunkingConfig?.maxSize}
+            onDirtyChange={setIsDirty}
+            onSaveStatusChange={setSaveStatus}
+            saveRef={saveRef}
+            onCreated={handleChunkCreated}
+          />
+        </div>
+
+        <UnsavedChangesModal
+          open={showUnsavedChangesAlert}
+          onOpenChange={setShowUnsavedChangesAlert}
+          onKeepEditing={() => {
+            setShowUnsavedChangesAlert(false)
+            setPendingAction(null)
+          }}
+          onDiscard={handleDiscardChanges}
+        />
+      </>
     )
   }
 
-  if (combinedError) {
-    const errorBreadcrumbItems = [
-      { label: 'Knowledge Base', href: `/workspace/${workspaceId}/knowledge` },
-      {
-        label: effectiveKnowledgeBaseName,
-        href: `/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`,
-      },
-      { label: 'Error' },
-    ]
-
-    return (
-      <div className='flex h-full flex-1 flex-col'>
-        <div className='flex flex-1 overflow-hidden'>
-          <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
-            <Breadcrumb items={errorBreadcrumbItems} />
-            <div className='mt-[24px]'>
-              <div className='flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
-                <div className='text-center'>
-                  <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                    Error loading document
-                  </p>
-                  <p className='mt-1 text-[var(--text-muted)] text-xs'>{combinedError}</p>
-                </div>
-              </div>
-            </div>
+  if (selectedChunkId) {
+    if (!selectedChunk || !documentData) {
+      return (
+        <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
+          <ResourceHeader icon={FileText} breadcrumbs={loadingBreadcrumbs} />
+          <div className='flex flex-1 items-center justify-center'>
+            <span className='text-[14px] text-[var(--text-muted)]'>Loading chunk...</span>
           </div>
         </div>
-      </div>
+      )
+    }
+
+    return (
+      <>
+        <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
+          <ResourceHeader
+            icon={FileText}
+            breadcrumbs={editChunkBreadcrumbs}
+            actions={editorActions}
+          />
+          <ChunkEditor
+            key={selectedChunk.id}
+            chunk={selectedChunk}
+            document={documentData}
+            knowledgeBaseId={knowledgeBaseId}
+            canEdit={canEdit && !isConnectorDocument}
+            maxChunkSize={knowledgeBase?.chunkingConfig?.maxSize}
+            onDirtyChange={setIsDirty}
+            onSaveStatusChange={setSaveStatus}
+            saveRef={saveRef}
+          />
+        </div>
+
+        <UnsavedChangesModal
+          open={showUnsavedChangesAlert}
+          onOpenChange={setShowUnsavedChangesAlert}
+          onKeepEditing={() => {
+            setShowUnsavedChangesAlert(false)
+            setPendingAction(null)
+          }}
+          onDiscard={handleDiscardChanges}
+        />
+      </>
     )
   }
 
   return (
-    <div className='flex h-full flex-1 flex-col'>
-      <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto bg-white px-[24px] pt-[24px] pb-[24px] dark:bg-[var(--bg)]'>
-          <Breadcrumb items={breadcrumbItems} />
-
-          <div className='mt-[14px] flex items-center justify-between'>
-            <h1 className='font-medium text-[18px] text-[var(--text-primary)]'>
-              {effectiveDocumentName}
-            </h1>
-            <div className='flex items-center gap-2'>
-              {userPermissions.canEdit && (
-                <Button
-                  onClick={() => setShowTagsModal(true)}
-                  variant='default'
-                  className='h-[32px] rounded-[6px]'
-                >
-                  Tags
-                </Button>
-              )}
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    onClick={() => setShowDeleteDocumentDialog(true)}
-                    disabled={!userPermissions.canEdit}
-                    className='h-[32px] rounded-[6px]'
-                  >
-                    <Trash className='h-[14px] w-[14px]' />
-                  </Button>
-                </Tooltip.Trigger>
-                {!userPermissions.canEdit && (
-                  <Tooltip.Content>Write permission required to delete document</Tooltip.Content>
-                )}
-              </Tooltip.Root>
-            </div>
-          </div>
-
-          <p className='mt-[4px] font-medium text-[14px] text-[var(--text-tertiary)]'>
-            {documentData?.chunkCount ?? 0} {documentData?.chunkCount === 1 ? 'chunk' : 'chunks'}
-          </p>
-
-          <div className='mt-[16px] flex items-center gap-[8px]'>
-            <span className='text-[14px] text-[var(--text-muted)]'>
-              {documentData?.tokenCount !== undefined
-                ? documentData.tokenCount > 1000
-                  ? `${(documentData.tokenCount / 1000).toFixed(1)}k`
-                  : documentData.tokenCount.toLocaleString()
-                : '0'}{' '}
-              tokens
-            </span>
-            {documentData?.uploadedAt && (
-              <>
-                <div className='mb-[-1.5px] h-[18px] w-[1.25px] rounded-full bg-[#3A3A3A]' />
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <span className='cursor-default text-[14px] text-[var(--text-muted)]'>
-                      uploaded: {formatRelativeTime(documentData.uploadedAt)}
-                    </span>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>{formatAbsoluteDate(documentData.uploadedAt)}</Tooltip.Content>
-                </Tooltip.Root>
-              </>
-            )}
-          </div>
-
-          <div className='mt-[14px] flex items-center justify-between'>
-            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-4)] px-[8px]'>
-              <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
-              <Input
-                placeholder={
-                  documentData?.processingStatus === 'completed'
-                    ? 'Search chunks...'
-                    : 'Document processing...'
-                }
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                disabled={documentData?.processingStatus !== 'completed'}
-                className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-              {searchQuery &&
-                (isLoadingSearch ? (
-                  <Loader2 className='h-[14px] w-[14px] animate-spin text-[var(--text-subtle)]' />
-                ) : (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className='text-[var(--text-subtle)] transition-colors hover:text-[var(--text-secondary)]'
-                  >
-                    <X className='h-[14px] w-[14px]' />
-                  </button>
-                ))}
-            </div>
-
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  onClick={() => setIsCreateChunkModalOpen(true)}
-                  disabled={documentData?.processingStatus === 'failed' || !userPermissions.canEdit}
-                  variant='tertiary'
-                  className='h-[32px] rounded-[6px]'
-                >
-                  Create Chunk
-                </Button>
-              </Tooltip.Trigger>
-              {!userPermissions.canEdit && (
-                <Tooltip.Content>Write permission required to create chunks</Tooltip.Content>
-              )}
-            </Tooltip.Root>
-          </div>
-
-          <div
-            className='mt-[12px] flex flex-1 flex-col overflow-hidden'
-            onContextMenu={handleEmptyContextMenu}
-          >
-            {displayChunks.length === 0 && documentData?.processingStatus === 'completed' ? (
-              <div className='mt-[10px] flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
-                <div className='text-center'>
-                  <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                    {searchQuery ? 'No chunks found' : 'No chunks yet'}
-                  </p>
-                  <p className='mt-1 text-[var(--text-muted)] text-xs'>
-                    {searchQuery
-                      ? 'Try a different search term'
-                      : userPermissions.canEdit
-                        ? 'Create chunks to get started'
-                        : 'Chunks will appear here once created'}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <Table className='min-w-[700px] table-fixed text-[13px]'>
-                <TableHeader>
-                  <TableRow className='hover:bg-transparent'>
-                    <TableHead
-                      className='w-[52px] py-[8px]'
-                      style={{ paddingLeft: '20.5px', paddingRight: 0 }}
-                    >
-                      <div className='flex items-center'>
-                        <Checkbox
-                          size='sm'
-                          checked={isAllSelected}
-                          onCheckedChange={handleSelectAll}
-                          disabled={
-                            documentData?.processingStatus !== 'completed' ||
-                            !userPermissions.canEdit
-                          }
-                          aria-label='Select all chunks'
-                        />
-                      </div>
-                    </TableHead>
-                    <TableHead className='w-[60px] py-[8px] pr-[12px] pl-[15px] text-[12px] text-[var(--text-secondary)]'>
-                      Index
-                    </TableHead>
-                    <TableHead className='px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-                      Content
-                    </TableHead>
-                    <TableHead className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-                      Tokens
-                    </TableHead>
-                    <TableHead className='w-[12%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-                      Status
-                    </TableHead>
-                    <TableHead className='w-[14%] py-[8px] pr-[4px] pl-[12px] text-[12px] text-[var(--text-secondary)]'>
-                      Actions
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {documentData?.processingStatus !== 'completed' ? (
-                    <TableRow className='hover:bg-transparent'>
-                      <TableCell
-                        className='w-[52px] py-[8px]'
-                        style={{ paddingLeft: '20.5px', paddingRight: 0 }}
-                      >
-                        <div className='flex items-center'>
-                          <div className='h-[14px] w-[14px]' />
-                        </div>
-                      </TableCell>
-                      <TableCell className='w-[60px] px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
-                        —
-                      </TableCell>
-                      <TableCell className='px-[12px] py-[8px]'>
-                        <div className='flex items-center gap-[8px]'>
-                          <FileText className='h-5 w-5 flex-shrink-0 text-[var(--text-muted)]' />
-                          <span className='text-[14px] text-[var(--text-muted)] italic'>
-                            {documentData?.processingStatus === 'pending' &&
-                              'Document processing pending...'}
-                            {documentData?.processingStatus === 'processing' &&
-                              'Document processing in progress...'}
-                            {documentData?.processingStatus === 'failed' &&
-                              'Document processing failed'}
-                            {!documentData?.processingStatus && 'Document not ready'}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
-                        —
-                      </TableCell>
-                      <TableCell className='w-[12%] px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
-                        —
-                      </TableCell>
-                      <TableCell className='w-[14%] py-[8px] pr-[4px] pl-[12px] text-[12px] text-[var(--text-muted)]'>
-                        —
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    displayChunks.map((chunk: ChunkData) => {
-                      const isSelected = selectedChunks.has(chunk.id)
-
-                      return (
-                        <TableRow
-                          key={chunk.id}
-                          className={`${
-                            isSelected
-                              ? 'bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'
-                              : 'hover:bg-[var(--surface-3)] dark:hover:bg-[var(--surface-4)]'
-                          } cursor-pointer`}
-                          onClick={() => handleChunkClick(chunk)}
-                          onContextMenu={(e) => handleChunkContextMenu(e, chunk)}
-                        >
-                          <TableCell
-                            className='w-[52px] py-[8px]'
-                            style={{ paddingLeft: '20.5px', paddingRight: 0 }}
-                          >
-                            <div className='flex items-center'>
-                              <Checkbox
-                                size='sm'
-                                checked={selectedChunks.has(chunk.id)}
-                                onCheckedChange={(checked) =>
-                                  handleSelectChunk(chunk.id, checked as boolean)
-                                }
-                                disabled={!userPermissions.canEdit}
-                                aria-label={`Select chunk ${chunk.chunkIndex}`}
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </div>
-                          </TableCell>
-                          <TableCell className='w-[60px] py-[8px] pr-[12px] pl-[15px] font-mono text-[14px] text-[var(--text-primary)]'>
-                            {chunk.chunkIndex}
-                          </TableCell>
-                          <TableCell className='px-[12px] py-[8px]'>
-                            <span
-                              className='block min-w-0 truncate text-[14px] text-[var(--text-primary)]'
-                              title={chunk.content}
-                            >
-                              <SearchHighlight
-                                text={truncateContent(chunk.content, 150, searchQuery)}
-                                searchQuery={searchQuery}
-                              />
-                            </span>
-                          </TableCell>
-                          <TableCell className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
-                            {chunk.tokenCount > 1000
-                              ? `${(chunk.tokenCount / 1000).toFixed(1)}k`
-                              : chunk.tokenCount.toLocaleString()}
-                          </TableCell>
-                          <TableCell className='w-[12%] px-[12px] py-[8px]'>
-                            <Badge variant={chunk.enabled ? 'green' : 'gray'} size='sm'>
-                              {chunk.enabled ? 'Enabled' : 'Disabled'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className='w-[14%] py-[8px] pr-[4px] pl-[12px]'>
-                            <div className='flex items-center gap-[4px]'>
-                              <Tooltip.Root>
-                                <Tooltip.Trigger asChild>
-                                  <Button
-                                    variant='ghost'
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      handleToggleEnabled(chunk.id)
-                                    }}
-                                    disabled={!userPermissions.canEdit}
-                                    className='h-[28px] w-[28px] p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-50'
-                                  >
-                                    {chunk.enabled ? (
-                                      <Circle className='h-[14px] w-[14px]' />
-                                    ) : (
-                                      <CircleOff className='h-[14px] w-[14px]' />
-                                    )}
-                                  </Button>
-                                </Tooltip.Trigger>
-                                <Tooltip.Content side='top'>
-                                  {!userPermissions.canEdit
-                                    ? 'Write permission required to modify chunks'
-                                    : chunk.enabled
-                                      ? 'Disable Chunk'
-                                      : 'Enable Chunk'}
-                                </Tooltip.Content>
-                              </Tooltip.Root>
-                              <Tooltip.Root>
-                                <Tooltip.Trigger asChild>
-                                  <Button
-                                    variant='ghost'
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      handleDeleteChunk(chunk.id)
-                                    }}
-                                    disabled={!userPermissions.canEdit}
-                                    className='h-[28px] w-[28px] p-0 text-[var(--text-muted)] hover:text-[var(--text-error)] disabled:opacity-50'
-                                  >
-                                    <Trash className='h-[14px] w-[14px]' />
-                                  </Button>
-                                </Tooltip.Trigger>
-                                <Tooltip.Content side='top'>
-                                  {!userPermissions.canEdit
-                                    ? 'Write permission required to delete chunks'
-                                    : 'Delete Chunk'}
-                                </Tooltip.Content>
-                              </Tooltip.Root>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            )}
-
-            {documentData?.processingStatus === 'completed' && totalPages > 1 && (
-              <div className='flex items-center justify-center border-t bg-background px-4 pt-[10px]'>
-                <div className='flex items-center gap-1'>
-                  <Button variant='ghost' onClick={prevPage} disabled={!hasPrevPage}>
-                    <ChevronLeft className='h-3.5 w-3.5' />
-                  </Button>
-
-                  <div className='mx-[12px] flex items-center gap-[16px]'>
-                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                      let page: number
-                      if (totalPages <= 5) {
-                        page = i + 1
-                      } else if (currentPage <= 3) {
-                        page = i + 1
-                      } else if (currentPage >= totalPages - 2) {
-                        page = totalPages - 4 + i
-                      } else {
-                        page = currentPage - 2 + i
-                      }
-
-                      if (page < 1 || page > totalPages) return null
-
-                      return (
-                        <button
-                          key={page}
-                          onClick={() => goToPage(page)}
-                          disabled={false}
-                          className={`font-medium text-sm transition-colors hover:text-foreground disabled:opacity-50 ${
-                            page === currentPage ? 'text-foreground' : 'text-muted-foreground'
-                          }`}
-                        >
-                          {page}
-                        </button>
-                      )
-                    })}
-                  </div>
-
-                  <Button variant='ghost' onClick={nextPage} disabled={!hasNextPage}>
-                    <ChevronRight className='h-3.5 w-3.5' />
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+    <>
+      <Resource
+        icon={FileText}
+        title={effectiveDocumentName}
+        breadcrumbs={breadcrumbs}
+        create={createAction}
+        search={combinedError ? undefined : searchConfig}
+        columns={CHUNK_COLUMNS}
+        rows={combinedError ? [] : chunkRows}
+        selectable={combinedError ? undefined : selectableConfig}
+        onRowClick={isCompleted ? handleChunkClick : undefined}
+        onRowContextMenu={isCompleted ? handleChunkContextMenu : undefined}
+        onContextMenu={handleEmptyContextMenu}
+        isLoading={isLoadingDocument || isFetchingNewDoc}
+        pagination={paginationConfig}
+        emptyMessage={emptyMessage}
+        filter={combinedError ? undefined : filterContent}
+        filterTags={combinedError ? undefined : filterTags}
+      />
 
       <DocumentTagsModal
         open={showTagsModal}
@@ -995,51 +1110,8 @@ export function Document({
         knowledgeBaseId={knowledgeBaseId}
         documentId={documentId}
         documentData={documentData}
-        onDocumentUpdate={handleDocumentTagsUpdate}
       />
 
-      {/* Edit Chunk Modal */}
-      <EditChunkModal
-        chunk={selectedChunk}
-        document={documentData}
-        knowledgeBaseId={knowledgeBaseId}
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        allChunks={displayChunks}
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onNavigateToChunk={(chunk: ChunkData) => {
-          setSelectedChunk(chunk)
-        }}
-        maxChunkSize={knowledgeBase?.chunkingConfig?.maxSize}
-        onNavigateToPage={async (page: number, selectChunk: 'first' | 'last') => {
-          await goToPage(page)
-
-          const checkAndSelectChunk = () => {
-            if (displayChunks.length > 0) {
-              if (selectChunk === 'first') {
-                setSelectedChunk(displayChunks[0])
-              } else {
-                setSelectedChunk(displayChunks[displayChunks.length - 1])
-              }
-            } else {
-              setTimeout(checkAndSelectChunk, 100)
-            }
-          }
-
-          setTimeout(checkAndSelectChunk, 0)
-        }}
-      />
-
-      {/* Create Chunk Modal */}
-      <CreateChunkModal
-        open={isCreateChunkModalOpen}
-        onOpenChange={setIsCreateChunkModalOpen}
-        document={documentData}
-        knowledgeBaseId={knowledgeBaseId}
-      />
-
-      {/* Delete Chunk Modal */}
       <DeleteChunkModal
         chunk={chunkToDelete}
         knowledgeBaseId={knowledgeBaseId}
@@ -1048,23 +1120,22 @@ export function Document({
         onClose={handleCloseDeleteModal}
       />
 
-      {/* Bulk Action Bar */}
       <ActionBar
+        className={paginationConfig ? 'bottom-[72px]' : undefined}
         selectedCount={selectedChunks.size}
-        onEnable={disabledCount > 0 ? handleBulkEnable : undefined}
-        onDisable={enabledCount > 0 ? handleBulkDisable : undefined}
-        onDelete={handleBulkDelete}
+        onEnable={disabledCount > 0 && !isConnectorDocument ? handleBulkEnable : undefined}
+        onDisable={enabledCount > 0 && !isConnectorDocument ? handleBulkDisable : undefined}
+        onDelete={!isConnectorDocument ? handleBulkDelete : undefined}
         enabledCount={enabledCount}
         disabledCount={disabledCount}
         isLoading={isBulkOperating}
       />
 
-      {/* Delete Document Modal */}
       <Modal open={showDeleteDocumentDialog} onOpenChange={setShowDeleteDocumentDialog}>
         <ModalContent size='sm'>
           <ModalHeader>Delete Document</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {effectiveDocumentName}
@@ -1072,7 +1143,14 @@ export function Document({
               ? This will permanently delete the document and all {documentData?.chunkCount ?? 0}{' '}
               chunk
               {documentData?.chunkCount === 1 ? '' : 's'} within it.{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              {documentData?.connectorId ? (
+                <span className='text-[var(--text-error)]'>
+                  This document is synced from a connector. Deleting it will permanently exclude it
+                  from future syncs. To temporarily hide it from search, disable it instead.
+                </span>
+              ) : (
+                <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              )}
             </p>
           </ModalBody>
           <ModalFooter>
@@ -1097,7 +1175,6 @@ export function Document({
       <ChunkContextMenu
         isOpen={isContextMenuOpen}
         position={contextMenuPosition}
-        menuRef={menuRef}
         onClose={handleContextMenuClose}
         hasChunk={contextMenuChunk !== null}
         isChunkEnabled={contextMenuChunk?.enabled ?? true}
@@ -1105,7 +1182,7 @@ export function Document({
         enabledCount={enabledCount}
         disabledCount={disabledCount}
         onOpenInNewTab={
-          contextMenuChunk && selectedChunks.size === 1
+          contextMenuChunk
             ? () => {
                 const url = `/workspace/${workspaceId}/knowledge/${knowledgeBaseId}/${documentId}?chunk=${contextMenuChunk.id}`
                 window.open(url, '_blank')
@@ -1113,22 +1190,21 @@ export function Document({
             : undefined
         }
         onEdit={
-          contextMenuChunk && selectedChunks.size === 1
+          contextMenuChunk
             ? () => {
-                setSelectedChunk(contextMenuChunk)
-                setIsModalOpen(true)
+                setSelectedChunkId(contextMenuChunk.id)
               }
             : undefined
         }
         onCopyContent={
-          contextMenuChunk && selectedChunks.size === 1
+          contextMenuChunk
             ? () => {
                 navigator.clipboard.writeText(contextMenuChunk.content)
               }
             : undefined
         }
         onToggleEnabled={
-          contextMenuChunk && userPermissions.canEdit
+          contextMenuChunk
             ? selectedChunks.size > 1
               ? () => {
                   if (disabledCount > 0) {
@@ -1141,21 +1217,23 @@ export function Document({
             : undefined
         }
         onDelete={
-          contextMenuChunk && userPermissions.canEdit
+          contextMenuChunk
             ? selectedChunks.size > 1
               ? handleBulkDelete
               : () => handleDeleteChunk(contextMenuChunk.id)
             : undefined
         }
-        onAddChunk={
-          userPermissions.canEdit && documentData?.processingStatus !== 'failed'
-            ? () => setIsCreateChunkModalOpen(true)
-            : undefined
+        onAddChunk={handleNewChunk}
+        disableToggleEnabled={!userPermissions.canEdit || isConnectorDocument}
+        disableDelete={!userPermissions.canEdit || isConnectorDocument}
+        disableEdit={!userPermissions.canEdit || isConnectorDocument}
+        disableAddChunk={
+          !userPermissions.canEdit ||
+          documentData?.processingStatus === 'failed' ||
+          isConnectorDocument
         }
-        disableToggleEnabled={!userPermissions.canEdit}
-        disableDelete={!userPermissions.canEdit}
-        disableAddChunk={!userPermissions.canEdit || documentData?.processingStatus === 'failed'}
+        isConnectorDocument={isConnectorDocument}
       />
-    </div>
+    </>
   )
 }

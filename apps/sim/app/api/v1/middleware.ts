@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { RateLimiter } from '@/lib/core/rate-limiter'
+import type { SubscriptionPlan } from '@/lib/core/rate-limiter'
+import { getRateLimit, RateLimiter } from '@/lib/core/rate-limiter'
 import { authenticateV1Request } from '@/app/api/v1/auth'
 
 const logger = createLogger('V1Middleware')
@@ -14,12 +15,29 @@ export interface RateLimitResult {
   limit: number
   retryAfterMs?: number
   userId?: string
+  workspaceId?: string
+  keyType?: 'personal' | 'workspace'
   error?: string
 }
 
 export async function checkRateLimit(
   request: NextRequest,
-  endpoint: 'logs' | 'logs-detail' | 'workflows' | 'workflow-detail' | 'audit-logs' = 'logs'
+  endpoint:
+    | 'logs'
+    | 'logs-detail'
+    | 'workflows'
+    | 'workflow-detail'
+    | 'audit-logs'
+    | 'tables'
+    | 'table-detail'
+    | 'table-rows'
+    | 'table-row-detail'
+    | 'table-columns'
+    | 'files'
+    | 'file-detail'
+    | 'knowledge'
+    | 'knowledge-detail'
+    | 'knowledge-search' = 'logs'
 ): Promise<RateLimitResult> {
   try {
     const auth = await authenticateV1Request(request)
@@ -51,20 +69,18 @@ export async function checkRateLimit(
       })
     }
 
-    const rateLimitStatus = await rateLimiter.getRateLimitStatusWithSubscription(
-      userId,
-      subscription,
-      'api-endpoint',
-      false
-    )
+    const plan = (subscription?.plan || 'free') as SubscriptionPlan
+    const config = getRateLimit(plan, 'api-endpoint')
 
     return {
       allowed: result.allowed,
       remaining: result.remaining,
       resetAt: result.resetAt,
-      limit: rateLimitStatus.requestsPerMinute,
+      limit: config.refillRate,
       retryAfterMs: result.retryAfterMs,
       userId,
+      workspaceId: auth.workspaceId,
+      keyType: auth.keyType,
     }
   } catch (error) {
     logger.error('Rate limit check error', { error })
@@ -89,26 +105,40 @@ export function createRateLimitResponse(result: RateLimitResult): NextResponse {
     return NextResponse.json({ error: result.error || 'Unauthorized' }, { status: 401, headers })
   }
 
-  if (!result.allowed) {
-    const retryAfterSeconds = result.retryAfterMs
-      ? Math.ceil(result.retryAfterMs / 1000)
-      : Math.ceil((result.resetAt.getTime() - Date.now()) / 1000)
+  const retryAfterSeconds = result.retryAfterMs
+    ? Math.ceil(result.retryAfterMs / 1000)
+    : Math.ceil((result.resetAt.getTime() - Date.now()) / 1000)
 
-    return NextResponse.json(
-      {
-        error: 'Rate limit exceeded',
-        message: `API rate limit exceeded. Please retry after ${result.resetAt.toISOString()}`,
-        retryAfter: result.resetAt.getTime(),
+  return NextResponse.json(
+    {
+      error: 'Rate limit exceeded',
+      message: `API rate limit exceeded. Please retry after ${result.resetAt.toISOString()}`,
+      retryAfter: result.resetAt.getTime(),
+    },
+    {
+      status: 429,
+      headers: {
+        ...headers,
+        'Retry-After': retryAfterSeconds.toString(),
       },
-      {
-        status: 429,
-        headers: {
-          ...headers,
-          'Retry-After': retryAfterSeconds.toString(),
-        },
-      }
+    }
+  )
+}
+
+/** Verify that a workspace-scoped API key is only used for its own workspace. */
+export function checkWorkspaceScope(
+  rateLimit: RateLimitResult,
+  requestedWorkspaceId: string
+): NextResponse | null {
+  if (
+    rateLimit.keyType === 'workspace' &&
+    rateLimit.workspaceId &&
+    rateLimit.workspaceId !== requestedWorkspaceId
+  ) {
+    return NextResponse.json(
+      { error: 'API key is not authorized for this workspace' },
+      { status: 403 }
     )
   }
-
-  return NextResponse.json({ error: 'Bad request' }, { status: 400, headers })
+  return null
 }

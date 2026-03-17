@@ -37,6 +37,7 @@ export function useBlockVisual({
   isSelected = false,
 }: UseBlockVisualProps) {
   const isPreview = data.isPreview ?? false
+  const isEmbedded = data.isEmbedded ?? false
   const isPreviewSelected = data.isPreviewSelected ?? false
 
   const currentWorkflow = useCurrentWorkflow()
@@ -56,13 +57,13 @@ export function useBlockVisual({
   const activeTabIsEditor = usePanelStore(
     useCallback(
       (state) => {
-        if (isPreview || !isThisBlockInEditor) return false
+        if (isPreview || isEmbedded || !isThisBlockInEditor) return false
         return state.activeTab === 'editor'
       },
-      [isPreview, isThisBlockInEditor]
+      [isPreview, isEmbedded, isThisBlockInEditor]
     )
   )
-  const isEditorOpen = !isPreview && isThisBlockInEditor && activeTabIsEditor
+  const isEditorOpen = !isPreview && !isEmbedded && isThisBlockInEditor && activeTabIsEditor
 
   const lastRunPath = useLastRunPath()
   const runPathStatus = isPreview ? undefined : lastRunPath.get(blockId)
@@ -70,10 +71,10 @@ export function useBlockVisual({
   const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)
 
   const handleClick = useCallback(() => {
-    if (!isPreview) {
+    if (!isPreview && !isEmbedded) {
       setCurrentBlockId(blockId)
     }
-  }, [blockId, setCurrentBlockId, isPreview])
+  }, [blockId, setCurrentBlockId, isPreview, isEmbedded])
 
   const { hasRing, ringClassName: ringStyles } = useMemo(
     () =>
@@ -85,7 +86,7 @@ export function useBlockVisual({
         diffStatus: isPreview ? undefined : diffStatus,
         runPathStatus,
         isPreviewSelection: isPreview && isPreviewSelected,
-        isSelected: isPreview ? false : isSelected,
+        isSelected: isPreview || isEmbedded ? false : isSelected,
       }),
     [
       isExecuting,
@@ -95,6 +96,7 @@ export function useBlockVisual({
       diffStatus,
       runPathStatus,
       isPreview,
+      isEmbedded,
       isPreviewSelected,
       isSelected,
     ]

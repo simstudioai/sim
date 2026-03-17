@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         isActive: chat.isActive,
       })
       .from(chat)
-      .where(eq(chat.workflowId, id))
+      .where(and(eq(chat.workflowId, id), isNull(chat.archivedAt)))
       .limit(1)
 
     const isDeployed = deploymentResults.length > 0 && deploymentResults[0].isActive

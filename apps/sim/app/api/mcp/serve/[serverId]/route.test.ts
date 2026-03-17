@@ -12,6 +12,7 @@ const {
   mockGenerateInternalToken,
   mockDbSelect,
   mockDbFrom,
+  mockDbInnerJoin,
   mockDbWhere,
   mockDbLimit,
   fetchMock,
@@ -21,6 +22,7 @@ const {
   mockGenerateInternalToken: vi.fn(),
   mockDbSelect: vi.fn(),
   mockDbFrom: vi.fn(),
+  mockDbInnerJoin: vi.fn(),
   mockDbWhere: vi.fn(),
   mockDbLimit: vi.fn(),
   fetchMock: vi.fn(),
@@ -29,6 +31,7 @@ const {
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(),
   eq: vi.fn(),
+  isNull: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({
@@ -44,6 +47,7 @@ vi.mock('@sim/db/schema', () => ({
     workspaceId: 'workspaceId',
     isPublic: 'isPublic',
     createdBy: 'createdBy',
+    deletedAt: 'deletedAt',
   },
   workflowMcpTool: {
     serverId: 'serverId',
@@ -51,10 +55,16 @@ vi.mock('@sim/db/schema', () => ({
     toolDescription: 'toolDescription',
     parameterSchema: 'parameterSchema',
     workflowId: 'workflowId',
+    archivedAt: 'archivedAt',
   },
   workflow: {
     id: 'id',
     isDeployed: 'isDeployed',
+    archivedAt: 'archivedAt',
+  },
+  workspace: {
+    id: 'id',
+    archivedAt: 'archivedAt',
   },
 }))
 
@@ -89,7 +99,8 @@ describe('MCP Serve Route', () => {
     vi.clearAllMocks()
 
     mockDbSelect.mockReturnValue({ from: mockDbFrom })
-    mockDbFrom.mockReturnValue({ where: mockDbWhere })
+    mockDbFrom.mockReturnValue({ innerJoin: mockDbInnerJoin, where: mockDbWhere })
+    mockDbInnerJoin.mockReturnValue({ where: mockDbWhere })
     mockDbWhere.mockReturnValue({ limit: mockDbLimit })
 
     vi.stubGlobal('fetch', fetchMock)

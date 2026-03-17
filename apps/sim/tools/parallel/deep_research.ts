@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import type { ParallelDeepResearchParams } from '@/tools/parallel/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -10,6 +11,49 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
   description:
     'Conduct comprehensive deep research across the web using Parallel AI. Synthesizes information from multiple sources with citations. Can take up to 45 minutes to complete.',
   version: '1.0.0',
+
+  hosting: {
+    envKeyPrefix: 'PARALLEL_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'parallel_ai',
+    pricing: {
+      type: 'custom',
+      getCost: (params, _output) => {
+        // Parallel Task API: cost varies by processor
+        // https://docs.parallel.ai/resources/pricing
+        const processorCosts: Record<string, number> = {
+          lite: 0.005,
+          base: 0.01,
+          core: 0.025,
+          core2x: 0.05,
+          pro: 0.1,
+          ultra: 0.3,
+          ultra2x: 0.6,
+          ultra4x: 1.2,
+          ultra8x: 2.4,
+        }
+        const processor = (params.processor as string) || 'base'
+        const DEFAULT_PROCESSOR_COST = processorCosts.base
+        const knownCost = processorCosts[processor]
+        if (knownCost == null) {
+          logger.warn(
+            `Unknown Parallel processor "${processor}", using default processor cost $${DEFAULT_PROCESSOR_COST}`
+          )
+          PlatformEvents.hostedKeyUnknownModelCost({
+            toolId: 'parallel_deep_research',
+            modelName: processor,
+            defaultCost: DEFAULT_PROCESSOR_COST,
+          })
+        }
+        const cost = knownCost ?? DEFAULT_PROCESSOR_COST
+        return { cost, metadata: { processor, defaultProcessorCost: DEFAULT_PROCESSOR_COST } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 10,
+    },
+  },
 
   params: {
     input: {

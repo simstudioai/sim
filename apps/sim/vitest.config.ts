@@ -27,7 +27,7 @@ export default defineConfig({
       },
     },
     fileParallelism: true,
-    maxConcurrency: 20,
+    maxConcurrency: 10,
     testTimeout: 10000,
     deps: {
       optimizer: {

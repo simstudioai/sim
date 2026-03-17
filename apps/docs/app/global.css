@@ -9,13 +9,24 @@ body {
   overscroll-behavior: none;
 }
 
-/* Reserve scrollbar space to prevent layout jitter between pages */
-html {
-  scrollbar-gutter: stable;
+/* Prevent modals/dialogs from shifting layout via scroll-lock compensation */
+html,
+body {
+  padding-right: 0 !important;
+  margin-right: 0 !important;
 }
 
 @theme {
-  --color-fd-primary: #33c482;
+  --color-fd-primary: var(--color-fd-foreground);
+}
+
+/* Match landing page dark background (#1b1b1b) */
+.dark {
+  --color-fd-background: hsl(0, 0%, 10.6%) !important;
+  --color-fd-card: hsl(0, 0%, 13%) !important;
+  --color-fd-popover: hsl(0, 0%, 14%) !important;
+  --color-fd-secondary: hsl(0, 0%, 15.5%) !important;
+  --color-fd-muted: hsl(0, 0%, 18%) !important;
 }
 
 /* Font family utilities */
@@ -32,7 +43,7 @@ html {
 :root {
   --fd-border: transparent !important;
   --fd-border-sidebar: transparent !important;
-  --fd-nav-height: 65px; /* Custom navbar height (h-16 = 64px + 1px border) */
+  --fd-nav-height: 93px; /* Custom navbar height (52px top + 1px divider + 40px tabs) */
   /* Content container width used to center main content */
   --spacing-fd-container: 1400px;
   /* Edge gutter = leftover space on each side of centered container */
@@ -48,27 +59,25 @@ html {
   --content-gap: 1.75rem;
 }
 
-/* Light mode navbar and search styling */
+/* Light mode navbar background */
 :root:not(.dark) nav {
   background-color: hsla(0, 0%, 96%, 0.85) !important;
 }
 
-:root:not(.dark) nav button[type="button"] {
-  background-color: hsla(0, 0%, 93%, 0.85) !important;
+/* Dark mode navbar background */
+:root.dark nav {
+  background-color: hsla(0, 0%, 10.6%, 0.92) !important;
+}
+
+:root.dark nav button[type="button"] {
+  background-color: hsla(0, 0%, 15%, 0.85) !important;
   backdrop-filter: blur(33px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(33px) saturate(180%) !important;
-  color: rgba(0, 0, 0, 0.6) !important;
+  color: rgba(255, 255, 255, 0.5) !important;
 }
 
-:root:not(.dark) nav button[type="button"] kbd {
-  color: rgba(0, 0, 0, 0.6) !important;
-}
-
-/* Dark mode navbar and search styling */
-:root.dark nav {
-  background-color: hsla(0, 0%, 7.04%, 0.92) !important;
-  backdrop-filter: blur(25px) saturate(180%) brightness(0.6) !important;
-  -webkit-backdrop-filter: blur(25px) saturate(180%) brightness(0.6) !important;
+:root.dark nav button[type="button"] kbd {
+  color: rgba(255, 255, 255, 0.4) !important;
 }
 
 /* Floating sidebar appearance - remove background */
@@ -97,7 +106,7 @@ aside#nd-sidebar {
   display: none !important;
 }
 
-/* Mobile only: Reduce gap between navbar and content */
+/* Mobile only: Reduce gap between navbar and content (custom navbar hidden on mobile) */
 @media (max-width: 1023px) {
   #nd-docs-layout {
     margin-top: -25px;
@@ -121,11 +130,11 @@ aside#nd-sidebar {
 /* On mobile, let fumadocs handle the layout natively */
 @media (min-width: 1024px) {
   :root {
-    --fd-banner-height: 65px !important; /* 64px navbar + 1px border */
+    --fd-banner-height: 93px !important; /* 52px top + 1px divider + 40px tabs */
   }
 
   #nd-docs-layout {
-    --fd-docs-height: calc(100dvh - 65px) !important; /* 64px navbar + 1px border */
+    --fd-docs-height: calc(100dvh - 93px) !important; /* 52px top + 1px divider + 40px tabs */
     --fd-sidebar-width: 300px !important;
     margin-left: var(--sidebar-offset) !important;
     margin-right: var(--toc-offset) !important;
@@ -552,16 +561,15 @@ video {
 /* API Reference Pages — Mintlify-style overrides */
 
 /* OpenAPI pages: span main + TOC grid columns for wide two-column layout.
-   The grid has columns: spacer | sidebar | main | toc | spacer.
-   By spanning columns 3-4, the article fills both main and toc areas,
-   while the grid structure stays identical to non-OpenAPI pages (no jitter). */
+   Use named grid lines from grid-template-areas so this works regardless
+   of whether the grid has 3 columns (production) or 5 columns (local dev). */
 #nd-page:has(.api-page-header) {
-  grid-column: 3 / span 2 !important;
+  grid-column: main-start / toc-end !important;
   max-width: 1400px !important;
 }
 
 /* Hide the empty TOC aside on OpenAPI pages so it doesn't overlay content */
-#nd-docs-layout:has(#nd-page .api-page-header) #nd-toc {
+#nd-docs-layout:has(#nd-page:has(.api-page-header)) #nd-toc {
   display: none;
 }
 
@@ -590,44 +598,39 @@ video {
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-/* Method badge pills in page content — colored background pills */
-#nd-page span.font-mono.font-medium[class*="text-green"] {
-  background-color: rgb(220 252 231 / 0.6);
-  padding: 0.125rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: 0.75rem;
+/* Method badge pills — shared background colors (page + sidebar) */
+span.font-mono.font-medium[data-method="get"],
+span.font-mono.font-medium[data-method="head"],
+span.font-mono.font-medium[data-method="options"] {
+  background-color: rgb(220 252 231 / 0.85);
 }
-html.dark #nd-page span.font-mono.font-medium[class*="text-green"] {
+html.dark span.font-mono.font-medium[data-method="get"],
+html.dark span.font-mono.font-medium[data-method="head"],
+html.dark span.font-mono.font-medium[data-method="options"] {
   background-color: rgb(34 197 94 / 0.15);
 }
-
-#nd-page span.font-mono.font-medium[class*="text-blue"] {
-  background-color: rgb(219 234 254 / 0.6);
-  padding: 0.125rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: 0.75rem;
+span.font-mono.font-medium[data-method="post"] {
+  background-color: rgb(219 234 254 / 0.85);
 }
-html.dark #nd-page span.font-mono.font-medium[class*="text-blue"] {
+html.dark span.font-mono.font-medium[data-method="post"] {
   background-color: rgb(59 130 246 / 0.15);
 }
-
-#nd-page span.font-mono.font-medium[class*="text-orange"] {
-  background-color: rgb(255 237 213 / 0.6);
-  padding: 0.125rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: 0.75rem;
+span.font-mono.font-medium[data-method="put"] {
+  background-color: rgb(254 249 195 / 0.85);
 }
-html.dark #nd-page span.font-mono.font-medium[class*="text-orange"] {
+html.dark span.font-mono.font-medium[data-method="put"] {
+  background-color: rgb(234 179 8 / 0.15);
+}
+span.font-mono.font-medium[data-method="patch"] {
+  background-color: rgb(255 237 213 / 0.85);
+}
+html.dark span.font-mono.font-medium[data-method="patch"] {
   background-color: rgb(249 115 22 / 0.15);
 }
-
-#nd-page span.font-mono.font-medium[class*="text-red"] {
-  background-color: rgb(254 226 226 / 0.6);
-  padding: 0.125rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: 0.75rem;
+span.font-mono.font-medium[data-method="delete"] {
+  background-color: rgb(254 226 226 / 0.85);
 }
-html.dark #nd-page span.font-mono.font-medium[class*="text-red"] {
+html.dark span.font-mono.font-medium[data-method="delete"] {
   background-color: rgb(239 68 68 / 0.15);
 }
 
@@ -635,52 +638,31 @@ html.dark #nd-page span.font-mono.font-medium[class*="text-red"] {
 #nd-sidebar a:has(span.font-mono.font-medium) {
   display: flex !important;
   align-items: center !important;
-  gap: 6px;
+  gap: 0.375rem;
 }
 
-/* Sidebar method badges — ensure proper inline flex display */
+/* Sidebar method badges — fixed-width for right-aligned labels */
 #nd-sidebar a span.font-mono.font-medium {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 2.25rem;
-  font-size: 10px !important;
+  width: 2.625rem;
+  font-size: 0.625rem !important;
   line-height: 1 !important;
-  padding: 2.5px 4px;
-  border-radius: 3px;
+  padding: 0.15625rem 0.25rem;
+  border-radius: 0.1875rem;
   flex-shrink: 0;
 }
 
-/* Sidebar GET badges */
-#nd-sidebar a span.font-mono.font-medium[class*="text-green"] {
-  background-color: rgb(220 252 231 / 0.6);
-}
-html.dark #nd-sidebar a span.font-mono.font-medium[class*="text-green"] {
-  background-color: rgb(34 197 94 / 0.15);
-}
-
-/* Sidebar POST badges */
-#nd-sidebar a span.font-mono.font-medium[class*="text-blue"] {
-  background-color: rgb(219 234 254 / 0.6);
-}
-html.dark #nd-sidebar a span.font-mono.font-medium[class*="text-blue"] {
-  background-color: rgb(59 130 246 / 0.15);
-}
-
-/* Sidebar PUT badges */
-#nd-sidebar a span.font-mono.font-medium[class*="text-orange"] {
-  background-color: rgb(255 237 213 / 0.6);
-}
-html.dark #nd-sidebar a span.font-mono.font-medium[class*="text-orange"] {
-  background-color: rgb(249 115 22 / 0.15);
-}
-
-/* Sidebar DELETE badges */
-#nd-sidebar a span.font-mono.font-medium[class*="text-red"] {
-  background-color: rgb(254 226 226 / 0.6);
-}
-html.dark #nd-sidebar a span.font-mono.font-medium[class*="text-red"] {
-  background-color: rgb(239 68 68 / 0.15);
+/* Footer navigation method badges — pill styling to match sidebar */
+#nd-page span.font-mono.font-medium[data-method] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.625rem !important;
+  line-height: 1 !important;
+  padding: 0.15625rem 0.375rem;
+  border-radius: 0.1875rem;
 }
 
 /* Code block containers — match regular docs styling */
@@ -740,8 +722,25 @@ html.dark
   font-size: 0.6875rem !important;
   letter-spacing: 0.025em;
   text-transform: uppercase;
+  padding: 0.125rem 0.5rem !important;
+  border-radius: 0.375rem !important;
 }
-/* POST — softer blue */
+/* Path bar per-method colors (fumadocs renders these, so we match by class) */
+/* GET */
+#nd-page:has(.api-page-header)
+  div.flex.flex-row.items-center.rounded-xl.border.not-prose
+  span.font-mono.font-medium[class*="text-green"] {
+  color: rgb(22 163 74) !important;
+  background-color: rgb(220 252 231 / 0.7) !important;
+}
+html.dark
+  #nd-page:has(.api-page-header)
+  div.flex.flex-row.items-center.rounded-xl.border.not-prose
+  span.font-mono.font-medium[class*="text-green"] {
+  color: rgb(74 222 128) !important;
+  background-color: rgb(34 197 94 / 0.15) !important;
+}
+/* POST */
 #nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-blue"] {
@@ -755,19 +754,47 @@ html.dark
   color: rgb(96 165 250) !important;
   background-color: rgb(59 130 246 / 0.15) !important;
 }
-/* GET — softer green */
+/* PUT */
 #nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
-  span.font-mono.font-medium[class*="text-green"] {
-  color: rgb(22 163 74) !important;
-  background-color: rgb(220 252 231 / 0.7) !important;
+  span.font-mono.font-medium[class*="text-yellow"] {
+  color: rgb(161 98 7) !important;
+  background-color: rgb(254 249 195 / 0.7) !important;
 }
 html.dark
   #nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
-  span.font-mono.font-medium[class*="text-green"] {
-  color: rgb(74 222 128) !important;
-  background-color: rgb(34 197 94 / 0.15) !important;
+  span.font-mono.font-medium[class*="text-yellow"] {
+  color: rgb(250 204 21) !important;
+  background-color: rgb(234 179 8 / 0.15) !important;
+}
+/* PATCH */
+#nd-page:has(.api-page-header)
+  div.flex.flex-row.items-center.rounded-xl.border.not-prose
+  span.font-mono.font-medium[class*="text-orange"] {
+  color: rgb(194 65 12) !important;
+  background-color: rgb(255 237 213 / 0.7) !important;
+}
+html.dark
+  #nd-page:has(.api-page-header)
+  div.flex.flex-row.items-center.rounded-xl.border.not-prose
+  span.font-mono.font-medium[class*="text-orange"] {
+  color: rgb(251 146 60) !important;
+  background-color: rgb(249 115 22 / 0.15) !important;
+}
+/* DELETE */
+#nd-page:has(.api-page-header)
+  div.flex.flex-row.items-center.rounded-xl.border.not-prose
+  span.font-mono.font-medium[class*="text-red"] {
+  color: rgb(185 28 28) !important;
+  background-color: rgb(254 226 226 / 0.7) !important;
+}
+html.dark
+  #nd-page:has(.api-page-header)
+  div.flex.flex-row.items-center.rounded-xl.border.not-prose
+  span.font-mono.font-medium[class*="text-red"] {
+  color: rgb(248 113 113) !important;
+  background-color: rgb(239 68 68 / 0.15) !important;
 }
 
 /* Path text inside method+path bar — monospace, bright like Gumloop */
@@ -966,17 +993,17 @@ html.dark .response-section-dropdown-item:hover {
   order: 1;
 }
 
-/* Type badge — order 2, grey pill like Mintlify */
+/* Type badge — order 2, grey pill */
 #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground {
   order: 2;
-  background-color: rgb(240 240 243);
-  color: rgb(100 100 110);
-  padding: 0.125rem 0.5rem;
+  background-color: rgb(241 245 249);
+  color: rgb(71 85 105);
+  padding: 0.1875rem 0.5rem;
   border-radius: 0.375rem;
   font-size: 0.6875rem;
-  line-height: 1.25rem;
+  line-height: 1.125rem;
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
@@ -984,8 +1011,8 @@ html.dark
   #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground {
-  background-color: rgb(39 39 42);
-  color: rgb(212 212 216);
+  background-color: rgb(51 51 56);
+  color: rgb(212 212 220);
 }
 
 /* Hide the "*" inside the name span — we'll add "required" as a ::after on the flex row */
@@ -993,26 +1020,26 @@ html.dark
   display: none;
 }
 
-/* Required badge — order 3, light red pill */
+/* Required badge — order 3, red pill */
 #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose:has(span.text-red-400)::after {
   content: "required";
   order: 3;
   display: inline-flex;
   align-items: center;
-  background-color: rgb(254 235 235);
-  color: rgb(220 38 38);
-  padding: 0.125rem 0.5rem;
+  background-color: rgb(254 226 226);
+  color: rgb(185 28 28);
+  padding: 0.1875rem 0.5rem;
   border-radius: 0.375rem;
   font-size: 0.6875rem;
-  line-height: 1.25rem;
+  line-height: 1.125rem;
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 html.dark
   #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose:has(span.text-red-400)::after {
-  background-color: rgb(127 29 29 / 0.2);
+  background-color: rgb(153 27 27 / 0.3);
   color: rgb(252 165 165);
 }
 
@@ -1054,12 +1081,12 @@ html.dark
   > span.text-sm.font-mono.text-fd-muted-foreground::after {
   content: "string";
   font-size: 0.6875rem;
-  line-height: 1.25rem;
+  line-height: 1.125rem;
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  background-color: rgb(240 240 243);
-  color: rgb(100 100 110);
-  padding: 0.125rem 0.5rem;
+  background-color: rgb(241 245 249);
+  color: rgb(71 85 105);
+  padding: 0.1875rem 0.5rem;
   border-radius: 0.375rem;
   display: inline-flex;
   align-items: center;
@@ -1069,8 +1096,8 @@ html.dark
   div.my-4
   > .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground::after {
-  background-color: rgb(39 39 42);
-  color: rgb(212 212 216);
+  background-color: rgb(51 51 56);
+  color: rgb(212 212 220);
 }
 
 /* "header" badge via ::before on the auth flex row */
@@ -1079,12 +1106,12 @@ html.dark
   order: 3;
   display: inline-flex;
   align-items: center;
-  background-color: rgb(240 240 243);
-  color: rgb(100 100 110);
-  padding: 0.125rem 0.5rem;
+  background-color: rgb(241 245 249);
+  color: rgb(71 85 105);
+  padding: 0.1875rem 0.5rem;
   border-radius: 0.375rem;
   font-size: 0.6875rem;
-  line-height: 1.25rem;
+  line-height: 1.125rem;
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
@@ -1092,22 +1119,22 @@ html.dark
   #nd-page:has(.api-page-header)
   div.my-4
   > .flex.flex-wrap.items-center.gap-3.not-prose::before {
-  background-color: rgb(39 39 42);
-  color: rgb(212 212 216);
+  background-color: rgb(51 51 56);
+  color: rgb(212 212 220);
 }
 
-/* "required" badge via ::after on the auth flex row — light red pill */
+/* "required" badge via ::after on the auth flex row — red pill */
 #nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::after {
   content: "required";
   order: 4;
   display: inline-flex;
   align-items: center;
-  background-color: rgb(254 235 235);
-  color: rgb(220 38 38);
-  padding: 0.125rem 0.5rem;
+  background-color: rgb(254 226 226);
+  color: rgb(185 28 28);
+  padding: 0.1875rem 0.5rem;
   border-radius: 0.375rem;
   font-size: 0.6875rem;
-  line-height: 1.25rem;
+  line-height: 1.125rem;
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
@@ -1115,7 +1142,7 @@ html.dark
   #nd-page:has(.api-page-header)
   div.my-4
   > .flex.flex-wrap.items-center.gap-3.not-prose::after {
-  background-color: rgb(127 29 29 / 0.2);
+  background-color: rgb(153 27 27 / 0.3);
   color: rgb(252 165 165);
 }
 
@@ -1168,12 +1195,12 @@ html.dark #nd-page:has(.api-page-header) .text-sm.border-t {
 #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
 #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > span:has(> button) {
   order: 2;
-  background-color: rgb(240 240 243);
-  color: rgb(100 100 110);
-  padding: 0.125rem 0.5rem;
+  background-color: rgb(241 245 249);
+  color: rgb(71 85 105);
+  padding: 0.1875rem 0.5rem;
   border-radius: 0.375rem;
   font-size: 0.6875rem;
-  line-height: 1.25rem;
+  line-height: 1.125rem;
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
@@ -1182,8 +1209,8 @@ html.dark
   #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose
   > span:has(> button) {
-  background-color: rgb(39 39 42);
-  color: rgb(212 212 216);
+  background-color: rgb(51 51 56);
+  color: rgb(212 212 220);
 }
 
 /* Section headings (Authorization, Path Parameters, etc.) — consistent top spacing */

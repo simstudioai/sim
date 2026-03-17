@@ -1,29 +1,92 @@
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import clsx from 'clsx'
 import { X } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import {
+  type Notification,
   type NotificationAction,
   openCopilotWithMessage,
+  sendMothershipMessage,
   useNotificationStore,
 } from '@/stores/notifications'
-import { usePanelStore } from '@/stores/panel'
-import { useTerminalStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('Notifications')
 const MAX_VISIBLE_NOTIFICATIONS = 4
+const STACK_OFFSET_PX = 3
+const AUTO_DISMISS_MS = 10000
+const EXIT_ANIMATION_MS = 200
+
+const RING_RADIUS = 5.5
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
+
+const ACTION_LABELS: Record<NotificationAction['type'], string> = {
+  copilot: 'Fix in Copilot',
+  refresh: 'Refresh',
+  'unlock-workflow': 'Unlock Workflow',
+} as const
+
+function isAutoDismissable(n: Notification): boolean {
+  return n.level === 'error' && !!n.workflowId
+}
+
+function CountdownRing({ onPause }: { onPause: () => void }) {
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <Button
+          variant='ghost'
+          onClick={onPause}
+          aria-label='Keep notifications visible'
+          className='!p-[4px] -m-[2px] shrink-0 rounded-[5px] hover:bg-[var(--surface-active)]'
+        >
+          <svg
+            width='14'
+            height='14'
+            viewBox='0 0 16 16'
+            fill='none'
+            xmlns='http://www.w3.org/2000/svg'
+            style={{ transform: 'rotate(-90deg) scaleX(-1)' }}
+          >
+            <circle cx='8' cy='8' r={RING_RADIUS} stroke='var(--border)' strokeWidth='1.5' />
+            <circle
+              cx='8'
+              cy='8'
+              r={RING_RADIUS}
+              stroke='var(--text-icon)'
+              strokeWidth='1.5'
+              strokeLinecap='round'
+              strokeDasharray={RING_CIRCUMFERENCE}
+              style={{
+                animation: `notification-countdown ${AUTO_DISMISS_MS}ms linear forwards`,
+              }}
+            />
+          </svg>
+        </Button>
+      </Tooltip.Trigger>
+      <Tooltip.Content>
+        <p>Keep visible</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
 
 /**
  * Notifications display component.
  * Positioned in the bottom-right workspace area, reactive to panel width and terminal height.
  * Shows both global notifications and workflow-specific notifications.
+ *
+ * Workflow error notifications auto-dismiss after {@link AUTO_DISMISS_MS}ms with a countdown
+ * ring. Clicking the ring pauses all timers until the notification stack clears.
  */
-export const Notifications = memo(function Notifications() {
+interface NotificationsProps {
+  embedded?: boolean
+}
+
+export const Notifications = memo(function Notifications({ embedded }: NotificationsProps) {
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
   const allNotifications = useNotificationStore((state) => state.notifications)
@@ -36,8 +99,6 @@ export const Notifications = memo(function Notifications() {
       .filter((n) => !n.workflowId || n.workflowId === activeWorkflowId)
       .slice(0, MAX_VISIBLE_NOTIFICATIONS)
   }, [allNotifications, activeWorkflowId])
-  const isTerminalResizing = useTerminalStore((state) => state.isResizing)
-  const isPanelResizing = usePanelStore((state) => state.isResizing)
 
   /**
    * Executes a notification action and handles side effects.
@@ -56,7 +117,11 @@ export const Notifications = memo(function Notifications() {
 
         switch (action.type) {
           case 'copilot':
-            openCopilotWithMessage(action.message)
+            if (embedded) {
+              sendMothershipMessage(action.message)
+            } else {
+              openCopilotWithMessage(action.message)
+            }
             break
           case 'refresh':
             window.location.reload()
@@ -68,7 +133,6 @@ export const Notifications = memo(function Notifications() {
             logger.warn('Unknown action type', { notificationId, actionType: action.type })
         }
 
-        // Dismiss the notification after the action is triggered
         removeNotification(notificationId)
       } catch (error) {
         logger.error('Failed to execute notification action', {
@@ -78,16 +142,9 @@ export const Notifications = memo(function Notifications() {
         })
       }
     },
-    [removeNotification]
+    [embedded, removeNotification]
   )
 
-  /**
-   * Register global keyboard shortcut for clearing notifications.
-   *
-   * - Mod+E: Clear all notifications visible in the current workflow (including global ones).
-   *
-   * The command is disabled in editable contexts so it does not interfere with typing.
-   */
   useRegisterGlobalCommands(() =>
     createCommands([
       {
@@ -104,28 +161,87 @@ export const Notifications = memo(function Notifications() {
 
   const preventZoomRef = usePreventZoom()
 
+  const [isPaused, setIsPaused] = useState(false)
+  const isPausedRef = useRef(false)
+  const [exitingIds, setExitingIds] = useState<Set<string>>(new Set())
+  const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+
+  const pauseAll = useCallback(() => {
+    setIsPaused(true)
+    isPausedRef.current = true
+    setExitingIds(new Set())
+    for (const timer of timersRef.current.values()) clearTimeout(timer)
+    timersRef.current.clear()
+  }, [])
+
+  /**
+   * Manages per-notification dismiss timers.
+   * Resets pause state when the notification stack empties so new arrivals get fresh timers.
+   */
+  useEffect(() => {
+    isPausedRef.current = isPaused
+  }, [isPaused])
+
+  useEffect(() => {
+    if (visibleNotifications.length === 0) {
+      if (isPaused) setIsPaused(false)
+      for (const timer of timersRef.current.values()) clearTimeout(timer)
+      timersRef.current.clear()
+      return
+    }
+    if (isPaused) return
+
+    const timers = timersRef.current
+    const activeIds = new Set<string>()
+
+    for (const n of visibleNotifications) {
+      if (!isAutoDismissable(n) || timers.has(n.id)) continue
+      activeIds.add(n.id)
+
+      timers.set(
+        n.id,
+        setTimeout(() => {
+          timers.delete(n.id)
+          setExitingIds((prev) => new Set(prev).add(n.id))
+          setTimeout(() => {
+            if (isPausedRef.current) return
+            removeNotification(n.id)
+            setExitingIds((prev) => {
+              const next = new Set(prev)
+              next.delete(n.id)
+              return next
+            })
+          }, EXIT_ANIMATION_MS)
+        }, AUTO_DISMISS_MS)
+      )
+    }
+
+    for (const [id, timer] of timers) {
+      if (!activeIds.has(id) && !visibleNotifications.some((n) => n.id === id)) {
+        clearTimeout(timer)
+        timers.delete(id)
+      }
+    }
+  }, [visibleNotifications, removeNotification, isPaused])
+
+  useEffect(() => {
+    const timers = timersRef.current
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer)
+    }
+  }, [])
+
   if (visibleNotifications.length === 0) {
     return null
   }
 
-  const isResizing = isTerminalResizing || isPanelResizing
-
   return (
-    <div
-      ref={preventZoomRef}
-      className={clsx(
-        'fixed z-30 flex flex-col items-start',
-        !isResizing && 'transition-[bottom,right] duration-100 ease-out'
-      )}
-      style={{
-        bottom: 'calc(var(--terminal-height) + 16px)',
-        right: 'calc(var(--panel-width) + 16px)',
-      }}
-    >
+    <div ref={preventZoomRef} className='absolute right-[16px] bottom-[16px] z-30 grid'>
       {[...visibleNotifications].reverse().map((notification, index, stacked) => {
         const depth = stacked.length - index - 1
-        const xOffset = depth * 3
+        const xOffset = depth * STACK_OFFSET_PX
         const hasAction = Boolean(notification.action)
+        const showCountdown = !isPaused && isAutoDismissable(notification)
 
         return (
           <div
@@ -133,54 +249,50 @@ export const Notifications = memo(function Notifications() {
             style={
               {
                 '--stack-offset': `${xOffset}px`,
-                animation: 'notification-enter 200ms ease-out forwards',
+                animation: exitingIds.has(notification.id)
+                  ? `notification-exit ${EXIT_ANIMATION_MS}ms ease-in forwards`
+                  : 'notification-enter 200ms ease-out forwards',
+                gridArea: '1 / 1',
               } as React.CSSProperties
             }
-            className={`relative h-[80px] w-[240px] overflow-hidden rounded-[4px] border bg-[var(--surface-2)] ${
-              index > 0 ? '-mt-[80px]' : ''
-            }`}
+            className='w-[240px] self-end overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] shadow-sm'
           >
-            <div className='flex h-full flex-col justify-between px-[8px] pt-[6px] pb-[8px]'>
+            <div className='flex flex-col gap-[8px] p-[8px]'>
               <div className='flex items-start gap-[8px]'>
-                <div
-                  className={`min-w-0 flex-1 font-medium text-[12px] leading-[16px] ${
-                    hasAction ? 'line-clamp-2' : 'line-clamp-4'
-                  }`}
-                >
+                <div className='line-clamp-2 min-w-0 flex-1 font-medium text-[12px] text-[var(--text-body)]'>
                   {notification.level === 'error' && (
-                    <span className='mr-[6px] mb-[2.75px] inline-block h-[6px] w-[6px] rounded-[2px] bg-[var(--text-error)] align-middle' />
+                    <span className='mr-[8px] mb-[2px] inline-block h-[8px] w-[8px] rounded-[2px] bg-[var(--text-error)] align-middle' />
                   )}
                   {notification.message}
                 </div>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Button
-                      variant='ghost'
-                      onClick={() => removeNotification(notification.id)}
-                      aria-label='Dismiss notification'
-                      className='!p-1.5 -m-1.5 shrink-0'
-                    >
-                      <X className='h-3 w-3' />
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>
-                    <Tooltip.Shortcut keys='⌘E'>Clear all</Tooltip.Shortcut>
-                  </Tooltip.Content>
-                </Tooltip.Root>
+                <div className='flex shrink-0 items-start gap-[2px]'>
+                  {showCountdown && <CountdownRing onPause={pauseAll} />}
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <Button
+                        variant='ghost'
+                        onClick={() => removeNotification(notification.id)}
+                        aria-label='Dismiss notification'
+                        className='!p-[4px] -m-[2px] shrink-0 rounded-[5px] hover:bg-[var(--surface-active)]'
+                      >
+                        <X className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+                      </Button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content>
+                      <Tooltip.Shortcut keys='⌘E'>Clear all</Tooltip.Shortcut>
+                    </Tooltip.Content>
+                  </Tooltip.Root>
+                </div>
               </div>
               {hasAction && (
                 <Button
                   variant='active'
                   onClick={() => executeAction(notification.id, notification.action!)}
-                  className='w-full px-[8px] py-[4px] font-medium text-[12px]'
+                  className='w-full rounded-[5px] px-[8px] py-[4px] font-medium text-[12px]'
                 >
-                  {notification.action!.type === 'copilot'
-                    ? 'Fix in Copilot'
-                    : notification.action!.type === 'refresh'
-                      ? 'Refresh'
-                      : notification.action!.type === 'unlock-workflow'
-                        ? 'Unlock Workflow'
-                        : 'Take action'}
+                  {embedded && notification.action!.type === 'copilot'
+                    ? 'Fix in Mothership'
+                    : (ACTION_LABELS[notification.action!.type] ?? 'Take action')}
                 </Button>
               )}
             </div>

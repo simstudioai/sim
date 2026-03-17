@@ -5,6 +5,7 @@ description: Upload, process, and search through your documents with intelligent
 
 import { Video } from '@/components/ui/video'
 import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
 
 The knowledgebase allows you to upload, process, and search through your documents with intelligent vector search and chunking. Documents of various types are automatically processed, embedded, and made searchable. Your documents are intelligently chunked, and you can view, edit, and search through them using natural language queries.
 
@@ -25,7 +26,7 @@ The system handles the entire processing pipeline for you:
 
 ## Supported File Types
 
-Sim supports PDF, Word (DOC/DOCX), plain text (TXT), Markdown (MD), HTML, Excel (XLS/XLSX), PowerPoint (PPT/PPTX), and CSV files. Files can be up to 100MB each, with optimal performance for files under 50MB. You can upload multiple documents simultaneously, and PDF files include OCR processing for scanned documents.
+Sim supports PDF, Word (DOC/DOCX), plain text (TXT), Markdown (MD), HTML, HTM, Excel (XLS/XLSX), PowerPoint (PPT/PPTX), CSV, JSON, and YAML/YML files. Files can be up to 100MB each, with optimal performance for files under 50MB. You can upload multiple documents simultaneously, and PDF files include OCR processing for scanned documents.
 
 ## Viewing and Editing Chunks
 
@@ -40,8 +41,8 @@ When creating a knowledge base, you can configure how documents are split into c
 | Setting | Unit | Default | Range | Description |
 |---------|------|---------|-------|-------------|
 | **Max Chunk Size** | tokens | 1,024 | 100-4,000 | Maximum size of each chunk (1 token ≈ 4 characters) |
-| **Min Chunk Size** | characters | 1 | 1-2,000 | Minimum chunk size to avoid tiny fragments |
-| **Overlap** | characters | 200 | 0-500 | Context overlap between consecutive chunks |
+| **Min Chunk Size** | characters | 100 | 100-2,000 | Minimum chunk size to avoid tiny fragments |
+| **Overlap** | tokens | 200 | 0-500 | Context overlap between consecutive chunks |
 
 - **Hierarchical splitting**: Respects document structure (sections, paragraphs, sentences)
 
@@ -118,3 +119,13 @@ Sim uses vector search powered by [pgvector](https://github.com/pgvector/pgvecto
 5. **Add to workflows**: Use the Knowledge block to integrate with your AI agents
 
 The knowledgebase transforms your static documents into an intelligent, searchable resource that your AI workflows can leverage for more informed and contextual responses.
+
+<FAQ items={[
+  { question: "What file types are supported?", answer: "PDF, Word (DOC/DOCX), plain text (TXT), Markdown (MD), HTML, HTM, Excel (XLS/XLSX), PowerPoint (PPT/PPTX), CSV, JSON, and YAML/YML files." },
+  { question: "Is there a file size limit?", answer: "Files can be up to 100 MB each, with optimal performance for files under 50 MB." },
+  { question: "Can I edit chunks after processing?", answer: "Yes. You can view, edit, merge, split, and add metadata to individual chunks after documents are processed." },
+  { question: "How does semantic search work?", answer: "Documents are embedded as vectors using AI models. When you search, your query is also embedded and compared against document vectors to find conceptually similar content — even without exact keyword matches." },
+  { question: "Does it support scanned PDFs?", answer: "Yes. When configured with Azure or Mistral OCR, Sim can extract text from image-based and scanned PDF documents." },
+  { question: "Can I search across multiple knowledge bases?", answer: "Each Knowledge block targets a specific knowledge base. You can use multiple Knowledge blocks in a workflow to search across different knowledge bases." },
+  { question: "How do I control chunk size?", answer: "When creating a knowledge base, you can configure max chunk size (100-4,000 tokens), min chunk size (100-2,000 characters), and overlap (0-500 tokens)." },
+]} />

@@ -27,8 +27,8 @@ export const skillsKeys = {
 /**
  * Fetch skills for a workspace
  */
-async function fetchSkills(workspaceId: string): Promise<SkillDefinition[]> {
-  const response = await fetch(`${API_ENDPOINT}?workspaceId=${workspaceId}`)
+async function fetchSkills(workspaceId: string, signal?: AbortSignal): Promise<SkillDefinition[]> {
+  const response = await fetch(`${API_ENDPOINT}?workspaceId=${workspaceId}`, { signal })
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
@@ -59,7 +59,7 @@ async function fetchSkills(workspaceId: string): Promise<SkillDefinition[]> {
 export function useSkills(workspaceId: string) {
   return useQuery<SkillDefinition[]>({
     queryKey: skillsKeys.list(workspaceId),
-    queryFn: () => fetchSkills(workspaceId),
+    queryFn: ({ signal }) => fetchSkills(workspaceId, signal),
     enabled: !!workspaceId,
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,

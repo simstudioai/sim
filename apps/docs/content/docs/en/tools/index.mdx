@@ -6,6 +6,7 @@ description: Powerful tools to enhance your agentic workflows
 import { Card, Cards } from "fumadocs-ui/components/card";
 import { Step, Steps } from "fumadocs-ui/components/steps";
 import { Video } from '@/components/ui/video';
+import { FAQ } from '@/components/ui/faq';
 
 Tools are powerful components in Sim that allow your workflows to interact with external services, process data, and perform specialized tasks. They extend the capabilities of your agents and workflows by providing access to various APIs and services.
 
@@ -49,10 +50,10 @@ Each tool requires specific configuration to function properly. Common configura
 
 Sim provides a diverse collection of tools for various purposes, including:
 
-- **AI and Language Processing**: OpenAI, ElevenLabs, Translation services
+- **AI and Language Processing**: OpenAI, ElevenLabs, Google Translate
 - **Search and Research**: Google Search, Tavily, Exa, Perplexity
 - **Document Manipulation**: Google Docs, Google Sheets, Notion, Confluence
-- **Media Processing**: Vision, Image Generator
+- **Media Processing**: Vision
 - **Communication**: Slack, WhatsApp, Twilio SMS, Gmail
 - **Data Storage**: Pinecone, Supabase, Airtable
 - **Development**: GitHub
@@ -68,3 +69,13 @@ Tools typically return structured data that can be processed by subsequent block
 - Status information
 
 Refer to each tool's specific documentation to understand its exact output format.
+
+<FAQ items={[
+  { question: "How many tool integrations does Sim provide?", answer: "Sim includes over 180 service integrations with 1,000+ individual tool actions, spanning categories like AI and language processing, search and research, document manipulation, media processing, communication, data storage, development platforms, and more." },
+  { question: "What is the difference between using a tool as a standalone block vs. as an agent tool?", answer: "As a standalone block, the tool is called deterministically at a fixed point in your workflow, giving you precise control. As an agent tool, the tool is provided to an AI agent that dynamically decides whether and when to call it based on context and task requirements." },
+  { question: "How does tool authentication work?", answer: "Tools support multiple authentication methods. Many use OAuth for secure token-based access to external services. Others accept API keys provided by the user. Some tools also support Sim's hosted API keys, so you can use the tool without providing your own key." },
+  { question: "Can tools return files?", answer: "Yes. Tools can return file-typed outputs with associated metadata like file name, MIME type, and size. File data can be provided as a buffer, base64 string, or a URL to download from. This enables workflows that process documents, images, and other binary content." },
+  { question: "What happens when a tool API call fails?", answer: "Tools support configurable retry logic with settings for maximum retries, initial delay, and maximum delay. Error extractors parse provider-specific error responses to surface clear error messages. You can also configure whether only idempotent requests should be retried." },
+  { question: "Can tools dynamically adapt their parameters based on context?", answer: "Yes. Tools support schema enrichment, where parameter schemas are dynamically updated at runtime based on other parameter values. For example, the knowledge search tool enriches its tag filter options based on the selected knowledgebase's actual tag definitions." },
+]} />
+

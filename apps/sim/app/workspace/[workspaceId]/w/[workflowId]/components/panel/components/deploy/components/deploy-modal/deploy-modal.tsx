@@ -19,13 +19,13 @@ import {
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/settings/components/api-keys/components'
 import { runPreDeployChecks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-predeploy-checks'
-import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/api-keys/components'
 import { startsWithUuid } from '@/executor/constants'
 import { useA2AAgentByWorkflow } from '@/hooks/queries/a2a/agents'
 import { useApiKeys } from '@/hooks/queries/api-keys'
 import {
-  deploymentKeys,
+  invalidateDeploymentQueries,
   useActivateDeploymentVersion,
   useChatDeploymentInfo,
   useDeploymentInfo,
@@ -37,7 +37,7 @@ import { useTemplateByWorkflow } from '@/hooks/queries/templates'
 import { useWorkflowMcpServers } from '@/hooks/queries/workflow-mcp-servers'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
-import { useSettingsModalStore } from '@/stores/modals/settings/store'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -48,7 +48,8 @@ import { ChatDeploy, type ExistingChat } from './components/chat/chat'
 import { ApiInfoModal } from './components/general/components/api-info-modal'
 import { GeneralDeploy } from './components/general/general'
 import { McpDeploy } from './components/mcp/mcp'
-import { TemplateDeploy } from './components/template/template'
+
+// import { TemplateDeploy } from './components/template/template'
 
 const logger = createLogger('DeployModal')
 
@@ -58,9 +59,8 @@ interface DeployModalProps {
   workflowId: string | null
   isDeployed: boolean
   needsRedeployment: boolean
-  deployedState: WorkflowState
+  deployedState?: WorkflowState | null
   isLoadingDeployedState: boolean
-  refetchDeployedState: () => Promise<void>
 }
 
 interface WorkflowDeploymentInfoUI {
@@ -83,10 +83,9 @@ export function DeployModal({
   needsRedeployment,
   deployedState,
   isLoadingDeployedState,
-  refetchDeployedState,
 }: DeployModalProps) {
   const queryClient = useQueryClient()
-  const openSettingsModal = useSettingsModalStore((state) => state.openModal)
+  const { navigateToSettings } = useSettingsNavigation()
   const deploymentStatus = useWorkflowRegistry((state) =>
     state.getWorkflowDeploymentStatus(workflowId)
   )
@@ -297,17 +296,17 @@ export function DeployModal({
     setDeployWarnings([])
 
     try {
+      // Deploy mutation handles query invalidation in its onSuccess callback
       const result = await deployMutation.mutateAsync({ workflowId, deployChatEnabled: false })
       if (result.warnings && result.warnings.length > 0) {
         setDeployWarnings(result.warnings)
       }
-      await refetchDeployedState()
     } catch (error: unknown) {
       logger.error('Error deploying workflow:', { error })
       const errorMessage = error instanceof Error ? error.message : 'Failed to deploy workflow'
       setDeployError(errorMessage)
     }
-  }, [workflowId, deployMutation, refetchDeployedState])
+  }, [workflowId, deployMutation])
 
   const handlePromoteToLive = useCallback(
     async (version: number) => {
@@ -320,13 +319,12 @@ export function DeployModal({
         if (result.warnings && result.warnings.length > 0) {
           setDeployWarnings(result.warnings)
         }
-        await refetchDeployedState()
       } catch (error) {
         logger.error('Error promoting version:', { error })
         throw error
       }
     },
-    [workflowId, activateVersionMutation, refetchDeployedState]
+    [workflowId, activateVersionMutation]
   )
 
   const handleUndeploy = useCallback(async () => {
@@ -366,13 +364,12 @@ export function DeployModal({
       if (result.warnings && result.warnings.length > 0) {
         setDeployWarnings(result.warnings)
       }
-      await refetchDeployedState()
     } catch (error: unknown) {
       logger.error('Error redeploying workflow:', { error })
       const errorMessage = error instanceof Error ? error.message : 'Failed to redeploy workflow'
       setDeployError(errorMessage)
     }
-  }, [workflowId, deployMutation, refetchDeployedState])
+  }, [workflowId, deployMutation])
 
   const handleCloseModal = useCallback(() => {
     setChatSubmitting(false)
@@ -384,9 +381,8 @@ export function DeployModal({
   const handleChatDeployed = useCallback(async () => {
     if (!workflowId) return
 
-    queryClient.invalidateQueries({ queryKey: deploymentKeys.versions(workflowId) })
+    invalidateDeploymentQueries(queryClient, workflowId)
 
-    await refetchDeployedState()
     useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
 
     if (chatSuccessTimeoutRef.current) {
@@ -394,7 +390,7 @@ export function DeployModal({
     }
     setChatSuccess(true)
     chatSuccessTimeoutRef.current = setTimeout(() => setChatSuccess(false), 2000)
-  }, [workflowId, queryClient, refetchDeployedState])
+  }, [workflowId, queryClient])
 
   const handleRefetchChat = useCallback(async () => {
     await refetchChatInfo()
@@ -497,9 +493,9 @@ export function DeployModal({
                 <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
               )}
               {/* <ModalTabsTrigger value='form'>Form</ModalTabsTrigger> */}
-              {!permissionConfig.hideDeployTemplate && (
+              {/* {!permissionConfig.hideDeployTemplate && (
                 <ModalTabsTrigger value='template'>Template</ModalTabsTrigger>
-              )}
+              )} */}
             </ModalTabsList>
 
             <ModalBody className='min-h-0 flex-1'>
@@ -563,7 +559,7 @@ export function DeployModal({
                 />
               </ModalTabsContent>
 
-              <ModalTabsContent value='template'>
+              {/* <ModalTabsContent value='template'>
                 {workflowId && (
                   <TemplateDeploy
                     workflowId={workflowId}
@@ -572,7 +568,7 @@ export function DeployModal({
                     onSubmittingChange={setTemplateSubmitting}
                   />
                 )}
-              </ModalTabsContent>
+              </ModalTabsContent> */}
 
               {/* <ModalTabsContent value='form'>
                 {workflowId && (
@@ -690,7 +686,7 @@ export function DeployModal({
                 <Button
                   type='button'
                   variant='default'
-                  onClick={() => openSettingsModal({ section: 'workflow-mcp-servers' })}
+                  onClick={() => navigateToSettings({ section: 'workflow-mcp-servers' })}
                 >
                   Manage
                 </Button>
@@ -705,7 +701,7 @@ export function DeployModal({
               </div>
             </ModalFooter>
           )}
-          {activeTab === 'template' && (
+          {/* {activeTab === 'template' && (
             <ModalFooter className='items-center justify-between'>
               {hasExistingTemplate && templateStatus ? (
                 <TemplateStatusBadge
@@ -743,7 +739,7 @@ export function DeployModal({
                 </Button>
               </div>
             </ModalFooter>
-          )}
+          )} */}
           {/* {activeTab === 'form' && (
             <ModalFooter className='items-center justify-between'>
               <div />
@@ -861,7 +857,7 @@ export function DeployModal({
         <ModalContent size='sm'>
           <ModalHeader>Undeploy API</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to undeploy this workflow?{' '}
               <span className='text-[var(--text-error)]'>
                 This will remove the API endpoint and make it unavailable to external users.
@@ -887,7 +883,7 @@ export function DeployModal({
         <ModalContent size='sm'>
           <ModalHeader>Delete A2A Agent</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {existingA2aAgent?.name || 'this agent'}
@@ -1006,12 +1002,7 @@ function GeneralFooter({
     <ModalFooter className='items-center justify-between'>
       <StatusBadge isWarning={needsRedeployment} />
       <div className='flex items-center gap-2'>
-        <Button
-          variant='default'
-          onClick={onUndeploy}
-          disabled={isUndeploying || isSubmitting}
-          className='px-[7px] py-[5px]'
-        >
+        <Button variant='default' onClick={onUndeploy} disabled={isUndeploying || isSubmitting}>
           {isUndeploying ? 'Undeploying...' : 'Undeploy'}
         </Button>
         {needsRedeployment && (

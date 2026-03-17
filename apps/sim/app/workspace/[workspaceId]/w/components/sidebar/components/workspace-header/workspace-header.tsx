@@ -2,27 +2,30 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowDown, MoreHorizontal, Plus } from 'lucide-react'
+import { MoreHorizontal } from 'lucide-react'
 import {
-  Badge,
   Button,
   ChevronDown,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
-  PanelLeft,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverSection,
-  PopoverTrigger,
-  Tooltip,
+  Plus,
+  UserPlus,
 } from '@/components/emcn'
+import { getDisplayPlanName } from '@/lib/billing/plan-helpers'
+import { cn } from '@/lib/core/utils/cn'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
+import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
+import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const logger = createLogger('WorkspaceHeader')
@@ -30,97 +33,55 @@ const logger = createLogger('WorkspaceHeader')
 interface Workspace {
   id: string
   name: string
+  color?: string
   ownerId: string
   role?: string
   permissions?: 'admin' | 'write' | 'read' | null
 }
 
 interface WorkspaceHeaderProps {
-  /**
-   * The active workspace object
-   */
+  /** The active workspace object */
   activeWorkspace?: { name: string } | null
-  /**
-   * Current workspace ID
-   */
+  /** Current workspace ID */
   workspaceId: string
-  /**
-   * List of available workspaces
-   */
+  /** List of available workspaces */
   workspaces: Workspace[]
-  /**
-   * Whether workspaces are loading
-   */
+  /** Whether workspaces are loading */
   isWorkspacesLoading: boolean
-  /**
-   * Whether workspace creation is in progress
-   */
+  /** Whether workspace creation is in progress */
   isCreatingWorkspace: boolean
-  /**
-   * Whether the workspace menu popover is open
-   */
+  /** Whether the workspace menu popover is open */
   isWorkspaceMenuOpen: boolean
-  /**
-   * Callback to set workspace menu open state
-   */
+  /** Callback to set workspace menu open state */
   setIsWorkspaceMenuOpen: (isOpen: boolean) => void
-  /**
-   * Callback when workspace is switched
-   */
+  /** Callback when workspace is switched */
   onWorkspaceSwitch: (workspace: Workspace) => void
-  /**
-   * Callback when create workspace is clicked
-   */
-  onCreateWorkspace: () => Promise<void>
-  /**
-   * Callback when toggle collapse is clicked
-   */
-  onToggleCollapse: () => void
-  /**
-   * Whether the sidebar is collapsed
-   */
-  isCollapsed: boolean
-  /**
-   * Callback to rename the workspace
-   */
+  /** Callback when create workspace is confirmed with a name */
+  onCreateWorkspace: (name: string) => Promise<void>
+  /** Callback to rename the workspace */
   onRenameWorkspace: (workspaceId: string, newName: string) => Promise<void>
-  /**
-   * Callback to delete the workspace
-   */
+  /** Callback to delete the workspace */
   onDeleteWorkspace: (workspaceId: string) => Promise<void>
-  /**
-   * Callback to duplicate the workspace
-   */
+  /** Callback to duplicate the workspace */
   onDuplicateWorkspace: (workspaceId: string, workspaceName: string) => Promise<void>
-  /**
-   * Callback to export the workspace
-   */
+  /** Callback to export the workspace */
   onExportWorkspace: (workspaceId: string, workspaceName: string) => Promise<void>
-  /**
-   * Callback to import workspace
-   */
+  /** Callback to import workspace */
   onImportWorkspace: () => void
-  /**
-   * Whether workspace import is in progress
-   */
+  /** Whether workspace import is in progress */
   isImportingWorkspace: boolean
-  /**
-   * Whether to show the collapse button
-   */
-  showCollapseButton?: boolean
-  /**
-   * Callback to leave the workspace
-   */
+  /** Callback to change the workspace color */
+  onColorChange?: (workspaceId: string, color: string) => Promise<void>
+  /** Callback to leave the workspace */
   onLeaveWorkspace?: (workspaceId: string) => Promise<void>
-  /**
-   * Current user's session ID for owner check
-   */
+  /** Current user's session ID for owner check */
   sessionUserId?: string
+  /** Whether the sidebar is collapsed */
+  isCollapsed?: boolean
 }
 
 /**
- * Workspace header component that displays workspace name, switcher, and collapse toggle.
- * Used in both the full sidebar and floating collapsed state.
+ * Workspace header component that displays workspace name and switcher.
  */
 export function WorkspaceHeader({
   activeWorkspace,
@@ -132,18 +93,18 @@ export function WorkspaceHeader({
   setIsWorkspaceMenuOpen,
   onWorkspaceSwitch,
   onCreateWorkspace,
-  onToggleCollapse,
-  isCollapsed,
   onRenameWorkspace,
   onDeleteWorkspace,
   onDuplicateWorkspace,
   onExportWorkspace,
   onImportWorkspace,
   isImportingWorkspace,
-  showCollapseButton = true,
+  onColorChange,
   onLeaveWorkspace,
   sessionUserId,
+  isCollapsed = false,
 }: WorkspaceHeaderProps) {
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -158,11 +119,7 @@ export function WorkspaceHeader({
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
   const contextMenuRef = useRef<HTMLDivElement | null>(null)
-  const capturedWorkspaceRef = useRef<{
-    id: string
-    name: string
-    permissions?: 'admin' | 'write' | 'read' | null
-  } | null>(null)
+  const capturedWorkspaceRef = useRef<Workspace | null>(null)
   const isRenamingRef = useRef(false)
   const isContextMenuOpeningRef = useRef(false)
   const contextMenuClosedRef = useRef(true)
@@ -174,6 +131,9 @@ export function WorkspaceHeader({
   }, [])
 
   const { isInvitationsDisabled } = usePermissionConfig()
+  const { data: subscriptionResponse } = useSubscriptionData()
+  const rawPlanName = getDisplayPlanName(subscriptionResponse?.data?.plan)
+  const planDisplayName = rawPlanName.includes('for Teams') ? rawPlanName : `${rawPlanName} Plan`
 
   // Listen for open-invite-modal event from context menu
   useEffect(() => {
@@ -201,6 +161,12 @@ export function WorkspaceHeader({
 
   const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
 
+  const workspaceInitial = (() => {
+    const name = activeWorkspace?.name || ''
+    const stripped = name.replace(/workspace/gi, '').trim()
+    return (stripped[0] || name[0] || 'W').toUpperCase()
+  })()
+
   /**
    * Opens the context menu for a workspace at the specified position
    */
@@ -208,11 +174,7 @@ export function WorkspaceHeader({
     isContextMenuOpeningRef.current = true
     contextMenuClosedRef.current = false
 
-    capturedWorkspaceRef.current = {
-      id: workspace.id,
-      name: workspace.name,
-      permissions: workspace.permissions,
-    }
+    capturedWorkspaceRef.current = workspace
     setContextMenuPosition({ x, y })
     setIsContextMenuOpen(true)
   }
@@ -238,8 +200,9 @@ export function WorkspaceHeader({
     contextMenuClosedRef.current = true
 
     setIsContextMenuOpen(false)
+    const isOpeningAnother = isContextMenuOpeningRef.current
     isContextMenuOpeningRef.current = false
-    if (!isRenamingRef.current) {
+    if (!isRenamingRef.current && !isOpeningAnother) {
       setIsWorkspaceMenuOpen(false)
     }
     isRenamingRef.current = false
@@ -306,6 +269,14 @@ export function WorkspaceHeader({
   }
 
   /**
+   * Handles color change action from context menu
+   */
+  const handleColorChangeAction = async (color: string) => {
+    if (!capturedWorkspaceRef.current || !onColorChange) return
+    await onColorChange(capturedWorkspaceRef.current.id, color)
+  }
+
+  /**
    * Handle leave workspace after confirmation
    */
   const handleLeaveWorkspace = async () => {
@@ -341,12 +312,11 @@ export function WorkspaceHeader({
   }
 
   return (
-    <div className={`flex items-center gap-[8px] ${isCollapsed ? '' : 'min-w-0 justify-between'}`}>
+    <div className='min-w-0'>
       {/* Workspace Name with Switcher */}
-      <div className={isCollapsed ? '' : 'min-w-0 flex-1'}>
-        {/* Workspace Switcher Popover - only render after mount to avoid Radix ID hydration mismatch */}
+      <div className='min-w-0'>
         {isMounted ? (
-          <Popover
+          <DropdownMenu
             open={isWorkspaceMenuOpen}
             onOpenChange={(open) => {
               if (
@@ -358,13 +328,14 @@ export function WorkspaceHeader({
               setIsWorkspaceMenuOpen(open)
             }}
           >
-            <PopoverTrigger asChild>
+            <DropdownMenuTrigger asChild>
               <button
                 type='button'
                 aria-label='Switch workspace'
-                className={`group flex cursor-pointer items-center gap-[8px] rounded-[6px] bg-transparent px-[6px] py-[4px] transition-colors hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)] ${
-                  isCollapsed ? '' : '-mx-[6px] min-w-0 max-w-full'
-                }`}
+                className={cn(
+                  'group flex h-[32px] min-w-0 items-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] pl-[5px] transition-colors hover:bg-[var(--surface-5)]',
+                  isCollapsed ? 'w-[32px]' : 'w-full cursor-pointer gap-[8px] pr-[8px]'
+                )}
                 title={activeWorkspace?.name || 'Loading...'}
                 onContextMenu={(e) => {
                   if (activeWorkspaceFull) {
@@ -372,209 +343,220 @@ export function WorkspaceHeader({
                   }
                 }}
               >
-                <span
-                  className={`font-base text-[14px] text-[var(--text-primary)] ${
-                    isCollapsed ? 'max-w-[120px] truncate' : 'truncate'
-                  }`}
+                <div
+                  className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-[4px] font-medium text-[12px] text-white leading-none'
+                  style={{
+                    backgroundColor: activeWorkspaceFull?.color || 'var(--brand-tertiary-2)',
+                  }}
                 >
-                  {activeWorkspace?.name || 'Loading...'}
-                </span>
-                <ChevronDown
-                  className={`h-[8px] w-[10px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100 group-hover:text-[var(--text-secondary)] ${
-                    isWorkspaceMenuOpen ? 'rotate-180' : ''
-                  }`}
-                />
+                  {workspaceInitial}
+                </div>
+                {!isCollapsed && (
+                  <>
+                    <span className='min-w-0 flex-1 truncate text-left font-base text-[14px] text-[var(--text-primary)]'>
+                      {activeWorkspace?.name || 'Loading...'}
+                    </span>
+                    <ChevronDown className='sidebar-collapse-hide h-[8px] w-[10px] flex-shrink-0 text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]' />
+                  </>
+                )}
               </button>
-            </PopoverTrigger>
-            <PopoverContent
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
               align='start'
-              side='bottom'
-              sideOffset={8}
-              style={{ maxWidth: '160px', minWidth: '160px' }}
-              onOpenAutoFocus={(e) => e.preventDefault()}
+              side={isCollapsed ? 'right' : 'bottom'}
+              sideOffset={isCollapsed ? 16 : 8}
+              className='flex max-h-none flex-col overflow-hidden'
+              style={
+                isCollapsed
+                  ? {
+                      width: '248px',
+                      maxWidth: 'calc(100vw - 24px)',
+                    }
+                  : {
+                      width: 'var(--radix-dropdown-menu-trigger-width)',
+                      minWidth: 'var(--radix-dropdown-menu-trigger-width)',
+                      maxWidth: 'var(--radix-dropdown-menu-trigger-width)',
+                    }
+              }
+              onCloseAutoFocus={(e) => e.preventDefault()}
             >
               {isWorkspacesLoading ? (
-                <PopoverItem disabled>
-                  <span>Loading workspaces...</span>
-                </PopoverItem>
+                <div className='px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-secondary)]'>
+                  Loading workspaces...
+                </div>
               ) : (
                 <>
-                  <div className='relative flex items-center justify-between'>
-                    <PopoverSection>Workspaces</PopoverSection>
-                    <div className='flex translate-y-[-2px] items-center gap-[6px]'>
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <Button
-                            variant='ghost'
-                            type='button'
-                            aria-label='Import workspace'
-                            className='!p-[3px]'
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onImportWorkspace()
-                            }}
-                            disabled={isImportingWorkspace}
-                          >
-                            <ArrowDown className='h-[14px] w-[14px]' />
-                          </Button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content>
-                          <p>
-                            {isImportingWorkspace ? 'Importing workspace...' : 'Import workspace'}
-                          </p>
-                        </Tooltip.Content>
-                      </Tooltip.Root>
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <Button
-                            variant='ghost'
-                            type='button'
-                            aria-label='Create workspace'
-                            className='!p-[3px]'
-                            onClick={async (e) => {
-                              e.stopPropagation()
-                              await onCreateWorkspace()
-                              setIsWorkspaceMenuOpen(false)
-                            }}
-                            disabled={isCreatingWorkspace}
-                          >
-                            <Plus className='h-[14px] w-[14px]' />
-                          </Button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content>
-                          <p>
-                            {isCreatingWorkspace ? 'Creating workspace...' : 'Create workspace'}
-                          </p>
-                        </Tooltip.Content>
-                      </Tooltip.Root>
+                  <div className='flex items-center gap-[8px] px-[2px] py-[2px]'>
+                    <div
+                      className='flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center rounded-[6px] font-medium text-[12px] text-white'
+                      style={{
+                        backgroundColor: activeWorkspaceFull?.color || 'var(--brand-tertiary-2)',
+                      }}
+                    >
+                      {workspaceInitial}
+                    </div>
+                    <div className='flex min-w-0 flex-col'>
+                      <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
+                        {activeWorkspace?.name || 'Loading...'}
+                      </span>
+                      <span className='text-[11px] text-[var(--text-tertiary)]'>
+                        {planDisplayName}
+                      </span>
                     </div>
                   </div>
-                  <div className='max-h-[200px] overflow-y-auto'>
-                    {workspaces.map((workspace, index) => (
-                      <div key={workspace.id} className={index > 0 ? 'mt-[2px]' : ''}>
-                        {editingWorkspaceId === workspace.id ? (
-                          <div className='flex h-[26px] items-center gap-[8px] rounded-[8px] bg-[var(--surface-5)] px-[6px]'>
-                            <input
-                              ref={(el) => {
-                                if (el && !hasInputFocusedRef.current) {
-                                  hasInputFocusedRef.current = true
-                                  el.focus()
-                                  el.select()
-                                }
-                              }}
-                              value={editingName}
-                              onChange={(e) => setEditingName(e.target.value)}
-                              onKeyDown={async (e) => {
-                                e.stopPropagation()
-                                if (e.key === 'Enter') {
-                                  e.preventDefault()
-                                  setIsListRenaming(true)
-                                  try {
-                                    await onRenameWorkspace(workspace.id, editingName.trim())
+
+                  <DropdownMenuGroup className='mt-[4px] min-h-0 flex-1'>
+                    <div className='flex max-h-[130px] flex-col gap-[2px] overflow-y-auto'>
+                      {workspaces.map((workspace) => (
+                        <div key={workspace.id}>
+                          {editingWorkspaceId === workspace.id ? (
+                            <div className='flex items-center gap-[8px] rounded-[5px] bg-[var(--surface-active)] px-[8px] py-[5px]'>
+                              <input
+                                ref={(el) => {
+                                  if (el && !hasInputFocusedRef.current) {
+                                    hasInputFocusedRef.current = true
+                                    el.focus()
+                                    el.select()
+                                  }
+                                }}
+                                value={editingName}
+                                onChange={(e) => setEditingName(e.target.value)}
+                                onKeyDown={async (e) => {
+                                  e.stopPropagation()
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    setIsListRenaming(true)
+                                    try {
+                                      await onRenameWorkspace(workspace.id, editingName.trim())
+                                      setEditingWorkspaceId(null)
+                                    } finally {
+                                      setIsListRenaming(false)
+                                    }
+                                  } else if (e.key === 'Escape') {
+                                    e.preventDefault()
                                     setEditingWorkspaceId(null)
-                                  } finally {
-                                    setIsListRenaming(false)
                                   }
-                                } else if (e.key === 'Escape') {
-                                  e.preventDefault()
+                                }}
+                                onBlur={async () => {
+                                  if (!editingWorkspaceId) return
+                                  const trimmedName = editingName.trim()
+                                  if (trimmedName && trimmedName !== workspace.name) {
+                                    setIsListRenaming(true)
+                                    try {
+                                      await onRenameWorkspace(workspace.id, trimmedName)
+                                    } finally {
+                                      setIsListRenaming(false)
+                                    }
+                                  }
                                   setEditingWorkspaceId(null)
-                                }
-                              }}
-                              onBlur={async () => {
-                                if (!editingWorkspaceId) return
-                                const trimmedName = editingName.trim()
-                                if (trimmedName && trimmedName !== workspace.name) {
-                                  setIsListRenaming(true)
-                                  try {
-                                    await onRenameWorkspace(workspace.id, trimmedName)
-                                  } finally {
-                                    setIsListRenaming(false)
-                                  }
-                                }
-                                setEditingWorkspaceId(null)
-                              }}
-                              className='w-full border-0 bg-transparent p-0 font-base text-[13px] text-[var(--text-primary)] outline-none selection:bg-[#add6ff] selection:text-[#1b1b1b] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:selection:bg-[#264f78] dark:selection:text-white'
-                              maxLength={100}
-                              autoComplete='off'
-                              autoCorrect='off'
-                              autoCapitalize='off'
-                              spellCheck='false'
-                              disabled={isListRenaming}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                              }}
-                            />
-                          </div>
-                        ) : (
-                          <PopoverItem
-                            className='group'
-                            active={workspace.id === workspaceId}
-                            onClick={() => onWorkspaceSwitch(workspace)}
-                            onContextMenu={(e) => handleContextMenu(e, workspace)}
-                          >
-                            <span className='min-w-0 flex-1 truncate'>{workspace.name}</span>
-                            <button
-                              type='button'
-                              aria-label='Workspace options'
-                              onClick={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                const rect = e.currentTarget.getBoundingClientRect()
-                                openContextMenuAt(workspace, rect.right, rect.top)
-                              }}
-                              className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)] group-hover:opacity-100'
+                                }}
+                                className='w-full border-0 bg-transparent p-0 font-medium text-[12px] text-[var(--text-primary)] outline-none selection:bg-[#add6ff] selection:text-[#1b1b1b] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:selection:bg-[#264f78] dark:selection:text-white'
+                                maxLength={100}
+                                autoComplete='off'
+                                autoCorrect='off'
+                                autoCapitalize='off'
+                                spellCheck='false'
+                                disabled={isListRenaming}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <div
+                              className={cn(
+                                'group flex cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover:bg-[var(--surface-active)]',
+                                workspace.id === workspaceId && 'bg-[var(--surface-active)]'
+                              )}
+                              onClick={() => onWorkspaceSwitch(workspace)}
+                              onContextMenu={(e) => handleContextMenu(e, workspace)}
                             >
-                              <MoreHorizontal className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
-                            </button>
-                          </PopoverItem>
-                        )}
-                      </div>
-                    ))}
+                              <span className='min-w-0 flex-1 truncate'>{workspace.name}</span>
+                              <button
+                                type='button'
+                                aria-label='Workspace options'
+                                onMouseDown={() => {
+                                  isContextMenuOpeningRef.current = true
+                                }}
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  const rect = e.currentTarget.getBoundingClientRect()
+                                  openContextMenuAt(workspace, rect.right, rect.top)
+                                }}
+                                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)] group-hover:opacity-100'
+                              >
+                                <MoreHorizontal className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </DropdownMenuGroup>
+
+                  <div className='mt-[4px] flex flex-col gap-[2px]'>
+                    <button
+                      type='button'
+                      className='flex w-full cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover:bg-[var(--surface-active)] disabled:pointer-events-none disabled:opacity-50'
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setIsWorkspaceMenuOpen(false)
+                        setIsCreateModalOpen(true)
+                      }}
+                      disabled={isCreatingWorkspace}
+                    >
+                      <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+                      Create new workspace
+                    </button>
                   </div>
+
+                  {!isInvitationsDisabled && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <button
+                        type='button'
+                        className='flex w-full cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover:bg-[var(--surface-active)]'
+                        onClick={() => {
+                          setIsInviteModalOpen(true)
+                          setIsWorkspaceMenuOpen(false)
+                        }}
+                      >
+                        <UserPlus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+                        Invite members
+                      </button>
+                    </>
+                  )}
                 </>
               )}
-            </PopoverContent>
-          </Popover>
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : (
           <button
             type='button'
             aria-label='Switch workspace'
-            className={`flex cursor-pointer items-center gap-[8px] rounded-[6px] bg-transparent px-[6px] py-[4px] transition-colors hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)] ${
-              isCollapsed ? '' : '-mx-[6px] min-w-0 max-w-full'
-            }`}
+            className={cn(
+              'flex h-[32px] min-w-0 items-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] pl-[5px]',
+              isCollapsed ? 'w-[32px]' : 'w-full gap-[8px] pr-[8px]'
+            )}
             title={activeWorkspace?.name || 'Loading...'}
             disabled
           >
-            <span
-              className={`font-base text-[14px] text-[var(--text-primary)] dark:text-[var(--white)] ${
-                isCollapsed ? 'max-w-[120px] truncate' : 'truncate'
-              }`}
+            <div
+              className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-[4px] font-medium text-[12px] text-white leading-none'
+              style={{ backgroundColor: activeWorkspaceFull?.color || 'var(--brand-tertiary-2)' }}
             >
-              {activeWorkspace?.name || 'Loading...'}
-            </span>
-            <ChevronDown className='h-[8px] w-[10px] flex-shrink-0 text-[var(--text-muted)]' />
+              {workspaceInitial}
+            </div>
+            {!isCollapsed && (
+              <>
+                <span className='min-w-0 flex-1 truncate text-left font-base text-[14px] text-[var(--text-primary)]'>
+                  {activeWorkspace?.name || 'Loading...'}
+                </span>
+                <ChevronDown className='sidebar-collapse-hide h-[8px] w-[10px] flex-shrink-0 text-[var(--text-muted)]' />
+              </>
+            )}
           </button>
-        )}
-      </div>
-      {/* Workspace Actions */}
-      <div className='flex flex-shrink-0 items-center gap-[10px]'>
-        {/* Invite - hidden in collapsed mode or when invitations are disabled */}
-        {!isCollapsed && !isInvitationsDisabled && (
-          <Badge className='cursor-pointer' onClick={() => setIsInviteModalOpen(true)}>
-            Invite
-          </Badge>
-        )}
-        {/* Sidebar Collapse Toggle */}
-        {showCollapseButton && (
-          <Button
-            variant='ghost-secondary'
-            type='button'
-            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className='group !p-[3px] -m-[3px]'
-            onClick={onToggleCollapse}
-          >
-            <PanelLeft className='h-[17.5px] w-[17.5px]' />
-          </Button>
         )}
       </div>
 
@@ -597,17 +579,32 @@ export function WorkspaceHeader({
             onExport={handleExportAction}
             onDelete={handleDeleteAction}
             onLeave={handleLeaveAction}
+            onColorChange={onColorChange ? handleColorChangeAction : undefined}
+            currentColor={capturedWorkspace?.color}
             showRename={true}
             showDuplicate={true}
             showExport={true}
+            showColorChange={!!onColorChange}
             showLeave={!isOwner && !!onLeaveWorkspace}
             disableRename={!contextCanAdmin}
             disableDuplicate={!contextCanEdit}
             disableExport={!contextCanAdmin}
             disableDelete={!contextCanAdmin}
+            disableColorChange={!contextCanAdmin}
           />
         )
       })()}
+
+      {/* Create Workspace Modal */}
+      <CreateWorkspaceModal
+        open={isCreateModalOpen}
+        onOpenChange={setIsCreateModalOpen}
+        onConfirm={async (name) => {
+          await onCreateWorkspace(name)
+          setIsCreateModalOpen(false)
+        }}
+        isCreating={isCreatingWorkspace}
+      />
 
       {/* Invite Modal */}
       <InviteModal
@@ -629,10 +626,10 @@ export function WorkspaceHeader({
         <ModalContent size='sm'>
           <ModalHeader>Leave Workspace</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to leave{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{leaveTarget?.name}</span>?
-              You will lose access to all workflows and data in this workspace.{' '}
+              <span className='font-base text-[var(--text-primary)]'>{leaveTarget?.name}</span>? You
+              will lose access to all workflows and data in this workspace.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>

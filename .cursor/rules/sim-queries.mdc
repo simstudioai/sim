@@ -5,62 +5,122 @@ globs: ["apps/sim/hooks/queries/**/*.ts"]
 
 # React Query Patterns
 
-All React Query hooks live in `hooks/queries/`.
+All React Query hooks live in `hooks/queries/`. All server state must go through React Query — never use `useState` + `fetch` in components for data fetching or mutations.
 
 ## Query Key Factory
 
-Every query file defines a keys factory:
+Every query file defines a hierarchical keys factory with an `all` root key and intermediate plural keys for prefix-level invalidation:
 
 ```typescript
 export const entityKeys = {
   all: ['entity'] as const,
-  list: (workspaceId?: string) => [...entityKeys.all, 'list', workspaceId ?? ''] as const,
-  detail: (id?: string) => [...entityKeys.all, 'detail', id ?? ''] as const,
+  lists: () => [...entityKeys.all, 'list'] as const,
+  list: (workspaceId?: string) => [...entityKeys.lists(), workspaceId ?? ''] as const,
+  details: () => [...entityKeys.all, 'detail'] as const,
+  detail: (id?: string) => [...entityKeys.details(), id ?? ''] as const,
 }
 ```
+
+Never use inline query keys — always use the factory.
 
 ## File Structure
 
 ```typescript
 // 1. Query keys factory
 // 2. Types (if needed)
-// 3. Private fetch functions
+// 3. Private fetch functions (accept signal parameter)
 // 4. Exported hooks
 ```
 
 ## Query Hook
 
+- Every `queryFn` must destructure and forward `signal` for request cancellation
+- Every query must have an explicit `staleTime`
+- Use `keepPreviousData` only on variable-key queries (where params change), never on static keys
+
 ```typescript
+async function fetchEntities(workspaceId: string, signal?: AbortSignal) {
+  const response = await fetch(`/api/entities?workspaceId=${workspaceId}`, { signal })
+  if (!response.ok) throw new Error('Failed to fetch entities')
+  return response.json()
+}
+
 export function useEntityList(workspaceId?: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: entityKeys.list(workspaceId),
-    queryFn: () => fetchEntities(workspaceId as string),
+    queryFn: ({ signal }) => fetchEntities(workspaceId as string, signal),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     staleTime: 60 * 1000,
-    placeholderData: keepPreviousData,
+    placeholderData: keepPreviousData, // OK: workspaceId varies
   })
 }
 ```
 
 ## Mutation Hook
 
+- Use targeted invalidation (`entityKeys.lists()`) not broad (`entityKeys.all`) when possible
+- Invalidation must cover all affected query key prefixes (lists, details, related views)
+
 ```typescript
 export function useCreateEntity() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (variables) => { /* fetch POST */ },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: entityKeys.all }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: entityKeys.lists() })
+    },
   })
 }
 ```
 
 ## Optimistic Updates
 
+For optimistic mutations, use `onSettled` (not `onSuccess`) for cache reconciliation — `onSettled` fires on both success and error, ensuring the cache is always reconciled with the server.
+
+```typescript
+export function useUpdateEntity() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (variables) => { /* ... */ },
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: entityKeys.detail(variables.id) })
+      const previous = queryClient.getQueryData(entityKeys.detail(variables.id))
+      queryClient.setQueryData(entityKeys.detail(variables.id), /* optimistic value */)
+      return { previous }
+    },
+    onError: (_err, variables, context) => {
+      queryClient.setQueryData(entityKeys.detail(variables.id), context?.previous)
+    },
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: entityKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: entityKeys.detail(variables.id) })
+    },
+  })
+}
+```
+
 For optimistic mutations syncing with Zustand, use `createOptimisticMutationHandlers` from `@/hooks/queries/utils/optimistic-mutation`.
+
+## useCallback Dependencies
+
+Never include mutation objects (e.g., `createEntity`) in `useCallback` dependency arrays — the mutation object is not referentially stable and changes on every state update. The `.mutate()` and `.mutateAsync()` functions are stable in TanStack Query v5.
+
+```typescript
+// ✗ Bad — causes unnecessary recreations
+const handler = useCallback(() => {
+  createEntity.mutate(data)
+}, [createEntity]) // unstable reference
+
+// ✓ Good — omit from deps, mutate is stable
+const handler = useCallback(() => {
+  createEntity.mutate(data)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [data])
+```
 
 ## Naming
 
 - **Keys**: `entityKeys`
 - **Query hooks**: `useEntity`, `useEntityList`
-- **Mutation hooks**: `useCreateEntity`, `useUpdateEntity`
-- **Fetch functions**: `fetchEntity` (private)
+- **Mutation hooks**: `useCreateEntity`, `useUpdateEntity`, `useDeleteEntity`
+- **Fetch functions**: `fetchEntity`, `fetchEntities` (private)

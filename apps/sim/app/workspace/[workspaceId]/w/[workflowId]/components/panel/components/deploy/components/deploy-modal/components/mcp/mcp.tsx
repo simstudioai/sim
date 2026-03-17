@@ -10,9 +10,9 @@ import {
   type ComboboxOption,
   Input,
   Label,
+  Skeleton,
   Textarea,
 } from '@/components/emcn'
-import { Skeleton } from '@/components/ui'
 import { generateToolInputSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
@@ -26,7 +26,7 @@ import {
   type WorkflowMcpServer,
   type WorkflowMcpTool,
 } from '@/hooks/queries/workflow-mcp-servers'
-import { useSettingsModalStore } from '@/stores/modals/settings/store'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -100,7 +100,7 @@ export function McpDeploy({
 }: McpDeployProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const openSettingsModal = useSettingsModalStore((state) => state.openModal)
+  const { navigateToSettings } = useSettingsNavigation()
 
   const { data: servers = [], isLoading: isLoadingServers } = useWorkflowMcpServers(workspaceId)
   const addToolMutation = useAddWorkflowMcpTool()
@@ -148,7 +148,7 @@ export function McpDeploy({
     return isDefaultDescription ? '' : workflowDescription
   })
   const [parameterDescriptions, setParameterDescriptions] = useState<Record<string, string>>({})
-  const [pendingServerChanges, setPendingServerChanges] = useState<Set<string>>(new Set())
+  const [pendingServerChanges, setPendingServerChanges] = useState<Set<string>>(() => new Set())
   const [saveErrors, setSaveErrors] = useState<string[]>([])
 
   const parameterSchema = useMemo(
@@ -470,7 +470,7 @@ export function McpDeploy({
         </p>
         <Button
           variant='tertiary'
-          onClick={() => openSettingsModal({ section: 'workflow-mcp-servers' })}
+          onClick={() => navigateToSettings({ section: 'workflow-mcp-servers' })}
         >
           Create MCP Server
         </Button>

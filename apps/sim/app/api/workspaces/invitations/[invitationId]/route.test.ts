@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGetSession = vi.fn()
 const mockHasWorkspaceAdminAccess = vi.fn()
+const mockGetWorkspaceById = vi.fn()
 
 let dbSelectResults: any[] = []
 let dbSelectCallIndex = 0
@@ -63,6 +64,7 @@ vi.mock('@/lib/auth', () => ({
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   hasWorkspaceAdminAccess: (userId: string, workspaceId: string) =>
     mockHasWorkspaceAdminAccess(userId, workspaceId),
+  getWorkspaceById: (id: string) => mockGetWorkspaceById(id),
 }))
 
 vi.mock('@/lib/credentials/environment', () => ({
@@ -120,8 +122,9 @@ vi.mock('@sim/db/schema', () => ({
 }))
 
 vi.mock('drizzle-orm', () => ({
-  eq: vi.fn((a, b) => ({ type: 'eq', a, b })),
-  and: vi.fn((...args) => ({ type: 'and', args })),
+  eq: vi.fn((a: unknown, b: unknown) => ({ type: 'eq', a, b })),
+  and: vi.fn((...args: unknown[]) => ({ type: 'and', args })),
+  isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
 }))
 
 vi.mock('crypto', () => ({
@@ -164,6 +167,7 @@ describe('Workspace Invitation [invitationId] API Route', () => {
     vi.clearAllMocks()
     dbSelectResults = []
     dbSelectCallIndex = 0
+    mockGetWorkspaceById.mockResolvedValue({ id: 'workspace-456', name: 'Test Workspace' })
   })
 
   describe('GET /api/workspaces/invitations/[invitationId]', () => {
@@ -240,7 +244,9 @@ describe('Workspace Invitation [invitationId] API Route', () => {
       const response = await GET(request, { params })
 
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe('https://test.sim.ai/workspace/workspace-456/w')
+      expect(response.headers.get('location')).toBe(
+        'https://test.sim.ai/workspace/workspace-456/home'
+      )
     })
 
     it('should redirect to error page with token preserved when invitation expired', async () => {
@@ -495,7 +501,7 @@ describe('Workspace Invitation [invitationId] API Route', () => {
 
       expect(response2.status).toBe(307)
       expect(response2.headers.get('location')).toBe(
-        'https://test.sim.ai/workspace/workspace-456/w'
+        'https://test.sim.ai/workspace/workspace-456/home'
       )
     })
   })

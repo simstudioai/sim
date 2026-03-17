@@ -3,6 +3,10 @@ import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
+import {
+  getDynamicHandleSubblockType,
+  isDynamicHandleSubblock,
+} from '@/lib/workflows/dynamic-handle-topology'
 import type { SubBlockConfig } from '@/blocks/types'
 import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -27,6 +31,7 @@ import {
   isBlockProtected,
   wouldCreateCycle,
 } from '@/stores/workflows/workflow/utils'
+import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
 
 const logger = createLogger('WorkflowStore')
 
@@ -511,15 +516,25 @@ export const useWorkflowStore = create<WorkflowStore>()(
         options?: { updateLastSaved?: boolean }
       ) => {
         set((state) => {
-          const nextBlocks = workflowState.blocks || {}
-          const nextEdges = filterValidEdges(workflowState.edges || [], nextBlocks)
+          const normalization = normalizeWorkflowState(workflowState)
+          const nextState = normalization.state
+
+          if (normalization.warnings.length > 0) {
+            logger.warn('Normalized workflow state during replaceWorkflowState', {
+              warningCount: normalization.warnings.length,
+              warnings: normalization.warnings,
+            })
+          }
+
+          const nextBlocks = nextState.blocks || {}
+          const nextEdges = nextState.edges || []
           const nextLoops =
-            Object.keys(workflowState.loops || {}).length > 0
-              ? workflowState.loops
+            Object.keys(nextState.loops || {}).length > 0
+              ? nextState.loops
               : generateLoopBlocks(nextBlocks)
           const nextParallels =
-            Object.keys(workflowState.parallels || {}).length > 0
-              ? workflowState.parallels
+            Object.keys(nextState.parallels || {}).length > 0
+              ? nextState.parallels
               : generateParallelBlocks(nextBlocks)
 
           return {
@@ -528,15 +543,15 @@ export const useWorkflowStore = create<WorkflowStore>()(
             edges: nextEdges,
             loops: nextLoops,
             parallels: nextParallels,
-            deploymentStatuses: workflowState.deploymentStatuses || state.deploymentStatuses,
+            deploymentStatuses: nextState.deploymentStatuses || state.deploymentStatuses,
             needsRedeployment:
-              workflowState.needsRedeployment !== undefined
-                ? workflowState.needsRedeployment
+              nextState.needsRedeployment !== undefined
+                ? nextState.needsRedeployment
                 : state.needsRedeployment,
             lastSaved:
               options?.updateLastSaved === true
                 ? Date.now()
-                : (workflowState.lastSaved ?? state.lastSaved),
+                : (nextState.lastSaved ?? state.lastSaved),
           }
         })
       },
@@ -856,6 +871,48 @@ export const useWorkflowStore = create<WorkflowStore>()(
         get().updateLastSaved()
       },
 
+      syncDynamicHandleSubblockValue: (blockId: string, subblockId: string, value: unknown) => {
+        set((state) => {
+          const block = state.blocks[blockId]
+          if (!block || !isDynamicHandleSubblock(block.type, subblockId)) {
+            return state
+          }
+
+          const expectedType = getDynamicHandleSubblockType(block.type)
+          if (!expectedType) {
+            return state
+          }
+
+          const currentSubBlock = block.subBlocks?.[subblockId]
+          const currentValue = currentSubBlock?.value
+          const valuesEqual =
+            typeof currentValue === 'object' || typeof value === 'object'
+              ? JSON.stringify(currentValue) === JSON.stringify(value)
+              : currentValue === value
+
+          if (valuesEqual && currentSubBlock?.type === expectedType) {
+            return state
+          }
+
+          return {
+            blocks: {
+              ...state.blocks,
+              [blockId]: {
+                ...block,
+                subBlocks: {
+                  ...block.subBlocks,
+                  [subblockId]: {
+                    id: subblockId,
+                    type: expectedType,
+                    value: value as SubBlockState['value'],
+                  },
+                },
+              },
+            },
+          }
+        })
+      },
+
       setBlockTriggerMode: (id: string, triggerMode: boolean) => {
         set((state) => ({
           blocks: {
@@ -1055,36 +1112,20 @@ export const useWorkflowStore = create<WorkflowStore>()(
           return
         }
 
-        // Preserving the workflow-specific deployment status if it exists
         const deploymentStatus = useWorkflowRegistry
           .getState()
           .getWorkflowDeploymentStatus(activeWorkflowId)
 
-        const newState = {
-          blocks: deployedState.blocks,
-          edges: filterValidEdges(deployedState.edges ?? [], deployedState.blocks),
-          loops: deployedState.loops || {},
-          parallels: deployedState.parallels || {},
+        get().replaceWorkflowState({
+          ...deployedState,
           needsRedeployment: false,
-          // Keep existing deployment statuses and update for the active workflow if needed
           deploymentStatuses: {
             ...get().deploymentStatuses,
-            ...(deploymentStatus
-              ? {
-                  [activeWorkflowId]: deploymentStatus,
-                }
-              : {}),
+            ...(deploymentStatus ? { [activeWorkflowId]: deploymentStatus } : {}),
           },
-        }
+        })
 
-        // Update the main workflow state
-        set(newState)
-
-        // Initialize subblock store with values from deployed state
-        const subBlockStore = useSubBlockStore.getState()
         const values: Record<string, Record<string, any>> = {}
-
-        // Extract subblock values from deployed blocks
         Object.entries(deployedState.blocks).forEach(([blockId, block]) => {
           values[blockId] = {}
           Object.entries(block.subBlocks || {}).forEach(([subBlockId, subBlock]) => {
@@ -1092,10 +1133,9 @@ export const useWorkflowStore = create<WorkflowStore>()(
           })
         })
 
-        // Update subblock store with deployed values
         useSubBlockStore.setState({
           workflowValues: {
-            ...subBlockStore.workflowValues,
+            ...useSubBlockStore.getState().workflowValues,
             [activeWorkflowId]: values,
           },
         })

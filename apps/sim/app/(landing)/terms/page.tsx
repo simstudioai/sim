@@ -289,7 +289,7 @@ export default function TermsOfService() {
           Agreement. The arbitration will be conducted by JAMS, an established alternative dispute
           resolution provider.
         </p>
-        <p className='mb-4 border-[var(--brand-primary-hex)] border-l-4 bg-[var(--brand-primary-hex)]/10 p-3'>
+        <p className='mb-4 border-[#3d3d3d] border-l-4 bg-[#2A2A2A] p-3 text-[#ECECEC]'>
           YOU AND COMPANY AGREE THAT EACH OF US MAY BRING CLAIMS AGAINST THE OTHER ONLY ON AN
           INDIVIDUAL BASIS AND NOT ON A CLASS, REPRESENTATIVE, OR COLLECTIVE BASIS. ONLY INDIVIDUAL
           RELIEF IS AVAILABLE, AND DISPUTES OF MORE THAN ONE CUSTOMER OR USER CANNOT BE ARBITRATED
@@ -298,10 +298,7 @@ export default function TermsOfService() {
         <p className='mb-4'>
           You have the right to opt out of the provisions of this Arbitration Agreement by sending a
           timely written notice of your decision to opt out to:{' '}
-          <Link
-            href='mailto:legal@sim.ai'
-            className='text-[var(--brand-primary-hex)] underline hover:text-[var(--brand-primary-hover-hex)]'
-          >
+          <Link href='mailto:legal@sim.ai' className='text-[#ECECEC] underline hover:text-white'>
             legal@sim.ai{' '}
           </Link>
           within 30 days after first becoming subject to this Arbitration Agreement.
@@ -350,7 +347,7 @@ export default function TermsOfService() {
           Our Copyright Agent can be reached at:{' '}
           <Link
             href='mailto:copyright@sim.ai'
-            className='text-[var(--brand-primary-hex)] underline hover:text-[var(--brand-primary-hover-hex)]'
+            className='text-[#ECECEC] underline hover:text-white'
           >
             copyright@sim.ai
           </Link>
@@ -361,10 +358,7 @@ export default function TermsOfService() {
         <h2 className='mb-4 font-semibold text-2xl'>18. Contact Us</h2>
         <p>
           If you have any questions about these Terms, please contact us at:{' '}
-          <Link
-            href='mailto:legal@sim.ai'
-            className='text-[var(--brand-primary-hex)] underline hover:text-[var(--brand-primary-hover-hex)]'
-          >
+          <Link href='mailto:legal@sim.ai' className='text-[#ECECEC] underline hover:text-white'>
             legal@sim.ai
           </Link>
         </p>

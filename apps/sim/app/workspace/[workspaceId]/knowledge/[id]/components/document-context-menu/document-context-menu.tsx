@@ -1,65 +1,34 @@
 'use client'
 
 import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverDivider,
-  PopoverItem,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/emcn'
+import { Eye, Pencil, Plus, SquareArrowUpRight, TagIcon, Trash } from '@/components/emcn/icons'
 
 interface DocumentContextMenuProps {
   isOpen: boolean
   position: { x: number; y: number }
-  menuRef: React.RefObject<HTMLDivElement | null>
   onClose: () => void
-  /**
-   * Document-specific actions (shown when right-clicking on a document)
-   */
   onOpenInNewTab?: () => void
+  onOpenSource?: () => void
   onRename?: () => void
   onToggleEnabled?: () => void
   onViewTags?: () => void
   onDelete?: () => void
-  /**
-   * Empty space action (shown when right-clicking on empty space)
-   */
   onAddDocument?: () => void
-  /**
-   * Whether the document is currently enabled
-   */
   isDocumentEnabled?: boolean
-  /**
-   * Whether a document is selected (vs empty space)
-   */
   hasDocument: boolean
-  /**
-   * Whether the document has tags to view
-   */
   hasTags?: boolean
-  /**
-   * Whether toggle enabled is disabled
-   */
+  disableRename?: boolean
   disableToggleEnabled?: boolean
-  /**
-   * Whether delete is disabled
-   */
   disableDelete?: boolean
-  /**
-   * Whether add document is disabled
-   */
   disableAddDocument?: boolean
-  /**
-   * Number of selected documents (for batch operations)
-   */
   selectedCount?: number
-  /**
-   * Number of enabled documents in selection
-   */
   enabledCount?: number
-  /**
-   * Number of disabled documents in selection
-   */
   disabledCount?: number
 }
 
@@ -71,9 +40,9 @@ interface DocumentContextMenuProps {
 export function DocumentContextMenu({
   isOpen,
   position,
-  menuRef,
   onClose,
   onOpenInNewTab,
+  onOpenSource,
   onRename,
   onToggleEnabled,
   onViewTags,
@@ -82,6 +51,7 @@ export function DocumentContextMenu({
   isDocumentEnabled = true,
   hasDocument,
   hasTags = false,
+  disableRename = false,
   disableToggleEnabled = false,
   disableDelete = false,
   disableAddDocument = false,
@@ -99,106 +69,92 @@ export function DocumentContextMenu({
     return isDocumentEnabled ? 'Disable' : 'Enable'
   }
 
+  const hasNavigationSection = !isMultiSelect && (!!onOpenInNewTab || !!onOpenSource)
+  const hasEditSection = !isMultiSelect && (!!onRename || (hasTags && !!onViewTags))
+  const hasStateSection = !!onToggleEnabled
+  const hasDestructiveSection = !!onDelete
+
   return (
-    <Popover
-      open={isOpen}
-      onOpenChange={(open) => !open && onClose()}
-      variant='secondary'
-      size='sm'
-    >
-      <PopoverAnchor
-        style={{
-          position: 'fixed',
-          left: `${position.x}px`,
-          top: `${position.y}px`,
-          width: '1px',
-          height: '1px',
-        }}
-      />
-      <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
+    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
+      <DropdownMenuTrigger asChild>
+        <div
+          style={{
+            position: 'fixed',
+            left: `${position.x}px`,
+            top: `${position.y}px`,
+            width: '1px',
+            height: '1px',
+            pointerEvents: 'none',
+          }}
+          tabIndex={-1}
+          aria-hidden
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align='start'
+        side='bottom'
+        sideOffset={4}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
         {hasDocument ? (
           <>
-            {/* Navigation */}
             {!isMultiSelect && onOpenInNewTab && (
-              <PopoverItem
-                onClick={() => {
-                  onOpenInNewTab()
-                  onClose()
-                }}
-              >
+              <DropdownMenuItem onSelect={onOpenInNewTab}>
+                <SquareArrowUpRight />
                 Open in new tab
-              </PopoverItem>
+              </DropdownMenuItem>
             )}
-            {!isMultiSelect && onOpenInNewTab && <PopoverDivider />}
+            {!isMultiSelect && onOpenSource && (
+              <DropdownMenuItem onSelect={onOpenSource}>
+                <SquareArrowUpRight />
+                Open source
+              </DropdownMenuItem>
+            )}
+            {hasNavigationSection &&
+              (hasEditSection || hasStateSection || hasDestructiveSection) && (
+                <DropdownMenuSeparator />
+              )}
 
-            {/* Edit and view actions */}
             {!isMultiSelect && onRename && (
-              <PopoverItem
-                onClick={() => {
-                  onRename()
-                  onClose()
-                }}
-              >
+              <DropdownMenuItem disabled={disableRename} onSelect={onRename}>
+                <Pencil />
                 Rename
-              </PopoverItem>
+              </DropdownMenuItem>
             )}
             {!isMultiSelect && hasTags && onViewTags && (
-              <PopoverItem
-                onClick={() => {
-                  onViewTags()
-                  onClose()
-                }}
-              >
+              <DropdownMenuItem onSelect={onViewTags}>
+                <TagIcon />
                 View tags
-              </PopoverItem>
+              </DropdownMenuItem>
             )}
-            {!isMultiSelect && (onRename || (hasTags && onViewTags)) && <PopoverDivider />}
+            {hasEditSection && (hasStateSection || hasDestructiveSection) && (
+              <DropdownMenuSeparator />
+            )}
 
-            {/* State toggle */}
             {onToggleEnabled && (
-              <PopoverItem
-                disabled={disableToggleEnabled}
-                onClick={() => {
-                  onToggleEnabled()
-                  onClose()
-                }}
-              >
+              <DropdownMenuItem disabled={disableToggleEnabled} onSelect={onToggleEnabled}>
+                <Eye />
                 {getToggleLabel()}
-              </PopoverItem>
+              </DropdownMenuItem>
             )}
 
-            {/* Destructive action */}
-            {onDelete &&
-              ((!isMultiSelect && onOpenInNewTab) ||
-                (!isMultiSelect && onRename) ||
-                (!isMultiSelect && hasTags && onViewTags) ||
-                onToggleEnabled) && <PopoverDivider />}
+            {hasStateSection && hasDestructiveSection && <DropdownMenuSeparator />}
             {onDelete && (
-              <PopoverItem
-                disabled={disableDelete}
-                onClick={() => {
-                  onDelete()
-                  onClose()
-                }}
-              >
+              <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
+                <Trash />
                 Delete
-              </PopoverItem>
+              </DropdownMenuItem>
             )}
           </>
         ) : (
           onAddDocument && (
-            <PopoverItem
-              disabled={disableAddDocument}
-              onClick={() => {
-                onAddDocument()
-                onClose()
-              }}
-            >
+            <DropdownMenuItem disabled={disableAddDocument} onSelect={onAddDocument}>
+              <Plus />
               Add document
-            </PopoverItem>
+            </DropdownMenuItem>
           )
         )}
-      </PopoverContent>
-    </Popover>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

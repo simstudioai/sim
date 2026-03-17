@@ -57,16 +57,27 @@ interface InvitationsResponse {
 
 export const credentialSetKeys = {
   all: ['credentialSets'] as const,
-  list: (organizationId?: string) => ['credentialSets', 'list', organizationId ?? 'none'] as const,
-  detail: (id?: string) => ['credentialSets', 'detail', id ?? 'none'] as const,
-  memberships: () => ['credentialSets', 'memberships'] as const,
-  invitations: () => ['credentialSets', 'invitations'] as const,
+  lists: () => [...credentialSetKeys.all, 'list'] as const,
+  list: (organizationId?: string) =>
+    [...credentialSetKeys.lists(), organizationId ?? 'none'] as const,
+  details: () => [...credentialSetKeys.all, 'detail'] as const,
+  detail: (id?: string) => [...credentialSetKeys.details(), id ?? 'none'] as const,
+  detailMembers: (credentialSetId?: string) =>
+    [...credentialSetKeys.detail(credentialSetId), 'members'] as const,
+  detailInvitations: (credentialSetId?: string) =>
+    [...credentialSetKeys.detail(credentialSetId), 'invitations'] as const,
+  memberships: () => [...credentialSetKeys.all, 'memberships'] as const,
+  invitations: () => [...credentialSetKeys.all, 'invitations'] as const,
 }
 
-export async function fetchCredentialSets(organizationId: string): Promise<CredentialSet[]> {
+export async function fetchCredentialSets(
+  organizationId: string,
+  signal?: AbortSignal
+): Promise<CredentialSet[]> {
   if (!organizationId) return []
   const data = await fetchJson<CredentialSetsResponse>('/api/credential-sets', {
     searchParams: { organizationId },
+    signal,
   })
   return data.credentialSets ?? []
 }
@@ -74,7 +85,7 @@ export async function fetchCredentialSets(organizationId: string): Promise<Crede
 export function useCredentialSets(organizationId?: string, enabled = true) {
   return useQuery<CredentialSet[]>({
     queryKey: credentialSetKeys.list(organizationId),
-    queryFn: () => fetchCredentialSets(organizationId ?? ''),
+    queryFn: ({ signal }) => fetchCredentialSets(organizationId ?? '', signal),
     enabled: Boolean(organizationId) && enabled,
     staleTime: 60 * 1000,
   })
@@ -84,16 +95,21 @@ interface CredentialSetDetailResponse {
   credentialSet?: CredentialSet
 }
 
-export async function fetchCredentialSetById(id: string): Promise<CredentialSet | null> {
+export async function fetchCredentialSetById(
+  id: string,
+  signal?: AbortSignal
+): Promise<CredentialSet | null> {
   if (!id) return null
-  const data = await fetchJson<CredentialSetDetailResponse>(`/api/credential-sets/${id}`)
+  const data = await fetchJson<CredentialSetDetailResponse>(`/api/credential-sets/${id}`, {
+    signal,
+  })
   return data.credentialSet ?? null
 }
 
 export function useCredentialSetDetail(id?: string, enabled = true) {
   return useQuery<CredentialSet | null>({
     queryKey: credentialSetKeys.detail(id),
-    queryFn: () => fetchCredentialSetById(id ?? ''),
+    queryFn: ({ signal }) => fetchCredentialSetById(id ?? '', signal),
     enabled: Boolean(id) && enabled,
     staleTime: 60 * 1000,
   })
@@ -102,8 +118,10 @@ export function useCredentialSetDetail(id?: string, enabled = true) {
 export function useCredentialSetMemberships() {
   return useQuery<CredentialSetMembership[]>({
     queryKey: credentialSetKeys.memberships(),
-    queryFn: async () => {
-      const data = await fetchJson<MembershipsResponse>('/api/credential-sets/memberships')
+    queryFn: async ({ signal }) => {
+      const data = await fetchJson<MembershipsResponse>('/api/credential-sets/memberships', {
+        signal,
+      })
       return data.memberships ?? []
     },
     staleTime: 60 * 1000,
@@ -113,8 +131,10 @@ export function useCredentialSetMemberships() {
 export function useCredentialSetInvitations() {
   return useQuery<CredentialSetInvitation[]>({
     queryKey: credentialSetKeys.invitations(),
-    queryFn: async () => {
-      const data = await fetchJson<InvitationsResponse>('/api/credential-sets/invitations')
+    queryFn: async ({ signal }) => {
+      const data = await fetchJson<InvitationsResponse>('/api/credential-sets/invitations', {
+        signal,
+      })
       return data.invitations ?? []
     },
     staleTime: 30 * 1000,
@@ -187,8 +207,11 @@ export function useCreateCredentialSetInvitation() {
       }
       return response.json()
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: credentialSetKeys.all })
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: credentialSetKeys.detailInvitations(variables.credentialSetId),
+      })
+      queryClient.invalidateQueries({ queryKey: credentialSetKeys.invitations() })
     },
   })
 }
@@ -211,10 +234,11 @@ interface MembersResponse {
 
 export function useCredentialSetMembers(credentialSetId?: string) {
   return useQuery<CredentialSetMember[]>({
-    queryKey: [...credentialSetKeys.detail(credentialSetId), 'members'],
-    queryFn: async () => {
+    queryKey: credentialSetKeys.detailMembers(credentialSetId),
+    queryFn: async ({ signal }) => {
       const data = await fetchJson<MembersResponse>(
-        `/api/credential-sets/${credentialSetId}/members`
+        `/api/credential-sets/${credentialSetId}/members`,
+        { signal }
       )
       return data.members ?? []
     },
@@ -240,9 +264,9 @@ export function useRemoveCredentialSetMember() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: [...credentialSetKeys.detail(variables.credentialSetId), 'members'],
+        queryKey: credentialSetKeys.detailMembers(variables.credentialSetId),
       })
-      queryClient.invalidateQueries({ queryKey: credentialSetKeys.all })
+      queryClient.invalidateQueries({ queryKey: credentialSetKeys.memberships() })
     },
   })
 }
@@ -313,10 +337,11 @@ interface InvitationsDetailResponse {
 
 export function useCredentialSetInvitationsDetail(credentialSetId?: string) {
   return useQuery<CredentialSetInvitationDetail[]>({
-    queryKey: [...credentialSetKeys.detail(credentialSetId), 'invitations'],
-    queryFn: async () => {
+    queryKey: credentialSetKeys.detailInvitations(credentialSetId),
+    queryFn: async ({ signal }) => {
       const data = await fetchJson<InvitationsDetailResponse>(
-        `/api/credential-sets/${credentialSetId}/invite`
+        `/api/credential-sets/${credentialSetId}/invite`,
+        { signal }
       )
       return (data.invitations ?? []).filter((inv) => inv.status === 'pending')
     },
@@ -342,7 +367,7 @@ export function useCancelCredentialSetInvitation() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: [...credentialSetKeys.detail(variables.credentialSetId), 'invitations'],
+        queryKey: credentialSetKeys.detailInvitations(variables.credentialSetId),
       })
     },
   })
@@ -365,7 +390,7 @@ export function useResendCredentialSetInvitation() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: [...credentialSetKeys.detail(variables.credentialSetId), 'invitations'],
+        queryKey: credentialSetKeys.detailInvitations(variables.credentialSetId),
       })
     },
   })
