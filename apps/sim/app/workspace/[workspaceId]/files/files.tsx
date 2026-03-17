@@ -484,8 +484,8 @@ export function Files() {
       setPreviewMode('editor')
     } else {
       const file = selectedFileId ? files.find((f) => f.id === selectedFileId) : null
-      const isMd = file ? getFileExtension(file.name) === 'md' : false
-      setPreviewMode(isMd ? 'split' : 'preview')
+      const canPreview = file ? isPreviewable(file) : false
+      setPreviewMode(canPreview ? 'preview' : 'editor')
     }
   }, [selectedFileId, files])
 
