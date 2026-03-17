@@ -49,7 +49,7 @@ export function Admin() {
   const currentPage = useMemo(() => Math.floor(usersOffset / PAGE_SIZE) + 1, [usersOffset])
 
   const handleSuperUserModeToggle = async (checked: boolean) => {
-    if (checked !== settings?.superUserModeEnabled) {
+    if (checked !== settings?.superUserModeEnabled && !updateSetting.isPending) {
       await updateSetting.mutateAsync({ key: 'superUserModeEnabled', value: checked })
     }
   }
@@ -72,11 +72,10 @@ export function Admin() {
 
   const actionPending = setUserRole.isPending || banUser.isPending || unbanUser.isPending
   const pendingUserId =
-    (setUserRole.variables as { userId?: string })?.userId ??
-    (banUser.variables as { userId?: string })?.userId ??
-    (unbanUser.variables as { userId?: string })?.userId ??
+    (setUserRole.isPending ? (setUserRole.variables as { userId?: string })?.userId : undefined) ??
+    (banUser.isPending ? (banUser.variables as { userId?: string })?.userId : undefined) ??
+    (unbanUser.isPending ? (unbanUser.variables as { userId?: string })?.userId : undefined) ??
     null
-
   return (
     <div className='flex h-full flex-col gap-[24px]'>
       <div className='flex items-center justify-between'>
@@ -136,6 +135,13 @@ export function Admin() {
         {usersError && (
           <p className='text-[13px] text-[var(--text-error)]'>
             {usersError instanceof Error ? usersError.message : 'Failed to fetch users'}
+          </p>
+        )}
+
+        {(setUserRole.error || banUser.error || unbanUser.error) && (
+          <p className='text-[13px] text-[var(--text-error)]'>
+            {(setUserRole.error || banUser.error || unbanUser.error)?.message ??
+              'Action failed. Please try again.'}
           </p>
         )}
 
