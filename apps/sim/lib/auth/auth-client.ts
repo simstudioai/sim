@@ -2,6 +2,7 @@ import { useContext } from 'react'
 import { ssoClient } from '@better-auth/sso/client'
 import { stripeClient } from '@better-auth/stripe/client'
 import {
+  adminClient,
   customSessionClient,
   emailOTPClient,
   genericOAuthClient,
@@ -17,6 +18,7 @@ import { SessionContext, type SessionHookResult } from '@/app/_shell/providers/s
 export const client = createAuthClient({
   baseURL: getBaseUrl(),
   plugins: [
+    adminClient(),
     emailOTPClient(),
     genericOAuthClient(),
     customSessionClient<typeof auth>(),

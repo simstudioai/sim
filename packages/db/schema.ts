@@ -38,7 +38,10 @@ export const user = pgTable('user', {
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull(),
   stripeCustomerId: text('stripe_customer_id'),
-  isSuperUser: boolean('is_super_user').notNull().default(false),
+  role: text('role').default('user'),
+  banned: boolean('banned').default(false),
+  banReason: text('ban_reason'),
+  banExpires: timestamp('ban_expires'),
 })
 
 export const session = pgTable(
@@ -57,6 +60,7 @@ export const session = pgTable(
     activeOrganizationId: text('active_organization_id').references(() => organization.id, {
       onDelete: 'set null',
     }),
+    impersonatedBy: text('impersonated_by'),
   },
   (table) => ({
     userIdIdx: index('session_user_id_idx').on(table.userId),
