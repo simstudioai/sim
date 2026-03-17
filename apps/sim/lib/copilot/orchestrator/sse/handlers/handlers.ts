@@ -296,7 +296,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    if (!isToolAvailableOnSimSide(toolName)) {
+    if (!isToolAvailableOnSimSide(toolName) && !clientExecutable) {
       return
     }
 
@@ -396,8 +396,8 @@ export const sseHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    // Client-executable tool: if the server can handle it, execute server-side.
-    // Otherwise wait for the client (React UI) to complete it.
+    // Client-executable tool: execute server-side if available, otherwise
+    // delegate to the client (React UI) and wait for completion.
     if (clientExecutable) {
       if (isToolAvailableOnSimSide(toolName)) {
         fireToolExecution()
@@ -553,7 +553,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    if (!isToolAvailableOnSimSide(toolName)) {
+    if (!isToolAvailableOnSimSide(toolName) && !clientExecutable) {
       return
     }
 
