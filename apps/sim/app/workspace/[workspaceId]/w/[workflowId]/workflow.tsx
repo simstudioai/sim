@@ -3816,7 +3816,7 @@ const WorkflowContent = React.memo(
       }
 
       scheduleEmbeddedFit()
-    }, [displayNodes, embedded, isWorkflowReady, scheduleEmbeddedFit])
+    }, [blocksStructureHash, embedded, isWorkflowReady, scheduleEmbeddedFit])
 
     return (
       <div className='flex h-full w-full overflow-hidden'>
