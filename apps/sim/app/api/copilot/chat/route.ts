@@ -302,6 +302,7 @@ export async function POST(req: NextRequest) {
           goRoute: '/api/copilot',
           autoExecuteTools: true,
           interactive: true,
+          promptForToolApproval: true,
         },
       })
 
@@ -315,6 +316,7 @@ export async function POST(req: NextRequest) {
       goRoute: '/api/copilot',
       autoExecuteTools: true,
       interactive: true,
+      promptForToolApproval: true,
     })
 
     const responseData = {

@@ -320,7 +320,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    if (requiresConfirmation) {
+    if (requiresConfirmation && options.promptForToolApproval) {
       const decision = await waitForToolDecision(
         toolCallId,
         options.timeout || STREAM_TIMEOUT_MS,
@@ -569,7 +569,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    if (requiresConfirmation) {
+    if (requiresConfirmation && options.promptForToolApproval) {
       const decision = await waitForToolDecision(
         toolCallId,
         options.timeout || STREAM_TIMEOUT_MS,
