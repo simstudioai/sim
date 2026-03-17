@@ -539,10 +539,11 @@ export function Table({
     if (shiftKey && lastCheckboxRowRef.current !== null) {
       const from = Math.min(lastCheckboxRowRef.current, rowIndex)
       const to = Math.max(lastCheckboxRowRef.current, rowIndex)
+      const pMap = positionMapRef.current
       setCheckedRows((prev) => {
         const next = new Set(prev)
-        for (let i = from; i <= to; i++) {
-          next.add(i)
+        for (const [pos] of pMap) {
+          if (pos >= from && pos <= to) next.add(pos)
         }
         return next
       })
