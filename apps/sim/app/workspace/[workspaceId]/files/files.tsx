@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import {
   Button,
+  Columns2,
   Download,
   DropdownMenu,
   DropdownMenuContent,
@@ -48,6 +49,7 @@ import {
   ResourceHeader,
   timeCell,
 } from '@/app/workspace/[workspaceId]/components'
+import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
   FileViewer,
   isPreviewable,
@@ -157,7 +159,7 @@ export function Files() {
   const [creatingFile, setCreatingFile] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const [showPreview, setShowPreview] = useState(true)
+  const [previewMode, setPreviewMode] = useState<PreviewMode>('preview')
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [contextMenuFile, setContextMenuFile] = useState<WorkspaceFileRecord | null>(null)
@@ -312,7 +314,7 @@ export function Files() {
     if (isDirty) {
       setShowUnsavedChangesAlert(true)
     } else {
-      setShowPreview(false)
+      setPreviewMode('editor')
       setSelectedFileId(null)
     }
   }, [isDirty])
@@ -382,13 +384,11 @@ export function Files() {
     ]
   )
 
-  const handleTogglePreview = useCallback(() => setShowPreview((prev) => !prev), [])
-
   const handleDiscardChanges = useCallback(() => {
     setShowUnsavedChangesAlert(false)
     setIsDirty(false)
     setSaveStatus('idle')
-    setShowPreview(false)
+    setPreviewMode('editor')
     setSelectedFileId(null)
   }, [])
 
@@ -480,8 +480,14 @@ export function Files() {
     if (justCreatedFileIdRef.current && !isJustCreated) {
       justCreatedFileIdRef.current = null
     }
-    setShowPreview(!isJustCreated)
-  }, [selectedFileId])
+    if (isJustCreated) {
+      setPreviewMode('editor')
+    } else {
+      const file = selectedFileId ? files.find((f) => f.id === selectedFileId) : null
+      const canPreview = file ? isPreviewable(file) : false
+      setPreviewMode(canPreview ? 'preview' : 'editor')
+    }
+  }, [selectedFileId, files])
 
   useEffect(() => {
     if (!selectedFile) return
@@ -504,10 +510,23 @@ export function Files() {
     return () => window.removeEventListener('beforeunload', handler)
   }, [isDirty])
 
+  const handleCyclePreviewMode = useCallback(() => {
+    setPreviewMode((prev) => {
+      if (prev === 'editor') return 'split'
+      if (prev === 'split') return 'preview'
+      return 'editor'
+    })
+  }, [])
+
+  const handleTogglePreview = useCallback(() => {
+    setPreviewMode((prev) => (prev === 'preview' ? 'editor' : 'preview'))
+  }, [])
+
   const fileActions = useMemo<HeaderAction[]>(() => {
     if (!selectedFile) return []
     const canEditText = isTextEditable(selectedFile)
     const canPreview = isPreviewable(selectedFile)
+    const hasSplitView = canEditText && canPreview
 
     const saveLabel =
       saveStatus === 'saving'
@@ -518,16 +537,12 @@ export function Files() {
             ? 'Save failed'
             : 'Save'
 
+    const nextModeLabel =
+      previewMode === 'editor' ? 'Split' : previewMode === 'split' ? 'Preview' : 'Edit'
+    const nextModeIcon =
+      previewMode === 'editor' ? Columns2 : previewMode === 'split' ? Eye : Pencil
+
     return [
-      ...(canPreview
-        ? [
-            {
-              label: showPreview ? 'Edit' : 'Preview',
-              icon: showPreview ? Pencil : Eye,
-              onClick: handleTogglePreview,
-            },
-          ]
-        : []),
       ...(canEditText
         ? [
             {
@@ -540,6 +555,23 @@ export function Files() {
             },
           ]
         : []),
+      ...(hasSplitView
+        ? [
+            {
+              label: nextModeLabel,
+              icon: nextModeIcon,
+              onClick: handleCyclePreviewMode,
+            },
+          ]
+        : canPreview
+          ? [
+              {
+                label: previewMode === 'preview' ? 'Edit' : 'Preview',
+                icon: previewMode === 'preview' ? Pencil : Eye,
+                onClick: handleTogglePreview,
+              },
+            ]
+          : []),
       {
         label: 'Download',
         icon: Download,
@@ -554,7 +586,8 @@ export function Files() {
   }, [
     selectedFile,
     saveStatus,
-    showPreview,
+    previewMode,
+    handleCyclePreviewMode,
     handleTogglePreview,
     handleSave,
     isDirty,
@@ -580,8 +613,6 @@ export function Files() {
   }
 
   if (selectedFile) {
-    const canPreview = isPreviewable(selectedFile)
-
     return (
       <>
         <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
@@ -595,7 +626,7 @@ export function Files() {
             file={selectedFile}
             workspaceId={workspaceId}
             canEdit={userPermissions.canEdit === true}
-            showPreview={showPreview && canPreview}
+            previewMode={previewMode}
             autoFocus={justCreatedFileIdRef.current === selectedFile.id}
             onDirtyChange={setIsDirty}
             onSaveStatusChange={setSaveStatus}
