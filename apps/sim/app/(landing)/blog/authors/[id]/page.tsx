@@ -36,7 +36,7 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
       <div className='mx-auto max-w-5xl px-8 py-16 lg:px-12'>
         <h1 className='font-[500] text-[32px] text-[#ECECEC]'>Author not found</h1>
         <Link
-          href='/studio'
+          href='/blog'
           className='mt-4 inline-block font-season text-[12px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
         >
           Back to all posts

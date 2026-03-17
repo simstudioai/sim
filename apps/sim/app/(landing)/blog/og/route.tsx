@@ -3,7 +3,7 @@ import path from 'path'
 import { ImageResponse } from 'next/og'
 import type { NextRequest } from 'next/server'
 import { getPostBySlug } from '@/lib/blog/registry'
-import { getPrimaryCategory } from '@/app/(landing)/studio/tag-colors'
+import { getPrimaryCategory } from '@/app/(landing)/blog/tag-colors'
 
 function getTitleFontSize(title: string): number {
   if (title.length > 80) return 36
@@ -220,7 +220,7 @@ export async function GET(request: NextRequest) {
             letterSpacing: '0.05em',
           }}
         >
-          sim.ai/studio
+          sim.ai/blog
         </span>
       </div>
     </div>,

@@ -72,7 +72,7 @@ function PostCard({ post, priority = false }: { post: Post; priority?: boolean }
 
   return (
     <motion.div variants={cardVariants} className='h-full'>
-      <Link href={`/studio/${post.slug}`} className='group flex h-full flex-col'>
+      <Link href={`/blog/${post.slug}`} className='group flex h-full flex-col'>
         <article className='flex h-full flex-col overflow-hidden border border-[#2A2A2A] bg-[#232323] transition-[border-color,background-color,transform] duration-200 ease-out active:scale-[0.99] [@media(hover:hover)]:group-hover:border-[#3d3d3d] [@media(hover:hover)]:group-hover:bg-[#282828] [@media(hover:hover)]:group-hover:-translate-y-0.5'>
           <div className='relative aspect-video w-full overflow-hidden bg-[#1C1C1C]'>
             <Image
@@ -143,7 +143,7 @@ function FeaturedLeadCard({ post }: { post: Post }) {
   return (
     <motion.div variants={leadVariants} className='col-span-full'>
       <Link
-        href={`/studio/${post.slug}`}
+        href={`/blog/${post.slug}`}
         className='group relative flex min-h-[400px] flex-col justify-end overflow-hidden border border-[#2A2A2A] bg-[#232323] transition-[border-color,transform] duration-200 ease-out [@media(hover:hover)]:hover:border-[#00F701] [@media(hover:hover)]:hover:-translate-y-0.5'
       >
         <div className='absolute inset-0'>

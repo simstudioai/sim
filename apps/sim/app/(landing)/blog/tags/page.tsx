@@ -34,7 +34,7 @@ export default async function TagsIndex() {
       </p>
       <div className='flex flex-wrap gap-3'>
         <Link
-          href='/studio'
+          href='/blog'
           className='border border-[#3d3d3d] bg-[#232323] px-4 py-2 font-season text-[11px] uppercase tracking-wider text-[#ECECEC] transition-colors hover:border-[#ECECEC]'
           style={{ borderRadius: '5px' }}
           prefetch
@@ -46,7 +46,7 @@ export default async function TagsIndex() {
           return (
             <Link
               key={cat.id}
-              href={`/studio?tag=${encodeURIComponent(cat.id)}`}
+              href={`/blog?tag=${encodeURIComponent(cat.id)}`}
               className='flex items-center gap-2 px-4 py-2 font-season text-[11px] uppercase tracking-wider transition-colors hover:opacity-80'
               style={{
                 borderRadius: '5px',

@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Search } from 'lucide-react'
-import { StudioHero } from '@/app/(landing)/studio/hero'
-import { FeaturedGrid, PostGrid } from '@/app/(landing)/studio/post-grid'
-import { CATEGORIES, getCategoryById, getPrimaryCategory } from '@/app/(landing)/studio/tag-colors'
+import { StudioHero } from '@/app/(landing)/blog/hero'
+import { FeaturedGrid, PostGrid } from '@/app/(landing)/blog/post-grid'
+import { CATEGORIES, getCategoryById, getPrimaryCategory } from '@/app/(landing)/blog/tag-colors'
 
 interface SerializedPost {
   slug: string
@@ -39,7 +39,7 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
     if (tag) params.set('tag', tag)
     if (q) params.set('q', q)
     const search = params.toString()
-    window.history.replaceState(null, '', search ? `/studio?${search}` : '/studio')
+    window.history.replaceState(null, '', search ? `/blog?${search}` : '/blog')
   }, [])
 
   /** Handle browser back / forward. */

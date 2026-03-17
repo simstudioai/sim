@@ -27,14 +27,14 @@ export async function StudioSidebar({ activeTag }: StudioSidebarProps) {
       id: null,
       label: 'All Posts',
       count: totalCount,
-      href: '/studio',
+      href: '/blog',
       color: '#00F701',
     },
     ...CATEGORIES.map((cat) => ({
       id: cat.id,
       label: cat.label,
       count: categoryCounts[cat.id] ?? 0,
-      href: `/studio?tag=${encodeURIComponent(cat.id)}`,
+      href: `/blog?tag=${encodeURIComponent(cat.id)}`,
       color: cat.color,
     })),
   ]

@@ -15,9 +15,9 @@ export function SearchInput() {
       e.preventDefault()
       const value = inputRef.current?.value.trim() ?? ''
       if (value) {
-        router.push(`/studio?q=${encodeURIComponent(value)}`)
+        router.push(`/blog?q=${encodeURIComponent(value)}`)
       } else {
-        router.push('/studio')
+        router.push('/blog')
       }
     },
     [router]

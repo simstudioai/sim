@@ -32,7 +32,10 @@ export function AnimatedColorBlocks() {
   useEffect(() => {
     mounted.current = true
     timers.current = []
-    if (prefersReducedMotion) return
+    if (prefersReducedMotion) {
+      setBlocks(COLORS.map(() => ({ opacity: 1, transitioning: false })))
+      return
+    }
 
     COLORS.forEach((_, i) => {
       schedule(() => {
@@ -119,7 +122,10 @@ export function AnimatedColorBlocksVertical() {
   useEffect(() => {
     mounted.current = true
     timers.current = []
-    if (prefersReducedMotion) return
+    if (prefersReducedMotion) {
+      setBlocks(COLORS.slice(0, 3).map(() => ({ opacity: 1, transitioning: false })))
+      return
+    }
 
     const baseDelay = COLORS.length * ENTER_STAGGER_MS + 100
 

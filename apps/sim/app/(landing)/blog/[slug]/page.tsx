@@ -2,7 +2,7 @@ import { ArrowLeft } from 'lucide-react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { FAQ } from '@/lib/blog/faq'
-import '@/app/(landing)/studio/[slug]/prose-studio.css'
+import '@/app/(landing)/blog/[slug]/prose-studio.css'
 import { getAllPostMeta, getPostBySlug, getRelatedPosts } from '@/lib/blog/registry'
 import { buildArticleJsonLd, buildBreadcrumbJsonLd, buildPostMetadata } from '@/lib/blog/seo'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -10,10 +10,7 @@ import {
   AnimatedColorBlocks,
   AnimatedColorBlocksVertical,
 } from '@/app/(landing)/blog/[slug]/animated-blocks'
-import {
-  ArticleHeaderItem,
-  ArticleHeaderMotion,
-} from '@/app/(landing)/blog/[slug]/article-header'
+import { ArticleHeaderItem, ArticleHeaderMotion } from '@/app/(landing)/blog/[slug]/article-header'
 import { ArticleSidebar } from '@/app/(landing)/blog/[slug]/article-sidebar'
 import { ShareButtons } from '@/app/(landing)/blog/[slug]/share-button'
 import { getPrimaryCategory, getTagCategory } from '@/app/(landing)/blog/tag-colors'
@@ -59,7 +56,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       <div className='mx-auto flex w-full max-w-[1400px] flex-col items-start gap-8 px-6 pb-24 pt-16 xl:flex-row'>
         <div className='max-w-4xl flex-grow xl:mx-auto'>
           <Link
-            href='/studio'
+            href='/blog'
             className='group mb-8 inline-flex items-center gap-2 border border-[#2A2A2A] bg-[#232323] px-4 py-2 font-season text-[11px] uppercase tracking-widest text-[#999] transition-colors hover:text-[#ECECEC]'
             style={{ borderRadius: '5px' }}
           >
@@ -115,7 +112,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                     {post.tags.map((tag, i) => (
                       <span key={tag}>
                         <Link
-                          href={`/studio?tag=${encodeURIComponent(getTagCategory(tag))}`}
+                          href={`/blog?tag=${encodeURIComponent(getTagCategory(tag))}`}
                           className='transition-colors hover:text-[#999]'
                         >
                           {tag}

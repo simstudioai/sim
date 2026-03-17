@@ -1,8 +1,8 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import type { Author, BlogMeta } from '@/lib/blog/schema'
-import { TableOfContents } from '@/app/(landing)/studio/[slug]/table-of-contents'
-import { getTagColor } from '@/app/(landing)/studio/tag-colors'
+import { TableOfContents } from '@/app/(landing)/blog/[slug]/table-of-contents'
+import { getTagColor } from '@/app/(landing)/blog/tag-colors'
 
 interface ArticleSidebarProps {
   author: Author
@@ -81,7 +81,7 @@ export function ArticleSidebar({ author, authors, headings, related }: ArticleSi
             {related.map((p) => {
               const color = getTagColor(p.tags[0]) || '#999'
               return (
-                <Link key={p.slug} href={`/studio/${p.slug}`} className='group block'>
+                <Link key={p.slug} href={`/blog/${p.slug}`} className='group block'>
                   <div
                     className='mb-1 font-season text-[9px] uppercase tracking-widest'
                     style={{ color }}
