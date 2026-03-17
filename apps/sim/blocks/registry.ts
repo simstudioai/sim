@@ -21,6 +21,7 @@ import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
 import { CirclebackBlock } from '@/blocks/blocks/circleback'
 import { ClayBlock } from '@/blocks/blocks/clay'
 import { ClerkBlock } from '@/blocks/blocks/clerk'
+import { ClockifyBlock, ClockifyReportsBlock, ClockifyTimeBlock } from '@/blocks/blocks/clockify'
 import { CloudflareBlock } from '@/blocks/blocks/cloudflare'
 import { ConditionBlock } from '@/blocks/blocks/condition'
 import { ConfluenceBlock, ConfluenceV2Block } from '@/blocks/blocks/confluence'
@@ -223,6 +224,9 @@ export const registry: Record<string, BlockConfig> = {
   cloudflare: CloudflareBlock,
   clay: ClayBlock,
   clerk: ClerkBlock,
+  clockify: ClockifyBlock,
+  clockify_reports: ClockifyReportsBlock,
+  clockify_time: ClockifyTimeBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
   confluence_v2: ConfluenceV2Block,

@@ -2316,6 +2316,17 @@ export function ClayIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function ClockifyIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 64 64' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <circle cx='32' cy='32' r='30' fill='#03A9F4' />
+      <circle cx='32' cy='32' r='14' stroke='white' strokeWidth='4' fill='none' />
+      <line x1='32' y1='22' x2='32' y2='32' stroke='white' strokeWidth='4' strokeLinecap='round' />
+      <line x1='32' y1='32' x2='40' y2='32' stroke='white' strokeWidth='4' strokeLinecap='round' />
+    </svg>
+  )
+}
+
 export function ClerkIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} viewBox='0 0 128 128' fill='none' xmlns='http://www.w3.org/2000/svg'>
