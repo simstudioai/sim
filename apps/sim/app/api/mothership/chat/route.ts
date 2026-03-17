@@ -261,7 +261,8 @@ export async function POST(req: NextRequest) {
         chatId: actualChatId,
         goRoute: '/api/mothership',
         autoExecuteTools: true,
-        interactive: false,
+        interactive: true,
+        promptForToolApproval: false,
         onComplete: async (result: OrchestratorResult) => {
           if (!actualChatId) return
 
