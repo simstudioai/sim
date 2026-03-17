@@ -20,6 +20,40 @@ const logger = createLogger('CopilotChatStreaming')
 // reach them. Keyed by streamId, cleaned up when the stream completes.
 const activeStreams = new Map<string, AbortController>()
 
+// Tracks in-flight streams by chatId so that a subsequent request for the
+// same chat can wait until the previous stream (and its onComplete / Go-side
+// persistence) has fully settled before forwarding to Go.
+const pendingChatStreams = new Map<string, { promise: Promise<void>; resolve: () => void }>()
+
+function registerPendingChatStream(chatId: string): void {
+  let resolve: () => void
+  const promise = new Promise<void>((r) => {
+    resolve = r
+  })
+  pendingChatStreams.set(chatId, { promise, resolve: resolve! })
+}
+
+function resolvePendingChatStream(chatId: string): void {
+  const entry = pendingChatStreams.get(chatId)
+  if (entry) {
+    entry.resolve()
+    pendingChatStreams.delete(chatId)
+  }
+}
+
+/**
+ * Wait for any in-flight stream on `chatId` to finish before proceeding.
+ * Returns immediately if no stream is active. Gives up after `timeoutMs`.
+ */
+export async function waitForPendingChatStream(
+  chatId: string,
+  timeoutMs = 5_000
+): Promise<void> {
+  const entry = pendingChatStreams.get(chatId)
+  if (!entry) return
+  await Promise.race([entry.promise, new Promise<void>((r) => setTimeout(r, timeoutMs))])
+}
+
 export function abortActiveStream(streamId: string): boolean {
   const controller = activeStreams.get(streamId)
   if (!controller) return false
@@ -111,6 +145,10 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   let clientDisconnected = false
   const abortController = new AbortController()
   activeStreams.set(streamId, abortController)
+
+  if (chatId) {
+    registerPendingChatStream(chatId)
+  }
 
   return new ReadableStream({
     async start(controller) {
@@ -210,6 +248,9 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         })
       } finally {
         activeStreams.delete(streamId)
+        if (chatId) {
+          resolvePendingChatStream(chatId)
+        }
         try {
           controller.close()
         } catch {
@@ -219,6 +260,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
     },
     cancel() {
       clientDisconnected = true
+      abortController.abort()
       if (eventWriter) {
         eventWriter.flush().catch(() => {})
       }
