@@ -537,8 +537,10 @@ export function Files() {
             ? 'Save failed'
             : 'Save'
 
-    const nextModeLabel = previewMode === 'editor' ? 'Split' : previewMode === 'split' ? 'Preview' : 'Edit'
-    const nextModeIcon = previewMode === 'editor' ? Columns2 : previewMode === 'split' ? Eye : Pencil
+    const nextModeLabel =
+      previewMode === 'editor' ? 'Split' : previewMode === 'split' ? 'Preview' : 'Edit'
+    const nextModeIcon =
+      previewMode === 'editor' ? Columns2 : previewMode === 'split' ? Eye : Pencil
 
     return [
       ...(canEditText
