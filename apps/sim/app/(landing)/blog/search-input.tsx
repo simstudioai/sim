@@ -4,13 +4,6 @@ import { useCallback, useRef } from 'react'
 import { Search } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-/**
- * Blog search input for the Studio sidebar.
- *
- * Reads the current `?q=` param as the default value.
- * On Enter, navigates to `/studio?q=<query>` which triggers
- * server-side filtering of posts by title, description, and tags.
- */
 export function SearchInput() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -37,8 +30,8 @@ export function SearchInput() {
         type='text'
         defaultValue={currentQuery}
         placeholder='SEARCH POSTS...'
-        className='w-full border border-[#2A2A2A] bg-[#232323] px-4 py-2 pr-9 font-season text-[11px] text-[#ECECEC] placeholder:text-[#666] transition-colors focus:border-[#00F701] focus:outline-none'
-        style={{ borderRadius: '5px' }}
+        className='w-full border border-[#2A2A2A] bg-[#232323] px-4 py-2 pr-9 font-season text-[11px] text-[#ECECEC] placeholder:text-[#666] transition-colors focus:border-[#00F701] focus:outline-none caret-[#00F701]'
+        style={{ borderRadius: '5px', caretColor: '#00F701' }}
         aria-label='Search blog posts'
       />
       <button
