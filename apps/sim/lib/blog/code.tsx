@@ -11,18 +11,26 @@ import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
 import 'prismjs/components/prism-yaml'
 import 'prismjs/components/prism-markdown'
+import 'prismjs/components/prism-jsx'
+import 'prismjs/components/prism-tsx'
+import 'prismjs/components/prism-sql'
+import 'prismjs/components/prism-graphql'
+import 'prismjs/components/prism-go'
+import 'prismjs/components/prism-rust'
+import 'prismjs/components/prism-toml'
+import 'prismjs/components/prism-diff'
+import 'prismjs/components/prism-docker'
 
 interface CodeBlockProps {
   code: string
   language: string
-  filename?: string
 }
 
 const LANG_MAP: Record<string, string> = {
   js: 'javascript',
-  jsx: 'javascript',
+  jsx: 'jsx',
   ts: 'typescript',
-  tsx: 'typescript',
+  tsx: 'tsx',
   typescript: 'typescript',
   javascript: 'javascript',
   json: 'json',
@@ -36,37 +44,47 @@ const LANG_MAP: Record<string, string> = {
   yml: 'yaml',
   md: 'markdown',
   markdown: 'markdown',
-  markup: 'markup',
   html: 'markup',
   xml: 'markup',
-  php: 'php',
-  rust: 'rust',
+  sql: 'sql',
+  graphql: 'graphql',
   go: 'go',
-  java: 'java',
-  kotlin: 'kotlin',
-  scala: 'scala',
-  swift: 'swift',
-  dart: 'dart',
+  rust: 'rust',
+  toml: 'toml',
+  diff: 'diff',
+  dockerfile: 'docker',
 }
 
 const LANG_LABEL: Record<string, string> = {
   javascript: 'JavaScript',
   typescript: 'TypeScript',
+  jsx: 'JSX',
+  tsx: 'TSX',
   json: 'JSON',
   python: 'Python',
   bash: 'Bash',
   css: 'CSS',
+  html: 'HTML',
   yaml: 'YAML',
   markdown: 'Markdown',
+  sql: 'SQL',
+  graphql: 'GraphQL',
+  go: 'Go',
+  rust: 'Rust',
+  toml: 'TOML',
+  diff: 'Diff',
+  dockerfile: 'Dockerfile',
+  markup: 'HTML',
+  docker: 'Dockerfile',
 }
 
-export function CodeBlock({ code, language, filename }: CodeBlockProps) {
+export function CodeBlock({ code, language }: CodeBlockProps) {
   const [copied, setCopied] = useState(false)
 
   const lang = LANG_MAP[language.toLowerCase()] || 'javascript'
   const grammar = languages[lang] || languages.javascript
   const highlighted = highlight(code, grammar, lang)
-  const label = filename || LANG_LABEL[lang] || language
+  const label = LANG_LABEL[lang] || LANG_LABEL[language.toLowerCase()] || language || 'Code'
 
   const handleCopy = useCallback(async () => {
     try {

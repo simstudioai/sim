@@ -66,8 +66,6 @@
 /* Code blocks */
 .prose-studio pre {
   background: #111111;
-  border: 1px solid #2a2a2a;
-  border-radius: 5px;
   padding: 1.5rem;
   overflow-x: auto;
   font-size: 0.875rem;
@@ -154,10 +152,11 @@
  * - Keywords/imports: #FA4EDF (pink)
  * - Strings: #FFCC02 (yellow)
  * - Functions/methods: #82aaff (periwinkle)
- * - Types/classes: #2ABBF8 (cyan)
+ * - Types/classes/properties: #2ABBF8 (cyan)
  * - Numbers/booleans: #00F701 (green)
  * - Comments: #666
  * - Operators/punctuation: #999
+ * - Plain text: #d4d4d8
  */
 
 .token.comment,
@@ -217,6 +216,18 @@
 .token.important,
 .token.variable {
   color: #2abbf8;
+}
+
+.token.parameter {
+  color: #d4d4d8;
+}
+
+.token.template-string .token.interpolation {
+  color: #fa4edf;
+}
+
+.token.template-string .token.string {
+  color: #ffcc02;
 }
 
 /* Reduced motion */

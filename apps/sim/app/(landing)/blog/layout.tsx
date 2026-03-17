@@ -51,7 +51,9 @@ export default async function StudioLayout({ children }: { children: React.React
         <StudioSidebar />
         <main className='relative flex-1'>{children}</main>
       </div>
-      <Footer />
+      <div className='border-t border-[#2A2A2A]'>
+        <Footer />
+      </div>
     </div>
   )
 }
