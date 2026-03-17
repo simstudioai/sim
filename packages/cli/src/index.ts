@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { execSync, spawn } from 'child_process'
+import { randomBytes } from 'crypto'
 import { existsSync, mkdirSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
@@ -14,6 +15,10 @@ const MIGRATIONS_CONTAINER = 'simstudio-migrations'
 const REALTIME_CONTAINER = 'simstudio-realtime'
 const APP_CONTAINER = 'simstudio-app'
 const DEFAULT_PORT = '3000'
+
+function generateHexSecret(bytes = 32): string {
+  return randomBytes(bytes).toString('hex')
+}
 
 const program = new Command()
 
@@ -84,6 +89,10 @@ async function cleanupExistingContainers(): Promise<void> {
 
 async function main() {
   const options = program.parse().opts()
+  const betterAuthSecret = generateHexSecret()
+  const encryptionKey = generateHexSecret()
+  const internalApiSecret = generateHexSecret()
+  const apiEncryptionKey = generateHexSecret()
 
   console.log(chalk.blue('🚀 Starting Sim...'))
 
@@ -215,7 +224,9 @@ async function main() {
     '-e',
     `NEXT_PUBLIC_APP_URL=http://localhost:${port}`,
     '-e',
-    'BETTER_AUTH_SECRET=your_auth_secret_here',
+    `BETTER_AUTH_SECRET=${betterAuthSecret}`,
+    '-e',
+    `INTERNAL_API_SECRET=${internalApiSecret}`,
     'ghcr.io/simstudioai/realtime:latest',
   ])
 
@@ -243,9 +254,13 @@ async function main() {
     '-e',
     `NEXT_PUBLIC_APP_URL=http://localhost:${port}`,
     '-e',
-    'BETTER_AUTH_SECRET=your_auth_secret_here',
+    `BETTER_AUTH_SECRET=${betterAuthSecret}`,
     '-e',
-    'ENCRYPTION_KEY=your_encryption_key_here',
+    `ENCRYPTION_KEY=${encryptionKey}`,
+    '-e',
+    `INTERNAL_API_SECRET=${internalApiSecret}`,
+    '-e',
+    `API_ENCRYPTION_KEY=${apiEncryptionKey}`,
     'ghcr.io/simstudioai/simstudio:latest',
   ])
 
