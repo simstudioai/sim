@@ -49,7 +49,7 @@ export default async function BlogIndex({
   }
 
   return (
-    <WithSidebar>
+    <WithSidebar activeTag={tag}>
       <div className='flex flex-col'>
         <script
           type='application/ld+json'

@@ -1,7 +1,8 @@
 'use client'
 
-import { List } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
+import { List } from 'lucide-react'
 
 interface Heading {
   text: string
@@ -13,8 +14,10 @@ interface TableOfContentsProps {
 }
 
 export function TableOfContents({ headings }: TableOfContentsProps) {
-  const [activeId, setActiveId] = useState<string>('')
+  const [activeId, setActiveId] = useState<string>(headings[0]?.id ?? '')
   const observerRef = useRef<IntersectionObserver | null>(null)
+  const isClickScrolling = useRef(false)
+  const shouldReduceMotion = useReducedMotion()
 
   const setupObserver = useCallback(() => {
     if (observerRef.current) {
@@ -22,6 +25,8 @@ export function TableOfContents({ headings }: TableOfContentsProps) {
     }
 
     const callback: IntersectionObserverCallback = (entries) => {
+      if (isClickScrolling.current) return
+
       const visible = entries
         .filter((e) => e.isIntersecting)
         .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
@@ -47,18 +52,25 @@ export function TableOfContents({ headings }: TableOfContentsProps) {
     return () => observerRef.current?.disconnect()
   }, [setupObserver])
 
-  const currentId = activeId || headings[0]?.id || ''
-
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
     e.preventDefault()
     const el = document.getElementById(id)
     if (!el) return
 
+    isClickScrolling.current = true
+    setActiveId(id)
+
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     el.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth' })
 
     window.history.replaceState(null, '', `#${id}`)
-    setActiveId(id)
+
+    setTimeout(
+      () => {
+        isClickScrolling.current = false
+      },
+      prefersReducedMotion ? 50 : 800
+    )
   }
 
   if (headings.length === 0) return null
@@ -69,23 +81,33 @@ export function TableOfContents({ headings }: TableOfContentsProps) {
         <List className='h-3 w-3 text-[#2ABBF8]' aria-hidden />
         Contents
       </div>
-      <nav className='flex flex-col space-y-2 font-mono text-[12px] font-medium text-[#999]'>
+      <nav className='relative flex flex-col space-y-1 font-mono text-[12px] font-medium text-[#999]'>
         {headings.map((h, idx) => {
-          const isActive = currentId === h.id
+          const isActive = activeId === h.id
 
           return (
             <a
               key={h.id}
               href={`#${h.id}`}
               onClick={(e) => handleClick(e, h.id)}
-              className={`flex items-center gap-2 rounded-[5px] px-2 py-1.5 transition-colors ${
-                isActive
-                  ? 'bg-[#2ABBF8]/10 text-[#2ABBF8]'
-                  : 'hover:bg-[#2A2A2A]/50 hover:text-[#ECECEC]'
-              }`}
+              className='relative flex items-center gap-2 rounded-[5px] px-2 py-1.5 transition-colors hover:text-[#ECECEC]'
+              style={{ color: isActive ? '#2ABBF8' : undefined }}
             >
-              <span className='text-[10px] opacity-50'>{String(idx + 1).padStart(2, '0')}</span>
-              {h.text}
+              {isActive && (
+                <motion.span
+                  layoutId='toc-highlight'
+                  className='absolute inset-0 rounded-[5px] bg-[#2ABBF8]/10'
+                  transition={
+                    shouldReduceMotion
+                      ? { duration: 0 }
+                      : { type: 'spring', duration: 0.25, bounce: 0 }
+                  }
+                />
+              )}
+              <span className='relative z-10 text-[10px] opacity-50'>
+                {String(idx + 1).padStart(2, '0')}
+              </span>
+              <span className='relative z-10'>{h.text}</span>
             </a>
           )
         })}

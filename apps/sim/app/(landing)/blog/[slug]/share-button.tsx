@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, Linkedin, Link2, Twitter } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { Check, Link2, Linkedin, Twitter } from 'lucide-react'
 
 interface ShareButtonsProps {
   url: string
@@ -32,7 +33,7 @@ export function ShareButtons({ url, title }: ShareButtonsProps) {
   }
 
   const btnClass =
-    'flex h-10 w-10 items-center justify-center rounded-[5px] border border-[#2A2A2A] bg-[#232323] text-[#999] transition-all hover:border-[#2ABBF8] hover:text-[#2ABBF8]'
+    'flex h-10 w-10 items-center justify-center rounded-[5px] border border-[#2A2A2A] bg-[#232323] text-[#999] transition-[color,border-color] duration-150 ease [@media(hover:hover)]:hover:border-[#2ABBF8] [@media(hover:hover)]:hover:text-[#2ABBF8] active:scale-[0.95]'
 
   return (
     <div className='flex gap-2'>
@@ -58,11 +59,31 @@ export function ShareButtons({ url, title }: ShareButtonsProps) {
         className={btnClass}
         aria-label={copied ? 'Link copied' : 'Copy link'}
       >
-        {copied ? (
-          <Check className='h-4 w-4 text-[#00F701]' aria-hidden='true' />
-        ) : (
-          <Link2 className='h-4 w-4' aria-hidden='true' />
-        )}
+        <AnimatePresence mode='wait'>
+          {copied ? (
+            <motion.span
+              key='check'
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.5 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              className='flex items-center justify-center'
+            >
+              <Check className='h-4 w-4 text-[#00F701]' aria-hidden='true' />
+            </motion.span>
+          ) : (
+            <motion.span
+              key='link'
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.5 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              className='flex items-center justify-center'
+            >
+              <Link2 className='h-4 w-4' aria-hidden='true' />
+            </motion.span>
+          )}
+        </AnimatePresence>
       </button>
     </div>
   )

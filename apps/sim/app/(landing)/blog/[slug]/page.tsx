@@ -10,6 +10,10 @@ import {
   AnimatedColorBlocks,
   AnimatedColorBlocksVertical,
 } from '@/app/(landing)/blog/[slug]/animated-blocks'
+import {
+  ArticleHeaderItem,
+  ArticleHeaderMotion,
+} from '@/app/(landing)/blog/[slug]/article-header'
 import { ArticleSidebar } from '@/app/(landing)/blog/[slug]/article-sidebar'
 import { ShareButtons } from '@/app/(landing)/blog/[slug]/share-button'
 import { getPrimaryCategory, getTagCategory } from '@/app/(landing)/blog/tag-colors'
@@ -75,48 +79,59 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                 <AnimatedColorBlocksVertical />
               </div>
             </div>
-            <div className='mb-6 flex items-center gap-3'>
-              <span
-                className='inline-block h-3 w-3'
-                style={{ backgroundColor: categoryColor }}
-                aria-hidden='true'
-              />
-              <div className='font-mono text-[11px] uppercase tracking-widest text-[#999]'>
-                <time dateTime={post.date} itemProp='datePublished'>
-                  {new Date(post.date).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: '2-digit',
-                    year: 'numeric',
-                  })}
-                </time>
-                {' // '}
-                <span style={{ color: categoryColor }}>{category.label}</span>
-              </div>
-            </div>
-            <h1
-              className='mb-6 font-[500] text-[36px] leading-[1.15] tracking-tight text-[#ECECEC] sm:text-[40px] md:text-[48px]'
-              itemProp='headline'
-            >
-              {post.title}
-            </h1>
-            <p className='mb-6 text-[18px] leading-relaxed text-[#999]' itemProp='description'>
-              {post.description}
-            </p>
-            {post.tags.length > 0 && (
-              <div className='flex flex-wrap items-center gap-x-1.5 gap-y-1 font-mono text-[11px] text-[#666]'>
-                {post.tags.map((tag, i) => (
-                  <span key={tag}>
-                    <Link
-                      href={`/studio?tag=${encodeURIComponent(getTagCategory(tag))}`}
-                      className='transition-colors hover:text-[#999]'
-                    >
-                      {tag}
-                    </Link>
-                    {i < post.tags.length - 1 && <span className='ml-1.5 text-[#3d3d3d]'>/</span>}
-                  </span>
-                ))}
-              </div>
-            )}
+            <ArticleHeaderMotion>
+              <ArticleHeaderItem className='mb-6 flex items-center gap-3'>
+                <span
+                  className='inline-block h-3 w-3'
+                  style={{ backgroundColor: categoryColor }}
+                  aria-hidden='true'
+                />
+                <div className='font-mono text-[11px] uppercase tracking-widest text-[#999]'>
+                  <time dateTime={post.date} itemProp='datePublished'>
+                    {new Date(post.date).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: '2-digit',
+                      year: 'numeric',
+                    })}
+                  </time>
+                  {' // '}
+                  <span style={{ color: categoryColor }}>{category.label}</span>
+                </div>
+              </ArticleHeaderItem>
+              <ArticleHeaderItem>
+                <h1
+                  className='mb-6 font-[500] text-[36px] leading-[1.15] tracking-tight text-[#ECECEC] sm:text-[40px] md:text-[48px]'
+                  itemProp='headline'
+                >
+                  {post.title}
+                </h1>
+              </ArticleHeaderItem>
+              <ArticleHeaderItem>
+                <p className='mb-6 text-[18px] leading-relaxed text-[#999]' itemProp='description'>
+                  {post.description}
+                </p>
+              </ArticleHeaderItem>
+
+              {post.tags.length > 0 && (
+                <ArticleHeaderItem>
+                  <div className='flex flex-wrap items-center gap-x-1.5 gap-y-1 font-mono text-[11px] text-[#666]'>
+                    {post.tags.map((tag, i) => (
+                      <span key={tag}>
+                        <Link
+                          href={`/studio?tag=${encodeURIComponent(getTagCategory(tag))}`}
+                          className='transition-colors hover:text-[#999]'
+                        >
+                          {tag}
+                        </Link>
+                        {i < post.tags.length - 1 && (
+                          <span className='ml-1.5 text-[#3d3d3d]'>/</span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                </ArticleHeaderItem>
+              )}
+            </ArticleHeaderMotion>
 
             <meta itemProp='dateModified' content={post.updated ?? post.date} />
           </header>
