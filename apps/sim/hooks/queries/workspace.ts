@@ -88,6 +88,7 @@ export function useCreateWorkspace() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.adminLists() })
     },
   })
 }
