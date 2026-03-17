@@ -785,6 +785,8 @@ export function Table({
 
       if (e.key === ' ' && e.shiftKey) {
         e.preventDefault()
+        setSelectionAnchor(null)
+        setSelectionFocus(null)
         setCheckedRows((prev) => {
           const next = new Set(prev)
           if (next.has(anchor.rowIndex)) {
