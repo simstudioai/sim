@@ -49,10 +49,7 @@ function resolvePendingChatStream(chatId: string): void {
  * (including onComplete and Go-side persistence). Returns immediately if
  * no stream is active. Gives up after `timeoutMs`.
  */
-export async function waitForPendingChatStream(
-  chatId: string,
-  timeoutMs = 5_000
-): Promise<void> {
+export async function waitForPendingChatStream(chatId: string, timeoutMs = 5_000): Promise<void> {
   const entry = pendingChatStreams.get(chatId)
   if (!entry) return
 
