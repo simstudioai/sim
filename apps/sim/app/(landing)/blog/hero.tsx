@@ -10,7 +10,7 @@ export function StudioHero() {
           backgroundSize: '32px 32px',
         }}
       />
-      <div className='relative z-10 mx-auto max-w-5xl px-4 lg:px-4'>
+      <div className='relative z-10 mx-auto max-w-5xl'>
         <div className='flex flex-col items-start'>
           <div className='mb-6 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-[#999]'>
             <span className='inline-block h-2 w-2 flex-shrink-0 bg-[#2ABBF8]' aria-hidden='true' />

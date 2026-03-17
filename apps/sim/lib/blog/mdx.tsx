@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import Image from 'next/image'
 import type { MDXRemoteProps } from 'next-mdx-remote/rsc'
 import { CodeBlock } from '@/lib/blog/code'
+import { MermaidDiagram } from '@/lib/blog/mermaid'
 
 export const mdxComponents: MDXRemoteProps['components'] = {
   img: (props: any) => (
@@ -102,27 +103,18 @@ export const mdxComponents: MDXRemoteProps['components'] = {
       const codeContent = child.props.children || ''
       const className = child.props.className || ''
       const language = className.replace('language-', '') || 'javascript'
-
-      const languageMap: Record<string, 'javascript' | 'json' | 'python'> = {
-        js: 'javascript',
-        jsx: 'javascript',
-        ts: 'javascript',
-        tsx: 'javascript',
-        typescript: 'javascript',
-        javascript: 'javascript',
-        json: 'json',
-        python: 'python',
-        py: 'python',
+      const code = typeof codeContent === 'string' ? codeContent.trim() : String(codeContent)
+      if (language.toLowerCase() === 'mermaid') {
+        return (
+          <div className='not-prose my-6'>
+            <MermaidDiagram chart={code} />
+          </div>
+        )
       }
-
-      const mappedLanguage = languageMap[language.toLowerCase()] || 'javascript'
 
       return (
         <div className='not-prose my-6'>
-          <CodeBlock
-            code={typeof codeContent === 'string' ? codeContent.trim() : String(codeContent)}
-            language={mappedLanguage}
-          />
+          <CodeBlock code={code} language={language} />
         </div>
       )
     }

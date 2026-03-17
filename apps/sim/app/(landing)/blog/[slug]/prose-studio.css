@@ -69,7 +69,6 @@
   border: 1px solid #2a2a2a;
   border-radius: 5px;
   padding: 1.5rem;
-  margin: 2rem 0;
   overflow-x: auto;
   font-size: 0.875rem;
   line-height: 1.7;
@@ -147,6 +146,77 @@
   border-bottom: 1px solid #1f1f1f;
   padding: 0.75rem 1rem;
   font-size: 0.875rem;
+}
+
+/* ── PrismJS syntax highlighting tokens ──
+ * Custom theme matching Sim design language.
+ * Colors aligned with the brand palette:
+ * - Keywords/imports: #FA4EDF (pink)
+ * - Strings: #FFCC02 (yellow)
+ * - Functions/methods: #82aaff (periwinkle)
+ * - Types/classes: #2ABBF8 (cyan)
+ * - Numbers/booleans: #00F701 (green)
+ * - Comments: #666
+ * - Operators/punctuation: #999
+ */
+
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: #666666;
+  font-style: italic;
+}
+
+.token.punctuation {
+  color: #999999;
+}
+
+.token.property,
+.token.tag,
+.token.constant,
+.token.symbol,
+.token.deleted {
+  color: #2abbf8;
+}
+
+.token.boolean,
+.token.number {
+  color: #00f701;
+}
+
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin,
+.token.inserted {
+  color: #ffcc02;
+}
+
+.token.operator,
+.token.entity,
+.token.url,
+.language-css .token.string,
+.style .token.string {
+  color: #999999;
+}
+
+.token.atrule,
+.token.attr-value,
+.token.keyword {
+  color: #fa4edf;
+}
+
+.token.function,
+.token.class-name {
+  color: #82aaff;
+}
+
+.token.regex,
+.token.important,
+.token.variable {
+  color: #2abbf8;
 }
 
 /* Reduced motion */

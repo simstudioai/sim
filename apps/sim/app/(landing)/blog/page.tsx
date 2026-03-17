@@ -54,7 +54,7 @@ export default async function BlogIndex({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(studioJsonLd) }}
       />
       {pageNum === 1 && !tag && <StudioHero />}
-      <div className='mx-auto w-full max-w-5xl px-4 py-12 lg:px-4'>
+      <div className='mx-auto w-full max-w-5xl py-12'>
         {activeCategory && (
           <div className='mb-8 flex items-center gap-3'>
             <span className='font-mono text-[10px] uppercase tracking-widest text-[#666]'>
