@@ -84,6 +84,7 @@ interface NormalizedSelection {
 }
 
 const EMPTY_COLUMNS: never[] = []
+const EMPTY_CHECKED_ROWS = new Set<number>()
 const COL_WIDTH = 160
 const COL_WIDTH_MIN = 80
 const CHECKBOX_COL_WIDTH = 40
@@ -146,6 +147,20 @@ function computeNormalizedSelection(
   }
 }
 
+function collectRowSnapshots(
+  positions: Iterable<number>,
+  positionMap: Map<number, TableRowType>
+): DeletedRowSnapshot[] {
+  const snapshots: DeletedRowSnapshot[] = []
+  for (const pos of positions) {
+    const row = positionMap.get(pos)
+    if (row) {
+      snapshots.push({ rowId: row.id, data: { ...row.data }, position: row.position })
+    }
+  }
+  return snapshots
+}
+
 interface TableProps {
   workspaceId?: string
   tableId?: string
@@ -172,6 +187,8 @@ export function Table({
   const [initialCharacter, setInitialCharacter] = useState<string | null>(null)
   const [selectionAnchor, setSelectionAnchor] = useState<CellCoord | null>(null)
   const [selectionFocus, setSelectionFocus] = useState<CellCoord | null>(null)
+  const [checkedRows, setCheckedRows] = useState(EMPTY_CHECKED_ROWS)
+  const lastCheckboxRowRef = useRef<number | null>(null)
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
   const [deletingColumn, setDeletingColumn] = useState<string | null>(null)
 
@@ -256,13 +273,22 @@ export function Table({
     return 0
   }, [resizingColumn, columns, columnWidths])
 
-  const isAllRowsSelected =
-    normalizedSelection !== null &&
-    maxPosition >= 0 &&
-    normalizedSelection.startRow === 0 &&
-    normalizedSelection.endRow === maxPosition &&
-    normalizedSelection.startCol === 0 &&
-    normalizedSelection.endCol === columns.length - 1
+  const isAllRowsSelected = useMemo(() => {
+    if (checkedRows.size > 0 && rows.length > 0 && checkedRows.size >= rows.length) {
+      for (const row of rows) {
+        if (!checkedRows.has(row.position)) return false
+      }
+      return true
+    }
+    return (
+      normalizedSelection !== null &&
+      maxPosition >= 0 &&
+      normalizedSelection.startRow === 0 &&
+      normalizedSelection.endRow === maxPosition &&
+      normalizedSelection.startCol === 0 &&
+      normalizedSelection.endCol === columns.length - 1
+    )
+  }, [checkedRows, normalizedSelection, maxPosition, columns.length, rows])
 
   const isAllRowsSelectedRef = useRef(isAllRowsSelected)
   isAllRowsSelectedRef.current = isAllRowsSelected
@@ -271,6 +297,9 @@ export function Table({
   const rowsRef = useRef(rows)
   const selectionAnchorRef = useRef(selectionAnchor)
   const selectionFocusRef = useRef(selectionFocus)
+
+  const checkedRowsRef = useRef(checkedRows)
+  checkedRowsRef.current = checkedRows
 
   columnsRef.current = columns
   rowsRef.current = rows
@@ -357,32 +386,38 @@ export function Table({
       return
     }
 
-    const sel = computeNormalizedSelection(selectionAnchorRef.current, selectionFocusRef.current)
-    const isInSelection =
-      sel !== null &&
-      contextMenu.row.position >= sel.startRow &&
-      contextMenu.row.position <= sel.endRow
+    const checked = checkedRowsRef.current
+    const pMap = positionMapRef.current
+    let snapshots: DeletedRowSnapshot[] = []
 
-    if (isInSelection && sel) {
-      const pMap = positionMapRef.current
-      const snapshots: DeletedRowSnapshot[] = []
-      for (let r = sel.startRow; r <= sel.endRow; r++) {
-        const row = pMap.get(r)
-        if (row) {
-          snapshots.push({ rowId: row.id, data: { ...row.data }, position: row.position })
-        }
-      }
-      if (snapshots.length > 0) {
-        setDeletingRows(snapshots)
-      }
+    if (checked.size > 0 && checked.has(contextMenu.row.position)) {
+      snapshots = collectRowSnapshots(checked, pMap)
     } else {
-      setDeletingRows([
-        {
-          rowId: contextMenu.row.id,
-          data: { ...contextMenu.row.data },
-          position: contextMenu.row.position,
-        },
-      ])
+      const sel = computeNormalizedSelection(selectionAnchorRef.current, selectionFocusRef.current)
+      const isInSelection =
+        sel !== null &&
+        contextMenu.row.position >= sel.startRow &&
+        contextMenu.row.position <= sel.endRow
+
+      if (isInSelection && sel) {
+        const positions = Array.from(
+          { length: sel.endRow - sel.startRow + 1 },
+          (_, i) => sel.startRow + i
+        )
+        snapshots = collectRowSnapshots(positions, pMap)
+      } else {
+        snapshots = [
+          {
+            rowId: contextMenu.row.id,
+            data: { ...contextMenu.row.data },
+            position: contextMenu.row.position,
+          },
+        ]
+      }
+    }
+
+    if (snapshots.length > 0) {
+      setDeletingRows(snapshots)
     }
 
     closeContextMenu()
@@ -477,6 +512,8 @@ export function Table({
 
   const handleCellMouseDown = useCallback(
     (rowIndex: number, colIndex: number, shiftKey: boolean) => {
+      setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+      lastCheckboxRowRef.current = null
       if (shiftKey && selectionAnchorRef.current) {
         setSelectionFocus({ rowIndex, colIndex })
       } else {
@@ -494,51 +531,55 @@ export function Table({
     setSelectionFocus({ rowIndex, colIndex })
   }, [])
 
-  const handleRowMouseDown = useCallback((rowIndex: number, shiftKey: boolean) => {
-    const lastCol = columnsRef.current.length - 1
-    if (lastCol < 0) return
-
+  const handleRowToggle = useCallback((rowIndex: number, shiftKey: boolean) => {
     setEditingCell(null)
+    setSelectionAnchor(null)
+    setSelectionFocus(null)
 
-    if (shiftKey && selectionAnchorRef.current) {
-      setSelectionAnchor((prev) => (prev ? { rowIndex: prev.rowIndex, colIndex: 0 } : prev))
-      setSelectionFocus({ rowIndex, colIndex: lastCol })
+    if (shiftKey && lastCheckboxRowRef.current !== null) {
+      const from = Math.min(lastCheckboxRowRef.current, rowIndex)
+      const to = Math.max(lastCheckboxRowRef.current, rowIndex)
+      const pMap = positionMapRef.current
+      setCheckedRows((prev) => {
+        const next = new Set(prev)
+        for (const [pos] of pMap) {
+          if (pos >= from && pos <= to) next.add(pos)
+        }
+        return next
+      })
     } else {
-      setSelectionAnchor({ rowIndex, colIndex: 0 })
-      setSelectionFocus({ rowIndex, colIndex: lastCol })
+      setCheckedRows((prev) => {
+        const next = new Set(prev)
+        if (next.has(rowIndex)) {
+          next.delete(rowIndex)
+        } else {
+          next.add(rowIndex)
+        }
+        return next
+      })
     }
-    isDraggingRef.current = true
-    scrollRef.current?.focus({ preventScroll: true })
-  }, [])
-
-  const handleRowMouseEnter = useCallback((rowIndex: number) => {
-    if (!isDraggingRef.current) return
-    const lastCol = columnsRef.current.length - 1
-    if (lastCol < 0) return
-    setSelectionFocus({ rowIndex, colIndex: lastCol })
-  }, [])
-
-  const handleRowSelect = useCallback((rowIndex: number) => {
-    const lastCol = columnsRef.current.length - 1
-    if (lastCol < 0) return
-    setEditingCell(null)
-    setSelectionAnchor({ rowIndex, colIndex: 0 })
-    setSelectionFocus({ rowIndex, colIndex: lastCol })
+    lastCheckboxRowRef.current = rowIndex
     scrollRef.current?.focus({ preventScroll: true })
   }, [])
 
   const handleClearSelection = useCallback(() => {
     setSelectionAnchor(null)
     setSelectionFocus(null)
+    setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+    lastCheckboxRowRef.current = null
   }, [])
 
   const handleSelectAllRows = useCallback(() => {
-    const lastRow = maxPositionRef.current
-    const lastCol = columnsRef.current.length - 1
-    if (lastRow < 0 || lastCol < 0) return
+    const rws = rowsRef.current
+    if (rws.length === 0) return
     setEditingCell(null)
-    setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
-    setSelectionFocus({ rowIndex: lastRow, colIndex: lastCol })
+    setSelectionAnchor(null)
+    setSelectionFocus(null)
+    const all = new Set<number>()
+    for (const row of rws) {
+      all.add(row.position)
+    }
+    setCheckedRows(all)
     scrollRef.current?.focus({ preventScroll: true })
   }, [])
 
@@ -643,12 +684,80 @@ export function Table({
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
 
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'y')) {
         e.preventDefault()
-        if (e.shiftKey) {
+        if (e.key === 'y' || e.shiftKey) {
           redoRef.current()
         } else {
           undoRef.current()
+        }
+        return
+      }
+
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setSelectionAnchor(null)
+        setSelectionFocus(null)
+        setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+        lastCheckboxRowRef.current = null
+        return
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+        e.preventDefault()
+        const rws = rowsRef.current
+        if (rws.length > 0) {
+          setEditingCell(null)
+          setSelectionAnchor(null)
+          setSelectionFocus(null)
+          const all = new Set<number>()
+          for (const row of rws) {
+            all.add(row.position)
+          }
+          setCheckedRows(all)
+        }
+        return
+      }
+
+      if (e.key === ' ' && e.shiftKey) {
+        const a = selectionAnchorRef.current
+        if (!a || editingCellRef.current) return
+        e.preventDefault()
+        setSelectionFocus(null)
+        setCheckedRows((prev) => {
+          const next = new Set(prev)
+          if (next.has(a.rowIndex)) {
+            next.delete(a.rowIndex)
+          } else {
+            next.add(a.rowIndex)
+          }
+          return next
+        })
+        lastCheckboxRowRef.current = a.rowIndex
+        return
+      }
+
+      if ((e.key === 'Delete' || e.key === 'Backspace') && checkedRowsRef.current.size > 0) {
+        if (editingCellRef.current) return
+        e.preventDefault()
+        const checked = checkedRowsRef.current
+        const pMap = positionMapRef.current
+        const currentCols = columnsRef.current
+        const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
+        for (const pos of checked) {
+          const row = pMap.get(pos)
+          if (!row) continue
+          const updates: Record<string, unknown> = {}
+          const previousData: Record<string, unknown> = {}
+          for (const col of currentCols) {
+            previousData[col.name] = row.data[col.name] ?? null
+            updates[col.name] = null
+          }
+          undoCells.push({ rowId: row.id, data: previousData })
+          mutateRef.current({ rowId: row.id, data: updates })
+        }
+        if (undoCells.length > 0) {
+          pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
         }
         return
       }
@@ -659,13 +768,6 @@ export function Table({
       const cols = columnsRef.current
       const mp = maxPositionRef.current
       const totalRows = mp + 1
-
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        setSelectionAnchor(null)
-        setSelectionFocus(null)
-        return
-      }
 
       if (e.shiftKey && e.key === 'Enter') {
         const row = positionMapRef.current.get(anchor.rowIndex)
@@ -706,41 +808,46 @@ export function Table({
         return
       }
 
+      if (e.key === ' ' && !e.shiftKey) {
+        e.preventDefault()
+        const row = positionMapRef.current.get(anchor.rowIndex)
+        if (row) {
+          setEditingRow(row)
+        }
+        return
+      }
+
       if (e.key === 'Tab') {
         e.preventDefault()
+        setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+        lastCheckboxRowRef.current = null
         setSelectionAnchor(moveCell(anchor, cols.length, totalRows, e.shiftKey ? -1 : 1))
         setSelectionFocus(null)
         return
       }
 
-      if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
-        e.preventDefault()
-        if (mp >= 0 && cols.length > 0) {
-          setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
-          setSelectionFocus({ rowIndex: mp, colIndex: cols.length - 1 })
-        }
-        return
-      }
-
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault()
+        setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+        lastCheckboxRowRef.current = null
         const focus = selectionFocusRef.current ?? anchor
         const origin = e.shiftKey ? focus : anchor
+        const jump = e.metaKey || e.ctrlKey
         let newRow = origin.rowIndex
         let newCol = origin.colIndex
 
         switch (e.key) {
           case 'ArrowUp':
-            newRow = Math.max(0, newRow - 1)
+            newRow = jump ? 0 : Math.max(0, newRow - 1)
             break
           case 'ArrowDown':
-            newRow = Math.min(totalRows - 1, newRow + 1)
+            newRow = jump ? totalRows - 1 : Math.min(totalRows - 1, newRow + 1)
             break
           case 'ArrowLeft':
-            newCol = Math.max(0, newCol - 1)
+            newCol = jump ? 0 : Math.max(0, newCol - 1)
             break
           case 'ArrowRight':
-            newCol = Math.min(cols.length - 1, newCol + 1)
+            newCol = jump ? cols.length - 1 : Math.min(cols.length - 1, newCol + 1)
             break
         }
 
@@ -757,7 +864,6 @@ export function Table({
         e.preventDefault()
         const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
         if (!sel) return
-
         const pMap = positionMapRef.current
         const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
         for (let r = sel.startRow; r <= sel.endRow; r++) {
@@ -799,16 +905,37 @@ export function Table({
     const handleCopy = (e: ClipboardEvent) => {
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (editingCellRef.current) return
+
+      const checked = checkedRowsRef.current
+      const cols = columnsRef.current
+      const pMap = positionMapRef.current
+
+      if (checked.size > 0) {
+        e.preventDefault()
+        const sorted = Array.from(checked).sort((a, b) => a - b)
+        const lines: string[] = []
+        for (const pos of sorted) {
+          const row = pMap.get(pos)
+          if (!row) continue
+          const cells: string[] = cols.map((col) => {
+            const value: unknown = row.data[col.name]
+            if (value === null || value === undefined) return ''
+            return typeof value === 'object' ? JSON.stringify(value) : String(value)
+          })
+          lines.push(cells.join('\t'))
+        }
+        e.clipboardData?.setData('text/plain', lines.join('\n'))
+        return
+      }
 
       const anchor = selectionAnchorRef.current
-      if (!anchor || editingCellRef.current) return
+      if (!anchor) return
 
       const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
       if (!sel) return
 
       e.preventDefault()
-      const cols = columnsRef.current
-      const pMap = positionMapRef.current
       const lines: string[] = []
       for (let r = sel.startRow; r <= sel.endRow; r++) {
         const cells: string[] = []
@@ -824,6 +951,79 @@ export function Table({
         lines.push(cells.join('\t'))
       }
       e.clipboardData?.setData('text/plain', lines.join('\n'))
+    }
+
+    const handleCut = (e: ClipboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (editingCellRef.current) return
+
+      const checked = checkedRowsRef.current
+      const cols = columnsRef.current
+      const pMap = positionMapRef.current
+      const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
+
+      if (checked.size > 0) {
+        e.preventDefault()
+        const sorted = Array.from(checked).sort((a, b) => a - b)
+        const lines: string[] = []
+        for (const pos of sorted) {
+          const row = pMap.get(pos)
+          if (!row) continue
+          const cells: string[] = cols.map((col) => {
+            const value: unknown = row.data[col.name]
+            if (value === null || value === undefined) return ''
+            return typeof value === 'object' ? JSON.stringify(value) : String(value)
+          })
+          lines.push(cells.join('\t'))
+          const updates: Record<string, unknown> = {}
+          const previousData: Record<string, unknown> = {}
+          for (const col of cols) {
+            previousData[col.name] = row.data[col.name] ?? null
+            updates[col.name] = null
+          }
+          undoCells.push({ rowId: row.id, data: previousData })
+          mutateRef.current({ rowId: row.id, data: updates })
+        }
+        e.clipboardData?.setData('text/plain', lines.join('\n'))
+      } else {
+        const anchor = selectionAnchorRef.current
+        if (!anchor) return
+
+        const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
+        if (!sel) return
+
+        e.preventDefault()
+        const lines: string[] = []
+        for (let r = sel.startRow; r <= sel.endRow; r++) {
+          const row = pMap.get(r)
+          if (!row) continue
+          const cells: string[] = []
+          const updates: Record<string, unknown> = {}
+          const previousData: Record<string, unknown> = {}
+          for (let c = sel.startCol; c <= sel.endCol; c++) {
+            if (c < cols.length) {
+              const colName = cols[c].name
+              const value: unknown = row.data[colName]
+              if (value === null || value === undefined) {
+                cells.push('')
+              } else {
+                cells.push(typeof value === 'object' ? JSON.stringify(value) : String(value))
+              }
+              previousData[colName] = row.data[colName] ?? null
+              updates[colName] = null
+            }
+          }
+          lines.push(cells.join('\t'))
+          undoCells.push({ rowId: row.id, data: previousData })
+          mutateRef.current({ rowId: row.id, data: updates })
+        }
+        e.clipboardData?.setData('text/plain', lines.join('\n'))
+      }
+
+      if (undoCells.length > 0) {
+        pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
+      }
     }
 
     const handlePaste = (e: ClipboardEvent) => {
@@ -934,10 +1134,12 @@ export function Table({
 
     el.addEventListener('keydown', handleKeyDown)
     el.addEventListener('copy', handleCopy)
+    el.addEventListener('cut', handleCut)
     el.addEventListener('paste', handlePaste)
     return () => {
       el.removeEventListener('keydown', handleKeyDown)
       el.removeEventListener('copy', handleCopy)
+      el.removeEventListener('cut', handleCut)
       el.removeEventListener('paste', handlePaste)
     }
   }, [])
@@ -1213,6 +1415,15 @@ export function Table({
 
   const selectedRowCount = useMemo(() => {
     if (!contextMenu.isOpen || !contextMenu.row) return 1
+
+    if (checkedRows.size > 0 && checkedRows.has(contextMenu.row.position)) {
+      let count = 0
+      for (const pos of checkedRows) {
+        if (positionMap.has(pos)) count++
+      }
+      return Math.max(count, 1)
+    }
+
     const sel = normalizedSelection
     if (!sel) return 1
 
@@ -1226,7 +1437,7 @@ export function Table({
       if (positionMap.has(r)) count++
     }
     return Math.max(count, 1)
-  }, [contextMenu.isOpen, contextMenu.row, normalizedSelection, positionMap])
+  }, [contextMenu.isOpen, contextMenu.row, checkedRows, normalizedSelection, positionMap])
 
   const pendingUpdate = updateRowMutation.isPending ? updateRowMutation.variables : null
 
@@ -1353,11 +1564,11 @@ export function Table({
                             startPosition={prevPosition + 1}
                             columns={columns}
                             normalizedSelection={normalizedSelection}
+                            checkedRows={checkedRows}
                             firstRowUnderHeader={prevPosition === -1}
                             onCellMouseDown={handleCellMouseDown}
                             onCellMouseEnter={handleCellMouseEnter}
-                            onRowMouseDown={handleRowMouseDown}
-                            onRowMouseEnter={handleRowMouseEnter}
+                            onRowToggle={handleRowToggle}
                           />
                         )}
                         <DataRow
@@ -1382,10 +1593,8 @@ export function Table({
                           onContextMenu={handleRowContextMenu}
                           onCellMouseDown={handleCellMouseDown}
                           onCellMouseEnter={handleCellMouseEnter}
-                          onRowMouseDown={handleRowMouseDown}
-                          onRowMouseEnter={handleRowMouseEnter}
-                          onRowSelect={handleRowSelect}
-                          onClearSelection={handleClearSelection}
+                          isRowChecked={checkedRows.has(row.position)}
+                          onRowToggle={handleRowToggle}
                         />
                       </React.Fragment>
                     )
@@ -1517,109 +1726,143 @@ interface PositionGapRowsProps {
   startPosition: number
   columns: ColumnDefinition[]
   normalizedSelection: NormalizedSelection | null
+  checkedRows: Set<number>
   firstRowUnderHeader?: boolean
   onCellMouseDown: (rowIndex: number, colIndex: number, shiftKey: boolean) => void
   onCellMouseEnter: (rowIndex: number, colIndex: number) => void
-  onRowMouseDown: (rowIndex: number, shiftKey: boolean) => void
-  onRowMouseEnter: (rowIndex: number) => void
+  onRowToggle: (rowIndex: number, shiftKey: boolean) => void
 }
 
-const PositionGapRows = React.memo(function PositionGapRows({
-  count,
-  startPosition,
-  columns,
-  normalizedSelection,
-  firstRowUnderHeader = false,
-  onCellMouseDown,
-  onCellMouseEnter,
-  onRowMouseDown,
-  onRowMouseEnter,
-}: PositionGapRowsProps) {
-  const capped = Math.min(count, GAP_ROW_LIMIT)
-  const sel = normalizedSelection
-  const isMultiCell = sel !== null && (sel.startRow !== sel.endRow || sel.startCol !== sel.endCol)
+const PositionGapRows = React.memo(
+  function PositionGapRows({
+    count,
+    startPosition,
+    columns,
+    normalizedSelection,
+    checkedRows,
+    firstRowUnderHeader = false,
+    onCellMouseDown,
+    onCellMouseEnter,
+    onRowToggle,
+  }: PositionGapRowsProps) {
+    const capped = Math.min(count, GAP_ROW_LIMIT)
+    const sel = normalizedSelection
+    const isMultiCell = sel !== null && (sel.startRow !== sel.endRow || sel.startCol !== sel.endCol)
 
-  return (
-    <>
-      {Array.from({ length: capped }).map((_, i) => {
-        const position = startPosition + i
-        return (
-          <tr key={`gap-${position}`}>
-            <td
-              className={GAP_CHECKBOX_CLASS}
-              onMouseDown={(e) => {
-                if (e.button !== 0) return
-                onRowMouseDown(position, e.shiftKey)
-              }}
-              onMouseEnter={() => onRowMouseEnter(position)}
-            >
-              <span className='block text-[11px] text-[var(--text-tertiary)] tabular-nums group-hover/checkbox:hidden'>
-                {position + 1}
-              </span>
-              <div className='hidden items-center justify-center group-hover/checkbox:flex'>
-                <Checkbox size='sm' checked={false} className='pointer-events-none' />
-              </div>
-            </td>
-            {columns.map((col, colIndex) => {
-              const inRange =
-                sel !== null &&
-                position >= sel.startRow &&
-                position <= sel.endRow &&
-                colIndex >= sel.startCol &&
-                colIndex <= sel.endCol
-              const isAnchor =
-                sel !== null && position === sel.anchorRow && colIndex === sel.anchorCol
-
-              const isTopEdge = inRange && position === sel!.startRow
-              const isBottomEdge = inRange && position === sel!.endRow
-              const isLeftEdge = inRange && colIndex === sel!.startCol
-              const isRightEdge = inRange && colIndex === sel!.endCol
-              const belowHeader = firstRowUnderHeader && i === 0
-
-              return (
-                <td
-                  key={col.name}
-                  data-row={position}
-                  data-col={colIndex}
-                  className={cn(CELL, (inRange || isAnchor) && 'relative')}
-                  onMouseDown={(e) => {
-                    if (e.button !== 0) return
-                    onCellMouseDown(position, colIndex, e.shiftKey)
-                  }}
-                  onMouseEnter={() => onCellMouseEnter(position, colIndex)}
-                >
-                  {inRange && isMultiCell && (
-                    <div
-                      className={cn(
-                        '-top-px -right-px -bottom-px -left-px pointer-events-none absolute z-[4] bg-[rgba(37,99,235,0.06)]',
-                        belowHeader && isTopEdge && 'top-0',
-                        isTopEdge && 'border-t border-t-[var(--selection)]',
-                        isBottomEdge && 'border-b border-b-[var(--selection)]',
-                        isLeftEdge && 'border-l border-l-[var(--selection)]',
-                        isRightEdge && 'border-r border-r-[var(--selection)]'
-                      )}
-                    />
+    return (
+      <>
+        {Array.from({ length: capped }).map((_, i) => {
+          const position = startPosition + i
+          const isGapChecked = checkedRows.has(position)
+          return (
+            <tr key={`gap-${position}`}>
+              <td
+                className={GAP_CHECKBOX_CLASS}
+                onMouseDown={(e) => {
+                  if (e.button !== 0) return
+                  onRowToggle(position, e.shiftKey)
+                }}
+              >
+                <span
+                  className={cn(
+                    'text-[11px] text-[var(--text-tertiary)] tabular-nums',
+                    isGapChecked ? 'hidden' : 'block group-hover/checkbox:hidden'
                   )}
-                  {isAnchor && <div className={cn(SELECTION_OVERLAY, belowHeader && 'top-0')} />}
-                  <div className='min-h-[20px]' />
-                </td>
-              )
-            })}
+                >
+                  {position + 1}
+                </span>
+                <div
+                  className={cn(
+                    'items-center justify-center',
+                    isGapChecked ? 'flex' : 'hidden group-hover/checkbox:flex'
+                  )}
+                >
+                  <Checkbox size='sm' checked={isGapChecked} className='pointer-events-none' />
+                </div>
+              </td>
+              {columns.map((col, colIndex) => {
+                const inRange =
+                  sel !== null &&
+                  position >= sel.startRow &&
+                  position <= sel.endRow &&
+                  colIndex >= sel.startCol &&
+                  colIndex <= sel.endCol
+                const isAnchor =
+                  sel !== null && position === sel.anchorRow && colIndex === sel.anchorCol
+                const isHighlighted = inRange || isGapChecked
+
+                const isTopEdge = inRange ? position === sel!.startRow : isGapChecked
+                const isBottomEdge = inRange ? position === sel!.endRow : isGapChecked
+                const isLeftEdge = inRange ? colIndex === sel!.startCol : colIndex === 0
+                const isRightEdge = inRange
+                  ? colIndex === sel!.endCol
+                  : colIndex === columns.length - 1
+                const belowHeader = firstRowUnderHeader && i === 0
+
+                return (
+                  <td
+                    key={col.name}
+                    data-row={position}
+                    data-col={colIndex}
+                    className={cn(CELL, (isHighlighted || isAnchor) && 'relative')}
+                    onMouseDown={(e) => {
+                      if (e.button !== 0) return
+                      onCellMouseDown(position, colIndex, e.shiftKey)
+                    }}
+                    onMouseEnter={() => onCellMouseEnter(position, colIndex)}
+                  >
+                    {isHighlighted && (isMultiCell || isGapChecked) && (
+                      <div
+                        className={cn(
+                          '-top-px -right-px -bottom-px -left-px pointer-events-none absolute z-[4] bg-[rgba(37,99,235,0.06)]',
+                          belowHeader && isTopEdge && 'top-0',
+                          isTopEdge && 'border-t border-t-[var(--selection)]',
+                          isBottomEdge && 'border-b border-b-[var(--selection)]',
+                          isLeftEdge && 'border-l border-l-[var(--selection)]',
+                          isRightEdge && 'border-r border-r-[var(--selection)]'
+                        )}
+                      />
+                    )}
+                    {isAnchor && <div className={cn(SELECTION_OVERLAY, belowHeader && 'top-0')} />}
+                    <div className='min-h-[20px]' />
+                  </td>
+                )
+              })}
+            </tr>
+          )
+        })}
+        {count > GAP_ROW_LIMIT && (
+          <tr>
+            <td
+              colSpan={columns.length + 2}
+              className='border-[var(--border)] border-r border-b p-0'
+              style={{ height: `${(count - GAP_ROW_LIMIT) * ROW_HEIGHT_ESTIMATE}px` }}
+            />
           </tr>
-        )
-      })}
-      {count > GAP_ROW_LIMIT && (
-        <tr>
-          <td
-            colSpan={columns.length + 2}
-            className='border-[var(--border)] border-r border-b p-0'
-            style={{ height: `${(count - GAP_ROW_LIMIT) * ROW_HEIGHT_ESTIMATE}px` }}
-          />
-        </tr>
-      )}
-    </>
-  )
-})
+        )}
+      </>
+    )
+  },
+  (prev, next) => {
+    if (
+      prev.count !== next.count ||
+      prev.startPosition !== next.startPosition ||
+      prev.columns !== next.columns ||
+      prev.normalizedSelection !== next.normalizedSelection ||
+      prev.firstRowUnderHeader !== next.firstRowUnderHeader ||
+      prev.onCellMouseDown !== next.onCellMouseDown ||
+      prev.onCellMouseEnter !== next.onCellMouseEnter ||
+      prev.onRowToggle !== next.onRowToggle
+    ) {
+      return false
+    }
+    const end = prev.startPosition + Math.min(prev.count, GAP_ROW_LIMIT)
+    for (let p = prev.startPosition; p < end; p++) {
+      if (prev.checkedRows.has(p) !== next.checkedRows.has(p)) return false
+    }
+    return true
+  }
+)
 
 const TableColGroup = React.memo(function TableColGroup({
   columns,
@@ -1655,10 +1898,8 @@ interface DataRowProps {
   onContextMenu: (e: React.MouseEvent, row: TableRowType) => void
   onCellMouseDown: (rowIndex: number, colIndex: number, shiftKey: boolean) => void
   onCellMouseEnter: (rowIndex: number, colIndex: number) => void
-  onRowMouseDown: (rowIndex: number, shiftKey: boolean) => void
-  onRowMouseEnter: (rowIndex: number) => void
-  onRowSelect: (rowIndex: number) => void
-  onClearSelection: () => void
+  isRowChecked: boolean
+  onRowToggle: (rowIndex: number, shiftKey: boolean) => void
 }
 
 function rowSelectionChanged(
@@ -1707,10 +1948,8 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.onContextMenu !== next.onContextMenu ||
     prev.onCellMouseDown !== next.onCellMouseDown ||
     prev.onCellMouseEnter !== next.onCellMouseEnter ||
-    prev.onRowMouseDown !== next.onRowMouseDown ||
-    prev.onRowMouseEnter !== next.onRowMouseEnter ||
-    prev.onRowSelect !== next.onRowSelect ||
-    prev.onClearSelection !== next.onClearSelection
+    prev.isRowChecked !== next.isRowChecked ||
+    prev.onRowToggle !== next.onRowToggle
   ) {
     return false
   }
@@ -1738,6 +1977,7 @@ const DataRow = React.memo(function DataRow({
   initialCharacter,
   pendingCellValue,
   normalizedSelection,
+  isRowChecked,
   onClick,
   onDoubleClick,
   onSave,
@@ -1745,29 +1985,26 @@ const DataRow = React.memo(function DataRow({
   onContextMenu,
   onCellMouseDown,
   onCellMouseEnter,
-  onRowMouseDown,
-  onRowMouseEnter,
-  onRowSelect,
-  onClearSelection,
+  onRowToggle,
 }: DataRowProps) {
   const sel = normalizedSelection
   const isMultiCell = sel !== null && (sel.startRow !== sel.endRow || sel.startCol !== sel.endCol)
-  const isRowSelected =
+  const isRowSelectedByRange =
     sel !== null &&
     rowIndex >= sel.startRow &&
     rowIndex <= sel.endRow &&
     sel.startCol === 0 &&
     sel.endCol === columns.length - 1
+  const isRowSelected = isRowChecked || isRowSelectedByRange
 
   return (
     <tr onContextMenu={(e) => onContextMenu(e, row)}>
       <td
         className={cn(CELL_CHECKBOX, 'group/checkbox cursor-pointer text-center')}
         onMouseDown={(e) => {
-          if (e.button !== 0 || isRowSelected) return
-          onRowMouseDown(rowIndex, e.shiftKey)
+          if (e.button !== 0) return
+          onRowToggle(rowIndex, e.shiftKey)
         }}
-        onMouseEnter={() => onRowMouseEnter(rowIndex)}
       >
         <span
           className={cn(
@@ -1782,17 +2019,6 @@ const DataRow = React.memo(function DataRow({
             'items-center justify-center',
             isRowSelected ? 'flex' : 'hidden group-hover/checkbox:flex'
           )}
-          onMouseDown={(e) => {
-            e.stopPropagation()
-            if (e.button !== 0) return
-            if (e.shiftKey) {
-              onRowMouseDown(rowIndex, true)
-            } else if (isRowSelected) {
-              onClearSelection()
-            } else {
-              onRowSelect(rowIndex)
-            }
-          }}
         >
           <Checkbox size='sm' checked={isRowSelected} className='pointer-events-none' />
         </div>
@@ -1806,18 +2032,19 @@ const DataRow = React.memo(function DataRow({
           colIndex <= sel.endCol
         const isAnchor = sel !== null && rowIndex === sel.anchorRow && colIndex === sel.anchorCol
         const isEditing = editingColumnName === column.name
+        const isHighlighted = inRange || isRowChecked
 
-        const isTopEdge = inRange && rowIndex === sel!.startRow
-        const isBottomEdge = inRange && rowIndex === sel!.endRow
-        const isLeftEdge = inRange && colIndex === sel!.startCol
-        const isRightEdge = inRange && colIndex === sel!.endCol
+        const isTopEdge = inRange ? rowIndex === sel!.startRow : isRowChecked
+        const isBottomEdge = inRange ? rowIndex === sel!.endRow : isRowChecked
+        const isLeftEdge = inRange ? colIndex === sel!.startCol : colIndex === 0
+        const isRightEdge = inRange ? colIndex === sel!.endCol : colIndex === columns.length - 1
 
         return (
           <td
             key={column.name}
             data-row={rowIndex}
             data-col={colIndex}
-            className={cn(CELL, (inRange || isAnchor || isEditing) && 'relative')}
+            className={cn(CELL, (isHighlighted || isAnchor || isEditing) && 'relative')}
             onMouseDown={(e) => {
               if (e.button !== 0 || isEditing) return
               onCellMouseDown(rowIndex, colIndex, e.shiftKey)
@@ -1826,7 +2053,7 @@ const DataRow = React.memo(function DataRow({
             onClick={() => onClick(row.id, column.name)}
             onDoubleClick={() => onDoubleClick(row.id, column.name)}
           >
-            {inRange && isMultiCell && (
+            {isHighlighted && (isMultiCell || isRowChecked) && (
               <div
                 className={cn(
                   '-top-px -right-px -bottom-px -left-px pointer-events-none absolute z-[4] bg-[rgba(37,99,235,0.06)]',
