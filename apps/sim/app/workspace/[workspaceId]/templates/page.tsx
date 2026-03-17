@@ -57,7 +57,7 @@ export default async function TemplatesPage({ params }: TemplatesPageProps) {
     .limit(1)
 
   const isSuperUser = currentUser[0]?.role === 'admin'
-  const superUserModeEnabled = userSettings[0]?.superUserModeEnabled ?? true
+  const superUserModeEnabled = userSettings[0]?.superUserModeEnabled ?? false
   const effectiveSuperUser = isSuperUser && superUserModeEnabled
 
   // Load templates from database
