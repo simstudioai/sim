@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { GithubOutlineIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { BlogDropdown } from '@/app/(home)/components/navbar/components/blog-dropdown'
 import { DocsDropdown } from '@/app/(home)/components/navbar/components/docs-dropdown'
@@ -26,7 +27,7 @@ const NAV_LINKS: NavLink[] = [
   { label: 'Enterprise', href: 'https://form.typeform.com/to/jqCO12pF', external: true },
 ]
 
-const LOGO_CELL = 'flex items-center pl-[80px] pr-[20px]'
+const LOGO_CELL = 'flex items-center pl-[20px] lg:pl-[80px] pr-[20px]'
 const LINK_CELL = 'flex items-center px-[14px]'
 
 interface NavbarProps {
@@ -37,6 +38,7 @@ export default function Navbar({ logoOnly = false }: NavbarProps) {
   const brand = getBrandConfig()
   const [activeDropdown, setActiveDropdown] = useState<DropdownId>(null)
   const [hoveredLink, setHoveredLink] = useState<string | null>(null)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const openDropdown = useCallback((id: DropdownId) => {
@@ -59,6 +61,22 @@ export default function Navbar({ logoOnly = false }: NavbarProps) {
     return () => {
       if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
     }
+  }, [])
+
+  useEffect(() => {
+    document.body.style.overflow = mobileMenuOpen ? 'hidden' : ''
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [mobileMenuOpen])
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const handler = () => {
+      if (mq.matches) setMobileMenuOpen(false)
+    }
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
   }, [])
 
   const anyHighlighted = activeDropdown !== null || hoveredLink !== null
@@ -98,7 +116,7 @@ export default function Navbar({ logoOnly = false }: NavbarProps) {
 
       {!logoOnly && (
         <>
-          <ul className='mt-[0.75px] flex'>
+          <ul className='mt-[0.75px] hidden lg:flex'>
             {NAV_LINKS.map(({ label, href, external, icon, dropdown }) => {
               const hasDropdown = !!dropdown
               const isActive = hasDropdown && activeDropdown === dropdown
@@ -182,9 +200,9 @@ export default function Navbar({ logoOnly = false }: NavbarProps) {
             </li>
           </ul>
 
-          <div className='flex-1' />
+          <div className='hidden flex-1 lg:block' />
 
-          <div className='flex items-center gap-[8px] pr-[80px] pl-[20px]'>
+          <div className='hidden items-center gap-[8px] pr-[80px] pl-[20px] lg:flex'>
             <Link
               href='/login'
               className='inline-flex h-[30px] items-center rounded-[5px] border border-[#3d3d3d] px-[9px] text-[#ECECEC] text-[13.5px] transition-colors hover:bg-[#2A2A2A]'
@@ -199,6 +217,83 @@ export default function Navbar({ logoOnly = false }: NavbarProps) {
             >
               Get started
             </Link>
+          </div>
+
+          <div className='flex flex-1 items-center justify-end pr-[20px] lg:hidden'>
+            <button
+              type='button'
+              className='flex h-[32px] w-[32px] items-center justify-center rounded-[5px] transition-colors hover:bg-[#2A2A2A]'
+              onClick={() => setMobileMenuOpen((prev) => !prev)}
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={mobileMenuOpen}
+            >
+              <MobileMenuIcon open={mobileMenuOpen} />
+            </button>
+          </div>
+
+          <div
+            className={cn(
+              'fixed inset-x-0 top-[52px] bottom-0 z-50 flex flex-col overflow-y-auto bg-[#1C1C1C] font-[430] font-season text-[14px] transition-all duration-200 lg:hidden',
+              mobileMenuOpen ? 'visible opacity-100' : 'invisible opacity-0'
+            )}
+          >
+            <ul className='flex flex-col'>
+              {NAV_LINKS.map(({ label, href, external }) => (
+                <li key={label} className='border-[#2A2A2A] border-b'>
+                  {external ? (
+                    <a
+                      href={href}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='flex items-center justify-between px-[20px] py-[14px] text-[#ECECEC] transition-colors active:bg-[#2A2A2A]'
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      {label}
+                      <ExternalArrowIcon />
+                    </a>
+                  ) : (
+                    <Link
+                      href={href}
+                      className='flex items-center px-[20px] py-[14px] text-[#ECECEC] transition-colors active:bg-[#2A2A2A]'
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      {label}
+                    </Link>
+                  )}
+                </li>
+              ))}
+              <li className='border-[#2A2A2A] border-b'>
+                <a
+                  href='https://github.com/simstudioai/sim'
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='flex items-center gap-[8px] px-[20px] py-[14px] text-[#ECECEC] transition-colors active:bg-[#2A2A2A]'
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <GithubOutlineIcon className='h-[14px] w-[14px]' />
+                  GitHub
+                </a>
+              </li>
+            </ul>
+
+            <div className='mt-auto flex flex-col gap-[10px] p-[20px]'>
+              <Link
+                href='/login'
+                className='flex h-[32px] items-center justify-center rounded-[5px] border border-[#3d3d3d] text-[#ECECEC] text-[14px] transition-colors active:bg-[#2A2A2A]'
+                onClick={() => setMobileMenuOpen(false)}
+                aria-label='Log in'
+              >
+                Log in
+              </Link>
+              <Link
+                href='/signup'
+                className='flex h-[32px] items-center justify-center rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] text-[14px] text-black transition-colors active:bg-[#E0E0E0]'
+                onClick={() => setMobileMenuOpen(false)}
+                aria-label='Get started with Sim'
+              >
+                Get started
+              </Link>
+            </div>
           </div>
         </>
       )}
@@ -245,6 +340,45 @@ function NavChevron({ open }: NavChevronProps) {
           transform: open ? 'rotate(90deg)' : 'rotate(0deg)',
           transition: 'transform 250ms cubic-bezier(0.4, 0, 0.2, 1)',
         }}
+      />
+    </svg>
+  )
+}
+
+function MobileMenuIcon({ open }: { open: boolean }) {
+  if (open) {
+    return (
+      <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
+        <path
+          d='M1 1L13 13M13 1L1 13'
+          stroke='currentColor'
+          strokeWidth='1.5'
+          strokeLinecap='round'
+        />
+      </svg>
+    )
+  }
+  return (
+    <svg width='16' height='12' viewBox='0 0 16 12' fill='none'>
+      <path
+        d='M0 1H16M0 6H16M0 11H16'
+        stroke='currentColor'
+        strokeWidth='1.5'
+        strokeLinecap='round'
+      />
+    </svg>
+  )
+}
+
+function ExternalArrowIcon() {
+  return (
+    <svg width='12' height='12' viewBox='0 0 12 12' fill='none' className='text-[#666]'>
+      <path
+        d='M3.5 2.5H9.5V8.5M9 3L3 9'
+        stroke='currentColor'
+        strokeWidth='1.2'
+        strokeLinecap='round'
+        strokeLinejoin='round'
       />
     </svg>
   )

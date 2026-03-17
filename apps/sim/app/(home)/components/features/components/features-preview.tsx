@@ -25,7 +25,7 @@ export function FeaturesPreview({ activeTab }: FeaturesPreviewProps) {
   const isWorkspaceTab = activeTab <= 4
 
   return (
-    <div className='relative h-[560px] w-full'>
+    <div className='relative h-[350px] w-full md:h-[560px]'>
       <motion.div
         className='absolute inset-0'
         animate={{ opacity: isWorkspaceTab ? 1 : 0 }}
@@ -210,7 +210,7 @@ function WorkspacePreview({ activeTab, isActive }: { activeTab: number; isActive
   const isExpanded = expandedTab !== null
 
   return (
-    <div ref={containerRef} className='relative h-[560px] w-full overflow-hidden'>
+    <div ref={containerRef} className='relative h-[350px] w-full overflow-hidden md:h-[560px]'>
       <motion.div
         aria-hidden='true'
         className='absolute inset-0'
@@ -1141,7 +1141,7 @@ function DefaultPreview() {
   const inView = useInView(containerRef, { once: true, margin: '-80px' })
 
   return (
-    <div ref={containerRef} className='relative h-[560px] w-full overflow-hidden'>
+    <div ref={containerRef} className='relative h-[350px] w-full overflow-hidden md:h-[560px]'>
       <div
         aria-hidden='true'
         className='absolute inset-0'

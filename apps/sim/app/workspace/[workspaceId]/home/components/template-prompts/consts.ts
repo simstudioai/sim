@@ -11,7 +11,6 @@ import {
   Hammer,
   Integration,
   Layout,
-  Library,
   Mail,
   Pencil,
   Rocket,
@@ -199,7 +198,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['sales', 'content', 'enterprise'],
   },
   {
-    icon: Library,
+    icon: File,
     title: 'Competitive battle cards',
     prompt:
       'Create an agent that deep-researches each of my competitors using web search — their product features, pricing, positioning, strengths, and weaknesses — and generates a structured battle card document for each one that my sales team can reference during calls.',
@@ -830,7 +829,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['hr', 'automation', 'team'],
   },
   {
-    icon: Library,
+    icon: ClipboardList,
     title: 'Candidate screening assistant',
     prompt:
       'Create a knowledge base from my job descriptions and hiring criteria, then build a workflow that takes uploaded resumes, evaluates candidates against the requirements, scores them on experience, skills, and culture fit, and populates a comparison table with a summary and recommendation for each.',
