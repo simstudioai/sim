@@ -33,7 +33,7 @@ export function buildPostMetadata(post: BlogMeta): Metadata {
       tags: post.tags,
       images: [
         {
-          url: post.ogImage.startsWith('http') ? post.ogImage : `${baseUrl}${post.ogImage}`,
+          url: `${baseUrl}/studio/og?slug=${encodeURIComponent(post.slug)}`,
           width: 1200,
           height: 630,
           alt: post.ogAlt || post.title,
@@ -44,7 +44,7 @@ export function buildPostMetadata(post: BlogMeta): Metadata {
       card: 'summary_large_image',
       title: post.title,
       description: post.description,
-      images: [post.ogImage],
+      images: [`${baseUrl}/studio/og?slug=${encodeURIComponent(post.slug)}`],
       creator: post.author.url?.includes('x.com') ? `@${post.author.xHandle || ''}` : undefined,
       site: '@simdotai',
     },
