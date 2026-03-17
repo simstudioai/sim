@@ -21,16 +21,19 @@ const logger = createLogger('CopilotChatStreaming')
 const activeStreams = new Map<string, AbortController>()
 
 // Tracks in-flight streams by chatId so that a subsequent request for the
-// same chat can wait until the previous stream (and its onComplete / Go-side
-// persistence) has fully settled before forwarding to Go.
-const pendingChatStreams = new Map<string, { promise: Promise<void>; resolve: () => void }>()
+// same chat can force-abort the previous stream and wait for it to settle
+// before forwarding to Go.
+const pendingChatStreams = new Map<
+  string,
+  { promise: Promise<void>; resolve: () => void; streamId: string }
+>()
 
-function registerPendingChatStream(chatId: string): void {
+function registerPendingChatStream(chatId: string, streamId: string): void {
   let resolve: () => void
   const promise = new Promise<void>((r) => {
     resolve = r
   })
-  pendingChatStreams.set(chatId, { promise, resolve: resolve! })
+  pendingChatStreams.set(chatId, { promise, resolve: resolve!, streamId })
 }
 
 function resolvePendingChatStream(chatId: string): void {
@@ -42,8 +45,9 @@ function resolvePendingChatStream(chatId: string): void {
 }
 
 /**
- * Wait for any in-flight stream on `chatId` to finish before proceeding.
- * Returns immediately if no stream is active. Gives up after `timeoutMs`.
+ * Abort any in-flight stream on `chatId` and wait for it to fully settle
+ * (including onComplete and Go-side persistence). Returns immediately if
+ * no stream is active. Gives up after `timeoutMs`.
  */
 export async function waitForPendingChatStream(
   chatId: string,
@@ -51,6 +55,11 @@ export async function waitForPendingChatStream(
 ): Promise<void> {
   const entry = pendingChatStreams.get(chatId)
   if (!entry) return
+
+  // Force-abort the previous stream so we don't passively wait for it to
+  // finish naturally (which could take tens of seconds for a subagent).
+  abortActiveStream(entry.streamId)
+
   await Promise.race([entry.promise, new Promise<void>((r) => setTimeout(r, timeoutMs))])
 }
 
@@ -147,7 +156,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   activeStreams.set(streamId, abortController)
 
   if (chatId) {
-    registerPendingChatStream(chatId)
+    registerPendingChatStream(chatId, streamId)
   }
 
   return new ReadableStream({
