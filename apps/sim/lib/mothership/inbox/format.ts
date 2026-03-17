@@ -99,10 +99,16 @@ function isForwardedEmail(subject: string | null, body: string | null): boolean 
  * Prevents incomplete sanitization from nested/overlapping patterns
  * like `<scr<script>ipt>`.
  */
-export function replaceUntilStable(input: string, pattern: RegExp, replacement: string): string {
+export function replaceUntilStable(
+  input: string,
+  pattern: RegExp,
+  replacement: string,
+  maxIterations = 100
+): string {
   let prev = input
   let next = prev.replace(pattern, replacement)
-  while (next !== prev) {
+  let iterations = 0
+  while (next !== prev && iterations++ < maxIterations) {
     prev = next
     next = prev.replace(pattern, replacement)
   }
@@ -134,6 +140,9 @@ function extractTextFromHtml(html: string | null): string | null {
   if (!html) return null
 
   let text = html
+
+  text = decodeHtmlEntities(text)
+
   text = replaceUntilStable(text, /<style[^>]*>[\s\S]*?<\/style\s*>/gi, '')
   text = replaceUntilStable(text, /<script[^>]*>[\s\S]*?<\/script\s*>/gi, '')
 
@@ -145,9 +154,7 @@ function extractTextFromHtml(html: string | null): string | null {
 
   text = replaceUntilStable(text, /<[^>]+>/g, '')
 
-  text = decodeHtmlEntities(text)
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
+  text = text.replace(/\n{3,}/g, '\n\n').trim()
 
   return text
 }
