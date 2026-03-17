@@ -93,18 +93,20 @@ export function ResourceTabs({
   const PreviewModeIcon = PREVIEW_MODE_ICONS[previewMode ?? 'split']
   const nameLookup = useResourceNameLookup(workspaceId)
   const scrollNodeRef = useRef<HTMLDivElement>(null)
+  const wrapperRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const node = scrollNodeRef.current
-    if (!node) return
+    const wrapper = wrapperRef.current
+    const scrollNode = scrollNodeRef.current
+    if (!wrapper || !scrollNode) return
     const handler = (e: WheelEvent) => {
       if (e.deltaY !== 0) {
-        node.scrollLeft += e.deltaY
+        scrollNode.scrollLeft += e.deltaY
         e.preventDefault()
       }
     }
-    node.addEventListener('wheel', handler, { passive: false })
-    return () => node.removeEventListener('wheel', handler)
+    wrapper.addEventListener('wheel', handler, { passive: false })
+    return () => wrapper.removeEventListener('wheel', handler)
   }, [])
 
   const addResource = useAddChatResource(chatId)
@@ -273,7 +275,7 @@ export function ResourceTabs({
           <p>Collapse</p>
         </Tooltip.Content>
       </Tooltip.Root>
-      <div className={cn('flex min-w-0 flex-1 items-center', RESOURCE_TAB_GAP_CLASS)}>
+      <div ref={wrapperRef} className={cn('flex min-w-0 flex-1 items-center', RESOURCE_TAB_GAP_CLASS)}>
         <div
           ref={scrollNodeRef}
           className={cn(
