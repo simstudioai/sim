@@ -264,7 +264,9 @@ const WorkflowContent = React.memo(
     const router = useRouter()
     const reactFlowInstance = useReactFlow()
     const { screenToFlowPosition, getNodes, setNodes, getIntersectingNodes } = reactFlowInstance
-    const { fitViewToBounds, getViewportCenter } = useCanvasViewport(reactFlowInstance)
+    const { fitViewToBounds, getViewportCenter } = useCanvasViewport(reactFlowInstance, {
+      embedded,
+    })
     const { emitCursorUpdate } = useSocket()
     useDynamicHandleRefresh()
 
@@ -473,7 +475,9 @@ const WorkflowContent = React.memo(
       []
     )
 
-    const { handleAutoLayout: autoLayoutWithFitView } = useAutoLayout(activeWorkflowId || null)
+    const { handleAutoLayout: autoLayoutWithFitView } = useAutoLayout(activeWorkflowId || null, {
+      embedded,
+    })
 
     const isWorkflowEmpty = useMemo(() => Object.keys(blocks).length === 0, [blocks])
 

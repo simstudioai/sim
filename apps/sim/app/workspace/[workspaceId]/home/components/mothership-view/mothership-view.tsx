@@ -60,11 +60,11 @@ export const MothershipView = memo(function MothershipView({
     <div
       className={cn(
         'relative z-10 flex h-full flex-col overflow-hidden border-[var(--border)] bg-[var(--bg)] transition-[width,min-width,border-width] duration-300 ease-out',
-        isCollapsed ? 'w-0 min-w-0 border-l-0' : 'w-[50%] min-w-[400px] border-l',
+        isCollapsed ? 'w-0 min-w-0 border-l-0' : 'w-[60%] border-l',
         className
       )}
     >
-      <div className='flex min-h-0 min-w-[400px] flex-1 flex-col'>
+      <div className='flex min-h-0 flex-1 flex-col'>
         <ResourceTabs
           workspaceId={workspaceId}
           chatId={chatId}
