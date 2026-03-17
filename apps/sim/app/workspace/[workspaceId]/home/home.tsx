@@ -250,6 +250,15 @@ export function Home({ chatId }: HomeProps = {}) {
     [sendMessage]
   )
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const message = (e as CustomEvent<{ message: string }>).detail?.message
+      if (message) sendMessage(message)
+    }
+    window.addEventListener('mothership-send-message', handler)
+    return () => window.removeEventListener('mothership-send-message', handler)
+  }, [sendMessage])
+
   const handleContextAdd = useCallback(
     (context: ChatContext) => {
       let resourceType: MothershipResourceType | null = null

@@ -651,6 +651,22 @@ export function useChat(
               ) {
                 clientExecutionStarted.add(id)
                 const args = data?.arguments ?? data?.input ?? {}
+                const targetWorkflowId =
+                  typeof (args as Record<string, unknown>).workflowId === 'string'
+                    ? ((args as Record<string, unknown>).workflowId as string)
+                    : useWorkflowRegistry.getState().activeWorkflowId
+                if (targetWorkflowId) {
+                  const meta = useWorkflowRegistry.getState().workflows[targetWorkflowId]
+                  const wasAdded = addResource({
+                    type: 'workflow',
+                    id: targetWorkflowId,
+                    title: meta?.name ?? 'Workflow',
+                  })
+                  if (!wasAdded && activeResourceIdRef.current !== targetWorkflowId) {
+                    setActiveResourceId(targetWorkflowId)
+                  }
+                  onResourceEventRef.current?.()
+                }
                 executeRunToolOnClient(id, name, args as Record<string, unknown>)
               }
               break
