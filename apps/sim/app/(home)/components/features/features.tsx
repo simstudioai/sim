@@ -246,7 +246,7 @@ export default function Features() {
                   role='tab'
                   aria-selected={index === activeTab}
                   onClick={() => setActiveTab(index)}
-                  className='relative flex h-full flex-1 items-center justify-center border-[#E9E9E9] border-l font-medium font-season text-[#212121] text-[14px] uppercase'
+                  className={`relative flex h-full flex-1 items-center justify-center font-medium font-season text-[#212121] text-[14px] uppercase${index > 0 ? ' border-[#E9E9E9] border-l' : ''}`}
                   style={{ backgroundColor: index === activeTab ? '#FDFDFD' : '#F6F6F6' }}
                 >
                   {tab.label}
@@ -269,7 +269,7 @@ export default function Features() {
               ))}
             </div>
 
-            <DotGrid cols={10} rows={8} width={80} borderLeft />
+            <DotGrid cols={10} rows={8} width={80} />
           </div>
 
           <div className='mt-[60px] grid grid-cols-[1fr_2.8fr] gap-[60px] px-[120px]'>
@@ -307,7 +307,7 @@ export default function Features() {
               </Link>
             </div>
 
-            <FeaturesPreview />
+            <FeaturesPreview activeTab={activeTab} />
           </div>
 
           <div aria-hidden='true' className='mt-[60px] h-px bg-[#E9E9E9]' />

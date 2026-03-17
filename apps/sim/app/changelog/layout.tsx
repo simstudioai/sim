@@ -11,7 +11,7 @@ export default function ChangelogLayout({ children }: { children: React.ReactNod
         <Navbar />
       </header>
       {children}
-      <Footer />
+      <Footer hideCTA />
     </div>
   )
 }

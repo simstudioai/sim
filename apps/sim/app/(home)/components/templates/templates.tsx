@@ -416,7 +416,7 @@ export default function Templates() {
       <div className='bg-[#1C1C1C]'>
         <DotGrid
           className='border-[#2A2A2A] border-y bg-[#1C1C1C] p-[6px]'
-          cols={120}
+          cols={160}
           rows={1}
           gap={6}
         />
@@ -472,7 +472,7 @@ export default function Templates() {
           <div className='mt-[73px] flex border-[#2A2A2A] border-y'>
             <DotGrid
               className='w-[80px] shrink-0 overflow-hidden border-[#2A2A2A] border-r p-[6px]'
-              cols={6}
+              cols={8}
               rows={55}
               gap={6}
             />
@@ -584,7 +584,7 @@ export default function Templates() {
 
             <DotGrid
               className='w-[80px] shrink-0 overflow-hidden border-[#2A2A2A] border-l p-[6px]'
-              cols={6}
+              cols={8}
               rows={55}
               gap={6}
             />

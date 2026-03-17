@@ -6,8 +6,8 @@ import { FAQ } from '@/lib/blog/faq'
 import { getAllPostMeta, getPostBySlug, getRelatedPosts } from '@/lib/blog/registry'
 import { buildArticleJsonLd, buildBreadcrumbJsonLd, buildPostMetadata } from '@/lib/blog/seo'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { BackLink } from '@/app/(landing)/studio/[slug]/back-link'
-import { ShareButton } from '@/app/(landing)/studio/[slug]/share-button'
+import { BackLink } from '@/app/(landing)/blog/[slug]/back-link'
+import { ShareButton } from '@/app/(landing)/blog/[slug]/share-button'
 
 export async function generateStaticParams() {
   const posts = await getAllPostMeta()
@@ -95,7 +95,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                   </div>
                 ))}
               </div>
-              <ShareButton url={`${getBaseUrl()}/studio/${slug}`} title={post.title} />
+              <ShareButton url={`${getBaseUrl()}/blog/${slug}`} title={post.title} />
             </div>
           </div>
         </div>
@@ -134,7 +134,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
           <h2 className='mb-4 font-[500] text-[#ECECEC] text-[24px]'>Related posts</h2>
           <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3'>
             {related.map((p) => (
-              <Link key={p.slug} href={`/studio/${p.slug}`} className='group'>
+              <Link key={p.slug} href={`/blog/${p.slug}`} className='group'>
                 <div className='overflow-hidden rounded-lg border border-[#2A2A2A]'>
                   <Image
                     src={p.ogImage}
