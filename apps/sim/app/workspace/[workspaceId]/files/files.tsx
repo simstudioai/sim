@@ -480,8 +480,14 @@ export function Files() {
     if (justCreatedFileIdRef.current && !isJustCreated) {
       justCreatedFileIdRef.current = null
     }
-    setPreviewMode(isJustCreated ? 'editor' : 'preview')
-  }, [selectedFileId])
+    if (isJustCreated) {
+      setPreviewMode('editor')
+    } else {
+      const file = selectedFileId ? files.find((f) => f.id === selectedFileId) : null
+      const isMd = file ? getFileExtension(file.name) === 'md' : false
+      setPreviewMode(isMd ? 'split' : 'preview')
+    }
+  }, [selectedFileId, files])
 
   useEffect(() => {
     if (!selectedFile) return
