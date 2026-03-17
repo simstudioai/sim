@@ -59,7 +59,7 @@ export const MothershipView = memo(function MothershipView({
   return (
     <div
       className={cn(
-        'flex h-full flex-col overflow-hidden border-[var(--border)] transition-[width,min-width,border-width] duration-300 ease-out',
+        'relative z-10 flex h-full flex-col overflow-hidden border-[var(--border)] bg-[var(--bg)] transition-[width,min-width,border-width] duration-300 ease-out',
         isCollapsed ? 'w-0 min-w-0 border-l-0' : 'w-[50%] min-w-[400px] border-l',
         className
       )}

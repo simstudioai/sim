@@ -418,7 +418,7 @@ export function Home({ chatId }: HomeProps = {}) {
                         })}
                       </div>
                     )}
-                    <div className='max-w-[70%] rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2'>
+                    <div className='max-w-[70%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2'>
                       <UserMessageContent content={msg.content} contexts={msg.contexts} />
                     </div>
                   </div>

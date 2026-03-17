@@ -243,11 +243,9 @@ export function SettingsSidebar({
 
             return (
               <div key={key} className='flex flex-shrink-0 flex-col'>
-                {!isCollapsed && (
-                  <div className='sidebar-collapse-remove px-[16px] pb-[6px]'>
-                    <div className='font-base text-[var(--text-icon)] text-small'>{title}</div>
-                  </div>
-                )}
+                <div className='px-[16px] pb-[6px]'>
+                  <div className='font-base text-[var(--text-icon)] text-small'>{title}</div>
+                </div>
                 <div className='flex flex-col gap-[2px] px-[8px]'>
                   {sectionItems.map((item) => {
                     const Icon = item.icon

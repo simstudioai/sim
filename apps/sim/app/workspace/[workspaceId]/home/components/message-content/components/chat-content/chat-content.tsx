@@ -216,9 +216,9 @@ export function ChatContent({ content, isStreaming = false, onOptionSelect }: Ch
     return (
       <div className='space-y-3'>
         {parsed.segments.map((segment, i) => {
-          if (segment.type === 'text') {
+          if (segment.type === 'text' || segment.type === 'thinking') {
             return (
-              <div key={`text-${i}`} className={PROSE_CLASSES}>
+              <div key={`${segment.type}-${i}`} className={PROSE_CLASSES}>
                 <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
                   {segment.content}
                 </ReactMarkdown>

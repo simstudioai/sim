@@ -495,7 +495,7 @@ export function WorkspaceHeader({
                     </div>
                   </DropdownMenuGroup>
 
-                  <div className='flex flex-col gap-[2px]'>
+                  <div className='mt-[4px] flex flex-col gap-[2px]'>
                     <button
                       type='button'
                       className='flex w-full cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover:bg-[var(--surface-active)] disabled:pointer-events-none disabled:opacity-50'

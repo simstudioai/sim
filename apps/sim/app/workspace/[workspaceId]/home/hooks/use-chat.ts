@@ -561,7 +561,6 @@ export function useChat(
           }
 
           logger.debug('SSE event received', parsed)
-
           switch (parsed.type) {
             case 'chat_id': {
               if (parsed.chatId) {
@@ -835,6 +834,7 @@ export function useChat(
             }
             case 'subagent_end': {
               activeSubagent = undefined
+              blocks.push({ type: 'subagent_end' })
               flush()
               break
             }

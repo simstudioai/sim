@@ -144,13 +144,8 @@ interface SpecialTagsProps {
  */
 export function SpecialTags({ segment, onOptionSelect }: SpecialTagsProps) {
   switch (segment.type) {
-    /** TODO: FIX THINKING BLOCK RENDERING*/
     case 'thinking':
-      return (
-        <div className='rounded-lg border border-[var(--divider)] bg-[var(--surface-4)] px-3 py-2 text-[13px] text-[var(--text-tertiary)] italic'>
-          {segment.content.trim()}
-        </div>
-      )
+      return null
     case 'options':
       return <OptionsDisplay data={segment.data} onSelect={onOptionSelect} />
     case 'usage_upgrade':

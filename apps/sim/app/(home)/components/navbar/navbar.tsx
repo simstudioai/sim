@@ -19,7 +19,7 @@ const NAV_LINKS: NavLink[] = [
 ]
 
 /** Logo and nav edge: horizontal padding (px) for left/right symmetry. */
-const LOGO_CELL = 'flex items-center px-[20px]'
+const LOGO_CELL = 'flex items-center pl-[80px] pr-[20px]'
 
 /** Links: even spacing between items. */
 const LINK_CELL = 'flex items-center px-[14px]'
@@ -97,7 +97,7 @@ export default function Navbar({ logoOnly = false }: NavbarProps) {
           <div className='flex-1' />
 
           {/* CTAs */}
-          <div className='flex items-center gap-[8px] px-[20px]'>
+          <div className='flex items-center gap-[8px] pr-[80px] pl-[20px]'>
             <Link
               href='/login'
               className='inline-flex h-[30px] items-center rounded-[5px] border border-[#3d3d3d] px-[9px] text-[#ECECEC] text-[13.5px] transition-colors hover:bg-[#2A2A2A]'

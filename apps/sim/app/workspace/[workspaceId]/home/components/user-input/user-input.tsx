@@ -84,7 +84,7 @@ import { useAnimatedPlaceholder } from '../../hooks'
 
 const TEXTAREA_BASE_CLASSES = cn(
   'm-0 box-border h-auto min-h-[24px] w-full resize-none',
-  'overflow-y-auto overflow-x-hidden break-words border-0 bg-transparent',
+  'overflow-y-auto overflow-x-hidden break-all border-0 bg-transparent',
   'px-[4px] py-[4px] font-body text-[15px] leading-[24px] tracking-[-0.015em]',
   'text-transparent caret-[var(--text-primary)] outline-none',
   'placeholder:font-[380] placeholder:text-[var(--text-subtle)]',
@@ -94,7 +94,7 @@ const TEXTAREA_BASE_CLASSES = cn(
 
 const OVERLAY_CLASSES = cn(
   'pointer-events-none absolute top-0 left-0 m-0 box-border h-auto w-full resize-none',
-  'overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-0 bg-transparent',
+  'overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all border-0 bg-transparent',
   'px-[4px] py-[4px] font-body text-[15px] leading-[24px] tracking-[-0.015em]',
   'text-[var(--text-primary)] outline-none',
   '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
