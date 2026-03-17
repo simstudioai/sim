@@ -531,32 +531,6 @@ export function Table({
     setSelectionFocus({ rowIndex, colIndex })
   }, [])
 
-  const handleRowMouseDown = useCallback((rowIndex: number, shiftKey: boolean) => {
-    const lastCol = columnsRef.current.length - 1
-    if (lastCol < 0) return
-
-    setEditingCell(null)
-    setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
-    lastCheckboxRowRef.current = null
-
-    if (shiftKey && selectionAnchorRef.current) {
-      setSelectionAnchor((prev) => (prev ? { rowIndex: prev.rowIndex, colIndex: 0 } : prev))
-      setSelectionFocus({ rowIndex, colIndex: lastCol })
-    } else {
-      setSelectionAnchor({ rowIndex, colIndex: 0 })
-      setSelectionFocus({ rowIndex, colIndex: lastCol })
-    }
-    isDraggingRef.current = true
-    scrollRef.current?.focus({ preventScroll: true })
-  }, [])
-
-  const handleRowMouseEnter = useCallback((rowIndex: number) => {
-    if (!isDraggingRef.current) return
-    const lastCol = columnsRef.current.length - 1
-    if (lastCol < 0) return
-    setSelectionFocus({ rowIndex, colIndex: lastCol })
-  }, [])
-
   const handleRowToggle = useCallback((rowIndex: number, shiftKey: boolean) => {
     setEditingCell(null)
     setSelectionAnchor(null)
