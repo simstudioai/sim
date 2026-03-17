@@ -296,7 +296,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    if (!isToolAvailableOnSimSide(toolName)) {
+    if (!isToolAvailableOnSimSide(toolName) && !clientExecutable) {
       return
     }
 
@@ -396,16 +396,21 @@ export const sseHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    // Auto-allowed client-executable tool: client runs it, we wait for completion.
+    // Client-executable tool: execute server-side if available, otherwise
+    // delegate to the client (React UI) and wait for completion.
     if (clientExecutable) {
-      toolCall.status = 'executing'
-      const completion = await waitForToolCompletion(
-        toolCallId,
-        options.timeout || STREAM_TIMEOUT_MS,
-        options.abortSignal
-      )
-      handleClientCompletion(toolCall, toolCallId, completion)
-      await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
+      if (isToolAvailableOnSimSide(toolName)) {
+        fireToolExecution()
+      } else {
+        toolCall.status = 'executing'
+        const completion = await waitForToolCompletion(
+          toolCallId,
+          options.timeout || STREAM_TIMEOUT_MS,
+          options.abortSignal
+        )
+        handleClientCompletion(toolCall, toolCallId, completion)
+        await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
+      }
       return
     }
 
@@ -548,7 +553,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    if (!isToolAvailableOnSimSide(toolName)) {
+    if (!isToolAvailableOnSimSide(toolName) && !clientExecutable) {
       return
     }
 
@@ -643,14 +648,18 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     }
 
     if (clientExecutable) {
-      toolCall.status = 'executing'
-      const completion = await waitForToolCompletion(
-        toolCallId,
-        options.timeout || STREAM_TIMEOUT_MS,
-        options.abortSignal
-      )
-      handleClientCompletion(toolCall, toolCallId, completion)
-      await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
+      if (isToolAvailableOnSimSide(toolName)) {
+        fireToolExecution()
+      } else {
+        toolCall.status = 'executing'
+        const completion = await waitForToolCompletion(
+          toolCallId,
+          options.timeout || STREAM_TIMEOUT_MS,
+          options.abortSignal
+        )
+        handleClientCompletion(toolCall, toolCallId, completion)
+        await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
+      }
       return
     }
 
