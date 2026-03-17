@@ -515,7 +515,7 @@ export function useChat(
 
       const ensureTextBlock = (): ContentBlock => {
         const last = blocks[blocks.length - 1]
-        if (last?.type === 'text') return last
+        if (last?.type === 'text' && last.subagent === activeSubagent) return last
         const b: ContentBlock = { type: 'text', content: '' }
         blocks.push(b)
         return b
@@ -561,7 +561,6 @@ export function useChat(
           }
 
           logger.debug('SSE event received', parsed)
-
           switch (parsed.type) {
             case 'chat_id': {
               if (parsed.chatId) {
@@ -610,6 +609,7 @@ export function useChat(
                 const tb = ensureTextBlock()
                 const normalizedChunk = needsBoundaryNewline ? `\n${chunk}` : chunk
                 tb.content = (tb.content ?? '') + normalizedChunk
+                if (activeSubagent) tb.subagent = activeSubagent
                 runningText += normalizedChunk
                 lastContentSource = contentSource
                 streamingContentRef.current = runningText
@@ -834,6 +834,7 @@ export function useChat(
             }
             case 'subagent_end': {
               activeSubagent = undefined
+              blocks.push({ type: 'subagent_end' })
               flush()
               break
             }

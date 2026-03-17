@@ -3,7 +3,7 @@
 import type { ContentBlock, OptionItem, SubagentName, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS } from '../../types'
 import type { AgentGroupItem } from './components'
-import { AgentGroup, ChatContent, CircleStop, Options } from './components'
+import { AgentGroup, ChatContent, CircleStop, Options, PendingTagIndicator } from './components'
 
 interface TextSegment {
   type: 'text'
@@ -49,6 +49,7 @@ function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
     toolName: tc.name,
     displayTitle: tc.displayTitle || formatToolName(tc.name),
     status: tc.status,
+    result: tc.result,
   }
 }
 
@@ -78,6 +79,15 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
 
     if (block.type === 'text') {
       if (!block.content?.trim()) continue
+      if (block.subagent && group && group.agentName === block.subagent) {
+        const lastItem = group.items[group.items.length - 1]
+        if (lastItem?.type === 'text') {
+          lastItem.content += block.content
+        } else {
+          group.items.push({ type: 'text', content: block.content })
+        }
+        continue
+      }
       if (group) {
         segments.push(group)
         group = null
@@ -177,6 +187,14 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
       continue
     }
 
+    if (block.type === 'subagent_end') {
+      if (group) {
+        segments.push(group)
+        group = null
+      }
+      continue
+    }
+
     if (block.type === 'stopped') {
       if (group) {
         segments.push(group)
@@ -213,6 +231,27 @@ export function MessageContent({
         : []
 
   if (segments.length === 0) return null
+
+  const lastSegment = segments[segments.length - 1]
+  const hasTrailingContent = lastSegment.type === 'text' || lastSegment.type === 'stopped'
+
+  let allLastGroupToolsDone = false
+  if (lastSegment.type === 'agent_group') {
+    const toolItems = lastSegment.items.filter((item) => item.type === 'tool')
+    allLastGroupToolsDone =
+      toolItems.length > 0 &&
+      toolItems.every(
+        (t) =>
+          t.type === 'tool' &&
+          (t.data.status === 'success' ||
+            t.data.status === 'error' ||
+            t.data.status === 'cancelled')
+      )
+  }
+
+  const hasSubagentEnded = blocks.some((b) => b.type === 'subagent_end')
+  const showTrailingThinking =
+    isStreaming && !hasTrailingContent && (hasSubagentEnded || allLastGroupToolsDone)
 
   return (
     <div className='space-y-[10px]'>
@@ -270,6 +309,11 @@ export function MessageContent({
             )
         }
       })}
+      {showTrailingThinking && (
+        <div className='animate-stream-fade-in-delayed opacity-0'>
+          <PendingTagIndicator />
+        </div>
+      )}
     </div>
   )
 }

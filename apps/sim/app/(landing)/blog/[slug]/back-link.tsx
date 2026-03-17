@@ -9,7 +9,7 @@ export function BackLink() {
 
   return (
     <Link
-      href='/studio'
+      href='/blog'
       className='group flex items-center gap-1 text-[#999] text-sm hover:text-[#ECECEC]'
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -21,7 +21,7 @@ export function BackLink() {
           <ChevronLeft className='h-4 w-4' aria-hidden='true' />
         )}
       </span>
-      Back to Sim Studio
+      Back to Blog
     </Link>
   )
 }

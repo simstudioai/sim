@@ -222,34 +222,15 @@ export default function Collaboration() {
       <style dangerouslySetInnerHTML={{ __html: CURSOR_KEYFRAMES }} />
 
       <DotGrid
-        className='border-[#2A2A2A] border-y bg-[#1C1C1C] p-[6px]'
+        className='overflow-hidden border-[#2A2A2A] border-y bg-[#1C1C1C] p-[6px]'
         cols={120}
         rows={1}
         gap={6}
       />
 
       <div className='relative overflow-hidden'>
-        <Link
-          href='/studio/multiplayer'
-          target='_blank'
-          rel='noopener noreferrer'
-          className='absolute bottom-10 left-4 z-20 flex cursor-none items-center gap-[14px] rounded-[5px] border border-[#2A2A2A] bg-[#1C1C1C] px-[12px] py-[10px] transition-colors hover:border-[#3d3d3d] hover:bg-[#232323] sm:left-8 md:left-[80px]'
-        >
-          <div className='relative h-7 w-11 shrink-0'>
-            <Image src='/landing/multiplayer-cursors.svg' alt='' fill className='object-contain' />
-          </div>
-          <div className='flex flex-col gap-[2px]'>
-            <span className='font-[430] font-season text-[#F6F6F0]/50 text-[12px] uppercase leading-[100%] tracking-[0.08em]'>
-              Blog
-            </span>
-            <span className='font-[430] font-season text-[#F6F6F0] text-[14px] leading-[125%] tracking-[0.02em]'>
-              How we built realtime collaboration
-            </span>
-          </div>
-        </Link>
-
-        <div className='grid grid-cols-[auto_1fr]'>
-          <div className='flex flex-col items-start gap-3 px-4 pt-[100px] pb-8 sm:gap-4 sm:px-8 md:gap-[20px] md:px-[80px]'>
+        <div className='grid grid-cols-1 md:grid-cols-[auto_1fr]'>
+          <div className='flex flex-col items-start gap-3 px-4 pt-[60px] pb-8 sm:gap-4 sm:px-8 md:gap-[20px] md:px-[80px] md:pt-[100px]'>
             <Badge
               variant='blue'
               size='md'
@@ -268,8 +249,9 @@ export default function Collaboration() {
               collaboration
             </h2>
 
-            <p className='font-[430] font-season text-[#F6F6F0]/50 text-[18px] leading-[150%] tracking-[0.02em]'>
-              Grab your team. Build agents together <br /> in real-time inside your workspace.
+            <p className='font-[430] font-season text-[#F6F6F0]/50 text-[15px] leading-[150%] tracking-[0.02em] md:text-[18px]'>
+              Grab your team. Build agents together <br className='hidden md:block' />
+              in real-time inside your workspace.
             </p>
 
             <Link
@@ -298,14 +280,14 @@ export default function Collaboration() {
             </Link>
           </div>
 
-          <figure className='pointer-events-none relative h-[600px] w-full'>
-            <div className='-left-[18%] absolute inset-y-0 min-w-full'>
+          <figure className='pointer-events-none relative h-[220px] w-full md:h-[600px]'>
+            <div className='md:-left-[18%] -top-[10%] absolute inset-y-0 left-[7%] min-w-full md:top-0'>
               <Image
                 src='/landing/collaboration-visual.svg'
                 alt='Collaboration visual showing team workflows with real-time editing, shared cursors, and version control interface'
                 width={876}
                 height={480}
-                className='h-full w-auto min-w-[100vw] object-left'
+                className='h-full w-auto object-left md:min-w-[100vw]'
                 priority
               />
             </div>
@@ -319,10 +301,29 @@ export default function Collaboration() {
             </figcaption>
           </figure>
         </div>
+
+        <Link
+          href='/studio/multiplayer'
+          target='_blank'
+          rel='noopener noreferrer'
+          className='relative mx-4 mb-6 flex cursor-none items-center gap-[14px] rounded-[5px] border border-[#2A2A2A] bg-[#1C1C1C] px-[12px] py-[10px] transition-colors hover:border-[#3d3d3d] hover:bg-[#232323] sm:mx-8 md:absolute md:bottom-10 md:left-[80px] md:z-20 md:mx-0 md:mb-0'
+        >
+          <div className='relative h-7 w-11 shrink-0'>
+            <Image src='/landing/multiplayer-cursors.svg' alt='' fill className='object-contain' />
+          </div>
+          <div className='flex flex-col gap-[2px]'>
+            <span className='font-[430] font-season text-[#F6F6F0]/50 text-[12px] uppercase leading-[100%] tracking-[0.08em]'>
+              Blog
+            </span>
+            <span className='font-[430] font-season text-[#F6F6F0] text-[14px] leading-[125%] tracking-[0.02em]'>
+              How we built realtime collaboration
+            </span>
+          </div>
+        </Link>
       </div>
 
       <DotGrid
-        className='border-[#2A2A2A] border-y bg-[#1C1C1C] p-[6px]'
+        className='overflow-hidden border-[#2A2A2A] border-y bg-[#1C1C1C] p-[6px]'
         cols={120}
         rows={1}
         gap={6}

@@ -127,10 +127,12 @@ export default function OAuthConsentPage() {
     return (
       <div className='flex flex-col items-center justify-center'>
         <div className='space-y-1 text-center'>
-          <h1 className={'font-[500] text-[#ECECEC] text-[32px] tracking-tight'}>
+          <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
             Authorize Application
           </h1>
-          <p className={'font-[380] text-[#999] text-[16px]'}>Loading application details...</p>
+          <p className='font-[430] font-season text-[#F6F6F6]/60 text-[18px] leading-[125%] tracking-[0.02em]'>
+            Loading application details...
+          </p>
         </div>
       </div>
     )
@@ -140,10 +142,12 @@ export default function OAuthConsentPage() {
     return (
       <div className='flex flex-col items-center justify-center'>
         <div className='space-y-1 text-center'>
-          <h1 className={'font-[500] text-[#ECECEC] text-[32px] tracking-tight'}>
+          <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
             Authorization Error
           </h1>
-          <p className={'font-[380] text-[#999] text-[16px]'}>{error}</p>
+          <p className='font-[430] font-season text-[#F6F6F6]/60 text-[18px] leading-[125%] tracking-[0.02em]'>
+            {error}
+          </p>
         </div>
         <div className='mt-8 w-full max-w-[410px] space-y-3'>
           <BrandedButton onClick={() => router.push('/')}>Return to Home</BrandedButton>
@@ -181,10 +185,10 @@ export default function OAuthConsentPage() {
       </div>
 
       <div className='space-y-1 text-center'>
-        <h1 className={'font-[500] text-[#ECECEC] text-[32px] tracking-tight'}>
+        <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
           Authorize Application
         </h1>
-        <p className={'font-[380] text-[#999] text-[16px]'}>
+        <p className='font-[430] font-season text-[#F6F6F6]/60 text-[18px] leading-[125%] tracking-[0.02em]'>
           <span className='font-medium text-[#ECECEC]'>{clientName}</span> is requesting access to
           your account
         </p>

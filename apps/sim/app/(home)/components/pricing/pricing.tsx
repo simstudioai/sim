@@ -174,7 +174,7 @@ function PricingCard({ tier }: PricingCardProps) {
 export default function Pricing() {
   return (
     <section id='pricing' aria-labelledby='pricing-heading' className='bg-[#F6F6F6]'>
-      <div className='px-4 pt-[100px] pb-[80px] sm:px-8 md:px-[80px]'>
+      <div className='px-4 pt-[60px] pb-[40px] sm:px-8 sm:pt-[80px] sm:pb-0 md:px-[80px] md:pt-[100px]'>
         <div className='flex flex-col items-start gap-3 sm:gap-4 md:gap-[20px]'>
           <Badge
             variant='blue'
@@ -193,7 +193,7 @@ export default function Pricing() {
           </h2>
         </div>
 
-        <div className='mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+        <div className='mt-8 grid grid-cols-1 gap-4 sm:mt-10 sm:grid-cols-2 md:mt-12 lg:grid-cols-4'>
           {PRICING_TIERS.map((tier) => (
             <PricingCard key={tier.id} tier={tier} />
           ))}

@@ -1078,11 +1078,9 @@ export const Sidebar = memo(function Sidebar() {
 
               {/* Workspace */}
               <div className='mt-[14px] flex flex-shrink-0 flex-col pb-[8px]'>
-                {!isCollapsed && (
-                  <div className='sidebar-collapse-remove px-[16px] pb-[6px]'>
-                    <div className='font-base text-[var(--text-icon)] text-small'>Workspace</div>
-                  </div>
-                )}
+                <div className='px-[16px] pb-[6px]'>
+                  <div className='font-base text-[var(--text-icon)] text-small'>Workspace</div>
+                </div>
                 <div className='flex flex-col gap-[2px] px-[8px]'>
                   {workspaceNavItems.map((item) => (
                     <SidebarNavItem
@@ -1106,6 +1104,27 @@ export const Sidebar = memo(function Sidebar() {
               >
                 {/* Tasks */}
                 <div className='flex flex-shrink-0 flex-col'>
+                  <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-[16px]'>
+                    <div className='font-base text-[var(--text-icon)] text-small'>All tasks</div>
+                    {!isCollapsed && (
+                      <div className='flex items-center justify-center gap-[8px]'>
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
+                            <Button
+                              variant='ghost'
+                              className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
+                              onClick={() => router.push(`/workspace/${workspaceId}/home`)}
+                            >
+                              <Plus className='h-[16px] w-[16px]' />
+                            </Button>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content>
+                            <p>New task</p>
+                          </Tooltip.Content>
+                        </Tooltip.Root>
+                      </div>
+                    )}
+                  </div>
                   {isCollapsed ? (
                     <CollapsedSidebarMenu
                       icon={
@@ -1114,6 +1133,7 @@ export const Sidebar = memo(function Sidebar() {
                       hover={tasksHover}
                       onClick={() => router.push(`/workspace/${workspaceId}/home`)}
                       ariaLabel='Tasks'
+                      className='mt-[6px]'
                     >
                       {tasksLoading ? (
                         <DropdownMenuItem disabled>
@@ -1140,211 +1160,183 @@ export const Sidebar = memo(function Sidebar() {
                       )}
                     </CollapsedSidebarMenu>
                   ) : (
-                    <div className='sidebar-collapse-remove'>
-                      <div className='flex flex-shrink-0 flex-col space-y-[4px] px-[16px]'>
-                        <div className='flex items-center justify-between'>
-                          <div className='font-base text-[var(--text-icon)] text-small'>
-                            All tasks
-                          </div>
-                          <div className='flex items-center justify-center gap-[8px]'>
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <Button
-                                  variant='ghost'
-                                  className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
-                                  onClick={() => router.push(`/workspace/${workspaceId}/home`)}
-                                >
-                                  <Plus className='h-[16px] w-[16px]' />
-                                </Button>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content>
-                                <p>New task</p>
-                              </Tooltip.Content>
-                            </Tooltip.Root>
-                          </div>
-                        </div>
-                      </div>
-                      <div className='mt-[6px] flex flex-col gap-[2px] px-[8px]'>
-                        {tasksLoading ? (
-                          <SidebarItemSkeleton />
-                        ) : (
-                          <>
-                            {tasks.slice(0, visibleTaskCount).map((task) => {
-                              const isCurrentRoute = task.id !== 'new' && pathname === task.href
-                              const isRenaming = renamingTaskId === task.id
-                              const isSelected = task.id !== 'new' && selectedTasks.has(task.id)
+                    <div className='mt-[6px] flex flex-col gap-[2px] px-[8px]'>
+                      {tasksLoading ? (
+                        <SidebarItemSkeleton />
+                      ) : (
+                        <>
+                          {tasks.slice(0, visibleTaskCount).map((task) => {
+                            const isCurrentRoute = task.id !== 'new' && pathname === task.href
+                            const isRenaming = renamingTaskId === task.id
+                            const isSelected = task.id !== 'new' && selectedTasks.has(task.id)
 
-                              if (isRenaming) {
-                                return (
-                                  <div
-                                    key={task.id}
-                                    className='mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] bg-[var(--surface-active)] px-[8px] text-[14px]'
-                                  >
-                                    <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                                    <input
-                                      ref={renameInputRef}
-                                      value={renameValue}
-                                      onChange={(e) => setRenameValue(e.target.value)}
-                                      onKeyDown={handleRenameKeyDown}
-                                      onBlur={handleSaveTaskRename}
-                                      className='min-w-0 flex-1 border-none bg-transparent font-base text-[14px] text-[var(--text-body)] outline-none'
-                                    />
-                                  </div>
-                                )
-                              }
-
+                            if (isRenaming) {
                               return (
-                                <SidebarTaskItem
+                                <div
                                   key={task.id}
-                                  task={task}
-                                  isCurrentRoute={isCurrentRoute}
-                                  isSelected={isSelected}
-                                  isActive={!!task.isActive}
-                                  isUnread={!!task.isUnread}
-                                  showCollapsedContent={showCollapsedContent}
-                                  onMultiSelectClick={handleTaskClick}
-                                  onContextMenu={handleTaskContextMenu}
-                                  onMorePointerDown={handleTaskMorePointerDown}
-                                  onMoreClick={handleTaskMoreClick}
-                                />
+                                  className='mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] bg-[var(--surface-active)] px-[8px] text-[14px]'
+                                >
+                                  <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                                  <input
+                                    ref={renameInputRef}
+                                    value={renameValue}
+                                    onChange={(e) => setRenameValue(e.target.value)}
+                                    onKeyDown={handleRenameKeyDown}
+                                    onBlur={handleSaveTaskRename}
+                                    className='min-w-0 flex-1 border-none bg-transparent font-base text-[14px] text-[var(--text-body)] outline-none'
+                                  />
+                                </div>
                               )
-                            })}
-                            {tasks.length > visibleTaskCount && (
-                              <button
-                                type='button'
-                                onClick={() => setVisibleTaskCount((prev) => prev + 5)}
-                                className='mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] text-[var(--text-icon)] hover:bg-[var(--surface-active)]'
-                              >
-                                <MoreHorizontal className='h-[16px] w-[16px] flex-shrink-0' />
-                                <span className='font-base'>See more</span>
-                              </button>
-                            )}
-                          </>
-                        )}
-                      </div>
+                            }
+
+                            return (
+                              <SidebarTaskItem
+                                key={task.id}
+                                task={task}
+                                isCurrentRoute={isCurrentRoute}
+                                isSelected={isSelected}
+                                isActive={!!task.isActive}
+                                isUnread={!!task.isUnread}
+                                showCollapsedContent={showCollapsedContent}
+                                onMultiSelectClick={handleTaskClick}
+                                onContextMenu={handleTaskContextMenu}
+                                onMorePointerDown={handleTaskMorePointerDown}
+                                onMoreClick={handleTaskMoreClick}
+                              />
+                            )
+                          })}
+                          {tasks.length > visibleTaskCount && (
+                            <button
+                              type='button'
+                              onClick={() => setVisibleTaskCount((prev) => prev + 5)}
+                              className='mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] text-[var(--text-icon)] hover:bg-[var(--surface-active)]'
+                            >
+                              <MoreHorizontal className='h-[16px] w-[16px] flex-shrink-0' />
+                              <span className='font-base'>See more</span>
+                            </button>
+                          )}
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
 
                 {/* Workflows */}
-                {isCollapsed ? (
-                  <CollapsedSidebarMenu
-                    icon={
-                      <div
-                        className='h-[16px] w-[16px] flex-shrink-0 rounded-[3px] border-[2px]'
-                        style={{
-                          backgroundColor: 'var(--text-icon)',
-                          borderColor: 'color-mix(in srgb, var(--text-icon) 60%, transparent)',
-                          backgroundClip: 'padding-box',
-                        }}
-                      />
-                    }
-                    hover={workflowsHover}
-                    onClick={handleCreateWorkflow}
-                    ariaLabel='Workflows'
-                    className='mt-[14px]'
-                  >
-                    {workflowsLoading && regularWorkflows.length === 0 ? (
-                      <DropdownMenuItem disabled>
-                        <Loader className='h-[14px] w-[14px]' animate />
-                        Loading...
-                      </DropdownMenuItem>
-                    ) : regularWorkflows.length === 0 ? (
-                      <DropdownMenuItem disabled>No workflows yet</DropdownMenuItem>
-                    ) : (
-                      <>
-                        <CollapsedFolderItems
-                          nodes={folderTree}
-                          workflowsByFolder={workflowsByFolder}
-                          workspaceId={workspaceId}
-                        />
-                        {(workflowsByFolder.root || []).map((workflow) => (
-                          <DropdownMenuItem key={workflow.id} asChild>
-                            <Link href={`/workspace/${workspaceId}/w/${workflow.id}`}>
-                              <div
-                                className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
-                                style={{
-                                  backgroundColor: workflow.color,
-                                  borderColor: `${workflow.color}60`,
-                                  backgroundClip: 'padding-box',
-                                }}
-                              />
-                              <span className='truncate'>{workflow.name}</span>
-                            </Link>
-                          </DropdownMenuItem>
-                        ))}
-                      </>
-                    )}
-                  </CollapsedSidebarMenu>
-                ) : (
-                  <div className='sidebar-collapse-remove workflows-section relative mt-[14px] flex flex-col'>
-                    <div className='flex flex-shrink-0 flex-col space-y-[4px] px-[16px]'>
-                      <div className='flex items-center justify-between'>
-                        <div className='font-base text-[var(--text-icon)] text-small'>
-                          Workflows
-                        </div>
-                        <div className='flex items-center justify-center gap-[8px]'>
-                          <DropdownMenu>
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant='ghost'
-                                    className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
-                                    disabled={!canEdit}
-                                  >
-                                    {isImporting || isCreatingFolder ? (
-                                      <Loader className='h-[16px] w-[16px]' animate />
-                                    ) : (
-                                      <MoreHorizontal className='h-[16px] w-[16px]' />
-                                    )}
-                                  </Button>
-                                </DropdownMenuTrigger>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content>
-                                <p>More actions</p>
-                              </Tooltip.Content>
-                            </Tooltip.Root>
-                            <DropdownMenuContent
-                              align='start'
-                              sideOffset={8}
-                              className='min-w-[160px]'
-                            >
-                              <DropdownMenuItem
-                                onSelect={handleImportWorkflow}
-                                disabled={!canEdit || isImporting}
-                              >
-                                <Download />
-                                {isImporting ? 'Importing...' : 'Import workflow'}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onSelect={handleCreateFolder}
-                                disabled={!canEdit || isCreatingFolder}
-                              >
-                                <FolderPlus />
-                                {isCreatingFolder ? 'Creating folder...' : 'Create folder'}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                <div className='workflows-section relative mt-[14px] flex flex-col'>
+                  <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-[16px]'>
+                    <div className='font-base text-[var(--text-icon)] text-small'>Workflows</div>
+                    {!isCollapsed && (
+                      <div className='flex items-center justify-center gap-[8px]'>
+                        <DropdownMenu>
                           <Tooltip.Root>
                             <Tooltip.Trigger asChild>
-                              <Button
-                                variant='ghost'
-                                className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
-                                onClick={handleCreateWorkflow}
-                                disabled={isCreatingWorkflow || !canEdit}
-                              >
-                                <Plus className='h-[16px] w-[16px]' />
-                              </Button>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant='ghost'
+                                  className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
+                                  disabled={!canEdit}
+                                >
+                                  {isImporting || isCreatingFolder ? (
+                                    <Loader className='h-[16px] w-[16px]' animate />
+                                  ) : (
+                                    <MoreHorizontal className='h-[16px] w-[16px]' />
+                                  )}
+                                </Button>
+                              </DropdownMenuTrigger>
                             </Tooltip.Trigger>
                             <Tooltip.Content>
-                              <p>{isCreatingWorkflow ? 'Creating workflow...' : 'New workflow'}</p>
+                              <p>More actions</p>
                             </Tooltip.Content>
                           </Tooltip.Root>
-                        </div>
+                          <DropdownMenuContent
+                            align='start'
+                            sideOffset={8}
+                            className='min-w-[160px]'
+                          >
+                            <DropdownMenuItem
+                              onSelect={handleImportWorkflow}
+                              disabled={!canEdit || isImporting}
+                            >
+                              <Download />
+                              {isImporting ? 'Importing...' : 'Import workflow'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={handleCreateFolder}
+                              disabled={!canEdit || isCreatingFolder}
+                            >
+                              <FolderPlus />
+                              {isCreatingFolder ? 'Creating folder...' : 'Create folder'}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
+                            <Button
+                              variant='ghost'
+                              className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
+                              onClick={handleCreateWorkflow}
+                              disabled={isCreatingWorkflow || !canEdit}
+                            >
+                              <Plus className='h-[16px] w-[16px]' />
+                            </Button>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content>
+                            <p>{isCreatingWorkflow ? 'Creating workflow...' : 'New workflow'}</p>
+                          </Tooltip.Content>
+                        </Tooltip.Root>
                       </div>
-                    </div>
-
+                    )}
+                  </div>
+                  {isCollapsed ? (
+                    <CollapsedSidebarMenu
+                      icon={
+                        <div
+                          className='h-[16px] w-[16px] flex-shrink-0 rounded-[3px] border-[2px]'
+                          style={{
+                            backgroundColor: 'var(--text-icon)',
+                            borderColor: 'color-mix(in srgb, var(--text-icon) 60%, transparent)',
+                            backgroundClip: 'padding-box',
+                          }}
+                        />
+                      }
+                      hover={workflowsHover}
+                      onClick={handleCreateWorkflow}
+                      ariaLabel='Workflows'
+                      className='mt-[6px]'
+                    >
+                      {workflowsLoading && regularWorkflows.length === 0 ? (
+                        <DropdownMenuItem disabled>
+                          <Loader className='h-[14px] w-[14px]' animate />
+                          Loading...
+                        </DropdownMenuItem>
+                      ) : regularWorkflows.length === 0 ? (
+                        <DropdownMenuItem disabled>No workflows yet</DropdownMenuItem>
+                      ) : (
+                        <>
+                          <CollapsedFolderItems
+                            nodes={folderTree}
+                            workflowsByFolder={workflowsByFolder}
+                            workspaceId={workspaceId}
+                          />
+                          {(workflowsByFolder.root || []).map((workflow) => (
+                            <DropdownMenuItem key={workflow.id} asChild>
+                              <Link href={`/workspace/${workspaceId}/w/${workflow.id}`}>
+                                <div
+                                  className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
+                                  style={{
+                                    backgroundColor: workflow.color,
+                                    borderColor: `${workflow.color}60`,
+                                    backgroundClip: 'padding-box',
+                                  }}
+                                />
+                                <span className='truncate'>{workflow.name}</span>
+                              </Link>
+                            </DropdownMenuItem>
+                          ))}
+                        </>
+                      )}
+                    </CollapsedSidebarMenu>
+                  ) : (
                     <div className='mt-[6px] px-[8px]'>
                       {workflowsLoading && regularWorkflows.length === 0 && <SidebarItemSkeleton />}
                       <WorkflowList
@@ -1361,8 +1353,8 @@ export const Sidebar = memo(function Sidebar() {
                         disableCreate={!canEdit || isCreatingWorkflow || isCreatingFolder}
                       />
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               {/* Footer */}

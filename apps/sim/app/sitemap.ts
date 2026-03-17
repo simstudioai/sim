@@ -13,11 +13,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: now,
     },
     {
-      url: `${baseUrl}/studio`,
+      url: `${baseUrl}/blog`,
       lastModified: now,
     },
     {
-      url: `${baseUrl}/studio/tags`,
+      url: `${baseUrl}/blog/tags`,
       lastModified: now,
     },
     {
