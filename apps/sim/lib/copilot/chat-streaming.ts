@@ -29,16 +29,19 @@ const pendingChatStreams = new Map<
 >()
 
 function registerPendingChatStream(chatId: string, streamId: string): void {
-  let resolve: () => void
+  if (pendingChatStreams.has(chatId)) {
+    logger.warn(`registerPendingChatStream: overwriting existing entry for chatId ${chatId}`)
+  }
+  let resolve!: () => void
   const promise = new Promise<void>((r) => {
     resolve = r
   })
-  pendingChatStreams.set(chatId, { promise, resolve: resolve!, streamId })
+  pendingChatStreams.set(chatId, { promise, resolve, streamId })
 }
 
-function resolvePendingChatStream(chatId: string): void {
+function resolvePendingChatStream(chatId: string, streamId: string): void {
   const entry = pendingChatStreams.get(chatId)
-  if (entry) {
+  if (entry && entry.streamId === streamId) {
     entry.resolve()
     pendingChatStreams.delete(chatId)
   }
@@ -255,7 +258,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
       } finally {
         activeStreams.delete(streamId)
         if (chatId) {
-          resolvePendingChatStream(chatId)
+          resolvePendingChatStream(chatId, streamId)
         }
         try {
           controller.close()

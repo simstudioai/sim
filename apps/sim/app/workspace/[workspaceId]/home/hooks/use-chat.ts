@@ -1093,6 +1093,7 @@ export function useChat(
       while (!chatIdRef.current && sendingRef.current && Date.now() - start < 3000) {
         await new Promise((r) => setTimeout(r, 50))
       }
+      if (!chatIdRef.current) return
     }
 
     if (sendingRef.current) {
