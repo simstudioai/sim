@@ -7,9 +7,9 @@ interface WithSidebarProps {
 
 export function WithSidebar({ children, activeTag }: WithSidebarProps) {
   return (
-    <div className='flex flex-1 flex-col lg:flex-row'>
+    <div className='flex min-h-0 flex-1 flex-col lg:flex-row'>
       <StudioSidebar activeTag={activeTag} />
-      <main className='relative flex-1'>{children}</main>
+      <main className='relative min-w-0 flex-1'>{children}</main>
     </div>
   )
 }
