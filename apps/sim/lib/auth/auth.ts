@@ -7,6 +7,7 @@ import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
 import {
+  admin,
   createAuthMiddleware,
   customSession,
   emailOTP,
@@ -78,6 +79,10 @@ const logger = createLogger('Auth')
 import { getMicrosoftRefreshTokenExpiry, isMicrosoftProvider } from '@/lib/oauth/microsoft'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 
+const blockedSignupDomains = env.BLOCKED_SIGNUP_DOMAINS
+  ? new Set(env.BLOCKED_SIGNUP_DOMAINS.split(',').map((d) => d.trim().toLowerCase()))
+  : null
+
 const validStripeKey = env.STRIPE_SECRET_KEY
 
 let stripeClient = null
@@ -111,6 +116,15 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
+        before: async (user) => {
+          if (blockedSignupDomains) {
+            const emailDomain = user.email?.split('@')[1]?.toLowerCase()
+            if (emailDomain && blockedSignupDomains.has(emailDomain)) {
+              throw new Error('Sign-ups from this email domain are not allowed.')
+            }
+          }
+          return { data: user }
+        },
         after: async (user) => {
           logger.info('[databaseHooks.user.create.after] User created, initializing stats', {
             userId: user.id,
@@ -598,6 +612,16 @@ export const auth = betterAuth({
         }
       }
 
+      if (ctx.path.startsWith('/sign-up') && blockedSignupDomains) {
+        const requestEmail = ctx.body?.email?.toLowerCase()
+        if (requestEmail) {
+          const emailDomain = requestEmail.split('@')[1]
+          if (emailDomain && blockedSignupDomains.has(emailDomain)) {
+            throw new Error('Sign-ups from this email domain are not allowed.')
+          }
+        }
+      }
+
       if (ctx.path === '/oauth2/authorize' || ctx.path === '/oauth2/token') {
         const clientId = (ctx.query?.client_id ?? ctx.body?.client_id) as string | undefined
         if (clientId && isMetadataUrl(clientId)) {
@@ -625,6 +649,7 @@ export const auth = betterAuth({
   },
   plugins: [
     nextCookies(),
+    admin(),
     jwt({
       jwks: {
         keyPairConfig: { alg: 'RS256' },

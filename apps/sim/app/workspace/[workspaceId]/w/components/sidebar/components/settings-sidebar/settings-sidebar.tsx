@@ -20,7 +20,6 @@ import { prefetchWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { prefetchGeneralSettings, useGeneralSettings } from '@/hooks/queries/general-settings'
 import { useOrganizations } from '@/hooks/queries/organization'
 import { prefetchSubscriptionData, useSubscriptionData } from '@/hooks/queries/subscription'
-import { useSuperUserStatus } from '@/hooks/queries/user-profile'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
@@ -49,7 +48,6 @@ export function SettingsSidebar({
     staleTime: 5 * 60 * 1000,
   })
   const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders()
-  const { data: superUserData } = useSuperUserStatus(session?.user?.id)
 
   const activeOrganization = organizationsData?.activeOrganization
   const { config: permissionConfig } = usePermissionConfig()
@@ -65,7 +63,7 @@ export function SettingsSidebar({
   const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise
   const hasEnterprisePlan = subscriptionStatus.isEnterprise
 
-  const isSuperUser = superUserData?.isSuperUser ?? false
+  const isSuperUser = session?.user?.role === 'admin'
 
   const isSSOProviderOwner = useMemo(() => {
     if (isHosted) return null
@@ -120,6 +118,10 @@ export function SettingsSidebar({
       const superUserModeEnabled = generalSettings?.superUserModeEnabled ?? false
       const effectiveSuperUser = isSuperUser && superUserModeEnabled
       if (item.requiresSuperUser && !effectiveSuperUser) {
+        return false
+      }
+
+      if (item.requiresAdminRole && !isSuperUser) {
         return false
       }
 

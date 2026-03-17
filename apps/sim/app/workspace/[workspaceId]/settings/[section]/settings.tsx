@@ -3,13 +3,14 @@
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
 import { Skeleton } from '@/components/emcn'
+import { useSession } from '@/lib/auth/auth-client'
+import { AdminSkeleton } from '@/app/workspace/[workspaceId]/settings/components/admin/admin-skeleton'
 import { ApiKeysSkeleton } from '@/app/workspace/[workspaceId]/settings/components/api-keys/api-key-skeleton'
 import { BYOKSkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
 import { CopilotSkeleton } from '@/app/workspace/[workspaceId]/settings/components/copilot/copilot-skeleton'
 import { CredentialSetsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/credential-sets/credential-sets-skeleton'
 import { CredentialsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/credentials/credential-skeleton'
 import { CustomToolsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tool-skeleton'
-import { DebugSkeleton } from '@/app/workspace/[workspaceId]/settings/components/debug/debug-skeleton'
 import { GeneralSkeleton } from '@/app/workspace/[workspaceId]/settings/components/general/general-skeleton'
 import { InboxSkeleton } from '@/app/workspace/[workspaceId]/settings/components/inbox/inbox-skeleton'
 import { McpSkeleton } from '@/app/workspace/[workspaceId]/settings/components/mcp/mcp-skeleton'
@@ -130,10 +131,10 @@ const Inbox = dynamic(
     import('@/app/workspace/[workspaceId]/settings/components/inbox/inbox').then((m) => m.Inbox),
   { loading: () => <InboxSkeleton /> }
 )
-const Debug = dynamic(
+const Admin = dynamic(
   () =>
-    import('@/app/workspace/[workspaceId]/settings/components/debug/debug').then((m) => m.Debug),
-  { loading: () => <DebugSkeleton /> }
+    import('@/app/workspace/[workspaceId]/settings/components/admin/admin').then((m) => m.Admin),
+  { loading: () => <AdminSkeleton /> }
 )
 const RecentlyDeleted = dynamic(
   () =>
@@ -157,9 +158,15 @@ interface SettingsPageProps {
 export function SettingsPage({ section }: SettingsPageProps) {
   const searchParams = useSearchParams()
   const mcpServerId = searchParams.get('mcpServerId')
+  const { data: session, isPending: sessionLoading } = useSession()
 
+  const isAdminRole = session?.user?.role === 'admin'
   const effectiveSection =
-    !isBillingEnabled && (section === 'subscription' || section === 'team') ? 'general' : section
+    !isBillingEnabled && (section === 'subscription' || section === 'team')
+      ? 'general'
+      : section === 'admin' && !sessionLoading && !isAdminRole
+        ? 'general'
+        : section
 
   const label =
     allNavigationItems.find((item) => item.id === effectiveSection)?.label ?? effectiveSection
@@ -185,7 +192,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
       {effectiveSection === 'inbox' && <Inbox />}
       {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}
-      {effectiveSection === 'debug' && <Debug />}
+      {effectiveSection === 'admin' && <Admin />}
     </div>
   )
 }
