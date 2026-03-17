@@ -50,7 +50,6 @@ export default async function BlogIndex({
   const start = (pageNum - 1) * perPage
   const pagePosts = sorted.slice(start, start + perPage)
 
-  // Split featured from regular posts on page 1
   const featured = pageNum === 1 && !tag ? pagePosts.filter((p) => p.featured) : []
   const feed = pageNum === 1 && !tag ? pagePosts.filter((p) => !p.featured) : pagePosts
 
@@ -73,11 +72,11 @@ export default async function BlogIndex({
         <div className='mx-auto w-full max-w-5xl py-12'>
           {activeCategory && (
             <div className='mb-8 flex items-center gap-3'>
-              <span className='font-season text-[10px] uppercase tracking-widest text-[#666]'>
+              <span className='font-mono text-[10px] uppercase tracking-widest text-[#666]'>
                 Filtered by:
               </span>
               <span
-                className='px-2 py-0.5 font-season text-[10px] uppercase tracking-wider'
+                className='px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider'
                 style={{
                   border: `1px solid ${activeCategory.color}`,
                   color: activeCategory.color,
@@ -87,7 +86,7 @@ export default async function BlogIndex({
               </span>
               <Link
                 href='/studio'
-                className='font-season text-[10px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
+                className='font-mono text-[10px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
               >
                 Clear
               </Link>
@@ -95,7 +94,7 @@ export default async function BlogIndex({
           )}
           {featured.length > 0 && (
             <section className='mb-10'>
-              <h2 className='mb-8 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#666]'>
+              <h2 className='mb-8 flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-[#666]'>
                 <span className='inline-block h-2 w-2 bg-[#FA4EDF]' aria-hidden='true' />
                 Featured Content
               </h2>
@@ -104,7 +103,7 @@ export default async function BlogIndex({
           )}
           {feed.length > 0 && (
             <section>
-              <h2 className='mb-8 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#666]'>
+              <h2 className='mb-8 flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-[#666]'>
                 <span className='inline-block h-2 w-2 bg-[#00F701]' aria-hidden='true' />
                 {activeCategory ? activeCategory.label : 'All Posts'}
               </h2>
@@ -113,10 +112,10 @@ export default async function BlogIndex({
           )}
           {pagePosts.length === 0 && (
             <div className='py-20 text-center'>
-              <p className='font-season text-[14px] text-[#666]'>No posts found.</p>
+              <p className='text-[14px] text-[#666]'>No posts found.</p>
               <Link
                 href='/studio'
-                className='mt-4 inline-block font-season text-[12px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
+                className='mt-4 inline-block font-mono text-[12px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
               >
                 View all posts
               </Link>
@@ -127,19 +126,19 @@ export default async function BlogIndex({
               {pageNum > 1 && (
                 <Link
                   href={`/studio?page=${pageNum - 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
-                  className='border border-[#3d3d3d] bg-[#232323] px-6 py-2.5 font-season text-[11px] uppercase tracking-wider text-[#999] transition-colors hover:border-[#666] hover:text-[#ECECEC]'
+                  className='border border-[#3d3d3d] bg-[#232323] px-6 py-2.5 font-mono text-[11px] uppercase tracking-wider text-[#999] transition-colors hover:border-[#666] hover:text-[#ECECEC]'
                   style={{ borderRadius: '5px' }}
                 >
                   Previous
                 </Link>
               )}
-              <span className='font-season text-[10px] uppercase tracking-wider text-[#666]'>
+              <span className='font-mono text-[10px] uppercase tracking-wider text-[#666]'>
                 Page {pageNum} of {totalPages}
               </span>
               {pageNum < totalPages && (
                 <Link
                   href={`/studio?page=${pageNum + 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
-                  className='border border-[#3d3d3d] bg-[#232323] px-6 py-2.5 font-season text-[11px] uppercase tracking-wider text-[#999] transition-colors hover:border-[#666] hover:text-[#ECECEC]'
+                  className='border border-[#3d3d3d] bg-[#232323] px-6 py-2.5 font-mono text-[11px] uppercase tracking-wider text-[#999] transition-colors hover:border-[#666] hover:text-[#ECECEC]'
                   style={{ borderRadius: '5px' }}
                 >
                   Load more articles

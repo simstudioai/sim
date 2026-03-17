@@ -73,16 +73,9 @@ export function getCategoryById(id: string): Category {
 }
 
 export function getPrimaryCategory(tags: string[]): Category {
-  const matchedIds = new Set<string>()
-  for (const tag of tags) {
-    matchedIds.add(getTagCategory(tag))
-  }
-
-  for (const cat of CATEGORIES) {
-    if (matchedIds.has(cat.id)) return cat
-  }
-
-  return CATEGORIES[4]
+  if (tags.length === 0) return CATEGORIES[4]
+  const firstCatId = getTagCategory(tags[0])
+  return getCategoryById(firstCatId)
 }
 
 export function getTagColor(tag: string): string {

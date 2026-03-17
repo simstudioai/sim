@@ -43,7 +43,7 @@ export async function StudioSidebar({ activeTag }: StudioSidebarProps) {
       <div className='flex h-full flex-col'>
         <div className='mb-6'>
           <h2 className='mb-4 font-season text-[10px] uppercase tracking-widest text-[#666]'>
-            Find Insight
+            Find Insights
           </h2>
           <div className='relative'>
             <input
