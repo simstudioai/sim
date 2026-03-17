@@ -17,7 +17,7 @@ export async function verifyEffectiveSuperUser(userId: string): Promise<{
   superUserModeEnabled: boolean
 }> {
   const [currentUser] = await db
-    .select({ isSuperUser: user.isSuperUser })
+    .select({ role: user.role })
     .from(user)
     .where(eq(user.id, userId))
     .limit(1)
@@ -28,7 +28,7 @@ export async function verifyEffectiveSuperUser(userId: string): Promise<{
     .where(eq(settings.userId, userId))
     .limit(1)
 
-  const isSuperUser = currentUser?.isSuperUser || false
+  const isSuperUser = currentUser?.role === 'admin'
   const superUserModeEnabled = userSettings?.superUserModeEnabled ?? false
 
   return {

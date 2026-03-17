@@ -1,11 +1,11 @@
 import {
   BookOpen,
-  Bug,
   Card,
   Connections,
   HexSimple,
   Key,
   KeySquare,
+  Lock,
   LogIn,
   Mail,
   Send,
@@ -40,7 +40,7 @@ export type SettingsSection =
   | 'workflow-mcp-servers'
   | 'inbox'
   | 'docs'
-  | 'debug'
+  | 'admin'
   | 'recently-deleted'
 
 export type NavigationSection =
@@ -62,6 +62,7 @@ export interface NavigationItem {
   requiresHosted?: boolean
   selfHostedOverride?: boolean
   requiresSuperUser?: boolean
+  requiresAdminRole?: boolean
   externalUrl?: string
 }
 
@@ -165,10 +166,10 @@ export const allNavigationItems: NavigationItem[] = [
     externalUrl: 'https://docs.sim.ai',
   },
   {
-    id: 'debug',
-    label: 'Debug',
-    icon: Bug,
+    id: 'admin',
+    label: 'Admin',
+    icon: Lock,
     section: 'superuser',
-    requiresSuperUser: true,
+    requiresAdminRole: true,
   },
 ]

@@ -36,7 +36,7 @@ export function mapGeneralSettingsResponse(data: Record<string, unknown>): Gener
   return {
     autoConnect: (data.autoConnect as boolean) ?? true,
     showTrainingControls: (data.showTrainingControls as boolean) ?? false,
-    superUserModeEnabled: (data.superUserModeEnabled as boolean) ?? true,
+    superUserModeEnabled: (data.superUserModeEnabled as boolean) ?? false,
     theme: (data.theme as GeneralSettings['theme']) || 'system',
     telemetryEnabled: (data.telemetryEnabled as boolean) ?? true,
     billingUsageNotificationsEnabled: (data.billingUsageNotificationsEnabled as boolean) ?? true,
