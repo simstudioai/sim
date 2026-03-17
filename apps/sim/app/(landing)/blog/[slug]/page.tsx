@@ -33,8 +33,6 @@ export async function generateMetadata({
   return buildPostMetadata(post)
 }
 
-export const revalidate = 86400
-
 export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const post = await getPostBySlug(slug)

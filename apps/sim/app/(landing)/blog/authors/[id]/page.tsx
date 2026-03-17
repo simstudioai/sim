@@ -5,8 +5,6 @@ import { getAllPostMeta } from '@/lib/blog/registry'
 import { PostGrid } from '@/app/(landing)/blog/post-grid'
 import { WithSidebar } from '@/app/(landing)/blog/with-sidebar'
 
-export const revalidate = 3600
-
 function findAuthorById(posts: Awaited<ReturnType<typeof getAllPostMeta>>, id: string) {
   for (const p of posts) {
     if (p.author.id === id) return p.author

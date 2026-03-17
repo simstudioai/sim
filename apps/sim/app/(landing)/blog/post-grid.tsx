@@ -218,8 +218,7 @@ export function FeaturedGrid({ posts }: PostGridProps) {
       className='grid grid-cols-1 gap-6 md:grid-cols-2'
       variants={gridVariants}
       initial={shouldReduceMotion ? 'visible' : 'hidden'}
-      whileInView='visible'
-      viewport={{ once: true, margin: '-60px' }}
+      animate='visible'
     >
       <FeaturedLeadCard post={lead} />
       {rest.map((p) => (
@@ -237,8 +236,7 @@ export function PostGrid({ posts }: PostGridProps) {
       className='grid auto-rows-[1fr] grid-cols-1 gap-6 md:grid-cols-2'
       variants={gridVariants}
       initial={shouldReduceMotion ? 'visible' : 'hidden'}
-      whileInView='visible'
-      viewport={{ once: true, margin: '-60px' }}
+      animate='visible'
     >
       {posts.map((p, index) => (
         <PostCard key={p.slug} post={p} priority={index < 4} />

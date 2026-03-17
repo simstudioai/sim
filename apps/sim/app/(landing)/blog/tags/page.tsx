@@ -7,8 +7,6 @@ export const metadata: Metadata = {
   title: 'Tags',
 }
 
-export const revalidate = 3600
-
 export default async function TagsIndex() {
   const allPosts = await getAllPostMeta()
 

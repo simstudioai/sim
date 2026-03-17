@@ -5,8 +5,6 @@ import type { NextRequest } from 'next/server'
 import { getPostBySlug } from '@/lib/blog/registry'
 import { getPrimaryCategory } from '@/app/(landing)/studio/tag-colors'
 
-export const revalidate = 3600
-
 function getTitleFontSize(title: string): number {
   if (title.length > 80) return 36
   if (title.length > 60) return 40
