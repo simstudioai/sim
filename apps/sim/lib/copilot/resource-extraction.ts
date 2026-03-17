@@ -21,9 +21,19 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
 }
 
+function getOperation(params: Record<string, unknown> | undefined): string | undefined {
+  const args = asRecord(params?.args)
+  return (args.operation ?? params?.operation) as string | undefined
+}
+
+const READ_ONLY_TABLE_OPS = new Set(['get', 'get_schema', 'get_row', 'query_rows'])
+const READ_ONLY_KB_OPS = new Set(['get', 'query', 'list_tags', 'get_tag_usage'])
+const READ_ONLY_KNOWLEDGE_ACTIONS = new Set(['listed', 'queried'])
+
 /**
  * Extracts resource descriptors from a tool execution result.
  * Returns one or more resources for tools that create/modify workspace entities.
+ * Read-only operations are excluded to avoid unnecessary cache invalidation.
  */
 export function extractResourcesFromToolResult(
   toolName: string,
@@ -37,6 +47,8 @@ export function extractResourcesFromToolResult(
 
   switch (toolName) {
     case 'user_table': {
+      if (READ_ONLY_TABLE_OPS.has(getOperation(params) ?? '')) return []
+
       if (result.tableId) {
         return [
           {
@@ -123,6 +135,8 @@ export function extractResourcesFromToolResult(
     }
 
     case 'knowledge_base': {
+      if (READ_ONLY_KB_OPS.has(getOperation(params) ?? '')) return []
+
       const kbId =
         (data.id as string) ??
         (result.knowledgeBaseId as string) ??
@@ -137,6 +151,9 @@ export function extractResourcesFromToolResult(
     }
 
     case 'knowledge': {
+      const action = data.action as string | undefined
+      if (READ_ONLY_KNOWLEDGE_ACTIONS.has(action ?? '')) return []
+
       const kbArray = data.knowledge_bases as Array<Record<string, unknown>> | undefined
       if (!Array.isArray(kbArray)) return []
       const resources: ChatResource[] = []
