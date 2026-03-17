@@ -40,7 +40,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   const category = getPrimaryCategory(post.tags)
   const categoryColor = category.color
   const displayAuthors = post.authors && post.authors.length > 0 ? post.authors : [post.author]
-  const shareUrl = `${getBaseUrl()}/studio/${slug}`
+  const shareUrl = `${getBaseUrl()}/blog/${slug}`
 
   return (
     <article className='w-full' itemScope itemType='https://schema.org/BlogPosting'>
