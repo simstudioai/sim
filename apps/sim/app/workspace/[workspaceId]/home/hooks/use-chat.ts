@@ -1088,6 +1088,13 @@ export function useChat(
   })
 
   const stopGeneration = useCallback(async () => {
+    if (sendingRef.current && !chatIdRef.current) {
+      const start = Date.now()
+      while (!chatIdRef.current && sendingRef.current && Date.now() - start < 3000) {
+        await new Promise((r) => setTimeout(r, 50))
+      }
+    }
+
     if (sendingRef.current) {
       await persistPartialResponse()
     }
