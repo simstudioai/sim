@@ -132,7 +132,7 @@ function toDisplayAttachment(f: TaskStoredFileAttachment): ChatMessageAttachment
     media_type: f.media_type,
     size: f.size,
     previewUrl: f.media_type.startsWith('image/')
-      ? `/api/files/serve/${encodeURIComponent(f.key)}?context=copilot`
+      ? `/api/files/serve/${encodeURIComponent(f.key)}?context=mothership`
       : undefined,
   }
 }
