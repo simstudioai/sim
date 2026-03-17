@@ -436,7 +436,7 @@ export async function executeWorkflowWithFullLogging(
   }
 
   const executionId = options.executionId || uuidv4()
-  const { addConsole, updateConsole } = useTerminalConsoleStore.getState()
+  const { addConsole, updateConsole, cancelRunningEntries } = useTerminalConsoleStore.getState()
   const { setActiveBlocks, setBlockRunStatus, setEdgeRunStatus, setCurrentExecutionId } =
     useExecutionStore.getState()
   const wfId = targetWorkflowId
@@ -445,6 +445,7 @@ export async function executeWorkflowWithFullLogging(
   const activeBlocksSet = new Set<string>()
   const activeBlockRefCounts = new Map<string, number>()
   const executionIdRef = { current: executionId }
+  const accumulatedBlockLogs: BlockLog[] = []
 
   const blockHandlers = createBlockEventHandlers(
     {
@@ -453,7 +454,7 @@ export async function executeWorkflowWithFullLogging(
       workflowEdges,
       activeBlocksSet,
       activeBlockRefCounts,
-      accumulatedBlockLogs: [],
+      accumulatedBlockLogs,
       accumulatedBlockStates: new Map(),
       executedBlockIds: new Set(),
       consoleMode: 'update',
@@ -490,7 +491,24 @@ export async function executeWorkflowWithFullLogging(
 
   if (!response.ok) {
     const error = await response.json()
-    throw new Error(error.error || 'Workflow execution failed')
+    const errorMessage = error.error || 'Workflow execution failed'
+    const now = new Date().toISOString()
+    addConsole({
+      input: {},
+      output: {},
+      success: false,
+      error: errorMessage,
+      durationMs: 0,
+      startedAt: now,
+      executionOrder: 0,
+      endedAt: now,
+      workflowId: wfId,
+      blockId: 'execution-error',
+      executionId,
+      blockName: 'Execution Error',
+      blockType: 'error',
+    })
+    throw new Error(errorMessage)
   }
 
   if (!response.body) {
@@ -575,15 +593,49 @@ export async function executeWorkflowWithFullLogging(
             }
             break
 
-          case 'execution:error':
+          case 'execution:error': {
             setCurrentExecutionId(wfId, null)
+            const errorMessage = event.data.error || 'Execution failed'
             executionResult = {
               success: false,
               output: {},
-              error: event.data.error || 'Execution failed',
+              error: errorMessage,
               logs: [],
             }
+
+            cancelRunningEntries(wfId)
+
+            const isPreExecutionError = accumulatedBlockLogs.length === 0
+            const hasBlockError = accumulatedBlockLogs.some((log) => log.error)
+            if (isPreExecutionError || !hasBlockError) {
+              const isTimeout = errorMessage.toLowerCase().includes('timed out')
+              const now = new Date().toISOString()
+              addConsole({
+                input: {},
+                output: {},
+                success: false,
+                error: errorMessage,
+                durationMs: event.data.duration || 0,
+                startedAt: now,
+                executionOrder: isPreExecutionError ? 0 : Number.MAX_SAFE_INTEGER,
+                endedAt: now,
+                workflowId: wfId,
+                blockId: isPreExecutionError
+                  ? 'validation'
+                  : isTimeout
+                    ? 'timeout-error'
+                    : 'execution-error',
+                executionId: executionIdRef.current,
+                blockName: isPreExecutionError
+                  ? 'Workflow Validation'
+                  : isTimeout
+                    ? 'Timeout Error'
+                    : 'Execution Error',
+                blockType: isPreExecutionError ? 'validation' : 'error',
+              })
+            }
             break
+          }
         }
       }
     }
