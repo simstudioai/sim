@@ -693,13 +693,6 @@ export function Table({
         return
       }
 
-      const anchor = selectionAnchorRef.current
-      if (!anchor || editingCellRef.current) return
-
-      const cols = columnsRef.current
-      const mp = maxPositionRef.current
-      const totalRows = mp + 1
-
       if (e.key === 'Escape') {
         e.preventDefault()
         setSelectionAnchor(null)
@@ -708,6 +701,29 @@ export function Table({
         lastCheckboxRowRef.current = null
         return
       }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+        e.preventDefault()
+        const rws = rowsRef.current
+        if (rws.length > 0) {
+          setEditingCell(null)
+          setSelectionAnchor(null)
+          setSelectionFocus(null)
+          const all = new Set<number>()
+          for (const row of rws) {
+            all.add(row.position)
+          }
+          setCheckedRows(all)
+        }
+        return
+      }
+
+      const anchor = selectionAnchorRef.current
+      if (!anchor || editingCellRef.current) return
+
+      const cols = columnsRef.current
+      const mp = maxPositionRef.current
+      const totalRows = mp + 1
 
       if (e.shiftKey && e.key === 'Enter') {
         const row = positionMapRef.current.get(anchor.rowIndex)
@@ -780,22 +796,6 @@ export function Table({
         lastCheckboxRowRef.current = null
         setSelectionAnchor(moveCell(anchor, cols.length, totalRows, e.shiftKey ? -1 : 1))
         setSelectionFocus(null)
-        return
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
-        e.preventDefault()
-        const rws = rowsRef.current
-        if (rws.length > 0) {
-          setEditingCell(null)
-          setSelectionAnchor(null)
-          setSelectionFocus(null)
-          const all = new Set<number>()
-          for (const row of rws) {
-            all.add(row.position)
-          }
-          setCheckedRows(all)
-        }
         return
       }
 
