@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { StudioHero } from '@/app/(landing)/studio/hero'
-import { FeaturedGrid, PostGrid } from '@/app/(landing)/studio/post-grid'
-import { CATEGORIES, getCategoryById, getPrimaryCategory } from '@/app/(landing)/studio/tag-colors'
+import { StudioHero } from '@/app/(landing)/blog/hero'
+import { FeaturedGrid, PostGrid } from '@/app/(landing)/blog/post-grid'
+import { CATEGORIES, getCategoryById, getPrimaryCategory } from '@/app/(landing)/blog/tag-colors'
 
 interface SerializedPost {
   slug: string
@@ -81,11 +81,11 @@ export function StudioFeed({ posts, initialTag }: StudioFeedProps) {
           <div className='mx-auto w-full max-w-5xl py-12'>
             {activeCategory && (
               <div className='mb-8 flex items-center gap-3'>
-                <span className='font-mono text-[10px] uppercase tracking-widest text-[#666]'>
+                <span className='font-season text-[10px] uppercase tracking-widest text-[#666]'>
                   Filtered by:
                 </span>
                 <span
-                  className='px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider'
+                  className='px-2 py-0.5 font-season text-[10px] uppercase tracking-wider'
                   style={{
                     border: `1px solid ${activeCategory.color}`,
                     color: activeCategory.color,
@@ -96,7 +96,7 @@ export function StudioFeed({ posts, initialTag }: StudioFeedProps) {
                 <button
                   type='button'
                   onClick={() => handleCategoryClick(null)}
-                  className='font-mono text-[10px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
+                  className='font-season text-[10px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
                 >
                   Clear
                 </button>
@@ -104,7 +104,7 @@ export function StudioFeed({ posts, initialTag }: StudioFeedProps) {
             )}
             {featured.length > 0 && (
               <section className='mb-10'>
-                <h2 className='mb-8 flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-[#666]'>
+                <h2 className='mb-8 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#666]'>
                   <span className='inline-block h-2 w-2 bg-[#FA4EDF]' aria-hidden='true' />
                   Featured Content
                 </h2>
@@ -113,7 +113,7 @@ export function StudioFeed({ posts, initialTag }: StudioFeedProps) {
             )}
             {feed.length > 0 && (
               <section>
-                <h2 className='mb-8 flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-[#666]'>
+                <h2 className='mb-8 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#666]'>
                   <span className='inline-block h-2 w-2 bg-[#00F701]' aria-hidden='true' />
                   {activeCategory ? activeCategory.label : 'All Posts'}
                 </h2>
@@ -126,7 +126,7 @@ export function StudioFeed({ posts, initialTag }: StudioFeedProps) {
                 <button
                   type='button'
                   onClick={() => handleCategoryClick(null)}
-                  className='mt-4 inline-block font-mono text-[12px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
+                  className='mt-4 inline-block font-season text-[12px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
                 >
                   View all posts
                 </button>
@@ -184,7 +184,7 @@ function Sidebar({ items, activeId, onSelect }: SidebarProps) {
     <aside className='flex w-full shrink-0 flex-col border-r border-[#2A2A2A] bg-[#1C1C1C] p-8 lg:sticky lg:top-[52px] lg:h-[calc(100vh-52px)] lg:w-72 lg:overflow-y-auto'>
       <div className='flex h-full flex-col'>
         <div className='mb-10'>
-          <h2 className='mb-4 font-mono text-[10px] uppercase tracking-widest text-[#666]'>
+          <h2 className='mb-4 font-season text-[10px] uppercase tracking-widest text-[#666]'>
             Find Insights
           </h2>
           <div className='relative'>
@@ -192,7 +192,7 @@ function Sidebar({ items, activeId, onSelect }: SidebarProps) {
               type='text'
               placeholder='SEARCH COMING SOON...'
               disabled
-              className='w-full cursor-not-allowed border border-[#2A2A2A] bg-[#232323] px-4 py-2 font-mono text-[11px] text-[#ECECEC] opacity-50 placeholder:text-[#666]'
+              className='w-full cursor-not-allowed border border-[#2A2A2A] bg-[#232323] px-4 py-2 font-season text-[11px] text-[#ECECEC] opacity-50 placeholder:text-[#666]'
               style={{ borderRadius: '5px' }}
               aria-label='Search blog posts (coming soon)'
             />
@@ -203,7 +203,7 @@ function Sidebar({ items, activeId, onSelect }: SidebarProps) {
           </div>
         </div>
         <div className='flex flex-col'>
-          <h2 className='mb-3 font-mono text-[10px] uppercase tracking-widest text-[#ECECEC]'>
+          <h2 className='mb-3 font-season text-[10px] uppercase tracking-widest text-[#ECECEC]'>
             Categories
           </h2>
           <ul ref={listRef} className='relative flex flex-col'>
@@ -246,7 +246,7 @@ function Sidebar({ items, activeId, onSelect }: SidebarProps) {
                   >
                     <span className='relative z-10'>{item.label}</span>
                     <span
-                      className='relative z-10 font-mono text-[10px]'
+                      className='relative z-10 font-season text-[10px]'
                       style={{
                         padding: '2px 6px',
                         borderRadius: '2px',

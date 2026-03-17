@@ -17,8 +17,6 @@ interface CategoryListProps {
   activeId: string | null
 }
 
-const ROW_H = 38
-
 export function CategoryList({ items, activeId }: CategoryListProps) {
   const shouldReduceMotion = useReducedMotion()
   const listRef = useRef<HTMLUListElement>(null)

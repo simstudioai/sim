@@ -15,6 +15,11 @@ export default async function StudioIndex({
   const { tag, q } = await searchParams
   const all = await getAllPostMeta()
 
+  const pickAuthor = (a: { name: string; avatarUrl?: string }) => ({
+    name: a.name,
+    avatarUrl: a.avatarUrl,
+  })
+
   const posts = all.map((p) => ({
     slug: p.slug,
     title: p.title,
@@ -23,8 +28,8 @@ export default async function StudioIndex({
     ogImage: p.ogImage,
     readingTime: p.readingTime,
     tags: p.tags,
-    author: p.author,
-    authors: p.authors,
+    author: pickAuthor(p.author),
+    authors: p.authors?.map(pickAuthor),
     featured: p.featured ?? false,
   }))
 

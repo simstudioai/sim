@@ -15,8 +15,8 @@ interface SerializedPost {
   ogImage: string
   readingTime?: number
   tags: string[]
-  author: { id: string; name: string; avatarUrl?: string; url?: string }
-  authors?: { id: string; name: string; avatarUrl?: string; url?: string }[]
+  author: { name: string; avatarUrl?: string }
+  authors?: { name: string; avatarUrl?: string }[]
   featured?: boolean
 }
 
@@ -59,7 +59,8 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
     const counts: Record<string, number> = {}
     for (const cat of CATEGORIES) counts[cat.id] = 0
     for (const post of posts) {
-      counts[getPrimaryCategory(post.tags).id] = (counts[getPrimaryCategory(post.tags).id] ?? 0) + 1
+      const catId = getPrimaryCategory(post.tags).id
+      counts[catId] = (counts[catId] ?? 0) + 1
     }
     return [
       { id: null as string | null, label: 'All Posts', count: posts.length, color: '#00F701' },
@@ -73,8 +74,9 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
   }, [posts])
 
   // ── Filter + sort (runs instantly on state change) ──────────────────────
+  const lowerQ = query.trim().toLowerCase()
+
   const { sorted, activeCategory } = useMemo(() => {
-    const lowerQ = query.trim().toLowerCase()
     let filtered = posts
 
     if (activeTag) {
@@ -103,17 +105,22 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
       return new Date(b.date).getTime() - new Date(a.date).getTime()
     })
     return { sorted: s, activeCategory: cat }
-  }, [posts, activeTag, query])
+  }, [posts, activeTag, lowerQ])
 
-  // ── Pagination ──────────────────────────────────────────────────────────
   const totalPages = Math.max(1, Math.ceil(sorted.length / PER_PAGE))
   const pagePosts = sorted.slice((page - 1) * PER_PAGE, page * PER_PAGE)
 
-  const lowerQ = query.trim().toLowerCase()
-  const featured = page === 1 && !activeTag && !lowerQ ? pagePosts.filter((p) => p.featured) : []
-  const feed =
-    page === 1 && !activeTag && !lowerQ ? pagePosts.filter((p) => !p.featured) : pagePosts
-  const showHero = page === 1 && !activeTag && !lowerQ
+  const isDefaultView = page === 1 && !activeTag && !lowerQ
+  const featured: SerializedPost[] = []
+  const feed: SerializedPost[] = []
+  for (const p of pagePosts) {
+    if (isDefaultView && p.featured) {
+      featured.push(p)
+    } else {
+      feed.push(p)
+    }
+  }
+  const showHero = isDefaultView
 
   const handleCategorySelect = useCallback(
     (id: string | null) => {
@@ -168,7 +175,7 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
       <main className='relative min-w-0 flex-1'>
         <div className='flex flex-col'>
           {showHero && <StudioHero />}
-          <div className='mx-auto w-full max-w-5xl px-6 py-12'>
+          <div className='mx-auto w-full max-w-5xl py-12'>
             {lowerQ && (
               <div className='mb-8 flex items-center gap-3'>
                 <span className='font-season text-[10px] uppercase tracking-widest text-[#666]'>
@@ -183,7 +190,7 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
                 <button
                   type='button'
                   onClick={handleClearAll}
-                  className='font-mono text-[10px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
+                  className='font-season text-[10px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
                 >
                   Clear
                 </button>
@@ -192,11 +199,11 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
 
             {activeCategory && !lowerQ && (
               <div className='mb-8 flex items-center gap-3'>
-                <span className='font-mono text-[10px] uppercase tracking-widest text-[#666]'>
+                <span className='font-season text-[10px] uppercase tracking-widest text-[#666]'>
                   Filtered by:
                 </span>
                 <span
-                  className='px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider'
+                  className='px-2 py-0.5 font-season text-[10px] uppercase tracking-wider'
                   style={{
                     border: `1px solid ${activeCategory.color}`,
                     color: activeCategory.color,
@@ -207,7 +214,7 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
                 <button
                   type='button'
                   onClick={handleClearAll}
-                  className='font-mono text-[10px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
+                  className='font-season text-[10px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
                 >
                   Clear
                 </button>
@@ -216,7 +223,7 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
 
             {featured.length > 0 && (
               <section className='mb-10'>
-                <h2 className='mb-8 flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-[#666]'>
+                <h2 className='mb-8 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#666]'>
                   <span className='inline-block h-2 w-2 bg-[#FA4EDF]' aria-hidden='true' />
                   Featured Content
                 </h2>
@@ -226,7 +233,7 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
 
             {feed.length > 0 && (
               <section>
-                <h2 className='mb-8 flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-[#666]'>
+                <h2 className='mb-8 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#666]'>
                   <span className='inline-block h-2 w-2 bg-[#00F701]' aria-hidden='true' />
                   {lowerQ ? 'Search Results' : activeCategory ? activeCategory.label : 'All Posts'}
                 </h2>
@@ -242,7 +249,7 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
                 <button
                   type='button'
                   onClick={handleClearAll}
-                  className='mt-4 inline-block font-mono text-[12px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
+                  className='mt-4 inline-block font-season text-[12px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
                 >
                   View all posts
                 </button>
@@ -255,20 +262,20 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
                   <button
                     type='button'
                     onClick={() => setPage((p) => p - 1)}
-                    className='border border-[#3d3d3d] bg-[#232323] px-6 py-2.5 font-mono text-[11px] uppercase tracking-wider text-[#999] transition-colors hover:border-[#666] hover:text-[#ECECEC]'
+                    className='border border-[#3d3d3d] bg-[#232323] px-6 py-2.5 font-season text-[11px] uppercase tracking-wider text-[#999] transition-colors hover:border-[#666] hover:text-[#ECECEC]'
                     style={{ borderRadius: '5px' }}
                   >
                     Previous
                   </button>
                 )}
-                <span className='font-mono text-[10px] uppercase tracking-wider text-[#666]'>
+                <span className='font-season text-[10px] uppercase tracking-wider text-[#666]'>
                   Page {page} of {totalPages}
                 </span>
                 {page < totalPages && (
                   <button
                     type='button'
                     onClick={() => setPage((p) => p + 1)}
-                    className='border border-[#3d3d3d] bg-[#232323] px-6 py-2.5 font-mono text-[11px] uppercase tracking-wider text-[#999] transition-colors hover:border-[#666] hover:text-[#ECECEC]'
+                    className='border border-[#3d3d3d] bg-[#232323] px-6 py-2.5 font-season text-[11px] uppercase tracking-wider text-[#999] transition-colors hover:border-[#666] hover:text-[#ECECEC]'
                     style={{ borderRadius: '5px' }}
                   >
                     Load more articles
@@ -282,7 +289,6 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
     </div>
   )
 }
-
 
 interface SidebarSearchProps {
   value: string
@@ -307,7 +313,6 @@ function SidebarSearch({ value, onChange }: SidebarSearchProps) {
     </form>
   )
 }
-
 
 interface SidebarCategoryItem {
   id: string | null

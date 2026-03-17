@@ -36,10 +36,8 @@ const leadVariants = {
 }
 
 interface Author {
-  id: string
   name: string
   avatarUrl?: string
-  url?: string
 }
 
 interface Post {

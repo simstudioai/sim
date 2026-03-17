@@ -35,11 +35,10 @@ export async function generateMetadata({
 
 export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const post = await getPostBySlug(slug)
+  const [post, related] = await Promise.all([getPostBySlug(slug), getRelatedPosts(slug, 3)])
   const Article = post.Content
   const jsonLd = buildArticleJsonLd(post)
   const breadcrumbLd = buildBreadcrumbJsonLd(post)
-  const related = await getRelatedPosts(slug, 3)
 
   const category = getPrimaryCategory(post.tags)
   const categoryColor = category.color
