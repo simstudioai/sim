@@ -8,6 +8,10 @@ import {
   reportManualRunToolStop,
 } from '@/lib/copilot/client-sse/run-tool-execution'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
+import {
+  extractResourcesFromToolResult,
+  isResourceToolName,
+} from '@/lib/copilot/resource-extraction'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resource-types'
 import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
@@ -621,7 +625,7 @@ export function useChat(
                     calledBy: activeSubagent,
                   },
                 })
-                if (name === 'read') {
+                if (name === 'read' || isResourceToolName(name)) {
                   const args = (data?.arguments ?? data?.input) as
                     | Record<string, unknown>
                     | undefined
@@ -718,6 +722,17 @@ export function useChat(
                     queryClient.invalidateQueries({
                       queryKey: workflowKeys.list(workspaceId),
                     })
+                  }
+                }
+
+                if (tc.status === 'success' && isResourceToolName(tc.name)) {
+                  const resources = extractResourcesFromToolResult(
+                    tc.name,
+                    toolArgsMap.get(id) as Record<string, unknown> | undefined,
+                    tc.result?.output
+                  )
+                  for (const resource of resources) {
+                    invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
                   }
                 }
               }
