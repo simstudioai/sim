@@ -521,8 +521,7 @@ export function useChat(
         return b
       }
 
-      const isStale = () =>
-        expectedGen !== undefined && streamGenRef.current !== expectedGen
+      const isStale = () => expectedGen !== undefined && streamGenRef.current !== expectedGen
 
       const flush = () => {
         if (isStale()) return
