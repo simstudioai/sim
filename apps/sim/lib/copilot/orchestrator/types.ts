@@ -88,6 +88,7 @@ export interface ContentBlock {
 
 export interface StreamingContext {
   chatId?: string
+  requestId?: string
   messageId: string
   accumulatedContent: string
   contentBlocks: ContentBlock[]
@@ -154,6 +155,7 @@ export interface OrchestratorResult {
   contentBlocks: ContentBlock[]
   toolCalls: ToolCallSummary[]
   chatId?: string
+  requestId?: string
   error?: string
   errors?: string[]
   usage?: { prompt: number; completion: number }

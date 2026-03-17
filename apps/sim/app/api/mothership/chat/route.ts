@@ -279,6 +279,7 @@ export async function POST(req: NextRequest) {
             role: 'assistant' as const,
             content: result.content,
             timestamp: new Date().toISOString(),
+            ...(result.requestId ? { requestId: result.requestId } : {}),
           }
           if (result.toolCalls.length > 0) {
             assistantMessage.toolCalls = result.toolCalls
