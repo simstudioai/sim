@@ -414,11 +414,11 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           style={{ '--panel-max-width': `${panelWidth - 16}px` } as React.CSSProperties}
         >
           {!isStreaming && message.content && (
-            <div className='-top-1 absolute right-0 z-10'>
+            <div className='absolute right-0 bottom-0 z-10'>
               <MessageActions content={message.content} requestId={message.requestId} />
             </div>
           )}
-          <div className='max-w-full space-y-[4px] px-[2px] pb-[4px]'>
+          <div className='max-w-full space-y-[4px] px-[2px] pb-5'>
             {/* Content blocks in chronological order */}
             {memoizedContentBlocks || (isStreaming && <div className='min-h-0' />)}
 

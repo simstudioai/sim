@@ -415,9 +415,9 @@ export function Home({ chatId }: HomeProps = {}) {
               const isLastMessage = index === messages.length - 1
 
               return (
-                <div key={msg.id} className='group/msg relative pb-4'>
+                <div key={msg.id} className='group/msg relative pb-5'>
                   {!isThisStreaming && (msg.content || msg.contentBlocks?.length) && (
-                    <div className='-top-1 absolute right-0 z-10'>
+                    <div className='absolute right-0 bottom-0 z-10'>
                       <MessageActions content={msg.content} requestId={msg.requestId} />
                     </div>
                   )}

@@ -92,6 +92,7 @@ export function flushStreamingUpdates(set: StoreSet) {
         if (update) {
           return {
             ...msg,
+            requestId: update.requestId ?? msg.requestId,
             content: '',
             contentBlocks:
               update.contentBlocks.length > 0
@@ -129,6 +130,7 @@ export function updateStreamingMessage(set: StoreSet, context: ClientStreamingCo
             const newMessages = [...messages]
             newMessages[messages.length - 1] = {
               ...lastMessage,
+              requestId: lastMessageUpdate.requestId ?? lastMessage.requestId,
               content: '',
               contentBlocks:
                 lastMessageUpdate.contentBlocks.length > 0
@@ -143,6 +145,7 @@ export function updateStreamingMessage(set: StoreSet, context: ClientStreamingCo
               if (update) {
                 return {
                   ...msg,
+                  requestId: update.requestId ?? msg.requestId,
                   content: '',
                   contentBlocks:
                     update.contentBlocks.length > 0
@@ -427,6 +430,12 @@ export const sseHandlers: Record<string, SSEHandler> = {
       const updatedStream = { ...activeStream, chatId: context.newChatId }
       set({ activeStream: updatedStream })
       writeActiveStreamToStorage(updatedStream)
+    }
+  },
+  request_id: (data, context) => {
+    const requestId = typeof data.data === 'string' ? data.data : undefined
+    if (requestId) {
+      context.requestId = requestId
     }
   },
   title_updated: (_data, _context, get, set) => {

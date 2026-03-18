@@ -1,13 +1,13 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, Copy, Ellipsis, Hash } from 'lucide-react'
 import {
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverScrollArea,
-  PopoverTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Tooltip,
 } from '@/components/emcn'
 
 interface MessageActionsProps {
@@ -16,60 +16,75 @@ interface MessageActionsProps {
 }
 
 export function MessageActions({ content, requestId }: MessageActionsProps) {
-  const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState<'message' | 'request' | null>(null)
+  const resetTimeoutRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (resetTimeoutRef.current !== null) {
+        window.clearTimeout(resetTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const copyToClipboard = useCallback(async (text: string, type: 'message' | 'request') => {
     try {
       await navigator.clipboard.writeText(text)
       setCopied(type)
-      setTimeout(() => setCopied(null), 1500)
+      if (resetTimeoutRef.current !== null) {
+        window.clearTimeout(resetTimeoutRef.current)
+      }
+      resetTimeoutRef.current = window.setTimeout(() => setCopied(null), 1500)
     } catch {
-      // Silently fail
+      return
     }
-    setOpen(false)
   }, [])
 
+  if (!content && !requestId) {
+    return null
+  }
+
   return (
-    <Popover variant='default' size='sm' open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type='button'
-          className='rounded-md p-1 text-[var(--text-icon)] opacity-0 transition-opacity hover:bg-[var(--surface-3)] group-hover/msg:opacity-100 data-[state=open]:opacity-100'
-          onClick={(e) => e.stopPropagation()}
+    <DropdownMenu modal={false}>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <DropdownMenuTrigger asChild>
+            <button
+              type='button'
+              aria-label='More options'
+              className='flex h-5 w-5 items-center justify-center rounded-sm text-[var(--text-icon)] opacity-0 transition-colors transition-opacity hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)] focus-visible:opacity-100 focus-visible:outline-none group-hover/msg:opacity-100 data-[state=open]:opacity-100'
+              onClick={(event) => event.stopPropagation()}
+            >
+              <Ellipsis className='h-3 w-3' strokeWidth={2} />
+            </button>
+          </DropdownMenuTrigger>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='top'>More options</Tooltip.Content>
+      </Tooltip.Root>
+      <DropdownMenuContent align='end' side='top' sideOffset={4}>
+        <DropdownMenuItem
+          disabled={!content}
+          onSelect={(event) => {
+            event.stopPropagation()
+            void copyToClipboard(content, 'message')
+          }}
         >
-          <Ellipsis className='h-[14px] w-[14px]' strokeWidth={2} />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        side='bottom'
-        align='end'
-        sideOffset={4}
-        maxHeight={120}
-        style={{ width: '160px', minWidth: '160px' }}
-      >
-        <PopoverScrollArea>
-          <PopoverItem onClick={() => copyToClipboard(content, 'message')} disabled={!content}>
-            {copied === 'message' ? (
-              <Check className='h-[13px] w-[13px]' />
-            ) : (
-              <Copy className='h-[13px] w-[13px]' />
-            )}
-            <span>Copy Message</span>
-          </PopoverItem>
-          <PopoverItem
-            onClick={() => requestId && copyToClipboard(requestId, 'request')}
-            disabled={!requestId}
-          >
-            {copied === 'request' ? (
-              <Check className='h-[13px] w-[13px]' />
-            ) : (
-              <Hash className='h-[13px] w-[13px]' />
-            )}
-            <span>Copy Request ID</span>
-          </PopoverItem>
-        </PopoverScrollArea>
-      </PopoverContent>
-    </Popover>
+          {copied === 'message' ? <Check /> : <Copy />}
+          <span>Copy Message</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={!requestId}
+          onSelect={(event) => {
+            event.stopPropagation()
+            if (requestId) {
+              void copyToClipboard(requestId, 'request')
+            }
+          }}
+        >
+          {copied === 'request' ? <Check /> : <Hash />}
+          <span>Copy Request ID</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
