@@ -33,29 +33,40 @@ export function useMothershipResize() {
     document.body.style.cursor = 'ew-resize'
     document.body.style.userSelect = 'none'
 
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      const newWidth = window.innerWidth - moveEvent.clientX
-      const maxWidth = window.innerWidth * MOTHERSHIP_WIDTH.MAX_PERCENTAGE
-      el.style.width = `${Math.min(Math.max(newWidth, MOTHERSHIP_WIDTH.MIN), maxWidth)}px`
-    }
+    // AbortController removes all listeners at once on cleanup/cancel/unmount
+    const ac = new AbortController()
+    const { signal } = ac
 
     const cleanup = () => {
+      ac.abort()
       el.style.transition = prevTransition
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
-      handle.removeEventListener('pointermove', handlePointerMove)
-      handle.removeEventListener('pointerup', handlePointerUp)
       cleanupRef.current = null
     }
 
-    const handlePointerUp = (upEvent: PointerEvent) => {
-      handle.releasePointerCapture(upEvent.pointerId)
-      cleanup()
-    }
+    handle.addEventListener(
+      'pointermove',
+      (moveEvent: PointerEvent) => {
+        const newWidth = window.innerWidth - moveEvent.clientX
+        const maxWidth = window.innerWidth * MOTHERSHIP_WIDTH.MAX_PERCENTAGE
+        el.style.width = `${Math.min(Math.max(newWidth, MOTHERSHIP_WIDTH.MIN), maxWidth)}px`
+      },
+      { signal }
+    )
 
-    cleanupRef.current = cleanup
-    handle.addEventListener('pointermove', handlePointerMove)
-    handle.addEventListener('pointerup', handlePointerUp)
+    handle.addEventListener(
+      'pointerup',
+      (upEvent: PointerEvent) => {
+        handle.releasePointerCapture(upEvent.pointerId)
+        cleanup()
+      },
+      { signal }
+    )
+
+    // Browser fires pointercancel when it reclaims the gesture (scroll, palm rejection, etc.)
+    // Without this, body cursor/userSelect and transition would be permanently stuck
+    handle.addEventListener('pointercancel', cleanup, { signal })
   }, [])
 
   // Tear down any active drag if the component unmounts mid-drag
