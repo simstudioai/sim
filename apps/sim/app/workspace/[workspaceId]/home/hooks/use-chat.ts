@@ -253,6 +253,8 @@ export interface UseChatOptions {
   stopPath?: string
   workflowId?: string
   onToolResult?: (toolName: string, success: boolean, result: unknown) => void
+  onTitleUpdate?: () => void
+  onStreamEnd?: (chatId: string, messages: ChatMessage[]) => void
 }
 
 export function useChat(
@@ -279,6 +281,10 @@ export function useChat(
   workflowIdRef.current = options?.workflowId
   const onToolResultRef = useRef(options?.onToolResult)
   onToolResultRef.current = options?.onToolResult
+  const onTitleUpdateRef = useRef(options?.onTitleUpdate)
+  onTitleUpdateRef.current = options?.onTitleUpdate
+  const onStreamEndRef = useRef(options?.onStreamEnd)
+  onStreamEndRef.current = options?.onStreamEnd
   const resourcesRef = useRef(resources)
   resourcesRef.current = resources
   const activeResourceIdRef = useRef(activeResourceId)
@@ -876,6 +882,7 @@ export function useChat(
               queryClient.invalidateQueries({
                 queryKey: taskKeys.list(workspaceId),
               })
+              onTitleUpdateRef.current?.()
               break
             }
             case 'error': {
@@ -955,12 +962,22 @@ export function useChat(
     queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
   }, [workspaceId, queryClient])
 
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
+
   const finalize = useCallback(
     (options?: { error?: boolean }) => {
       sendingRef.current = false
       setIsSending(false)
       abortControllerRef.current = null
       invalidateChatQueries()
+
+      if (!options?.error) {
+        const cid = chatIdRef.current
+        if (cid && onStreamEndRef.current) {
+          onStreamEndRef.current(cid, messagesRef.current)
+        }
+      }
 
       if (options?.error) {
         setMessageQueue([])
