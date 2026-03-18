@@ -26,7 +26,7 @@ import {
   UserMessageContent,
 } from './components'
 import { PendingTagIndicator } from './components/message-content/components/special-tags'
-import { useAutoScroll, useChat } from './hooks'
+import { useAutoScroll, useChat, useMothershipResize } from './hooks'
 import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
 
 const logger = createLogger('Home')
@@ -138,13 +138,18 @@ export function Home({ chatId }: HomeProps = {}) {
   useChatHistory(chatId)
   const { mutate: markRead } = useMarkTaskRead(workspaceId)
 
+  const { mothershipRef, handleResizeMouseDown, clearWidth } = useMothershipResize()
+
   const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
   const [isResourceAnimatingIn, setIsResourceAnimatingIn] = useState(false)
   const [skipResourceTransition, setSkipResourceTransition] = useState(false)
   const isResourceCollapsedRef = useRef(isResourceCollapsed)
   isResourceCollapsedRef.current = isResourceCollapsed
 
-  const collapseResource = useCallback(() => setIsResourceCollapsed(true), [])
+  const collapseResource = useCallback(() => {
+    clearWidth()
+    setIsResourceCollapsed(true)
+  }, [clearWidth])
   const expandResource = useCallback(() => {
     setIsResourceCollapsed(false)
     setIsResourceAnimatingIn(true)
@@ -178,7 +183,14 @@ export function Home({ chatId }: HomeProps = {}) {
   } = useChat(workspaceId, chatId, { onResourceEvent: handleResourceEvent })
 
   const [editingInputValue, setEditingInputValue] = useState('')
+  const [prevChatId, setPrevChatId] = useState(chatId)
   const clearEditingValue = useCallback(() => setEditingInputValue(''), [])
+
+  // Clear editing value when navigating to a different chat (guarded render-phase update)
+  if (chatId !== prevChatId) {
+    setPrevChatId(chatId)
+    setEditingInputValue('')
+  }
 
   const handleEditQueuedMessage = useCallback(
     (id: string) => {
@@ -189,10 +201,6 @@ export function Home({ chatId }: HomeProps = {}) {
     },
     [editQueuedMessage]
   )
-
-  useEffect(() => {
-    setEditingInputValue('')
-  }, [chatId])
 
   useEffect(() => {
     wasSendingRef.current = false
@@ -213,17 +221,12 @@ export function Home({ chatId }: HomeProps = {}) {
   }, [isResourceAnimatingIn])
 
   useEffect(() => {
-    if (resources.length > 0 && isResourceCollapsedRef.current) {
-      setSkipResourceTransition(true)
-      setIsResourceCollapsed(false)
-    }
-  }, [resources])
-
-  useEffect(() => {
-    if (!skipResourceTransition) return
+    if (!(resources.length > 0 && isResourceCollapsedRef.current)) return
+    setIsResourceCollapsed(false)
+    setSkipResourceTransition(true)
     const id = requestAnimationFrame(() => setSkipResourceTransition(false))
     return () => cancelAnimationFrame(id)
-  }, [skipResourceTransition])
+  }, [resources])
 
   const handleSubmit = useCallback(
     (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
@@ -359,7 +362,7 @@ export function Home({ chatId }: HomeProps = {}) {
 
   return (
     <div className='relative flex h-full bg-[var(--bg)]'>
-      <div className='flex h-full min-w-0 flex-1 flex-col'>
+      <div className='flex h-full min-w-[320px] flex-1 flex-col'>
         <div
           ref={scrollContainerRef}
           className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-8 [scrollbar-gutter:stable]'
@@ -458,7 +461,21 @@ export function Home({ chatId }: HomeProps = {}) {
         </div>
       </div>
 
+      {/* Resize handle — zero-width flex child whose absolute child straddles the border */}
+      {!isResourceCollapsed && (
+        <div className='relative z-20 w-0 flex-none' aria-hidden='true'>
+          <div
+            className='absolute inset-y-0 left-[-4px] w-[8px] cursor-ew-resize'
+            role='separator'
+            aria-orientation='vertical'
+            aria-label='Resize resource panel'
+            onMouseDown={handleResizeMouseDown}
+          />
+        </div>
+      )}
+
       <MothershipView
+        ref={mothershipRef}
         workspaceId={workspaceId}
         chatId={resolvedChatId}
         resources={resources}

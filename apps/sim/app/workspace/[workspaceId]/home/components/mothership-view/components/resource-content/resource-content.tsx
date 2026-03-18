@@ -160,8 +160,8 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   ])
 
   const handleOpenWorkflow = useCallback(() => {
-    router.push(`/workspace/${workspaceId}/w/${workflowId}`)
-  }, [router, workspaceId, workflowId])
+    window.open(`/workspace/${workspaceId}/w/${workflowId}`, '_blank')
+  }, [workspaceId, workflowId])
 
   return (
     <>
