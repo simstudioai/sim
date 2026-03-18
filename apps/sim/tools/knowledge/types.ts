@@ -30,7 +30,7 @@ export function inferDocumentFileInfo(documentName: string): {
     }
   }
   const base = ext ? documentName.slice(0, documentName.lastIndexOf('.')) : documentName
-  return { filename: `${base}.txt`, mimeType: 'text/plain' }
+  return { filename: `${base || documentName}.txt`, mimeType: 'text/plain' }
 }
 
 export interface KnowledgeSearchResult {
