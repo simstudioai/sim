@@ -76,7 +76,10 @@ export class ParallelOrchestrator {
       items = resolved.items
       isEmpty = resolved.isEmpty ?? false
     } catch (error) {
-      const errorMessage = `Parallel Items did not resolve: ${error instanceof Error ? error.message : String(error)}`
+      const baseErrorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = baseErrorMessage.startsWith('Parallel collection distribution is empty')
+        ? baseErrorMessage
+        : `Parallel Items did not resolve: ${baseErrorMessage}`
       logger.error(errorMessage, { parallelId, distribution: parallelConfig.distribution })
       await this.addParallelErrorLog(ctx, parallelId, errorMessage, {
         distribution: parallelConfig.distribution,

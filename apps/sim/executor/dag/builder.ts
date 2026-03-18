@@ -113,13 +113,19 @@ export class DAGBuilder {
   private initializeConfigs(workflow: SerializedWorkflow, dag: DAG): void {
     if (workflow.loops) {
       for (const [loopId, loopConfig] of Object.entries(workflow.loops)) {
-        dag.loopConfigs.set(loopId, loopConfig)
+        dag.loopConfigs.set(loopId, {
+          ...loopConfig,
+          nodes: [...(loopConfig.nodes ?? [])],
+        })
       }
     }
 
     if (workflow.parallels) {
       for (const [parallelId, parallelConfig] of Object.entries(workflow.parallels)) {
-        dag.parallelConfigs.set(parallelId, parallelConfig)
+        dag.parallelConfigs.set(parallelId, {
+          ...parallelConfig,
+          nodes: [...(parallelConfig.nodes ?? [])],
+        })
       }
     }
   }

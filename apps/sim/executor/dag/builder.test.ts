@@ -92,6 +92,57 @@ describe('DAGBuilder disabled subflow validation', () => {
     // Should not throw - loop is effectively disabled since all inner blocks are disabled
     expect(() => builder.build(workflow)).not.toThrow()
   })
+
+  it('does not mutate serialized loop config nodes during DAG build', () => {
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [
+        createBlock('start', BlockType.STARTER),
+        createBlock('loop-1', BlockType.LOOP),
+        { ...createBlock('inner-block', BlockType.FUNCTION), enabled: false },
+      ],
+      connections: [{ source: 'start', target: 'loop-1' }],
+      loops: {
+        'loop-1': {
+          id: 'loop-1',
+          nodes: ['inner-block'],
+          iterations: 3,
+        },
+      },
+      parallels: {},
+    }
+
+    const builder = new DAGBuilder()
+    builder.build(workflow)
+
+    expect(workflow.loops?.['loop-1']?.nodes).toEqual(['inner-block'])
+  })
+
+  it('does not mutate serialized parallel config nodes during DAG build', () => {
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [
+        createBlock('start', BlockType.STARTER),
+        createBlock('parallel-1', BlockType.PARALLEL),
+        { ...createBlock('inner-block', BlockType.FUNCTION), enabled: false },
+      ],
+      connections: [{ source: 'start', target: 'parallel-1' }],
+      loops: {},
+      parallels: {
+        'parallel-1': {
+          id: 'parallel-1',
+          nodes: ['inner-block'],
+          count: 2,
+          parallelType: 'count',
+        },
+      },
+    }
+
+    const builder = new DAGBuilder()
+    builder.build(workflow)
+
+    expect(workflow.parallels?.['parallel-1']?.nodes).toEqual(['inner-block'])
+  })
 })
 
 describe('DAGBuilder nested parallel support', () => {

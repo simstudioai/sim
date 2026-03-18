@@ -246,7 +246,7 @@ const WorkflowContent = React.memo(
     const [selectedEdges, setSelectedEdges] = useState<SelectedEdgesMap>(new Map())
     const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
     const canvasContainerRef = useRef<HTMLDivElement>(null)
-    const selectedIdsRef = useRef<string[] | null>(null)
+    const displayNodesRef = useRef<Node[]>([])
     const embeddedFitFrameRef = useRef<number | null>(null)
     const hasCompletedInitialEmbeddedFitRef = useRef(false)
     const canvasMode = useCanvasModeStore((state) => state.mode)
@@ -2478,6 +2478,10 @@ const WorkflowContent = React.memo(
     const [displayNodes, setDisplayNodes] = useState<Node[]>([])
 
     useEffect(() => {
+      displayNodesRef.current = displayNodes
+    }, [displayNodes])
+
+    useEffect(() => {
       // Check for pending selection (from paste/duplicate), otherwise preserve existing selection
       if (pendingSelection && pendingSelection.length > 0) {
         const pendingSet = new Set(pendingSelection)
@@ -2709,17 +2713,17 @@ const WorkflowContent = React.memo(
     /** Handles node changes - applies changes and resolves parent-child selection conflicts. */
     const onNodesChange = useCallback(
       (changes: NodeChange[]) => {
-        selectedIdsRef.current = null
-        setDisplayNodes((nds) => {
-          const updated = applyNodeChanges(changes, nds)
-          const hasSelectionChange = changes.some((c) => c.type === 'select')
-          if (!hasSelectionChange) return updated
-          const resolved = resolveParentChildSelectionConflicts(updated, blocks)
-          selectedIdsRef.current = resolved.filter((node) => node.selected).map((node) => node.id)
-          return resolved
-        })
-        const selectedIds = selectedIdsRef.current as string[] | null
-        if (selectedIds !== null) {
+        const updated = applyNodeChanges(changes, displayNodesRef.current)
+        const hasSelectionChange = changes.some((c) => c.type === 'select')
+        const nextNodes = hasSelectionChange
+          ? resolveParentChildSelectionConflicts(updated, blocks)
+          : updated
+
+        displayNodesRef.current = nextNodes
+        setDisplayNodes(nextNodes)
+
+        if (hasSelectionChange) {
+          const selectedIds = nextNodes.filter((node) => node.selected).map((node) => node.id)
           syncPanelWithSelection(selectedIds)
         }
 
@@ -3610,22 +3614,22 @@ const WorkflowContent = React.memo(
     const handleNodeClick = useCallback(
       (event: React.MouseEvent, node: Node) => {
         const isMultiSelect = event.shiftKey || event.metaKey || event.ctrlKey
-        selectedIdsRef.current = null
-        setDisplayNodes((nodes) => {
-          const updated = nodes.map((n) => ({
-            ...n,
-            selected: isMultiSelect ? (n.id === node.id ? true : n.selected) : n.id === node.id,
-          }))
-          const resolved = resolveParentChildSelectionConflicts(updated, blocks)
-          selectedIdsRef.current = resolved
-            .filter((selectedNode) => selectedNode.selected)
-            .map((selectedNode) => selectedNode.id)
-          return resolved
-        })
-        const selectedIds = selectedIdsRef.current as string[] | null
-        if (selectedIds !== null) {
-          syncPanelWithSelection(selectedIds)
-        }
+        const updated = displayNodesRef.current.map((currentNode) => ({
+          ...currentNode,
+          selected: isMultiSelect
+            ? currentNode.id === node.id
+              ? true
+              : currentNode.selected
+            : currentNode.id === node.id,
+        }))
+        const resolved = resolveParentChildSelectionConflicts(updated, blocks)
+        const selectedIds = resolved
+          .filter((selectedNode) => selectedNode.selected)
+          .map((selectedNode) => selectedNode.id)
+
+        displayNodesRef.current = resolved
+        setDisplayNodes(resolved)
+        syncPanelWithSelection(selectedIds)
       },
       [blocks]
     )
