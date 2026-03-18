@@ -1,6 +1,6 @@
 import { databaseMock, loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
-import { ExecutionLogger } from './logger'
+import { ExecutionLogger } from '@/lib/logs/execution/logger'
 
 vi.mock('@sim/db', () => databaseMock)
 
@@ -112,7 +112,7 @@ describe('ExecutionLogger', () => {
       expect(typeof logger.getWorkflowExecution).toBe('function')
     })
 
-    test('preserves start correlation data when execution completes', () => {
+    test('preserves correlation and diagnostics when execution completes', () => {
       const loggerInstance = new ExecutionLogger() as any
 
       const completedData = loggerInstance.buildCompletedExecutionData({
@@ -140,9 +140,24 @@ describe('ExecutionLogger', () => {
               },
             },
           },
+          lastStartedBlock: {
+            blockId: 'block-start',
+            blockName: 'Start',
+            blockType: 'agent',
+            startedAt: '2025-01-01T00:00:00.000Z',
+          },
+          lastCompletedBlock: {
+            blockId: 'block-end',
+            blockName: 'Finish',
+            blockType: 'api',
+            endedAt: '2025-01-01T00:00:05.000Z',
+            success: true,
+          },
         },
         traceSpans: [],
         finalOutput: { ok: true },
+        finalizationPath: 'completed',
+        completionFailure: 'fallback failure',
         executionCost: {
           tokens: { input: 0, output: 0, total: 0 },
           models: {},
@@ -161,6 +176,12 @@ describe('ExecutionLogger', () => {
       })
       expect(completedData.correlation).toEqual(completedData.trigger?.data?.correlation)
       expect(completedData.finalOutput).toEqual({ ok: true })
+      expect(completedData.lastStartedBlock?.blockId).toBe('block-start')
+      expect(completedData.lastCompletedBlock?.blockId).toBe('block-end')
+      expect(completedData.finalizationPath).toBe('completed')
+      expect(completedData.completionFailure).toBe('fallback failure')
+      expect(completedData.hasTraceSpans).toBe(false)
+      expect(completedData.traceSpanCount).toBe(0)
     })
   })
 
