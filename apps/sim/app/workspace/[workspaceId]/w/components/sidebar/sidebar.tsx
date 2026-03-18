@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { MoreHorizontal } from 'lucide-react'
+import { Compass, MoreHorizontal } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
@@ -597,12 +597,6 @@ export const Sidebar = memo(function Sidebar() {
   const footerItems = useMemo(
     () => [
       {
-        id: 'help',
-        label: 'Help',
-        icon: HelpCircle,
-        onClick: () => setIsHelpModalOpen(true),
-      },
-      {
         id: 'settings',
         label: 'Settings',
         icon: Settings,
@@ -617,6 +611,10 @@ export const Sidebar = memo(function Sidebar() {
     ],
     [workspaceId, navigateToSettings, getSettingsHref, isCollapsed, setSidebarWidth]
   )
+
+  const handleStartTour = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('start-product-tour'))
+  }, [])
 
   const { data: fetchedTasks = [], isLoading: tasksLoading } = useTasks(workspaceId)
 
@@ -1302,6 +1300,7 @@ export const Sidebar = memo(function Sidebar() {
                               className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
                               onClick={handleCreateWorkflow}
                               disabled={isCreatingWorkflow || !canEdit}
+                              data-tour='new-workflow'
                             >
                               <Plus className='h-[16px] w-[16px]' />
                             </Button>
@@ -1390,6 +1389,41 @@ export const Sidebar = memo(function Sidebar() {
                   !hasOverflowBottom && 'border-transparent'
                 )}
               >
+                {/* Help dropdown */}
+                <DropdownMenu>
+                  <Tooltip.Root>
+                    <DropdownMenuTrigger asChild>
+                      <Tooltip.Trigger asChild>
+                        <button
+                          type='button'
+                          data-item-id='help'
+                          className='group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]'
+                        >
+                          <HelpCircle className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                          <span className='sidebar-collapse-hide truncate font-base text-[var(--text-body)]'>
+                            Help
+                          </span>
+                        </button>
+                      </Tooltip.Trigger>
+                    </DropdownMenuTrigger>
+                    {showCollapsedContent && (
+                      <Tooltip.Content side='right'>
+                        <p>Help</p>
+                      </Tooltip.Content>
+                    )}
+                  </Tooltip.Root>
+                  <DropdownMenuContent align='start' side='top' sideOffset={4}>
+                    <DropdownMenuItem onSelect={() => setIsHelpModalOpen(true)}>
+                      <HelpCircle className='h-[14px] w-[14px]' />
+                      Report an issue
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={handleStartTour}>
+                      <Compass className='h-[14px] w-[14px]' />
+                      Take a tour
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
                 {footerItems.map((item) => (
                   <SidebarNavItem
                     key={`${item.id}-${isCollapsed}`}
