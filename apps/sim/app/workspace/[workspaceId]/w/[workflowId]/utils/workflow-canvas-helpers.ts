@@ -236,8 +236,10 @@ export function getEdgeSelectionContextId(
 ): string | null {
   const sourceNode = nodes.find((node) => node.id === edge.source)
   const targetNode = nodes.find((node) => node.id === edge.target)
-  if (sourceNode) return getNodeSelectionContextId(sourceNode, blocks)
-  if (targetNode) return getNodeSelectionContextId(targetNode, blocks)
+  const sourceContextId = sourceNode ? getNodeSelectionContextId(sourceNode, blocks) : null
+  const targetContextId = targetNode ? getNodeSelectionContextId(targetNode, blocks) : null
+  if (sourceContextId) return sourceContextId
+  if (targetContextId) return targetContextId
   return null
 }
 
