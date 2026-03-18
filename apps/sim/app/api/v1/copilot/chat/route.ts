@@ -6,6 +6,8 @@ import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
 
+export const maxDuration = 3600
+
 const logger = createLogger('CopilotHeadlessAPI')
 const DEFAULT_COPILOT_MODEL = 'claude-opus-4-5'
 

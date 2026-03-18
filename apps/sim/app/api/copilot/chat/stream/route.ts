@@ -8,9 +8,11 @@ import {
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request-helpers'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 
+export const maxDuration = 3600
+
 const logger = createLogger('CopilotChatStreamAPI')
 const POLL_INTERVAL_MS = 250
-const MAX_STREAM_MS = 10 * 60 * 1000
+const MAX_STREAM_MS = 60 * 60 * 1000
 
 function encodeEvent(event: Record<string, any>): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`)

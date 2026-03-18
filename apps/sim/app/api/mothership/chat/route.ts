@@ -22,6 +22,8 @@ import {
   getUserEntityPermissions,
 } from '@/lib/workspaces/permissions/utils'
 
+export const maxDuration = 3600
+
 const logger = createLogger('MothershipChatAPI')
 
 const FileAttachmentSchema = z.object({

@@ -31,6 +31,8 @@ import {
   getUserEntityPermissions,
 } from '@/lib/workspaces/permissions/utils'
 
+export const maxDuration = 3600
+
 const logger = createLogger('CopilotChatAPI')
 
 const FileAttachmentSchema = z.object({
