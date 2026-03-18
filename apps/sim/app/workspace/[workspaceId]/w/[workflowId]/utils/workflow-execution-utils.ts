@@ -674,61 +674,65 @@ export async function executeWorkflowWithFullLogging(
   }
 
   try {
-    await processSSEStream(response.body.getReader(), {
-      onExecutionStarted: (data) => {
-        logger.info('Execution started', { startTime: data.startTime })
+    await processSSEStream(
+      response.body.getReader(),
+      {
+        onExecutionStarted: (data) => {
+          logger.info('Execution started', { startTime: data.startTime })
+        },
+
+        onBlockStarted: blockHandlers.onBlockStarted,
+        onBlockCompleted: blockHandlers.onBlockCompleted,
+        onBlockError: blockHandlers.onBlockError,
+        onBlockChildWorkflowStarted: blockHandlers.onBlockChildWorkflowStarted,
+
+        onExecutionCompleted: (data) => {
+          setCurrentExecutionId(wfId, null)
+          executionResult = {
+            success: data.success,
+            output: data.output,
+            logs: accumulatedBlockLogs,
+            metadata: {
+              duration: data.duration,
+              startTime: data.startTime,
+              endTime: data.endTime,
+            },
+          }
+        },
+
+        onExecutionCancelled: () => {
+          setCurrentExecutionId(wfId, null)
+          executionResult = {
+            success: false,
+            output: {},
+            error: 'Execution was cancelled',
+            logs: accumulatedBlockLogs,
+          }
+        },
+
+        onExecutionError: (data) => {
+          setCurrentExecutionId(wfId, null)
+          const errorMessage = data.error || 'Execution failed'
+          executionResult = {
+            success: false,
+            output: {},
+            error: errorMessage,
+            logs: accumulatedBlockLogs,
+            metadata: { duration: data.duration },
+          }
+
+          handleExecutionErrorConsole(addConsole, cancelRunningEntries, {
+            workflowId: wfId,
+            executionId: executionIdRef.current,
+            error: errorMessage,
+            durationMs: data.duration || 0,
+            blockLogs: accumulatedBlockLogs,
+            isPreExecutionError: accumulatedBlockLogs.length === 0,
+          })
+        },
       },
-
-      onBlockStarted: blockHandlers.onBlockStarted,
-      onBlockCompleted: blockHandlers.onBlockCompleted,
-      onBlockError: blockHandlers.onBlockError,
-      onBlockChildWorkflowStarted: blockHandlers.onBlockChildWorkflowStarted,
-
-      onExecutionCompleted: (data) => {
-        setCurrentExecutionId(wfId, null)
-        executionResult = {
-          success: data.success,
-          output: data.output,
-          logs: accumulatedBlockLogs,
-          metadata: {
-            duration: data.duration,
-            startTime: data.startTime,
-            endTime: data.endTime,
-          },
-        }
-      },
-
-      onExecutionCancelled: () => {
-        setCurrentExecutionId(wfId, null)
-        executionResult = {
-          success: false,
-          output: {},
-          error: 'Execution was cancelled',
-          logs: accumulatedBlockLogs,
-        }
-      },
-
-      onExecutionError: (data) => {
-        setCurrentExecutionId(wfId, null)
-        const errorMessage = data.error || 'Execution failed'
-        executionResult = {
-          success: false,
-          output: {},
-          error: errorMessage,
-          logs: accumulatedBlockLogs,
-          metadata: { duration: data.duration },
-        }
-
-        handleExecutionErrorConsole(addConsole, cancelRunningEntries, {
-          workflowId: wfId,
-          executionId: executionIdRef.current,
-          error: errorMessage,
-          durationMs: data.duration || 0,
-          blockLogs: accumulatedBlockLogs,
-          isPreExecutionError: accumulatedBlockLogs.length === 0,
-        })
-      },
-    }, 'CopilotExecution')
+      'CopilotExecution'
+    )
   } finally {
     setCurrentExecutionId(wfId, null)
     setActiveBlocks(wfId, new Set())

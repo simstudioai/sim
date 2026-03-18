@@ -16,10 +16,10 @@ import {
 } from '@/lib/workflows/triggers/triggers'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import {
-  type BlockEventHandlerConfig,
   addHttpErrorConsoleEntry,
-  addExecutionErrorConsoleEntry as sharedAddExecutionErrorConsoleEntry,
+  type BlockEventHandlerConfig,
   createBlockEventHandlers,
+  addExecutionErrorConsoleEntry as sharedAddExecutionErrorConsoleEntry,
   handleExecutionCancelledConsole as sharedHandleExecutionCancelledConsole,
   handleExecutionErrorConsole as sharedHandleExecutionErrorConsole,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
@@ -1229,9 +1229,8 @@ export function useWorkflowExecution() {
     } else {
       if (!executor) {
         try {
-          const httpStatus = isRecord(error) && typeof error.httpStatus === 'number'
-            ? error.httpStatus
-            : undefined
+          const httpStatus =
+            isRecord(error) && typeof error.httpStatus === 'number' ? error.httpStatus : undefined
           const storeAddConsole = useTerminalConsoleStore.getState().addConsole
 
           if (httpStatus && activeWorkflowId) {
