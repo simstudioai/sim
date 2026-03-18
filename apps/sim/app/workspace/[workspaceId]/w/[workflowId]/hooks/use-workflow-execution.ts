@@ -1603,8 +1603,8 @@ export function useWorkflowExecution() {
           accumulatedBlockLogs,
           accumulatedBlockStates,
           executedBlockIds,
-          consoleMode: 'add',
-          includeStartConsoleEntry: false,
+          consoleMode: 'update',
+          includeStartConsoleEntry: true,
         })
 
         await executionStream.executeFromBlock({
