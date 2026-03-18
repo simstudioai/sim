@@ -66,17 +66,23 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
       if (!textContent || textContent.length < 1) {
         throw new Error('Document content cannot be empty')
       }
-      if (textContent.length > 1000000) {
+      const utf8Bytes = new TextEncoder().encode(textContent)
+      const contentBytes = utf8Bytes.length
+
+      if (contentBytes > 1_000_000) {
         throw new Error('Document content exceeds maximum size of 1MB')
       }
 
-      const contentBytes = new TextEncoder().encode(textContent).length
-
-      const utf8Bytes = new TextEncoder().encode(textContent)
-      const base64Content =
-        typeof Buffer !== 'undefined'
-          ? Buffer.from(textContent, 'utf8').toString('base64')
-          : btoa(String.fromCharCode(...utf8Bytes))
+      let base64Content: string
+      if (typeof Buffer !== 'undefined') {
+        base64Content = Buffer.from(textContent, 'utf8').toString('base64')
+      } else {
+        let binary = ''
+        for (let i = 0; i < utf8Bytes.length; i++) {
+          binary += String.fromCharCode(utf8Bytes[i])
+        }
+        base64Content = btoa(binary)
+      }
 
       const { filename, mimeType } = inferDocumentFileInfo(documentName)
       const dataUri = `data:${mimeType};base64,${base64Content}`
