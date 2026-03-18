@@ -3,10 +3,22 @@ import {
   getMimeTypeFromExtension as getUploadMimeType,
 } from '@/lib/uploads/utils/file-utils'
 
+const TEXT_COMPATIBLE_MIME_TYPES = new Set([
+  'text/plain',
+  'text/html',
+  'text/markdown',
+  'text/csv',
+  'application/json',
+  'application/xml',
+  'application/x-yaml',
+  'application/rtf',
+  'application/pdf',
+])
+
 /**
  * Extracts extension from a filename and returns the normalized filename and MIME type.
  * If no extension is present, appends `.txt` and uses `text/plain`.
- * Falls back to `text/plain` for unknown extensions (knowledge docs are always text content).
+ * Falls back to `text/plain` for non-text MIME types (knowledge docs are always text content).
  */
 export function inferDocumentFileInfo(documentName: string): {
   filename: string
@@ -17,7 +29,7 @@ export function inferDocumentFileInfo(documentName: string): {
     const mimeType = getUploadMimeType(ext)
     return {
       filename: documentName,
-      mimeType: mimeType === 'application/octet-stream' ? 'text/plain' : mimeType,
+      mimeType: TEXT_COMPATIBLE_MIME_TYPES.has(mimeType) ? mimeType : 'text/plain',
     }
   }
   return { filename: `${documentName}.txt`, mimeType: 'text/plain' }
