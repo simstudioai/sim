@@ -46,7 +46,7 @@ describe('MiniMax Provider', () => {
     })
 
     it('has default model set', () => {
-      expect(minimaxProvider.defaultModel).toBe('MiniMax-M2.5')
+      expect(minimaxProvider.defaultModel).toBe('MiniMax-M2.7')
     })
   })
 
