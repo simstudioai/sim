@@ -34,7 +34,24 @@ export async function GET(request: NextRequest) {
   let fontMedium: Buffer
   let fontBold: Buffer
   try {
-    const fontsDir = path.join(process.cwd(), 'app', '_styles', 'fonts', 'season')
+    const fontsDirPrimary = path.join(process.cwd(), 'app', '_styles', 'fonts', 'season')
+    const fontsDirFallback = path.join(
+      process.cwd(),
+      'apps',
+      'sim',
+      'app',
+      '_styles',
+      'fonts',
+      'season'
+    )
+
+    let fontsDir = fontsDirPrimary
+    try {
+      await fs.access(fontsDirPrimary)
+    } catch {
+      fontsDir = fontsDirFallback
+    }
+
     ;[fontMedium, fontBold] = await Promise.all([
       fs.readFile(path.join(fontsDir, 'SeasonSans-Medium.woff')),
       fs.readFile(path.join(fontsDir, 'SeasonSans-Bold.woff')),

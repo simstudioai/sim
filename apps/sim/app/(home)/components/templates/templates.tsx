@@ -1,16 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { type MotionValue, motion, useScroll, useTransform } from 'framer-motion'
+import { createLogger } from '@sim/logger'
+import { AnimatePresence, type MotionValue, motion, useScroll, useTransform } from 'framer-motion'
 import dynamic from 'next/dynamic'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Badge, ChevronDown } from '@/components/emcn'
 import { LandingWorkflowSeedStorage } from '@/lib/core/utils/browser-storage'
-
 import { cn } from '@/lib/core/utils/cn'
 import { TEMPLATE_WORKFLOWS } from '@/app/(home)/components/templates/template-workflows'
-import { createLogger } from '@sim/logger'
-import { useRouter } from 'next/navigation'
+
 const logger = createLogger('LandingTemplates')
 
 const LandingPreviewWorkflow = dynamic(
@@ -338,7 +337,7 @@ function DotGrid({ className, cols, rows, gap = 0 }: DotGridProps) {
       }}
     >
       {Array.from({ length: cols * rows }, (_, i) => (
-        <div key={i} className='h-[2px] w-[2px] rounded-full bg-[#2A2A2A]' />
+        <div key={i} className='h-[1.5px] w-[1.5px] rounded-full bg-[#2A2A2A]' />
       ))}
     </div>
   )
@@ -425,8 +424,8 @@ export default function Templates() {
 
       <div className='bg-[#1C1C1C]'>
         <DotGrid
-          className='border-[#2A2A2A] border-y bg-[#1C1C1C] p-[6px]'
-          cols={120}
+          className='overflow-hidden border-[#2A2A2A] border-y bg-[#1C1C1C] p-[6px]'
+          cols={160}
           rows={1}
           gap={6}
         />
@@ -450,7 +449,7 @@ export default function Templates() {
             </svg>
           </div>
 
-          <div className='px-[80px] pt-[100px]'>
+          <div className='px-[20px] pt-[60px] lg:px-[80px] lg:pt-[100px]'>
             <div className='flex flex-col items-start gap-[20px]'>
               <Badge
                 variant='blue'
@@ -467,12 +466,12 @@ export default function Templates() {
 
               <h2
                 id='templates-heading'
-                className='font-[430] font-season text-[40px] text-white leading-[100%] tracking-[-0.02em]'
+                className='font-[430] font-season text-[28px] text-white leading-[100%] tracking-[-0.02em] lg:text-[40px]'
               >
                 Ship your agent in minutes
               </h2>
 
-              <p className='font-[430] font-season text-[#F6F6F0]/50 text-[16px] leading-[125%] tracking-[0.02em]'>
+              <p className='font-[430] font-season text-[#F6F6F0]/50 text-[15px] leading-[150%] tracking-[0.02em] lg:text-[18px]'>
                 Pre-built templates for every use case—pick one, swap{' '}
                 <br className='hidden lg:inline' />
                 models and tools to fit your stack, and deploy.
@@ -480,94 +479,119 @@ export default function Templates() {
             </div>
           </div>
 
-          <div className='mt-[73px] flex border-[#2A2A2A] border-y'>
-            <DotGrid
-              className='w-[80px] shrink-0 overflow-hidden border-[#2A2A2A] border-r p-[6px]'
-              cols={6}
-              rows={55}
-              gap={6}
-            />
+          <div className='mt-[40px] flex border-[#2A2A2A] border-y lg:mt-[73px]'>
+            <div className='shrink-0'>
+              <div className='h-full lg:hidden'>
+                <DotGrid
+                  className='h-full w-[24px] overflow-hidden border-[#2A2A2A] border-r p-[4px]'
+                  cols={2}
+                  rows={55}
+                  gap={4}
+                />
+              </div>
+              <div className='hidden h-full lg:block'>
+                <DotGrid
+                  className='h-full w-[80px] overflow-hidden border-[#2A2A2A] border-r p-[6px]'
+                  cols={8}
+                  rows={55}
+                  gap={6}
+                />
+              </div>
+            </div>
 
-            <div className='flex min-w-0 flex-1'>
+            <div className='flex min-w-0 flex-1 flex-col lg:flex-row'>
               <div
                 role='tablist'
                 aria-label='Workflow templates'
-                className='flex w-[300px] shrink-0 flex-col border-[#2A2A2A] border-r'
+                className='flex w-full shrink-0 flex-col border-[#2A2A2A] lg:w-[300px] lg:border-r'
               >
                 {TEMPLATE_WORKFLOWS.map((workflow, index) => {
                   const isActive = index === activeIndex
-                  const depth = DEPTH_CONFIGS[workflow.id]
                   return (
-                    <button
-                      key={workflow.id}
-                      id={`template-tab-${index}`}
-                      type='button'
-                      role='tab'
-                      aria-selected={isActive}
-                      aria-controls={TEMPLATES_PANEL_ID}
-                      onClick={() => setActiveIndex(index)}
-                      className={cn(
-                        'relative text-left',
-                        isActive
-                          ? 'z-10'
-                          : 'shadow-[inset_0_-1px_0_0_#2A2A2A] last:shadow-none hover:bg-[#232323]/50'
-                      )}
-                    >
-                      <div
-                        className='pointer-events-none absolute top-[-8px] bottom-0 left-0 w-2'
-                        style={{
-                          clipPath: LEFT_WALL_CLIP,
-                          backgroundColor: hexToRgba(depth.color, 0.63),
-                          opacity: isActive ? 1 : 0,
-                          transition: isActive
-                            ? 'opacity 250ms cubic-bezier(0.2, 0, 0, 1) 50ms'
-                            : 'opacity 200ms cubic-bezier(0.4, 0, 1, 1)',
-                        }}
-                      />
-                      <div
-                        className='pointer-events-none absolute right-[-8px] bottom-0 left-2 h-2'
-                        style={{
-                          ...buildBottomWallStyle(depth),
-                          opacity: isActive ? 1 : 0,
-                          transition: isActive
-                            ? 'opacity 250ms cubic-bezier(0.2, 0, 0, 1) 50ms'
-                            : 'opacity 200ms cubic-bezier(0.4, 0, 1, 1)',
-                        }}
-                      />
-                      <div
-                        className='relative flex items-center px-[12px] py-[10px]'
-                        style={{
-                          transform: isActive ? 'translate(8px, -8px)' : 'translate(0px, 0px)',
-                          backgroundColor: isActive ? '#242424' : 'transparent',
-                          boxShadow: isActive
-                            ? 'inset 0 0 0 1.5px #3E3E3E'
-                            : 'inset 0 0 0 1.5px transparent',
-                          transition: isActive
-                            ? 'transform 350ms cubic-bezier(0.34, 1.4, 0.64, 1), background-color 250ms ease 30ms, box-shadow 250ms ease 30ms'
-                            : 'transform 300ms cubic-bezier(0.4, 0, 0.2, 1), background-color 200ms ease, box-shadow 200ms ease',
-                        }}
+                    <div key={workflow.id}>
+                      <button
+                        id={`template-tab-${index}`}
+                        type='button'
+                        role='tab'
+                        aria-selected={isActive}
+                        aria-controls={TEMPLATES_PANEL_ID}
+                        onClick={() => setActiveIndex(index)}
+                        className={cn(
+                          'relative w-full text-left',
+                          isActive
+                            ? 'z-10'
+                            : cn(
+                                'flex items-center px-[12px] py-[10px] hover:bg-[#232323]/50',
+                                index < TEMPLATE_WORKFLOWS.length - 1 &&
+                                  'shadow-[inset_0_-1px_0_0_#2A2A2A]'
+                              )
+                        )}
                       >
-                        <span
-                          className='flex-1 font-[430] font-season text-[16px]'
-                          style={{
-                            color: isActive ? '#FFFFFF' : 'rgba(246, 246, 240, 0.5)',
-                            transition: 'color 250ms ease',
-                          }}
-                        >
-                          {workflow.name}
-                        </span>
-                        <ChevronDown
-                          className='-rotate-90 h-[11px] w-[11px] shrink-0'
-                          style={{
-                            color: depth.color,
-                            opacity: isActive ? 1 : 0,
-                            transition: isActive
-                              ? 'opacity 200ms ease 150ms'
-                              : 'opacity 150ms ease',
-                          }}
-                        />
-                      </div>
-                    </button>
+                        {isActive ? (
+                          (() => {
+                            const depth = DEPTH_CONFIGS[workflow.id]
+                            return (
+                              <>
+                                <div
+                                  className='absolute top-[-8px] bottom-0 left-0 w-2'
+                                  style={{
+                                    clipPath: LEFT_WALL_CLIP,
+                                    backgroundColor: hexToRgba(depth.color, 0.63),
+                                  }}
+                                />
+                                <div
+                                  className='absolute right-[-8px] bottom-0 left-2 h-2'
+                                  style={buildBottomWallStyle(depth)}
+                                />
+                                <div className='-translate-y-2 relative flex translate-x-2 items-center bg-[#242424] px-[12px] py-[10px] shadow-[inset_0_0_0_1.5px_#3E3E3E]'>
+                                  <span className='flex-1 font-[430] font-season text-[16px] text-white'>
+                                    {workflow.name}
+                                  </span>
+                                  <ChevronDown
+                                    className='-rotate-90 h-[11px] w-[11px] shrink-0'
+                                    style={{ color: depth.color }}
+                                  />
+                                </div>
+                              </>
+                            )
+                          })()
+                        ) : (
+                          <span className='font-[430] font-season text-[#F6F6F0]/50 text-[16px]'>
+                            {workflow.name}
+                          </span>
+                        )}
+                      </button>
+
+                      <AnimatePresence>
+                        {isActive && isMobile && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+                            className='overflow-hidden'
+                          >
+                            <div className='aspect-[16/10] w-full border-[#2A2A2A] border-y bg-[#1b1b1b]'>
+                              <LandingPreviewWorkflow
+                                workflow={workflow}
+                                animate
+                                fitViewOptions={{ padding: 0.15, maxZoom: 1.3 }}
+                              />
+                            </div>
+                            <div className='p-[12px]'>
+                              <button
+                                type='button'
+                                onClick={handleUseTemplate}
+                                disabled={isPreparingTemplate}
+                                className='inline-flex h-[32px] w-full cursor-pointer items-center justify-center gap-[6px] rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] font-[430] font-season text-[14px] text-black transition-colors active:bg-[#E0E0E0]'
+                              >
+                                {isPreparingTemplate ? 'Preparing...' : 'Use template'}
+                              </button>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   )
                 })}
               </div>
@@ -586,11 +610,13 @@ export default function Templates() {
                     fitViewOptions={{ padding: 0.15, maxZoom: 1.3 }}
                   />
                 </div>
-                <Link
-                  href='/signup'
-                  className='group/cta absolute top-[16px] right-[16px] z-10 inline-flex h-[32px] items-center gap-[6px] rounded-[5px] border border-[#33C482] bg-[#33C482] px-[10px] font-[430] font-season text-[14px] text-black transition-[filter] hover:brightness-110'
+                <button
+                  type='button'
+                  onClick={handleUseTemplate}
+                  disabled={isPreparingTemplate}
+                  className='group/cta absolute top-[16px] right-[16px] z-10 inline-flex h-[32px] cursor-pointer items-center gap-[6px] rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] px-[10px] font-[430] font-season text-[14px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
                 >
-                  Use template
+                  {isPreparingTemplate ? 'Preparing...' : 'Use template'}
                   <span className='relative h-[10px] w-[10px] shrink-0'>
                     <ChevronDown className='-rotate-90 absolute inset-0 h-[10px] w-[10px] transition-opacity duration-150 group-hover/cta:opacity-0' />
                     <svg
@@ -609,16 +635,28 @@ export default function Templates() {
                       />
                     </svg>
                   </span>
-                </Link>
+                </button>
               </div>
             </div>
 
-            <DotGrid
-              className='w-[80px] shrink-0 overflow-hidden border-[#2A2A2A] border-l p-[6px]'
-              cols={6}
-              rows={55}
-              gap={6}
-            />
+            <div className='shrink-0'>
+              <div className='h-full lg:hidden'>
+                <DotGrid
+                  className='h-full w-[24px] overflow-hidden border-[#2A2A2A] border-l p-[4px]'
+                  cols={2}
+                  rows={55}
+                  gap={4}
+                />
+              </div>
+              <div className='hidden h-full lg:block'>
+                <DotGrid
+                  className='h-full w-[80px] overflow-hidden border-[#2A2A2A] border-l p-[6px]'
+                  cols={8}
+                  rows={55}
+                  gap={6}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
