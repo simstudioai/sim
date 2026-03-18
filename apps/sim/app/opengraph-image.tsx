@@ -29,7 +29,7 @@ async function loadFonts() {
 
   const [fontMedium, fontBold] = await Promise.all([
     fs.readFile(path.join(fontsDir, 'SeasonSans-Medium.woff')),
-    fs.readFile(path.join(fontsDir, 'SeasonSans-Bold.woff')),
+    fs.readFile(path.join(fontsDir, 'SeasonSans-Medium.woff')),
   ])
 
   return { fontMedium, fontBold }
