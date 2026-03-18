@@ -7,6 +7,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { AdminSkeleton } from '@/app/workspace/[workspaceId]/settings/components/admin/admin-skeleton'
 import { ApiKeysSkeleton } from '@/app/workspace/[workspaceId]/settings/components/api-keys/api-key-skeleton'
 import { BYOKSkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
+import { CopilotSkeleton } from '@/app/workspace/[workspaceId]/settings/components/copilot/copilot-skeleton'
 import { CredentialSetsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/credential-sets/credential-sets-skeleton'
 import { CredentialsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/credentials/credential-skeleton'
 import { CustomToolsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tool-skeleton'
@@ -95,6 +96,13 @@ const BYOK = dynamic(
   () => import('@/app/workspace/[workspaceId]/settings/components/byok/byok').then((m) => m.BYOK),
   { loading: () => <BYOKSkeleton /> }
 )
+const Copilot = dynamic(
+  () =>
+    import('@/app/workspace/[workspaceId]/settings/components/copilot/copilot').then(
+      (m) => m.Copilot
+    ),
+  { loading: () => <CopilotSkeleton /> }
+)
 const MCP = dynamic(
   () => import('@/app/workspace/[workspaceId]/settings/components/mcp/mcp').then((m) => m.MCP),
   { loading: () => <McpSkeleton /> }
@@ -177,6 +185,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {isBillingEnabled && effectiveSection === 'team' && <TeamManagement />}
       {effectiveSection === 'sso' && <SSO />}
       {effectiveSection === 'byok' && <BYOK />}
+      {effectiveSection === 'copilot' && <Copilot />}
       {effectiveSection === 'mcp' && <MCP initialServerId={mcpServerId} />}
       {effectiveSection === 'custom-tools' && <CustomTools />}
       {effectiveSection === 'skills' && <Skills />}

@@ -2,6 +2,7 @@ import {
   BookOpen,
   Card,
   Connections,
+  HexSimple,
   Key,
   KeySquare,
   Lock,
@@ -32,6 +33,7 @@ export type SettingsSection =
   | 'subscription'
   | 'team'
   | 'sso'
+  | 'copilot'
   | 'mcp'
   | 'custom-tools'
   | 'skills'
@@ -119,6 +121,13 @@ export const allNavigationItems: NavigationItem[] = [
     id: 'byok',
     label: 'BYOK',
     icon: KeySquare,
+    section: 'system',
+    requiresHosted: true,
+  },
+  {
+    id: 'copilot',
+    label: 'Copilot Keys',
+    icon: HexSimple,
     section: 'system',
     requiresHosted: true,
   },
