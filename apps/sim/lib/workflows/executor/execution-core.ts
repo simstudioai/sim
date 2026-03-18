@@ -179,33 +179,41 @@ async function finalizeExecutionOutcome(params: {
   const endedAt = new Date().toISOString()
 
   try {
-    if (result.status === 'cancelled') {
-      await loggingSession.safeCompleteWithCancellation({
-        endedAt,
-        totalDurationMs: totalDuration || 0,
-        traceSpans: traceSpans || [],
-      })
-      return
-    }
+    try {
+      if (result.status === 'cancelled') {
+        await loggingSession.safeCompleteWithCancellation({
+          endedAt,
+          totalDurationMs: totalDuration || 0,
+          traceSpans: traceSpans || [],
+        })
+        return
+      }
 
-    if (result.status === 'paused') {
-      await loggingSession.safeCompleteWithPause({
+      if (result.status === 'paused') {
+        await loggingSession.safeCompleteWithPause({
+          endedAt,
+          totalDurationMs: totalDuration || 0,
+          traceSpans: traceSpans || [],
+          workflowInput,
+        })
+        return
+      }
+
+      await loggingSession.safeComplete({
         endedAt,
         totalDurationMs: totalDuration || 0,
+        finalOutput: result.output || {},
         traceSpans: traceSpans || [],
         workflowInput,
+        executionState: result.executionState,
       })
-      return
+    } catch (error) {
+      logger.warn(`[${requestId}] Post-execution finalization failed`, {
+        executionId,
+        status: result.status,
+        error,
+      })
     }
-
-    await loggingSession.safeComplete({
-      endedAt,
-      totalDurationMs: totalDuration || 0,
-      finalOutput: result.output || {},
-      traceSpans: traceSpans || [],
-      workflowInput,
-      executionState: result.executionState,
-    })
   } finally {
     await clearExecutionCancellationSafely(executionId, requestId)
   }
@@ -424,16 +432,69 @@ export async function executeWorkflowCore(
       iterationContext?: IterationContext,
       childWorkflowContext?: ChildWorkflowContext
     ) => {
-      await loggingSession.onBlockComplete(blockId, blockName, blockType, output)
-      if (onBlockComplete) {
-        await onBlockComplete(
+      try {
+        await loggingSession.onBlockComplete(blockId, blockName, blockType, output)
+        if (onBlockComplete) {
+          void onBlockComplete(
+            blockId,
+            blockName,
+            blockType,
+            output,
+            iterationContext,
+            childWorkflowContext
+          ).catch((error) => {
+            logger.warn(`[${requestId}] Block completion callback failed`, {
+              executionId,
+              blockId,
+              blockType,
+              error,
+            })
+          })
+        }
+      } catch (error) {
+        logger.warn(`[${requestId}] Block completion persistence failed`, {
+          executionId,
           blockId,
-          blockName,
           blockType,
-          output,
-          iterationContext,
-          childWorkflowContext
-        )
+          error,
+        })
+      }
+    }
+
+    const wrappedOnBlockStart = async (
+      blockId: string,
+      blockName: string,
+      blockType: string,
+      executionOrder: number,
+      iterationContext?: IterationContext,
+      childWorkflowContext?: ChildWorkflowContext
+    ) => {
+      try {
+        await loggingSession.onBlockStart(blockId, blockName, blockType, new Date().toISOString())
+        if (onBlockStart) {
+          void onBlockStart(
+            blockId,
+            blockName,
+            blockType,
+            executionOrder,
+            iterationContext,
+            childWorkflowContext
+          ).catch((error) => {
+            logger.warn(`[${requestId}] Block start callback failed`, {
+              executionId,
+              blockId,
+              blockType,
+              error,
+            })
+          })
+        }
+      } catch (error) {
+        logger.warn(`[${requestId}] Block start persistence failed`, {
+          executionId,
+          blockId,
+          blockType,
+          error,
+        })
       }
     }
 
@@ -445,7 +506,7 @@ export async function executeWorkflowCore(
       userId,
       isDeployedContext: !metadata.isClientSession,
       enforceCredentialAccess: metadata.enforceCredentialAccess ?? false,
-      onBlockStart,
+      onBlockStart: wrappedOnBlockStart,
       onBlockComplete: wrappedOnBlockComplete,
       onStream,
       resumeFromSnapshot,

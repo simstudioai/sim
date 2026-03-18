@@ -16,6 +16,8 @@ const {
   buildTraceSpansMock,
   serializeWorkflowMock,
   executorExecuteMock,
+  onBlockStartPersistenceMock,
+  executorConstructorMock,
 } = vi.hoisted(() => ({
   loadWorkflowFromNormalizedTablesMock: vi.fn(),
   loadDeployedWorkflowStateMock: vi.fn(),
@@ -32,6 +34,8 @@ const {
   buildTraceSpansMock: vi.fn(),
   serializeWorkflowMock: vi.fn(),
   executorExecuteMock: vi.fn(),
+  onBlockStartPersistenceMock: vi.fn(),
+  executorConstructorMock: vi.fn(),
 }))
 
 vi.mock('@sim/logger', () => ({
@@ -79,10 +83,13 @@ vi.mock('@/lib/workflows/utils', () => ({
 }))
 
 vi.mock('@/executor', () => ({
-  Executor: vi.fn().mockImplementation(() => ({
-    execute: executorExecuteMock,
-    executeFromBlock: executorExecuteMock,
-  })),
+  Executor: vi.fn().mockImplementation((args) => {
+    executorConstructorMock(args)
+    return {
+      execute: executorExecuteMock,
+      executeFromBlock: executorExecuteMock,
+    }
+  }),
 }))
 
 vi.mock('@/serializer', () => ({
@@ -105,6 +112,8 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     safeCompleteWithCancellation: safeCompleteWithCancellationMock,
     safeCompleteWithPause: safeCompleteWithPauseMock,
     hasCompleted: hasCompletedMock,
+    onBlockStart: onBlockStartPersistenceMock,
+    onBlockComplete: vi.fn(),
     setPostExecutionPromise: vi.fn(),
     waitForPostExecution: vi.fn().mockResolvedValue(undefined),
   }
@@ -176,8 +185,70 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     safeCompleteWithCancellationMock.mockResolvedValue(undefined)
     safeCompleteWithPauseMock.mockResolvedValue(undefined)
     hasCompletedMock.mockReturnValue(true)
+    onBlockStartPersistenceMock.mockResolvedValue(undefined)
     updateWorkflowRunCountsMock.mockResolvedValue(undefined)
     clearExecutionCancellationMock.mockResolvedValue(undefined)
+  })
+
+  it('routes onBlockStart through logging session persistence path', async () => {
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {
+        onBlockStart: async (blockId) => {
+          expect(blockId).toBe('block-1')
+        },
+      },
+      loggingSession: loggingSession as any,
+    })
+
+    const contextExtensions = executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions
+    await contextExtensions.onBlockStart('block-1', 'Fetch', 'api', 1)
+
+    expect(onBlockStartPersistenceMock).toHaveBeenCalledWith(
+      'block-1',
+      'Fetch',
+      'api',
+      expect.any(String)
+    )
+  })
+
+  it('does not await user block start callback after persistence completes', async () => {
+    let releaseCallback: (() => void) | undefined
+    const callbackPromise = new Promise<void>((resolve) => {
+      releaseCallback = resolve
+    })
+
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {
+        onBlockStart: vi.fn(() => callbackPromise),
+      },
+      loggingSession: loggingSession as any,
+    })
+
+    const contextExtensions = executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions
+
+    await expect(
+      contextExtensions.onBlockStart('block-1', 'Fetch', 'api', 1)
+    ).resolves.toBeUndefined()
+
+    releaseCallback?.()
   })
 
   it('awaits terminal completion before updating run counts and returning', async () => {
@@ -222,7 +293,57 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     ])
   })
 
-  it('clears cancellation even when success finalization throws', async () => {
+  it('awaits wrapped lifecycle persistence before terminal finalization returns', async () => {
+    let releaseBlockStart: (() => void) | undefined
+    const blockStartPromise = new Promise<void>((resolve) => {
+      releaseBlockStart = resolve
+    })
+    const callOrder: string[] = []
+
+    onBlockStartPersistenceMock.mockImplementation(async () => {
+      callOrder.push('persist:start')
+      await blockStartPromise
+      callOrder.push('persist:end')
+    })
+
+    safeCompleteMock.mockImplementation(async () => {
+      callOrder.push('safeComplete')
+    })
+
+    executorExecuteMock.mockImplementation(async () => {
+      const contextExtensions = executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions
+      const startLifecycle = contextExtensions.onBlockStart('block-1', 'Fetch', 'api', 1)
+      await Promise.resolve()
+      callOrder.push('executor:before-release')
+      releaseBlockStart?.()
+      await startLifecycle
+      callOrder.push('executor:after-start')
+
+      return {
+        success: true,
+        status: 'completed',
+        output: { done: true },
+        logs: [],
+        metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+      }
+    })
+
+    await executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    expect(callOrder).toEqual([
+      'persist:start',
+      'executor:before-release',
+      'persist:end',
+      'executor:after-start',
+      'safeComplete',
+    ])
+  })
+
+  it('preserves successful execution when success finalization throws', async () => {
     executorExecuteMock.mockResolvedValue({
       success: true,
       status: 'completed',
@@ -244,7 +365,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
 
     expect(result.status).toBe('completed')
     expect(clearExecutionCancellationMock).toHaveBeenCalledWith('execution-1')
-    expect(updateWorkflowRunCountsMock).not.toHaveBeenCalled()
+    expect(updateWorkflowRunCountsMock).toHaveBeenCalledWith('workflow-1')
   })
 
   it('routes cancelled executions through safeCompleteWithCancellation', async () => {
@@ -302,6 +423,61 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     expect(safeCompleteMock).not.toHaveBeenCalled()
     expect(safeCompleteWithCancellationMock).not.toHaveBeenCalled()
     expect(updateWorkflowRunCountsMock).not.toHaveBeenCalled()
+  })
+
+  it('swallows wrapped block start callback failures without breaking execution', async () => {
+    onBlockStartPersistenceMock.mockRejectedValue(new Error('start persistence failed'))
+
+    executorExecuteMock.mockImplementation(async () => {
+      const contextExtensions = executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions
+      await contextExtensions.onBlockStart('block-1', 'Fetch', 'api', 1)
+
+      return {
+        success: true,
+        status: 'completed',
+        output: { done: true },
+        logs: [],
+        metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+      }
+    })
+
+    const result = await executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    expect(result.status).toBe('completed')
+    expect(safeCompleteMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('swallows wrapped block complete callback failures without blocking completion', async () => {
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {
+        onBlockComplete: vi.fn().mockRejectedValue(new Error('complete callback failed')),
+      },
+      loggingSession: loggingSession as any,
+    })
+
+    const contextExtensions = executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions
+
+    await expect(
+      contextExtensions.onBlockComplete('block-1', 'Fetch', 'api', {
+        output: { ok: true },
+        executionTime: 1,
+        startedAt: 'start',
+        endedAt: 'end',
+      })
+    ).resolves.toBeUndefined()
   })
 
   it('finalizes errors before rethrowing and marks them as core-finalized', async () => {
@@ -445,7 +621,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     expect(wasExecutionFinalizedByCore('engine failed', 'execution-a')).toBe(true)
   })
 
-  it('logs error without rejecting when success finalization rejects', async () => {
+  it('does not replace a successful outcome when success finalization rejects', async () => {
     executorExecuteMock.mockResolvedValue({
       success: true,
       status: 'completed',
@@ -464,7 +640,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
 
     await loggingSession.setPostExecutionPromise.mock.calls[0][0]
 
-    expect(result.status).toBe('completed')
+    expect(result).toMatchObject({ status: 'completed', success: true })
     expect(clearExecutionCancellationMock).toHaveBeenCalledWith('execution-1')
     expect(safeCompleteWithErrorMock).not.toHaveBeenCalled()
   })
