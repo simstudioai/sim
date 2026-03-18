@@ -11,14 +11,12 @@ const TEXT_COMPATIBLE_MIME_TYPES = new Set([
   'application/json',
   'application/xml',
   'application/x-yaml',
-  'application/rtf',
-  'application/pdf',
 ])
 
 /**
  * Extracts extension from a filename and returns the normalized filename and MIME type.
- * If no extension is present, appends `.txt` and uses `text/plain`.
- * Falls back to `text/plain` for non-text MIME types (knowledge docs are always text content).
+ * If the extension maps to a recognized text-compatible MIME type, it is preserved.
+ * Otherwise, the filename is normalized to `.txt` with `text/plain`.
  */
 export function inferDocumentFileInfo(documentName: string): {
   filename: string
@@ -27,12 +25,12 @@ export function inferDocumentFileInfo(documentName: string): {
   const ext = getFileExtension(documentName)
   if (ext) {
     const mimeType = getUploadMimeType(ext)
-    return {
-      filename: documentName,
-      mimeType: TEXT_COMPATIBLE_MIME_TYPES.has(mimeType) ? mimeType : 'text/plain',
+    if (TEXT_COMPATIBLE_MIME_TYPES.has(mimeType)) {
+      return { filename: documentName, mimeType }
     }
   }
-  return { filename: `${documentName}.txt`, mimeType: 'text/plain' }
+  const base = ext ? documentName.slice(0, documentName.lastIndexOf('.')) : documentName
+  return { filename: `${base}.txt`, mimeType: 'text/plain' }
 }
 
 export interface KnowledgeSearchResult {
