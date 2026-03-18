@@ -698,7 +698,6 @@ const SERVER_TOOLS = new Set<string>([
   'edit_workflow',
   'get_workflow_logs',
   'search_documentation',
-  'search_online',
   'set_environment_variables',
   'make_api_request',
   'knowledge_base',
