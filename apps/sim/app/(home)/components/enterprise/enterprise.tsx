@@ -411,7 +411,7 @@ function TrustStrip() {
 export default function Enterprise() {
   return (
     <section id='enterprise' aria-labelledby='enterprise-heading' className='bg-[#F6F6F6]'>
-      <div className='px-4 pt-[60px] pb-[40px] sm:px-8 sm:pt-[80px] md:px-[80px] md:pt-[100px]'>
+      <div className='px-4 pt-[60px] pb-[40px] sm:px-8 sm:pt-[80px] sm:pb-0 md:px-[80px] md:pt-[100px]'>
         <div className='flex flex-col items-start gap-3 sm:gap-4 md:gap-[20px]'>
           <Badge
             variant='blue'
