@@ -257,6 +257,15 @@ export function TableOfContents({ headings }: TableOfContentsProps) {
     mass: 0.8,
   })
 
+  useEffect(() => {
+    return () => {
+      document.body.removeAttribute('data-toc-rail-hover')
+
+      const nav = navRef.current
+      if (nav) delete nav.dataset.railHover
+    }
+  }, [])
+
   const registerLine = useCallback((id: string, node: HTMLDivElement | null) => {
     if (node) {
       lineRefs.current.set(id, node)

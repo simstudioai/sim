@@ -5,8 +5,8 @@ import { AnimatePresence, type MotionValue, motion, useScroll, useTransform } fr
 import Image from 'next/image'
 import Link from 'next/link'
 import { Badge, ChevronDown } from '@/components/emcn'
-import { FeaturesPreview } from '@/app/(home)/components/features/components/features-preview'
 import { hexToRgba } from '@/lib/core/utils/formatting'
+import { FeaturesPreview } from '@/app/(home)/components/features/components/features-preview'
 
 const FEATURE_TABS = [
   {

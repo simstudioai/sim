@@ -8,8 +8,8 @@ import { useRouter } from 'next/navigation'
 import { Badge, ChevronDown } from '@/components/emcn'
 import { LandingWorkflowSeedStorage } from '@/lib/core/utils/browser-storage'
 import { cn } from '@/lib/core/utils/cn'
-import { TEMPLATE_WORKFLOWS } from '@/app/(home)/components/templates/template-workflows'
 import { hexToRgba } from '@/lib/core/utils/formatting'
+import { TEMPLATE_WORKFLOWS } from '@/app/(home)/components/templates/template-workflows'
 
 const logger = createLogger('LandingTemplates')
 
