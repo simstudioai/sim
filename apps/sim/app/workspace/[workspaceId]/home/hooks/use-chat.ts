@@ -527,6 +527,7 @@ export function useChat(
       const toolArgsMap = new Map<string, Record<string, unknown>>()
       const clientExecutionStarted = new Set<string>()
       let activeSubagent: string | undefined
+      let activeCompactionId: string | undefined
       let runningText = ''
       let lastContentSource: 'main' | 'subagent' | null = null
       let streamRequestId: string | undefined
@@ -851,6 +852,44 @@ export function useChat(
                 )
                 onResourceEventRef.current?.()
               }
+              break
+            }
+            case 'context_compaction_start': {
+              const compactionId = `compaction_${Date.now()}`
+              activeCompactionId = compactionId
+              toolMap.set(compactionId, blocks.length)
+              blocks.push({
+                type: 'tool_call',
+                toolCall: {
+                  id: compactionId,
+                  name: 'context_compaction',
+                  status: 'executing',
+                  displayTitle: 'Compacting context...',
+                },
+              })
+              flush()
+              break
+            }
+            case 'context_compaction': {
+              const compactionId = activeCompactionId || `compaction_${Date.now()}`
+              activeCompactionId = undefined
+              const idx = toolMap.get(compactionId)
+              if (idx !== undefined && blocks[idx]?.toolCall) {
+                blocks[idx].toolCall!.status = 'success'
+                blocks[idx].toolCall!.displayTitle = 'Compacted context'
+              } else {
+                toolMap.set(compactionId, blocks.length)
+                blocks.push({
+                  type: 'tool_call',
+                  toolCall: {
+                    id: compactionId,
+                    name: 'context_compaction',
+                    status: 'success',
+                    displayTitle: 'Compacted context',
+                  },
+                })
+              }
+              flush()
               break
             }
             case 'tool_error': {

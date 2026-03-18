@@ -2321,8 +2321,19 @@ const META_read: ToolMetadata = {
   },
 }
 
+const META_context_compaction: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Compacting context', icon: Sparkles },
+    [ClientToolCallState.pending]: { text: 'Compacting context', icon: Sparkles },
+    [ClientToolCallState.executing]: { text: 'Compacting context', icon: Sparkles },
+    [ClientToolCallState.success]: { text: 'Compacted context', icon: Sparkles },
+    [ClientToolCallState.error]: { text: 'Failed to compact context', icon: XCircle },
+  },
+}
+
 const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   auth: META_auth,
+  context_compaction: META_context_compaction,
   check_deployment_status: META_check_deployment_status,
   checkoff_todo: META_checkoff_todo,
   crawl_website: META_crawl_website,
