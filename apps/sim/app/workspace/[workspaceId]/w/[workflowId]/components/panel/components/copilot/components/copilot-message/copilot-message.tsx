@@ -3,7 +3,7 @@
 import { type FC, memo, useCallback, useMemo, useRef, useState } from 'react'
 import { RotateCcw } from 'lucide-react'
 import { Button } from '@/components/emcn'
-import { MessageActions } from '@/app/workspace/[workspaceId]/home/components/message-actions'
+import { MessageActions } from '@/app/workspace/[workspaceId]/components'
 import {
   OptionsSelector,
   parseSpecialTags,
@@ -413,7 +413,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           className={`group/msg relative w-full max-w-full flex-none overflow-hidden [max-width:var(--panel-max-width)] ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
           style={{ '--panel-max-width': `${panelWidth - 16}px` } as React.CSSProperties}
         >
-          {!isStreaming && message.content && (
+          {!isStreaming && (message.content || message.contentBlocks?.length) && (
             <div className='absolute right-0 bottom-0 z-10'>
               <MessageActions content={message.content} requestId={message.requestId} />
             </div>

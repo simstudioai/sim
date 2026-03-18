@@ -141,6 +141,10 @@ export function serializeMessagesForDB(
         timestamp,
       }
 
+      if (msg.requestId) {
+        serialized.requestId = msg.requestId
+      }
+
       if (Array.isArray(msg.contentBlocks) && msg.contentBlocks.length > 0) {
         serialized.contentBlocks = deepClone(msg.contentBlocks)
       }

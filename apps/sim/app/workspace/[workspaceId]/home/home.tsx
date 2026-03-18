@@ -13,11 +13,11 @@ import {
   LandingWorkflowSeedStorage,
 } from '@/lib/core/utils/browser-storage'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
+import { MessageActions } from '@/app/workspace/[workspaceId]/components'
 import { useChatHistory, useMarkTaskRead } from '@/hooks/queries/tasks'
 import type { ChatContext } from '@/stores/panel'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import {
-  MessageActions,
   MessageContent,
   MothershipView,
   QueuedMessages,

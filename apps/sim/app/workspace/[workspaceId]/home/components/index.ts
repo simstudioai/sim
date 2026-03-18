@@ -1,4 +1,3 @@
-export { MessageActions } from './message-actions'
 export { MessageContent } from './message-content'
 export { MothershipView } from './mothership-view'
 export { QueuedMessages } from './queued-messages'

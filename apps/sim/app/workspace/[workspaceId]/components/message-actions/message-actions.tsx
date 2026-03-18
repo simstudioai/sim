@@ -7,7 +7,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  Tooltip,
 } from '@/components/emcn'
 
 interface MessageActionsProps {
@@ -46,21 +45,16 @@ export function MessageActions({ content, requestId }: MessageActionsProps) {
 
   return (
     <DropdownMenu modal={false}>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <DropdownMenuTrigger asChild>
-            <button
-              type='button'
-              aria-label='More options'
-              className='flex h-5 w-5 items-center justify-center rounded-sm text-[var(--text-icon)] opacity-0 transition-colors transition-opacity hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)] focus-visible:opacity-100 focus-visible:outline-none group-hover/msg:opacity-100 data-[state=open]:opacity-100'
-              onClick={(event) => event.stopPropagation()}
-            >
-              <Ellipsis className='h-3 w-3' strokeWidth={2} />
-            </button>
-          </DropdownMenuTrigger>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='top'>More options</Tooltip.Content>
-      </Tooltip.Root>
+      <DropdownMenuTrigger asChild>
+        <button
+          type='button'
+          aria-label='More options'
+          className='flex h-5 w-5 items-center justify-center rounded-sm text-[var(--text-icon)] opacity-0 transition-colors transition-opacity hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)] focus-visible:opacity-100 focus-visible:outline-none group-hover/msg:opacity-100 data-[state=open]:opacity-100'
+          onClick={(event) => event.stopPropagation()}
+        >
+          <Ellipsis className='h-3 w-3' strokeWidth={2} />
+        </button>
+      </DropdownMenuTrigger>
       <DropdownMenuContent align='end' side='top' sideOffset={4}>
         <DropdownMenuItem
           disabled={!content}
