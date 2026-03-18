@@ -142,6 +142,7 @@ function mapStoredMessage(msg: TaskStoredMessage): ChatMessage {
     id: msg.id,
     role: msg.role,
     content: msg.content,
+    ...(msg.requestId ? { requestId: msg.requestId } : {}),
   }
 
   const hasContentBlocks = Array.isArray(msg.contentBlocks) && msg.contentBlocks.length > 0
