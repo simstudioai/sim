@@ -1,6 +1,7 @@
-import type {
-  KnowledgeUpsertDocumentParams,
-  KnowledgeUpsertDocumentResponse,
+import {
+  inferDocumentFileInfo,
+  type KnowledgeUpsertDocumentParams,
+  type KnowledgeUpsertDocumentResponse,
 } from '@/tools/knowledge/types'
 import { enrichKBTagsSchema } from '@/tools/schema-enrichers'
 import { formatDocumentTagsForAPI, parseDocumentTags } from '@/tools/shared/tags'
@@ -94,18 +95,17 @@ export const knowledgeUpsertDocumentTool: ToolConfig<
         base64Content = btoa(binary)
       }
 
-      const dataUri = `data:text/plain;base64,${base64Content}`
+      const { filename, mimeType } = inferDocumentFileInfo(documentName)
+      const dataUri = `data:${mimeType};base64,${base64Content}`
 
       const parsedTags = parseDocumentTags(params.documentTags)
       const tagData = formatDocumentTagsForAPI(parsedTags)
-
-      const filename = documentName.endsWith('.txt') ? documentName : `${documentName}.txt`
 
       const requestBody: Record<string, unknown> = {
         filename,
         fileUrl: dataUri,
         fileSize: contentBytes,
-        mimeType: 'text/plain',
+        mimeType,
         ...tagData,
         processingOptions: {
           chunkSize: 1024,

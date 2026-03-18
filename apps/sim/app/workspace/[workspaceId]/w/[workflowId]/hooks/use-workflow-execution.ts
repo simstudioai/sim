@@ -16,8 +16,12 @@ import {
 } from '@/lib/workflows/triggers/triggers'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import {
+  addHttpErrorConsoleEntry,
   type BlockEventHandlerConfig,
   createBlockEventHandlers,
+  addExecutionErrorConsoleEntry as sharedAddExecutionErrorConsoleEntry,
+  handleExecutionCancelledConsole as sharedHandleExecutionCancelledConsole,
+  handleExecutionErrorConsole as sharedHandleExecutionErrorConsole,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { getBlock } from '@/blocks'
 import type { SerializableExecutionState } from '@/executor/execution/types'
@@ -159,99 +163,6 @@ export function useWorkflowExecution() {
     setActiveBlocks,
   ])
 
-  /**
-   * Builds timing fields for execution-level console entries.
-   */
-  const buildExecutionTiming = useCallback((durationMs?: number) => {
-    const normalizedDuration = durationMs || 0
-    return {
-      durationMs: normalizedDuration,
-      startedAt: new Date(Date.now() - normalizedDuration).toISOString(),
-      endedAt: new Date().toISOString(),
-    }
-  }, [])
-
-  /**
-   * Adds an execution-level error entry to the console when appropriate.
-   */
-  const addExecutionErrorConsoleEntry = useCallback(
-    (params: {
-      workflowId?: string
-      executionId?: string
-      error?: string
-      durationMs?: number
-      blockLogs: BlockLog[]
-      isPreExecutionError?: boolean
-    }) => {
-      if (!params.workflowId) return
-
-      const hasBlockError = params.blockLogs.some((log) => log.error)
-      const isPreExecutionError = params.isPreExecutionError ?? false
-      if (!isPreExecutionError && hasBlockError) {
-        return
-      }
-
-      const errorMessage = params.error || 'Execution failed'
-      const isTimeout = errorMessage.toLowerCase().includes('timed out')
-      const timing = buildExecutionTiming(params.durationMs)
-
-      addConsole({
-        input: {},
-        output: {},
-        success: false,
-        error: errorMessage,
-        durationMs: timing.durationMs,
-        startedAt: timing.startedAt,
-        executionOrder: isPreExecutionError ? 0 : Number.MAX_SAFE_INTEGER,
-        endedAt: timing.endedAt,
-        workflowId: params.workflowId,
-        blockId: isPreExecutionError
-          ? 'validation'
-          : isTimeout
-            ? 'timeout-error'
-            : 'execution-error',
-        executionId: params.executionId,
-        blockName: isPreExecutionError
-          ? 'Workflow Validation'
-          : isTimeout
-            ? 'Timeout Error'
-            : 'Execution Error',
-        blockType: isPreExecutionError ? 'validation' : 'error',
-      })
-    },
-    [addConsole, buildExecutionTiming]
-  )
-
-  /**
-   * Adds an execution-level cancellation entry to the console.
-   */
-  const addExecutionCancelledConsoleEntry = useCallback(
-    (params: { workflowId?: string; executionId?: string; durationMs?: number }) => {
-      if (!params.workflowId) return
-
-      const timing = buildExecutionTiming(params.durationMs)
-      addConsole({
-        input: {},
-        output: {},
-        success: false,
-        error: 'Execution was cancelled',
-        durationMs: timing.durationMs,
-        startedAt: timing.startedAt,
-        executionOrder: Number.MAX_SAFE_INTEGER,
-        endedAt: timing.endedAt,
-        workflowId: params.workflowId,
-        blockId: 'cancelled',
-        executionId: params.executionId,
-        blockName: 'Execution Cancelled',
-        blockType: 'cancelled',
-      })
-    },
-    [addConsole, buildExecutionTiming]
-  )
-
-  /**
-   * Handles workflow-level execution errors for console output.
-   */
   const handleExecutionErrorConsole = useCallback(
     (params: {
       workflowId?: string
@@ -261,25 +172,24 @@ export function useWorkflowExecution() {
       blockLogs: BlockLog[]
       isPreExecutionError?: boolean
     }) => {
-      if (params.workflowId) {
-        cancelRunningEntries(params.workflowId)
-      }
-      addExecutionErrorConsoleEntry(params)
+      if (!params.workflowId) return
+      sharedHandleExecutionErrorConsole(addConsole, cancelRunningEntries, {
+        ...params,
+        workflowId: params.workflowId,
+      })
     },
-    [addExecutionErrorConsoleEntry, cancelRunningEntries]
+    [addConsole, cancelRunningEntries]
   )
 
-  /**
-   * Handles workflow-level execution cancellations for console output.
-   */
   const handleExecutionCancelledConsole = useCallback(
     (params: { workflowId?: string; executionId?: string; durationMs?: number }) => {
-      if (params.workflowId) {
-        cancelRunningEntries(params.workflowId)
-      }
-      addExecutionCancelledConsoleEntry(params)
+      if (!params.workflowId) return
+      sharedHandleExecutionCancelledConsole(addConsole, cancelRunningEntries, {
+        ...params,
+        workflowId: params.workflowId,
+      })
     },
-    [addExecutionCancelledConsoleEntry, cancelRunningEntries]
+    [addConsole, cancelRunningEntries]
   )
 
   const buildBlockEventHandlers = useCallback(
@@ -1319,31 +1229,42 @@ export function useWorkflowExecution() {
     } else {
       if (!executor) {
         try {
-          let blockId = 'serialization'
-          let blockName = 'Workflow'
-          let blockType = 'serializer'
-          if (error instanceof WorkflowValidationError) {
-            blockId = error.blockId || blockId
-            blockName = error.blockName || blockName
-            blockType = error.blockType || blockType
-          }
+          const httpStatus =
+            isRecord(error) && typeof error.httpStatus === 'number' ? error.httpStatus : undefined
+          const storeAddConsole = useTerminalConsoleStore.getState().addConsole
 
-          // Use MAX_SAFE_INTEGER so execution errors appear at the end of the log
-          useTerminalConsoleStore.getState().addConsole({
-            input: {},
-            output: {},
-            success: false,
-            error: normalizedMessage,
-            durationMs: 0,
-            startedAt: new Date().toISOString(),
-            executionOrder: Number.MAX_SAFE_INTEGER,
-            endedAt: new Date().toISOString(),
-            workflowId: activeWorkflowId || '',
-            blockId,
-            executionId: options?.executionId,
-            blockName,
-            blockType,
-          })
+          if (httpStatus && activeWorkflowId) {
+            addHttpErrorConsoleEntry(storeAddConsole, {
+              workflowId: activeWorkflowId,
+              executionId: options?.executionId,
+              error: normalizedMessage,
+              httpStatus,
+            })
+          } else if (error instanceof WorkflowValidationError) {
+            storeAddConsole({
+              input: {},
+              output: {},
+              success: false,
+              error: normalizedMessage,
+              durationMs: 0,
+              startedAt: new Date().toISOString(),
+              executionOrder: Number.MAX_SAFE_INTEGER,
+              endedAt: new Date().toISOString(),
+              workflowId: activeWorkflowId || '',
+              blockId: error.blockId || 'serialization',
+              executionId: options?.executionId,
+              blockName: error.blockName || 'Workflow',
+              blockType: error.blockType || 'serializer',
+            })
+          } else {
+            sharedAddExecutionErrorConsoleEntry(storeAddConsole, {
+              workflowId: activeWorkflowId || '',
+              executionId: options?.executionId,
+              error: normalizedMessage,
+              blockLogs: [],
+              isPreExecutionError: true,
+            })
+          }
         } catch {}
       }
 
@@ -1681,8 +1602,8 @@ export function useWorkflowExecution() {
           accumulatedBlockLogs,
           accumulatedBlockStates,
           executedBlockIds,
-          consoleMode: 'add',
-          includeStartConsoleEntry: false,
+          consoleMode: 'update',
+          includeStartConsoleEntry: true,
         })
 
         await executionStream.executeFromBlock({
