@@ -227,6 +227,10 @@
     "next": "16.1.6",
     "@next/env": "16.1.6",
     "drizzle-orm": "^0.44.5",
-    "postgres": "^3.4.5"
+    "postgres": "^3.4.5",
+    "react-floater": {
+      "react": "$react",
+      "react-dom": "$react-dom"
+    }
   }
 }

@@ -920,12 +920,3 @@ input[type="search"]::-ms-clear {
 .react-flow__node[data-parent-node-id] .react-flow__handle {
   z-index: 30;
 }
-
-.__floater__arrow > span > svg {
-  fill: #30d158 !important;
-}
-
-.__floater__arrow > span > svg > path {
-  fill: #30d158 !important;
-}
-
