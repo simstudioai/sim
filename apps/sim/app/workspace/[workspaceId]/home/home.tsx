@@ -26,7 +26,7 @@ import {
   UserMessageContent,
 } from './components'
 import { PendingTagIndicator } from './components/message-content/components/special-tags'
-import { useAutoScroll, useChat } from './hooks'
+import { useAutoScroll, useChat, useMothershipResize } from './hooks'
 import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
 
 const logger = createLogger('Home')
@@ -138,26 +138,41 @@ export function Home({ chatId }: HomeProps = {}) {
   useChatHistory(chatId)
   const { mutate: markRead } = useMarkTaskRead(workspaceId)
 
+  const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize()
+
   const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
   const [isResourceAnimatingIn, setIsResourceAnimatingIn] = useState(false)
   const [skipResourceTransition, setSkipResourceTransition] = useState(false)
   const isResourceCollapsedRef = useRef(isResourceCollapsed)
   isResourceCollapsedRef.current = isResourceCollapsed
 
-  const collapseResource = useCallback(() => setIsResourceCollapsed(true), [])
+  const collapseResource = useCallback(() => {
+    clearWidth()
+    setIsResourceCollapsed(true)
+  }, [clearWidth])
+  const animatingInTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const startAnimatingIn = useCallback(() => {
+    if (animatingInTimerRef.current) clearTimeout(animatingInTimerRef.current)
+    setIsResourceAnimatingIn(true)
+    animatingInTimerRef.current = setTimeout(() => {
+      setIsResourceAnimatingIn(false)
+      animatingInTimerRef.current = null
+    }, 400)
+  }, [])
+
   const expandResource = useCallback(() => {
     setIsResourceCollapsed(false)
-    setIsResourceAnimatingIn(true)
-  }, [])
+    startAnimatingIn()
+  }, [startAnimatingIn])
 
   const handleResourceEvent = useCallback(() => {
     if (isResourceCollapsedRef.current) {
       const { isCollapsed, toggleCollapsed } = useSidebarStore.getState()
       if (!isCollapsed) toggleCollapsed()
       setIsResourceCollapsed(false)
-      setIsResourceAnimatingIn(true)
+      startAnimatingIn()
     }
-  }, [])
+  }, [startAnimatingIn])
 
   const {
     messages,
@@ -178,7 +193,14 @@ export function Home({ chatId }: HomeProps = {}) {
   } = useChat(workspaceId, chatId, { onResourceEvent: handleResourceEvent })
 
   const [editingInputValue, setEditingInputValue] = useState('')
+  const [prevChatId, setPrevChatId] = useState(chatId)
   const clearEditingValue = useCallback(() => setEditingInputValue(''), [])
+
+  // Clear editing value when navigating to a different chat (guarded render-phase update)
+  if (chatId !== prevChatId) {
+    setPrevChatId(chatId)
+    setEditingInputValue('')
+  }
 
   const handleEditQueuedMessage = useCallback(
     (id: string) => {
@@ -189,10 +211,6 @@ export function Home({ chatId }: HomeProps = {}) {
     },
     [editQueuedMessage]
   )
-
-  useEffect(() => {
-    setEditingInputValue('')
-  }, [chatId])
 
   useEffect(() => {
     wasSendingRef.current = false
@@ -207,23 +225,12 @@ export function Home({ chatId }: HomeProps = {}) {
   }, [isSending, resolvedChatId, markRead])
 
   useEffect(() => {
-    if (!isResourceAnimatingIn) return
-    const timer = setTimeout(() => setIsResourceAnimatingIn(false), 400)
-    return () => clearTimeout(timer)
-  }, [isResourceAnimatingIn])
-
-  useEffect(() => {
-    if (resources.length > 0 && isResourceCollapsedRef.current) {
-      setSkipResourceTransition(true)
-      setIsResourceCollapsed(false)
-    }
-  }, [resources])
-
-  useEffect(() => {
-    if (!skipResourceTransition) return
+    if (!(resources.length > 0 && isResourceCollapsedRef.current)) return
+    setIsResourceCollapsed(false)
+    setSkipResourceTransition(true)
     const id = requestAnimationFrame(() => setSkipResourceTransition(false))
     return () => cancelAnimationFrame(id)
-  }, [skipResourceTransition])
+  }, [resources])
 
   const handleSubmit = useCallback(
     (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
@@ -359,7 +366,7 @@ export function Home({ chatId }: HomeProps = {}) {
 
   return (
     <div className='relative flex h-full bg-[var(--bg)]'>
-      <div className='flex h-full min-w-0 flex-1 flex-col'>
+      <div className='flex h-full min-w-[320px] flex-1 flex-col'>
         <div
           ref={scrollContainerRef}
           className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-8 [scrollbar-gutter:stable]'
@@ -458,7 +465,21 @@ export function Home({ chatId }: HomeProps = {}) {
         </div>
       </div>
 
+      {/* Resize handle — zero-width flex child whose absolute child straddles the border */}
+      {!isResourceCollapsed && (
+        <div className='relative z-20 w-0 flex-none'>
+          <div
+            className='absolute inset-y-0 left-[-4px] w-[8px] cursor-ew-resize'
+            role='separator'
+            aria-orientation='vertical'
+            aria-label='Resize resource panel'
+            onPointerDown={handleResizePointerDown}
+          />
+        </div>
+      )}
+
       <MothershipView
+        ref={mothershipRef}
         workspaceId={workspaceId}
         chatId={resolvedChatId}
         resources={resources}

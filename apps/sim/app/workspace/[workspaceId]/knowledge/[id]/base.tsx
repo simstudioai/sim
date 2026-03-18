@@ -274,9 +274,7 @@ export function KnowledgeBase({
   const { data: connectors = [], isLoading: isLoadingConnectors } = useConnectorList(id)
   const hasSyncingConnectors = connectors.some((c) => c.status === 'syncing')
   const hasSyncingConnectorsRef = useRef(hasSyncingConnectors)
-  useEffect(() => {
-    hasSyncingConnectorsRef.current = hasSyncingConnectors
-  }, [hasSyncingConnectors])
+  hasSyncingConnectorsRef.current = hasSyncingConnectors
 
   const {
     documents,
@@ -752,11 +750,9 @@ export function KnowledgeBase({
   const prevKnowledgeBaseIdRef = useRef<string>(id)
   const isNavigatingToNewKB = prevKnowledgeBaseIdRef.current !== id
 
-  useEffect(() => {
-    if (knowledgeBase && knowledgeBase.id === id) {
-      prevKnowledgeBaseIdRef.current = id
-    }
-  }, [knowledgeBase, id])
+  if (knowledgeBase && knowledgeBase.id === id) {
+    prevKnowledgeBaseIdRef.current = id
+  }
 
   const isInitialLoad = isLoadingKnowledgeBase && !knowledgeBase
   const isFetchingNewKB = isNavigatingToNewKB && isFetchingDocuments

@@ -97,15 +97,13 @@ const PlanModeSection: React.FC<PlanModeSectionProps> = ({
   const [isResizing, setIsResizing] = React.useState(false)
   const [isEditing, setIsEditing] = React.useState(false)
   const [editedContent, setEditedContent] = React.useState(content)
+  const [prevContent, setPrevContent] = React.useState(content)
+  if (!isEditing && content !== prevContent) {
+    setPrevContent(content)
+    setEditedContent(content)
+  }
   const resizeStartRef = React.useRef({ y: 0, startHeight: 0 })
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
-
-  // Update edited content when content prop changes
-  React.useEffect(() => {
-    if (!isEditing) {
-      setEditedContent(content)
-    }
-  }, [content, isEditing])
 
   const handleResizeStart = React.useCallback(
     (e: React.MouseEvent) => {

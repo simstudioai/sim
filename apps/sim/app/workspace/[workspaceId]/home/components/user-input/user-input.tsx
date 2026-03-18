@@ -202,9 +202,7 @@ export function UserInput({
   }
 
   useEffect(() => {
-    if (editValue) {
-      onEditValueConsumed?.()
-    }
+    if (editValue) onEditValueConsumed?.()
   }, [editValue, onEditValueConsumed])
 
   const animatedPlaceholder = useAnimatedPlaceholder(isInitialView)

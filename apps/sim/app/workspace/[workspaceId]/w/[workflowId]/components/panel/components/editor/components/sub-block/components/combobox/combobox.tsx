@@ -120,7 +120,6 @@ export const ComboBox = memo(function ComboBox({
   )
 
   // State management
-  const [storeInitialized, setStoreInitialized] = useState(false)
   const [fetchedOptions, setFetchedOptions] = useState<Array<{ label: string; id: string }>>([])
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
@@ -280,27 +279,22 @@ export const ComboBox = memo(function ComboBox({
   }, [value, evaluatedOptions])
 
   const [inputValue, setInputValue] = useState(displayValue)
-
-  useEffect(() => {
+  const [prevDisplayValue, setPrevDisplayValue] = useState(displayValue)
+  if (displayValue !== prevDisplayValue) {
+    setPrevDisplayValue(displayValue)
     setInputValue(displayValue)
-  }, [displayValue])
+  }
 
-  // Mark store as initialized on first render
-  useEffect(() => {
-    setStoreInitialized(true)
-  }, [])
-
-  // Set default value once store is initialized and permissions are loaded
+  // Set default value once permissions are loaded
   useEffect(() => {
     if (isPermissionLoading) return
-    if (!storeInitialized) return
     if (defaultOptionValue === undefined) return
 
     // Only set default when no value exists (initial block add)
     if (value === null || value === undefined) {
       setStoreValue(defaultOptionValue)
     }
-  }, [storeInitialized, value, defaultOptionValue, setStoreValue, isPermissionLoading])
+  }, [value, defaultOptionValue, setStoreValue, isPermissionLoading])
 
   // Clear fetched options and hydrated option when dependencies change
   useEffect(() => {

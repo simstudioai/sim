@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useEffect, useState } from 'react'
+import { memo, useState } from 'react'
 import { Check, ChevronDown, ChevronRight, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -47,13 +47,11 @@ export const TodoList = memo(function TodoList({
   className,
 }: TodoListProps) {
   const [isCollapsed, setIsCollapsed] = useState(collapsed)
-
-  /**
-   * Sync collapsed prop with internal state
-   */
-  useEffect(() => {
+  const [prevCollapsed, setPrevCollapsed] = useState(collapsed)
+  if (collapsed !== prevCollapsed) {
+    setPrevCollapsed(collapsed)
     setIsCollapsed(collapsed)
-  }, [collapsed])
+  }
 
   if (!todos || todos.length === 0) {
     return null
