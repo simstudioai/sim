@@ -3604,19 +3604,30 @@ const WorkflowContent = React.memo(
 
     /**
      * Handles node click to select the node in ReactFlow.
-     * Parent-child conflict resolution happens automatically in onNodesChange.
+     * Uses the controlled display node state so parent-child conflicts are resolved
+     * consistently for click, shift-click, and marquee selection.
      */
     const handleNodeClick = useCallback(
       (event: React.MouseEvent, node: Node) => {
         const isMultiSelect = event.shiftKey || event.metaKey || event.ctrlKey
-        setNodes((nodes) =>
-          nodes.map((n) => ({
+        selectedIdsRef.current = null
+        setDisplayNodes((nodes) => {
+          const updated = nodes.map((n) => ({
             ...n,
             selected: isMultiSelect ? (n.id === node.id ? true : n.selected) : n.id === node.id,
           }))
-        )
+          const resolved = resolveParentChildSelectionConflicts(updated, blocks)
+          selectedIdsRef.current = resolved
+            .filter((selectedNode) => selectedNode.selected)
+            .map((selectedNode) => selectedNode.id)
+          return resolved
+        })
+        const selectedIds = selectedIdsRef.current as string[] | null
+        if (selectedIds !== null) {
+          syncPanelWithSelection(selectedIds)
+        }
       },
-      [setNodes]
+      [blocks]
     )
 
     /** Handles edge selection with container context tracking and Shift-click multi-selection. */
