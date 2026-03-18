@@ -1,7 +1,10 @@
 import { useMemo } from 'react'
 import { FileText } from 'lucide-react'
-import { StreamingIndicator } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/smooth-streaming'
 import { useThrottledValue } from '@/hooks/use-throttled-value'
+
+function StreamingIndicator() {
+  return <span className='inline-block h-[14px] w-[6px] animate-pulse bg-current opacity-70' />
+}
 
 interface ChatAttachment {
   id: string

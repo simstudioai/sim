@@ -8,7 +8,6 @@ import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hoo
 import {
   type Notification,
   type NotificationAction,
-  openCopilotWithMessage,
   sendMothershipMessage,
   useNotificationStore,
 } from '@/stores/notifications'
@@ -117,11 +116,7 @@ export const Notifications = memo(function Notifications({ embedded }: Notificat
 
         switch (action.type) {
           case 'copilot':
-            if (embedded) {
-              sendMothershipMessage(action.message)
-            } else {
-              openCopilotWithMessage(action.message)
-            }
+            sendMothershipMessage(action.message)
             break
           case 'refresh':
             window.location.reload()

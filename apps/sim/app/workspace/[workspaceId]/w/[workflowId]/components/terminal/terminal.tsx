@@ -54,8 +54,7 @@ import {
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useShowTrainingControls } from '@/hooks/queries/general-settings'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
-import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
-import { openCopilotWithMessage } from '@/stores/notifications/utils'
+import { sendMothershipMessage } from '@/stores/notifications/utils'
 import type { ConsoleEntry } from '@/stores/terminal'
 import { useTerminalConsoleStore, useTerminalStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -606,7 +605,9 @@ export const Terminal = memo(function Terminal() {
 
   const [isTrainingEnvEnabled, setIsTrainingEnvEnabled] = useState(false)
   const showTrainingControls = useShowTrainingControls()
-  const { isTraining, toggleModal: toggleTrainingModal, stopTraining } = useCopilotTrainingStore()
+  const isTraining = false
+  const toggleTrainingModal = useCallback(() => {}, [])
+  const stopTraining = useCallback(() => {}, [])
 
   const [isPlaygroundEnabled, setIsPlaygroundEnabled] = useState(false)
 
@@ -915,7 +916,7 @@ export const Terminal = memo(function Terminal() {
       const errorMessage = entry.error ? String(entry.error) : 'Unknown error'
       const blockName = entry.blockName || 'Unknown Block'
       const message = `${errorMessage}\n\nError in ${blockName}.\n\nPlease fix this.`
-      openCopilotWithMessage(message)
+      sendMothershipMessage(message)
       closeLogRowMenu()
     },
     [closeLogRowMenu]

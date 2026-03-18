@@ -249,6 +249,10 @@ function extractResourceFromReadResult(
 
 export interface UseChatOptions {
   onResourceEvent?: () => void
+  apiPath?: string
+  stopPath?: string
+  workflowId?: string
+  onToolResult?: (toolName: string, success: boolean, result: unknown) => void
 }
 
 export function useChat(
@@ -267,6 +271,14 @@ export function useChat(
   const [activeResourceId, setActiveResourceId] = useState<string | null>(null)
   const onResourceEventRef = useRef(options?.onResourceEvent)
   onResourceEventRef.current = options?.onResourceEvent
+  const apiPathRef = useRef(options?.apiPath ?? MOTHERSHIP_CHAT_API_PATH)
+  apiPathRef.current = options?.apiPath ?? MOTHERSHIP_CHAT_API_PATH
+  const stopPathRef = useRef(options?.stopPath ?? '/api/mothership/chat/stop')
+  stopPathRef.current = options?.stopPath ?? '/api/mothership/chat/stop'
+  const workflowIdRef = useRef(options?.workflowId)
+  workflowIdRef.current = options?.workflowId
+  const onToolResultRef = useRef(options?.onToolResult)
+  onToolResultRef.current = options?.onToolResult
   const resourcesRef = useRef(resources)
   resourcesRef.current = resources
   const activeResourceIdRef = useRef(activeResourceId)
@@ -355,6 +367,7 @@ export function useChat(
   }, [initialChatId])
 
   useEffect(() => {
+    if (workflowIdRef.current) return
     if (!isHomePage || !chatIdRef.current) return
     streamGenRef.current++
     chatIdRef.current = undefined
@@ -418,7 +431,7 @@ export function useChat(
           if (batchEvents.length === 0 && streamStatus === 'unknown') {
             const cid = chatIdRef.current
             if (cid) {
-              fetch('/api/mothership/chat/stop', {
+              fetch(stopPathRef.current, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ chatId: cid, streamId: activeStreamId, content: '' }),
@@ -597,11 +610,13 @@ export function useChat(
                       resources: [],
                     })
                   }
-                  window.history.replaceState(
-                    null,
-                    '',
-                    `/workspace/${workspaceId}/task/${parsed.chatId}`
-                  )
+                  if (!workflowIdRef.current) {
+                    window.history.replaceState(
+                      null,
+                      '',
+                      `/workspace/${workspaceId}/task/${parsed.chatId}`
+                    )
+                  }
                 }
               }
               break
@@ -786,6 +801,8 @@ export function useChat(
                     invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
                   }
                 }
+
+                onToolResultRef.current?.(tc.name, tc.status === 'success', tc.result?.output)
               }
 
               break
@@ -909,7 +926,7 @@ export function useChat(
     }
 
     try {
-      const res = await fetch('/api/mothership/chat/stop', {
+      const res = await fetch(stopPathRef.current, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1061,7 +1078,7 @@ export function useChat(
               }))
             : undefined
 
-        const response = await fetch(MOTHERSHIP_CHAT_API_PATH, {
+        const response = await fetch(apiPathRef.current, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1073,6 +1090,7 @@ export function useChat(
             ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
             ...(resourceAttachments ? { resourceAttachments } : {}),
             ...(contexts && contexts.length > 0 ? { contexts } : {}),
+            ...(workflowIdRef.current ? { workflowId: workflowIdRef.current } : {}),
             userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
           signal: abortController.signal,

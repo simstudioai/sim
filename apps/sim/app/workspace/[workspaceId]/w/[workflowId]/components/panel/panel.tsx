@@ -26,12 +26,22 @@ import {
 } from '@/components/emcn'
 import { Lock, Unlock, Upload } from '@/components/emcn/icons'
 import { VariableIcon } from '@/components/icons'
+import { useSession } from '@/lib/auth/auth-client'
 import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
+import { MessageActions } from '@/app/workspace/[workspaceId]/components'
+import {
+  MessageContent,
+  QueuedMessages,
+  UserInput,
+  UserMessageContent,
+} from '@/app/workspace/[workspaceId]/home/components'
+import { PendingTagIndicator } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { useAutoScroll, useChat } from '@/app/workspace/[workspaceId]/home/hooks'
+import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
-  Copilot,
   Deploy,
   Editor,
   Toolbar,
@@ -51,9 +61,10 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useChatStore } from '@/stores/chat/store'
 import { useNotificationStore } from '@/stores/notifications/store'
-import type { PanelTab } from '@/stores/panel'
+import type { ChatContext, PanelTab } from '@/stores/panel'
 import { usePanelStore, useVariablesStore as usePanelVariablesStore } from '@/stores/panel'
 import { useVariablesStore } from '@/stores/variables/store'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -92,14 +103,10 @@ export const Panel = memo(function Panel() {
       setHasHydrated: state.setHasHydrated,
     }))
   )
-  const copilotRef = useRef<{
-    createNewChat: () => void
-    setInputValueAndFocus: (value: string) => void
-    focusInput: () => void
-  }>(null)
   const toolbarRef = useRef<{
     focusSearch: () => void
   } | null>(null)
+  const { data: session } = useSession()
 
   // State
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -202,6 +209,61 @@ export const Panel = memo(function Panel() {
 
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
   const { isSnapshotView } = useCurrentWorkflow()
+
+  const onToolResult = useCallback(
+    (toolName: string, success: boolean, _result: unknown) => {
+      if (toolName === 'edit_workflow' && success && activeWorkflowId) {
+        fetch(`/api/workflows/${activeWorkflowId}/state`)
+          .then((res) => (res.ok ? res.json() : null))
+          .then((freshState) => {
+            if (freshState) {
+              useWorkflowDiffStore.getState().setProposedChanges(freshState)
+            }
+          })
+          .catch(() => {})
+      }
+    },
+    [activeWorkflowId]
+  )
+
+  const {
+    messages: copilotMessages,
+    isSending: copilotIsSending,
+    sendMessage: copilotSendMessage,
+    stopGeneration: copilotStopGeneration,
+    messageQueue: copilotMessageQueue,
+    removeFromQueue: copilotRemoveFromQueue,
+    sendNow: copilotSendNow,
+    editQueuedMessage: copilotEditQueuedMessage,
+  } = useChat(workspaceId, undefined, {
+    apiPath: '/api/copilot/chat',
+    stopPath: '/api/mothership/chat/stop',
+    workflowId: activeWorkflowId || undefined,
+    onToolResult,
+  })
+
+  const [copilotEditingInputValue, setCopilotEditingInputValue] = useState('')
+  const clearCopilotEditingValue = useCallback(() => setCopilotEditingInputValue(''), [])
+
+  const handleCopilotEditQueuedMessage = useCallback(
+    (id: string) => {
+      const msg = copilotEditQueuedMessage(id)
+      if (msg) setCopilotEditingInputValue(msg.content)
+    },
+    [copilotEditQueuedMessage]
+  )
+
+  const handleCopilotSubmit = useCallback(
+    (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
+      const trimmed = text.trim()
+      if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
+      copilotSendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
+    },
+    [copilotSendMessage]
+  )
+
+  const { ref: copilotScrollRef, scrollToBottom: copilotScrollToBottom } =
+    useAutoScroll(copilotIsSending)
 
   /**
    * Mark hydration as complete on mount
@@ -533,14 +595,78 @@ export const Panel = memo(function Panel() {
               <div
                 className={
                   _hasHydrated && activeTab === 'copilot'
-                    ? 'h-full'
+                    ? 'flex h-full flex-col'
                     : _hasHydrated
                       ? 'hidden'
-                      : 'h-full'
+                      : 'flex h-full flex-col'
                 }
                 data-tab-content='copilot'
               >
-                <Copilot ref={copilotRef} panelWidth={panelWidth} />
+                <div
+                  ref={copilotScrollRef}
+                  className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pt-2 pb-4'
+                >
+                  <div className='space-y-4'>
+                    {copilotMessages.map((msg, index) => {
+                      if (msg.role === 'user') {
+                        return (
+                          <div key={msg.id} className='flex flex-col items-end gap-[6px] pt-2'>
+                            <div className='max-w-[85%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3 py-2'>
+                              <UserMessageContent content={msg.content} contexts={msg.contexts} />
+                            </div>
+                          </div>
+                        )
+                      }
+
+                      const hasBlocks = msg.contentBlocks && msg.contentBlocks.length > 0
+                      const isLastAssistant =
+                        msg.role === 'assistant' && index === copilotMessages.length - 1
+                      const isThisStreaming = copilotIsSending && isLastAssistant
+
+                      if (!hasBlocks && !msg.content && isThisStreaming) {
+                        return <PendingTagIndicator key={msg.id} />
+                      }
+
+                      if (!hasBlocks && !msg.content) return null
+
+                      const isLastMessage = index === copilotMessages.length - 1
+
+                      return (
+                        <div key={msg.id} className='group/msg relative pb-3'>
+                          {!isThisStreaming && (msg.content || msg.contentBlocks?.length) && (
+                            <div className='absolute right-0 bottom-0 z-10'>
+                              <MessageActions content={msg.content} requestId={msg.requestId} />
+                            </div>
+                          )}
+                          <MessageContent
+                            blocks={msg.contentBlocks || []}
+                            fallbackContent={msg.content}
+                            isStreaming={isThisStreaming}
+                            onOptionSelect={isLastMessage ? copilotSendMessage : undefined}
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className='flex-shrink-0 px-3 pb-3'>
+                  <QueuedMessages
+                    messageQueue={copilotMessageQueue}
+                    onRemove={copilotRemoveFromQueue}
+                    onSendNow={copilotSendNow}
+                    onEdit={handleCopilotEditQueuedMessage}
+                  />
+                  <UserInput
+                    onSubmit={handleCopilotSubmit}
+                    isSending={copilotIsSending}
+                    onStopGeneration={copilotStopGeneration}
+                    isInitialView={false}
+                    userId={session?.user?.id}
+                    editValue={copilotEditingInputValue}
+                    onEditValueConsumed={clearCopilotEditingValue}
+                  />
+                </div>
               </div>
             )}
             <div
