@@ -1195,6 +1195,7 @@ import {
   knowledgeTriggerSyncTool,
   knowledgeUpdateChunkTool,
   knowledgeUploadChunkTool,
+  knowledgeUpsertDocumentTool,
 } from '@/tools/knowledge'
 import { langsmithCreateRunsBatchTool, langsmithCreateRunTool } from '@/tools/langsmith'
 import { lemlistGetActivitiesTool, lemlistGetLeadTool, lemlistSendEmailTool } from '@/tools/lemlist'
@@ -3703,6 +3704,7 @@ export const tools: Record<string, ToolConfig> = {
   knowledge_list_connectors: knowledgeListConnectorsTool,
   knowledge_get_connector: knowledgeGetConnectorTool,
   knowledge_trigger_sync: knowledgeTriggerSyncTool,
+  knowledge_upsert_document: knowledgeUpsertDocumentTool,
   search_tool: searchTool,
   elevenlabs_tts: elevenLabsTtsTool,
   fathom_list_meetings: fathomListMeetingsTool,

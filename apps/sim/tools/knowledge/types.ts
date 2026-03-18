@@ -286,3 +286,33 @@ export interface KnowledgeTriggerSyncResponse {
   }
   error?: string
 }
+
+export interface KnowledgeUpsertDocumentParams {
+  knowledgeBaseId: string
+  name: string
+  content: string
+  documentId?: string
+  documentTags?: Record<string, unknown>
+  _context?: { workflowId?: string }
+}
+
+export interface KnowledgeUpsertDocumentResult {
+  documentId: string
+  documentName: string
+  type: string
+  enabled: boolean
+  isUpdate: boolean
+  previousDocumentId: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface KnowledgeUpsertDocumentResponse {
+  success: boolean
+  output: {
+    data: KnowledgeUpsertDocumentResult
+    message: string
+    documentId: string
+  }
+  error?: string
+}
