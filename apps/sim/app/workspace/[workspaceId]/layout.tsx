@@ -1,6 +1,7 @@
 'use client'
 
 import { ToastProvider } from '@/components/emcn'
+import { ProductTour } from '@/app/workspace/[workspaceId]/components/product-tour'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { ProviderModelsLoader } from '@/app/workspace/[workspaceId]/providers/provider-models-loader'
 import { SettingsLoader } from '@/app/workspace/[workspaceId]/providers/settings-loader'
@@ -23,6 +24,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
                 {children}
               </div>
             </div>
+            <ProductTour />
           </WorkspacePermissionsProvider>
         </div>
       </GlobalCommandsProvider>

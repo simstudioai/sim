@@ -174,6 +174,7 @@ export function CommandList() {
   return (
     <div
       ref={preventZoomRef}
+      data-tour='command-list'
       className={cn(
         'pointer-events-none absolute inset-0 mb-[50px] flex items-center justify-center'
       )}
