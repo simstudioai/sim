@@ -221,3 +221,55 @@ export function resolveParentChildSelectionConflicts(
 
   return hasConflict ? resolved : nodes
 }
+
+export function getNodeSelectionContextId(
+  node: Pick<Node, 'id' | 'parentId'>,
+  blocks: Record<string, { data?: { parentId?: string } }>
+): string | null {
+  return node.parentId || blocks[node.id]?.data?.parentId || null
+}
+
+export function getEdgeSelectionContextId(
+  edge: Pick<Edge, 'source' | 'target'>,
+  nodes: Array<Pick<Node, 'id' | 'parentId'>>,
+  blocks: Record<string, { data?: { parentId?: string } }>
+): string | null {
+  const sourceNode = nodes.find((node) => node.id === edge.source)
+  const targetNode = nodes.find((node) => node.id === edge.target)
+  if (sourceNode) return getNodeSelectionContextId(sourceNode, blocks)
+  if (targetNode) return getNodeSelectionContextId(targetNode, blocks)
+  return null
+}
+
+export function resolveSelectionContextConflicts(
+  nodes: Node[],
+  blocks: Record<string, { data?: { parentId?: string } }>
+): Node[] {
+  const selectedNodes = nodes.filter((node) => node.selected)
+  if (selectedNodes.length <= 1) return nodes
+
+  const allowedContextId = getNodeSelectionContextId(selectedNodes[0], blocks)
+  let hasConflict = false
+
+  const resolved = nodes.map((node) => {
+    if (!node.selected) return node
+    const contextId = getNodeSelectionContextId(node, blocks)
+    if (contextId !== allowedContextId) {
+      hasConflict = true
+      return { ...node, selected: false }
+    }
+    return node
+  })
+
+  return hasConflict ? resolved : nodes
+}
+
+export function resolveSelectionConflicts(
+  nodes: Node[],
+  blocks: Record<string, { data?: { parentId?: string } }>
+): Node[] {
+  return resolveSelectionContextConflicts(
+    resolveParentChildSelectionConflicts(nodes, blocks),
+    blocks
+  )
+}

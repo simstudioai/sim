@@ -59,11 +59,12 @@ import {
   filterProtectedBlocks,
   getClampedPositionForNode,
   getDescendantBlockIds,
+  getEdgeSelectionContextId,
   getWorkflowLockToggleIds,
   isBlockProtected,
   isEdgeProtected,
   isInEditableElement,
-  resolveParentChildSelectionConflicts,
+  resolveSelectionConflicts,
   validateTriggerPaste,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
@@ -2492,7 +2493,7 @@ const WorkflowContent = React.memo(
           ...node,
           selected: pendingSet.has(node.id),
         }))
-        const resolved = resolveParentChildSelectionConflicts(withSelection, blocks)
+        const resolved = resolveSelectionConflicts(withSelection, blocks)
         setDisplayNodes(resolved)
         const selectedIds = resolved.filter((node) => node.selected).map((node) => node.id)
         syncPanelWithSelection(selectedIds)
@@ -2715,9 +2716,7 @@ const WorkflowContent = React.memo(
       (changes: NodeChange[]) => {
         const updated = applyNodeChanges(changes, displayNodesRef.current)
         const hasSelectionChange = changes.some((c) => c.type === 'select')
-        const nextNodes = hasSelectionChange
-          ? resolveParentChildSelectionConflicts(updated, blocks)
-          : updated
+        const nextNodes = hasSelectionChange ? resolveSelectionConflicts(updated, blocks) : updated
 
         displayNodesRef.current = nextNodes
         setDisplayNodes(nextNodes)
@@ -3457,7 +3456,7 @@ const WorkflowContent = React.memo(
         })
 
         // Apply visual deselection of children
-        setDisplayNodes((allNodes) => resolveParentChildSelectionConflicts(allNodes, blocks))
+        setDisplayNodes((allNodes) => resolveSelectionConflicts(allNodes, blocks))
       },
       [blocks]
     )
@@ -3622,7 +3621,7 @@ const WorkflowContent = React.memo(
               : currentNode.selected
             : currentNode.id === node.id,
         }))
-        const resolved = resolveParentChildSelectionConflicts(updated, blocks)
+        const resolved = resolveSelectionConflicts(updated, blocks)
         const selectedIds = resolved
           .filter((selectedNode) => selectedNode.selected)
           .map((selectedNode) => selectedNode.id)
@@ -3639,16 +3638,10 @@ const WorkflowContent = React.memo(
       (event: React.MouseEvent, edge: any) => {
         event.stopPropagation() // Prevent bubbling
 
-        // Determine if edge is inside a loop by checking its source/target nodes
-        const sourceNode = getNodes().find((n) => n.id === edge.source)
-        const targetNode = getNodes().find((n) => n.id === edge.target)
-
-        // An edge is inside a loop if either source or target has a parent
-        // If source and target have different parents, prioritize source's parent
-        const parentLoopId = sourceNode?.parentId || targetNode?.parentId
-
-        // Create a unique identifier that combines edge ID and parent context
-        const contextId = `${edge.id}${parentLoopId ? `-${parentLoopId}` : ''}`
+        const contextId = `${edge.id}${(() => {
+          const selectionContextId = getEdgeSelectionContextId(edge, getNodes(), blocks)
+          return selectionContextId ? `-${selectionContextId}` : ''
+        })()}`
 
         if (event.shiftKey) {
           // Shift-click: toggle edge in selection
@@ -3666,7 +3659,7 @@ const WorkflowContent = React.memo(
           setSelectedEdges(new Map([[contextId, edge.id]]))
         }
       },
-      [getNodes]
+      [blocks, getNodes]
     )
 
     /** Stable delete handler to avoid creating new function references per edge. */
