@@ -220,8 +220,24 @@
   color: #ffcc02;
 }
 
+[data-blog-main-content] {
+  transition:
+    filter 180ms ease-out,
+    opacity 180ms ease-out;
+  will-change: filter, opacity;
+}
+
+body[data-toc-rail-hover="true"] [data-blog-main-content] {
+  filter: blur(2.5px);
+  opacity: 0.58;
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
+  [data-blog-main-content] {
+    transition: none;
+  }
+
   .prose-studio a {
     transition: none;
   }

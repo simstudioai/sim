@@ -431,6 +431,21 @@ export function TableOfContents({ headings }: TableOfContentsProps) {
     return () => observerRef.current?.disconnect()
   }, [headings])
 
+  useEffect(() => {
+    if (isLineRailHovering) {
+      document.body.dataset.tocRailHover = 'true'
+      return () => {
+        document.body.removeAttribute('data-toc-rail-hover')
+      }
+    }
+
+    document.body.removeAttribute('data-toc-rail-hover')
+
+    return () => {
+      document.body.removeAttribute('data-toc-rail-hover')
+    }
+  }, [isLineRailHovering])
+
   const onPointerMove = useCallback(
     (event: React.PointerEvent<HTMLElement>) => {
       const nav = navRef.current
