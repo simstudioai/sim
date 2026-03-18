@@ -33,6 +33,7 @@ export interface QueuedMessage {
  */
 export type SSEEventType =
   | 'chat_id'
+  | 'request_id'
   | 'title_updated'
   | 'content'
   | 'reasoning' // openai reasoning - render as thinking text
@@ -199,6 +200,7 @@ export interface ChatMessage {
   contentBlocks?: ContentBlock[]
   attachments?: ChatMessageAttachment[]
   contexts?: ChatMessageContext[]
+  requestId?: string
 }
 
 export const SUBAGENT_LABELS: Record<SubagentName, string> = {

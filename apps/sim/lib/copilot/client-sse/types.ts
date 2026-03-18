@@ -22,6 +22,7 @@ export interface ClientContentBlock {
 
 export interface StreamingContext {
   messageId: string
+  requestId?: string
   accumulatedContent: string
   contentBlocks: ClientContentBlock[]
   currentTextBlock: ClientContentBlock | null

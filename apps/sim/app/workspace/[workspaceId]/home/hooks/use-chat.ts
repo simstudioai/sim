@@ -142,6 +142,7 @@ function mapStoredMessage(msg: TaskStoredMessage): ChatMessage {
     id: msg.id,
     role: msg.role,
     content: msg.content,
+    ...(msg.requestId ? { requestId: msg.requestId } : {}),
   }
 
   const hasContentBlocks = Array.isArray(msg.contentBlocks) && msg.contentBlocks.length > 0
@@ -509,6 +510,7 @@ export function useChat(
       let activeSubagent: string | undefined
       let runningText = ''
       let lastContentSource: 'main' | 'subagent' | null = null
+      let streamRequestId: string | undefined
 
       streamingContentRef.current = ''
       streamingBlocksRef.current = []
@@ -526,14 +528,21 @@ export function useChat(
       const flush = () => {
         if (isStale()) return
         streamingBlocksRef.current = [...blocks]
-        const snapshot = { content: runningText, contentBlocks: [...blocks] }
+        const snapshot: Partial<ChatMessage> = {
+          content: runningText,
+          contentBlocks: [...blocks],
+        }
+        if (streamRequestId) snapshot.requestId = streamRequestId
         setMessages((prev) => {
           if (expectedGen !== undefined && streamGenRef.current !== expectedGen) return prev
           const idx = prev.findIndex((m) => m.id === assistantId)
           if (idx >= 0) {
             return prev.map((m) => (m.id === assistantId ? { ...m, ...snapshot } : m))
           }
-          return [...prev, { id: assistantId, role: 'assistant' as const, ...snapshot }]
+          return [
+            ...prev,
+            { id: assistantId, role: 'assistant' as const, content: '', ...snapshot },
+          ]
         })
       }
 
@@ -594,6 +603,14 @@ export function useChat(
                     `/workspace/${workspaceId}/task/${parsed.chatId}`
                   )
                 }
+              }
+              break
+            }
+            case 'request_id': {
+              const rid = typeof parsed.data === 'string' ? parsed.data : undefined
+              if (rid) {
+                streamRequestId = rid
+                flush()
               }
               break
             }

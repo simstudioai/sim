@@ -224,6 +224,7 @@ function replaceTextBlocks(blocks: ClientContentBlock[], text: string): ClientCo
 function createClientStreamingContext(messageId: string): ClientStreamingContext {
   return {
     messageId,
+    requestId: undefined,
     accumulatedContent: '',
     contentBlocks: [],
     currentTextBlock: null,
@@ -2043,6 +2044,7 @@ export const useCopilotStore = create<CopilotStore>()(
               msg.id === assistantMessageId
                 ? {
                     ...msg,
+                    requestId: context.requestId ?? msg.requestId,
                     content: finalContentWithOptions,
                     contentBlocks: sanitizedContentBlocks,
                   }

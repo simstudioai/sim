@@ -1,5 +1,6 @@
 export { ErrorState, type ErrorStateProps } from './error'
 export { InlineRenameInput } from './inline-rename-input'
+export { MessageActions } from './message-actions'
 export { ownerCell } from './resource/components/owner-cell/owner-cell'
 export type {
   BreadcrumbEditing,
