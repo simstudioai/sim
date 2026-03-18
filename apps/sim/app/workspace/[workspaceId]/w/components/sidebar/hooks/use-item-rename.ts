@@ -43,13 +43,6 @@ export function useItemRename({ initialName, onSave, itemType, itemId }: UseItem
   const inputRef = useRef<HTMLInputElement>(null)
 
   /**
-   * Update edit value when initial name changes
-   */
-  useEffect(() => {
-    setEditValue(initialName)
-  }, [initialName])
-
-  /**
    * Focus and select input when entering edit mode
    */
   useEffect(() => {

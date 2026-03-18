@@ -68,6 +68,12 @@ export function General() {
   const [name, setName] = useState(profile?.name || '')
   const [isEditingName, setIsEditingName] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const hasInitializedNameRef = useRef(false)
+
+  if (!hasInitializedNameRef.current && profile?.name) {
+    hasInitializedNameRef.current = true
+    setName(profile.name)
+  }
 
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false)
   const resetPassword = useResetPassword()
@@ -75,12 +81,6 @@ export function General() {
   const [uploadError, setUploadError] = useState<string | null>(null)
 
   const snapToGridValue = settings?.snapToGridSize ?? 0
-
-  useEffect(() => {
-    if (profile?.name) {
-      setName(profile.name)
-    }
-  }, [profile?.name])
 
   const {
     previewUrl: profilePictureUrl,

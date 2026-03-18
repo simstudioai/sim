@@ -59,6 +59,7 @@ export function useAutosave({
       const remaining = Math.max(0, MIN_SAVING_DISPLAY_MS - elapsed)
       setTimeout(() => {
         setSaveStatus(nextStatus)
+        setTimeout(() => setSaveStatus('idle'), 2000)
         savingRef.current = false
         if (nextStatus !== 'error' && contentRef.current !== savedContentRef.current) {
           save()
@@ -73,13 +74,6 @@ export function useAutosave({
     timerRef.current = setTimeout(save, delay)
     return () => clearTimeout(timerRef.current)
   }, [content, enabled, isDirty, delay, save])
-
-  useEffect(() => {
-    if (saveStatus === 'saved' || saveStatus === 'error') {
-      const t = setTimeout(() => setSaveStatus('idle'), 2000)
-      return () => clearTimeout(t)
-    }
-  }, [saveStatus])
 
   useEffect(() => {
     return () => {

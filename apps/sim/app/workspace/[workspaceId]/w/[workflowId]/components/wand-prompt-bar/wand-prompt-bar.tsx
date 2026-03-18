@@ -29,6 +29,11 @@ export function WandPromptBar({
 }: WandPromptBarProps) {
   const promptBarRef = useRef<HTMLDivElement>(null)
   const [isExiting, setIsExiting] = useState(false)
+  const [prevIsVisible, setPrevIsVisible] = useState(isVisible)
+  if (isVisible !== prevIsVisible) {
+    setPrevIsVisible(isVisible)
+    if (isVisible) setIsExiting(false)
+  }
 
   // Handle the fade-out animation
   const handleCancel = () => {
@@ -65,13 +70,6 @@ export function WandPromptBar({
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [isVisible, isStreaming, isLoading, isExiting, onCancel])
-
-  // Reset the exit state when visibility changes
-  useEffect(() => {
-    if (isVisible) {
-      setIsExiting(false)
-    }
-  }, [isVisible])
 
   if (!isVisible && !isStreaming && !isExiting) {
     return null

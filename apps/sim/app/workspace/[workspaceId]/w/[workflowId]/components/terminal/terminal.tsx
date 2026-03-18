@@ -604,11 +604,13 @@ export const Terminal = memo(function Terminal() {
   const [autoSelectEnabled, setAutoSelectEnabled] = useState(true)
   const [mainOptionsOpen, setMainOptionsOpen] = useState(false)
 
-  const [isTrainingEnvEnabled, setIsTrainingEnvEnabled] = useState(false)
+  const [isTrainingEnvEnabled] = useState(() =>
+    isTruthy(getEnv('NEXT_PUBLIC_COPILOT_TRAINING_ENABLED'))
+  )
   const showTrainingControls = useShowTrainingControls()
   const { isTraining, toggleModal: toggleTrainingModal, stopTraining } = useCopilotTrainingStore()
 
-  const [isPlaygroundEnabled, setIsPlaygroundEnabled] = useState(false)
+  const [isPlaygroundEnabled] = useState(() => isTruthy(getEnv('NEXT_PUBLIC_ENABLE_PLAYGROUND')))
 
   const { handleMouseDown } = useTerminalResize()
   const { handleMouseDown: handleOutputPanelResizeMouseDown } = useOutputPanelResize()
@@ -709,21 +711,21 @@ export const Terminal = memo(function Terminal() {
   }, [outputData])
 
   // Keep refs in sync for keyboard handler
-  useEffect(() => {
-    selectedEntryRef.current = selectedEntry
-    navigableEntriesRef.current = navigableEntries
-    showInputRef.current = showInput
-    hasInputDataRef.current = hasInputData
-    isExpandedRef.current = isExpanded
-  }, [selectedEntry, navigableEntries, showInput, hasInputData, isExpanded])
+  selectedEntryRef.current = selectedEntry
+  navigableEntriesRef.current = navigableEntries
+  showInputRef.current = showInput
+  hasInputDataRef.current = hasInputData
+  isExpandedRef.current = isExpanded
 
   /**
    * Reset entry tracking when switching workflows to ensure auto-open
    * works correctly for each workflow independently.
    */
-  useEffect(() => {
+  const prevActiveWorkflowIdRef = useRef(activeWorkflowId)
+  if (prevActiveWorkflowIdRef.current !== activeWorkflowId) {
+    prevActiveWorkflowIdRef.current = activeWorkflowId
     hasInitializedEntriesRef.current = false
-  }, [activeWorkflowId])
+  }
 
   /**
    * Auto-open the terminal on new entries when "Open on run" is enabled.
@@ -959,11 +961,6 @@ export const Terminal = memo(function Terminal() {
       lastExpandedHeightRef.current = state.lastExpandedHeight
     })
     return unsub
-  }, [])
-
-  useEffect(() => {
-    setIsTrainingEnvEnabled(isTruthy(getEnv('NEXT_PUBLIC_COPILOT_TRAINING_ENABLED')))
-    setIsPlaygroundEnabled(isTruthy(getEnv('NEXT_PUBLIC_ENABLE_PLAYGROUND')))
   }, [])
 
   useEffect(() => {

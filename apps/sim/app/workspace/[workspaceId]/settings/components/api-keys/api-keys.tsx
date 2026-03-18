@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Info, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -64,12 +64,18 @@ export function ApiKeys() {
   const [deleteKey, setDeleteKey] = useState<ApiKey | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false)
 
   const defaultKeyType = allowPersonalApiKeys ? 'personal' : 'workspace'
   const createButtonDisabled = isLoading || (!allowPersonalApiKeys && !canManageWorkspaceKeys)
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  const scrollToBottom = useCallback(() => {
+    scrollContainerRef.current?.scrollTo({
+      top: scrollContainerRef.current.scrollHeight,
+      behavior: 'smooth',
+    })
+  }, [])
 
   const filteredWorkspaceKeys = useMemo(() => {
     if (!searchTerm.trim()) {
@@ -110,16 +116,6 @@ export function ApiKeys() {
       refetchApiKeys()
     }
   }
-
-  useEffect(() => {
-    if (shouldScrollToBottom && scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({
-        top: scrollContainerRef.current.scrollHeight,
-        behavior: 'smooth',
-      })
-      setShouldScrollToBottom(false)
-    }
-  }, [shouldScrollToBottom])
 
   const formatLastUsed = (dateString?: string) => {
     if (!dateString) return 'Never'
