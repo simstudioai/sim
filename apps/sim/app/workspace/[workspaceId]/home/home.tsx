@@ -150,19 +150,29 @@ export function Home({ chatId }: HomeProps = {}) {
     clearWidth()
     setIsResourceCollapsed(true)
   }, [clearWidth])
+  const animatingInTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const startAnimatingIn = useCallback(() => {
+    if (animatingInTimerRef.current) clearTimeout(animatingInTimerRef.current)
+    setIsResourceAnimatingIn(true)
+    animatingInTimerRef.current = setTimeout(() => {
+      setIsResourceAnimatingIn(false)
+      animatingInTimerRef.current = null
+    }, 400)
+  }, [])
+
   const expandResource = useCallback(() => {
     setIsResourceCollapsed(false)
-    setIsResourceAnimatingIn(true)
-  }, [])
+    startAnimatingIn()
+  }, [startAnimatingIn])
 
   const handleResourceEvent = useCallback(() => {
     if (isResourceCollapsedRef.current) {
       const { isCollapsed, toggleCollapsed } = useSidebarStore.getState()
       if (!isCollapsed) toggleCollapsed()
       setIsResourceCollapsed(false)
-      setIsResourceAnimatingIn(true)
+      startAnimatingIn()
     }
-  }, [])
+  }, [startAnimatingIn])
 
   const {
     messages,
@@ -213,12 +223,6 @@ export function Home({ chatId }: HomeProps = {}) {
     }
     wasSendingRef.current = isSending
   }, [isSending, resolvedChatId, markRead])
-
-  useEffect(() => {
-    if (!isResourceAnimatingIn) return
-    const timer = setTimeout(() => setIsResourceAnimatingIn(false), 400)
-    return () => clearTimeout(timer)
-  }, [isResourceAnimatingIn])
 
   useEffect(() => {
     if (!(resources.length > 0 && isResourceCollapsedRef.current)) return

@@ -197,15 +197,10 @@ export function UserInput({
   if (editValue && editValue !== prevEditValue) {
     setPrevEditValue(editValue)
     setValue(editValue)
+    onEditValueConsumed?.()
   } else if (!editValue && prevEditValue) {
     setPrevEditValue(editValue)
   }
-
-  useEffect(() => {
-    if (editValue) {
-      onEditValueConsumed?.()
-    }
-  }, [editValue, onEditValueConsumed])
 
   const animatedPlaceholder = useAnimatedPlaceholder(isInitialView)
   const placeholder = isInitialView ? animatedPlaceholder : 'Send message to Sim'
