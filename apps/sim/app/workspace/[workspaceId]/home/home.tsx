@@ -138,7 +138,7 @@ export function Home({ chatId }: HomeProps = {}) {
   useChatHistory(chatId)
   const { mutate: markRead } = useMarkTaskRead(workspaceId)
 
-  const { mothershipRef, handleResizeMouseDown, clearWidth } = useMothershipResize()
+  const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize()
 
   const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
   const [isResourceAnimatingIn, setIsResourceAnimatingIn] = useState(false)
@@ -473,7 +473,7 @@ export function Home({ chatId }: HomeProps = {}) {
             role='separator'
             aria-orientation='vertical'
             aria-label='Resize resource panel'
-            onMouseDown={handleResizeMouseDown}
+            onPointerDown={handleResizePointerDown}
           />
         </div>
       )}

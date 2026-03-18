@@ -4,9 +4,10 @@ import { MOTHERSHIP_WIDTH } from '@/stores/constants'
 /**
  * Hook for managing resize of the MothershipView resource panel.
  *
- * Uses imperative DOM manipulation (zero React re-renders during drag).
- * Attach `mothershipRef` to the MothershipView root div and call
- * `handleResizeMouseDown` from the drag handle's onMouseDown.
+ * Uses imperative DOM manipulation (zero React re-renders during drag) with
+ * Pointer Events + setPointerCapture for unified mouse/touch/stylus support.
+ * Attach `mothershipRef` to the MothershipView root div and bind
+ * `handleResizePointerDown` to the drag handle's onPointerDown.
  * Call `clearWidth` when the panel collapses so the CSS class retakes control.
  */
 export function useMothershipResize() {
@@ -14,11 +15,14 @@ export function useMothershipResize() {
   // Stored so the useEffect cleanup can tear down listeners if the component unmounts mid-drag
   const cleanupRef = useRef<(() => void) | null>(null)
 
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+  const handleResizePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault()
 
     const el = mothershipRef.current
     if (!el) return
+
+    const handle = e.currentTarget as HTMLElement
+    handle.setPointerCapture(e.pointerId)
 
     // Pin to current rendered width so drag starts from the visual position
     el.style.width = `${el.getBoundingClientRect().width}px`
@@ -29,24 +33,29 @@ export function useMothershipResize() {
     document.body.style.cursor = 'ew-resize'
     document.body.style.userSelect = 'none'
 
-    const handleMouseMove = (moveEvent: MouseEvent) => {
+    const handlePointerMove = (moveEvent: PointerEvent) => {
       const newWidth = window.innerWidth - moveEvent.clientX
       const maxWidth = window.innerWidth * MOTHERSHIP_WIDTH.MAX_PERCENTAGE
       el.style.width = `${Math.min(Math.max(newWidth, MOTHERSHIP_WIDTH.MIN), maxWidth)}px`
     }
 
-    const handleMouseUp = () => {
+    const cleanup = () => {
       el.style.transition = prevTransition
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
+      handle.removeEventListener('pointermove', handlePointerMove)
+      handle.removeEventListener('pointerup', handlePointerUp)
       cleanupRef.current = null
     }
 
-    cleanupRef.current = handleMouseUp
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
+    const handlePointerUp = (upEvent: PointerEvent) => {
+      handle.releasePointerCapture(upEvent.pointerId)
+      cleanup()
+    }
+
+    cleanupRef.current = cleanup
+    handle.addEventListener('pointermove', handlePointerMove)
+    handle.addEventListener('pointerup', handlePointerUp)
   }, [])
 
   // Tear down any active drag if the component unmounts mid-drag
@@ -76,5 +85,5 @@ export function useMothershipResize() {
     mothershipRef.current?.style.removeProperty('width')
   }, [])
 
-  return { mothershipRef, handleResizeMouseDown, clearWidth }
+  return { mothershipRef, handleResizePointerDown, clearWidth }
 }
