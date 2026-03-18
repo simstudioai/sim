@@ -68,7 +68,7 @@ export const MothershipView = memo(
         ref={ref}
         className={cn(
           'relative z-10 flex h-full flex-col overflow-hidden border-[var(--border)] bg-[var(--bg)] transition-[width,min-width,border-width] duration-300 ease-out',
-          isCollapsed ? 'w-0 min-w-0 border-l-0' : 'w-[50%] border-l',
+          isCollapsed ? 'w-0 min-w-0 border-l-0' : 'w-[60%] border-l',
           className
         )}
       >
