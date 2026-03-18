@@ -29,15 +29,6 @@ export const metadata: Metadata = {
     url: baseUrl,
     siteName: 'Sim',
     locale: 'en_US',
-    images: [
-      {
-        url: '/logo/426-240/primary/small.png',
-        width: 2130,
-        height: 1200,
-        alt: 'Sim — Build AI Agents & Run Your Agentic Workforce',
-        type: 'image/png',
-      },
-    ],
   },
   twitter: {
     card: 'summary_large_image',
@@ -46,10 +37,6 @@ export const metadata: Metadata = {
     title: 'Sim — Build AI Agents & Run Your Agentic Workforce',
     description:
       'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to orchestrate agentic workflows.',
-    images: {
-      url: '/logo/426-240/primary/small.png',
-      alt: 'Sim — Build AI Agents & Run Your Agentic Workforce',
-    },
   },
   alternates: {
     canonical: baseUrl,
