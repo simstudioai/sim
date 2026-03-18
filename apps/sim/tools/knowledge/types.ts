@@ -1,3 +1,38 @@
+const EXTENSION_MIME_MAP: Record<string, string> = {
+  html: 'text/html',
+  htm: 'text/html',
+  md: 'text/markdown',
+  csv: 'text/csv',
+  json: 'application/json',
+  yaml: 'application/x-yaml',
+  yml: 'application/x-yaml',
+  xml: 'application/xml',
+  txt: 'text/plain',
+} as const
+
+/**
+ * Infers MIME type from a file extension. Returns `text/plain` for unknown extensions.
+ */
+export function getMimeTypeFromExtension(ext: string): string {
+  return EXTENSION_MIME_MAP[ext.toLowerCase()] ?? 'text/plain'
+}
+
+/**
+ * Extracts extension from a filename and returns the normalized filename and MIME type.
+ * If no extension is present, appends `.txt` and uses `text/plain`.
+ */
+export function inferDocumentFileInfo(documentName: string): {
+  filename: string
+  mimeType: string
+} {
+  const dotIndex = documentName.lastIndexOf('.')
+  if (dotIndex > 0) {
+    const ext = documentName.slice(dotIndex + 1).toLowerCase()
+    return { filename: documentName, mimeType: getMimeTypeFromExtension(ext) }
+  }
+  return { filename: `${documentName}.txt`, mimeType: 'text/plain' }
+}
+
 export interface KnowledgeSearchResult {
   documentId: string
   documentName: string

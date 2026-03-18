@@ -1,4 +1,7 @@
-import type { KnowledgeCreateDocumentResponse } from '@/tools/knowledge/types'
+import {
+  inferDocumentFileInfo,
+  type KnowledgeCreateDocumentResponse,
+} from '@/tools/knowledge/types'
 import { enrichKBTagsSchema } from '@/tools/schema-enrichers'
 import { formatDocumentTagsForAPI, parseDocumentTags } from '@/tools/shared/tags'
 import type { ToolConfig } from '@/tools/types'
@@ -75,18 +78,18 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
           ? Buffer.from(textContent, 'utf8').toString('base64')
           : btoa(String.fromCharCode(...utf8Bytes))
 
-      const dataUri = `data:text/plain;base64,${base64Content}`
+      const { filename, mimeType } = inferDocumentFileInfo(documentName)
+      const dataUri = `data:${mimeType};base64,${base64Content}`
 
-      // Parse document tags from various formats (object, array, JSON string)
       const parsedTags = parseDocumentTags(params.documentTags)
       const tagData = formatDocumentTagsForAPI(parsedTags)
 
       const documents = [
         {
-          filename: documentName.endsWith('.txt') ? documentName : `${documentName}.txt`,
+          filename,
           fileUrl: dataUri,
           fileSize: contentBytes,
-          mimeType: 'text/plain',
+          mimeType,
           ...tagData,
         },
       ]
