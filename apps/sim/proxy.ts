@@ -155,6 +155,7 @@ export async function proxy(request: NextRequest) {
     return response
   }
 
+  // Chat pages are publicly accessible embeds — CSP is set in next.config.ts headers
   if (url.pathname.startsWith('/chat/')) {
     return NextResponse.next()
   }
@@ -188,11 +189,7 @@ export async function proxy(request: NextRequest) {
   const response = NextResponse.next()
   response.headers.set('Vary', 'User-Agent')
 
-  if (
-    url.pathname.startsWith('/workspace') ||
-    url.pathname.startsWith('/chat') ||
-    url.pathname === '/'
-  ) {
+  if (url.pathname.startsWith('/workspace') || url.pathname === '/') {
     response.headers.set('Content-Security-Policy', generateRuntimeCSP())
   }
 

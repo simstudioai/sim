@@ -202,6 +202,18 @@ export function getWorkflowExecutionCSPPolicy(): string {
 }
 
 /**
+ * CSP for embeddable chat pages
+ * Allows embedding in iframes from any origin while maintaining other security policies
+ */
+export function getChatEmbedCSPPolicy(): string {
+  const basePolicy = buildCSPString({
+    ...buildTimeCSPDirectives,
+    'frame-ancestors': ['*'],
+  })
+  return basePolicy
+}
+
+/**
  * CSP for embeddable form pages
  * Allows embedding in iframes from any origin while maintaining other security policies
  */
