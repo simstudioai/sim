@@ -277,12 +277,14 @@ function ConnectionsSection({
   onResizeMouseDown,
   onToggleCollapsed,
 }: ConnectionsSectionProps) {
-  const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(() => new Set())
-  const [expandedVariables, setExpandedVariables] = useState(true)
-  const [expandedEnvVars, setExpandedEnvVars] = useState(true)
-
   /** Stable string of connection IDs to prevent guard from running on every render */
   const connectionIds = useMemo(() => connections.map((c) => c.blockId).join(','), [connections])
+
+  const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(
+    () => new Set(connectionIds.split(',').filter(Boolean))
+  )
+  const [expandedVariables, setExpandedVariables] = useState(true)
+  const [expandedEnvVars, setExpandedEnvVars] = useState(true)
 
   const [prevConnectionIds, setPrevConnectionIds] = useState(connectionIds)
   if (connectionIds !== prevConnectionIds) {
