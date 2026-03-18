@@ -2,7 +2,7 @@
 
 import { type SVGProps, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useInView } from 'framer-motion'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ChevronDown } from '@/components/emcn'
 import { Database, File, Library, Table } from '@/components/emcn/icons'
@@ -606,29 +606,23 @@ const MOCK_KB_DATA = [
   ['metrics.csv', '1.4 MB', '5.8k', '38', 'enabled'],
 ] as const
 
-const MD_COMPONENTS = {
-  h1: ({ children }: { children: React.ReactNode }) => (
+const MD_COMPONENTS: Components = {
+  h1: ({ children }) => (
     <h1 className='mb-4 border-[#E5E5E5] border-b pb-2 font-semibold text-[#1C1C1C] text-[20px]'>
       {children}
     </h1>
   ),
-  h2: ({ children }: { children: React.ReactNode }) => (
+  h2: ({ children }) => (
     <h2 className='mt-5 mb-3 border-[#E5E5E5] border-b pb-1.5 font-semibold text-[#1C1C1C] text-[16px]'>
       {children}
     </h2>
   ),
-  ul: ({ children }: { children: React.ReactNode }) => (
-    <ul className='mb-3 list-disc pl-[24px]'>{children}</ul>
-  ),
-  ol: ({ children }: { children: React.ReactNode }) => (
-    <ol className='mb-3 list-decimal pl-[24px]'>{children}</ol>
-  ),
-  li: ({ children }: { children: React.ReactNode }) => (
+  ul: ({ children }) => <ul className='mb-3 list-disc pl-[24px]'>{children}</ul>,
+  ol: ({ children }) => <ol className='mb-3 list-decimal pl-[24px]'>{children}</ol>,
+  li: ({ children }) => (
     <li className='mb-1 text-[#1C1C1C] text-[14px] leading-[1.6]'>{children}</li>
   ),
-  p: ({ children }: { children: React.ReactNode }) => (
-    <p className='mb-3 text-[#1C1C1C] text-[14px] leading-[1.6]'>{children}</p>
-  ),
+  p: ({ children }) => <p className='mb-3 text-[#1C1C1C] text-[14px] leading-[1.6]'>{children}</p>,
 }
 
 function MockFullFiles() {

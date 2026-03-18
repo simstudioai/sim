@@ -16,8 +16,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import Image from 'next/image'
 import Link from 'next/link'
 import { Badge, ChevronDown } from '@/components/emcn'
+import { Lock } from '@/components/emcn/icons'
 import { GithubIcon } from '@/components/icons'
 
 /** Consistent color per actor — same pattern as Collaboration section cursors. */
@@ -169,7 +171,7 @@ const FEATURE_TAGS = [
   'Admin API',
   'White Labeling',
   'Dedicated Support',
-  '99.9% Uptime SLA',
+  '99.99% Uptime SLA',
   'Workflow Versioning',
   'On-Premise',
   'Organizations',
@@ -357,9 +359,13 @@ function TrustStrip() {
         rel='noopener noreferrer'
         className='group flex items-center gap-3 border-[#2A2A2A] border-b px-4 py-[14px] transition-colors hover:bg-[#212121] sm:border-r sm:border-b-0'
       >
-        <div className='flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#33C482]/10'>
-          <div className='h-[5px] w-[5px] rounded-full bg-[#33C482]' />
-        </div>
+        <Image
+          src='/footer/soc2.png'
+          alt='SOC 2 Type II'
+          width={22}
+          height={22}
+          className='shrink-0 object-contain'
+        />
         <div className='flex flex-col gap-[3px]'>
           <strong className='font-[430] font-season text-[13px] text-white leading-none'>
             SOC 2 & HIPAA
@@ -393,7 +399,7 @@ function TrustStrip() {
       {/* SSO */}
       <div className='flex items-center gap-3 px-4 py-[14px]'>
         <div className='flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#2ABBF8]/10'>
-          <div className='h-[5px] w-[5px] rounded-full bg-[#2ABBF8]' />
+          <Lock className='h-[14px] w-[14px] text-[#2ABBF8]/75' />
         </div>
         <div className='flex flex-col gap-[3px]'>
           <strong className='font-[430] font-season text-[13px] text-white leading-none'>
