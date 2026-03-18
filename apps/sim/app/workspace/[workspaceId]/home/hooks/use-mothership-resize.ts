@@ -44,6 +44,7 @@ export function useMothershipResize() {
       document.body.style.userSelect = ''
       cleanupRef.current = null
     }
+    cleanupRef.current = cleanup
 
     handle.addEventListener(
       'pointermove',
