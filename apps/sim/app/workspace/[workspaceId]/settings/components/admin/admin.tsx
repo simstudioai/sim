@@ -31,7 +31,7 @@ export function Admin() {
 
   const [workflowId, setWorkflowId] = useState('')
   const [usersOffset, setUsersOffset] = useState(0)
-  const [usersEnabled, setUsersEnabled] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const [banUserId, setBanUserId] = useState<string | null>(null)
   const [banReason, setBanReason] = useState('')
 
@@ -39,8 +39,7 @@ export function Admin() {
     data: usersData,
     isLoading: usersLoading,
     error: usersError,
-    refetch: refetchUsers,
-  } = useAdminUsers(usersOffset, PAGE_SIZE, usersEnabled)
+  } = useAdminUsers(usersOffset, PAGE_SIZE, searchQuery)
 
   const totalPages = useMemo(
     () => Math.ceil((usersData?.total ?? 0) / PAGE_SIZE),
@@ -60,14 +59,6 @@ export function Admin() {
       { workflowId: workflowId.trim(), targetWorkspaceId: workspaceId },
       { onSuccess: () => setWorkflowId('') }
     )
-  }
-
-  const handleLoadUsers = () => {
-    if (usersEnabled) {
-      refetchUsers()
-    } else {
-      setUsersEnabled(true)
-    }
   }
 
   const pendingUserIds = useMemo(() => {
@@ -136,12 +127,15 @@ export function Admin() {
       <div className='h-px bg-[var(--border-secondary)]' />
 
       <div className='flex flex-col gap-[12px]'>
-        <div className='flex items-center justify-between'>
-          <p className='font-medium text-[14px] text-[var(--text-primary)]'>User Management</p>
-          <Button variant='active' onClick={handleLoadUsers} disabled={usersLoading}>
-            {usersLoading ? 'Loading...' : usersEnabled ? 'Refresh' : 'Load Users'}
-          </Button>
-        </div>
+        <p className='font-medium text-[14px] text-[var(--text-primary)]'>User Management</p>
+        <EmcnInput
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value)
+            setUsersOffset(0)
+          }}
+          placeholder='Search by email or paste a user ID...'
+        />
 
         {usersError && (
           <p className='text-[13px] text-[var(--text-error)]'>
@@ -166,7 +160,7 @@ export function Admin() {
 
         {usersData && (
           <>
-            <div className='flex flex-col gap-[2px] rounded-[8px] border border-[var(--border-secondary)]'>
+            <div className='flex flex-col gap-[2px]'>
               <div className='flex items-center gap-[12px] border-[var(--border-secondary)] border-b px-[12px] py-[8px] text-[12px] text-[var(--text-tertiary)]'>
                 <span className='w-[200px]'>Name</span>
                 <span className='flex-1'>Email</span>
@@ -176,7 +170,7 @@ export function Admin() {
               </div>
 
               {usersData.users.length === 0 && (
-                <div className='px-[12px] py-[16px] text-center text-[13px] text-[var(--text-tertiary)]'>
+                <div className='py-[16px] text-center text-[13px] text-[var(--text-tertiary)]'>
                   No users found.
                 </div>
               )}

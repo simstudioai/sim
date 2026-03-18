@@ -7,7 +7,8 @@ const logger = createLogger('AdminUsersQuery')
 export const adminUserKeys = {
   all: ['adminUsers'] as const,
   lists: () => [...adminUserKeys.all, 'list'] as const,
-  list: (offset: number, limit: number) => [...adminUserKeys.lists(), offset, limit] as const,
+  list: (offset: number, limit: number, searchQuery: string) =>
+    [...adminUserKeys.lists(), offset, limit, searchQuery] as const,
 }
 
 interface AdminUser {
@@ -24,31 +25,59 @@ interface AdminUsersResponse {
   total: number
 }
 
-async function fetchAdminUsers(offset: number, limit: number): Promise<AdminUsersResponse> {
-  const { data, error } = await client.admin.listUsers({
-    query: { limit, offset },
-  })
-  if (error) {
-    throw new Error(error.message ?? 'Failed to fetch users')
-  }
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function mapUser(u: {
+  id: string
+  name: string
+  email: string
+  role?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+}): AdminUser {
   return {
-    users: (data?.users ?? []).map((u) => ({
-      id: u.id,
-      name: u.name || '',
-      email: u.email,
-      role: u.role ?? 'user',
-      banned: u.banned ?? false,
-      banReason: u.banReason ?? null,
-    })),
+    id: u.id,
+    name: u.name || '',
+    email: u.email,
+    role: u.role ?? 'user',
+    banned: u.banned ?? false,
+    banReason: u.banReason ?? null,
+  }
+}
+
+async function fetchAdminUsers(
+  offset: number,
+  limit: number,
+  searchQuery: string
+): Promise<AdminUsersResponse> {
+  if (UUID_REGEX.test(searchQuery.trim())) {
+    const { data, error } = await client.admin.getUser({ query: { id: searchQuery.trim() } })
+    if (error) throw new Error(error.message ?? 'Failed to fetch user')
+    if (!data) return { users: [], total: 0 }
+    return { users: [mapUser(data)], total: 1 }
+  }
+
+  const { data, error } = await client.admin.listUsers({
+    query: {
+      limit,
+      offset,
+      searchField: 'email',
+      searchValue: searchQuery,
+      searchOperator: 'contains',
+    },
+  })
+  if (error) throw new Error(error.message ?? 'Failed to fetch users')
+  return {
+    users: (data?.users ?? []).map(mapUser),
     total: data?.total ?? 0,
   }
 }
 
-export function useAdminUsers(offset: number, limit: number, enabled: boolean) {
+export function useAdminUsers(offset: number, limit: number, searchQuery: string) {
   return useQuery({
-    queryKey: adminUserKeys.list(offset, limit),
-    queryFn: () => fetchAdminUsers(offset, limit),
-    enabled,
+    queryKey: adminUserKeys.list(offset, limit, searchQuery),
+    queryFn: () => fetchAdminUsers(offset, limit, searchQuery),
+    enabled: searchQuery.length > 0,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
   })
