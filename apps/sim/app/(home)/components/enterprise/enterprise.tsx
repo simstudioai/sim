@@ -4,14 +4,484 @@
  * SEO:
  * - `<section id="enterprise" aria-labelledby="enterprise-heading">`.
  * - `<h2 id="enterprise-heading">` for the section title.
- * - Compliance certs (SOC2, HIPAA) as visible `<strong>` text.
+ * - Compliance certs (SOC 2, HIPAA) as visible `<strong>` text.
  * - Enterprise CTA links to contact form via `<a>` with `rel="noopener noreferrer"`.
  *
  * GEO:
- * - Entity-rich: "Sim is SOC2 and HIPAA compliant" — not "We are compliant."
+ * - Entity-rich: "Sim is SOC 2 and HIPAA compliant" — not "We are compliant."
  * - `<ul>` checklist of features (SSO, RBAC, audit logs, SLA, on-premise deployment)
  *   as an atomic answer block for "What enterprise features does Sim offer?".
  */
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import Image from 'next/image'
+import Link from 'next/link'
+import { Badge, ChevronDown } from '@/components/emcn'
+import { Lock } from '@/components/emcn/icons'
+import { GithubIcon } from '@/components/icons'
+
+/** Consistent color per actor — same pattern as Collaboration section cursors. */
+const ACTOR_COLORS: Record<string, string> = {
+  'Sarah K.': '#2ABBF8',
+  'Sid G.': '#33C482',
+  'Theo L.': '#FA4EDF',
+  'Abhay K.': '#FFCC02',
+  'Danny S.': '#FF6B35',
+}
+
+/** Left accent bar opacity by recency — newest is brightest. */
+const ACCENT_OPACITIES = [0.75, 0.45, 0.28, 0.15, 0.07] as const
+
+/** Human-readable label per resource type. */
+const RESOURCE_TYPE_LABEL: Record<string, string> = {
+  workflow: 'Workflow',
+  member: 'Member',
+  byok_key: 'BYOK Key',
+  api_key: 'API Key',
+  permission_group: 'Permission Group',
+  credential_set: 'Credential Set',
+  knowledge_base: 'Knowledge Base',
+  environment: 'Environment',
+  mcp_server: 'MCP Server',
+  file: 'File',
+  webhook: 'Webhook',
+  chat: 'Chat',
+  table: 'Table',
+  folder: 'Folder',
+  document: 'Document',
+}
+
+interface LogEntry {
+  id: number
+  actor: string
+  /** Matches the `description` field stored by recordAudit() */
+  description: string
+  resourceType: string
+  /** Unix ms timestamp of when this entry was "received" */
+  insertedAt: number
+}
+
+function formatTimeAgo(insertedAt: number): string {
+  const elapsed = Date.now() - insertedAt
+  if (elapsed < 8_000) return 'just now'
+  if (elapsed < 60_000) return `${Math.floor(elapsed / 1000)}s ago`
+  return `${Math.floor(elapsed / 60_000)}m ago`
+}
+
+/**
+ * Entry templates using real description strings from the actual recordAudit()
+ * calls across the codebase (e.g. `Added BYOK key for openai`,
+ * `Invited alex@acme.com to workspace as member`).
+ */
+const ENTRY_TEMPLATES: Omit<LogEntry, 'id' | 'insertedAt'>[] = [
+  { actor: 'Sarah K.', description: 'Deployed workflow "Email Triage"', resourceType: 'workflow' },
+  {
+    actor: 'Sid G.',
+    description: 'Invited alex@acme.com to workspace as member',
+    resourceType: 'member',
+  },
+  { actor: 'Theo L.', description: 'Added BYOK key for openai', resourceType: 'byok_key' },
+  { actor: 'Sarah K.', description: 'Created workflow "Invoice Parser"', resourceType: 'workflow' },
+  {
+    actor: 'Abhay K.',
+    description: 'Created permission group "Engineering"',
+    resourceType: 'permission_group',
+  },
+  { actor: 'Danny S.', description: 'Created API key "Production Key"', resourceType: 'api_key' },
+  {
+    actor: 'Theo L.',
+    description: 'Changed permissions for sam@acme.com to editor',
+    resourceType: 'member',
+  },
+  { actor: 'Sarah K.', description: 'Uploaded file "Q3_Report.pdf"', resourceType: 'file' },
+  {
+    actor: 'Sid G.',
+    description: 'Created credential set "Prod Keys"',
+    resourceType: 'credential_set',
+  },
+  {
+    actor: 'Abhay K.',
+    description: 'Created knowledge base "Internal Docs"',
+    resourceType: 'knowledge_base',
+  },
+  { actor: 'Danny S.', description: 'Updated environment variables', resourceType: 'environment' },
+  {
+    actor: 'Sarah K.',
+    description: 'Added tool "search_web" to MCP server',
+    resourceType: 'mcp_server',
+  },
+  { actor: 'Sid G.', description: 'Created webhook "Stripe Payment"', resourceType: 'webhook' },
+  { actor: 'Theo L.', description: 'Deployed chat "Support Assistant"', resourceType: 'chat' },
+  { actor: 'Abhay K.', description: 'Created table "Lead Tracker"', resourceType: 'table' },
+  { actor: 'Danny S.', description: 'Revoked API key "Staging Key"', resourceType: 'api_key' },
+  {
+    actor: 'Sarah K.',
+    description: 'Duplicated workflow "Data Enrichment"',
+    resourceType: 'workflow',
+  },
+  {
+    actor: 'Sid G.',
+    description: 'Removed member theo@acme.com from workspace',
+    resourceType: 'member',
+  },
+  {
+    actor: 'Theo L.',
+    description: 'Updated knowledge base "Product Docs"',
+    resourceType: 'knowledge_base',
+  },
+  { actor: 'Abhay K.', description: 'Created folder "Finance Workflows"', resourceType: 'folder' },
+  {
+    actor: 'Danny S.',
+    description: 'Uploaded document "onboarding-guide.pdf"',
+    resourceType: 'document',
+  },
+  {
+    actor: 'Sarah K.',
+    description: 'Updated credential set "Prod Keys"',
+    resourceType: 'credential_set',
+  },
+  {
+    actor: 'Sid G.',
+    description: 'Added member abhay@acme.com to permission group "Engineering"',
+    resourceType: 'permission_group',
+  },
+  { actor: 'Theo L.', description: 'Locked workflow "Customer Sync"', resourceType: 'workflow' },
+]
+
+const INITIAL_OFFSETS_MS = [0, 20_000, 75_000, 240_000, 540_000]
+
+const MARQUEE_KEYFRAMES = `
+  @keyframes marquee {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-25%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    @keyframes marquee { 0%, 100% { transform: none; } }
+  }
+`
+
+const FEATURE_TAGS = [
+  'Access Control',
+  'Self-Hosting',
+  'Bring Your Own Key',
+  'Credential Sharing',
+  'Custom Limits',
+  'Admin API',
+  'White Labeling',
+  'Dedicated Support',
+  '99.99% Uptime SLA',
+  'Workflow Versioning',
+  'On-Premise',
+  'Organizations',
+  'Workspace Export',
+  'Audit Logs',
+] as const
+
+interface AuditRowProps {
+  entry: LogEntry
+  index: number
+}
+
+function AuditRow({ entry, index }: AuditRowProps) {
+  const color = ACTOR_COLORS[entry.actor] ?? '#F6F6F6'
+  const accentOpacity = ACCENT_OPACITIES[index] ?? 0.04
+  const timeAgo = formatTimeAgo(entry.insertedAt)
+  const resourceLabel = RESOURCE_TYPE_LABEL[entry.resourceType]
+
+  return (
+    <div className='group relative overflow-hidden border-[#2A2A2A] border-b bg-[#191919] transition-colors duration-150 last:border-b-0 hover:bg-[#212121]'>
+      {/* Left accent bar — brightness encodes recency */}
+      <div
+        aria-hidden='true'
+        className='absolute top-0 bottom-0 left-0 w-[2px] transition-opacity duration-150 group-hover:opacity-100'
+        style={{ backgroundColor: color, opacity: accentOpacity }}
+      />
+
+      {/* Row content */}
+      <div className='flex min-w-0 items-center gap-3 py-[10px] pr-4 pl-5'>
+        {/* Actor avatar */}
+        <div
+          className='flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full'
+          style={{ backgroundColor: `${color}20` }}
+        >
+          <span className='font-[500] font-season text-[9px] leading-none' style={{ color }}>
+            {entry.actor[0]}
+          </span>
+        </div>
+
+        {/* Time */}
+        <span className='w-[56px] shrink-0 font-[430] font-season text-[#F6F6F6]/30 text-[11px] leading-none tracking-[0.02em]'>
+          {timeAgo}
+        </span>
+
+        {/* Description — description hidden on mobile to avoid truncation */}
+        <span className='min-w-0 truncate font-[430] font-season text-[12px] leading-none tracking-[0.02em]'>
+          <span className='text-[#F6F6F6]/80'>{entry.actor}</span>
+          <span className='hidden sm:inline'>
+            <span className='text-[#F6F6F6]/40'> · </span>
+            <span className='text-[#F6F6F6]/55'>{entry.description}</span>
+          </span>
+        </span>
+
+        {/* Resource type label — formatted name, neutral so it doesn't compete with actor colors */}
+        {resourceLabel && (
+          <span className='ml-auto shrink-0 rounded border border-[#2A2A2A] px-[7px] py-[3px] font-[430] font-season text-[#F6F6F6]/25 text-[10px] leading-none tracking-[0.04em]'>
+            {resourceLabel}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function AuditLogPreview() {
+  const counterRef = useRef(ENTRY_TEMPLATES.length)
+  const templateIndexRef = useRef(5 % ENTRY_TEMPLATES.length)
+
+  const now = Date.now()
+  const [entries, setEntries] = useState<LogEntry[]>(() =>
+    ENTRY_TEMPLATES.slice(0, 5).map((t, i) => ({
+      ...t,
+      id: i,
+      insertedAt: now - INITIAL_OFFSETS_MS[i],
+    }))
+  )
+  const [, tick] = useState(0)
+
+  useEffect(() => {
+    const addInterval = setInterval(() => {
+      const template = ENTRY_TEMPLATES[templateIndexRef.current]
+      templateIndexRef.current = (templateIndexRef.current + 1) % ENTRY_TEMPLATES.length
+
+      setEntries((prev) => [
+        { ...template, id: counterRef.current++, insertedAt: Date.now() },
+        ...prev.slice(0, 4),
+      ])
+    }, 2600)
+
+    // Refresh time labels every 5s so "just now" ages to "Xs ago"
+    const tickInterval = setInterval(() => tick((n) => n + 1), 5_000)
+
+    return () => {
+      clearInterval(addInterval)
+      clearInterval(tickInterval)
+    }
+  }, [])
+
+  return (
+    <div className='mx-6 mt-6 overflow-hidden rounded-[8px] border border-[#2A2A2A] md:mx-8 md:mt-8'>
+      {/* Header */}
+      <div className='flex items-center justify-between border-[#2A2A2A] border-b bg-[#161616] px-4 py-[10px]'>
+        <div className='flex items-center gap-2'>
+          {/* Pulsing live indicator */}
+          <span className='relative flex h-[8px] w-[8px]'>
+            <span
+              className='absolute inline-flex h-full w-full animate-ping rounded-full opacity-50'
+              style={{ backgroundColor: '#33C482' }}
+            />
+            <span
+              className='relative inline-flex h-[8px] w-[8px] rounded-full'
+              style={{ backgroundColor: '#33C482' }}
+            />
+          </span>
+          <span className='font-[430] font-season text-[#F6F6F6]/40 text-[11px] uppercase tracking-[0.08em]'>
+            Audit Log
+          </span>
+        </div>
+        <div className='flex items-center gap-2'>
+          <span className='rounded border border-[#2A2A2A] px-[8px] py-[3px] font-[430] font-season text-[#F6F6F6]/20 text-[11px] tracking-[0.02em]'>
+            Export
+          </span>
+          <span className='rounded border border-[#2A2A2A] px-[8px] py-[3px] font-[430] font-season text-[#F6F6F6]/20 text-[11px] tracking-[0.02em]'>
+            Filter
+          </span>
+        </div>
+      </div>
+
+      {/* Log entries — new items push existing ones down */}
+      <div className='overflow-hidden'>
+        <AnimatePresence mode='popLayout' initial={false}>
+          {entries.map((entry, index) => (
+            <motion.div
+              key={entry.id}
+              layout
+              initial={{ y: -48, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{
+                layout: {
+                  type: 'spring',
+                  stiffness: 380,
+                  damping: 38,
+                  mass: 0.8,
+                },
+                y: { duration: 0.32, ease: [0.25, 0.46, 0.45, 0.94] },
+                opacity: { duration: 0.25 },
+              }}
+            >
+              <AuditRow entry={entry} index={index} />
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+    </div>
+  )
+}
+
+function TrustStrip() {
+  return (
+    <div className='mx-6 mt-4 grid grid-cols-1 overflow-hidden rounded-[8px] border border-[#2A2A2A] sm:grid-cols-3 md:mx-8'>
+      {/* SOC 2 + HIPAA combined */}
+      <Link
+        href='https://trust.delve.co/sim-studio'
+        target='_blank'
+        rel='noopener noreferrer'
+        className='group flex items-center gap-3 border-[#2A2A2A] border-b px-4 py-[14px] transition-colors hover:bg-[#212121] sm:border-r sm:border-b-0'
+      >
+        <Image
+          src='/footer/soc2.png'
+          alt='SOC 2 Type II'
+          width={22}
+          height={22}
+          className='shrink-0 object-contain'
+        />
+        <div className='flex flex-col gap-[3px]'>
+          <strong className='font-[430] font-season text-[13px] text-white leading-none'>
+            SOC 2 & HIPAA
+          </strong>
+          <span className='font-[430] font-season text-[#F6F6F6]/30 text-[11px] leading-none tracking-[0.02em] transition-colors group-hover:text-[#F6F6F6]/55'>
+            Type II · PHI protected →
+          </span>
+        </div>
+      </Link>
+
+      {/* Open Source — center */}
+      <Link
+        href='https://github.com/simstudioai/sim'
+        target='_blank'
+        rel='noopener noreferrer'
+        className='group flex items-center gap-3 border-[#2A2A2A] border-b px-4 py-[14px] transition-colors hover:bg-[#212121] sm:border-r sm:border-b-0'
+      >
+        <div className='flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#FFCC02]/10'>
+          <GithubIcon width={11} height={11} className='text-[#FFCC02]/75' />
+        </div>
+        <div className='flex flex-col gap-[3px]'>
+          <strong className='font-[430] font-season text-[13px] text-white leading-none'>
+            Open Source
+          </strong>
+          <span className='font-[430] font-season text-[#F6F6F6]/30 text-[11px] leading-none tracking-[0.02em] transition-colors group-hover:text-[#F6F6F6]/55'>
+            View on GitHub →
+          </span>
+        </div>
+      </Link>
+
+      {/* SSO */}
+      <div className='flex items-center gap-3 px-4 py-[14px]'>
+        <div className='flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#2ABBF8]/10'>
+          <Lock className='h-[14px] w-[14px] text-[#2ABBF8]/75' />
+        </div>
+        <div className='flex flex-col gap-[3px]'>
+          <strong className='font-[430] font-season text-[13px] text-white leading-none'>
+            SSO & SCIM
+          </strong>
+          <span className='font-[430] font-season text-[#F6F6F6]/30 text-[11px] leading-none tracking-[0.02em]'>
+            Okta, Azure AD, Google
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Enterprise() {
-  return null
+  return (
+    <section id='enterprise' aria-labelledby='enterprise-heading' className='bg-[#F6F6F6]'>
+      <div className='px-4 pt-[60px] pb-[40px] sm:px-8 sm:pt-[80px] sm:pb-0 md:px-[80px] md:pt-[100px]'>
+        <div className='flex flex-col items-start gap-3 sm:gap-4 md:gap-[20px]'>
+          <Badge
+            variant='blue'
+            size='md'
+            dot
+            className='bg-[#FFCC02]/10 font-season text-[#FFCC02] uppercase tracking-[0.02em]'
+          >
+            Enterprise
+          </Badge>
+
+          <h2
+            id='enterprise-heading'
+            className='max-w-[600px] font-[430] font-season text-[#1C1C1C] text-[32px] leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
+          >
+            Enterprise features for
+            <br />
+            fast, scalable workflows
+          </h2>
+        </div>
+
+        <div className='mt-8 overflow-hidden rounded-[12px] bg-[#1C1C1C] sm:mt-10 md:mt-12'>
+          <AuditLogPreview />
+          <TrustStrip />
+
+          {/* Scrolling feature ticker */}
+          <div className='relative mt-6 overflow-hidden border-[#2A2A2A] border-t'>
+            <style dangerouslySetInnerHTML={{ __html: MARQUEE_KEYFRAMES }} />
+            {/* Fade edges */}
+            <div
+              aria-hidden='true'
+              className='pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-16'
+              style={{ background: 'linear-gradient(to right, #1C1C1C, transparent)' }}
+            />
+            <div
+              aria-hidden='true'
+              className='pointer-events-none absolute top-0 right-0 bottom-0 z-10 w-16'
+              style={{ background: 'linear-gradient(to left, #1C1C1C, transparent)' }}
+            />
+            {/* Duplicate tags for seamless loop */}
+            <div className='flex w-max' style={{ animation: 'marquee 30s linear infinite' }}>
+              {[...FEATURE_TAGS, ...FEATURE_TAGS, ...FEATURE_TAGS, ...FEATURE_TAGS].map(
+                (tag, i) => (
+                  <span
+                    key={i}
+                    className='whitespace-nowrap border-[#2A2A2A] border-r px-5 py-4 font-[430] font-season text-[#F6F6F6]/40 text-[13px] leading-none tracking-[0.02em]'
+                  >
+                    {tag}
+                  </span>
+                )
+              )}
+            </div>
+          </div>
+
+          <div className='flex items-center justify-between border-[#2A2A2A] border-t px-6 py-5 md:px-8 md:py-6'>
+            <p className='font-[430] font-season text-[#F6F6F6]/40 text-[15px] leading-[150%] tracking-[0.02em]'>
+              Ready for growth?
+            </p>
+            <Link
+              href='/contact'
+              className='group/cta inline-flex h-[32px] items-center gap-[6px] rounded-[5px] border border-white bg-white px-[10px] font-[430] font-season text-[14px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+            >
+              Book a demo
+              <span className='relative h-[10px] w-[10px] shrink-0'>
+                <ChevronDown className='-rotate-90 absolute inset-0 h-[10px] w-[10px] transition-opacity duration-150 group-hover/cta:opacity-0' />
+                <svg
+                  className='absolute inset-0 h-[10px] w-[10px] opacity-0 transition-opacity duration-150 group-hover/cta:opacity-100'
+                  viewBox='0 0 10 10'
+                  fill='none'
+                >
+                  <path
+                    d='M1 5H8M5.5 2L8.5 5L5.5 8'
+                    stroke='currentColor'
+                    strokeWidth='1.33'
+                    strokeLinecap='square'
+                    strokeLinejoin='miter'
+                    fill='none'
+                  />
+                </svg>
+              </span>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
 }
