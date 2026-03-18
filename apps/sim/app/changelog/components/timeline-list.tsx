@@ -14,25 +14,6 @@ const EASE_OUT_QUINT = [0.23, 1, 0.32, 1] as const
 const CARD_DURATION = 0.35
 const CARD_Y = 16
 
-const SECTION_COLORS: Record<string, string> = {
-  features: '#00F701',
-  'new features': '#00F701',
-  'bug fixes': '#FA4EDF',
-  fixes: '#FA4EDF',
-  improvements: '#2ABBF8',
-  'other changes': '#8B5CF6',
-  chores: '#8B5CF6',
-  documentation: '#FFCC02',
-  'breaking changes': '#FF4444',
-}
-
-function getSectionColor(heading: string): string {
-  const normalized = heading.trim().toLowerCase()
-  return SECTION_COLORS[normalized] ?? '#8B5CF6'
-}
-
-let currentSectionColor = '#999'
-
 function sanitizeContent(body: string): string {
   return body.replace(/&nbsp/g, '')
 }
@@ -105,7 +86,7 @@ function ReleaseCard({ entry, index }: { entry: ChangelogEntry; index: number })
         ease: EASE_OUT_QUINT,
         delay: index < 10 ? index * 0.06 : 0,
       }}
-      className='overflow-hidden border border-[#2A2A2A] bg-[#232323] transition-[border-color,background-color,transform] duration-200 ease-out [@media(hover:hover)]:hover:-translate-y-0.5 [@media(hover:hover)]:hover:border-[#3d3d3d] [@media(hover:hover)]:hover:bg-[#282828]'
+      className='overflow-hidden border border-[#2A2A2A] bg-[#232323] transition-[border-color,background-color] duration-200 ease-out [@media(hover:hover)]:hover:border-[#3d3d3d] [@media(hover:hover)]:hover:bg-[#282828]'
     >
       <div className='p-6 sm:p-8'>
         <div className='mb-5 flex items-center justify-between'>
@@ -114,7 +95,7 @@ function ReleaseCard({ entry, index }: { entry: ChangelogEntry; index: number })
               href={entry.url}
               target='_blank'
               rel='noopener noreferrer'
-              className='inline-block bg-[#FFCC02] px-2 py-0.5 font-season text-[10px] font-bold uppercase tracking-wider text-black transition-opacity hover:opacity-80'
+              className='inline-block border border-[#3d3d3d] bg-[#2A2A2A] px-2 py-0.5 font-season text-[10px] font-bold uppercase tracking-wider text-[#ECECEC] transition-colors hover:border-[#666]'
             >
               {entry.tag}
             </a>
@@ -144,18 +125,13 @@ function ReleaseCard({ entry, index }: { entry: ChangelogEntry; index: number })
             components={{
               h2: ({ children, ...props }) => {
                 if (isContributorsLabel(children)) return null
-                const text = String(children)
-                const color = getSectionColor(text)
-                currentSectionColor = color
                 return (
                   <h4
-                    className='mt-6 mb-3 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest first:mt-0'
-                    style={{ color }}
+                    className='mt-6 mb-3 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#999] first:mt-0'
                     {...props}
                   >
                     <span
-                      className='inline-block h-[6px] w-[6px] flex-shrink-0'
-                      style={{ backgroundColor: color }}
+                      className='inline-block h-[6px] w-[6px] flex-shrink-0 bg-[#666]'
                       aria-hidden='true'
                     />
                     {children}
@@ -164,18 +140,13 @@ function ReleaseCard({ entry, index }: { entry: ChangelogEntry; index: number })
               },
               h3: ({ children, ...props }) => {
                 if (isContributorsLabel(children)) return null
-                const text = String(children)
-                const color = getSectionColor(text)
-                currentSectionColor = color
                 return (
                   <h5
-                    className='mt-5 mb-2 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest first:mt-0'
-                    style={{ color }}
+                    className='mt-5 mb-2 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#999] first:mt-0'
                     {...props}
                   >
                     <span
-                      className='inline-block h-[6px] w-[6px] flex-shrink-0'
-                      style={{ backgroundColor: color }}
+                      className='inline-block h-[6px] w-[6px] flex-shrink-0 bg-[#666]'
                       aria-hidden='true'
                     />
                     {children}
@@ -193,8 +164,7 @@ function ReleaseCard({ entry, index }: { entry: ChangelogEntry; index: number })
                 return (
                   <li className='flex items-start gap-2.5 text-[14px] leading-relaxed' {...props}>
                     <span
-                      className='mt-[8px] inline-block h-[5px] w-[5px] flex-shrink-0 rounded-full opacity-40'
-                      style={{ backgroundColor: currentSectionColor }}
+                      className='mt-[8px] inline-block h-[5px] w-[5px] flex-shrink-0 rounded-full bg-[#666]'
                       aria-hidden='true'
                     />
                     <span className='text-[#CCCCCC]'>
@@ -216,7 +186,7 @@ function ReleaseCard({ entry, index }: { entry: ChangelogEntry; index: number })
               ),
               code: ({ children, ...props }) => (
                 <code
-                  className='rounded-[2px] border border-[#2A2A2A] bg-[#1C1C1C] px-1 py-0.5 font-mono text-[12px] text-[#2ABBF8]'
+                  className='rounded-[2px] border border-[#2A2A2A] bg-[#1C1C1C] px-1 py-0.5 font-mono text-[12px] text-[#CCCCCC]'
                   {...props}
                 >
                   {children}

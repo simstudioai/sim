@@ -61,7 +61,7 @@ export default async function ChangelogContent() {
       <ChangelogHero />
       <main className='mx-auto w-full max-w-5xl px-6 py-12'>
         <h2 className='mb-8 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#666]'>
-          <span className='inline-block h-2 w-2 bg-[#FFCC02]' aria-hidden='true' />
+          <span className='inline-block h-2 w-2 bg-[#666]' aria-hidden='true' />
           All Releases
         </h2>
         <ChangelogList initialEntries={entries} />

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   type MotionValue,
@@ -45,24 +45,48 @@ interface SectionMetric {
   lineY: number
 }
 
+interface TocContextValue {
+  mouseY: MotionValue<number>
+  scrollCursorY: MotionValue<number>
+  registerLine: (id: string, node: HTMLDivElement | null) => void
+  onHoverChange: (id: string | null) => void
+  onSelect: (id: string) => void
+}
+
+const TocContext = createContext<TocContextValue | null>(null)
+
+function useTocContext(): TocContextValue {
+  const ctx = useContext(TocContext)
+  if (!ctx) throw new Error('TocContext must be used within a TocContext.Provider')
+  return ctx
+}
+
+type NavVariant = 'main' | 'sub'
+
 const CONTENTS_ID = '__contents__'
 const SCROLL_OFFSET = 108
 const INTERSECTION_ROOT_MARGIN = '-16% 0px -66% 0px'
 
-/* Adapted from the root `line-minimap/source.tsx` core. */
 const SCROLL_SMOOTHING = 0.5
-const DEFAULT_INTENSITY = 0.52
-const SUBITEM_INTENSITY = 0.72
 const DISTANCE_LIMIT = 48
 const POINTER_OUTSIDE = -10_000
 
-const LINE_WIDTH_MAIN = 32
-const LINE_WIDTH_MAIN_ACTIVE = 48
-const LINE_WIDTH_SUB = 16
-const LINE_WIDTH_SUB_ACTIVE = 36
-const LINE_SLOT_WIDTH_MAIN = 84
-const LINE_SLOT_WIDTH_SUB = 72
-const LINE_RAIL_HOVER_WIDTH = LINE_SLOT_WIDTH_MAIN + 16
+const INTENSITY: Record<NavVariant, number> = {
+  main: 0.52,
+  sub: 0.72,
+} as const
+
+const LINE_WIDTH: Record<NavVariant, { default: number; active: number }> = {
+  main: { default: 32, active: 48 },
+  sub: { default: 16, active: 36 },
+} as const
+
+const LINE_SLOT_WIDTH: Record<NavVariant, number> = {
+  main: 84,
+  sub: 72,
+} as const
+
+const LINE_RAIL_HOVER_WIDTH = LINE_SLOT_WIDTH.main + 16
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
@@ -213,7 +237,6 @@ function getInterpolatedCursorY(sections: SectionMetric[], probeY: number, conte
 export function TableOfContents({ headings }: TableOfContentsProps) {
   const [activeId, setActiveId] = useState('')
   const [hoveredId, setHoveredId] = useState<string | null>(null)
-  const [isLineRailHovering, setIsLineRailHovering] = useState(false)
   const { items, parentByHeadingId } = buildTocModel(headings)
   const { selectedItemId, selectedSubItemId } = getSelectedState(activeId, items, parentByHeadingId)
 
@@ -431,21 +454,6 @@ export function TableOfContents({ headings }: TableOfContentsProps) {
     return () => observerRef.current?.disconnect()
   }, [headings])
 
-  useEffect(() => {
-    if (isLineRailHovering) {
-      document.body.dataset.tocRailHover = 'true'
-      return () => {
-        document.body.removeAttribute('data-toc-rail-hover')
-      }
-    }
-
-    document.body.removeAttribute('data-toc-rail-hover')
-
-    return () => {
-      document.body.removeAttribute('data-toc-rail-hover')
-    }
-  }, [isLineRailHovering])
-
   const onPointerMove = useCallback(
     (event: React.PointerEvent<HTMLElement>) => {
       const nav = navRef.current
@@ -453,55 +461,65 @@ export function TableOfContents({ headings }: TableOfContentsProps) {
 
       const rect = nav.getBoundingClientRect()
       mouseY.set(event.clientY - rect.top)
-      setIsLineRailHovering(event.clientX - rect.left <= LINE_RAIL_HOVER_WIDTH)
+
+      const isOverRail = event.clientX - rect.left <= LINE_RAIL_HOVER_WIDTH
+      if (isOverRail) {
+        nav.dataset.railHover = 'true'
+        document.body.dataset.tocRailHover = 'true'
+      } else {
+        delete nav.dataset.railHover
+        document.body.removeAttribute('data-toc-rail-hover')
+      }
     },
     [mouseY]
   )
 
   const onPointerLeave = useCallback(() => {
     mouseY.set(POINTER_OUTSIDE)
-    setIsLineRailHovering(false)
     setHoveredId(null)
+
+    const nav = navRef.current
+    if (nav) delete nav.dataset.railHover
+    document.body.removeAttribute('data-toc-rail-hover')
   }, [mouseY])
 
   if (headings.length === 0) return null
 
-  return (
-    <nav
-      ref={navRef}
-      className='flex w-[250px] flex-col'
-      aria-label='Table of contents'
-      onPointerMove={onPointerMove}
-      onPointerLeave={onPointerLeave}
-    >
-      <TocOverline onSelect={scrollToId} registerLine={registerLine} />
+  const tocCtx: TocContextValue = {
+    mouseY,
+    scrollCursorY,
+    registerLine,
+    onHoverChange: setHoveredId,
+    onSelect: scrollToId,
+  }
 
-      {items.map((item) => (
-        <NavItem
-          key={item.id}
-          item={item}
-          hoveredId={hoveredId}
-          isSelected={selectedItemId === item.id}
-          isLineRailHovering={isLineRailHovering}
-          mouseY={mouseY}
-          onHoverChange={setHoveredId}
-          onSelect={scrollToId}
-          registerLine={registerLine}
-          scrollCursorY={scrollCursorY}
-          selectedSubItemId={selectedSubItemId}
-        />
-      ))}
-    </nav>
+  return (
+    <TocContext.Provider value={tocCtx}>
+      <nav
+        ref={navRef}
+        className='flex w-[250px] flex-col'
+        aria-label='Table of contents'
+        onPointerMove={onPointerMove}
+        onPointerLeave={onPointerLeave}
+      >
+        <TocOverline />
+
+        {items.map((item) => (
+          <NavItem
+            key={item.id}
+            item={item}
+            hoveredId={hoveredId}
+            isSelected={selectedItemId === item.id}
+            selectedSubItemId={selectedSubItemId}
+          />
+        ))}
+      </nav>
+    </TocContext.Provider>
   )
 }
 
-function TocOverline({
-  onSelect,
-  registerLine,
-}: {
-  onSelect: (id: string) => void
-  registerLine: (id: string, node: HTMLDivElement | null) => void
-}) {
+function TocOverline() {
+  const { onSelect, registerLine } = useTocContext()
   const ref = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -532,25 +550,15 @@ function NavItem({
   item,
   hoveredId,
   isSelected,
-  isLineRailHovering,
-  mouseY,
-  onHoverChange,
-  onSelect,
-  registerLine,
-  scrollCursorY,
   selectedSubItemId,
 }: {
   item: TocItem
   hoveredId: string | null
   isSelected: boolean
-  isLineRailHovering: boolean
-  mouseY: MotionValue<number>
-  onHoverChange: (id: string | null) => void
-  onSelect: (id: string) => void
-  registerLine: (id: string, node: HTMLDivElement | null) => void
-  scrollCursorY: MotionValue<number>
   selectedSubItemId: string
 }) {
+  const { onHoverChange, onSelect } = useTocContext()
+
   if (item.subItems && item.subItems.length > 0) {
     return (
       <div
@@ -560,23 +568,14 @@ function NavItem({
       >
         <div className='group/item relative z-10 flex h-[22px] flex-row items-center transition-all duration-250 ease-out'>
           <NavLine
-            isActive={isSelected}
-            isHovered={hoveredId === item.id}
+            active={isSelected}
+            hovered={hoveredId === item.id}
             lineId={item.id}
-            mouseY={mouseY}
-            registerLine={registerLine}
-            scrollCursorY={scrollCursorY}
+            variant='main'
           />
-          <NavLabel
-            isActive={isSelected}
-            isHovered={hoveredId === item.id}
-            isLineRailHovering={isLineRailHovering}
-            label={item.label}
-          />
+          <NavLabel active={isSelected} hovered={hoveredId === item.id} label={item.label} />
           {item.showTopBorder ? <NavBorder position='top' /> : null}
-          {item.showBottomBorder ? (
-            <NavBorder position='bottom' isExpandedBottom={isSelected} />
-          ) : null}
+          {item.showBottomBorder ? <NavBorder position='bottom' expanded={isSelected} /> : null}
         </div>
 
         <div
@@ -596,14 +595,8 @@ function NavItem({
                 <SubNavItem
                   key={subItem.id}
                   item={subItem}
-                  isActive={selectedSubItemId === subItem.id}
-                  isHovered={hoveredId === subItem.id}
-                  isLineRailHovering={isLineRailHovering}
-                  mouseY={mouseY}
-                  onHoverChange={onHoverChange}
-                  onSelect={onSelect}
-                  registerLine={registerLine}
-                  scrollCursorY={scrollCursorY}
+                  active={selectedSubItemId === subItem.id}
+                  hovered={hoveredId === subItem.id}
                 />
               ))}
             </div>
@@ -621,19 +614,12 @@ function NavItem({
     >
       <div className='relative flex h-[22px] flex-row items-center'>
         <NavLine
-          isActive={isSelected}
-          isHovered={hoveredId === item.id}
+          active={isSelected}
+          hovered={hoveredId === item.id}
           lineId={item.id}
-          mouseY={mouseY}
-          registerLine={registerLine}
-          scrollCursorY={scrollCursorY}
+          variant='main'
         />
-        <NavLabel
-          isActive={isSelected}
-          isHovered={hoveredId === item.id}
-          isLineRailHovering={isLineRailHovering}
-          label={item.label}
-        />
+        <NavLabel active={isSelected} hovered={hoveredId === item.id} label={item.label} />
         {item.showTopBorder ? <NavBorder position='top' /> : null}
         {item.showBottomBorder ? <NavBorder position='bottom' /> : null}
       </div>
@@ -643,25 +629,15 @@ function NavItem({
 
 function SubNavItem({
   item,
-  isActive,
-  isHovered,
-  isLineRailHovering,
-  mouseY,
-  onHoverChange,
-  onSelect,
-  registerLine,
-  scrollCursorY,
+  active,
+  hovered,
 }: {
   item: TocSubItem
-  isActive: boolean
-  isHovered: boolean
-  isLineRailHovering: boolean
-  mouseY: MotionValue<number>
-  onHoverChange: (id: string | null) => void
-  onSelect: (id: string) => void
-  registerLine: (id: string, node: HTMLDivElement | null) => void
-  scrollCursorY: MotionValue<number>
+  active: boolean
+  hovered: boolean
 }) {
+  const { onHoverChange, onSelect } = useTocContext()
+
   return (
     <div
       className='group/item relative z-10 flex h-[24px] cursor-pointer flex-row items-center transition-all duration-250 ease-out'
@@ -671,43 +647,25 @@ function SubNavItem({
       }}
       onPointerEnter={() => onHoverChange(item.id)}
     >
-      <NavLine
-        isActive={isActive}
-        isHovered={isHovered}
-        isSubItem
-        lineId={item.id}
-        mouseY={mouseY}
-        registerLine={registerLine}
-        scrollCursorY={scrollCursorY}
-      />
-      <NavLabel
-        isActive={isActive}
-        isHovered={isHovered}
-        isLineRailHovering={isLineRailHovering}
-        label={item.label}
-      />
-      <NavBorder position='bottom' isSubItem />
+      <NavLine active={active} hovered={hovered} variant='sub' lineId={item.id} />
+      <NavLabel active={active} hovered={hovered} label={item.label} />
+      <NavBorder position='bottom' variant='sub' />
     </div>
   )
 }
 
 function NavLine({
-  isActive,
-  isHovered,
-  isSubItem = false,
+  active,
+  hovered,
+  variant,
   lineId,
-  mouseY,
-  registerLine,
-  scrollCursorY,
 }: {
-  isActive: boolean
-  isHovered: boolean
-  isSubItem?: boolean
+  active: boolean
+  hovered: boolean
+  variant: NavVariant
   lineId: string
-  mouseY: MotionValue<number>
-  registerLine: (id: string, node: HTMLDivElement | null) => void
-  scrollCursorY: MotionValue<number>
 }) {
+  const { mouseY, scrollCursorY, registerLine } = useTocContext()
   const ref = useRef<HTMLDivElement | null>(null)
   const scaleX = useSpring(1, { damping: 45, stiffness: 600 })
 
@@ -717,28 +675,22 @@ function NavLine({
   }, [lineId, registerLine])
 
   useProximityY(scaleX, {
-    intensity: isSubItem ? SUBITEM_INTENSITY : DEFAULT_INTENSITY,
+    intensity: INTENSITY[variant],
     mouseY,
     ref,
     scrollCursorY,
   })
 
-  const width = isSubItem
-    ? isActive || isHovered
-      ? LINE_WIDTH_SUB_ACTIVE
-      : LINE_WIDTH_SUB
-    : isActive || isHovered
-      ? LINE_WIDTH_MAIN_ACTIVE
-      : LINE_WIDTH_MAIN
-
-  const backgroundColor = isActive || isHovered ? '#ECECEC' : '#3A3A3A'
-  const slotWidth = isSubItem ? LINE_SLOT_WIDTH_SUB : LINE_SLOT_WIDTH_MAIN
+  const widthConfig = LINE_WIDTH[variant]
+  const width = active || hovered ? widthConfig.active : widthConfig.default
+  const backgroundColor = active || hovered ? '#ECECEC' : '#3A3A3A'
+  const slotWidth = LINE_SLOT_WIDTH[variant]
 
   return (
     <div
       className={clsx(
         'relative flex shrink-0 items-center justify-start',
-        isSubItem ? 'ml-3 w-[72px]' : 'w-[84px]'
+        variant === 'sub' ? 'ml-3 w-[72px]' : 'w-[84px]'
       )}
       style={{ width: slotWidth }}
     >
@@ -760,25 +712,22 @@ function NavLine({
 }
 
 function NavLabel({
-  isActive,
-  isHovered,
-  isLineRailHovering,
+  active,
+  hovered,
   label,
 }: {
-  isActive: boolean
-  isHovered: boolean
-  isLineRailHovering: boolean
+  active: boolean
+  hovered: boolean
   label: string
 }) {
-  const isSoftened = isLineRailHovering && !isActive && !isHovered
-
   return (
     <p
       className={clsx(
         'max-w-[184px] truncate font-medium font-season text-[13px] transition-[color,filter,opacity] duration-150 ease-out',
-        isActive ? 'text-[#ECECEC]' : 'text-[#777] group-hover/item:text-[#ECECEC]',
-        isSoftened ? 'opacity-45 blur-[1.5px]' : 'opacity-100 blur-0'
+        active ? 'text-[#ECECEC]' : 'text-[#777] group-hover/item:text-[#ECECEC]',
+        !active && !hovered && 'nav-label-softenable'
       )}
+      data-softenable={!active && !hovered ? '' : undefined}
     >
       {label}
     </p>
@@ -787,20 +736,21 @@ function NavLabel({
 
 function NavBorder({
   position,
-  isExpandedBottom = false,
-  isSubItem = false,
+  expanded = false,
+  variant = 'main',
 }: {
   position: 'top' | 'bottom'
-  isExpandedBottom?: boolean
-  isSubItem?: boolean
+  expanded?: boolean
+  variant?: NavVariant
 }) {
+  const isNarrow = variant === 'sub' || (position === 'bottom' && expanded)
+
   return (
     <div
       className={clsx(
         'absolute left-0 h-px bg-[#3A3A3A] transition-all duration-250 ease-out',
         position === 'top' ? 'top-0' : 'bottom-0',
-        isExpandedBottom ? 'ml-3 w-4' : 'w-8',
-        isSubItem && 'ml-3 w-4'
+        isNarrow ? 'ml-3 w-4' : 'w-8'
       )}
     />
   )

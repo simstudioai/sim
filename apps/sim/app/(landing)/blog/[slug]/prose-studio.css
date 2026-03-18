@@ -232,6 +232,18 @@ body[data-toc-rail-hover="true"] [data-blog-main-content] {
   opacity: 0.58;
 }
 
+.nav-label-softenable {
+  transition:
+    color 150ms ease-out,
+    filter 150ms ease-out,
+    opacity 150ms ease-out;
+}
+
+nav[data-rail-hover] .nav-label-softenable[data-softenable] {
+  opacity: 0.45;
+  filter: blur(1.5px);
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   [data-blog-main-content] {
@@ -239,6 +251,10 @@ body[data-toc-rail-hover="true"] [data-blog-main-content] {
   }
 
   .prose-studio a {
+    transition: none;
+  }
+
+  .nav-label-softenable {
     transition: none;
   }
 }

@@ -10,16 +10,18 @@ const HOLD_MS = 3000
 const EXIT_STAGGER_MS = 120
 const EXIT_DURATION_MS = 500
 
-interface BlockState {
-  opacity: number
-  transitioning: boolean
+const RE_ENTER_OPACITIES = [1, 0.8, 0.6, 0.9] as const
+
+
+function setBlockOpacity(el: HTMLSpanElement | null, opacity: number, animate: boolean) {
+  if (!el) return
+  el.style.transition = animate ? `opacity ${ENTER_DURATION_MS}ms ease-out` : 'none'
+  el.style.opacity = String(opacity)
 }
 
 export function AnimatedColorBlocks() {
   const prefersReducedMotion = usePrefersReducedMotion()
-  const [blocks, setBlocks] = useState<BlockState[]>(
-    COLORS.map(() => ({ opacity: prefersReducedMotion ? 1 : 0, transitioning: false }))
-  )
+  const blockRefs = useRef<(HTMLSpanElement | null)[]>([])
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
   const mounted = useRef(true)
 
@@ -32,17 +34,18 @@ export function AnimatedColorBlocks() {
   useEffect(() => {
     mounted.current = true
     timers.current = []
+
     if (prefersReducedMotion) {
-      setBlocks(COLORS.map(() => ({ opacity: 1, transitioning: false })))
+      blockRefs.current.forEach((el) => setBlockOpacity(el, 1, false))
       return
     }
+
+    blockRefs.current.forEach((el) => setBlockOpacity(el, 0, false))
 
     COLORS.forEach((_, i) => {
       schedule(() => {
         if (!mounted.current) return
-        setBlocks((prev) =>
-          prev.map((b, idx) => (idx === i ? { opacity: 1, transitioning: true } : b))
-        )
+        setBlockOpacity(blockRefs.current[i], 1, true)
       }, i * ENTER_STAGGER_MS)
     })
 
@@ -65,9 +68,7 @@ export function AnimatedColorBlocks() {
     COLORS.forEach((_, i) => {
       schedule(() => {
         if (!mounted.current) return
-        setBlocks((prev) =>
-          prev.map((b, idx) => (idx === i ? { opacity: 0.15, transitioning: true } : b))
-        )
+        setBlockOpacity(blockRefs.current[i], 0.15, true)
       }, i * EXIT_STAGGER_MS)
     })
 
@@ -77,11 +78,7 @@ export function AnimatedColorBlocks() {
       COLORS.forEach((_, i) => {
         schedule(() => {
           if (!mounted.current) return
-          setBlocks((prev) =>
-            prev.map((b, idx) =>
-              idx === i ? { opacity: [1, 0.8, 0.6, 0.9][i], transitioning: true } : b
-            )
-          )
+          setBlockOpacity(blockRefs.current[i], RE_ENTER_OPACITIES[i], true)
         }, i * ENTER_STAGGER_MS)
       })
     }, exitTotalMs + 200)
@@ -96,12 +93,11 @@ export function AnimatedColorBlocks() {
       {COLORS.map((color, i) => (
         <span
           key={color}
-          className='inline-block h-3 w-3'
-          style={{
-            backgroundColor: color,
-            opacity: blocks[i]?.opacity ?? 0,
-            transition: `opacity ${blocks[i]?.transitioning ? ENTER_DURATION_MS : 0}ms ease-out`,
+          ref={(el) => {
+            blockRefs.current[i] = el
           }}
+          className='inline-block h-3 w-3'
+          style={{ backgroundColor: color, opacity: 0 }}
         />
       ))}
     </div>
@@ -110,32 +106,30 @@ export function AnimatedColorBlocks() {
 
 export function AnimatedColorBlocksVertical() {
   const prefersReducedMotion = usePrefersReducedMotion()
-  const [blocks, setBlocks] = useState<BlockState[]>(
-    COLORS.slice(0, 3).map(() => ({
-      opacity: prefersReducedMotion ? 1 : 0,
-      transitioning: false,
-    }))
-  )
+  const blockRefs = useRef<(HTMLSpanElement | null)[]>([])
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
   const mounted = useRef(true)
+
+  const verticalColors = [COLORS[0], COLORS[1], COLORS[2]] as const
 
   useEffect(() => {
     mounted.current = true
     timers.current = []
+
     if (prefersReducedMotion) {
-      setBlocks(COLORS.slice(0, 3).map(() => ({ opacity: 1, transitioning: false })))
+      blockRefs.current.forEach((el) => setBlockOpacity(el, 1, false))
       return
     }
 
+    blockRefs.current.forEach((el) => setBlockOpacity(el, 0, false))
+
     const baseDelay = COLORS.length * ENTER_STAGGER_MS + 100
 
-    COLORS.slice(0, 3).forEach((_, i) => {
+    verticalColors.forEach((_, i) => {
       const id = setTimeout(
         () => {
           if (!mounted.current) return
-          setBlocks((prev) =>
-            prev.map((b, idx) => (idx === i ? { opacity: 1, transitioning: true } : b))
-          )
+          setBlockOpacity(blockRefs.current[i], 1, true)
         },
         baseDelay + i * ENTER_STAGGER_MS
       )
@@ -149,19 +143,16 @@ export function AnimatedColorBlocksVertical() {
     }
   }, [prefersReducedMotion])
 
-  const verticalColors = [COLORS[0], COLORS[1], COLORS[2]]
-
   return (
     <div className='flex flex-col gap-0' aria-hidden='true'>
       {verticalColors.map((color, i) => (
         <span
           key={color}
-          className='inline-block h-3 w-3'
-          style={{
-            backgroundColor: color,
-            opacity: blocks[i]?.opacity ?? 0,
-            transition: `opacity ${blocks[i]?.transitioning ? ENTER_DURATION_MS : 0}ms ease-out`,
+          ref={(el) => {
+            blockRefs.current[i] = el
           }}
+          className='inline-block h-3 w-3'
+          style={{ backgroundColor: color, opacity: 0 }}
         />
       ))}
     </div>
