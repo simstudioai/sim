@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import dynamic from 'next/dynamic'
 import { ACTIONS, type CallBackProps, EVENTS, STATUS } from 'react-joyride'
-import { tourSteps } from '@/app/workspace/[workspaceId]/components/product-tour/tour-steps'
-import { TourTooltip } from '@/app/workspace/[workspaceId]/components/product-tour/tour-tooltip'
+import { tourSteps } from './tour-steps'
+import { TourTooltip } from './tour-tooltip'
 
 const logger = createLogger('ProductTour')
 
@@ -46,6 +46,7 @@ export function ProductTour() {
   const [tourKey, setTourKey] = useState(0)
 
   const hasAutoStarted = useRef(false)
+  const retriggerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (hasAutoStarted.current) return
@@ -68,7 +69,13 @@ export function ProductTour() {
       resetTourCompletion()
 
       setTourKey((k) => k + 1)
-      setTimeout(() => {
+
+      if (retriggerTimerRef.current) {
+        clearTimeout(retriggerTimerRef.current)
+      }
+
+      retriggerTimerRef.current = setTimeout(() => {
+        retriggerTimerRef.current = null
         setStepIndex(0)
         setRun(true)
         logger.info('Product tour triggered via custom event')
@@ -76,7 +83,12 @@ export function ProductTour() {
     }
 
     window.addEventListener(START_TOUR_EVENT, handleStartTour)
-    return () => window.removeEventListener(START_TOUR_EVENT, handleStartTour)
+    return () => {
+      window.removeEventListener(START_TOUR_EVENT, handleStartTour)
+      if (retriggerTimerRef.current) {
+        clearTimeout(retriggerTimerRef.current)
+      }
+    }
   }, [])
 
   const stopTour = useCallback(() => {
@@ -137,9 +149,14 @@ export function ProductTour() {
       tooltipComponent={TourTooltip}
       floaterProps={{
         disableAnimation: true,
+        hideArrow: true,
         styles: {
           floater: {
             filter: 'none',
+            opacity: 0,
+            pointerEvents: 'none' as React.CSSProperties['pointerEvents'],
+            width: 0,
+            height: 0,
           },
         },
       }}
