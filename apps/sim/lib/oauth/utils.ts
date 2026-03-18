@@ -308,6 +308,9 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'crm.lists.read': 'Read HubSpot lists',
   'crm.lists.write': 'Create and update HubSpot lists',
   'crm.objects.tickets.read': 'Read HubSpot tickets',
+  'crm.objects.tickets.write': 'Create and update HubSpot tickets',
+  tickets: 'Access HubSpot tickets',
+  oauth: 'Authenticate with HubSpot OAuth',
 
   // Salesforce scopes
   api: 'Access Salesforce API',
