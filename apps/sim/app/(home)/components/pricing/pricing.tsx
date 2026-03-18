@@ -125,12 +125,12 @@ function PricingCard({ tier }: PricingCardProps) {
           </p>
           <div className='mt-4'>
             {isEnterprise ? (
-              <a
+              <Link
                 href={tier.cta.href}
                 className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#E5E5E5] px-[10px] font-[430] font-season text-[#1C1C1C] text-[14px] transition-colors hover:bg-[#F0F0F0]'
               >
                 {tier.cta.label}
-              </a>
+              </Link>
             ) : isPro ? (
               <Link
                 href={tier.cta.href}

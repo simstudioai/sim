@@ -179,25 +179,6 @@ const FEATURE_TAGS = [
   'Audit Logs',
 ] as const
 
-function DotGrid() {
-  return (
-    <div
-      aria-hidden='true'
-      className='overflow-hidden border-[#2A2A2A] border-b p-[6px]'
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(120, 1fr)',
-        gap: 6,
-        placeItems: 'center',
-      }}
-    >
-      {Array.from({ length: 120 }, (_, i) => (
-        <div key={i} className='h-[1.5px] w-[1.5px] rounded-full bg-[#2A2A2A]' />
-      ))}
-    </div>
-  )
-}
-
 interface AuditRowProps {
   entry: LogEntry
   index: number
