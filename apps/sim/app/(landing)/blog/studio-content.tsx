@@ -193,7 +193,7 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
             </h2>
             <SidebarSearch value={query} onChange={handleSearch} />
           </div>
-          <CategoriesDepthContainer color={activeItem?.color ?? '#00F701'}>
+          <CategoriesDepthContainer>
             <h2 className='mb-3 font-season text-[10px] uppercase tracking-widest text-[#ECECEC]'>
               Categories
             </h2>
@@ -329,14 +329,13 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
 }
 
 interface CategoriesDepthContainerProps {
-  color: string
   children: React.ReactNode
 }
 
-function CategoriesDepthContainer({ color, children }: CategoriesDepthContainerProps) {
+function CategoriesDepthContainer({ children }: CategoriesDepthContainerProps) {
   return (
     <div className='pt-6'>
-      <div className='bg-transparent p-'>{children}</div>
+      <div className='bg-transparent'>{children}</div>
     </div>
   )
 }

@@ -144,6 +144,9 @@ function WorkspacePreview({ activeTab, isActive }: { activeTab: number; isActive
 
   const [expandedTab, setExpandedTab] = useState<number | null>(null)
   const [revealedRows, setRevealedRows] = useState(0)
+  const prevTabRef = useRef(activeTab)
+  const wasExpandedRef = useRef(false)
+  const expandTransitionRef = useRef<'scale' | 'crossfade'>('scale')
 
   const isMothership = activeTab === 0 && isActive
   const isExpandTab = activeTab >= 1 && activeTab <= 4 && isActive
@@ -189,17 +192,37 @@ function WorkspacePreview({ activeTab, isActive }: { activeTab: number; isActive
   }, [inView, isMothership])
 
   useEffect(() => {
+    const prevTab = prevTabRef.current
+    const wasPrevExpanded = wasExpandedRef.current
+    prevTabRef.current = activeTab
+
     if (!isExpandTab || !showGrid) {
       if (!isExpandTab) {
+        wasExpandedRef.current = false
         setExpandedTab(null)
         setRevealedRows(0)
       }
       return
     }
-    setExpandedTab(null)
-    setRevealedRows(0)
-    const timer = setTimeout(() => setExpandedTab(activeTab), 300)
-    return () => clearTimeout(timer)
+
+    const comingFromExpanded =
+      wasPrevExpanded && prevTab >= 1 && prevTab <= 4 && prevTab !== activeTab
+
+    if (comingFromExpanded) {
+      expandTransitionRef.current = 'crossfade'
+      wasExpandedRef.current = true
+      setRevealedRows(EXPAND_ROW_COUNTS[activeTab] ?? 10)
+      setExpandedTab(activeTab)
+    } else {
+      expandTransitionRef.current = 'scale'
+      setExpandedTab(null)
+      setRevealedRows(0)
+      const timer = setTimeout(() => {
+        wasExpandedRef.current = true
+        setExpandedTab(activeTab)
+      }, 300)
+      return () => clearTimeout(timer)
+    }
   }, [isExpandTab, activeTab, showGrid])
 
   useEffect(() => {
@@ -279,23 +302,37 @@ function WorkspacePreview({ activeTab, isActive }: { activeTab: number; isActive
         </div>
       )}
 
-      {isExpanded && expandTarget && (
-        <motion.div
-          key={expandedTab}
-          className='absolute inset-0 overflow-hidden border border-[#E5E5E5] bg-white'
-          initial={{ opacity: 0, scale: 0.15 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1] }}
-          style={{
-            transformOrigin: `${GRID_PAD + expandTarget.col * GRID_STEP + CARD_SIZE / 2}px ${GRID_PAD + expandTarget.row * GRID_STEP + CARD_SIZE / 2}px`,
-          }}
-        >
-          {expandedTab === 1 && <MockFullTable revealedRows={revealedRows} />}
-          {expandedTab === 2 && <MockFullFiles />}
-          {expandedTab === 3 && <MockFullKnowledgeBase revealedRows={revealedRows} />}
-          {expandedTab === 4 && <MockFullLogs revealedRows={revealedRows} />}
-        </motion.div>
-      )}
+      <AnimatePresence mode='wait'>
+        {isExpanded && expandTarget && (
+          <motion.div
+            key={expandedTab}
+            className='absolute inset-0 overflow-hidden border border-[#E5E5E5] bg-white'
+            initial={
+              expandTransitionRef.current === 'crossfade'
+                ? { opacity: 0 }
+                : { opacity: 0, scale: 0.15 }
+            }
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{
+              duration: expandTransitionRef.current === 'crossfade' ? 0.3 : 0.55,
+              ease: [0.4, 0, 0.2, 1],
+            }}
+            style={
+              expandTransitionRef.current === 'scale'
+                ? {
+                    transformOrigin: `${GRID_PAD + expandTarget.col * GRID_STEP + CARD_SIZE / 2}px ${GRID_PAD + expandTarget.row * GRID_STEP + CARD_SIZE / 2}px`,
+                  }
+                : undefined
+            }
+          >
+            {expandedTab === 1 && <MockFullTable revealedRows={revealedRows} />}
+            {expandedTab === 2 && <MockFullFiles />}
+            {expandedTab === 3 && <MockFullKnowledgeBase revealedRows={revealedRows} />}
+            {expandedTab === 4 && <MockFullLogs revealedRows={revealedRows} />}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

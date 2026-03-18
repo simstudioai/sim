@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { type MotionValue, motion, useScroll, useTransform } from 'framer-motion'
+import { AnimatePresence, type MotionValue, motion, useScroll, useTransform } from 'framer-motion'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Badge, ChevronDown } from '@/components/emcn'
@@ -168,6 +168,8 @@ function DotGrid({
   )
 }
 
+const INDICATOR_TRANSITION_MS = 300
+
 export default function Features() {
   const sectionRef = useRef<HTMLDivElement>(null)
   const [activeTab, setActiveTab] = useState(0)
@@ -259,7 +261,10 @@ export default function Features() {
                   aria-selected={index === activeTab}
                   onClick={() => setActiveTab(index)}
                   className={`relative h-full flex-1 items-center justify-center whitespace-nowrap px-[12px] font-medium font-season text-[#212121] text-[12px] uppercase lg:px-0 lg:text-[14px]${tab.hideOnMobile ? ' hidden lg:flex' : ' flex'}${index > 0 ? ' border-[#E9E9E9] border-l' : ''}`}
-                  style={{ backgroundColor: index === activeTab ? '#FDFDFD' : '#F6F6F6' }}
+                  style={{
+                    backgroundColor: index === activeTab ? '#FDFDFD' : '#F6F6F6',
+                    transition: `background-color ${INDICATOR_TRANSITION_MS}ms ease`,
+                  }}
                 >
                   {tab.mobileLabel ? (
                     <>
@@ -269,21 +274,25 @@ export default function Features() {
                   ) : (
                     tab.label
                   )}
-                  {index === activeTab && (
-                    <div className='absolute right-0 bottom-0 left-0 flex h-[6px]'>
-                      {tab.segments.map(([opacity, width], i) => (
-                        <div
-                          key={i}
-                          className='h-full shrink-0'
-                          style={{
-                            width: `${width}%`,
-                            backgroundColor: tab.color,
-                            opacity,
-                          }}
-                        />
-                      ))}
-                    </div>
-                  )}
+                  <div
+                    className='pointer-events-none absolute right-0 bottom-0 left-0 flex h-[6px]'
+                    style={{
+                      opacity: index === activeTab ? 1 : 0,
+                      transition: `opacity ${INDICATOR_TRANSITION_MS}ms ease`,
+                    }}
+                  >
+                    {tab.segments.map(([segOpacity, width], i) => (
+                      <div
+                        key={i}
+                        className='h-full shrink-0'
+                        style={{
+                          width: `${width}%`,
+                          backgroundColor: tab.color,
+                          opacity: segOpacity,
+                        }}
+                      />
+                    ))}
+                  </div>
                 </button>
               ))}
             </div>
@@ -299,38 +308,57 @@ export default function Features() {
           </div>
 
           <div className='mt-[32px] flex flex-col gap-[24px] px-[24px] lg:mt-[60px] lg:grid lg:grid-cols-[1fr_2.8fr] lg:gap-[60px] lg:px-[120px]'>
-            <div className='flex flex-col items-start justify-between gap-[24px] pt-[20px] lg:h-[560px] lg:gap-0'>
-              <div className='flex flex-col items-start gap-[16px]'>
-                <h3 className='font-[430] font-season text-[#1C1C1C] text-[24px] leading-[120%] tracking-[-0.02em] lg:text-[28px]'>
-                  {FEATURE_TABS[activeTab].title}
-                </h3>
-                <p className='font-[430] font-season text-[#1C1C1C]/50 text-[16px] leading-[150%] tracking-[0.02em] lg:text-[18px]'>
-                  {FEATURE_TABS[activeTab].description}
-                </p>
-              </div>
-              <Link
-                href='/signup'
-                className='group/cta inline-flex h-[32px] items-center gap-[6px] rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-[10px] font-[430] font-season text-[14px] text-white transition-colors hover:border-[#2A2A2A] hover:bg-[#2A2A2A]'
-              >
-                {FEATURE_TABS[activeTab].cta}
-                <span className='relative h-[10px] w-[10px] shrink-0'>
-                  <ChevronDown className='-rotate-90 absolute inset-0 h-[10px] w-[10px] transition-opacity duration-150 group-hover/cta:opacity-0' />
-                  <svg
-                    className='absolute inset-0 h-[10px] w-[10px] opacity-0 transition-opacity duration-150 group-hover/cta:opacity-100'
-                    viewBox='0 0 10 10'
-                    fill='none'
+            <div className='relative flex flex-col items-start justify-between gap-[24px] pt-[20px] lg:h-[560px] lg:gap-0'>
+              <AnimatePresence mode='wait'>
+                <motion.div
+                  key={activeTab}
+                  className='flex flex-col items-start gap-[16px]'
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+                >
+                  <h3 className='font-[430] font-season text-[#1C1C1C] text-[24px] leading-[120%] tracking-[-0.02em] lg:text-[28px]'>
+                    {FEATURE_TABS[activeTab].title}
+                  </h3>
+                  <p className='font-[430] font-season text-[#1C1C1C]/50 text-[16px] leading-[150%] tracking-[0.02em] lg:text-[18px]'>
+                    {FEATURE_TABS[activeTab].description}
+                  </p>
+                </motion.div>
+              </AnimatePresence>
+              <AnimatePresence mode='wait'>
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                >
+                  <Link
+                    href='/signup'
+                    className='group/cta inline-flex h-[32px] items-center gap-[6px] rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-[10px] font-[430] font-season text-[14px] text-white transition-colors hover:border-[#2A2A2A] hover:bg-[#2A2A2A]'
                   >
-                    <path
-                      d='M1 5H8M5.5 2L8.5 5L5.5 8'
-                      stroke='currentColor'
-                      strokeWidth='1.33'
-                      strokeLinecap='square'
-                      strokeLinejoin='miter'
-                      fill='none'
-                    />
-                  </svg>
-                </span>
-              </Link>
+                    {FEATURE_TABS[activeTab].cta}
+                    <span className='relative h-[10px] w-[10px] shrink-0'>
+                      <ChevronDown className='-rotate-90 absolute inset-0 h-[10px] w-[10px] transition-opacity duration-150 group-hover/cta:opacity-0' />
+                      <svg
+                        className='absolute inset-0 h-[10px] w-[10px] opacity-0 transition-opacity duration-150 group-hover/cta:opacity-100'
+                        viewBox='0 0 10 10'
+                        fill='none'
+                      >
+                        <path
+                          d='M1 5H8M5.5 2L8.5 5L5.5 8'
+                          stroke='currentColor'
+                          strokeWidth='1.33'
+                          strokeLinecap='square'
+                          strokeLinejoin='miter'
+                          fill='none'
+                        />
+                      </svg>
+                    </span>
+                  </Link>
+                </motion.div>
+              </AnimatePresence>
             </div>
 
             <FeaturesPreview activeTab={activeTab} />

@@ -9,10 +9,6 @@ import type { Author, BlogMeta } from '@/lib/blog/schema'
 import { buildArticleJsonLd, buildBreadcrumbJsonLd, buildPostMetadata } from '@/lib/blog/seo'
 import { formatDate } from '@/lib/core/utils/formatting'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import {
-  AnimatedColorBlocks,
-  AnimatedColorBlocksVertical,
-} from '@/app/(landing)/blog/[slug]/animated-blocks'
 import { ArticleHeaderItem, ArticleHeaderMotion } from '@/app/(landing)/blog/[slug]/article-header'
 import { ArticleSidebar } from '@/app/(landing)/blog/[slug]/article-sidebar'
 import { ShareButtons } from '@/app/(landing)/blog/[slug]/share-button'
