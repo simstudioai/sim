@@ -2,6 +2,7 @@
 
 import { ArrowUp, Image, Loader2 } from 'lucide-react'
 import { Badge, Button } from '@/components/emcn'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { ModeSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/components/mode-selector/mode-selector'
 import { ModelSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/components/model-selector/model-selector'
@@ -56,11 +57,13 @@ export function BottomControls({
           />
         )}
 
-        <ModelSelector
-          selectedModel={selectedModel}
-          isNearTop={isNearTop}
-          onModelSelect={onModelSelect}
-        />
+        {!isHosted && (
+          <ModelSelector
+            selectedModel={selectedModel}
+            isNearTop={isNearTop}
+            onModelSelect={onModelSelect}
+          />
+        )}
       </div>
 
       {/* Right side: Attach Button + Send Button */}

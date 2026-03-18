@@ -4,7 +4,6 @@ import {
   Bug,
   Check,
   CheckCircle,
-  CheckCircle2,
   ClipboardList,
   Database,
   Eye,
@@ -1317,8 +1316,6 @@ const META_redeploy: ToolMetadata = {
   },
   interrupt: undefined,
 }
-
-
 
 const META_research: ToolMetadata = {
   displayNames: {
