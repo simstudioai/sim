@@ -109,10 +109,12 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
   const lowerQ = query.trim().toLowerCase()
 
   const { sorted, activeCategory } = useMemo(() => {
+    const validTag = activeTag && CATEGORIES.some((c) => c.id === activeTag) ? activeTag : null
+
     let filtered = posts
 
-    if (activeTag) {
-      filtered = posts.filter((p) => getPrimaryCategory(p.tags).id === activeTag)
+    if (validTag) {
+      filtered = posts.filter((p) => getPrimaryCategory(p.tags).id === validTag)
     }
 
     if (lowerQ) {
@@ -130,7 +132,7 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
       })
     }
 
-    const cat = activeTag ? getCategoryById(activeTag) : null
+    const cat = validTag ? getCategoryById(validTag) : null
     const s = [...filtered].sort((a, b) => {
       if (a.featured && !b.featured) return -1
       if (!a.featured && b.featured) return 1
@@ -438,7 +440,9 @@ function SidebarCategories({ items, activeId, onSelect }: SidebarCategoriesProps
                 style={{
                   transform: isActive ? 'translate(4px, -4px)' : 'translate(0px, 0px)',
                   backgroundColor: isActive ? '#242424' : 'transparent',
-                  boxShadow: isActive ? 'inset 0 0 0 1.5px #3E3E3E' : 'inset 0 0 0 1.5px transparent',
+                  boxShadow: isActive
+                    ? 'inset 0 0 0 1.5px #3E3E3E'
+                    : 'inset 0 0 0 1.5px transparent',
                   transition: shouldReduceMotion
                     ? 'none'
                     : isActive

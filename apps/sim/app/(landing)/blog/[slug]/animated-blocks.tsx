@@ -12,7 +12,6 @@ const EXIT_DURATION_MS = 500
 
 const RE_ENTER_OPACITIES = [1, 0.8, 0.6, 0.9] as const
 
-
 function setBlockOpacity(el: HTMLSpanElement | null, opacity: number, animate: boolean) {
   if (!el) return
   el.style.transition = animate ? `opacity ${ENTER_DURATION_MS}ms ease-out` : 'none'
@@ -37,7 +36,11 @@ export function AnimatedColorBlocks() {
 
     if (prefersReducedMotion) {
       blockRefs.current.forEach((el) => setBlockOpacity(el, 1, false))
-      return
+      return () => {
+        mounted.current = false
+        timers.current.forEach(clearTimeout)
+        timers.current = []
+      }
     }
 
     blockRefs.current.forEach((el) => setBlockOpacity(el, 0, false))
@@ -97,7 +100,7 @@ export function AnimatedColorBlocks() {
             blockRefs.current[i] = el
           }}
           className='inline-block h-3 w-3'
-          style={{ backgroundColor: color, opacity: 0 }}
+          style={{ backgroundColor: color, opacity: prefersReducedMotion ? 1 : 0 }}
         />
       ))}
     </div>
@@ -112,13 +115,23 @@ export function AnimatedColorBlocksVertical() {
 
   const verticalColors = [COLORS[0], COLORS[1], COLORS[2]] as const
 
+  function schedule(fn: () => void, ms: number) {
+    const id = setTimeout(fn, ms)
+    timers.current.push(id)
+    return id
+  }
+
   useEffect(() => {
     mounted.current = true
     timers.current = []
 
     if (prefersReducedMotion) {
       blockRefs.current.forEach((el) => setBlockOpacity(el, 1, false))
-      return
+      return () => {
+        mounted.current = false
+        timers.current.forEach(clearTimeout)
+        timers.current = []
+      }
     }
 
     blockRefs.current.forEach((el) => setBlockOpacity(el, 0, false))
@@ -126,14 +139,13 @@ export function AnimatedColorBlocksVertical() {
     const baseDelay = COLORS.length * ENTER_STAGGER_MS + 100
 
     verticalColors.forEach((_, i) => {
-      const id = setTimeout(
+      schedule(
         () => {
           if (!mounted.current) return
           setBlockOpacity(blockRefs.current[i], 1, true)
         },
         baseDelay + i * ENTER_STAGGER_MS
       )
-      timers.current.push(id)
     })
 
     return () => {
@@ -152,7 +164,7 @@ export function AnimatedColorBlocksVertical() {
             blockRefs.current[i] = el
           }}
           className='inline-block h-3 w-3'
-          style={{ backgroundColor: color, opacity: 0 }}
+          style={{ backgroundColor: color, opacity: prefersReducedMotion ? 1 : 0 }}
         />
       ))}
     </div>
