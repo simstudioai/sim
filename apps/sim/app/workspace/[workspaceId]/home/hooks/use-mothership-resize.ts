@@ -56,6 +56,21 @@ export function useMothershipResize() {
     }
   }, [])
 
+  // Re-clamp panel width when the viewport is resized (inline px width can exceed max after narrowing)
+  useEffect(() => {
+    const handleWindowResize = () => {
+      const el = mothershipRef.current
+      if (!el || !el.style.width) return
+      const maxWidth = window.innerWidth * MOTHERSHIP_WIDTH.MAX_PERCENTAGE
+      const current = el.getBoundingClientRect().width
+      if (current > maxWidth) {
+        el.style.width = `${maxWidth}px`
+      }
+    }
+    window.addEventListener('resize', handleWindowResize)
+    return () => window.removeEventListener('resize', handleWindowResize)
+  }, [])
+
   /** Remove inline width so the collapse CSS class retakes control */
   const clearWidth = useCallback(() => {
     mothershipRef.current?.style.removeProperty('width')

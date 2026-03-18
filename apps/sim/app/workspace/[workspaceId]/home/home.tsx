@@ -463,7 +463,7 @@ export function Home({ chatId }: HomeProps = {}) {
 
       {/* Resize handle — zero-width flex child whose absolute child straddles the border */}
       {!isResourceCollapsed && (
-        <div className='relative z-20 w-0 flex-none' aria-hidden='true'>
+        <div className='relative z-20 w-0 flex-none'>
           <div
             className='absolute inset-y-0 left-[-4px] w-[8px] cursor-ew-resize'
             role='separator'
