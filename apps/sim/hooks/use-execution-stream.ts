@@ -31,8 +31,9 @@ function isClientDisconnectError(error: any): boolean {
 
 /**
  * Processes SSE events from a response body and invokes appropriate callbacks.
+ * Exported for use by standalone (non-hook) execution paths like executeWorkflowWithFullLogging.
  */
-async function processSSEStream(
+export async function processSSEStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   callbacks: ExecutionStreamCallbacks,
   logPrefix: string
@@ -198,6 +199,7 @@ export function useExecutionStream() {
         if (errorResponse && typeof errorResponse === 'object') {
           Object.assign(error, { executionResult: errorResponse })
         }
+        Object.assign(error, { httpStatus: response.status })
         throw error
       }
 
@@ -267,12 +269,15 @@ export function useExecutionStream() {
         try {
           errorResponse = await response.json()
         } catch {
-          throw new Error(`Server error (${response.status}): ${response.statusText}`)
+          const error = new Error(`Server error (${response.status}): ${response.statusText}`)
+          Object.assign(error, { httpStatus: response.status })
+          throw error
         }
         const error = new Error(errorResponse.error || 'Failed to start execution')
         if (errorResponse && typeof errorResponse === 'object') {
           Object.assign(error, { executionResult: errorResponse })
         }
+        Object.assign(error, { httpStatus: response.status })
         throw error
       }
 
