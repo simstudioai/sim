@@ -96,7 +96,7 @@ function PostCard({ post, priority = false }: { post: Post; priority?: boolean }
             <h3 className='mb-3 line-clamp-2 font-[500] text-[20px] leading-tight tracking-[-0.01em] text-[#ECECEC] transition-colors duration-150 [@media(hover:hover)]:group-hover:text-[#00F701]'>
               {post.title}
             </h3>
-            <p className='mb-6 line-clamp-2 text-[14px] leading-relaxed text-[#999]'>
+            <p className='mb-6 line-clamp-2 text-[15px] leading-relaxed text-[#999]'>
               {post.description}
             </p>
             <div className='mt-auto flex items-center gap-3 border-t border-[#2A2A2A] pt-4 font-season text-[10px] uppercase text-[#666]'>
@@ -169,7 +169,7 @@ function FeaturedLeadCard({ post }: { post: Post }) {
             <h3 className='mb-4 max-w-2xl font-[500] text-[32px] leading-tight tracking-[-0.02em] text-[#ECECEC] transition-colors duration-150 [@media(hover:hover)]:group-hover:text-[#00F701]'>
               {post.title}
             </h3>
-            <p className='mb-6 max-w-2xl text-[14px] text-[#999]'>{post.description}</p>
+            <p className='mb-6 max-w-2xl text-[15px] text-[#999]'>{post.description}</p>
             <div className='flex items-center gap-3 font-season text-[10px] uppercase text-[#666]'>
               <div className='flex items-center gap-2'>
                 <div className='flex -space-x-1.5'>

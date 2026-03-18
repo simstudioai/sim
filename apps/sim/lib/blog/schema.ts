@@ -65,7 +65,7 @@ export interface BlogMeta {
 
 export interface BlogPost extends BlogMeta {
   Content: React.ComponentType
-  headings?: { text: string; id: string }[]
+  headings?: { text: string; id: string; level: number }[]
 }
 
 export interface TagWithCount {

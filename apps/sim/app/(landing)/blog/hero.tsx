@@ -27,7 +27,7 @@ export function StudioHero() {
   const shouldReduceMotion = useReducedMotion()
 
   return (
-    <section className='relative overflow-hidden border-b border-[#2A2A2A] pb-10 pt-14'>
+    <section className='relative overflow-hidden border-b border-[#2A2A2A] pt-12 pb-8'>
       <div
         className='pointer-events-none absolute inset-0 opacity-50'
         aria-hidden='true'
@@ -38,22 +38,15 @@ export function StudioHero() {
         }}
       />
       <motion.div
-        className='relative z-10 mx-auto max-w-5xl'
+        className='relative z-10 mx-auto w-full max-w-5xl'
         variants={containerVariants}
         initial={shouldReduceMotion ? 'visible' : 'hidden'}
         animate='visible'
       >
-        <div className='flex flex-col items-start'>
-          <motion.div
-            variants={itemVariants}
-            className='mb-6 inline-flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#999]'
-          >
-            <span className='inline-block h-2 w-2 flex-shrink-0 bg-[#2ABBF8]' aria-hidden='true' />
-            Sim / Studio
-          </motion.div>
+        <div className='flex flex-col items-start gap-[12px]'>
           <motion.h1
             variants={itemVariants}
-            className='mb-3 max-w-3xl text-balance font-[430] text-[40px] leading-[1.1] tracking-[-0.02em] text-[#ECECEC] sm:text-[56px] md:text-[64px]'
+            className='max-w-3xl text-balance font-[430] text-[40px] leading-[1.1] tracking-[-0.02em] text-[#ECECEC] sm:text-[56px] md:text-[64px]'
           >
             Building the future of <span className='text-[#666]'>autonomous workflows.</span>
           </motion.h1>

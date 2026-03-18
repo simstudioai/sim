@@ -1,30 +1,20 @@
 .prose-studio h2 {
-  display: flex;
-  align-items: center;
   border-bottom: 1px solid #2a2a2a;
   padding-bottom: 1.5rem;
   font-weight: 500;
-  font-size: 1.5rem;
+  font-size: 30px;
   color: #ececec;
-  margin-top: 1rem !important;
+  margin-top: 3rem !important;
   margin-bottom: 1.5rem;
   letter-spacing: -0.025em;
 }
 
-.prose-studio h2::before {
-  content: "\25A0";
-  color: #00f701;
-  font-size: 0.6em;
-  margin-right: 0.75rem;
-  flex-shrink: 0;
-}
-
 .prose-studio h3 {
   font-weight: 500;
-  font-size: 1.25rem;
+  font-size: 24px;
   color: #ececec;
-  margin-top: 2rem;
-  margin-bottom: 1rem;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
   letter-spacing: -0.015em;
 }
 
@@ -86,7 +76,7 @@
   margin: 2.5rem 0;
   background: #232323;
   border-left: 2px solid #fa4edf;
-  border-radius: 0 5px 5px 0;
+  border-radius: 0 2px 2px 0;
   font-style: italic;
   font-size: 1.125rem;
   color: #cccccc;
@@ -120,7 +110,7 @@
 
 /* Images */
 .prose-studio img {
-  border-radius: 5px;
+  border-radius: 2px;
   border: 1px solid #2a2a2a;
 }
 

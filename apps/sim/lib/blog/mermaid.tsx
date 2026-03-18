@@ -89,7 +89,7 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
     return (
       <div
         className='my-8 overflow-hidden border border-[#2A2A2A] bg-[#111111]'
-        style={{ borderRadius: '5px' }}
+        style={{ borderRadius: '2px' }}
       >
         <div className='flex items-center justify-between border-b border-[#2A2A2A] bg-[#232323] px-4 py-2'>
           <div className='flex items-center gap-2'>
@@ -113,7 +113,7 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
     return (
       <div
         className='my-8 flex items-center justify-center border border-[#2A2A2A] bg-[#1C1C1C] py-12'
-        style={{ borderRadius: '5px' }}
+        style={{ borderRadius: '2px' }}
       >
         <div className='flex items-center gap-3 font-mono text-[11px] uppercase tracking-widest text-[#666]'>
           <span className='inline-block h-2 w-2 animate-pulse bg-[#2ABBF8]' />
@@ -126,7 +126,7 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
   return (
     <div
       className='my-8 overflow-hidden border border-[#2A2A2A] bg-[#1C1C1C]'
-      style={{ borderRadius: '5px' }}
+      style={{ borderRadius: '2px' }}
     >
       <div className='flex items-center justify-between border-b border-[#2A2A2A] bg-[#232323] px-4 py-2'>
         <div className='flex items-center gap-2'>

@@ -99,7 +99,7 @@ export function CodeBlock({ code, language }: CodeBlockProps) {
   return (
     <div
       className='my-8 overflow-hidden border border-[#2A2A2A] bg-[#111111]'
-      style={{ borderRadius: '5px' }}
+      style={{ borderRadius: '2px' }}
     >
       <div className='flex items-center justify-between border-b border-[#2A2A2A] bg-[#232323] px-4 py-2'>
         <div className='flex items-center gap-2'>

@@ -29,7 +29,7 @@ export function ChangelogHero() {
   const shouldReduceMotion = useReducedMotion()
 
   return (
-    <section className='relative overflow-hidden border-b border-[#2A2A2A] pb-10 pt-14'>
+    <section className='relative overflow-hidden border-b border-[#2A2A2A] pb-10 pt-12'>
       <div
         className='pointer-events-none absolute inset-0 opacity-50'
         aria-hidden='true'

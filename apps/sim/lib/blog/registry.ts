@@ -154,13 +154,14 @@ export async function getPostBySlug(slug: string): Promise<BlogPost> {
       },
     },
   })
-  const headings: { text: string; id: string }[] = []
+  const headings: { text: string; id: string; level: number }[] = []
   const lines = content.split('\n')
   for (const line of lines) {
-    const match = /^##\s+(.+)$/.exec(line.trim())
+    const match = /^(#{2,3})\s+(.+)$/.exec(line.trim())
     if (match) {
-      const text = match[1].trim()
-      headings.push({ text, id: slugify(text) })
+      const level = match[1].length
+      const text = match[2].trim()
+      headings.push({ text, id: slugify(text), level })
     }
   }
   return {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { motion, useReducedMotion } from 'framer-motion'
+import { useReducedMotion } from 'framer-motion'
 import { Search } from 'lucide-react'
 import { StudioHero } from '@/app/(landing)/blog/hero'
 import { FeaturedGrid, PostGrid } from '@/app/(landing)/blog/post-grid'
@@ -28,12 +28,47 @@ interface StudioContentProps {
 
 const PER_PAGE = 20
 
+const LEFT_WALL_CLIP = 'polygon(0 8px, 100% 0, 100% 100%, 0 100%)'
+const BOTTOM_WALL_CLIP = 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)'
+
+const DEPTH_SEGMENTS = [
+  [0.3, 10],
+  [0.5, 8],
+  [0.8, 6],
+  [1, 5],
+  [0.4, 12],
+  [0.7, 8],
+  [1, 6],
+  [0.5, 10],
+  [0.9, 7],
+  [0.6, 12],
+  [1, 8],
+  [0.35, 8],
+] as const
+
+function hexToRgba(hex: string, alpha: number): string {
+  const r = Number.parseInt(hex.slice(1, 3), 16)
+  const g = Number.parseInt(hex.slice(3, 5), 16)
+  const b = Number.parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r},${g},${b},${alpha})`
+}
+
+function buildBottomWallGradient(color: string): string {
+  let pos = 0
+  const stops: string[] = []
+  for (const [opacity, width] of DEPTH_SEGMENTS) {
+    const c = hexToRgba(color, opacity)
+    stops.push(`${c} ${pos}%`, `${c} ${pos + width}%`)
+    pos += width
+  }
+  return `linear-gradient(135deg, ${stops.join(', ')})`
+}
+
 export function StudioContent({ posts, initialTag, initialQuery }: StudioContentProps) {
   const [activeTag, setActiveTag] = useState<string | null>(initialTag ?? null)
   const [query, setQuery] = useState(initialQuery ?? '')
   const [page, setPage] = useState(1)
 
-  /** Sync URL via replaceState — no server round-trip. */
   const syncUrl = useCallback((tag: string | null, q: string) => {
     const params = new URLSearchParams()
     if (tag) params.set('tag', tag)
@@ -42,7 +77,6 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
     window.history.replaceState(null, '', search ? `/blog?${search}` : '/blog')
   }, [])
 
-  /** Handle browser back / forward. */
   useEffect(() => {
     const onPopState = () => {
       const params = new URLSearchParams(window.location.search)
@@ -54,7 +88,6 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
 
-  // ── Category counts (static — computed once from full post set) ─────────
   const categoryItems = useMemo(() => {
     const counts: Record<string, number> = {}
     for (const cat of CATEGORIES) counts[cat.id] = 0
@@ -73,7 +106,6 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
     ]
   }, [posts])
 
-  // ── Filter + sort (runs instantly on state change) ──────────────────────
   const lowerQ = query.trim().toLowerCase()
 
   const { sorted, activeCategory } = useMemo(() => {
@@ -122,6 +154,8 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
   }
   const showHero = isDefaultView
 
+  const activeItem = categoryItems.find((item) => item.id === activeTag) ?? categoryItems[0]
+
   const handleCategorySelect = useCallback(
     (id: string | null) => {
       setActiveTag(id)
@@ -150,8 +184,8 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
   }, [syncUrl])
 
   return (
-    <div className='flex min-h-0 flex-1 flex-col lg:flex-row'>
-      <aside className='flex w-full shrink-0 flex-col border-r border-[#2A2A2A] bg-[#1C1C1C] p-8 lg:sticky lg:top-[52px] lg:h-[calc(100vh-52px)] lg:w-72 lg:overflow-y-auto'>
+    <div className='flex min-h-0 flex-1 flex-col lg:flex-row px-12'>
+      <aside className='flex w-full shrink-0 flex-col border-r border-[#2A2A2A] bg-[#1C1C1C] px-6 pt-12 lg:sticky lg:top-[52px] lg:h-[calc(100vh-52px)] lg:w-64 lg:overflow-y-auto'>
         <div className='flex h-full flex-col'>
           <div className='mb-6'>
             <h2 className='mb-4 font-season text-[10px] uppercase tracking-widest text-[#666]'>
@@ -159,7 +193,7 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
             </h2>
             <SidebarSearch value={query} onChange={handleSearch} />
           </div>
-          <div className='flex flex-col pt-6'>
+          <CategoriesDepthContainer color={activeItem?.color ?? '#00F701'}>
             <h2 className='mb-3 font-season text-[10px] uppercase tracking-widest text-[#ECECEC]'>
               Categories
             </h2>
@@ -168,14 +202,18 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
               activeId={activeTag}
               onSelect={handleCategorySelect}
             />
-          </div>
+          </CategoriesDepthContainer>
         </div>
       </aside>
 
       <main className='relative min-w-0 flex-1'>
         <div className='flex flex-col'>
-          {showHero && <StudioHero />}
-          <div className='mx-auto w-full max-w-5xl py-12'>
+          {showHero && (
+            <div className='-mr-12'>
+              <StudioHero />
+            </div>
+          )}
+          <div className='mx-auto w-full max-w-5xl py-12 lg:mr-8'>
             {lowerQ && (
               <div className='mb-8 flex items-center gap-3'>
                 <span className='font-season text-[10px] uppercase tracking-widest text-[#666]'>
@@ -290,6 +328,19 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
   )
 }
 
+interface CategoriesDepthContainerProps {
+  color: string
+  children: React.ReactNode
+}
+
+function CategoriesDepthContainer({ color, children }: CategoriesDepthContainerProps) {
+  return (
+    <div className='pt-6'>
+      <div className='bg-transparent p-'>{children}</div>
+    </div>
+  )
+}
+
 interface SidebarSearchProps {
   value: string
   onChange: (value: string) => void
@@ -303,8 +354,8 @@ function SidebarSearch({ value, onChange }: SidebarSearchProps) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder='SEARCH POSTS...'
-        className='w-full border border-[#2A2A2A] bg-[#232323] px-4 py-2 pr-9 font-season text-[11px] text-[#ECECEC] placeholder:text-[#666] transition-colors focus:border-[#00F701] focus:outline-none'
-        style={{ borderRadius: '5px' }}
+        className='w-full border border-[#2A2A2A] bg-[#232323] px-4 py-2 pr-9 font-season text-[11px] text-[#ECECEC] placeholder:text-[#666] transition-colors focus:border-[#3d3d3d] focus:outline-none'
+        style={{ borderRadius: '4px' }}
         aria-label='Search blog posts'
       />
       <span className='absolute right-0 top-0 flex h-full items-center px-3 text-[#666]'>
@@ -331,39 +382,11 @@ function SidebarCategories({ items, activeId, onSelect }: SidebarCategoriesProps
   const shouldReduceMotion = useReducedMotion()
   const listRef = useRef<HTMLUListElement>(null)
   const itemRefs = useRef<Map<string, HTMLLIElement>>(new Map())
-  const [highlight, setHighlight] = useState<{ top: number; height: number } | null>(null)
 
   const activeItem = items.find((item) => item.id === activeId) ?? items[0]
 
-  useEffect(() => {
-    const key = activeId ?? 'all'
-    const el = itemRefs.current.get(key)
-    const list = listRef.current
-    if (!el || !list) {
-      setHighlight(null)
-      return
-    }
-    const listRect = list.getBoundingClientRect()
-    const elRect = el.getBoundingClientRect()
-    setHighlight({ top: elRect.top - listRect.top, height: elRect.height })
-  }, [activeId])
-
   return (
     <ul ref={listRef} className='relative flex flex-col'>
-      {activeItem && highlight && (
-        <motion.div
-          className='absolute left-0 right-0 rounded-sm'
-          style={{
-            backgroundColor: `${activeItem.color}0D`,
-            border: `1px solid ${activeItem.color}`,
-            height: highlight.height,
-          }}
-          animate={{ y: highlight.top }}
-          transition={
-            shouldReduceMotion ? { duration: 0 } : { type: 'spring', duration: 0.3, bounce: 0 }
-          }
-        />
-      )}
       {items.map((item) => {
         const isActive = item.id === activeId
         const key = item.id ?? 'all'
@@ -377,25 +400,76 @@ function SidebarCategories({ items, activeId, onSelect }: SidebarCategoriesProps
             <button
               type='button'
               onClick={() => onSelect(item.id)}
-              className={`relative flex w-full items-center justify-between rounded-sm px-3 py-2 text-left text-[13px] transition-colors duration-150 ease ${
+              className={`relative w-full text-left ${
                 isActive
-                  ? ''
-                  : '[@media(hover:hover)]:hover:bg-[#232323] [@media(hover:hover)]:hover:text-[#ECECEC]'
+                  ? 'z-10'
+                  : 'shadow-[inset_0_-1px_0_0_#2A2A2A] last:shadow-none hover:bg-[#232323]/50'
               }`}
-              style={{ color: isActive ? item.color : '#999' }}
             >
-              <span className='relative z-10'>{item.label}</span>
-              <span
-                className='relative z-10 font-season text-[10px]'
+              <div
+                className='pointer-events-none absolute top-[-4px] bottom-0 left-0 w-1'
                 style={{
-                  padding: '2px 6px',
-                  borderRadius: '2px',
-                  border: isActive ? `1px solid ${item.color}` : '1px solid #2A2A2A',
-                  color: isActive ? item.color : '#666',
+                  clipPath: LEFT_WALL_CLIP,
+                  backgroundColor: hexToRgba(item.color, 0.63),
+                  opacity: isActive ? 1 : 0,
+                  transition: shouldReduceMotion
+                    ? 'none'
+                    : isActive
+                      ? 'opacity 250ms cubic-bezier(0.2, 0, 0, 1) 50ms'
+                      : 'opacity 200ms cubic-bezier(0.4, 0, 1, 1)',
+                }}
+                aria-hidden='true'
+              />
+              <div
+                className='pointer-events-none absolute right-[-4px] bottom-0 left-1 h-1'
+                style={{
+                  clipPath: BOTTOM_WALL_CLIP,
+                  background: buildBottomWallGradient(item.color),
+                  opacity: isActive ? 1 : 0,
+                  transition: shouldReduceMotion
+                    ? 'none'
+                    : isActive
+                      ? 'opacity 250ms cubic-bezier(0.2, 0, 0, 1) 50ms'
+                      : 'opacity 200ms cubic-bezier(0.4, 0, 1, 1)',
+                }}
+                aria-hidden='true'
+              />
+              <div
+                className='relative flex items-center px-[12px] py-[10px]'
+                style={{
+                  transform: isActive ? 'translate(4px, -4px)' : 'translate(0px, 0px)',
+                  backgroundColor: isActive ? '#242424' : 'transparent',
+                  boxShadow: isActive ? 'inset 0 0 0 1.5px #3E3E3E' : 'inset 0 0 0 1.5px transparent',
+                  transition: shouldReduceMotion
+                    ? 'none'
+                    : isActive
+                      ? 'transform 350ms cubic-bezier(0.34, 1.4, 0.64, 1), background-color 250ms ease 30ms, box-shadow 250ms ease 30ms'
+                      : 'transform 300ms cubic-bezier(0.4, 0, 0.2, 1), background-color 200ms ease, box-shadow 200ms ease',
                 }}
               >
-                {String(item.count).padStart(2, '0')}
-              </span>
+                <span
+                  className='flex-1 font-[430] font-season text-[14px]'
+                  style={{
+                    color: isActive ? '#FFFFFF' : 'rgba(246, 246, 240, 0.5)',
+                    transition: shouldReduceMotion ? 'none' : 'color 250ms ease',
+                  }}
+                >
+                  {item.label}
+                </span>
+                <span
+                  className='font-season text-[10px]'
+                  style={{
+                    padding: '2px 6px',
+                    borderRadius: '2px',
+                    border: isActive ? '1px solid #3E3E3E' : '1px solid #2A2A2A',
+                    color: isActive ? item.color : '#666',
+                    backgroundColor: isActive ? '#232323' : 'transparent',
+                    transition: shouldReduceMotion ? 'none' : 'all 200ms ease',
+                  }}
+                >
+                  {String(item.count).padStart(2, '0')}
+                </span>
+              </div>
             </button>
           </li>
         )

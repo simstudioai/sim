@@ -5,8 +5,8 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { ArrowUpRight } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/emcn'
-import type { ChangelogEntry } from '@/app/changelog/components/changelog-content'
 import { formatDate } from '@/lib/core/utils/formatting'
+import type { ChangelogEntry } from '@/app/changelog/components/changelog-content'
 
 type Props = { initialEntries: ChangelogEntry[] }
 
@@ -135,7 +135,7 @@ function ReleaseCard({ entry, index }: { entry: ChangelogEntry; index: number })
           </a>
         </div>
         {entry.title !== entry.tag && (
-          <h3 className='mb-4 font-[500] text-[22px] leading-tight tracking-[-0.01em] text-[#ECECEC]'>
+          <h3 className='mb-4 font-[500] text-[20px] leading-tight tracking-[-0.01em] text-[#ECECEC]'>
             {entry.title}
           </h3>
         )}
@@ -216,7 +216,7 @@ function ReleaseCard({ entry, index }: { entry: ChangelogEntry; index: number })
               ),
               code: ({ children, ...props }) => (
                 <code
-                  className='rounded border border-[#2A2A2A] bg-[#1C1C1C] px-1 py-0.5 font-mono text-[12px] text-[#2ABBF8]'
+                  className='rounded-[2px] border border-[#2A2A2A] bg-[#1C1C1C] px-1 py-0.5 font-mono text-[12px] text-[#2ABBF8]'
                   {...props}
                 >
                   {children}
