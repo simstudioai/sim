@@ -271,6 +271,7 @@ function buildResultData(result: unknown): Record<string, unknown> | undefined {
     return {
       success: r.success,
       output: r.output,
+      logs: r.logs,
       error: r.error,
     }
   }
@@ -280,6 +281,7 @@ function buildResultData(result: unknown): Record<string, unknown> | undefined {
     return {
       success: exec.success,
       output: exec.output,
+      logs: exec.logs,
       error: exec.error,
     }
   }

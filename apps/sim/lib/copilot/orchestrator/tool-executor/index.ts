@@ -1023,8 +1023,8 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
 /**
  * Check whether a tool can be executed on the Sim (TypeScript) side.
  *
- * Tools that are only available on the Go backend (e.g. search_patterns,
- * search_errors, remember_debug) will return false.  The subagent tool_call
+ * Tools that are only available on the Go backend (e.g. search_patterns)
+ * will return false.  The subagent tool_call
  * handler uses this to decide whether to execute a tool locally or let the
  * Go backend's own tool_result SSE event handle it.
  */
