@@ -2,6 +2,7 @@ import type { MothershipResource } from '@/lib/copilot/resource-types'
 
 export type SSEEventType =
   | 'chat_id'
+  | 'request_id'
   | 'title_updated'
   | 'content'
   | 'reasoning'
@@ -88,6 +89,7 @@ export interface ContentBlock {
 
 export interface StreamingContext {
   chatId?: string
+  requestId?: string
   messageId: string
   accumulatedContent: string
   contentBlocks: ContentBlock[]
@@ -154,6 +156,7 @@ export interface OrchestratorResult {
   contentBlocks: ContentBlock[]
   toolCalls: ToolCallSummary[]
   chatId?: string
+  requestId?: string
   error?: string
   errors?: string[]
   usage?: { prompt: number; completion: number }

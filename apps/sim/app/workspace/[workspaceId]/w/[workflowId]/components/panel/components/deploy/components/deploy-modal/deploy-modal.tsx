@@ -227,12 +227,39 @@ export function DeployModal({
     getApiKeyLabel,
   ])
 
+  const selectedStreamingOutputsRef = useRef(selectedStreamingOutputs)
+  selectedStreamingOutputsRef.current = selectedStreamingOutputs
+
   useEffect(() => {
     if (open && workflowId) {
       setActiveTab('general')
       setDeployError(null)
       setDeployWarnings([])
       setChatSuccess(false)
+
+      const currentOutputs = selectedStreamingOutputsRef.current
+      if (currentOutputs.length > 0) {
+        const blocks = Object.values(useWorkflowStore.getState().blocks)
+        const validOutputs = currentOutputs.filter((outputId) => {
+          if (startsWithUuid(outputId)) {
+            const underscoreIndex = outputId.indexOf('_')
+            if (underscoreIndex === -1) return false
+            const blockId = outputId.substring(0, underscoreIndex)
+            return blocks.some((b) => b.id === blockId)
+          }
+          const parts = outputId.split('.')
+          if (parts.length >= 2) {
+            const blockName = parts[0]
+            return blocks.some(
+              (b) => b.name?.toLowerCase().replace(/\s+/g, '') === blockName.toLowerCase()
+            )
+          }
+          return true
+        })
+        if (validOutputs.length !== currentOutputs.length) {
+          setSelectedStreamingOutputs(validOutputs)
+        }
+      }
     }
     return () => {
       if (chatSuccessTimeoutRef.current) {
@@ -240,38 +267,6 @@ export function DeployModal({
       }
     }
   }, [open, workflowId])
-
-  useEffect(() => {
-    if (!open || selectedStreamingOutputs.length === 0) return
-
-    const blocks = Object.values(useWorkflowStore.getState().blocks)
-
-    const validOutputs = selectedStreamingOutputs.filter((outputId) => {
-      if (startsWithUuid(outputId)) {
-        const underscoreIndex = outputId.indexOf('_')
-        if (underscoreIndex === -1) return false
-
-        const blockId = outputId.substring(0, underscoreIndex)
-        const block = blocks.find((b) => b.id === blockId)
-        return !!block
-      }
-
-      const parts = outputId.split('.')
-      if (parts.length >= 2) {
-        const blockName = parts[0]
-        const block = blocks.find(
-          (b) => b.name?.toLowerCase().replace(/\s+/g, '') === blockName.toLowerCase()
-        )
-        return !!block
-      }
-
-      return true
-    })
-
-    if (validOutputs.length !== selectedStreamingOutputs.length) {
-      setSelectedStreamingOutputs(validOutputs)
-    }
-  }, [open, selectedStreamingOutputs, setSelectedStreamingOutputs])
 
   useEffect(() => {
     const handleOpenDeployModal = (event: Event) => {

@@ -3,6 +3,7 @@ import { STREAM_STORAGE_KEY } from '@/lib/copilot/constants'
 import { asRecord } from '@/lib/copilot/orchestrator/sse/utils'
 import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
 import {
+  abortAllInProgressTools,
   isBackgroundState,
   isRejectedState,
   isReviewState,
@@ -91,6 +92,7 @@ export function flushStreamingUpdates(set: StoreSet) {
         if (update) {
           return {
             ...msg,
+            requestId: update.requestId ?? msg.requestId,
             content: '',
             contentBlocks:
               update.contentBlocks.length > 0
@@ -128,6 +130,7 @@ export function updateStreamingMessage(set: StoreSet, context: ClientStreamingCo
             const newMessages = [...messages]
             newMessages[messages.length - 1] = {
               ...lastMessage,
+              requestId: lastMessageUpdate.requestId ?? lastMessage.requestId,
               content: '',
               contentBlocks:
                 lastMessageUpdate.contentBlocks.length > 0
@@ -142,6 +145,7 @@ export function updateStreamingMessage(set: StoreSet, context: ClientStreamingCo
               if (update) {
                 return {
                   ...msg,
+                  requestId: update.requestId ?? msg.requestId,
                   content: '',
                   contentBlocks:
                     update.contentBlocks.length > 0
@@ -426,6 +430,12 @@ export const sseHandlers: Record<string, SSEHandler> = {
       const updatedStream = { ...activeStream, chatId: context.newChatId }
       set({ activeStream: updatedStream })
       writeActiveStreamToStorage(updatedStream)
+    }
+  },
+  request_id: (data, context) => {
+    const requestId = typeof data.data === 'string' ? data.data : undefined
+    if (requestId) {
+      context.requestId = requestId
     }
   },
   title_updated: (_data, _context, get, set) => {
@@ -956,7 +966,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     }))
     context.streamComplete = true
   },
-  stream_end: (_data, context, _get, set) => {
+  stream_end: (_data, context, get, set) => {
     if (context.pendingContent) {
       if (context.isInThinkingBlock && context.currentThinkingBlock) {
         appendThinkingContent(context, context.pendingContent)
@@ -967,6 +977,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     }
     finalizeThinkingBlock(context)
     updateStreamingMessage(set, context)
+    abortAllInProgressTools(set, get)
   },
   default: () => {},
 }

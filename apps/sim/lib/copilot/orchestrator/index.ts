@@ -76,6 +76,7 @@ export async function orchestrateCopilotStream(
       contentBlocks: context.contentBlocks,
       toolCalls: buildToolCallSummaries(context),
       chatId: context.chatId,
+      requestId: context.requestId,
       errors: context.errors.length ? context.errors : undefined,
       usage: context.usage,
       cost: context.cost,

@@ -70,6 +70,7 @@ export interface CopilotMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
   timestamp: string
+  requestId?: string
   citations?: { id: number; title: string; url: string; similarity?: number }[]
   toolCalls?: CopilotToolCall[]
   contentBlocks?: ClientContentBlock[]

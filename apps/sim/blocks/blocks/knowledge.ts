@@ -29,6 +29,7 @@ export const KnowledgeBlock: BlockConfig = {
         { label: 'List Documents', id: 'list_documents' },
         { label: 'Get Document', id: 'get_document' },
         { label: 'Create Document', id: 'create_document' },
+        { label: 'Upsert Document', id: 'upsert_document' },
         { label: 'Delete Document', id: 'delete_document' },
         { label: 'List Chunks', id: 'list_chunks' },
         { label: 'Upload Chunk', id: 'upload_chunk' },
@@ -175,14 +176,14 @@ export const KnowledgeBlock: BlockConfig = {
       condition: { field: 'operation', value: 'upload_chunk' },
     },
 
-    // --- Create Document ---
+    // --- Create Document / Upsert Document ---
     {
       id: 'name',
       title: 'Document Name',
       type: 'short-input',
       placeholder: 'Enter document name',
       required: true,
-      condition: { field: 'operation', value: 'create_document' },
+      condition: { field: 'operation', value: ['create_document', 'upsert_document'] },
     },
     {
       id: 'content',
@@ -191,14 +192,21 @@ export const KnowledgeBlock: BlockConfig = {
       placeholder: 'Enter the document content',
       rows: 6,
       required: true,
-      condition: { field: 'operation', value: 'create_document' },
+      condition: { field: 'operation', value: ['create_document', 'upsert_document'] },
+    },
+    {
+      id: 'upsertDocumentId',
+      title: 'Document ID (Optional)',
+      type: 'short-input',
+      placeholder: 'Enter existing document ID to update (or leave empty to match by name)',
+      condition: { field: 'operation', value: 'upsert_document' },
     },
     {
       id: 'documentTags',
       title: 'Document Tags',
       type: 'document-tag-entry',
       dependsOn: ['knowledgeBaseSelector'],
-      condition: { field: 'operation', value: 'create_document' },
+      condition: { field: 'operation', value: ['create_document', 'upsert_document'] },
     },
 
     // --- Update Chunk / Delete Chunk ---
@@ -264,6 +272,7 @@ export const KnowledgeBlock: BlockConfig = {
       'knowledge_search',
       'knowledge_upload_chunk',
       'knowledge_create_document',
+      'knowledge_upsert_document',
       'knowledge_list_tags',
       'knowledge_list_documents',
       'knowledge_get_document',
@@ -284,6 +293,8 @@ export const KnowledgeBlock: BlockConfig = {
             return 'knowledge_upload_chunk'
           case 'create_document':
             return 'knowledge_create_document'
+          case 'upsert_document':
+            return 'knowledge_upsert_document'
           case 'list_tags':
             return 'knowledge_list_tags'
           case 'list_documents':
@@ -355,6 +366,11 @@ export const KnowledgeBlock: BlockConfig = {
           if (params.chunkEnabledFilter) params.enabled = params.chunkEnabledFilter
         }
 
+        // Map upsert sub-block field to tool param
+        if (params.operation === 'upsert_document' && params.upsertDocumentId) {
+          params.documentId = String(params.upsertDocumentId).trim()
+        }
+
         // Convert enabled dropdown string to boolean for update_chunk
         if (params.operation === 'update_chunk' && typeof params.enabled === 'string') {
           params.enabled = params.enabled === 'true'
@@ -382,6 +398,7 @@ export const KnowledgeBlock: BlockConfig = {
     documentTags: { type: 'string', description: 'Document tags' },
     chunkSearch: { type: 'string', description: 'Search filter for chunks' },
     chunkEnabledFilter: { type: 'string', description: 'Filter chunks by enabled status' },
+    upsertDocumentId: { type: 'string', description: 'Document ID for upsert operation' },
     connectorId: { type: 'string', description: 'Connector identifier' },
   },
   outputs: {

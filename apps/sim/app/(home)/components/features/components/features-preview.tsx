@@ -2,6 +2,8 @@
 
 import { type SVGProps, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useInView } from 'framer-motion'
+import ReactMarkdown, { type Components } from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { ChevronDown } from '@/components/emcn'
 import { Database, File, Library, Table } from '@/components/emcn/icons'
 import {
@@ -16,6 +18,7 @@ import {
   xAIIcon,
 } from '@/components/icons'
 import { CsvIcon, JsonIcon, MarkdownIcon, PdfIcon } from '@/components/icons/document-icons'
+import { cn } from '@/lib/core/utils/cn'
 
 interface FeaturesPreviewProps {
   activeTab: number
@@ -124,7 +127,7 @@ const EXPAND_TARGETS: Record<number, { row: number; col: number }> = {
 }
 
 const EXPAND_ROW_COUNTS: Record<number, number> = {
-  1: 10,
+  1: 8,
   2: 10,
   3: 10,
   4: 7,
@@ -603,7 +606,28 @@ const MOCK_KB_DATA = [
   ['metrics.csv', '1.4 MB', '5.8k', '38', 'enabled'],
 ] as const
 
+const MD_COMPONENTS: Components = {
+  h1: ({ children }) => (
+    <h1 className='mb-4 border-[#E5E5E5] border-b pb-2 font-semibold text-[#1C1C1C] text-[20px]'>
+      {children}
+    </h1>
+  ),
+  h2: ({ children }) => (
+    <h2 className='mt-5 mb-3 border-[#E5E5E5] border-b pb-1.5 font-semibold text-[#1C1C1C] text-[16px]'>
+      {children}
+    </h2>
+  ),
+  ul: ({ children }) => <ul className='mb-3 list-disc pl-[24px]'>{children}</ul>,
+  ol: ({ children }) => <ol className='mb-3 list-decimal pl-[24px]'>{children}</ol>,
+  li: ({ children }) => (
+    <li className='mb-1 text-[#1C1C1C] text-[14px] leading-[1.6]'>{children}</li>
+  ),
+  p: ({ children }) => <p className='mb-3 text-[#1C1C1C] text-[14px] leading-[1.6]'>{children}</p>,
+}
+
 function MockFullFiles() {
+  const [source, setSource] = useState(MOCK_MD_SOURCE)
+
   return (
     <div className='flex h-full flex-col'>
       <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-[24px]'>
@@ -622,9 +646,13 @@ function MockFullFiles() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.4, delay: 0.3 }}
         >
-          <pre className='h-full overflow-auto whitespace-pre-wrap p-[24px] font-[300] font-mono text-[#1C1C1C] text-[12px] leading-[1.7]'>
-            {MOCK_MD_SOURCE}
-          </pre>
+          <textarea
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            spellCheck={false}
+            autoCorrect='off'
+            className='h-full w-full resize-none overflow-auto whitespace-pre-wrap bg-transparent p-[24px] font-[300] font-mono text-[#1C1C1C] text-[12px] leading-[1.7] outline-none'
+          />
         </motion.div>
 
         <div className='h-full w-px shrink-0 bg-[#E5E5E5]' />
@@ -636,47 +664,9 @@ function MockFullFiles() {
           transition={{ duration: 0.4, delay: 0.5 }}
         >
           <div className='h-full overflow-auto p-[24px]'>
-            <h1 className='mb-4 border-[#E5E5E5] border-b pb-2 font-semibold text-[#1C1C1C] text-[20px]'>
-              Meeting Notes
-            </h1>
-            <h2 className='mt-5 mb-3 border-[#E5E5E5] border-b pb-1.5 font-semibold text-[#1C1C1C] text-[16px]'>
-              Action Items
-            </h2>
-            <ul className='mb-3 list-disc pl-[24px]'>
-              <li className='mb-1 text-[#1C1C1C] text-[14px] leading-[1.6]'>
-                Review Q1 metrics with Sarah
-              </li>
-              <li className='mb-1 text-[#1C1C1C] text-[14px] leading-[1.6]'>
-                Update API documentation
-              </li>
-              <li className='mb-1 text-[#1C1C1C] text-[14px] leading-[1.6]'>
-                Schedule design review for v2.0
-              </li>
-            </ul>
-            <h2 className='mt-5 mb-3 border-[#E5E5E5] border-b pb-1.5 font-semibold text-[#1C1C1C] text-[16px]'>
-              Discussion Points
-            </h2>
-            <p className='mb-3 text-[#1C1C1C] text-[14px] leading-[1.6]'>
-              The team agreed to prioritize the new onboarding flow. Key decisions:
-            </p>
-            <ol className='mb-3 list-decimal pl-[24px]'>
-              <li className='mb-1 text-[#1C1C1C] text-[14px] leading-[1.6]'>
-                Migrate to the new auth provider by end of March
-              </li>
-              <li className='mb-1 text-[#1C1C1C] text-[14px] leading-[1.6]'>
-                Ship the dashboard redesign in two phases
-              </li>
-              <li className='mb-1 text-[#1C1C1C] text-[14px] leading-[1.6]'>
-                Add automated testing for all critical paths
-              </li>
-            </ol>
-            <h2 className='mt-5 mb-3 border-[#E5E5E5] border-b pb-1.5 font-semibold text-[#1C1C1C] text-[16px]'>
-              Next Steps
-            </h2>
-            <p className='mb-3 text-[#1C1C1C] text-[14px] leading-[1.6]'>
-              Follow up with engineering on the timeline for the API v2 migration. Draft the
-              proposal for the board meeting next week.
-            </p>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>
+              {source}
+            </ReactMarkdown>
           </div>
         </motion.div>
       </div>
@@ -809,16 +799,85 @@ const LOG_STATUS_STYLES: Record<string, { bg: string; text: string; label: strin
   error: { bg: '#FEE2E2', text: '#991B1B', label: 'Error' },
 }
 
+interface MockLogDetail {
+  output: string
+  spans: { name: string; ms: number; depth: number }[]
+}
+
+const MOCK_LOG_DETAILS: MockLogDetail[] = [
+  {
+    output: '{\n  "result": "processed",\n  "emails": 3,\n  "status": "complete"\n}',
+    spans: [
+      { name: 'Agent Block', ms: 800, depth: 0 },
+      { name: 'search_web', ms: 210, depth: 1 },
+      { name: 'Function Block', ms: 180, depth: 0 },
+    ],
+  },
+  {
+    output: '{\n  "score": 87,\n  "label": "high",\n  "confidence": 0.94\n}',
+    spans: [
+      { name: 'Agent Block', ms: 2100, depth: 0 },
+      { name: 'hubspot_get_contact', ms: 340, depth: 1 },
+      { name: 'Function Block', ms: 180, depth: 0 },
+      { name: 'Condition', ms: 50, depth: 0 },
+    ],
+  },
+  {
+    output: '{\n  "error": "timeout",\n  "message": "LLM request exceeded limit"\n}',
+    spans: [
+      { name: 'Agent Block', ms: 650, depth: 0 },
+      { name: 'search_kb', ms: 120, depth: 1 },
+    ],
+  },
+  {
+    output: '{\n  "user": "james@globex.io",\n  "steps_completed": 4,\n  "status": "sent"\n}',
+    spans: [
+      { name: 'Agent Block', ms: 980, depth: 0 },
+      { name: 'send_email', ms: 290, depth: 1 },
+      { name: 'Function Block', ms: 210, depth: 0 },
+      { name: 'Agent Block', ms: 420, depth: 0 },
+    ],
+  },
+  {
+    output: '{\n  "records_processed": 142,\n  "inserted": 138,\n  "errors": 4\n}',
+    spans: [
+      { name: 'Agent Block', ms: 1800, depth: 0 },
+      { name: 'salesforce_query', ms: 820, depth: 1 },
+      { name: 'Function Block', ms: 340, depth: 0 },
+      { name: 'Agent Block', ms: 1200, depth: 0 },
+      { name: 'insert_rows', ms: 610, depth: 1 },
+    ],
+  },
+  {
+    output: '{\n  "result": "processed",\n  "emails": 1,\n  "status": "complete"\n}',
+    spans: [
+      { name: 'Agent Block', ms: 720, depth: 0 },
+      { name: 'gmail_read', ms: 190, depth: 1 },
+      { name: 'Function Block', ms: 160, depth: 0 },
+    ],
+  },
+  {
+    output: '{\n  "ticket_id": "TKT-4291",\n  "priority": "medium",\n  "assigned": "support"\n}',
+    spans: [
+      { name: 'Agent Block', ms: 1400, depth: 0 },
+      { name: 'classify_intent', ms: 380, depth: 1 },
+      { name: 'Function Block', ms: 220, depth: 0 },
+      { name: 'Agent Block', ms: 780, depth: 0 },
+    ],
+  },
+]
+
+const MOCK_LOG_DETAIL_MAX_MS = MOCK_LOG_DETAILS.map((d) => Math.max(...d.spans.map((s) => s.ms)))
+
 function MockFullLogs({ revealedRows }: { revealedRows: number }) {
   const [showSidebar, setShowSidebar] = useState(false)
+  const [selectedRow, setSelectedRow] = useState(0)
 
   useEffect(() => {
     if (revealedRows < MOCK_LOG_DATA.length) return
     const timer = setTimeout(() => setShowSidebar(true), 400)
     return () => clearTimeout(timer)
   }, [revealedRows])
-
-  const selectedRow = 0
 
   return (
     <div className='relative flex h-full'>
@@ -856,7 +915,11 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2, ease: 'easeOut' }}
-                    className={isSelected ? 'bg-[#F5F5F5]' : 'hover:bg-[#FAFAFA]'}
+                    className={cn(
+                      'cursor-pointer',
+                      isSelected ? 'bg-[#F5F5F5]' : 'hover:bg-[#FAFAFA]'
+                    )}
+                    onClick={() => setSelectedRow(i)}
                   >
                     <td className='px-[24px] py-[10px] align-middle'>
                       <span className='flex items-center gap-[12px] font-medium text-[#1C1C1C] text-[14px]'>
@@ -908,24 +971,59 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
         transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
         style={{ width: '45%' }}
       >
-        <MockLogDetailsSidebar />
+        <MockLogDetailsSidebar
+          selectedRow={selectedRow}
+          onPrev={() => setSelectedRow((r) => Math.max(0, r - 1))}
+          onNext={() => setSelectedRow((r) => Math.min(MOCK_LOG_DATA.length - 1, r + 1))}
+        />
       </motion.div>
     </div>
   )
 }
 
-function MockLogDetailsSidebar() {
+interface MockLogDetailsSidebarProps {
+  selectedRow: number
+  onPrev: () => void
+  onNext: () => void
+}
+
+function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSidebarProps) {
+  const row = MOCK_LOG_DATA[selectedRow]
+  const detail = MOCK_LOG_DETAILS[selectedRow]
+  const statusStyle = LOG_STATUS_STYLES[row[2]] ?? LOG_STATUS_STYLES.success
+  const [date, time] = row[1].split(', ')
+  const color = MOCK_LOG_COLORS[selectedRow]
+  const maxMs = MOCK_LOG_DETAIL_MAX_MS[selectedRow]
+  const isPrevDisabled = selectedRow === 0
+  const isNextDisabled = selectedRow === MOCK_LOG_DATA.length - 1
+
   return (
-    <div className='flex h-full flex-col px-[14px] pt-[12px]'>
+    <div className='flex h-full flex-col overflow-y-auto px-[14px] pt-[12px]'>
       <div className='flex items-center justify-between'>
         <span className='font-medium text-[#1C1C1C] text-[14px]'>Log Details</span>
         <div className='flex items-center gap-[1px]'>
-          <div className='flex h-[24px] w-[24px] items-center justify-center rounded-[4px] text-[#999] hover:bg-[#F5F5F5]'>
+          <button
+            type='button'
+            onClick={onPrev}
+            disabled={isPrevDisabled}
+            className={cn(
+              'flex h-[24px] w-[24px] items-center justify-center rounded-[4px] text-[#999]',
+              isPrevDisabled ? 'cursor-not-allowed opacity-40' : 'hover:bg-[#F5F5F5]'
+            )}
+          >
             <ChevronDown className='h-[14px] w-[14px] rotate-180' />
-          </div>
-          <div className='flex h-[24px] w-[24px] items-center justify-center rounded-[4px] text-[#999] hover:bg-[#F5F5F5]'>
+          </button>
+          <button
+            type='button'
+            onClick={onNext}
+            disabled={isNextDisabled}
+            className={cn(
+              'flex h-[24px] w-[24px] items-center justify-center rounded-[4px] text-[#999]',
+              isNextDisabled ? 'cursor-not-allowed opacity-40' : 'hover:bg-[#F5F5F5]'
+            )}
+          >
             <ChevronDown className='h-[14px] w-[14px]' />
-          </div>
+          </button>
         </div>
       </div>
 
@@ -934,8 +1032,8 @@ function MockLogDetailsSidebar() {
           <div className='flex w-[120px] shrink-0 flex-col gap-[8px]'>
             <span className='font-medium text-[#999] text-[12px]'>Timestamp</span>
             <div className='flex items-center gap-[6px]'>
-              <span className='font-medium text-[#666] text-[13px]'>Mar 17</span>
-              <span className='font-medium text-[#666] text-[13px]'>2:14 PM</span>
+              <span className='font-medium text-[#666] text-[13px]'>{date}</span>
+              <span className='font-medium text-[#666] text-[13px]'>{time}</span>
             </div>
           </div>
           <div className='flex min-w-0 flex-1 flex-col gap-[8px]'>
@@ -944,12 +1042,12 @@ function MockLogDetailsSidebar() {
               <div
                 className='h-[10px] w-[10px] shrink-0 rounded-[3px] border-[1.5px]'
                 style={{
-                  backgroundColor: '#7C3AED',
-                  borderColor: '#7C3AED60',
+                  backgroundColor: color,
+                  borderColor: `${color}60`,
                   backgroundClip: 'padding-box',
                 }}
               />
-              <span className='truncate font-medium text-[#666] text-[13px]'>Email Bot</span>
+              <span className='truncate font-medium text-[#666] text-[13px]'>{row[0]}</span>
             </div>
           </div>
         </div>
@@ -957,26 +1055,52 @@ function MockLogDetailsSidebar() {
         <div className='flex flex-col'>
           <div className='flex h-[42px] items-center justify-between border-[#E5E5E5] border-b px-[8px]'>
             <span className='font-medium text-[#999] text-[12px]'>Level</span>
-            <span className='inline-flex items-center rounded-full bg-[#DCFCE7] px-[8px] py-[2px] font-medium text-[#166534] text-[11px]'>
-              Success
+            <span
+              className='inline-flex items-center rounded-full px-[8px] py-[2px] font-medium text-[11px]'
+              style={{ backgroundColor: statusStyle.bg, color: statusStyle.text }}
+            >
+              {statusStyle.label}
             </span>
           </div>
           <div className='flex h-[42px] items-center justify-between border-[#E5E5E5] border-b px-[8px]'>
             <span className='font-medium text-[#999] text-[12px]'>Trigger</span>
             <span className='rounded-[4px] bg-[#F5F5F5] px-[6px] py-[2px] text-[#666] text-[11px]'>
-              API
+              {row[4]}
             </span>
           </div>
           <div className='flex h-[42px] items-center justify-between px-[8px]'>
             <span className='font-medium text-[#999] text-[12px]'>Duration</span>
-            <span className='font-medium text-[#666] text-[13px]'>1.2s</span>
+            <span className='font-medium text-[#666] text-[13px]'>{row[5]}</span>
           </div>
         </div>
 
         <div className='flex flex-col gap-[6px] rounded-[6px] border border-[#E5E5E5] bg-[#FAFAFA] px-[10px] py-[8px]'>
           <span className='font-medium text-[#999] text-[12px]'>Workflow Output</span>
           <div className='rounded-[6px] bg-[#F0F0F0] p-[10px] font-mono text-[#555] text-[11px] leading-[1.5]'>
-            {'{\n  "result": "processed",\n  "emails": 3,\n  "status": "complete"\n}'}
+            {detail.output}
+          </div>
+        </div>
+
+        <div className='flex flex-col gap-[6px] rounded-[6px] border border-[#E5E5E5] bg-[#FAFAFA] px-[10px] py-[8px]'>
+          <span className='font-medium text-[#999] text-[12px]'>Trace Spans</span>
+          <div className='flex flex-col gap-[6px]'>
+            {detail.spans.map((span, i) => (
+              <div
+                key={i}
+                className={cn('flex flex-col gap-[3px]', span.depth === 1 && 'ml-[12px]')}
+              >
+                <div className='flex items-center justify-between'>
+                  <span className='font-mono text-[#555] text-[11px]'>{span.name}</span>
+                  <span className='font-medium text-[#999] text-[11px]'>{span.ms}ms</span>
+                </div>
+                <div className='h-[4px] w-full overflow-hidden rounded-full bg-[#F0F0F0]'>
+                  <div
+                    className='h-full rounded-full bg-[#2F6FED]'
+                    style={{ width: `${(span.ms / maxMs) * 100}%` }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -985,6 +1109,8 @@ function MockLogDetailsSidebar() {
 }
 
 function MockFullTable({ revealedRows }: { revealedRows: number }) {
+  const [selectedRow, setSelectedRow] = useState<number | null>(null)
+
   return (
     <div className='flex h-full flex-col'>
       <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-[24px]'>
@@ -1037,26 +1163,48 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
             </tr>
           </thead>
           <tbody>
-            {MOCK_TABLE_DATA.slice(0, revealedRows).map((row, i) => (
-              <motion.tr
-                key={i}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-              >
-                <td className='border-[#E5E5E5] border-r border-b px-[4px] py-[7px] text-center align-middle'>
-                  <span className='text-[#999] text-[11px] tabular-nums'>{i + 1}</span>
-                </td>
-                {row.map((cell, j) => (
+            {MOCK_TABLE_DATA.slice(0, revealedRows).map((row, i) => {
+              const isSelected = selectedRow === i
+              return (
+                <motion.tr
+                  key={i}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  className='cursor-pointer'
+                  onClick={() => setSelectedRow(i)}
+                >
                   <td
-                    key={j}
-                    className='border-[#E5E5E5] border-r border-b px-[8px] py-[7px] align-middle'
+                    className={cn(
+                      'border-[#E5E5E5] border-r border-b px-[4px] py-[7px] text-center align-middle',
+                      isSelected ? 'bg-[rgba(37,99,235,0.06)]' : 'hover:bg-[#FAFAFA]'
+                    )}
                   >
-                    <span className='block truncate text-[#1C1C1C] text-[13px]'>{cell}</span>
+                    <span className='text-[#999] text-[11px] tabular-nums'>{i + 1}</span>
                   </td>
-                ))}
-              </motion.tr>
-            ))}
+                  {row.map((cell, j) => (
+                    <td
+                      key={j}
+                      className={cn(
+                        'relative border-[#E5E5E5] border-r border-b px-[8px] py-[7px] align-middle',
+                        isSelected ? 'bg-[rgba(37,99,235,0.06)]' : 'hover:bg-[#FAFAFA]'
+                      )}
+                    >
+                      {isSelected && (
+                        <div
+                          className={cn(
+                            '-bottom-px -top-px pointer-events-none absolute left-0 z-[5] border-[#1a5cf6] border-t border-b',
+                            j === 0 && 'border-l',
+                            j === row.length - 1 ? '-right-px border-r' : 'right-0'
+                          )}
+                        />
+                      )}
+                      <span className='block truncate text-[#1C1C1C] text-[13px]'>{cell}</span>
+                    </td>
+                  ))}
+                </motion.tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

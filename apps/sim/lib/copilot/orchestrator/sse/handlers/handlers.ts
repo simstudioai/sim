@@ -187,6 +187,12 @@ export const sseHandlers: Record<string, SSEHandler> = {
       execContext.chatId = chatId
     }
   },
+  request_id: (event, context) => {
+    const rid = typeof event.data === 'string' ? event.data : undefined
+    if (rid) {
+      context.requestId = rid
+    }
+  },
   title_updated: () => {},
   tool_result: (event, context) => {
     const data = getEventData(event)

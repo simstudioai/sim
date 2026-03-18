@@ -122,11 +122,9 @@ export function LongInput({
     isStreaming: wandHook.isStreaming,
   })
 
-  useEffect(() => {
-    persistSubBlockValueRef.current = (value: string) => {
-      setSubBlockValue(value)
-    }
-  }, [setSubBlockValue])
+  persistSubBlockValueRef.current = (value: string) => {
+    setSubBlockValue(value)
+  }
 
   // Check if wand is actually enabled
   const isWandEnabled = config.wandConfig?.enabled ?? false
@@ -193,12 +191,12 @@ export function LongInput({
   // Sync local content with base value when not streaming
   useEffect(() => {
     if (!wandHook.isStreaming) {
-      const baseValueString = baseValue?.toString() ?? ''
-      if (baseValueString !== localContent) {
-        setLocalContent(baseValueString)
-      }
+      setLocalContent((prev) => {
+        const baseValueString = baseValue?.toString() ?? ''
+        return baseValueString !== prev ? baseValueString : prev
+      })
     }
-  }, [baseValue, wandHook.isStreaming]) // Removed localContent to prevent infinite loop
+  }, [baseValue, wandHook.isStreaming])
 
   // Update height when rows prop changes
   useLayoutEffect(() => {

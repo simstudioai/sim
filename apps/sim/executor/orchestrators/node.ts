@@ -53,14 +53,14 @@ export class NodeExecutionOrchestrator {
 
     const loopId = node.metadata.loopId
     if (loopId && !this.loopOrchestrator.getLoopScope(ctx, loopId)) {
-      this.loopOrchestrator.initializeLoopScope(ctx, loopId)
+      await this.loopOrchestrator.initializeLoopScope(ctx, loopId)
     }
 
     const parallelId = node.metadata.parallelId
     if (parallelId && !this.parallelOrchestrator.getParallelScope(ctx, parallelId)) {
       const parallelConfig = this.dag.parallelConfigs.get(parallelId)
       const nodesInParallel = parallelConfig?.nodes?.length || 1
-      this.parallelOrchestrator.initializeParallelScope(ctx, parallelId, nodesInParallel)
+      await this.parallelOrchestrator.initializeParallelScope(ctx, parallelId, nodesInParallel)
     }
 
     if (node.metadata.isSentinel) {
@@ -92,7 +92,7 @@ export class NodeExecutionOrchestrator {
     const isParallelSentinel = node.metadata.isParallelSentinel
 
     if (isParallelSentinel) {
-      return this.handleParallelSentinel(ctx, node, sentinelType, parallelId)
+      return await this.handleParallelSentinel(ctx, node, sentinelType, parallelId)
     }
 
     switch (sentinelType) {
@@ -142,12 +142,12 @@ export class NodeExecutionOrchestrator {
     }
   }
 
-  private handleParallelSentinel(
+  private async handleParallelSentinel(
     ctx: ExecutionContext,
     node: DAGNode,
     sentinelType: string | undefined,
     parallelId: string | undefined
-  ): NormalizedBlockOutput {
+  ): Promise<NormalizedBlockOutput> {
     if (!parallelId) {
       logger.warn('Parallel sentinel called without parallelId')
       return {}
@@ -158,7 +158,7 @@ export class NodeExecutionOrchestrator {
         const parallelConfig = this.dag.parallelConfigs.get(parallelId)
         if (parallelConfig) {
           const nodesInParallel = parallelConfig.nodes?.length || 1
-          this.parallelOrchestrator.initializeParallelScope(ctx, parallelId, nodesInParallel)
+          await this.parallelOrchestrator.initializeParallelScope(ctx, parallelId, nodesInParallel)
         }
       }
 
@@ -176,7 +176,7 @@ export class NodeExecutionOrchestrator {
     }
 
     if (sentinelType === 'end') {
-      const result = this.parallelOrchestrator.aggregateParallelResults(ctx, parallelId)
+      const result = await this.parallelOrchestrator.aggregateParallelResults(ctx, parallelId)
       return {
         results: result.results || [],
         sentinelEnd: true,
@@ -210,7 +210,7 @@ export class NodeExecutionOrchestrator {
     } else if (isParallelBranch) {
       const parallelId = this.findParallelIdForNode(node.id)
       if (parallelId) {
-        this.handleParallelNodeCompletion(ctx, node, output, parallelId)
+        await this.handleParallelNodeCompletion(ctx, node, output, parallelId)
       } else {
         this.handleRegularNodeCompletion(ctx, node, output)
       }
@@ -229,17 +229,17 @@ export class NodeExecutionOrchestrator {
     this.state.setBlockOutput(node.id, output)
   }
 
-  private handleParallelNodeCompletion(
+  private async handleParallelNodeCompletion(
     ctx: ExecutionContext,
     node: DAGNode,
     output: NormalizedBlockOutput,
     parallelId: string
-  ): void {
+  ): Promise<void> {
     const scope = this.parallelOrchestrator.getParallelScope(ctx, parallelId)
     if (!scope) {
       const parallelConfig = this.dag.parallelConfigs.get(parallelId)
       const nodesInParallel = parallelConfig?.nodes?.length || 1
-      this.parallelOrchestrator.initializeParallelScope(ctx, parallelId, nodesInParallel)
+      await this.parallelOrchestrator.initializeParallelScope(ctx, parallelId, nodesInParallel)
     }
     const allComplete = this.parallelOrchestrator.handleParallelBranchCompletion(
       ctx,
@@ -248,7 +248,7 @@ export class NodeExecutionOrchestrator {
       output
     )
     if (allComplete) {
-      this.parallelOrchestrator.aggregateParallelResults(ctx, parallelId)
+      await this.parallelOrchestrator.aggregateParallelResults(ctx, parallelId)
     }
 
     this.state.setBlockOutput(node.id, output)

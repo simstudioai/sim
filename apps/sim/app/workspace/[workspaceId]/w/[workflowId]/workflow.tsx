@@ -336,9 +336,7 @@ const WorkflowContent = React.memo(
 
     const isAutoConnectEnabled = useAutoConnect()
     const autoConnectRef = useRef(isAutoConnectEnabled)
-    useEffect(() => {
-      autoConnectRef.current = isAutoConnectEnabled
-    }, [isAutoConnectEnabled])
+    autoConnectRef.current = isAutoConnectEnabled
 
     // Panel open states for context menu
     const isVariablesOpen = useVariablesStore((state) => state.isOpen)

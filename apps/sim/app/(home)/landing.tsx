@@ -28,8 +28,8 @@ import {
  *   for immediate availability to AI crawlers.
  * - Section `id` attributes serve as fragment anchors for precise AI citations.
  * - Content ordering prioritizes answer-first patterns: definition (Hero) ->
- *   examples (Templates) -> capabilities (Features) -> social proof (Collaboration, Testimonials) ->
- *   pricing (Pricing) -> enterprise (Enterprise).
+ *   examples (Templates) -> capabilities (Features) -> social proof (Collaboration) ->
+ *   enterprise (Enterprise) -> pricing (Pricing) -> testimonials (Testimonials).
  */
 export default async function Landing() {
   return (
@@ -43,8 +43,8 @@ export default async function Landing() {
         <Templates />
         <Features />
         <Collaboration />
-        <Pricing />
         <Enterprise />
+        <Pricing />
         <Testimonials />
       </main>
       <Footer />
