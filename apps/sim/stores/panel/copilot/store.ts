@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { type CopilotChat, sendStreamingMessage } from '@/lib/copilot/api'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { applySseEvent, sseHandlers } from '@/lib/copilot/client-sse'
 import {
   appendContinueOption,
@@ -588,8 +589,7 @@ async function initiateStream(
       chatId: prepared.currentChat?.id,
       workflowId: prepared.workflowId || undefined,
       mode: apiMode,
-      model: selectedModelId,
-      provider: selectedProvider || undefined,
+      ...(isHosted ? {} : { model: selectedModelId, provider: selectedProvider || undefined }),
       prefetch: get().agentPrefetch,
       createNewChat: !prepared.currentChat,
       stream: prepared.stream,
@@ -967,8 +967,7 @@ async function resumeFromLiveStream(
       workflowId: resume.nextStream.workflowId,
       chatId: resume.nextStream.chatId || get().currentChat?.id || undefined,
       mode: get().mode === 'ask' ? 'ask' : get().mode === 'plan' ? 'plan' : 'agent',
-      model: resumeModelId,
-      provider: resumeProvider || undefined,
+      ...(isHosted ? {} : { model: resumeModelId, provider: resumeProvider || undefined }),
       prefetch: get().agentPrefetch,
       stream: true,
       resumeFromEventId: resume.resumeFromEventId,
@@ -1544,8 +1543,7 @@ export const useCopilotStore = create<CopilotStore>()(
           chatId: currentChat?.id,
           workflowId,
           mode: apiMode,
-          model: fbModelId,
-          provider: fbProvider || undefined,
+          ...(isHosted ? {} : { model: fbModelId, provider: fbProvider || undefined }),
           prefetch: get().agentPrefetch,
           createNewChat: !currentChat,
           stream: true,
