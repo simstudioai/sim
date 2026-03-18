@@ -2,6 +2,7 @@ import type { MothershipResource } from '@/lib/copilot/resource-types'
 
 export type SSEEventType =
   | 'chat_id'
+  | 'request_id'
   | 'title_updated'
   | 'content'
   | 'reasoning'
