@@ -31,6 +31,7 @@ export function Admin() {
 
   const [workflowId, setWorkflowId] = useState('')
   const [usersOffset, setUsersOffset] = useState(0)
+  const [searchInput, setSearchInput] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [banUserId, setBanUserId] = useState<string | null>(null)
   const [banReason, setBanReason] = useState('')
@@ -40,6 +41,11 @@ export function Admin() {
     isLoading: usersLoading,
     error: usersError,
   } = useAdminUsers(usersOffset, PAGE_SIZE, searchQuery)
+
+  const handleSearch = () => {
+    setUsersOffset(0)
+    setSearchQuery(searchInput.trim())
+  }
 
   const totalPages = useMemo(
     () => Math.ceil((usersData?.total ?? 0) / PAGE_SIZE),
@@ -128,14 +134,17 @@ export function Admin() {
 
       <div className='flex flex-col gap-[12px]'>
         <p className='font-medium text-[14px] text-[var(--text-primary)]'>User Management</p>
-        <EmcnInput
-          value={searchQuery}
-          onChange={(e) => {
-            setSearchQuery(e.target.value)
-            setUsersOffset(0)
-          }}
-          placeholder='Search by email or paste a user ID...'
-        />
+        <div className='flex gap-[8px]'>
+          <EmcnInput
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            placeholder='Search by email or paste a user ID...'
+          />
+          <Button variant='primary' onClick={handleSearch} disabled={usersLoading}>
+            {usersLoading ? 'Searching...' : 'Search'}
+          </Button>
+        </div>
 
         {usersError && (
           <p className='text-[13px] text-[var(--text-error)]'>
@@ -158,7 +167,7 @@ export function Admin() {
           </div>
         )}
 
-        {usersData && (
+        {searchQuery.length > 0 && usersData && (
           <>
             <div className='flex flex-col gap-[2px]'>
               <div className='flex items-center gap-[12px] border-[var(--border-secondary)] border-b px-[12px] py-[8px] text-[12px] text-[var(--text-tertiary)]'>
