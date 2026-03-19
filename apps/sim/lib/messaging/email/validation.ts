@@ -138,6 +138,7 @@ export async function isDisposableMxBackend(email: string): Promise<boolean> {
     mxCache.set(domain, { result: result.isDisposableBackend, expires: now + 5 * 60 * 1000 })
     return result.isDisposableBackend
   } catch {
+    mxCache.set(domain, { result: false, expires: now + 60 * 1000 })
     return false
   } finally {
     clearTimeout(timeoutId)
