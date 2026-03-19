@@ -12,8 +12,8 @@ import {
 } from 'react'
 import { X } from 'lucide-react'
 import { createPortal } from 'react-dom'
-import { cn } from '@/lib/core/utils/cn'
 import { CountdownRing } from '@/components/emcn/components/toast/countdown-ring'
+import { cn } from '@/lib/core/utils/cn'
 
 const AUTO_DISMISS_MS = 0
 const EXIT_ANIMATION_MS = 200

@@ -18,14 +18,7 @@ export function CountdownRing({ duration, paused = false, className }: Countdown
       className={className}
       style={{ transform: 'rotate(-90deg) scaleX(-1)' }}
     >
-      <circle
-        cx='8'
-        cy='8'
-        r={RING_RADIUS}
-        stroke='currentColor'
-        strokeWidth='1.5'
-        opacity={0.2}
-      />
+      <circle cx='8' cy='8' r={RING_RADIUS} stroke='currentColor' strokeWidth='1.5' opacity={0.2} />
       <circle
         cx='8'
         cy='8'
