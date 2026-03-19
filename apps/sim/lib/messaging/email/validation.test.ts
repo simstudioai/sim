@@ -1,19 +1,41 @@
 import { loggerMock } from '@sim/testing'
-import { describe, expect, it, vi } from 'vitest'
-import { quickValidateEmail, validateEmail } from '@/lib/messaging/email/validation'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  isDisposableEmailFull,
+  isDisposableMxBackend,
+  quickValidateEmail,
+  validateEmail,
+} from '@/lib/messaging/email/validation'
 
 vi.mock('@sim/logger', () => loggerMock)
 
+const { mockResolveMx } = vi.hoisted(() => ({
+  mockResolveMx: vi.fn(
+    (
+      _domain: string,
+      callback: (err: Error | null, addresses: { exchange: string; priority: number }[]) => void
+    ) => {
+      callback(null, [{ exchange: 'mail.example.com', priority: 10 }])
+    }
+  ),
+}))
+
 vi.mock('dns', () => ({
-  resolveMx: (
-    _domain: string,
-    callback: (err: Error | null, addresses: { exchange: string; priority: number }[]) => void
-  ) => {
-    callback(null, [{ exchange: 'mail.example.com', priority: 10 }])
-  },
+  resolveMx: mockResolveMx,
 }))
 
 describe('Email Validation', () => {
+  beforeEach(() => {
+    mockResolveMx.mockImplementation(
+      (
+        _domain: string,
+        callback: (err: Error | null, addresses: { exchange: string; priority: number }[]) => void
+      ) => {
+        callback(null, [{ exchange: 'mail.example.com', priority: 10 }])
+      }
+    )
+  })
+
   describe('validateEmail', () => {
     it.concurrent('should validate a correct email', async () => {
       const result = await validateEmail('user@example.com')
@@ -213,6 +235,120 @@ describe('Email Validation', () => {
       const result = quickValidateEmail('user@mail.subdomain.example.com')
       expect(result.isValid).toBe(true)
       expect(result.checks.domain).toBe(true)
+    })
+  })
+
+  describe('isDisposableEmailFull', () => {
+    it('should reject domains from the inline blocklist', () => {
+      expect(isDisposableEmailFull('user@sharebot.net')).toBe(true)
+      expect(isDisposableEmailFull('user@oakon.com')).toBe(true)
+      expect(isDisposableEmailFull('user@catchmail.io')).toBe(true)
+      expect(isDisposableEmailFull('user@salt.email')).toBe(true)
+      expect(isDisposableEmailFull('user@mail.gw')).toBe(true)
+      expect(isDisposableEmailFull('user@mailinator.com')).toBe(true)
+    })
+
+    it('should reject domains from the npm package list that are not in the inline list', () => {
+      expect(isDisposableEmailFull('user@0-mail.com')).toBe(true)
+      expect(isDisposableEmailFull('user@0-180.com')).toBe(true)
+    })
+
+    it('should allow legitimate email domains', () => {
+      expect(isDisposableEmailFull('user@gmail.com')).toBe(false)
+      expect(isDisposableEmailFull('user@company.com')).toBe(false)
+      expect(isDisposableEmailFull('user@outlook.com')).toBe(false)
+    })
+
+    it('should handle invalid input', () => {
+      expect(isDisposableEmailFull('')).toBe(false)
+      expect(isDisposableEmailFull('nodomain')).toBe(false)
+      expect(isDisposableEmailFull('user@')).toBe(false)
+    })
+
+    it('should be case-insensitive', () => {
+      expect(isDisposableEmailFull('user@MAILINATOR.COM')).toBe(true)
+      expect(isDisposableEmailFull('user@ShareBot.Net')).toBe(true)
+    })
+  })
+
+  describe('isDisposableMxBackend', () => {
+    it('should detect mail.gw MX backend', async () => {
+      mockResolveMx.mockImplementation(
+        (
+          _domain: string,
+          callback: (err: Error | null, addresses: { exchange: string; priority: number }[]) => void
+        ) => {
+          callback(null, [{ exchange: 'in.mail.gw', priority: 10 }])
+        }
+      )
+      expect(await isDisposableMxBackend('user@some-random-domain.xyz')).toBe(true)
+    })
+
+    it('should detect catchmail.io MX backend', async () => {
+      mockResolveMx.mockImplementation(
+        (
+          _domain: string,
+          callback: (err: Error | null, addresses: { exchange: string; priority: number }[]) => void
+        ) => {
+          callback(null, [{ exchange: 'smtp.catchmail.io', priority: 10 }])
+        }
+      )
+      expect(await isDisposableMxBackend('user@custom-domain.com')).toBe(true)
+    })
+
+    it('should handle trailing dot in MX exchange', async () => {
+      mockResolveMx.mockImplementation(
+        (
+          _domain: string,
+          callback: (err: Error | null, addresses: { exchange: string; priority: number }[]) => void
+        ) => {
+          callback(null, [{ exchange: 'in.mail.gw.', priority: 10 }])
+        }
+      )
+      expect(await isDisposableMxBackend('user@trailing-dot.com')).toBe(true)
+    })
+
+    it('should allow legitimate MX backends', async () => {
+      mockResolveMx.mockImplementation(
+        (
+          _domain: string,
+          callback: (err: Error | null, addresses: { exchange: string; priority: number }[]) => void
+        ) => {
+          callback(null, [{ exchange: 'aspmx.l.google.com', priority: 10 }])
+        }
+      )
+      expect(await isDisposableMxBackend('user@legitimate.com')).toBe(false)
+    })
+
+    it('should return false on DNS errors', async () => {
+      mockResolveMx.mockImplementation(
+        (_domain: string, callback: (err: Error | null, addresses: null) => void) => {
+          callback(new Error('ENOTFOUND'), null)
+        }
+      )
+      expect(await isDisposableMxBackend('user@nonexistent.invalid')).toBe(false)
+    })
+
+    it('should return false for invalid input', async () => {
+      expect(await isDisposableMxBackend('')).toBe(false)
+      expect(await isDisposableMxBackend('nodomain')).toBe(false)
+    })
+  })
+
+  describe('validateEmail with disposable MX backend', () => {
+    it('should reject emails with disposable MX backend even if domain is not in blocklist', async () => {
+      mockResolveMx.mockImplementation(
+        (
+          _domain: string,
+          callback: (err: Error | null, addresses: { exchange: string; priority: number }[]) => void
+        ) => {
+          callback(null, [{ exchange: 'in.mail.gw', priority: 10 }])
+        }
+      )
+      const result = await validateEmail('user@unknown-disposable.xyz')
+      expect(result.isValid).toBe(false)
+      expect(result.reason).toBe('Disposable email addresses are not allowed')
+      expect(result.checks.disposable).toBe(false)
     })
   })
 })

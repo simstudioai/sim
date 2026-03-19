@@ -11,15 +11,19 @@ interface FooterItem {
 }
 
 const PRODUCT_LINKS: FooterItem[] = [
-  { label: 'Pricing', href: '#pricing' },
+  { label: 'Pricing', href: '/#pricing' },
   { label: 'Enterprise', href: 'https://form.typeform.com/to/jqCO12pF', external: true },
   { label: 'Self Hosting', href: 'https://docs.sim.ai/self-hosting', external: true },
   { label: 'MCP', href: 'https://docs.sim.ai/mcp', external: true },
+  { label: 'Knowledge Base', href: 'https://docs.sim.ai/knowledgebase', external: true },
+  { label: 'Tables', href: 'https://docs.sim.ai/tables', external: true },
+  { label: 'API', href: 'https://docs.sim.ai/api-reference/getting-started', external: true },
   { label: 'Status', href: 'https://status.sim.ai', external: true },
 ]
 
 const RESOURCES_LINKS: FooterItem[] = [
   { label: 'Blog', href: '/blog' },
+  { label: 'Templates', href: '/templates' },
   { label: 'Docs', href: 'https://docs.sim.ai', external: true },
   { label: 'Careers', href: 'https://jobs.ashbyhq.com/sim', external: true },
   { label: 'Changelog', href: '/changelog' },
@@ -39,6 +43,7 @@ const BLOCK_LINKS: FooterItem[] = [
 ]
 
 const INTEGRATION_LINKS: FooterItem[] = [
+  { label: 'All Integrations →', href: '/integrations' },
   { label: 'Confluence', href: 'https://docs.sim.ai/tools/confluence', external: true },
   { label: 'Slack', href: 'https://docs.sim.ai/tools/slack', external: true },
   { label: 'GitHub', href: 'https://docs.sim.ai/tools/github', external: true },

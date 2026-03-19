@@ -14,28 +14,56 @@ export interface EmailValidationResult {
   }
 }
 
-// Common disposable email domains (subset - can be expanded)
-const DISPOSABLE_DOMAINS = new Set([
+/** Common disposable domains for fast client-side checks (no heavy import needed) */
+const DISPOSABLE_DOMAINS_INLINE = new Set([
   '10minutemail.com',
-  'tempmail.org',
-  'guerrillamail.com',
-  'mailinator.com',
-  'yopmail.com',
-  'temp-mail.org',
-  'throwaway.email',
-  'getnada.com',
   '10minutemail.net',
-  'temporary-mail.net',
-  'fakemailgenerator.com',
-  'sharklasers.com',
-  'guerrillamailblock.com',
-  'pokemail.net',
-  'spam4.me',
-  'tempail.com',
-  'tempr.email',
+  'catchmail.io',
   'dispostable.com',
   'emailondeck.com',
+  'fakemailgenerator.com',
+  'getnada.com',
+  'guerrillamail.com',
+  'guerrillamailblock.com',
+  'mail.gw',
+  'mailinator.com',
+  'oakon.com',
+  'pokemail.net',
+  'salt.email',
+  'sharebot.net',
+  'sharklasers.com',
+  'spam4.me',
+  'temp-mail.org',
+  'tempail.com',
+  'tempmail.org',
+  'tempr.email',
+  'temporary-mail.net',
+  'throwaway.email',
+  'yopmail.com',
 ])
+
+/** Full disposable domain list from npm package (~5.3K domains), lazy-loaded server-side only */
+let disposableDomainsFull: Set<string> | null = null
+
+function getDisposableDomainsFull(): Set<string> {
+  if (!disposableDomainsFull) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const domains = require('disposable-email-domains') as string[]
+      disposableDomainsFull = new Set(domains)
+    } catch {
+      logger.warn('Failed to load disposable-email-domains package')
+      disposableDomainsFull = new Set()
+    }
+  }
+  return disposableDomainsFull
+}
+
+/** MX hostnames used by known disposable email backends */
+const DISPOSABLE_MX_BACKENDS = new Set(['in.mail.gw', 'smtp.catchmail.io', 'mx.yopmail.com'])
+
+/** Per-domain MX result cache — avoids redundant DNS queries for concurrent or repeated sign-ups */
+const mxCache = new Map<string, { result: boolean; expires: number }>()
 
 /**
  * Validates email syntax using RFC 5322 compliant regex
@@ -47,12 +75,14 @@ function validateEmailSyntax(email: string): boolean {
 }
 
 /**
- * Checks if domain has valid MX records (server-side only)
+ * Checks if domain has valid MX records and is not backed by a disposable email service (server-side only)
  */
-async function checkMXRecord(domain: string): Promise<boolean> {
+async function checkMXRecord(
+  domain: string
+): Promise<{ exists: boolean; isDisposableBackend: boolean }> {
   // Skip MX check on client-side (browser)
   if (typeof window !== 'undefined') {
-    return true // Assume valid on client-side
+    return { exists: true, isDisposableBackend: false }
   }
 
   try {
@@ -61,19 +91,58 @@ async function checkMXRecord(domain: string): Promise<boolean> {
     const resolveMx = promisify(dns.resolveMx)
 
     const mxRecords = await resolveMx(domain)
-    return mxRecords && mxRecords.length > 0
+    if (!mxRecords || mxRecords.length === 0) {
+      return { exists: false, isDisposableBackend: false }
+    }
+
+    const isDisposableBackend = mxRecords.some((record: { exchange: string }) =>
+      DISPOSABLE_MX_BACKENDS.has(record.exchange.toLowerCase().replace(/\.$/, ''))
+    )
+
+    return { exists: true, isDisposableBackend }
   } catch (error) {
     logger.debug('MX record check failed', { domain, error })
-    return false
+    return { exists: false, isDisposableBackend: false }
   }
 }
 
 /**
- * Checks if email is from a known disposable email provider
+ * Checks against the full disposable email domain list (~5.3K domains server-side, inline list client-side)
  */
-function isDisposableEmail(email: string): boolean {
+export function isDisposableEmailFull(email: string): boolean {
   const domain = email.split('@')[1]?.toLowerCase()
-  return domain ? DISPOSABLE_DOMAINS.has(domain) : false
+  if (!domain) return false
+  return DISPOSABLE_DOMAINS_INLINE.has(domain) || getDisposableDomainsFull().has(domain)
+}
+
+/**
+ * Checks if an email's MX records point to a known disposable email backend (server-side only)
+ */
+export async function isDisposableMxBackend(email: string): Promise<boolean> {
+  const domain = email.split('@')[1]?.toLowerCase()
+  if (!domain) return false
+
+  const now = Date.now()
+  const cached = mxCache.get(domain)
+  if (cached && cached.expires > now) return cached.result
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  try {
+    const mxCheckPromise = checkMXRecord(domain)
+    const timeoutPromise = new Promise<{ exists: boolean; isDisposableBackend: boolean }>(
+      (_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('MX check timeout')), 5000)
+      }
+    )
+    const result = await Promise.race([mxCheckPromise, timeoutPromise])
+    mxCache.set(domain, { result: result.isDisposableBackend, expires: now + 5 * 60 * 1000 })
+    return result.isDisposableBackend
+  } catch {
+    mxCache.set(domain, { result: false, expires: now + 60 * 1000 })
+    return false
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }
 
 /**
@@ -123,8 +192,8 @@ export async function validateEmail(email: string): Promise<EmailValidationResul
       }
     }
 
-    // 2. Check for disposable email first (more specific)
-    checks.disposable = !isDisposableEmail(email)
+    // 2. Check for disposable email against full list (server-side)
+    checks.disposable = !isDisposableEmailFull(email)
     if (!checks.disposable) {
       return {
         isValid: false,
@@ -155,17 +224,33 @@ export async function validateEmail(email: string): Promise<EmailValidationResul
       }
     }
 
-    // 5. MX record check (with timeout)
+    // 5. MX record check (with timeout) — also detects disposable email backends
+    let mxTimeoutId: ReturnType<typeof setTimeout> | undefined
     try {
       const mxCheckPromise = checkMXRecord(domain)
-      const timeoutPromise = new Promise<boolean>((_, reject) =>
-        setTimeout(() => reject(new Error('MX check timeout')), 5000)
+      const timeoutPromise = new Promise<{ exists: boolean; isDisposableBackend: boolean }>(
+        (_, reject) => {
+          mxTimeoutId = setTimeout(() => reject(new Error('MX check timeout')), 5000)
+        }
       )
 
-      checks.mxRecord = await Promise.race([mxCheckPromise, timeoutPromise])
+      const mxResult = await Promise.race([mxCheckPromise, timeoutPromise])
+      checks.mxRecord = mxResult.exists
+
+      if (mxResult.isDisposableBackend) {
+        checks.disposable = false
+        return {
+          isValid: false,
+          reason: 'Disposable email addresses are not allowed',
+          confidence: 'high',
+          checks,
+        }
+      }
     } catch (error) {
       logger.debug('MX record check failed or timed out', { domain, error })
       checks.mxRecord = false
+    } finally {
+      clearTimeout(mxTimeoutId)
     }
 
     // Determine overall validity and confidence
@@ -225,7 +310,7 @@ export function quickValidateEmail(email: string): EmailValidationResult {
     }
   }
 
-  checks.disposable = !isDisposableEmail(email)
+  checks.disposable = !isDisposableEmailFull(email)
   if (!checks.disposable) {
     return {
       isValid: false,
