@@ -8,27 +8,11 @@ import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 
 export const dynamic = 'force-dynamic'
 
-const logger = createLogger('SimFileManageAPI')
-
-const EXT_TO_MIME: Record<string, string> = {
-  '.txt': 'text/plain',
-  '.md': 'text/markdown',
-  '.html': 'text/html',
-  '.json': 'application/json',
-  '.csv': 'text/csv',
-  '.xml': 'application/xml',
-  '.yaml': 'application/x-yaml',
-  '.yml': 'application/x-yaml',
-}
-
-function inferContentType(fileName: string, explicitType?: string): string {
-  if (explicitType) return explicitType
-  const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
-  return EXT_TO_MIME[ext] || 'text/plain'
-}
+const logger = createLogger('FileManageAPI')
 
 export async function POST(request: NextRequest) {
   const auth = await checkInternalAuth(request, { requireWorkflowId: false })
@@ -101,7 +85,7 @@ export async function POST(request: NextRequest) {
             })
           }
 
-          const mimeType = inferContentType(fileName, contentType)
+          const mimeType = contentType || getMimeTypeFromExtension(getFileExtension(fileName))
           const fileBuffer = Buffer.from(content ?? '', 'utf-8')
           const result = await uploadWorkspaceFile(
             workspaceId,
@@ -144,7 +128,7 @@ export async function POST(request: NextRequest) {
           const fileBuffer = Buffer.from(finalContent, 'utf-8')
           await updateWorkspaceFileContent(workspaceId, fileId, userId, fileBuffer)
 
-          logger.info('Sim file written', {
+          logger.info('File written', {
             fileId,
             name: fileRecord.name,
             size: fileBuffer.length,
@@ -174,7 +158,7 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
-    logger.error('Sim file operation failed', { operation, error: message })
+    logger.error('File operation failed', { operation, error: message })
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
 }

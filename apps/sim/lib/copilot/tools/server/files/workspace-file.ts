@@ -8,22 +8,9 @@ import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('WorkspaceFileServerTool')
-
-const EXT_TO_MIME: Record<string, string> = {
-  '.txt': 'text/plain',
-  '.md': 'text/markdown',
-  '.html': 'text/html',
-  '.json': 'application/json',
-  '.csv': 'text/csv',
-}
-
-function inferContentType(fileName: string, explicitType?: string): string {
-  if (explicitType) return explicitType
-  const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
-  return EXT_TO_MIME[ext] || 'text/plain'
-}
 
 export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, WorkspaceFileResult> = {
   name: 'workspace_file',
@@ -58,7 +45,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             return { success: false, message: 'content is required for write operation' }
           }
 
-          const contentType = inferContentType(fileName, explicitType)
+          const contentType = explicitType || getMimeTypeFromExtension(getFileExtension(fileName))
           const fileBuffer = Buffer.from(content, 'utf-8')
           const result = await uploadWorkspaceFile(
             workspaceId,

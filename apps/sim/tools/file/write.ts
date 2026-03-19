@@ -54,7 +54,7 @@ export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
   },
 
   request: {
-    url: '/api/tools/sim-file/manage',
+    url: '/api/tools/file/manage',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => ({

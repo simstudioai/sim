@@ -251,76 +251,68 @@ export async function trackChatUpload(
 }
 
 /**
- * Check if a file with the same name already exists in workspace
+ * Check if a file with the same name already exists in workspace.
+ * Throws on DB errors so callers can distinguish "not found" from "lookup failed."
  */
 export async function fileExistsInWorkspace(
   workspaceId: string,
   fileName: string
 ): Promise<boolean> {
-  try {
-    const existing = await db
-      .select()
-      .from(workspaceFiles)
-      .where(
-        and(
-          eq(workspaceFiles.workspaceId, workspaceId),
-          eq(workspaceFiles.originalName, fileName),
-          eq(workspaceFiles.context, 'workspace'),
-          isNull(workspaceFiles.deletedAt)
-        )
+  const existing = await db
+    .select()
+    .from(workspaceFiles)
+    .where(
+      and(
+        eq(workspaceFiles.workspaceId, workspaceId),
+        eq(workspaceFiles.originalName, fileName),
+        eq(workspaceFiles.context, 'workspace'),
+        isNull(workspaceFiles.deletedAt)
       )
-      .limit(1)
+    )
+    .limit(1)
 
-    return existing.length > 0
-  } catch (error) {
-    logger.error(`Failed to check file existence for ${fileName}:`, error)
-    return false
-  }
+  return existing.length > 0
 }
 
 /**
  * Look up a single active workspace file by its original name.
- * Returns the record if found, or null otherwise.
+ * Returns the record if found, or null if no matching file exists.
+ * Throws on DB errors so callers can distinguish "not found" from "lookup failed."
  */
 export async function getWorkspaceFileByName(
   workspaceId: string,
   fileName: string
 ): Promise<WorkspaceFileRecord | null> {
-  try {
-    const files = await db
-      .select()
-      .from(workspaceFiles)
-      .where(
-        and(
-          eq(workspaceFiles.workspaceId, workspaceId),
-          eq(workspaceFiles.originalName, fileName),
-          eq(workspaceFiles.context, 'workspace'),
-          isNull(workspaceFiles.deletedAt)
-        )
+  const files = await db
+    .select()
+    .from(workspaceFiles)
+    .where(
+      and(
+        eq(workspaceFiles.workspaceId, workspaceId),
+        eq(workspaceFiles.originalName, fileName),
+        eq(workspaceFiles.context, 'workspace'),
+        isNull(workspaceFiles.deletedAt)
       )
-      .limit(1)
+    )
+    .limit(1)
 
-    if (files.length === 0) return null
+  if (files.length === 0) return null
 
-    const { getServePathPrefix } = await import('@/lib/uploads')
-    const pathPrefix = getServePathPrefix()
+  const { getServePathPrefix } = await import('@/lib/uploads')
+  const pathPrefix = getServePathPrefix()
 
-    const file = files[0]
-    return {
-      id: file.id,
-      workspaceId: file.workspaceId || workspaceId,
-      name: file.originalName,
-      key: file.key,
-      path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
-      size: file.size,
-      type: file.contentType,
-      uploadedBy: file.userId,
-      deletedAt: file.deletedAt,
-      uploadedAt: file.uploadedAt,
-    }
-  } catch (error) {
-    logger.error(`Failed to get workspace file by name "${fileName}":`, error)
-    return null
+  const file = files[0]
+  return {
+    id: file.id,
+    workspaceId: file.workspaceId || workspaceId,
+    name: file.originalName,
+    key: file.key,
+    path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
+    size: file.size,
+    type: file.contentType,
+    uploadedBy: file.userId,
+    deletedAt: file.deletedAt,
+    uploadedAt: file.uploadedAt,
   }
 }
 
