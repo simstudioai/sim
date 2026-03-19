@@ -104,17 +104,17 @@ export const deleteSecretTool: ToolConfig<
           tags:
             (s.tags as Array<Record<string, unknown>> | undefined)?.map(
               (t: Record<string, unknown>) => ({
-                id: t.id ?? null,
-                slug: t.slug ?? null,
-                color: t.color ?? null,
-                name: t.name ?? null,
+                id: (t.id as string) ?? null,
+                slug: (t.slug as string) ?? null,
+                color: (t.color as string) ?? null,
+                name: (t.name as string) ?? null,
               })
             ) ?? [],
           secretMetadata:
             (s.secretMetadata as Array<Record<string, unknown>> | undefined)?.map(
               (m: Record<string, unknown>) => ({
-                key: m.key ?? null,
-                value: m.value ?? null,
+                key: (m.key as string) ?? null,
+                value: (m.value as string) ?? null,
               })
             ) ?? [],
           createdAt: s.createdAt ?? null,
