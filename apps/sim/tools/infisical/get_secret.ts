@@ -101,7 +101,7 @@ export const getSecretTool: ToolConfig<InfisicalGetSecretParams, InfisicalGetSec
         error: data.message ?? `Request failed with status ${response.status}`,
       }
     }
-    const s = data.secret ?? {}
+    const s = data.secret ?? data
     return {
       success: true,
       output: {
