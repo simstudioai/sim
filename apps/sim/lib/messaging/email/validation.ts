@@ -132,7 +132,10 @@ export async function isDisposableMxBackend(email: string): Promise<boolean> {
 
   const now = Date.now()
   const cached = mxCache.get(domain)
-  if (cached && cached.expires > now) return cached.result
+  if (cached) {
+    if (cached.expires > now) return cached.result
+    mxCache.delete(domain)
+  }
 
   let timeoutId: ReturnType<typeof setTimeout> | undefined
   try {

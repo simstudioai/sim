@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button, Input, Label } from '@/components/emcn'
 import { client } from '@/lib/auth/auth-client'
+import { validateCallbackUrl } from '@/lib/auth/validate-callback-url'
 import { env, isFalsy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -27,24 +28,6 @@ const validateEmailField = (emailValue: string): string[] => {
   }
 
   return errors
-}
-
-const validateCallbackUrl = (url: string): boolean => {
-  try {
-    if (url.startsWith('/')) {
-      return true
-    }
-
-    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : ''
-    if (url.startsWith(currentOrigin)) {
-      return true
-    }
-
-    return false
-  } catch (error) {
-    logger.error('Error validating callback URL:', { error, url })
-    return false
-  }
 }
 
 export default function SSOForm() {

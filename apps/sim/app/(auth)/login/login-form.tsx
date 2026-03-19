@@ -15,6 +15,7 @@ import {
   ModalHeader,
 } from '@/components/emcn'
 import { client } from '@/lib/auth/auth-client'
+import { validateCallbackUrl } from '@/lib/auth/validate-callback-url'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -51,24 +52,6 @@ const PASSWORD_VALIDATIONS = {
     test: (value: string) => value.trim().length > 0,
     message: 'Password cannot be empty.',
   },
-}
-
-const validateCallbackUrl = (url: string): boolean => {
-  try {
-    if (url.startsWith('/')) {
-      return true
-    }
-
-    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : ''
-    if (url.startsWith(currentOrigin)) {
-      return true
-    }
-
-    return false
-  } catch (error) {
-    logger.error('Error validating callback URL:', { error, url })
-    return false
-  }
 }
 
 const validatePassword = (passwordValue: string): string[] => {
