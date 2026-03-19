@@ -113,13 +113,19 @@ export class DAGBuilder {
   private initializeConfigs(workflow: SerializedWorkflow, dag: DAG): void {
     if (workflow.loops) {
       for (const [loopId, loopConfig] of Object.entries(workflow.loops)) {
-        dag.loopConfigs.set(loopId, loopConfig)
+        dag.loopConfigs.set(loopId, {
+          ...loopConfig,
+          nodes: [...(loopConfig.nodes ?? [])],
+        })
       }
     }
 
     if (workflow.parallels) {
       for (const [parallelId, parallelConfig] of Object.entries(workflow.parallels)) {
-        dag.parallelConfigs.set(parallelId, parallelConfig)
+        dag.parallelConfigs.set(parallelId, {
+          ...parallelConfig,
+          nodes: [...(parallelConfig.nodes ?? [])],
+        })
       }
     }
   }
@@ -150,9 +156,7 @@ export class DAGBuilder {
     if (!sentinelStartNode) return
 
     if (!nodes || nodes.length === 0) {
-      throw new Error(
-        `${type} has no blocks inside. Add at least one block to the ${type.toLowerCase()}.`
-      )
+      return
     }
 
     const hasConnections = Array.from(sentinelStartNode.outgoingEdges.values()).some((edge) =>

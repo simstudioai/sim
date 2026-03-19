@@ -5,8 +5,8 @@ import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FileReader')
 
-const MAX_TEXT_READ_BYTES = 512 * 1024 // 512 KB
-const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
+const MAX_TEXT_READ_BYTES = 5 * 1024 * 1024 // 5 MB
+const MAX_IMAGE_READ_BYTES = 20 * 1024 * 1024 // 20 MB
 
 const TEXT_TYPES = new Set([
   'text/plain',
@@ -53,7 +53,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
     if (isImageFileType(record.type)) {
       if (record.size > MAX_IMAGE_READ_BYTES) {
         return {
-          content: `[Image too large: ${record.name} (${(record.size / 1024 / 1024).toFixed(1)}MB, limit 5MB)]`,
+          content: `[Image too large: ${record.name} (${(record.size / 1024 / 1024).toFixed(1)}MB, limit 20MB)]`,
           totalLines: 1,
         }
       }

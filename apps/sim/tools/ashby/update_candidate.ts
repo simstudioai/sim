@@ -6,9 +6,7 @@ interface AshbyUpdateCandidateParams {
   candidateId: string
   name?: string
   email?: string
-  emailType?: string
   phoneNumber?: string
-  phoneType?: string
   linkedInUrl?: string
   githubUrl?: string
   websiteUrl?: string
@@ -49,23 +47,11 @@ export const updateCandidateTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Updated primary email address',
     },
-    emailType: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Email address type: Personal, Work, or Other (default Work)',
-    },
     phoneNumber: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Updated primary phone number',
-    },
-    phoneType: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Phone number type: Personal, Work, or Other (default Work)',
     },
     linkedInUrl: {
       type: 'string',
@@ -105,27 +91,11 @@ export const updateCandidateTool: ToolConfig<
         candidateId: params.candidateId,
       }
       if (params.name) body.name = params.name
-      if (params.email) {
-        body.primaryEmailAddress = {
-          value: params.email,
-          type: params.emailType || 'Work',
-          isPrimary: true,
-        }
-      }
-      if (params.phoneNumber) {
-        body.primaryPhoneNumber = {
-          value: params.phoneNumber,
-          type: params.phoneType || 'Work',
-          isPrimary: true,
-        }
-      }
-      if (params.linkedInUrl || params.githubUrl || params.websiteUrl) {
-        const socialLinks: Array<{ url: string; type: string }> = []
-        if (params.linkedInUrl) socialLinks.push({ url: params.linkedInUrl, type: 'LinkedIn' })
-        if (params.githubUrl) socialLinks.push({ url: params.githubUrl, type: 'GitHub' })
-        if (params.websiteUrl) socialLinks.push({ url: params.websiteUrl, type: 'Website' })
-        body.socialLinks = socialLinks
-      }
+      if (params.email) body.email = params.email
+      if (params.phoneNumber) body.phoneNumber = params.phoneNumber
+      if (params.linkedInUrl) body.linkedInUrl = params.linkedInUrl
+      if (params.githubUrl) body.githubUrl = params.githubUrl
+      if (params.websiteUrl) body.websiteUrl = params.websiteUrl
       if (params.sourceId) body.sourceId = params.sourceId
       return body
     },

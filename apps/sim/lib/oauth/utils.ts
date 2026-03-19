@@ -308,6 +308,9 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'crm.lists.read': 'Read HubSpot lists',
   'crm.lists.write': 'Create and update HubSpot lists',
   'crm.objects.tickets.read': 'Read HubSpot tickets',
+  'crm.objects.tickets.write': 'Create and update HubSpot tickets',
+  tickets: 'Access HubSpot tickets',
+  oauth: 'Authenticate with HubSpot OAuth',
 
   // Salesforce scopes
   api: 'Access Salesforce API',
@@ -339,6 +342,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   // Box scopes
   root_readwrite: 'Read and write all files and folders in Box account',
   root_readonly: 'Read all files and folders in Box account',
+  'sign_requests.readwrite': 'Create and manage Box Sign e-signature requests',
 
   // Shopify scopes
   write_products: 'Read and manage Shopify products',
@@ -391,6 +395,10 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'user-follow-modify': 'Follow and unfollow artists and users',
   'user-read-playback-position': 'View playback position in podcasts',
   'ugc-image-upload': 'Upload images to Spotify playlists',
+
+  // DocuSign scopes
+  signature: 'Create and send envelopes for e-signature',
+  extended: 'Extended access to DocuSign account features',
 
   // Attio scopes
   'record_permission:read-write': 'Read and write CRM records',

@@ -316,6 +316,9 @@ export function CredentialsManager() {
 
   // --- Detail view state ---
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
+  const [prevSelectedCredentialId, setPrevSelectedCredentialId] = useState<
+    string | null | undefined
+  >(undefined)
   const [selectedDisplayNameDraft, setSelectedDisplayNameDraft] = useState('')
   const [selectedDescriptionDraft, setSelectedDescriptionDraft] = useState('')
   const [copyIdSuccess, setCopyIdSuccess] = useState(false)
@@ -346,6 +349,19 @@ export function CredentialsManager() {
     () => envCredentials.find((c) => c.id === selectedCredentialId) || null,
     [envCredentials, selectedCredentialId]
   )
+
+  if (selectedCredential?.id !== prevSelectedCredentialId) {
+    setPrevSelectedCredentialId(selectedCredential?.id ?? null)
+    if (!selectedCredential) {
+      setSelectedDescriptionDraft('')
+      setSelectedDisplayNameDraft('')
+      setDetailsError(null)
+    } else {
+      setDetailsError(null)
+      setSelectedDescriptionDraft(selectedCredential.description || '')
+      setSelectedDisplayNameDraft(selectedCredential.displayName)
+    }
+  }
 
   // --- Detail view hooks ---
   const { data: members = [], isPending: membersLoading } = useWorkspaceCredentialMembers(
@@ -458,12 +474,10 @@ export function CredentialsManager() {
     return personalInvalid || workspaceInvalid
   }, [envVars, newWorkspaceRows])
 
-  // --- Effects ---
-  useEffect(() => {
-    hasChangesRef.current = hasChanges
-    shouldBlockNavRef.current = hasChanges || isDetailsDirty
-  }, [hasChanges, isDetailsDirty])
+  hasChangesRef.current = hasChanges
+  shouldBlockNavRef.current = hasChanges || isDetailsDirty
 
+  // --- Effects ---
   useEffect(() => {
     if (hasSavedRef.current) return
 
@@ -480,13 +494,12 @@ export function CredentialsManager() {
   }, [variables])
 
   useEffect(() => {
-    if (workspaceEnvData) {
-      if (hasSavedRef.current) {
-        hasSavedRef.current = false
-      } else {
-        setWorkspaceVars(workspaceEnvData?.workspace || {})
-        initialWorkspaceVarsRef.current = workspaceEnvData?.workspace || {}
-      }
+    if (!workspaceEnvData) return
+    if (hasSavedRef.current) {
+      hasSavedRef.current = false
+    } else {
+      setWorkspaceVars(workspaceEnvData.workspace || {})
+      initialWorkspaceVarsRef.current = workspaceEnvData.workspace || {}
     }
   }, [workspaceEnvData])
 
@@ -548,19 +561,6 @@ export function CredentialsManager() {
       window.removeEventListener('popstate', handlePopState)
     }
   }, [])
-
-  // --- Detail view: sync drafts when credential changes ---
-  useEffect(() => {
-    if (!selectedCredential) {
-      setSelectedDescriptionDraft('')
-      setSelectedDisplayNameDraft('')
-      return
-    }
-
-    setDetailsError(null)
-    setSelectedDescriptionDraft(selectedCredential.description || '')
-    setSelectedDisplayNameDraft(selectedCredential.displayName)
-  }, [selectedCredential])
 
   // --- Pending credential create request ---
   const applyPendingCredentialCreateRequest = useCallback(

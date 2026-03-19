@@ -1169,3 +1169,26 @@ export function validatePaginationCursor(
 
   return { isValid: true, sanitized: value }
 }
+
+/**
+ * Validates a callback URL to prevent open redirect attacks.
+ * Accepts relative paths and absolute URLs matching the current origin.
+ *
+ * @param url - The callback URL to validate
+ * @returns true if the URL is safe to redirect to
+ */
+export function validateCallbackUrl(url: string): boolean {
+  try {
+    if (url.startsWith('/')) return true
+
+    if (typeof window === 'undefined') return false
+
+    const currentOrigin = window.location.origin
+    if (url.startsWith(currentOrigin)) return true
+
+    return false
+  } catch (error) {
+    logger.error('Error validating callback URL:', { error, url })
+    return false
+  }
+}

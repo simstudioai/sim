@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 const AUTO_SCROLL_GRACE_MS = 120
 
@@ -38,6 +38,13 @@ export function useScrollManagement(
 ) {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [userHasScrolledAway, setUserHasScrolledAway] = useState(false)
+  const [prevIsSendingMessage, setPrevIsSendingMessage] = useState(isSendingMessage)
+  if (prevIsSendingMessage !== isSendingMessage) {
+    setPrevIsSendingMessage(isSendingMessage)
+    if (!isSendingMessage) {
+      setUserHasScrolledAway(false)
+    }
+  }
   const programmaticUntilRef = useRef(0)
   const lastScrollTopRef = useRef(0)
 
@@ -139,12 +146,6 @@ export function useScrollManagement(
   }, [messages, userHasScrolledAway, scrollToBottom])
 
   useEffect(() => {
-    if (!isSendingMessage) {
-      setUserHasScrolledAway(false)
-    }
-  }, [isSendingMessage])
-
-  useEffect(() => {
     if (!isSendingMessage || userHasScrolledAway) return
 
     const container = scrollAreaRef.current
@@ -167,7 +168,7 @@ export function useScrollManagement(
   // overflow-anchor: none during streaming prevents the browser from
   // fighting our programmatic scrollToBottom calls (Chromium/Firefox only;
   // Safari does not support this property).
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = scrollAreaRef.current
     if (!container) return
 

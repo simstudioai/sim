@@ -169,16 +169,13 @@ export function ChunkEditor({
 
   const saveFunction = isCreateMode ? handleSave : saveImmediately
 
-  useEffect(() => {
-    if (saveRef) {
-      saveRef.current = saveFunction
-    }
-    return () => {
-      if (saveRef) {
-        saveRef.current = null
-      }
-    }
-  }, [saveRef, saveFunction])
+  if (saveRef) saveRef.current = saveFunction
+  useEffect(
+    () => () => {
+      if (saveRef) saveRef.current = null
+    },
+    [saveRef]
+  )
 
   const tokenStrings = useMemo(() => {
     if (!tokenizerOn || !editedContent) return []

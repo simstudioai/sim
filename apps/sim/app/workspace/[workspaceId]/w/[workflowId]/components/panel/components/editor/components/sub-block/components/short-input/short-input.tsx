@@ -109,11 +109,9 @@ export const ShortInput = memo(function ShortInput({
     isStreaming: wandHook.isStreaming,
   })
 
-  useEffect(() => {
-    persistSubBlockValueRef.current = (value: string) => {
-      setSubBlockValue(value)
-    }
-  }, [setSubBlockValue])
+  persistSubBlockValueRef.current = (value: string) => {
+    setSubBlockValue(value)
+  }
 
   const isWandEnabled = config.wandConfig?.enabled ?? false
 
@@ -214,12 +212,12 @@ export const ShortInput = memo(function ShortInput({
 
   useEffect(() => {
     if (!wandHook.isStreaming) {
-      const baseValueString = baseValue?.toString() ?? ''
-      if (baseValueString !== localContent) {
-        setLocalContent(baseValueString)
-      }
+      setLocalContent((prev) => {
+        const baseValueString = baseValue?.toString() ?? ''
+        return baseValueString !== prev ? baseValueString : prev
+      })
     }
-  }, [baseValue, wandHook.isStreaming, localContent])
+  }, [baseValue, wandHook.isStreaming])
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLInputElement>) => {
     if (overlayRef.current) {

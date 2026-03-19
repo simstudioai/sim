@@ -559,12 +559,15 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
     }
   }, [open, isRangeMode, initialStart, initialEnd])
 
-  React.useEffect(() => {
-    if (!isRangeMode && selectedDate) {
+  const singleValueKey = !isRangeMode && selectedDate ? selectedDate.getTime() : undefined
+  const [prevSingleValueKey, setPrevSingleValueKey] = React.useState(singleValueKey)
+  if (singleValueKey !== prevSingleValueKey) {
+    setPrevSingleValueKey(singleValueKey)
+    if (selectedDate) {
       setViewMonth(selectedDate.getMonth())
       setViewYear(selectedDate.getFullYear())
     }
-  }, [isRangeMode, selectedDate])
+  }
 
   /**
    * Handles selection of a specific day in single mode.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   escapeRegex,
   filterOutContext,
@@ -22,15 +22,6 @@ interface UseContextManagementProps {
  */
 export function useContextManagement({ message, initialContexts }: UseContextManagementProps) {
   const [selectedContexts, setSelectedContexts] = useState<ChatContext[]>(initialContexts ?? [])
-  const initializedRef = useRef(false)
-
-  // Initialize with initial contexts when they're first provided (for edit mode)
-  useEffect(() => {
-    if (initialContexts && initialContexts.length > 0 && !initializedRef.current) {
-      setSelectedContexts(initialContexts)
-      initializedRef.current = true
-    }
-  }, [initialContexts])
 
   /**
    * Adds a context to the selected contexts list, avoiding duplicates

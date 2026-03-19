@@ -10,17 +10,16 @@ interface AshbyListOffersResponse extends ToolResponse {
   output: {
     offers: Array<{
       id: string
-      status: string
-      candidate: {
-        id: string
-        name: string
+      offerStatus: string
+      acceptanceStatus: string | null
+      applicationId: string | null
+      startDate: string | null
+      salary: {
+        currencyCode: string
+        value: number
       } | null
-      job: {
-        id: string
-        title: string
-      } | null
-      createdAt: string
-      updatedAt: string
+      openingId: string | null
+      createdAt: string | null
     }>
     moreDataAvailable: boolean
     nextCursor: string | null
@@ -82,27 +81,31 @@ export const listOffersTool: ToolConfig<AshbyListOffersParams, AshbyListOffersRe
         offers: (data.results ?? []).map(
           (
             o: Record<string, unknown> & {
-              candidate?: { id?: string; name?: string }
-              job?: { id?: string; title?: string }
+              latestVersion?: {
+                startDate?: string
+                salary?: { currencyCode?: string; value?: number }
+                openingId?: string
+                createdAt?: string
+              }
             }
-          ) => ({
-            id: o.id ?? null,
-            status: o.status ?? o.offerStatus ?? null,
-            candidate: o.candidate
-              ? {
-                  id: o.candidate.id ?? null,
-                  name: o.candidate.name ?? null,
-                }
-              : null,
-            job: o.job
-              ? {
-                  id: o.job.id ?? null,
-                  title: o.job.title ?? null,
-                }
-              : null,
-            createdAt: o.createdAt ?? null,
-            updatedAt: o.updatedAt ?? null,
-          })
+          ) => {
+            const v = o.latestVersion
+            return {
+              id: o.id ?? null,
+              offerStatus: o.offerStatus ?? null,
+              acceptanceStatus: o.acceptanceStatus ?? null,
+              applicationId: o.applicationId ?? null,
+              startDate: v?.startDate ?? null,
+              salary: v?.salary
+                ? {
+                    currencyCode: v.salary.currencyCode ?? null,
+                    value: v.salary.value ?? null,
+                  }
+                : null,
+              openingId: v?.openingId ?? null,
+              createdAt: v?.createdAt ?? null,
+            }
+          }
         ),
         moreDataAvailable: data.moreDataAvailable ?? false,
         nextCursor: data.nextCursor ?? null,
@@ -118,27 +121,25 @@ export const listOffersTool: ToolConfig<AshbyListOffersParams, AshbyListOffersRe
         type: 'object',
         properties: {
           id: { type: 'string', description: 'Offer UUID' },
-          status: { type: 'string', description: 'Offer status' },
-          candidate: {
+          offerStatus: { type: 'string', description: 'Offer status' },
+          acceptanceStatus: { type: 'string', description: 'Acceptance status', optional: true },
+          applicationId: {
+            type: 'string',
+            description: 'Associated application UUID',
+            optional: true,
+          },
+          startDate: { type: 'string', description: 'Offer start date', optional: true },
+          salary: {
             type: 'object',
-            description: 'Associated candidate',
+            description: 'Salary details',
             optional: true,
             properties: {
-              id: { type: 'string', description: 'Candidate UUID' },
-              name: { type: 'string', description: 'Candidate name' },
+              currencyCode: { type: 'string', description: 'ISO 4217 currency code' },
+              value: { type: 'number', description: 'Salary amount' },
             },
           },
-          job: {
-            type: 'object',
-            description: 'Associated job',
-            optional: true,
-            properties: {
-              id: { type: 'string', description: 'Job UUID' },
-              title: { type: 'string', description: 'Job title' },
-            },
-          },
-          createdAt: { type: 'string', description: 'ISO 8601 creation timestamp' },
-          updatedAt: { type: 'string', description: 'ISO 8601 last update timestamp' },
+          openingId: { type: 'string', description: 'Associated opening UUID', optional: true },
+          createdAt: { type: 'string', description: 'ISO 8601 creation timestamp', optional: true },
         },
       },
     },

@@ -1,4 +1,7 @@
-import type { KnowledgeCreateDocumentResponse } from '@/tools/knowledge/types'
+import {
+  inferDocumentFileInfo,
+  type KnowledgeCreateDocumentResponse,
+} from '@/tools/knowledge/types'
 import { enrichKBTagsSchema } from '@/tools/schema-enrichers'
 import { formatDocumentTagsForAPI, parseDocumentTags } from '@/tools/shared/tags'
 import type { ToolConfig } from '@/tools/types'
@@ -63,30 +66,36 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
       if (!textContent || textContent.length < 1) {
         throw new Error('Document content cannot be empty')
       }
-      if (textContent.length > 1000000) {
+      const utf8Bytes = new TextEncoder().encode(textContent)
+      const contentBytes = utf8Bytes.length
+
+      if (contentBytes > 1_000_000) {
         throw new Error('Document content exceeds maximum size of 1MB')
       }
 
-      const contentBytes = new TextEncoder().encode(textContent).length
+      let base64Content: string
+      if (typeof Buffer !== 'undefined') {
+        base64Content = Buffer.from(textContent, 'utf8').toString('base64')
+      } else {
+        let binary = ''
+        for (let i = 0; i < utf8Bytes.length; i++) {
+          binary += String.fromCharCode(utf8Bytes[i])
+        }
+        base64Content = btoa(binary)
+      }
 
-      const utf8Bytes = new TextEncoder().encode(textContent)
-      const base64Content =
-        typeof Buffer !== 'undefined'
-          ? Buffer.from(textContent, 'utf8').toString('base64')
-          : btoa(String.fromCharCode(...utf8Bytes))
+      const { filename, mimeType } = inferDocumentFileInfo(documentName)
+      const dataUri = `data:${mimeType};base64,${base64Content}`
 
-      const dataUri = `data:text/plain;base64,${base64Content}`
-
-      // Parse document tags from various formats (object, array, JSON string)
       const parsedTags = parseDocumentTags(params.documentTags)
       const tagData = formatDocumentTagsForAPI(parsedTags)
 
       const documents = [
         {
-          filename: documentName.endsWith('.txt') ? documentName : `${documentName}.txt`,
+          filename,
           fileUrl: dataUri,
           fileSize: contentBytes,
-          mimeType: 'text/plain',
+          mimeType,
           ...tagData,
         },
       ]

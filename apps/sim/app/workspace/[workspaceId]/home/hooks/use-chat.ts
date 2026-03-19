@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
@@ -288,8 +288,18 @@ export function useChat(
   onStreamEndRef.current = options?.onStreamEnd
   const resourcesRef = useRef(resources)
   resourcesRef.current = resources
-  const activeResourceIdRef = useRef(activeResourceId)
-  activeResourceIdRef.current = activeResourceId
+
+  // Derive the effective active resource ID — auto-selects the last resource when the stored ID is
+  // absent or no longer in the list, avoiding a separate Effect-based state correction loop.
+  const effectiveActiveResourceId = useMemo(() => {
+    if (resources.length === 0) return null
+    if (activeResourceId && resources.some((r) => r.id === activeResourceId))
+      return activeResourceId
+    return resources[resources.length - 1].id
+  }, [resources, activeResourceId])
+
+  const activeResourceIdRef = useRef(effectiveActiveResourceId)
+  activeResourceIdRef.current = effectiveActiveResourceId
 
   const [streamingFile, setStreamingFile] = useState<{
     fileName: string
@@ -300,9 +310,7 @@ export function useChat(
 
   const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
   const messageQueueRef = useRef<QueuedMessage[]>([])
-  useEffect(() => {
-    messageQueueRef.current = messageQueue
-  }, [messageQueue])
+  messageQueueRef.current = messageQueue
 
   const sendMessageRef = useRef<UseChatReturn['sendMessage']>(async () => {})
   const processSSEStreamRef = useRef<
@@ -508,19 +516,6 @@ export function useChat(
       reconnect()
     }
   }, [chatHistory, workspaceId, queryClient])
-
-  useEffect(() => {
-    if (resources.length === 0) {
-      if (activeResourceId !== null) {
-        setActiveResourceId(null)
-      }
-      return
-    }
-
-    if (!activeResourceId || !resources.some((resource) => resource.id === activeResourceId)) {
-      setActiveResourceId(resources[resources.length - 1].id)
-    }
-  }, [activeResourceId, resources])
 
   const processSSEStream = useCallback(
     async (
@@ -989,9 +984,7 @@ export function useChat(
     },
     [workspaceId, queryClient, addResource, removeResource]
   )
-  useLayoutEffect(() => {
-    processSSEStreamRef.current = processSSEStream
-  })
+  processSSEStreamRef.current = processSSEStream
 
   const persistPartialResponse = useCallback(async () => {
     const chatId = chatIdRef.current
@@ -1090,9 +1083,7 @@ export function useChat(
     },
     [invalidateChatQueries]
   )
-  useLayoutEffect(() => {
-    finalizeRef.current = finalize
-  })
+  finalizeRef.current = finalize
 
   const sendMessage = useCallback(
     async (message: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
@@ -1229,9 +1220,7 @@ export function useChat(
     },
     [workspaceId, queryClient, processSSEStream, finalize]
   )
-  useLayoutEffect(() => {
-    sendMessageRef.current = sendMessage
-  })
+  sendMessageRef.current = sendMessage
 
   const stopGeneration = useCallback(async () => {
     if (sendingRef.current && !chatIdRef.current) {
@@ -1369,7 +1358,7 @@ export function useChat(
     sendMessage,
     stopGeneration,
     resources,
-    activeResourceId,
+    activeResourceId: effectiveActiveResourceId,
     setActiveResourceId,
     addResource,
     removeResource,

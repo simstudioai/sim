@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
             quantity: currentQuantity,
           },
         ],
-        proration_behavior: 'create_prorations',
+        proration_behavior: 'always_invoice',
       })
     }
 

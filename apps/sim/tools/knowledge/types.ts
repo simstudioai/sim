@@ -1,3 +1,38 @@
+import {
+  getFileExtension,
+  getMimeTypeFromExtension as getUploadMimeType,
+} from '@/lib/uploads/utils/file-utils'
+
+const TEXT_COMPATIBLE_MIME_TYPES = new Set([
+  'text/plain',
+  'text/html',
+  'text/markdown',
+  'text/csv',
+  'application/json',
+  'application/xml',
+  'application/x-yaml',
+])
+
+/**
+ * Extracts extension from a filename and returns the normalized filename and MIME type.
+ * If the extension maps to a recognized text-compatible MIME type, it is preserved.
+ * Otherwise, the filename is normalized to `.txt` with `text/plain`.
+ */
+export function inferDocumentFileInfo(documentName: string): {
+  filename: string
+  mimeType: string
+} {
+  const ext = getFileExtension(documentName)
+  if (ext) {
+    const mimeType = getUploadMimeType(ext)
+    if (TEXT_COMPATIBLE_MIME_TYPES.has(mimeType)) {
+      return { filename: documentName, mimeType }
+    }
+  }
+  const base = ext ? documentName.slice(0, documentName.lastIndexOf('.')) : documentName
+  return { filename: `${base || documentName}.txt`, mimeType: 'text/plain' }
+}
+
 export interface KnowledgeSearchResult {
   documentId: string
   documentName: string

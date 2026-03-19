@@ -58,11 +58,13 @@ import {
   filterProtectedBlocks,
   getClampedPositionForNode,
   getDescendantBlockIds,
+  getEdgeSelectionContextId,
+  getNodeSelectionContextId,
   getWorkflowLockToggleIds,
   isBlockProtected,
   isEdgeProtected,
   isInEditableElement,
-  resolveParentChildSelectionConflicts,
+  resolveSelectionConflicts,
   validateTriggerPaste,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
@@ -165,16 +167,17 @@ function mapEdgesByNode(edges: Edge[], nodeIds: Set<string>): Map<string, Edge[]
 
 /**
  * Syncs the panel editor with the current selection state.
- * Shows block details when exactly one block is selected, clears otherwise.
+ * Shows the last selected block in the panel. Clears when nothing is selected.
  */
 function syncPanelWithSelection(selectedIds: string[]) {
   const { currentBlockId, clearCurrentBlock, setCurrentBlockId } = usePanelEditorStore.getState()
-  if (selectedIds.length === 1 && selectedIds[0] !== currentBlockId) {
-    setCurrentBlockId(selectedIds[0])
-  } else if (selectedIds.length === 0 && currentBlockId) {
-    clearCurrentBlock()
-  } else if (selectedIds.length > 1 && currentBlockId) {
-    clearCurrentBlock()
+  if (selectedIds.length === 0) {
+    if (currentBlockId) clearCurrentBlock()
+  } else {
+    const lastSelectedId = selectedIds[selectedIds.length - 1]
+    if (lastSelectedId !== currentBlockId) {
+      setCurrentBlockId(lastSelectedId)
+    }
   }
 }
 
@@ -243,7 +246,6 @@ const WorkflowContent = React.memo(
     const [selectedEdges, setSelectedEdges] = useState<SelectedEdgesMap>(new Map())
     const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
     const canvasContainerRef = useRef<HTMLDivElement>(null)
-    const selectedIdsRef = useRef<string[] | null>(null)
     const embeddedFitFrameRef = useRef<number | null>(null)
     const hasCompletedInitialEmbeddedFitRef = useRef(false)
     const canvasMode = useCanvasModeStore((state) => state.mode)
@@ -329,9 +331,7 @@ const WorkflowContent = React.memo(
 
     const isAutoConnectEnabled = useAutoConnect()
     const autoConnectRef = useRef(isAutoConnectEnabled)
-    useEffect(() => {
-      autoConnectRef.current = isAutoConnectEnabled
-    }, [isAutoConnectEnabled])
+    autoConnectRef.current = isAutoConnectEnabled
 
     // Panel open states for context menu
     const isVariablesOpen = useVariablesStore((state) => state.isOpen)
@@ -2470,6 +2470,16 @@ const WorkflowContent = React.memo(
     // Local state for nodes - allows smooth drag without store updates on every frame
     const [displayNodes, setDisplayNodes] = useState<Node[]>([])
 
+    const selectedNodeIds = useMemo(
+      () => displayNodes.filter((node) => node.selected).map((node) => node.id),
+      [displayNodes]
+    )
+    const selectedNodeIdsKey = selectedNodeIds.join(',')
+
+    useEffect(() => {
+      syncPanelWithSelection(selectedNodeIds)
+    }, [selectedNodeIdsKey])
+
     useEffect(() => {
       // Check for pending selection (from paste/duplicate), otherwise preserve existing selection
       if (pendingSelection && pendingSelection.length > 0) {
@@ -2481,10 +2491,8 @@ const WorkflowContent = React.memo(
           ...node,
           selected: pendingSet.has(node.id),
         }))
-        const resolved = resolveParentChildSelectionConflicts(withSelection, blocks)
+        const resolved = resolveSelectionConflicts(withSelection, blocks)
         setDisplayNodes(resolved)
-        const selectedIds = resolved.filter((node) => node.selected).map((node) => node.id)
-        syncPanelWithSelection(selectedIds)
         return
       }
 
@@ -2702,19 +2710,20 @@ const WorkflowContent = React.memo(
     /** Handles node changes - applies changes and resolves parent-child selection conflicts. */
     const onNodesChange = useCallback(
       (changes: NodeChange[]) => {
-        selectedIdsRef.current = null
-        setDisplayNodes((nds) => {
-          const updated = applyNodeChanges(changes, nds)
-          const hasSelectionChange = changes.some((c) => c.type === 'select')
+        const hasSelectionChange = changes.some((c) => c.type === 'select')
+        setDisplayNodes((currentNodes) => {
+          const updated = applyNodeChanges(changes, currentNodes)
           if (!hasSelectionChange) return updated
-          const resolved = resolveParentChildSelectionConflicts(updated, blocks)
-          selectedIdsRef.current = resolved.filter((node) => node.selected).map((node) => node.id)
-          return resolved
+
+          const preferredNodeId = [...changes]
+            .reverse()
+            .find(
+              (change): change is NodeChange & { id: string; selected: boolean } =>
+                change.type === 'select' && 'selected' in change && change.selected === true
+            )?.id
+
+          return resolveSelectionConflicts(updated, blocks, preferredNodeId)
         })
-        const selectedIds = selectedIdsRef.current as string[] | null
-        if (selectedIds !== null) {
-          syncPanelWithSelection(selectedIds)
-        }
 
         // Handle position changes (e.g., from keyboard arrow key movement)
         // Update container dimensions when child nodes are moved and persist to backend
@@ -3153,7 +3162,10 @@ const WorkflowContent = React.memo(
           parentId: currentParentId,
         })
 
-        // Capture all selected nodes' positions for multi-node undo/redo
+        // Capture all selected nodes' positions for multi-node undo/redo.
+        // Also include the dragged node itself — during shift+click+drag, ReactFlow
+        // may have toggled (deselected) the node before drag starts, so it might not
+        // appear in the selected set yet.
         const allNodes = getNodes()
         const selectedNodes = allNodes.filter((n) => n.selected)
         multiNodeDragStartRef.current.clear()
@@ -3167,6 +3179,33 @@ const WorkflowContent = React.memo(
             })
           }
         })
+        if (!multiNodeDragStartRef.current.has(node.id)) {
+          multiNodeDragStartRef.current.set(node.id, {
+            x: node.position.x,
+            y: node.position.y,
+            parentId: currentParentId ?? undefined,
+          })
+        }
+
+        // When shift+clicking an already-selected node, ReactFlow toggles (deselects)
+        // it via onNodesChange before drag starts. Re-select the dragged node so all
+        // previously selected nodes move together as a group — but only if the
+        // deselection wasn't from a parent-child conflict (e.g. dragging a child
+        // when its parent subflow is selected).
+        const draggedNodeInSelected = allNodes.find((n) => n.id === node.id)
+        if (draggedNodeInSelected && !draggedNodeInSelected.selected && selectedNodes.length > 0) {
+          const draggedParentId = blocks[node.id]?.data?.parentId
+          const parentIsSelected =
+            draggedParentId && selectedNodes.some((n) => n.id === draggedParentId)
+          const contextMismatch =
+            getNodeSelectionContextId(draggedNodeInSelected, blocks) !==
+            getNodeSelectionContextId(selectedNodes[0], blocks)
+          if (!parentIsSelected && !contextMismatch) {
+            setDisplayNodes((currentNodes) =>
+              currentNodes.map((n) => (n.id === node.id ? { ...n, selected: true } : n))
+            )
+          }
+        }
       },
       [blocks, setDragStartPosition, getNodes, setPotentialParentId]
     )
@@ -3446,7 +3485,7 @@ const WorkflowContent = React.memo(
         })
 
         // Apply visual deselection of children
-        setDisplayNodes((allNodes) => resolveParentChildSelectionConflicts(allNodes, blocks))
+        setDisplayNodes((allNodes) => resolveSelectionConflicts(allNodes, blocks))
       },
       [blocks]
     )
@@ -3597,19 +3636,25 @@ const WorkflowContent = React.memo(
 
     /**
      * Handles node click to select the node in ReactFlow.
-     * Parent-child conflict resolution happens automatically in onNodesChange.
+     * Uses the controlled display node state so parent-child conflicts are resolved
+     * consistently for click, shift-click, and marquee selection.
      */
     const handleNodeClick = useCallback(
       (event: React.MouseEvent, node: Node) => {
         const isMultiSelect = event.shiftKey || event.metaKey || event.ctrlKey
-        setNodes((nodes) =>
-          nodes.map((n) => ({
-            ...n,
-            selected: isMultiSelect ? (n.id === node.id ? true : n.selected) : n.id === node.id,
+        setDisplayNodes((currentNodes) => {
+          const updated = currentNodes.map((currentNode) => ({
+            ...currentNode,
+            selected: isMultiSelect
+              ? currentNode.id === node.id
+                ? true
+                : currentNode.selected
+              : currentNode.id === node.id,
           }))
-        )
+          return resolveSelectionConflicts(updated, blocks, isMultiSelect ? node.id : undefined)
+        })
       },
-      [setNodes]
+      [blocks]
     )
 
     /** Handles edge selection with container context tracking and Shift-click multi-selection. */
@@ -3617,16 +3662,10 @@ const WorkflowContent = React.memo(
       (event: React.MouseEvent, edge: any) => {
         event.stopPropagation() // Prevent bubbling
 
-        // Determine if edge is inside a loop by checking its source/target nodes
-        const sourceNode = getNodes().find((n) => n.id === edge.source)
-        const targetNode = getNodes().find((n) => n.id === edge.target)
-
-        // An edge is inside a loop if either source or target has a parent
-        // If source and target have different parents, prioritize source's parent
-        const parentLoopId = sourceNode?.parentId || targetNode?.parentId
-
-        // Create a unique identifier that combines edge ID and parent context
-        const contextId = `${edge.id}${parentLoopId ? `-${parentLoopId}` : ''}`
+        const contextId = `${edge.id}${(() => {
+          const selectionContextId = getEdgeSelectionContextId(edge, getNodes(), blocks)
+          return selectionContextId ? `-${selectionContextId}` : ''
+        })()}`
 
         if (event.shiftKey) {
           // Shift-click: toggle edge in selection
@@ -3644,7 +3683,7 @@ const WorkflowContent = React.memo(
           setSelectedEdges(new Map([[contextId, edge.id]]))
         }
       },
-      [getNodes]
+      [blocks, getNodes]
     )
 
     /** Stable delete handler to avoid creating new function references per edge. */

@@ -24,6 +24,9 @@ export function filterOutputForLog(
     additionalHiddenKeys?: string[]
   }
 ): NormalizedBlockOutput {
+  if (typeof output !== 'object' || output === null || Array.isArray(output)) {
+    return output as NormalizedBlockOutput
+  }
   const blockConfig = blockType ? getBlock(blockType) : undefined
   const filtered: NormalizedBlockOutput = {}
   const additionalHiddenKeys = options?.additionalHiddenKeys ?? []

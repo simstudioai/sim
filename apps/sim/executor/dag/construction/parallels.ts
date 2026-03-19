@@ -11,22 +11,19 @@ const logger = createLogger('ParallelConstructor')
 export class ParallelConstructor {
   execute(dag: DAG, reachableBlocks: Set<string>): void {
     for (const [parallelId, parallelConfig] of dag.parallelConfigs) {
-      const parallelNodes = parallelConfig.nodes
-
-      if (parallelNodes.length === 0) {
+      if (!reachableBlocks.has(parallelId)) {
         continue
       }
 
-      if (!this.hasReachableNodes(parallelNodes, reachableBlocks)) {
-        continue
+      const parallelNodes = parallelConfig.nodes
+      const hasReachableChildren = parallelNodes.some((nodeId) => reachableBlocks.has(nodeId))
+
+      if (!hasReachableChildren) {
+        parallelConfig.nodes = []
       }
 
       this.createSentinelPair(dag, parallelId)
     }
-  }
-
-  private hasReachableNodes(parallelNodes: string[], reachableBlocks: Set<string>): boolean {
-    return parallelNodes.some((nodeId) => reachableBlocks.has(nodeId))
   }
 
   private createSentinelPair(dag: DAG, parallelId: string): void {

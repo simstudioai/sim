@@ -89,21 +89,25 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
   })
 
   /**
-   * Reset all state when modal opens/closes
+   * Reset all form and UI state to prepare for a fresh modal session
    */
+  const resetModalState = useCallback(() => {
+    setSubmitStatus(null)
+    setImages([])
+    setIsDragging(false)
+    setIsProcessing(false)
+    reset({
+      subject: '',
+      message: '',
+      type: DEFAULT_REQUEST_TYPE,
+    })
+  }, [reset])
+
   useEffect(() => {
     if (open) {
-      setSubmitStatus(null)
-      setImages([])
-      setIsDragging(false)
-      setIsProcessing(false)
-      reset({
-        subject: '',
-        message: '',
-        type: DEFAULT_REQUEST_TYPE,
-      })
+      resetModalState()
     }
-  }, [open, reset])
+  }, [open, resetModalState])
 
   /**
    * Fix z-index for popover/dropdown when inside modal
