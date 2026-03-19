@@ -484,27 +484,52 @@ export async function restoreTable(tableId: string, requestId: string): Promise<
     }
   }
 
-  const newName = await generateRestoreName(table.name, async (candidate) => {
-    const [match] = await db
-      .select({ id: userTableDefinitions.id })
-      .from(userTableDefinitions)
-      .where(
-        and(
-          eq(userTableDefinitions.workspaceId, table.workspaceId),
-          eq(userTableDefinitions.name, candidate),
-          isNull(userTableDefinitions.archivedAt)
-        )
-      )
-      .limit(1)
-    return !!match
-  })
+  /**
+   * A concurrent rename/create can claim the chosen name after `generateRestoreName`'s check (MVCC).
+   * Retries pick a new random suffix; 23505 maps to {@link TableConflictError} after exhaustion.
+   */
+  const maxUniqueViolationRetries = 8
+  let attemptedRestoreName = ''
 
-  await db
-    .update(userTableDefinitions)
-    .set({ archivedAt: null, updatedAt: new Date(), name: newName })
-    .where(eq(userTableDefinitions.id, tableId))
+  for (let attempt = 0; attempt < maxUniqueViolationRetries; attempt++) {
+    attemptedRestoreName = ''
+    try {
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT 1 FROM user_table_definitions WHERE id = ${tableId} FOR UPDATE`)
 
-  logger.info(`[${requestId}] Restored table ${tableId} as "${newName}"`)
+        attemptedRestoreName = await generateRestoreName(table.name, async (candidate) => {
+          const [match] = await tx
+            .select({ id: userTableDefinitions.id })
+            .from(userTableDefinitions)
+            .where(
+              and(
+                eq(userTableDefinitions.workspaceId, table.workspaceId),
+                eq(userTableDefinitions.name, candidate),
+                isNull(userTableDefinitions.archivedAt)
+              )
+            )
+            .limit(1)
+          return !!match
+        })
+
+        const now = new Date()
+        await tx
+          .update(userTableDefinitions)
+          .set({ archivedAt: null, updatedAt: now, name: attemptedRestoreName })
+          .where(eq(userTableDefinitions.id, tableId))
+      })
+      break
+    } catch (error: unknown) {
+      if (getPostgresErrorCode(error) !== '23505') {
+        throw error
+      }
+      if (attempt === maxUniqueViolationRetries - 1) {
+        throw new TableConflictError(attemptedRestoreName || table.name)
+      }
+    }
+  }
+
+  logger.info(`[${requestId}] Restored table ${tableId} as "${attemptedRestoreName}"`)
 }
 
 /**

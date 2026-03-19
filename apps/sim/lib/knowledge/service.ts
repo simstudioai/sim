@@ -473,54 +473,77 @@ export async function restoreKnowledgeBase(
     }
   }
 
-  const newName = await generateRestoreName(kb.name, async (candidate) => {
-    if (!kb.workspaceId) return false
-    const [match] = await db
-      .select({ id: knowledgeBase.id })
-      .from(knowledgeBase)
-      .where(
-        and(
-          eq(knowledgeBase.workspaceId, kb.workspaceId),
-          eq(knowledgeBase.name, candidate),
-          isNull(knowledgeBase.deletedAt)
-        )
-      )
-      .limit(1)
-    return !!match
-  })
+  /**
+   * A concurrent create/rename can commit the same active name after `generateRestoreName`'s check
+   * (MVCC) and before this transaction commits. Retries pick a new random suffix; 23505 is still
+   * mapped to {@link KnowledgeBaseConflictError} if exhaustion occurs.
+   */
+  const maxUniqueViolationRetries = 8
+  let attemptedRestoreName = ''
 
-  const now = new Date()
+  for (let attempt = 0; attempt < maxUniqueViolationRetries; attempt++) {
+    attemptedRestoreName = ''
+    try {
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
 
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+        attemptedRestoreName = await generateRestoreName(kb.name, async (candidate) => {
+          if (!kb.workspaceId) return false
+          const [match] = await tx
+            .select({ id: knowledgeBase.id })
+            .from(knowledgeBase)
+            .where(
+              and(
+                eq(knowledgeBase.workspaceId, kb.workspaceId),
+                eq(knowledgeBase.name, candidate),
+                isNull(knowledgeBase.deletedAt)
+              )
+            )
+            .limit(1)
+          return !!match
+        })
 
-    await tx
-      .update(knowledgeBase)
-      .set({ deletedAt: null, updatedAt: now, name: newName })
-      .where(eq(knowledgeBase.id, knowledgeBaseId))
+        const now = new Date()
 
-    await tx
-      .update(document)
-      .set({ archivedAt: null })
-      .where(
-        and(
-          eq(document.knowledgeBaseId, knowledgeBaseId),
-          isNotNull(document.archivedAt),
-          isNull(document.deletedAt)
-        )
-      )
+        await tx
+          .update(knowledgeBase)
+          .set({ deletedAt: null, updatedAt: now, name: attemptedRestoreName })
+          .where(eq(knowledgeBase.id, knowledgeBaseId))
 
-    await tx
-      .update(knowledgeConnector)
-      .set({ archivedAt: null, status: 'active', updatedAt: now })
-      .where(
-        and(
-          eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
-          isNotNull(knowledgeConnector.archivedAt),
-          isNull(knowledgeConnector.deletedAt)
-        )
-      )
-  })
+        await tx
+          .update(document)
+          .set({ archivedAt: null })
+          .where(
+            and(
+              eq(document.knowledgeBaseId, knowledgeBaseId),
+              isNotNull(document.archivedAt),
+              isNull(document.deletedAt)
+            )
+          )
 
-  logger.info(`[${requestId}] Restored knowledge base: ${knowledgeBaseId} as "${newName}"`)
+        await tx
+          .update(knowledgeConnector)
+          .set({ archivedAt: null, status: 'active', updatedAt: now })
+          .where(
+            and(
+              eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+              isNotNull(knowledgeConnector.archivedAt),
+              isNull(knowledgeConnector.deletedAt)
+            )
+          )
+      })
+      break
+    } catch (error: unknown) {
+      if (getPostgresErrorCode(error) !== '23505') {
+        throw error
+      }
+      if (attempt === maxUniqueViolationRetries - 1) {
+        throw new KnowledgeBaseConflictError(attemptedRestoreName || kb.name)
+      }
+    }
+  }
+
+  logger.info(
+    `[${requestId}] Restored knowledge base: ${knowledgeBaseId} as "${attemptedRestoreName}"`
+  )
 }

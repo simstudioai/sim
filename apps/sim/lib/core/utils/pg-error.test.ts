@@ -16,6 +16,13 @@ describe('getPostgresErrorCode', () => {
     expect(getPostgresErrorCode(err)).toBe('23505')
   })
 
+  it('walks nested Error causes', () => {
+    const pgErr = new Error('unique_violation') as Error & { code: string }
+    pgErr.code = '23505'
+    const err = new Error('outer', { cause: new Error('inner', { cause: pgErr }) })
+    expect(getPostgresErrorCode(err)).toBe('23505')
+  })
+
   it('returns undefined for non-errors', () => {
     expect(getPostgresErrorCode(undefined)).toBeUndefined()
     expect(getPostgresErrorCode('23505')).toBeUndefined()
