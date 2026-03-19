@@ -9,7 +9,7 @@ export const WorkdayBlock: BlockConfig = {
     'Integrate Workday HRIS into your workflow. Create pre-hires, hire employees, manage worker profiles, assign onboarding plans, handle job changes, retrieve compensation data, and process terminations.',
   docsLink: 'https://docs.sim.ai/tools/workday',
   category: 'tools',
-  bgColor: '#0875E1',
+  bgColor: '#F5F0EB',
   icon: WorkdayIcon,
   subBlocks: [
     {
