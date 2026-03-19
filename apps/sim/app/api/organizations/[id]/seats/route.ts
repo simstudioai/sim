@@ -161,7 +161,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             quantity: newSeatCount,
           },
         ],
-        proration_behavior: 'create_prorations', // Stripe's default - charge/credit immediately
+        proration_behavior: 'always_invoice',
       }
     )
 

@@ -469,15 +469,6 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
       return
     }
 
-    // Skip proration invoices (e.g. from mid-cycle plan upgrades) — only process cycle renewals
-    if (invoice.billing_reason && invoice.billing_reason !== 'subscription_cycle') {
-      logger.info('Skipping non-cycle invoice payment succeeded', {
-        invoiceId: invoice.id,
-        billingReason: invoice.billing_reason,
-      })
-      return
-    }
-
     const records = await db
       .select()
       .from(subscriptionTable)
@@ -527,7 +518,9 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
         )
     }
 
-    if (wasBlocked) {
+    // Only reset usage for cycle renewals — proration invoices (subscription_update) should
+    // unblock the user but not wipe their accumulated usage mid-cycle.
+    if (wasBlocked && invoice.billing_reason !== 'subscription_update') {
       await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
     }
   } catch (error) {
@@ -565,20 +558,6 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
       return
     }
 
-    // Skip proration invoices (e.g. from mid-cycle plan upgrades) — don't block users over proration failures.
-    // Overage invoices (threshold + cycle-end) bypass this guard via !isOverageInvoice and still block.
-    if (
-      !isOverageInvoice &&
-      invoice.billing_reason &&
-      invoice.billing_reason !== 'subscription_cycle'
-    ) {
-      logger.info('Skipping non-cycle invoice payment failure', {
-        invoiceId: invoice.id,
-        billingReason: invoice.billing_reason,
-      })
-      return
-    }
-
     // Extract and validate customer ID
     const customerId = invoice.customer
     if (!customerId || typeof customerId !== 'string') {
@@ -607,14 +586,6 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
 
     // Block users after first payment failure
     if (attemptCount >= 1) {
-      logger.error('Payment failure - blocking users', {
-        invoiceId: invoice.id,
-        customerId,
-        attemptCount,
-        isOverageInvoice,
-        stripeSubscriptionId,
-      })
-
       const records = await db
         .select()
         .from(subscriptionTable)
@@ -623,6 +594,15 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
 
       if (records.length > 0) {
         const sub = records[0]
+
+        logger.error('Payment failure - blocking users', {
+          invoiceId: invoice.id,
+          customerId,
+          attemptCount,
+          isOverageInvoice,
+          stripeSubscriptionId,
+        })
+
         if (isOrgPlan(sub.plan)) {
           const memberCount = await blockOrgMembers(sub.referenceId, 'payment_failed')
           logger.info('Blocked team/enterprise members due to payment failure', {
