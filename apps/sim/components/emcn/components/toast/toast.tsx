@@ -13,13 +13,11 @@ import {
 import { X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/core/utils/cn'
+import { CountdownRing } from '@/components/emcn/components/toast/countdown-ring'
 
 const AUTO_DISMISS_MS = 0
 const EXIT_ANIMATION_MS = 200
 const MAX_VISIBLE = 20
-
-const RING_RADIUS = 5.5
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
 
 type ToastVariant = 'default' | 'success' | 'error'
 
@@ -169,39 +167,7 @@ function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: 
         </button>
       )}
       <div className='flex shrink-0 items-center gap-[4px]'>
-        {hasDuration && (
-          <svg
-            width='14'
-            height='14'
-            viewBox='0 0 16 16'
-            fill='none'
-            xmlns='http://www.w3.org/2000/svg'
-            className='opacity-60'
-            style={{ transform: 'rotate(-90deg) scaleX(-1)' }}
-          >
-            <circle
-              cx='8'
-              cy='8'
-              r={RING_RADIUS}
-              stroke='currentColor'
-              strokeWidth='1.5'
-              opacity={0.2}
-            />
-            <circle
-              cx='8'
-              cy='8'
-              r={RING_RADIUS}
-              stroke='currentColor'
-              strokeWidth='1.5'
-              strokeLinecap='round'
-              strokeDasharray={RING_CIRCUMFERENCE}
-              style={{
-                animation: `notification-countdown ${t.duration}ms linear forwards`,
-                animationPlayState: paused ? 'paused' : 'running',
-              }}
-            />
-          </svg>
-        )}
+        {hasDuration && <CountdownRing duration={t.duration} paused={paused} />}
         <button
           type='button'
           onClick={dismiss}

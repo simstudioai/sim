@@ -5,10 +5,10 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { DuplicateNameError } from '@/lib/core/errors'
 import {
   deleteKnowledgeBase,
   getKnowledgeBaseById,
+  KnowledgeBaseConflictError,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
@@ -167,7 +167,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       throw validationError
     }
   } catch (error) {
-    if (error instanceof DuplicateNameError) {
+    if (error instanceof KnowledgeBaseConflictError) {
       return NextResponse.json({ error: error.message }, { status: 409 })
     }
 

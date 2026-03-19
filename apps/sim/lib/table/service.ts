@@ -11,7 +11,6 @@ import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, gt, gte, inArray, isNull, sql } from 'drizzle-orm'
-import { DuplicateNameError } from '@/lib/core/errors'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { buildFilterClause, buildSortClause } from './sql'
@@ -51,6 +50,13 @@ import {
 } from './validation'
 
 const logger = createLogger('TableService')
+
+export class TableConflictError extends Error {
+  readonly code = 'TABLE_EXISTS' as const
+  constructor(name: string) {
+    super(`A table named "${name}" already exists in this workspace`)
+  }
+}
 
 export type TableScope = 'active' | 'archived' | 'all'
 
@@ -418,7 +424,7 @@ export async function renameTable(
       'code' in error.cause &&
       error.cause.code === '23505'
     ) {
-      throw new DuplicateNameError('table', newName)
+      throw new TableConflictError(newName)
     }
     throw error
   }

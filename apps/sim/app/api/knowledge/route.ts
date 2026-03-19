@@ -5,10 +5,10 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { DuplicateNameError } from '@/lib/core/errors'
 import {
   createKnowledgeBase,
   getKnowledgeBases,
+  KnowledgeBaseConflictError,
   type KnowledgeBaseScope,
 } from '@/lib/knowledge/service'
 
@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
       throw validationError
     }
   } catch (error) {
-    if (error instanceof DuplicateNameError) {
+    if (error instanceof KnowledgeBaseConflictError) {
       return NextResponse.json({ error: error.message }, { status: 409 })
     }
 

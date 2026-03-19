@@ -3,8 +3,14 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { DuplicateNameError } from '@/lib/core/errors'
-import { deleteTable, NAME_PATTERN, renameTable, TABLE_LIMITS, type TableSchema } from '@/lib/table'
+import {
+  deleteTable,
+  NAME_PATTERN,
+  renameTable,
+  TABLE_LIMITS,
+  TableConflictError,
+  type TableSchema,
+} from '@/lib/table'
 import { accessError, checkAccess, normalizeColumn } from '@/app/api/table/utils'
 
 const logger = createLogger('TableDetailAPI')
@@ -137,7 +143,7 @@ export async function PATCH(request: NextRequest, { params }: TableRouteParams) 
       )
     }
 
-    if (error instanceof DuplicateNameError) {
+    if (error instanceof TableConflictError) {
       return NextResponse.json({ error: error.message }, { status: 409 })
     }
 

@@ -3,7 +3,6 @@ import { db } from '@sim/db'
 import { document, knowledgeBase, knowledgeConnector, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
-import { DuplicateNameError } from '@/lib/core/errors'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type {
   ChunkingConfig,
@@ -13,6 +12,13 @@ import type {
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('KnowledgeBaseService')
+
+export class KnowledgeBaseConflictError extends Error {
+  readonly code = 'KNOWLEDGE_BASE_EXISTS' as const
+  constructor(name: string) {
+    super(`A knowledge base named "${name}" already exists in this workspace`)
+  }
+}
 
 export type KnowledgeBaseScope = 'active' | 'archived' | 'all'
 
@@ -172,7 +178,7 @@ export async function createKnowledgeBase(
     .limit(1)
 
   if (duplicate.length > 0) {
-    throw new DuplicateNameError('knowledge base', data.name)
+    throw new KnowledgeBaseConflictError(data.name)
   }
 
   await db.insert(knowledgeBase).values(newKnowledgeBase)
@@ -262,7 +268,7 @@ export async function updateKnowledgeBase(
         .limit(1)
 
       if (duplicate.length > 0) {
-        throw new DuplicateNameError('knowledge base', updates.name)
+        throw new KnowledgeBaseConflictError(updates.name)
       }
     }
   }
