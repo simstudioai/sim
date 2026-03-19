@@ -55,7 +55,9 @@ function ColorGrid({
     )
     const idx = selectedIndex >= 0 ? selectedIndex : 0
     setFocusedIndex(idx)
-    buttonRefs.current[idx]?.focus()
+    requestAnimationFrame(() => {
+      buttonRefs.current[idx]?.focus()
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
