@@ -15,12 +15,13 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useInView } from 'framer-motion'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Badge, ChevronDown } from '@/components/emcn'
 import { Lock } from '@/components/emcn/icons'
 import { GithubIcon } from '@/components/icons'
+import { PROVIDER_DEFINITIONS } from '@/providers/models'
 
 /** Consistent color per actor — same pattern as Collaboration section cursors. */
 const ACTOR_COLORS: Record<string, string> = {
@@ -32,26 +33,7 @@ const ACTOR_COLORS: Record<string, string> = {
 }
 
 /** Left accent bar opacity by recency — newest is brightest. */
-const ACCENT_OPACITIES = [0.75, 0.45, 0.28, 0.15, 0.07] as const
-
-/** Human-readable label per resource type. */
-const RESOURCE_TYPE_LABEL: Record<string, string> = {
-  workflow: 'Workflow',
-  member: 'Member',
-  byok_key: 'BYOK Key',
-  api_key: 'API Key',
-  permission_group: 'Permission Group',
-  credential_set: 'Credential Set',
-  knowledge_base: 'Knowledge Base',
-  environment: 'Environment',
-  mcp_server: 'MCP Server',
-  file: 'File',
-  webhook: 'Webhook',
-  chat: 'Chat',
-  table: 'Table',
-  folder: 'Folder',
-  document: 'Document',
-}
+const ACCENT_OPACITIES = [0.75, 0.5, 0.35, 0.22, 0.12, 0.05] as const
 
 interface LogEntry {
   id: number
@@ -150,7 +132,7 @@ const ENTRY_TEMPLATES: Omit<LogEntry, 'id' | 'insertedAt'>[] = [
   { actor: 'Theo L.', description: 'Locked workflow "Customer Sync"', resourceType: 'workflow' },
 ]
 
-const INITIAL_OFFSETS_MS = [0, 20_000, 75_000, 240_000, 540_000]
+const INITIAL_OFFSETS_MS = [0, 20_000, 75_000, 180_000, 360_000, 600_000]
 
 const MARQUEE_KEYFRAMES = `
   @keyframes marquee {
@@ -188,10 +170,9 @@ function AuditRow({ entry, index }: AuditRowProps) {
   const color = ACTOR_COLORS[entry.actor] ?? '#F6F6F6'
   const accentOpacity = ACCENT_OPACITIES[index] ?? 0.04
   const timeAgo = formatTimeAgo(entry.insertedAt)
-  const resourceLabel = RESOURCE_TYPE_LABEL[entry.resourceType]
 
   return (
-    <div className='group relative overflow-hidden border-[#2A2A2A] border-b bg-[#191919] transition-colors duration-150 last:border-b-0 hover:bg-[#212121]'>
+    <div className='group relative overflow-hidden border-[#2A2A2A] border-b bg-[#1C1C1C] transition-colors duration-150 last:border-b-0 hover:bg-[#212121]'>
       {/* Left accent bar — brightness encodes recency */}
       <div
         aria-hidden='true'
@@ -216,7 +197,6 @@ function AuditRow({ entry, index }: AuditRowProps) {
           {timeAgo}
         </span>
 
-        {/* Description — description hidden on mobile to avoid truncation */}
         <span className='min-w-0 truncate font-[430] font-season text-[12px] leading-none tracking-[0.02em]'>
           <span className='text-[#F6F6F6]/80'>{entry.actor}</span>
           <span className='hidden sm:inline'>
@@ -224,13 +204,6 @@ function AuditRow({ entry, index }: AuditRowProps) {
             <span className='text-[#F6F6F6]/55'>{entry.description}</span>
           </span>
         </span>
-
-        {/* Resource type label — formatted name, neutral so it doesn't compete with actor colors */}
-        {resourceLabel && (
-          <span className='ml-auto shrink-0 rounded border border-[#2A2A2A] px-[7px] py-[3px] font-[430] font-season text-[#F6F6F6]/25 text-[10px] leading-none tracking-[0.04em]'>
-            {resourceLabel}
-          </span>
-        )}
       </div>
     </div>
   )
@@ -238,11 +211,11 @@ function AuditRow({ entry, index }: AuditRowProps) {
 
 function AuditLogPreview() {
   const counterRef = useRef(ENTRY_TEMPLATES.length)
-  const templateIndexRef = useRef(5 % ENTRY_TEMPLATES.length)
+  const templateIndexRef = useRef(6 % ENTRY_TEMPLATES.length)
 
   const now = Date.now()
   const [entries, setEntries] = useState<LogEntry[]>(() =>
-    ENTRY_TEMPLATES.slice(0, 5).map((t, i) => ({
+    ENTRY_TEMPLATES.slice(0, 6).map((t, i) => ({
       ...t,
       id: i,
       insertedAt: now - INITIAL_OFFSETS_MS[i],
@@ -257,7 +230,7 @@ function AuditLogPreview() {
 
       setEntries((prev) => [
         { ...template, id: counterRef.current++, insertedAt: Date.now() },
-        ...prev.slice(0, 4),
+        ...prev.slice(0, 5),
       ])
     }, 2600)
 
@@ -271,60 +244,212 @@ function AuditLogPreview() {
   }, [])
 
   return (
-    <div className='mx-6 mt-6 overflow-hidden rounded-[8px] border border-[#2A2A2A] md:mx-8 md:mt-8'>
-      {/* Header */}
-      <div className='flex items-center justify-between border-[#2A2A2A] border-b bg-[#161616] px-4 py-[10px]'>
-        <div className='flex items-center gap-2'>
-          {/* Pulsing live indicator */}
-          <span className='relative flex h-[8px] w-[8px]'>
-            <span
-              className='absolute inline-flex h-full w-full animate-ping rounded-full opacity-50'
-              style={{ backgroundColor: '#33C482' }}
-            />
-            <span
-              className='relative inline-flex h-[8px] w-[8px] rounded-full'
-              style={{ backgroundColor: '#33C482' }}
-            />
-          </span>
-          <span className='font-[430] font-season text-[#F6F6F6]/40 text-[11px] uppercase tracking-[0.08em]'>
-            Audit Log
-          </span>
-        </div>
-        <div className='flex items-center gap-2'>
-          <span className='rounded border border-[#2A2A2A] px-[8px] py-[3px] font-[430] font-season text-[#F6F6F6]/20 text-[11px] tracking-[0.02em]'>
-            Export
-          </span>
-          <span className='rounded border border-[#2A2A2A] px-[8px] py-[3px] font-[430] font-season text-[#F6F6F6]/20 text-[11px] tracking-[0.02em]'>
-            Filter
-          </span>
-        </div>
+    <div className='mt-5 overflow-hidden px-6 md:mt-6 md:px-8'>
+      <AnimatePresence mode='popLayout' initial={false}>
+        {entries.map((entry, index) => (
+          <motion.div
+            key={entry.id}
+            layout
+            initial={{ y: -48, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{
+              layout: {
+                type: 'spring',
+                stiffness: 380,
+                damping: 38,
+                mass: 0.8,
+              },
+              y: { duration: 0.32, ease: [0.25, 0.46, 0.45, 0.94] },
+              opacity: { duration: 0.25 },
+            }}
+          >
+            <AuditRow entry={entry} index={index} />
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+interface PermissionFeature {
+  name: string
+  key: string
+  defaultEnabled: boolean
+  providerId?: string
+}
+
+interface PermissionCategory {
+  label: string
+  color: string
+  features: PermissionFeature[]
+}
+
+const PERMISSION_CATEGORIES: PermissionCategory[] = [
+  {
+    label: 'Providers',
+    color: '#FA4EDF',
+    features: [
+      { key: 'openai', name: 'OpenAI', defaultEnabled: true, providerId: 'openai' },
+      { key: 'anthropic', name: 'Anthropic', defaultEnabled: true, providerId: 'anthropic' },
+      { key: 'google', name: 'Google', defaultEnabled: false, providerId: 'google' },
+      { key: 'xai', name: 'xAI', defaultEnabled: true, providerId: 'xai' },
+    ],
+  },
+  {
+    label: 'Workspace',
+    color: '#2ABBF8',
+    features: [
+      { key: 'knowledge-base', name: 'Knowledge Base', defaultEnabled: true },
+      { key: 'tables', name: 'Tables', defaultEnabled: true },
+      { key: 'copilot', name: 'Copilot', defaultEnabled: false },
+      { key: 'environment', name: 'Environment', defaultEnabled: false },
+    ],
+  },
+  {
+    label: 'Tools',
+    color: '#33C482',
+    features: [
+      { key: 'mcp-tools', name: 'MCP Tools', defaultEnabled: true },
+      { key: 'custom-tools', name: 'Custom Tools', defaultEnabled: false },
+      { key: 'skills', name: 'Skills', defaultEnabled: true },
+      { key: 'invitations', name: 'Invitations', defaultEnabled: true },
+    ],
+  },
+]
+
+const INITIAL_ACCESS_STATE = Object.fromEntries(
+  PERMISSION_CATEGORIES.flatMap((category) =>
+    category.features.map((feature) => [feature.key, feature.defaultEnabled])
+  )
+)
+
+function CheckboxIcon({ checked, color }: { checked: boolean; color: string }) {
+  return (
+    <div
+      className='h-[6px] w-[6px] shrink-0 rounded-full transition-colors duration-200'
+      style={{
+        backgroundColor: checked ? color : 'transparent',
+        border: checked ? 'none' : '1.5px solid #3A3A3A',
+      }}
+    />
+  )
+}
+
+function ProviderPreviewIcon({ providerId }: { providerId?: string }) {
+  if (!providerId) return null
+
+  const ProviderIcon = PROVIDER_DEFINITIONS[providerId]?.icon
+  if (!ProviderIcon) return null
+
+  return (
+    <div className='relative flex h-[14px] w-[14px] shrink-0 items-center justify-center opacity-50 brightness-0 invert'>
+      <ProviderIcon className='!h-[14px] !w-[14px]' />
+    </div>
+  )
+}
+
+function AccessControlPanel() {
+  const ref = useRef(null)
+  const isInView = useInView(ref, { once: true, margin: '-40px' })
+  const [accessState, setAccessState] = useState<Record<string, boolean>>(INITIAL_ACCESS_STATE)
+
+  return (
+    <div ref={ref}>
+      <div className='lg:hidden'>
+        {PERMISSION_CATEGORIES.map((category, catIdx) => {
+          const offsetBefore = PERMISSION_CATEGORIES.slice(0, catIdx).reduce(
+            (sum, c) => sum + c.features.length,
+            0
+          )
+
+          return (
+            <div key={category.label} className={catIdx > 0 ? 'mt-4' : ''}>
+              <span className='font-[430] font-season text-[#F6F6F6]/30 text-[10px] uppercase leading-none tracking-[0.08em]'>
+                {category.label}
+              </span>
+              <div className='mt-[8px] grid grid-cols-2 gap-x-4 gap-y-[8px]'>
+                {category.features.map((feature, featIdx) => {
+                  const enabled = accessState[feature.key]
+
+                  return (
+                    <motion.div
+                      key={feature.key}
+                      className='flex cursor-pointer items-center gap-[8px] rounded-[4px] py-[2px]'
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={isInView ? { opacity: 1, x: 0 } : {}}
+                      transition={{
+                        delay: 0.05 + (offsetBefore + featIdx) * 0.04,
+                        duration: 0.3,
+                      }}
+                      onClick={() =>
+                        setAccessState((prev) => ({ ...prev, [feature.key]: !prev[feature.key] }))
+                      }
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <CheckboxIcon checked={enabled} color={category.color} />
+                      <ProviderPreviewIcon providerId={feature.providerId} />
+                      <span
+                        className='truncate font-[430] font-season text-[13px] leading-none tracking-[0.02em]'
+                        style={{ color: enabled ? '#F6F6F6AA' : '#F6F6F640' }}
+                      >
+                        {feature.name}
+                      </span>
+                    </motion.div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
       </div>
 
-      {/* Log entries — new items push existing ones down */}
-      <div className='overflow-hidden'>
-        <AnimatePresence mode='popLayout' initial={false}>
-          {entries.map((entry, index) => (
-            <motion.div
-              key={entry.id}
-              layout
-              initial={{ y: -48, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{
-                layout: {
-                  type: 'spring',
-                  stiffness: 380,
-                  damping: 38,
-                  mass: 0.8,
-                },
-                y: { duration: 0.32, ease: [0.25, 0.46, 0.45, 0.94] },
-                opacity: { duration: 0.25 },
-              }}
-            >
-              <AuditRow entry={entry} index={index} />
-            </motion.div>
-          ))}
-        </AnimatePresence>
+      {/* Desktop — categorized grid */}
+      <div className='hidden lg:block'>
+        {PERMISSION_CATEGORIES.map((category, catIdx) => (
+          <div key={category.label} className={catIdx > 0 ? 'mt-4' : ''}>
+            <span className='font-[430] font-season text-[#F6F6F6]/30 text-[10px] uppercase leading-none tracking-[0.08em]'>
+              {category.label}
+            </span>
+            <div className='mt-[8px] grid grid-cols-2 gap-x-4 gap-y-[8px]'>
+              {category.features.map((feature, featIdx) => {
+                const enabled = accessState[feature.key]
+                const currentIndex =
+                  PERMISSION_CATEGORIES.slice(0, catIdx).reduce(
+                    (sum, c) => sum + c.features.length,
+                    0
+                  ) + featIdx
+
+                return (
+                  <motion.div
+                    key={feature.key}
+                    className='flex cursor-pointer items-center gap-[8px] rounded-[4px] py-[2px]'
+                    initial={{ opacity: 0, x: -6 }}
+                    animate={isInView ? { opacity: 1, x: 0 } : {}}
+                    transition={{
+                      delay: 0.1 + currentIndex * 0.04,
+                      duration: 0.3,
+                      ease: [0.25, 0.46, 0.45, 0.94],
+                    }}
+                    onClick={() =>
+                      setAccessState((prev) => ({ ...prev, [feature.key]: !prev[feature.key] }))
+                    }
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <CheckboxIcon checked={enabled} color={category.color} />
+                    <ProviderPreviewIcon providerId={feature.providerId} />
+                    <span
+                      className='truncate font-[430] font-season text-[11px] leading-none tracking-[0.02em] transition-opacity duration-200'
+                      style={{ color: enabled ? '#F6F6F6AA' : '#F6F6F640' }}
+                    >
+                      {feature.name}
+                    </span>
+                  </motion.div>
+                )
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -420,7 +545,37 @@ export default function Enterprise() {
         </div>
 
         <div className='mt-8 overflow-hidden rounded-[12px] bg-[#1C1C1C] sm:mt-10 md:mt-12'>
-          <AuditLogPreview />
+          <div className='grid grid-cols-1 border-[#2A2A2A] border-b lg:grid-cols-[1fr_420px]'>
+            {/* Audit Trail */}
+            <div className='border-[#2A2A2A] lg:border-r'>
+              <div className='px-6 pt-6 md:px-8 md:pt-8'>
+                <h3 className='font-[430] font-season text-[16px] text-white leading-[120%] tracking-[-0.01em]'>
+                  Audit Trail
+                </h3>
+                <p className='mt-2 max-w-[480px] font-[430] font-season text-[#F6F6F6]/50 text-[14px] leading-[150%] tracking-[0.02em]'>
+                  Every action is captured with full actor attribution.
+                </p>
+              </div>
+              <AuditLogPreview />
+              <div className='h-6 md:h-8' />
+            </div>
+
+            {/* Access Control */}
+            <div className='border-[#2A2A2A] border-t lg:border-t-0'>
+              <div className='px-6 pt-6 md:px-8 md:pt-8'>
+                <h3 className='font-[430] font-season text-[16px] text-white leading-[120%] tracking-[-0.01em]'>
+                  Access Control
+                </h3>
+                <p className='mt-[6px] font-[430] font-season text-[#F6F6F6]/50 text-[14px] leading-[150%] tracking-[0.02em]'>
+                  Restrict providers, surfaces, and tools per group.
+                </p>
+              </div>
+              <div className='mt-5 px-6 pb-6 md:mt-6 md:px-8 md:pb-8'>
+                <AccessControlPanel />
+              </div>
+            </div>
+          </div>
+
           <TrustStrip />
 
           {/* Scrolling feature ticker */}

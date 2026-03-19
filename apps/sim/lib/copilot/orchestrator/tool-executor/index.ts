@@ -16,6 +16,7 @@ import { validateMcpDomain } from '@/lib/mcp/domain-check'
 import { mcpService } from '@/lib/mcp/service'
 import { generateMcpServerId } from '@/lib/mcp/utils'
 import { getAllOAuthServices } from '@/lib/oauth/utils'
+import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   deleteCustomTool,
   getCustomToolById,
@@ -24,7 +25,7 @@ import {
 } from '@/lib/workflows/custom-tools/operations'
 import { deleteSkill, listSkills, upsertSkills } from '@/lib/workflows/skills/operations'
 import { getWorkflowById } from '@/lib/workflows/utils'
-import { isMcpTool } from '@/executor/constants'
+import { isMcpTool, isUuid } from '@/executor/constants'
 import { executeTool } from '@/tools'
 import { getTool, resolveToolId } from '@/tools/utils'
 import {
@@ -68,6 +69,8 @@ import type {
   ListWorkspaceMcpServersParams,
   MoveFolderParams,
   MoveWorkflowParams,
+  OpenResourceParams,
+  OpenResourceType,
   RenameFolderParams,
   RenameWorkflowParams,
   RunBlockParams,
@@ -77,6 +80,7 @@ import type {
   SetGlobalWorkflowVariablesParams,
   UpdateWorkflowParams,
   UpdateWorkspaceMcpServerParams,
+  ValidOpenResourceParams,
 } from './param-types'
 import { PLATFORM_ACTIONS_CONTENT } from './platform-actions'
 import { executeVfsGlob, executeVfsGrep, executeVfsList, executeVfsRead } from './vfs-tools'
@@ -105,6 +109,36 @@ import {
 } from './workflow-tools'
 
 const logger = createLogger('CopilotToolExecutor')
+const VALID_OPEN_RESOURCE_TYPES = new Set<OpenResourceType>([
+  'workflow',
+  'table',
+  'knowledgebase',
+  'file',
+])
+
+function validateOpenResourceParams(
+  params: OpenResourceParams
+): { success: true; params: ValidOpenResourceParams } | { success: false; error: string } {
+  if (!params.type) {
+    return { success: false, error: 'type is required' }
+  }
+
+  if (!VALID_OPEN_RESOURCE_TYPES.has(params.type)) {
+    return { success: false, error: `Invalid resource type: ${params.type}` }
+  }
+
+  if (!params.id) {
+    return { success: false, error: `${params.type} resources require \`id\`` }
+  }
+
+  return {
+    success: true,
+    params: {
+      type: params.type,
+      id: params.id,
+    },
+  }
+}
 
 type ManageCustomToolOperation = 'add' | 'edit' | 'delete' | 'list'
 
@@ -996,16 +1030,43 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
   list: (p, c) => executeVfsList(p, c),
 
   // Resource visibility
-  open_resource: async (p) => {
-    const resourceType = p.type as string | undefined
-    const resourceId = p.id as string | undefined
-    if (!resourceType || !resourceId) {
-      return { success: false, error: 'type and id are required' }
+  open_resource: async (p: OpenResourceParams, c: ExecutionContext) => {
+    const validated = validateOpenResourceParams(p)
+    if (!validated.success) {
+      return { success: false, error: validated.error }
     }
-    const validTypes = new Set(['workflow', 'table', 'knowledgebase', 'file'])
-    if (!validTypes.has(resourceType)) {
-      return { success: false, error: `Invalid resource type: ${resourceType}` }
+
+    const params = validated.params
+    const resourceType = params.type
+    let resourceId = params.id
+    let title: string = resourceType
+
+    if (resourceType === 'file') {
+      if (!c.workspaceId) {
+        return {
+          success: false,
+          error:
+            'Opening a workspace file requires workspace context. Pass the file UUID from files/<name>/meta.json.',
+        }
+      }
+      if (!isUuid(params.id)) {
+        return {
+          success: false,
+          error:
+            'open_resource for files requires the canonical UUID from files/<name>/meta.json (the "id" field). Do not pass VFS paths, display names, or file_<name> strings.',
+        }
+      }
+      const record = await getWorkspaceFile(c.workspaceId, params.id)
+      if (!record) {
+        return {
+          success: false,
+          error: `No workspace file with id "${params.id}". Confirm the UUID from meta.json.`,
+        }
+      }
+      resourceId = record.id
+      title = record.name
     }
+
     return {
       success: true,
       output: { message: `Opened ${resourceType} ${resourceId} for the user` },
@@ -1013,7 +1074,7 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
         {
           type: resourceType as 'workflow' | 'table' | 'knowledgebase' | 'file',
           id: resourceId,
-          title: resourceType,
+          title,
         },
       ],
     }

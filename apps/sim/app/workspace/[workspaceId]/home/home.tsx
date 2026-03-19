@@ -16,7 +16,6 @@ import { persistImportedWorkflow } from '@/lib/workflows/operations/import-expor
 import { MessageActions } from '@/app/workspace/[workspaceId]/components'
 import { useChatHistory, useMarkTaskRead } from '@/hooks/queries/tasks'
 import type { ChatContext } from '@/stores/panel'
-import { useSidebarStore } from '@/stores/sidebar/store'
 import {
   MessageContent,
   MothershipView,
@@ -167,8 +166,6 @@ export function Home({ chatId }: HomeProps = {}) {
 
   const handleResourceEvent = useCallback(() => {
     if (isResourceCollapsedRef.current) {
-      const { isCollapsed, toggleCollapsed } = useSidebarStore.getState()
-      if (!isCollapsed) toggleCollapsed()
       setIsResourceCollapsed(false)
       startAnimatingIn()
     }

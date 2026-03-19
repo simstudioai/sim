@@ -363,6 +363,9 @@ async function reportCustomDimensionUsage(
  * fields like `_id`.
  */
 function stripInternalFields(output: Record<string, unknown>): Record<string, unknown> {
+  if (typeof output !== 'object' || output === null || Array.isArray(output)) {
+    return output
+  }
   const result: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(output)) {
     if (!key.startsWith('__')) {
@@ -825,7 +828,9 @@ export async function executeTool(
         )
       }
 
-      const strippedOutput = stripInternalFields(finalResult.output || {})
+      const strippedOutput = isCustomTool(normalizedToolId)
+        ? finalResult.output
+        : stripInternalFields(finalResult.output ?? {})
 
       return {
         ...finalResult,
@@ -880,7 +885,9 @@ export async function executeTool(
       )
     }
 
-    const strippedOutput = stripInternalFields(finalResult.output || {})
+    const strippedOutput = isCustomTool(normalizedToolId)
+      ? finalResult.output
+      : stripInternalFields(finalResult.output ?? {})
 
     return {
       ...finalResult,

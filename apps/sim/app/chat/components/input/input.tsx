@@ -71,11 +71,6 @@ export const ChatInput: React.FC<{
     }
   }
 
-  // Adjust height on input change
-  useEffect(() => {
-    adjustTextareaHeight()
-  }, [inputValue])
-
   // Close the input when clicking outside (only when empty)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -94,17 +89,14 @@ export const ChatInput: React.FC<{
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [inputValue])
 
-  // Handle focus and initial height when activated
-  useEffect(() => {
-    if (isActive && textareaRef.current) {
-      textareaRef.current.focus()
-      adjustTextareaHeight() // Adjust height when becoming active
-    }
-  }, [isActive])
-
   const handleActivate = () => {
     setIsActive(true)
-    // Focus is now handled by the useEffect above
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus()
+        adjustTextareaHeight()
+      }
+    })
   }
 
   // Handle file selection
@@ -186,6 +178,7 @@ export const ChatInput: React.FC<{
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputValue(e.target.value)
+    adjustTextareaHeight()
   }
 
   // Handle voice start with smooth transition to voice-first mode
