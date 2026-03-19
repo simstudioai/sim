@@ -134,7 +134,7 @@ export interface WorkdayChangeJobParams extends WorkdayBaseParams {
   newPositionId?: string
   newJobProfileId?: string
   newLocationId?: string
-  newManagerId?: string
+  newSupervisoryOrgId?: string
   reason: string
 }
 

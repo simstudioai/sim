@@ -63,11 +63,11 @@ export const changeJobTool: ToolConfig<WorkdayChangeJobParams, WorkdayChangeJobR
       visibility: 'user-or-llm',
       description: 'New work location ID (for relocations)',
     },
-    newManagerId: {
+    newSupervisoryOrgId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'New manager worker ID (for reporting changes)',
+      description: 'Target supervisory organization ID (for org transfers)',
     },
     reason: {
       type: 'string',

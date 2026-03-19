@@ -19,7 +19,7 @@ const RequestSchema = z.object({
   newPositionId: z.string().optional(),
   newJobProfileId: z.string().optional(),
   newLocationId: z.string().optional(),
-  newManagerId: z.string().optional(),
+  newSupervisoryOrgId: z.string().optional(),
   reason: z.string().min(1, 'Reason is required for job changes'),
 })
 
@@ -47,10 +47,10 @@ export async function POST(request: NextRequest) {
     if (data.newLocationId) {
       changeJobDetailData.Location_Reference = wdRef('Location_ID', data.newLocationId)
     }
-    if (data.newManagerId) {
+    if (data.newSupervisoryOrgId) {
       changeJobDetailData.Supervisory_Organization_Reference = wdRef(
         'Supervisory_Organization_ID',
-        data.newManagerId
+        data.newSupervisoryOrgId
       )
     }
 

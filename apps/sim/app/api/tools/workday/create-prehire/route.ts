@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     const parts = data.legalName.trim().split(/\s+/)
     const firstName = parts[0] ?? ''
-    const lastName = parts.length > 1 ? parts.slice(1).join(' ') : (parts[0] ?? '')
+    const lastName = parts.length > 1 ? parts.slice(1).join(' ') : ''
 
     const client = await createWorkdaySoapClient(
       data.tenantUrl,

@@ -192,10 +192,10 @@ export const WorkdayBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
-      id: 'managerId',
-      title: 'Manager ID',
+      id: 'supervisoryOrgId',
+      title: 'Supervisory Organization ID',
       type: 'short-input',
-      placeholder: 'Manager worker ID',
+      placeholder: 'Target supervisory organization ID',
       condition: { field: 'operation', value: 'change_job' },
       mode: 'advanced',
     },
@@ -349,7 +349,8 @@ Output: {"businessTitle": "Senior Engineer"}`,
     config: {
       tool: (params) => `workday_${params.operation}`,
       params: (params) => {
-        const { operation, orgType, fields, jobProfileId, locationId, managerId, ...rest } = params
+        const { operation, orgType, fields, jobProfileId, locationId, supervisoryOrgId, ...rest } =
+          params
 
         if (rest.limit != null && rest.limit !== '') rest.limit = Number(rest.limit)
         if (rest.offset != null && rest.offset !== '') rest.offset = Number(rest.offset)
@@ -363,7 +364,7 @@ Output: {"businessTitle": "Senior Engineer"}`,
           }
           if (jobProfileId) rest.newJobProfileId = jobProfileId
           if (locationId) rest.newLocationId = locationId
-          if (managerId) rest.newManagerId = managerId
+          if (supervisoryOrgId) rest.newSupervisoryOrgId = supervisoryOrgId
         }
 
         if (fields && operation === 'update_worker') {
@@ -393,7 +394,7 @@ Output: {"businessTitle": "Senior Engineer"}`,
     hireDate: { type: 'string', description: 'Hire date (YYYY-MM-DD)' },
     jobProfileId: { type: 'string', description: 'Job profile ID' },
     locationId: { type: 'string', description: 'Location ID' },
-    managerId: { type: 'string', description: 'Manager worker ID' },
+    supervisoryOrgId: { type: 'string', description: 'Target supervisory organization ID' },
     employeeType: { type: 'string', description: 'Employee type' },
     fields: { type: 'json', description: 'Fields to update' },
     onboardingPlanId: { type: 'string', description: 'Onboarding plan ID' },
