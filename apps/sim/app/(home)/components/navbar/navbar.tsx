@@ -5,7 +5,10 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { GithubOutlineIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
-import { BlogDropdown } from '@/app/(home)/components/navbar/components/blog-dropdown'
+import {
+  BlogDropdown,
+  type NavBlogPost,
+} from '@/app/(home)/components/navbar/components/blog-dropdown'
 import { DocsDropdown } from '@/app/(home)/components/navbar/components/docs-dropdown'
 import { GitHubStars } from '@/app/(home)/components/navbar/components/github-stars'
 import { getBrandConfig } from '@/ee/whitelabeling'
@@ -32,9 +35,10 @@ const LINK_CELL = 'flex items-center px-[14px]'
 
 interface NavbarProps {
   logoOnly?: boolean
+  blogPosts?: NavBlogPost[]
 }
 
-export default function Navbar({ logoOnly = false }: NavbarProps) {
+export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps) {
   const brand = getBrandConfig()
   const [activeDropdown, setActiveDropdown] = useState<DropdownId>(null)
   const [hoveredLink, setHoveredLink] = useState<string | null>(null)
@@ -161,7 +165,7 @@ export default function Navbar({ logoOnly = false }: NavbarProps) {
                       }}
                     >
                       {dropdown === 'docs' && <DocsDropdown />}
-                      {dropdown === 'blog' && <BlogDropdown />}
+                      {dropdown === 'blog' && <BlogDropdown posts={blogPosts} />}
                     </div>
                   </li>
                 )

@@ -69,7 +69,11 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
-import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import {
+  isDisposableEmailFull,
+  isDisposableMxBackend,
+  quickValidateEmail,
+} from '@/lib/messaging/email/validation'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 import { createAnonymousSession, ensureAnonymousUserExists } from './anonymous'
@@ -624,12 +628,23 @@ export const auth = betterAuth({
         }
       }
 
-      if (ctx.path.startsWith('/sign-up') && blockedSignupDomains) {
+      if (ctx.path.startsWith('/sign-up')) {
         const requestEmail = ctx.body?.email?.toLowerCase()
         if (requestEmail) {
-          const emailDomain = requestEmail.split('@')[1]
-          if (emailDomain && blockedSignupDomains.has(emailDomain)) {
-            throw new Error('Sign-ups from this email domain are not allowed.')
+          // Check manually blocked domains
+          if (blockedSignupDomains) {
+            const emailDomain = requestEmail.split('@')[1]
+            if (emailDomain && blockedSignupDomains.has(emailDomain)) {
+              throw new Error('Sign-ups from this email domain are not allowed.')
+            }
+          }
+
+          // Check disposable email domains (full list + MX backend check)
+          if (isDisposableEmailFull(requestEmail)) {
+            throw new Error('Sign-ups from disposable email addresses are not allowed.')
+          }
+          if (await isDisposableMxBackend(requestEmail)) {
+            throw new Error('Sign-ups from disposable email addresses are not allowed.')
           }
         }
       }
