@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from '@/components/emcn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 
 const logger = createLogger('WorkspaceFilesQuery')
@@ -244,6 +245,9 @@ export function useRenameWorkspaceFile() {
       }
 
       return data
+    },
+    onError: (error) => {
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })

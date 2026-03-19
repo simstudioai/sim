@@ -5,6 +5,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { DuplicateNameError } from '@/lib/core/errors'
 import {
   createKnowledgeBase,
   getKnowledgeBases,
@@ -149,6 +150,10 @@ export async function POST(req: NextRequest) {
       throw validationError
     }
   } catch (error) {
+    if (error instanceof DuplicateNameError) {
+      return NextResponse.json({ error: error.message }, { status: 409 })
+    }
+
     logger.error(`[${requestId}] Error creating knowledge base`, error)
     return NextResponse.json({ error: 'Failed to create knowledge base' }, { status: 500 })
   }

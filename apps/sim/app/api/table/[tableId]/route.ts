@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { DuplicateNameError } from '@/lib/core/errors'
 import { deleteTable, NAME_PATTERN, renameTable, TABLE_LIMITS, type TableSchema } from '@/lib/table'
 import { accessError, checkAccess, normalizeColumn } from '@/app/api/table/utils'
 
@@ -134,6 +135,10 @@ export async function PATCH(request: NextRequest, { params }: TableRouteParams) 
         { error: 'Validation error', details: error.errors },
         { status: 400 }
       )
+    }
+
+    if (error instanceof DuplicateNameError) {
+      return NextResponse.json({ error: error.message }, { status: 409 })
     }
 
     logger.error(`[${requestId}] Error renaming table:`, error)

@@ -18,6 +18,7 @@ import {
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataByKey, insertFileMetadata } from '@/lib/uploads/server/metadata'
+import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { isUuid, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 
@@ -591,9 +592,15 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
     throw new Error('Cannot restore file into an archived workspace')
   }
 
+  const newName = await generateRestoreName(
+    fileRecord.name,
+    (candidate) => fileExistsInWorkspace(workspaceId, candidate),
+    { hasExtension: true }
+  )
+
   await db
     .update(workspaceFiles)
-    .set({ deletedAt: null })
+    .set({ deletedAt: null, originalName: newName })
     .where(
       and(
         eq(workspaceFiles.id, fileId),
@@ -602,5 +609,5 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
       )
     )
 
-  logger.info(`Successfully restored workspace file: ${fileRecord.name}`)
+  logger.info(`Successfully restored workspace file: ${newName}`)
 }

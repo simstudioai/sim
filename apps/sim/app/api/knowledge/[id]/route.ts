@@ -5,6 +5,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { DuplicateNameError } from '@/lib/core/errors'
 import {
   deleteKnowledgeBase,
   getKnowledgeBaseById,
@@ -166,6 +167,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       throw validationError
     }
   } catch (error) {
+    if (error instanceof DuplicateNameError) {
+      return NextResponse.json({ error: error.message }, { status: 409 })
+    }
+
     logger.error(`[${requestId}] Error updating knowledge base`, error)
     return NextResponse.json({ error: 'Failed to update knowledge base' }, { status: 500 })
   }

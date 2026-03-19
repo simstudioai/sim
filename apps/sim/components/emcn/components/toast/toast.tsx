@@ -18,6 +18,9 @@ const AUTO_DISMISS_MS = 0
 const EXIT_ANIMATION_MS = 200
 const MAX_VISIBLE = 20
 
+const RING_RADIUS = 5.5
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
+
 type ToastVariant = 'default' | 'success' | 'error'
 
 interface ToastAction {
@@ -100,7 +103,10 @@ const VARIANT_STYLES: Record<ToastVariant, string> = {
 
 function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: string) => void }) {
   const [exiting, setExiting] = useState(false)
+  const [paused, setPaused] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const remainingRef = useRef(t.duration)
+  const startRef = useRef(0)
 
   const dismiss = useCallback(() => {
     setExiting(true)
@@ -109,13 +115,33 @@ function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: 
 
   useEffect(() => {
     if (t.duration > 0) {
+      startRef.current = Date.now()
+      remainingRef.current = t.duration
       timerRef.current = setTimeout(dismiss, t.duration)
       return () => clearTimeout(timerRef.current)
     }
   }, [dismiss, t.duration])
 
+  const handleMouseEnter = useCallback(() => {
+    if (t.duration <= 0) return
+    clearTimeout(timerRef.current)
+    remainingRef.current -= Date.now() - startRef.current
+    setPaused(true)
+  }, [t.duration])
+
+  const handleMouseLeave = useCallback(() => {
+    if (t.duration <= 0) return
+    setPaused(false)
+    startRef.current = Date.now()
+    timerRef.current = setTimeout(dismiss, Math.max(remainingRef.current, 0))
+  }, [dismiss, t.duration])
+
+  const hasDuration = t.duration > 0
+
   return (
     <div
+      onMouseEnter={hasDuration ? handleMouseEnter : undefined}
+      onMouseLeave={hasDuration ? handleMouseLeave : undefined}
       className={cn(
         'pointer-events-auto flex w-[320px] items-start gap-[8px] rounded-[8px] border px-[12px] py-[10px] shadow-md transition-all',
         VARIANT_STYLES[t.variant],
@@ -142,13 +168,48 @@ function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: 
           {t.action.label}
         </button>
       )}
-      <button
-        type='button'
-        onClick={dismiss}
-        className='shrink-0 rounded-[4px] p-[2px] opacity-60 hover:opacity-100'
-      >
-        <X className='h-[14px] w-[14px]' />
-      </button>
+      <div className='flex shrink-0 items-center gap-[4px]'>
+        {hasDuration && (
+          <svg
+            width='14'
+            height='14'
+            viewBox='0 0 16 16'
+            fill='none'
+            xmlns='http://www.w3.org/2000/svg'
+            className='opacity-60'
+            style={{ transform: 'rotate(-90deg) scaleX(-1)' }}
+          >
+            <circle
+              cx='8'
+              cy='8'
+              r={RING_RADIUS}
+              stroke='currentColor'
+              strokeWidth='1.5'
+              opacity={0.2}
+            />
+            <circle
+              cx='8'
+              cy='8'
+              r={RING_RADIUS}
+              stroke='currentColor'
+              strokeWidth='1.5'
+              strokeLinecap='round'
+              strokeDasharray={RING_CIRCUMFERENCE}
+              style={{
+                animation: `notification-countdown ${t.duration}ms linear forwards`,
+                animationPlayState: paused ? 'paused' : 'running',
+              }}
+            />
+          </svg>
+        )}
+        <button
+          type='button'
+          onClick={dismiss}
+          className='shrink-0 rounded-[4px] p-[2px] opacity-60 hover:opacity-100'
+        >
+          <X className='h-[14px] w-[14px]' />
+        </button>
+      </div>
     </div>
   )
 }

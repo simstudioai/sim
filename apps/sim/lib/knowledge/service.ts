@@ -2,7 +2,9 @@ import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { document, knowledgeBase, knowledgeConnector, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { and, count, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
+import { DuplicateNameError } from '@/lib/core/errors'
+import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -157,6 +159,22 @@ export async function createKnowledgeBase(
     deletedAt: null,
   }
 
+  const duplicate = await db
+    .select({ id: knowledgeBase.id })
+    .from(knowledgeBase)
+    .where(
+      and(
+        eq(knowledgeBase.workspaceId, data.workspaceId),
+        eq(knowledgeBase.name, data.name),
+        isNull(knowledgeBase.deletedAt)
+      )
+    )
+    .limit(1)
+
+  if (duplicate.length > 0) {
+    throw new DuplicateNameError('knowledge base', data.name)
+  }
+
   await db.insert(knowledgeBase).values(newKnowledgeBase)
 
   logger.info(`[${requestId}] Created knowledge base: ${data.name} (${kbId})`)
@@ -220,6 +238,33 @@ export async function updateKnowledgeBase(
     updateData.chunkingConfig = updates.chunkingConfig
     updateData.embeddingModel = 'text-embedding-3-small'
     updateData.embeddingDimension = 1536
+  }
+
+  if (updates.name !== undefined) {
+    const existing = await db
+      .select({ id: knowledgeBase.id, workspaceId: knowledgeBase.workspaceId })
+      .from(knowledgeBase)
+      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+      .limit(1)
+
+    if (existing.length > 0 && existing[0].workspaceId) {
+      const duplicate = await db
+        .select({ id: knowledgeBase.id })
+        .from(knowledgeBase)
+        .where(
+          and(
+            eq(knowledgeBase.workspaceId, existing[0].workspaceId),
+            eq(knowledgeBase.name, updates.name),
+            isNull(knowledgeBase.deletedAt),
+            ne(knowledgeBase.id, knowledgeBaseId)
+          )
+        )
+        .limit(1)
+
+      if (duplicate.length > 0) {
+        throw new DuplicateNameError('knowledge base', updates.name)
+      }
+    }
   }
 
   await db
@@ -383,6 +428,7 @@ export async function restoreKnowledgeBase(
   const [kb] = await db
     .select({
       id: knowledgeBase.id,
+      name: knowledgeBase.name,
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
     })
@@ -406,6 +452,22 @@ export async function restoreKnowledgeBase(
     }
   }
 
+  const newName = await generateRestoreName(kb.name, async (candidate) => {
+    if (!kb.workspaceId) return false
+    const [match] = await db
+      .select({ id: knowledgeBase.id })
+      .from(knowledgeBase)
+      .where(
+        and(
+          eq(knowledgeBase.workspaceId, kb.workspaceId),
+          eq(knowledgeBase.name, candidate),
+          isNull(knowledgeBase.deletedAt)
+        )
+      )
+      .limit(1)
+    return !!match
+  })
+
   const now = new Date()
 
   await db.transaction(async (tx) => {
@@ -413,7 +475,7 @@ export async function restoreKnowledgeBase(
 
     await tx
       .update(knowledgeBase)
-      .set({ deletedAt: null, updatedAt: now })
+      .set({ deletedAt: null, updatedAt: now, name: newName })
       .where(eq(knowledgeBase.id, knowledgeBaseId))
 
     await tx
@@ -439,5 +501,5 @@ export async function restoreKnowledgeBase(
       )
   })
 
-  logger.info(`[${requestId}] Restored knowledge base: ${knowledgeBaseId}`)
+  logger.info(`[${requestId}] Restored knowledge base: ${knowledgeBaseId} as "${newName}"`)
 }

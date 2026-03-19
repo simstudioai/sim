@@ -11,6 +11,8 @@ import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, gt, gte, inArray, isNull, sql } from 'drizzle-orm'
+import { DuplicateNameError } from '@/lib/core/errors'
+import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { buildFilterClause, buildSortClause } from './sql'
 import type {
@@ -394,18 +396,32 @@ export async function renameTable(
   }
 
   const now = new Date()
-  const result = await db
-    .update(userTableDefinitions)
-    .set({ name: newName, updatedAt: now })
-    .where(eq(userTableDefinitions.id, tableId))
-    .returning({ id: userTableDefinitions.id })
+  try {
+    const result = await db
+      .update(userTableDefinitions)
+      .set({ name: newName, updatedAt: now })
+      .where(eq(userTableDefinitions.id, tableId))
+      .returning({ id: userTableDefinitions.id })
 
-  if (result.length === 0) {
-    throw new Error(`Table ${tableId} not found`)
+    if (result.length === 0) {
+      throw new Error(`Table ${tableId} not found`)
+    }
+
+    logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
+    return { id: tableId, name: newName }
+  } catch (error: unknown) {
+    if (
+      error instanceof Error &&
+      'cause' in error &&
+      typeof error.cause === 'object' &&
+      error.cause !== null &&
+      'code' in error.cause &&
+      error.cause.code === '23505'
+    ) {
+      throw new DuplicateNameError('table', newName)
+    }
+    throw error
   }
-
-  logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
-  return { id: tableId, name: newName }
 }
 
 /**
@@ -468,12 +484,27 @@ export async function restoreTable(tableId: string, requestId: string): Promise<
     }
   }
 
+  const newName = await generateRestoreName(table.name, async (candidate) => {
+    const [match] = await db
+      .select({ id: userTableDefinitions.id })
+      .from(userTableDefinitions)
+      .where(
+        and(
+          eq(userTableDefinitions.workspaceId, table.workspaceId),
+          eq(userTableDefinitions.name, candidate),
+          isNull(userTableDefinitions.archivedAt)
+        )
+      )
+      .limit(1)
+    return !!match
+  })
+
   await db
     .update(userTableDefinitions)
-    .set({ archivedAt: null, updatedAt: new Date() })
+    .set({ archivedAt: null, updatedAt: new Date(), name: newName })
     .where(eq(userTableDefinitions.id, tableId))
 
-  logger.info(`[${requestId}] Restored table ${tableId}`)
+  logger.info(`[${requestId}] Restored table ${tableId} as "${newName}"`)
 }
 
 /**
