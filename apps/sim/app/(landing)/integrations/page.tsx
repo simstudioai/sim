@@ -5,10 +5,6 @@ import integrations from './data/integrations.json'
 import { POPULAR_WORKFLOWS } from './data/popular-workflows'
 import type { Integration } from './data/types'
 
-// ---------------------------------------------------------------------------
-// Derived constants
-// ---------------------------------------------------------------------------
-
 const allIntegrations = integrations as Integration[]
 const INTEGRATION_COUNT = allIntegrations.length
 
@@ -17,10 +13,6 @@ const INTEGRATION_COUNT = allIntegrations.length
  * Used for metadata keywords so they stay in sync automatically.
  */
 const TOP_NAMES = [...new Set(POPULAR_WORKFLOWS.flatMap((p) => [p.from, p.to]))].slice(0, 6)
-
-// ---------------------------------------------------------------------------
-// Metadata
-// ---------------------------------------------------------------------------
 
 export const metadata: Metadata = {
   title: 'Integrations',
@@ -46,10 +38,6 @@ export const metadata: Metadata = {
   },
   alternates: { canonical: 'https://sim.ai/integrations' },
 }
-
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
 
 export default function IntegrationsPage() {
   const breadcrumbJsonLd = {

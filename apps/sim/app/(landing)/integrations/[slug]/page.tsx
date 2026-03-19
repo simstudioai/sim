@@ -10,10 +10,6 @@ import type { AuthType, FAQItem, Integration } from '../data/types'
 import { IntegrationFAQ } from './components/integration-faq'
 import { TemplateCardButton } from './components/template-card-button'
 
-// ---------------------------------------------------------------------------
-// Derived constants
-// ---------------------------------------------------------------------------
-
 const allIntegrations = integrations as Integration[]
 const INTEGRATION_COUNT = allIntegrations.length
 
@@ -21,10 +17,6 @@ const INTEGRATION_COUNT = allIntegrations.length
 const byName = new Map(allIntegrations.map((i) => [i.name, i]))
 const bySlug = new Map(allIntegrations.map((i) => [i.slug, i]))
 const byType = new Map(allIntegrations.map((i) => [i.type, i]))
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 /** Returns workflow pairs that feature the given integration on either side. */
 function getPairsFor(name: string) {
@@ -137,10 +129,6 @@ function buildFAQs(integration: Integration): FAQItem[] {
   return faqs
 }
 
-// ---------------------------------------------------------------------------
-// Static params & metadata
-// ---------------------------------------------------------------------------
-
 export async function generateStaticParams() {
   return allIntegrations.map((i) => ({ slug: i.slug }))
 }
@@ -192,10 +180,6 @@ export async function generateMetadata({
   }
 }
 
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
-
 export default async function IntegrationPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const integration = bySlug.get(slug)
@@ -217,10 +201,6 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
       t.integrationBlockTypes.includes(integration.type) ||
       t.integrationBlockTypes.includes(baseType)
   )
-
-  // -------------------------------------------------------------------------
-  // Structured data
-  // -------------------------------------------------------------------------
 
   const breadcrumbJsonLd = {
     '@context': 'https://schema.org',
@@ -285,10 +265,6 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
       acceptedAnswer: { '@type': 'Answer', text: answer },
     })),
   }
-
-  // -------------------------------------------------------------------------
-  // Render
-  // -------------------------------------------------------------------------
 
   return (
     <>
@@ -567,7 +543,6 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                   aria-label='Workflow templates'
                 >
                   {matchingTemplates.map((template) => {
-                    // Current integration first, then the others
                     const allTypes = [
                       integration.type,
                       ...template.integrationBlockTypes.filter((bt) => bt !== integration.type),
