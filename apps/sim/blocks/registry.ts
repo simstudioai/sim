@@ -105,6 +105,7 @@ import { ManualTriggerBlock } from '@/blocks/blocks/manual_trigger'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { Mem0Block } from '@/blocks/blocks/mem0'
 import { MemoryBlock } from '@/blocks/blocks/memory'
+import { MicrosoftAdBlock } from '@/blocks/blocks/microsoft_ad'
 import { MicrosoftDataverseBlock } from '@/blocks/blocks/microsoft_dataverse'
 import { MicrosoftExcelBlock, MicrosoftExcelV2Block } from '@/blocks/blocks/microsoft_excel'
 import { MicrosoftPlannerBlock } from '@/blocks/blocks/microsoft_planner'
@@ -322,6 +323,7 @@ export const registry: Record<string, BlockConfig> = {
   mcp: McpBlock,
   mem0: Mem0Block,
   memory: MemoryBlock,
+  microsoft_ad: MicrosoftAdBlock,
   microsoft_dataverse: MicrosoftDataverseBlock,
   microsoft_excel: MicrosoftExcelBlock,
   microsoft_excel_v2: MicrosoftExcelV2Block,

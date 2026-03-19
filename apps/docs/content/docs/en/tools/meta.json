@@ -95,6 +95,7 @@
     "mailgun",
     "mem0",
     "memory",
+    "microsoft_ad",
     "microsoft_dataverse",
     "microsoft_excel",
     "microsoft_planner",
