@@ -349,16 +349,7 @@ Output: {"businessTitle": "Senior Engineer"}`,
     config: {
       tool: (params) => `workday_${params.operation}`,
       params: (params) => {
-        const {
-          operation,
-          orgType,
-          fields,
-          positionId,
-          jobProfileId,
-          locationId,
-          managerId,
-          ...rest
-        } = params
+        const { operation, orgType, fields, jobProfileId, locationId, managerId, ...rest } = params
 
         if (rest.limit != null && rest.limit !== '') rest.limit = Number(rest.limit)
         if (rest.offset != null && rest.offset !== '') rest.offset = Number(rest.offset)
@@ -366,7 +357,10 @@ Output: {"businessTitle": "Senior Engineer"}`,
         if (orgType) rest.type = orgType
 
         if (operation === 'change_job') {
-          if (positionId) rest.newPositionId = positionId
+          if (rest.positionId) {
+            rest.newPositionId = rest.positionId
+            rest.positionId = undefined
+          }
           if (jobProfileId) rest.newJobProfileId = jobProfileId
           if (locationId) rest.newLocationId = locationId
           if (managerId) rest.newManagerId = managerId
