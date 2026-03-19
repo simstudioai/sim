@@ -16,6 +16,7 @@ import { validateMcpDomain } from '@/lib/mcp/domain-check'
 import { mcpService } from '@/lib/mcp/service'
 import { generateMcpServerId } from '@/lib/mcp/utils'
 import { getAllOAuthServices } from '@/lib/oauth/utils'
+import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   deleteCustomTool,
   getCustomToolById,
@@ -24,7 +25,7 @@ import {
 } from '@/lib/workflows/custom-tools/operations'
 import { deleteSkill, listSkills, upsertSkills } from '@/lib/workflows/skills/operations'
 import { getWorkflowById } from '@/lib/workflows/utils'
-import { isMcpTool } from '@/executor/constants'
+import { isMcpTool, isUuid } from '@/executor/constants'
 import { executeTool } from '@/tools'
 import { getTool, resolveToolId } from '@/tools/utils'
 import {
@@ -1029,7 +1030,7 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
   list: (p, c) => executeVfsList(p, c),
 
   // Resource visibility
-  open_resource: async (p: OpenResourceParams) => {
+  open_resource: async (p: OpenResourceParams, c: ExecutionContext) => {
     const validated = validateOpenResourceParams(p)
     if (!validated.success) {
       return { success: false, error: validated.error }
@@ -1037,7 +1038,34 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
 
     const params = validated.params
     const resourceType = params.type
-    const resourceId = params.id
+    let resourceId = params.id
+    let title: string = resourceType
+
+    if (resourceType === 'file') {
+      if (!c.workspaceId) {
+        return {
+          success: false,
+          error:
+            'Opening a workspace file requires workspace context. Pass the file UUID from files/<name>/meta.json.',
+        }
+      }
+      if (!isUuid(params.id)) {
+        return {
+          success: false,
+          error:
+            'open_resource for files requires the canonical UUID from files/<name>/meta.json (the "id" field). Do not pass VFS paths, display names, or file_<name> strings.',
+        }
+      }
+      const record = await getWorkspaceFile(c.workspaceId, params.id)
+      if (!record) {
+        return {
+          success: false,
+          error: `No workspace file with id "${params.id}". Confirm the UUID from meta.json.`,
+        }
+      }
+      resourceId = record.id
+      title = record.name
+    }
 
     return {
       success: true,
@@ -1046,7 +1074,7 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
         {
           type: resourceType as 'workflow' | 'table' | 'knowledgebase' | 'file',
           id: resourceId,
-          title: resourceType,
+          title,
         },
       ],
     }

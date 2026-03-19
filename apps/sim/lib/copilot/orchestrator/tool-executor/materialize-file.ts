@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { workflow, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
+import { findMothershipUploadRowByChatAndName } from '@/lib/copilot/orchestrator/tool-executor/upload-file-reader'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import { getServePathPrefix } from '@/lib/uploads'
 import { downloadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -11,22 +12,6 @@ import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 import { extractWorkflowMetadata } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('MaterializeFile')
-
-async function findUploadRecord(fileName: string, chatId: string) {
-  const rows = await db
-    .select()
-    .from(workspaceFiles)
-    .where(
-      and(
-        eq(workspaceFiles.originalName, fileName),
-        eq(workspaceFiles.chatId, chatId),
-        eq(workspaceFiles.context, 'mothership'),
-        isNull(workspaceFiles.deletedAt)
-      )
-    )
-    .limit(1)
-  return rows[0] ?? null
-}
 
 function toFileRecord(row: typeof workspaceFiles.$inferSelect) {
   const pathPrefix = getServePathPrefix()
@@ -41,21 +26,23 @@ function toFileRecord(row: typeof workspaceFiles.$inferSelect) {
     uploadedBy: row.userId,
     deletedAt: row.deletedAt,
     uploadedAt: row.uploadedAt,
+    storageContext: 'mothership' as const,
   }
 }
 
 async function executeSave(fileName: string, chatId: string): Promise<ToolCallResult> {
+  const row = await findMothershipUploadRowByChatAndName(chatId, fileName)
+  if (!row) {
+    return {
+      success: false,
+      error: `Upload not found: "${fileName}". Use glob("uploads/*") to list available uploads.`,
+    }
+  }
+
   const [updated] = await db
     .update(workspaceFiles)
     .set({ context: 'workspace', chatId: null })
-    .where(
-      and(
-        eq(workspaceFiles.originalName, fileName),
-        eq(workspaceFiles.chatId, chatId),
-        eq(workspaceFiles.context, 'mothership'),
-        isNull(workspaceFiles.deletedAt)
-      )
-    )
+    .where(and(eq(workspaceFiles.id, row.id), isNull(workspaceFiles.deletedAt)))
     .returning({ id: workspaceFiles.id, originalName: workspaceFiles.originalName })
 
   if (!updated) {
@@ -84,7 +71,7 @@ async function executeImport(
   workspaceId: string,
   userId: string
 ): Promise<ToolCallResult> {
-  const row = await findUploadRecord(fileName, chatId)
+  const row = await findMothershipUploadRowByChatAndName(chatId, fileName)
   if (!row) {
     return {
       success: false,
