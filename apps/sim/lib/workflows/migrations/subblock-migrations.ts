@@ -23,6 +23,10 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
   knowledge: {
     knowledgeBaseId: 'knowledgeBaseSelector',
   },
+  ashby: {
+    emailType: 'email',
+    phoneType: 'phoneNumber',
+  },
 }
 
 /**
