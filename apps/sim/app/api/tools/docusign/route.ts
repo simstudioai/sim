@@ -38,9 +38,14 @@ async function resolveAccount(accessToken: string): Promise<DocuSignAccountInfo>
     throw new Error('No DocuSign accounts found for this user')
   }
 
+  const baseUri = defaultAccount.base_uri
+  if (!baseUri) {
+    throw new Error('DocuSign account is missing base_uri')
+  }
+
   return {
     accountId: defaultAccount.account_id,
-    baseUri: defaultAccount.base_uri,
+    baseUri,
   }
 }
 

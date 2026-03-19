@@ -270,15 +270,7 @@ export const DocuSignBlock: BlockConfig<DocuSignResponse> = {
       'docusign_list_recipients',
     ],
     config: {
-      tool: (params) => {
-        const file = normalizeFileInput(params.uploadDocument || params.documentRef, {
-          single: true,
-        })
-        if (file) {
-          params.file = file
-        }
-        return `docusign_${params.operation}`
-      },
+      tool: (params) => `docusign_${params.operation}`,
       params: (params) => {
         const {
           oauthCredential,
@@ -291,6 +283,13 @@ export const DocuSignBlock: BlockConfig<DocuSignResponse> = {
 
         const cleanParams: Record<string, unknown> = {
           oauthCredential,
+        }
+
+        const file = normalizeFileInput(params.uploadDocument || params.documentRef, {
+          single: true,
+        })
+        if (file) {
+          cleanParams.file = file
         }
 
         if (listEnvelopeStatus && operation === 'list_envelopes') {
