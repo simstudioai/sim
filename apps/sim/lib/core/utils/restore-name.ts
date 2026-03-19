@@ -1,10 +1,12 @@
 import { randomBytes } from 'crypto'
 
+const HASH_ATTEMPTS = 8
+
 /**
  * Generates a unique name for a restored entity by trying in order:
  * 1. The original name
  * 2. `name_restored` (inserted before file extension when `hasExtension` is true)
- * 3. `name_restored_{6-char hex}` (practically guaranteed unique)
+ * 3. `name_restored_{6-char hex}` — retries random suffixes until one is free
  */
 export async function generateRestoreName(
   originalName: string,
@@ -20,8 +22,15 @@ export async function generateRestoreName(
     return restoredName
   }
 
-  const hash = randomBytes(3).toString('hex')
-  return addSuffix(originalName, `_restored_${hash}`, options?.hasExtension)
+  for (let i = 0; i < HASH_ATTEMPTS; i++) {
+    const hash = randomBytes(3).toString('hex')
+    const candidate = addSuffix(originalName, `_restored_${hash}`, options?.hasExtension)
+    if (!(await nameExists(candidate))) {
+      return candidate
+    }
+  }
+
+  throw new Error(`Could not generate a unique restore name for "${originalName}"`)
 }
 
 function addSuffix(name: string, suffix: string, hasExtension?: boolean): string {

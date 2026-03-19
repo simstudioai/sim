@@ -1205,6 +1205,10 @@ export const knowledgeBase = pgTable(
     userWorkspaceIdx: index('kb_user_workspace_idx').on(table.userId, table.workspaceId),
     // Index for soft delete filtering
     deletedAtIdx: index('kb_deleted_at_idx').on(table.deletedAt),
+    /** One active (non-deleted) name per workspace; matches user_table_definitions pattern */
+    workspaceNameActiveUnique: uniqueIndex('kb_workspace_name_active_unique')
+      .on(table.workspaceId, table.name)
+      .where(sql`${table.deletedAt} IS NULL`),
   })
 )
 

@@ -11,6 +11,7 @@ import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, gt, gte, inArray, isNull, sql } from 'drizzle-orm'
+import { getPostgresErrorCode } from '@/lib/core/utils/pg-error'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { buildFilterClause, buildSortClause } from './sql'
@@ -416,14 +417,7 @@ export async function renameTable(
     logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
     return { id: tableId, name: newName }
   } catch (error: unknown) {
-    if (
-      error instanceof Error &&
-      'cause' in error &&
-      typeof error.cause === 'object' &&
-      error.cause !== null &&
-      'code' in error.cause &&
-      error.cause.code === '23505'
-    ) {
+    if (getPostgresErrorCode(error) === '23505') {
       throw new TableConflictError(newName)
     }
     throw error

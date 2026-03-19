@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import { document, knowledgeBase, knowledgeConnector, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
+import { getPostgresErrorCode } from '@/lib/core/utils/pg-error'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type {
   ChunkingConfig,
@@ -181,7 +182,14 @@ export async function createKnowledgeBase(
     throw new KnowledgeBaseConflictError(data.name)
   }
 
-  await db.insert(knowledgeBase).values(newKnowledgeBase)
+  try {
+    await db.insert(knowledgeBase).values(newKnowledgeBase)
+  } catch (error: unknown) {
+    if (getPostgresErrorCode(error) === '23505') {
+      throw new KnowledgeBaseConflictError(data.name)
+    }
+    throw error
+  }
 
   logger.info(`[${requestId}] Created knowledge base: ${data.name} (${kbId})`)
 
@@ -273,10 +281,17 @@ export async function updateKnowledgeBase(
     }
   }
 
-  await db
-    .update(knowledgeBase)
-    .set(updateData)
-    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+  try {
+    await db
+      .update(knowledgeBase)
+      .set(updateData)
+      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+  } catch (error: unknown) {
+    if (getPostgresErrorCode(error) === '23505' && updates.name !== undefined) {
+      throw new KnowledgeBaseConflictError(updates.name)
+    }
+    throw error
+  }
 
   const updatedKb = await db
     .select({
