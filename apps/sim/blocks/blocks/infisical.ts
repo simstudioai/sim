@@ -178,7 +178,10 @@ export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
             break
           case 'get_secret':
             result.secretName = params.secretName
-            if (params.secretVersion) result.version = Number(params.secretVersion)
+            if (params.secretVersion) {
+              const v = Number(params.secretVersion)
+              if (!Number.isNaN(v)) result.version = v
+            }
             break
           case 'create_secret':
             result.secretName = params.secretName
@@ -188,7 +191,7 @@ export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
             break
           case 'update_secret':
             result.secretName = params.secretName
-            if (params.updateSecretValue != null) result.secretValue = params.updateSecretValue
+            if (params.updateSecretValue) result.secretValue = params.updateSecretValue
             if (params.secretComment != null) result.secretComment = params.secretComment
             if (params.newSecretName) result.newSecretName = params.newSecretName
             if (params.tagIds) result.tagIds = params.tagIds

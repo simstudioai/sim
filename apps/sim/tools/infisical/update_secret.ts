@@ -96,7 +96,7 @@ export const updateSecretTool: ToolConfig<
         projectId: params.projectId,
         environment: params.environment,
       }
-      if (params.secretValue != null) body.secretValue = params.secretValue
+      if (params.secretValue) body.secretValue = params.secretValue
       if (params.secretPath) body.secretPath = params.secretPath
       if (params.secretComment != null) body.secretComment = params.secretComment
       if (params.newSecretName) body.newSecretName = params.newSecretName

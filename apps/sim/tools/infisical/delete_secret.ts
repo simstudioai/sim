@@ -61,21 +61,18 @@ export const deleteSecretTool: ToolConfig<
 
   request: {
     method: 'DELETE',
-    url: (params) =>
-      `${params.baseUrl?.replace(/\/+$/, '') ?? 'https://us.infisical.com'}/api/v4/secrets/${encodeURIComponent(params.secretName.trim())}`,
+    url: (params) => {
+      const searchParams = new URLSearchParams()
+      searchParams.set('projectId', params.projectId)
+      searchParams.set('environment', params.environment)
+      if (params.secretPath) searchParams.set('secretPath', params.secretPath)
+      if (params.type) searchParams.set('type', params.type)
+      const base = params.baseUrl?.replace(/\/+$/, '') ?? 'https://us.infisical.com'
+      return `${base}/api/v4/secrets/${encodeURIComponent(params.secretName.trim())}?${searchParams.toString()}`
+    },
     headers: (params) => ({
-      'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
     }),
-    body: (params) => {
-      const body: Record<string, unknown> = {
-        projectId: params.projectId,
-        environment: params.environment,
-      }
-      if (params.secretPath) body.secretPath = params.secretPath
-      if (params.type) body.type = params.type
-      return body
-    },
   },
 
   transformResponse: async (response) => {
