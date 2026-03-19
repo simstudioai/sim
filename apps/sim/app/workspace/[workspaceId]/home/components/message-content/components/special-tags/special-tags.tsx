@@ -25,19 +25,32 @@ export interface CredentialTagData {
   provider?: string
 }
 
+export interface MothershipErrorTagData {
+  message: string
+  code: string
+  provider: string
+}
+
 export type ContentSegment =
   | { type: 'text'; content: string }
   | { type: 'thinking'; content: string }
   | { type: 'options'; data: OptionsTagData }
   | { type: 'usage_upgrade'; data: UsageUpgradeTagData }
   | { type: 'credential'; data: CredentialTagData }
+  | { type: 'mothership-error'; data: MothershipErrorTagData }
 
 export interface ParsedSpecialContent {
   segments: ContentSegment[]
   hasPendingTag: boolean
 }
 
-const SPECIAL_TAG_NAMES = ['thinking', 'options', 'usage_upgrade', 'credential'] as const
+const SPECIAL_TAG_NAMES = [
+  'thinking',
+  'options',
+  'usage_upgrade',
+  'credential',
+  'mothership-error',
+] as const
 
 /**
  * Parses inline special tags (`<options>`, `<usage_upgrade>`) from streamed
@@ -69,7 +82,7 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
       let remaining = content.slice(cursor)
 
       if (isStreaming) {
-        const partial = remaining.match(/<[a-z_]*$/i)
+        const partial = remaining.match(/<[a-z_-]*$/i)
         if (partial) {
           const fragment = partial[0].slice(1)
           if (fragment.length > 0 && SPECIAL_TAG_NAMES.some((t) => t.startsWith(fragment))) {
@@ -111,7 +124,10 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
     } else {
       try {
         const data = JSON.parse(body)
-        segments.push({ type: nearestTagName as 'options' | 'usage_upgrade' | 'credential', data })
+        segments.push({
+          type: nearestTagName as 'options' | 'usage_upgrade' | 'credential' | 'mothership-error',
+          data,
+        })
       } catch {
         /* malformed JSON — drop the tag silently */
       }
@@ -152,6 +168,8 @@ export function SpecialTags({ segment, onOptionSelect }: SpecialTagsProps) {
       return <UsageUpgradeDisplay data={segment.data} />
     case 'credential':
       return <CredentialDisplay data={segment.data} />
+    case 'mothership-error':
+      return <MothershipErrorDisplay data={segment.data} />
     default:
       return null
   }
@@ -273,6 +291,37 @@ function CredentialDisplay({ data }: { data: CredentialTagData }) {
       </span>
       <ArrowRight className='h-[16px] w-[16px] shrink-0 text-[var(--text-icon)]' />
     </a>
+  )
+}
+
+function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {
+  return (
+    <div className='animate-stream-fade-in rounded-xl border border-red-300/40 bg-red-50/50 px-4 py-3 dark:border-red-500/20 dark:bg-red-950/20'>
+      <div className='flex items-center gap-2'>
+        <svg
+          className='h-4 w-4 shrink-0 text-red-600 dark:text-red-400'
+          viewBox='0 0 16 16'
+          fill='none'
+          xmlns='http://www.w3.org/2000/svg'
+        >
+          <circle cx='8' cy='8' r='6.5' stroke='currentColor' strokeWidth='1.3' />
+          <path d='M8 4.5v4' stroke='currentColor' strokeWidth='1.3' strokeLinecap='round' />
+          <circle cx='8' cy='11' r='0.75' fill='currentColor' />
+        </svg>
+        <span className='font-[500] text-[14px] text-red-800 leading-5 dark:text-red-300'>
+          Something went wrong
+        </span>
+      </div>
+      <p className='mt-1.5 text-[13px] text-red-700/90 leading-[20px] dark:text-red-400/80'>
+        {data.message}
+      </p>
+      {data.code && (
+        <span className='mt-1 inline-block text-[11px] text-red-500/70 dark:text-red-500/50'>
+          {data.provider ? `${data.provider}:` : ''}
+          {data.code}
+        </span>
+      )}
+    </div>
   )
 }
 
