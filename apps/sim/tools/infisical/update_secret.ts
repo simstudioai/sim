@@ -98,7 +98,7 @@ export const updateSecretTool: ToolConfig<
       }
       if (params.secretValue) body.secretValue = params.secretValue
       if (params.secretPath) body.secretPath = params.secretPath
-      if (params.secretComment != null) body.secretComment = params.secretComment
+      if (params.secretComment) body.secretComment = params.secretComment
       if (params.newSecretName) body.newSecretName = params.newSecretName
       if (params.type) body.type = params.type
       if (params.tagIds) {

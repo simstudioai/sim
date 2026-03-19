@@ -192,7 +192,7 @@ export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
           case 'update_secret':
             result.secretName = params.secretName
             if (params.updateSecretValue) result.secretValue = params.updateSecretValue
-            if (params.secretComment != null) result.secretComment = params.secretComment
+            if (params.secretComment) result.secretComment = params.secretComment
             if (params.newSecretName) result.newSecretName = params.newSecretName
             if (params.tagIds) result.tagIds = params.tagIds
             break
