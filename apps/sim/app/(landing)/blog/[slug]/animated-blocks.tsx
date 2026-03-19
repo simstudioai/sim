@@ -25,7 +25,10 @@ export function AnimatedColorBlocks() {
   const mounted = useRef(true)
 
   function schedule(fn: () => void, ms: number) {
-    const id = setTimeout(fn, ms)
+    const id = setTimeout(() => {
+      timers.current = timers.current.filter((timerId) => timerId !== id)
+      fn()
+    }, ms)
     timers.current.push(id)
     return id
   }
@@ -116,7 +119,10 @@ export function AnimatedColorBlocksVertical() {
   const verticalColors = [COLORS[0], COLORS[1], COLORS[2]] as const
 
   function schedule(fn: () => void, ms: number) {
-    const id = setTimeout(fn, ms)
+    const id = setTimeout(() => {
+      timers.current = timers.current.filter((timerId) => timerId !== id)
+      fn()
+    }, ms)
     timers.current.push(id)
     return id
   }
