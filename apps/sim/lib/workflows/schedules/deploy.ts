@@ -138,6 +138,7 @@ export async function createSchedulesForDeploy(
               workflowSchedule.blockId,
               workflowSchedule.deploymentVersionId,
             ],
+            targetWhere: isNull(workflowSchedule.archivedAt),
             set: setValues,
           })
 
