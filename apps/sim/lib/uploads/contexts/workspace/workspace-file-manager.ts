@@ -329,6 +329,61 @@ export async function listWorkspaceFiles(
 }
 
 /**
+ * Normalize a workspace file reference to its display name.
+ * Supports raw names and VFS-style paths like `files/name`, `files/name/content`,
+ * and `files/name/meta.json`.
+ */
+export function normalizeWorkspaceFileReference(fileReference: string): string {
+  const trimmed = fileReference.trim().replace(/^\/+/, '')
+
+  if (trimmed.startsWith('files/')) {
+    const withoutPrefix = trimmed.slice('files/'.length)
+    if (withoutPrefix.endsWith('/meta.json')) {
+      return withoutPrefix.slice(0, -'/meta.json'.length)
+    }
+    if (withoutPrefix.endsWith('/content')) {
+      return withoutPrefix.slice(0, -'/content'.length)
+    }
+    return withoutPrefix
+  }
+
+  return trimmed
+}
+
+/**
+ * Find a workspace file record in an existing list from either its id or a VFS/name reference.
+ */
+export function findWorkspaceFileRecord(
+  files: WorkspaceFileRecord[],
+  fileReference: string
+): WorkspaceFileRecord | null {
+  const exactIdMatch = files.find((file) => file.id === fileReference)
+  if (exactIdMatch) {
+    return exactIdMatch
+  }
+
+  const normalizedReference = normalizeWorkspaceFileReference(fileReference)
+  return (
+    files.find(
+      (file) =>
+        file.name === normalizedReference ||
+        file.name.normalize('NFC') === normalizedReference.normalize('NFC')
+    ) ?? null
+  )
+}
+
+/**
+ * Resolve a workspace file record from either its id or a VFS/name reference.
+ */
+export async function resolveWorkspaceFileReference(
+  workspaceId: string,
+  fileReference: string
+): Promise<WorkspaceFileRecord | null> {
+  const files = await listWorkspaceFiles(workspaceId)
+  return findWorkspaceFileRecord(files, fileReference)
+}
+
+/**
  * Get a specific workspace file
  */
 export async function getWorkspaceFile(

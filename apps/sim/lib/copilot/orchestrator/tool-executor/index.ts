@@ -68,6 +68,7 @@ import type {
   ListWorkspaceMcpServersParams,
   MoveFolderParams,
   MoveWorkflowParams,
+  OpenResourceParams,
   RenameFolderParams,
   RenameWorkflowParams,
   RunBlockParams,
@@ -77,6 +78,7 @@ import type {
   SetGlobalWorkflowVariablesParams,
   UpdateWorkflowParams,
   UpdateWorkspaceMcpServerParams,
+  ValidOpenResourceParams,
 } from './param-types'
 import { PLATFORM_ACTIONS_CONTENT } from './platform-actions'
 import { executeVfsGlob, executeVfsGrep, executeVfsList, executeVfsRead } from './vfs-tools'
@@ -105,6 +107,27 @@ import {
 } from './workflow-tools'
 
 const logger = createLogger('CopilotToolExecutor')
+
+function validateOpenResourceParams(
+  params: OpenResourceParams
+): { success: true; params: ValidOpenResourceParams } | { success: false; error: string } {
+  if (!params.type) {
+    return { success: false, error: 'type is required' }
+  }
+
+  if (!params.id) {
+    return { success: false, error: `${params.type} resources require \`id\`` }
+  }
+
+  return {
+    success: true,
+    params: {
+      type: params.type,
+      id: params.id,
+      ...(params.title ? { title: params.title } : {}),
+    },
+  }
+}
 
 type ManageCustomToolOperation = 'add' | 'edit' | 'delete' | 'list'
 
@@ -996,16 +1019,17 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
   list: (p, c) => executeVfsList(p, c),
 
   // Resource visibility
-  open_resource: async (p) => {
-    const resourceType = p.type as string | undefined
-    const resourceId = p.id as string | undefined
-    if (!resourceType || !resourceId) {
-      return { success: false, error: 'type and id are required' }
+  open_resource: async (p: OpenResourceParams) => {
+    const validated = validateOpenResourceParams(p)
+    if (!validated.success) {
+      return { success: false, error: validated.error }
     }
-    const validTypes = new Set(['workflow', 'table', 'knowledgebase', 'file'])
-    if (!validTypes.has(resourceType)) {
-      return { success: false, error: `Invalid resource type: ${resourceType}` }
-    }
+
+    const params = validated.params
+    const resourceType = params.type
+    const resourceId = params.id
+    const resourceTitle = params.title || resourceType
+
     return {
       success: true,
       output: { message: `Opened ${resourceType} ${resourceId} for the user` },
@@ -1013,7 +1037,7 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
         {
           type: resourceType as 'workflow' | 'table' | 'knowledgebase' | 'file',
           id: resourceId,
-          title: resourceType,
+          title: resourceTitle,
         },
       ],
     }

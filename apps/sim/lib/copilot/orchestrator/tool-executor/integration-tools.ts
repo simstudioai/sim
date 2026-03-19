@@ -15,6 +15,7 @@ import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { getTableById, queryRows } from '@/lib/table/service'
 import {
   downloadWorkspaceFile,
+  findWorkspaceFileRecord,
   listWorkspaceFiles,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getWorkflowById } from '@/lib/workflows/utils'
@@ -178,9 +179,7 @@ export async function executeIntegrationToolDirect(
             logger.warn('Skipping non-text sandbox input file', { fileName, ext })
             continue
           }
-          const record = allFiles.find(
-            (f) => f.name === fileName || f.name.normalize('NFC') === fileName.normalize('NFC')
-          )
+          const record = findWorkspaceFileRecord(allFiles, filePath)
           if (!record) {
             logger.warn('Sandbox input file not found', { fileName })
             continue

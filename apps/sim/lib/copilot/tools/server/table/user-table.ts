@@ -26,7 +26,7 @@ import {
 import type { ColumnDefinition, RowData, TableDefinition } from '@/lib/table/types'
 import {
   downloadWorkspaceFile,
-  listWorkspaceFiles,
+  resolveWorkspaceFileReference,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('UserTableServerTool')
@@ -40,15 +40,10 @@ async function resolveWorkspaceFile(
   filePath: string,
   workspaceId: string
 ): Promise<{ buffer: Buffer; name: string; type: string }> {
-  const match = filePath.match(/^files\/(.+)$/)
-  const fileName = match ? match[1] : filePath
-  const files = await listWorkspaceFiles(workspaceId)
-  const record = files.find(
-    (f) => f.name === fileName || f.name.normalize('NFC') === fileName.normalize('NFC')
-  )
+  const record = await resolveWorkspaceFileReference(workspaceId, filePath)
   if (!record) {
     throw new Error(
-      `File not found: "${fileName}". Use glob("files/*/meta.json") to list available files.`
+      `File not found: "${filePath}". Use glob("files/*/meta.json") to list available files.`
     )
   }
   const buffer = await downloadWorkspaceFile(record)
