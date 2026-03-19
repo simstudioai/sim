@@ -60,6 +60,7 @@ import {
   getClampedPositionForNode,
   getDescendantBlockIds,
   getEdgeSelectionContextId,
+  getNodeSelectionContextId,
   getWorkflowLockToggleIds,
   isBlockProtected,
   isEdgeProtected,
@@ -3205,7 +3206,10 @@ const WorkflowContent = React.memo(
           const draggedParentId = blocks[node.id]?.data?.parentId
           const parentIsSelected =
             draggedParentId && selectedNodes.some((n) => n.id === draggedParentId)
-          if (!parentIsSelected) {
+          const contextMismatch =
+            getNodeSelectionContextId(draggedNodeInSelected, blocks) !==
+            getNodeSelectionContextId(selectedNodes[0], blocks)
+          if (!parentIsSelected && !contextMismatch) {
             setDisplayNodes((currentNodes) =>
               currentNodes.map((n) => (n.id === node.id ? { ...n, selected: true } : n))
             )
