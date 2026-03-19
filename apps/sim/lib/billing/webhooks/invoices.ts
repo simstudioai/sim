@@ -469,6 +469,15 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
       return
     }
 
+    // Skip proration invoices (e.g. from mid-cycle plan upgrades) — only process cycle renewals
+    if (invoice.billing_reason && invoice.billing_reason !== 'subscription_cycle') {
+      logger.info('Skipping non-cycle invoice payment succeeded', {
+        invoiceId: invoice.id,
+        billingReason: invoice.billing_reason,
+      })
+      return
+    }
+
     const records = await db
       .select()
       .from(subscriptionTable)
@@ -552,6 +561,20 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
       logger.info('No subscription found on invoice; skipping payment failed handler', {
         invoiceId: invoice.id,
         isOverageInvoice,
+      })
+      return
+    }
+
+    // Skip proration invoices (e.g. from mid-cycle plan upgrades) — don't block users over proration failures.
+    // Overage invoices (threshold + cycle-end) bypass this guard via !isOverageInvoice and still block.
+    if (
+      !isOverageInvoice &&
+      invoice.billing_reason &&
+      invoice.billing_reason !== 'subscription_cycle'
+    ) {
+      logger.info('Skipping non-cycle invoice payment failure', {
+        invoiceId: invoice.id,
+        billingReason: invoice.billing_reason,
       })
       return
     }
