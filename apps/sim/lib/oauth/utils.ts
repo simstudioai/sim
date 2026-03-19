@@ -342,6 +342,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   // Box scopes
   root_readwrite: 'Read and write all files and folders in Box account',
   root_readonly: 'Read all files and folders in Box account',
+  'sign_requests.readwrite': 'Create and manage Box Sign e-signature requests',
 
   // Shopify scopes
   write_products: 'Read and manage Shopify products',

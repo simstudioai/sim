@@ -3,6 +3,7 @@ import {
   AirtableIcon,
   AsanaIcon,
   AttioIcon,
+  BoxCompanyIcon,
   CalComIcon,
   ConfluenceIcon,
   DocuSignIcon,
@@ -572,6 +573,21 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'linear',
   },
+  box: {
+    name: 'Box',
+    icon: BoxCompanyIcon,
+    services: {
+      box: {
+        name: 'Box',
+        description: 'Manage files, folders, and e-signatures with Box.',
+        providerId: 'box',
+        icon: BoxCompanyIcon,
+        baseProviderIcon: BoxCompanyIcon,
+        scopes: ['root_readwrite', 'sign_requests.readwrite'],
+      },
+    },
+    defaultService: 'box',
+  },
   dropbox: {
     name: 'Dropbox',
     icon: DropboxIcon,
@@ -1125,13 +1141,22 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         useBasicAuth: false,
       }
     }
+    case 'box': {
+      const { clientId, clientSecret } = getCredentials(env.BOX_CLIENT_ID, env.BOX_CLIENT_SECRET)
+      return {
+        tokenEndpoint: 'https://api.box.com/oauth2/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+      }
+    }
     case 'docusign': {
       const { clientId, clientSecret } = getCredentials(
         env.DOCUSIGN_CLIENT_ID,
         env.DOCUSIGN_CLIENT_SECRET
       )
       return {
-        tokenEndpoint: 'https://account.docusign.com/oauth/token',
+        tokenEndpoint: 'https://account-d.docusign.com/oauth/token',
         clientId,
         clientSecret,
         useBasicAuth: true,

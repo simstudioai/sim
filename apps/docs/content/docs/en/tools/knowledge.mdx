@@ -122,6 +122,37 @@ Create a new document in a knowledge base
 | `message` | string | Success or error message describing the operation result |
 | `documentId` | string | ID of the created document |
 
+### `knowledge_upsert_document`
+
+Create or update a document in a knowledge base. If a document with the given ID or filename already exists, it will be replaced with the new content.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base containing the document |
+| `documentId` | string | No | Optional ID of an existing document to update. If not provided, lookup is done by filename. |
+| `name` | string | Yes | Name of the document |
+| `content` | string | Yes | Content of the document |
+| `documentTags` | json | No | Document tags |
+| `documentTags` | string | No | No description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | object | Information about the upserted document |
+|   ↳ `documentId` | string | Document ID |
+|   ↳ `documentName` | string | Document name |
+|   ↳ `type` | string | Document type |
+|   ↳ `enabled` | boolean | Whether the document is enabled |
+|   ↳ `isUpdate` | boolean | Whether an existing document was replaced |
+|   ↳ `previousDocumentId` | string | ID of the document that was replaced, if any |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `message` | string | Success or error message describing the operation result |
+| `documentId` | string | ID of the upserted document |
+
 ### `knowledge_list_tags`
 
 List all tag definitions for a knowledge base

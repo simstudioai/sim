@@ -168,6 +168,25 @@ import {
   attioUpdateTaskTool,
   attioUpdateWebhookTool,
 } from '@/tools/attio'
+import {
+  boxCopyFileTool,
+  boxCreateFolderTool,
+  boxDeleteFileTool,
+  boxDeleteFolderTool,
+  boxDownloadFileTool,
+  boxGetFileInfoTool,
+  boxListFolderItemsTool,
+  boxSearchTool,
+  boxUpdateFileTool,
+  boxUploadFileTool,
+} from '@/tools/box'
+import {
+  boxSignCancelRequestTool,
+  boxSignCreateRequestTool,
+  boxSignGetRequestTool,
+  boxSignListRequestsTool,
+  boxSignResendRequestTool,
+} from '@/tools/box_sign'
 import { brandfetchGetBrandTool, brandfetchSearchTool } from '@/tools/brandfetch'
 import { browserUseRunTaskTool } from '@/tools/browser_use'
 import {
@@ -2451,6 +2470,21 @@ export const tools: Record<string, ToolConfig> = {
   ashby_update_candidate: ashbyUpdateCandidateTool,
   brandfetch_get_brand: brandfetchGetBrandTool,
   brandfetch_search: brandfetchSearchTool,
+  box_copy_file: boxCopyFileTool,
+  box_create_folder: boxCreateFolderTool,
+  box_delete_file: boxDeleteFileTool,
+  box_delete_folder: boxDeleteFolderTool,
+  box_download_file: boxDownloadFileTool,
+  box_get_file_info: boxGetFileInfoTool,
+  box_list_folder_items: boxListFolderItemsTool,
+  box_search: boxSearchTool,
+  box_update_file: boxUpdateFileTool,
+  box_upload_file: boxUploadFileTool,
+  box_sign_create_request: boxSignCreateRequestTool,
+  box_sign_get_request: boxSignGetRequestTool,
+  box_sign_list_requests: boxSignListRequestsTool,
+  box_sign_cancel_request: boxSignCancelRequestTool,
+  box_sign_resend_request: boxSignResendRequestTool,
   browser_use_run_task: browserUseRunTaskTool,
   openai_embeddings: openAIEmbeddingsTool,
   http_request: httpRequestTool,

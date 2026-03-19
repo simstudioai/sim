@@ -17,7 +17,7 @@ interface DocuSignAccountInfo {
  * by calling the DocuSign userinfo endpoint.
  */
 async function resolveAccount(accessToken: string): Promise<DocuSignAccountInfo> {
-  const response = await fetch('https://account.docusign.com/oauth/userinfo', {
+  const response = await fetch('https://account-d.docusign.com/oauth/userinfo', {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
 

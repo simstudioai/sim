@@ -13,7 +13,7 @@ export const DocuSignBlock: BlockConfig<DocuSignResponse> = {
     'Create and send envelopes for e-signature, use templates, check signing status, download signed documents, and manage recipients with DocuSign.',
   docsLink: 'https://docs.sim.ai/tools/docusign',
   category: 'tools',
-  bgColor: '#4C00FF',
+  bgColor: '#FFFFFF',
   icon: DocuSignIcon,
   authMode: AuthMode.OAuth,
 
