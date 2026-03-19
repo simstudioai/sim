@@ -488,6 +488,7 @@ export const auth = betterAuth({
         'shopify',
         'trello',
         'calcom',
+        'docusign',
         ...SSO_TRUSTED_PROVIDERS,
       ],
     },
@@ -2588,6 +2589,64 @@ export const auth = betterAuth({
               }
             } catch (error) {
               logger.error('Error in WordPress.com getUserInfo:', { error })
+              return null
+            }
+          },
+        },
+
+        // DocuSign provider
+        {
+          providerId: 'docusign',
+          clientId: env.DOCUSIGN_CLIENT_ID as string,
+          clientSecret: env.DOCUSIGN_CLIENT_SECRET as string,
+          authorizationUrl: 'https://account.docusign.com/oauth/auth',
+          tokenUrl: 'https://account.docusign.com/oauth/token',
+          userInfoUrl: 'https://account.docusign.com/oauth/userinfo',
+          scopes: getCanonicalScopesForProvider('docusign'),
+          responseType: 'code',
+          accessType: 'offline',
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/docusign`,
+          getUserInfo: async (tokens) => {
+            try {
+              logger.info('Fetching DocuSign user profile')
+
+              const response = await fetch('https://account.docusign.com/oauth/userinfo', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                await response.text().catch(() => {})
+                logger.error('Failed to fetch DocuSign user info', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                throw new Error('Failed to fetch user info')
+              }
+
+              const data = await response.json()
+              const accounts = data.accounts ?? []
+              const defaultAccount =
+                accounts.find((a: { is_default: boolean }) => a.is_default) ?? accounts[0]
+              const accountName = defaultAccount?.account_name || 'DocuSign Account'
+
+              if (data.scope) {
+                tokens.scopes = data.scope.split(/\s+/).filter(Boolean)
+              }
+
+              return {
+                id: `${data.sub}-${crypto.randomUUID()}`,
+                name: data.name || accountName,
+                email: data.email || `${data.sub}@docusign.com`,
+                emailVerified: true,
+                image: undefined,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            } catch (error) {
+              logger.error('Error in DocuSign getUserInfo:', { error })
               return null
             }
           },

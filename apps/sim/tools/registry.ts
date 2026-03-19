@@ -349,6 +349,16 @@ import {
   discordUpdateRoleTool,
 } from '@/tools/discord'
 import {
+  docusignCreateFromTemplateTool,
+  docusignDownloadDocumentTool,
+  docusignGetEnvelopeTool,
+  docusignListEnvelopesTool,
+  docusignListRecipientsTool,
+  docusignListTemplatesTool,
+  docusignSendEnvelopeTool,
+  docusignVoidEnvelopeTool,
+} from '@/tools/docusign'
+import {
   dropboxCopyTool,
   dropboxCreateFolderTool,
   dropboxCreateSharedLinkTool,
@@ -3806,6 +3816,14 @@ export const tools: Record<string, ToolConfig> = {
   discord_execute_webhook: discordExecuteWebhookTool,
   discord_get_webhook: discordGetWebhookTool,
   discord_delete_webhook: discordDeleteWebhookTool,
+  docusign_create_from_template: docusignCreateFromTemplateTool,
+  docusign_download_document: docusignDownloadDocumentTool,
+  docusign_get_envelope: docusignGetEnvelopeTool,
+  docusign_list_envelopes: docusignListEnvelopesTool,
+  docusign_list_recipients: docusignListRecipientsTool,
+  docusign_list_templates: docusignListTemplatesTool,
+  docusign_send_envelope: docusignSendEnvelopeTool,
+  docusign_void_envelope: docusignVoidEnvelopeTool,
   datadog_submit_metrics: datadogSubmitMetricsTool,
   datadog_query_timeseries: datadogQueryTimeseriesTool,
   datadog_create_event: datadogCreateEventTool,

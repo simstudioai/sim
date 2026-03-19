@@ -1146,6 +1146,25 @@ export function DevinIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function DocuSignIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 1547 1549' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        d='m1113.4 1114.9v395.6c0 20.8-16.7 37.6-37.5 37.6h-1038.4c-20.7 0-37.5-16.8-37.5-37.6v-1039c0-20.7 16.8-37.5 37.5-37.5h394.3v643.4c0 20.7 16.8 37.5 37.5 37.5z'
+        fill='#4c00ff'
+      />
+      <path
+        d='m1546 557.1c0 332.4-193.9 557-432.6 557.8v-418.8c0-12-4.8-24-13.5-31.9l-217.1-217.4c-8.8-8.8-20-13.6-32-13.6h-418.2v-394.8c0-20.8 16.8-37.6 37.5-37.6h585.1c277.7-0.8 490.8 223 490.8 556.3z'
+        fill='#ff5252'
+      />
+      <path
+        d='m1099.9 663.4c8.7 8.7 13.5 19.9 13.5 31.9v418.8h-643.3c-20.7 0-37.5-16.8-37.5-37.5v-643.4h418.2c12 0 24 4.8 32 13.6z'
+        fill='#000000'
+      />
+    </svg>
+  )
+}
+
 export function DiscordIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

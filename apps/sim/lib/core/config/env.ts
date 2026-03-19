@@ -263,6 +263,8 @@ export const env = createEnv({
     NOTION_CLIENT_SECRET:                  z.string().optional(),                  // Notion OAuth client secret
     DISCORD_CLIENT_ID:                     z.string().optional(),                  // Discord OAuth client ID
     DISCORD_CLIENT_SECRET:                 z.string().optional(),                  // Discord OAuth client secret
+    DOCUSIGN_CLIENT_ID:                    z.string().optional(),                  // DocuSign OAuth client ID
+    DOCUSIGN_CLIENT_SECRET:                z.string().optional(),                  // DocuSign OAuth client secret
     MICROSOFT_CLIENT_ID:                   z.string().optional(),                  // Microsoft OAuth client ID for Office 365/Teams
     MICROSOFT_CLIENT_SECRET:               z.string().optional(),                  // Microsoft OAuth client secret
     HUBSPOT_CLIENT_ID:                     z.string().optional(),                  // HubSpot OAuth client ID

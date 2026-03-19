@@ -1,0 +1,229 @@
+---
+title: DocuSign
+description: Send documents for e-signature via DocuSign
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="docusign"
+  color="#4C00FF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[DocuSign](https://www.docusign.com) is the world's leading e-signature platform, enabling businesses to send, sign, and manage agreements digitally. With its powerful eSignature REST API, DocuSign supports the full document lifecycle from creation through completion.
+
+With the DocuSign integration in Sim, you can:
+
+- **Send envelopes**: Create and send documents for e-signature with custom recipients and signing tabs
+- **Use templates**: Send envelopes from pre-configured DocuSign templates with role assignments
+- **Track status**: Get envelope details including signing progress, timestamps, and recipient status
+- **List envelopes**: Search and filter envelopes by date range, status, and text
+- **Download documents**: Retrieve signed documents as base64-encoded files
+- **Manage recipients**: View signer and CC recipient details and signing status
+- **Void envelopes**: Cancel in-progress envelopes with a reason
+
+In Sim, the DocuSign integration enables your agents to automate document workflows end-to-end. Agents can generate agreements, send them for signature, monitor completion, and retrieve signed copies—powering contract management, HR onboarding, sales closings, and compliance processes.
+{/* MANUAL-CONTENT-END */}
+
+## Usage Instructions
+
+Create and send envelopes for e-signature, use templates, check signing status, download signed documents, and manage recipients with DocuSign.
+
+
+
+## Tools
+
+### `docusign_send_envelope`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `envelopeId` | string | Envelope ID |
+| `status` | string | Envelope or operation status |
+| `envelopes` | json | Array of envelopes |
+| `templates` | json | Array of templates |
+| `signers` | json | Array of signer recipients |
+| `carbonCopies` | json | Array of CC recipients |
+| `base64Content` | string | Base64-encoded document content |
+| `mimeType` | string | Document MIME type |
+| `fileName` | string | Document file name |
+| `emailSubject` | string | Envelope email subject |
+| `totalSetSize` | number | Total matching results |
+| `resultSetSize` | number | Results returned |
+
+### `docusign_create_from_template`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `envelopeId` | string | Envelope ID |
+| `status` | string | Envelope or operation status |
+| `envelopes` | json | Array of envelopes |
+| `templates` | json | Array of templates |
+| `signers` | json | Array of signer recipients |
+| `carbonCopies` | json | Array of CC recipients |
+| `base64Content` | string | Base64-encoded document content |
+| `mimeType` | string | Document MIME type |
+| `fileName` | string | Document file name |
+| `emailSubject` | string | Envelope email subject |
+| `totalSetSize` | number | Total matching results |
+| `resultSetSize` | number | Results returned |
+
+### `docusign_get_envelope`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `envelopeId` | string | Envelope ID |
+| `status` | string | Envelope or operation status |
+| `envelopes` | json | Array of envelopes |
+| `templates` | json | Array of templates |
+| `signers` | json | Array of signer recipients |
+| `carbonCopies` | json | Array of CC recipients |
+| `base64Content` | string | Base64-encoded document content |
+| `mimeType` | string | Document MIME type |
+| `fileName` | string | Document file name |
+| `emailSubject` | string | Envelope email subject |
+| `totalSetSize` | number | Total matching results |
+| `resultSetSize` | number | Results returned |
+
+### `docusign_list_envelopes`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `envelopeId` | string | Envelope ID |
+| `status` | string | Envelope or operation status |
+| `envelopes` | json | Array of envelopes |
+| `templates` | json | Array of templates |
+| `signers` | json | Array of signer recipients |
+| `carbonCopies` | json | Array of CC recipients |
+| `base64Content` | string | Base64-encoded document content |
+| `mimeType` | string | Document MIME type |
+| `fileName` | string | Document file name |
+| `emailSubject` | string | Envelope email subject |
+| `totalSetSize` | number | Total matching results |
+| `resultSetSize` | number | Results returned |
+
+### `docusign_void_envelope`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `envelopeId` | string | Envelope ID |
+| `status` | string | Envelope or operation status |
+| `envelopes` | json | Array of envelopes |
+| `templates` | json | Array of templates |
+| `signers` | json | Array of signer recipients |
+| `carbonCopies` | json | Array of CC recipients |
+| `base64Content` | string | Base64-encoded document content |
+| `mimeType` | string | Document MIME type |
+| `fileName` | string | Document file name |
+| `emailSubject` | string | Envelope email subject |
+| `totalSetSize` | number | Total matching results |
+| `resultSetSize` | number | Results returned |
+
+### `docusign_download_document`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `envelopeId` | string | Envelope ID |
+| `status` | string | Envelope or operation status |
+| `envelopes` | json | Array of envelopes |
+| `templates` | json | Array of templates |
+| `signers` | json | Array of signer recipients |
+| `carbonCopies` | json | Array of CC recipients |
+| `base64Content` | string | Base64-encoded document content |
+| `mimeType` | string | Document MIME type |
+| `fileName` | string | Document file name |
+| `emailSubject` | string | Envelope email subject |
+| `totalSetSize` | number | Total matching results |
+| `resultSetSize` | number | Results returned |
+
+### `docusign_list_templates`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `envelopeId` | string | Envelope ID |
+| `status` | string | Envelope or operation status |
+| `envelopes` | json | Array of envelopes |
+| `templates` | json | Array of templates |
+| `signers` | json | Array of signer recipients |
+| `carbonCopies` | json | Array of CC recipients |
+| `base64Content` | string | Base64-encoded document content |
+| `mimeType` | string | Document MIME type |
+| `fileName` | string | Document file name |
+| `emailSubject` | string | Envelope email subject |
+| `totalSetSize` | number | Total matching results |
+| `resultSetSize` | number | Results returned |
+
+### `docusign_list_recipients`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `envelopeId` | string | Envelope ID |
+| `status` | string | Envelope or operation status |
+| `envelopes` | json | Array of envelopes |
+| `templates` | json | Array of templates |
+| `signers` | json | Array of signer recipients |
+| `carbonCopies` | json | Array of CC recipients |
+| `base64Content` | string | Base64-encoded document content |
+| `mimeType` | string | Document MIME type |
+| `fileName` | string | Document file name |
+| `emailSubject` | string | Envelope email subject |
+| `totalSetSize` | number | Total matching results |
+| `resultSetSize` | number | Results returned |
+
+
