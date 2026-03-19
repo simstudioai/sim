@@ -57,6 +57,15 @@ export class ParallelOrchestrator {
       throw new Error(`Parallel config not found: ${parallelId}`)
     }
 
+    if (terminalNodesCount === 0 || parallelConfig.nodes.length === 0) {
+      const errorMessage =
+        'Parallel has no executable blocks inside. Add or enable at least one block in the parallel.'
+      logger.error(errorMessage, { parallelId })
+      await this.addParallelErrorLog(ctx, parallelId, errorMessage, {})
+      this.setErrorScope(ctx, parallelId, errorMessage)
+      throw new Error(errorMessage)
+    }
+
     let items: any[] | undefined
     let branchCount: number
     let isEmpty = false
@@ -67,7 +76,10 @@ export class ParallelOrchestrator {
       items = resolved.items
       isEmpty = resolved.isEmpty ?? false
     } catch (error) {
-      const errorMessage = `Parallel Items did not resolve: ${error instanceof Error ? error.message : String(error)}`
+      const baseErrorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = baseErrorMessage.startsWith('Parallel collection distribution is empty')
+        ? baseErrorMessage
+        : `Parallel Items did not resolve: ${baseErrorMessage}`
       logger.error(errorMessage, { parallelId, distribution: parallelConfig.distribution })
       await this.addParallelErrorLog(ctx, parallelId, errorMessage, {
         distribution: parallelConfig.distribution,
@@ -258,7 +270,9 @@ export class ParallelOrchestrator {
       config.distribution === null ||
       config.distribution === ''
     ) {
-      return []
+      throw new Error(
+        'Parallel collection distribution is empty. Provide an array or a reference that resolves to a collection.'
+      )
     }
     return resolveArrayInput(ctx, config.distribution, this.resolver)
   }

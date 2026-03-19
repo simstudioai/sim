@@ -56,6 +56,29 @@ export class LoopOrchestrator {
     if (!loopConfig) {
       throw new Error(`Loop config not found: ${loopId}`)
     }
+
+    if (loopConfig.nodes.length === 0) {
+      const errorMessage =
+        'Loop has no executable blocks inside. Add or enable at least one block in the loop.'
+      const loopType = loopConfig.loopType || 'for'
+      logger.error(errorMessage, { loopId })
+      await this.addLoopErrorLog(ctx, loopId, loopType, errorMessage, {})
+      const errorScope: LoopScope = {
+        iteration: 0,
+        maxIterations: 0,
+        loopType,
+        currentIterationOutputs: new Map(),
+        allIterationOutputs: [],
+        condition: 'false',
+        validationError: errorMessage,
+      }
+      if (!ctx.loopExecutions) {
+        ctx.loopExecutions = new Map()
+      }
+      ctx.loopExecutions.set(loopId, errorScope)
+      throw new Error(errorMessage)
+    }
+
     const scope: LoopScope = {
       iteration: 0,
       currentIterationOutputs: new Map(),
@@ -93,6 +116,24 @@ export class LoopOrchestrator {
 
       case 'forEach': {
         scope.loopType = 'forEach'
+        if (
+          loopConfig.forEachItems === undefined ||
+          loopConfig.forEachItems === null ||
+          loopConfig.forEachItems === ''
+        ) {
+          const errorMessage =
+            'ForEach loop collection is empty. Provide an array or a reference that resolves to a collection.'
+          logger.error(errorMessage, { loopId })
+          await this.addLoopErrorLog(ctx, loopId, loopType, errorMessage, {
+            forEachItems: loopConfig.forEachItems,
+          })
+          scope.items = []
+          scope.maxIterations = 0
+          scope.validationError = errorMessage
+          scope.condition = buildLoopIndexCondition(0)
+          ctx.loopExecutions?.set(loopId, scope)
+          throw new Error(errorMessage)
+        }
         let items: any[]
         try {
           items = resolveArrayInput(ctx, loopConfig.forEachItems, this.resolver)
