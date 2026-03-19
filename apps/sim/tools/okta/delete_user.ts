@@ -1,10 +1,6 @@
 import { createLogger } from '@sim/logger'
-import {
-  type OktaApiError,
-  type OktaDeleteUserParams,
-  type OktaDeleteUserResponse,
-  validateOktaDomain,
-} from '@/tools/okta/types'
+import { validateOktaDomain } from '@/lib/core/security/input-validation'
+import type { OktaApiError, OktaDeleteUserParams, OktaDeleteUserResponse } from '@/tools/okta/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaDeleteUser')

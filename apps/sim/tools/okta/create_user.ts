@@ -1,10 +1,10 @@
 import { createLogger } from '@sim/logger'
-import {
-  type OktaApiError,
-  type OktaCreateUserParams,
-  type OktaCreateUserResponse,
-  type OktaUser,
-  validateOktaDomain,
+import { validateOktaDomain } from '@/lib/core/security/input-validation'
+import type {
+  OktaApiError,
+  OktaCreateUserParams,
+  OktaCreateUserResponse,
+  OktaUser,
 } from '@/tools/okta/types'
 import type { ToolConfig } from '@/tools/types'
 

@@ -1,22 +1,5 @@
 import type { ToolResponse } from '@/tools/types'
 
-const OKTA_DOMAIN_PATTERN =
-  /^[a-zA-Z0-9][a-zA-Z0-9-]*\.(okta|okta-gov|okta-emea|oktapreview|trexcloud)\.com$/
-
-/**
- * Validates and sanitizes an Okta domain to prevent SSRF.
- * Ensures the domain matches a known Okta domain suffix.
- */
-export function validateOktaDomain(rawDomain: string): string {
-  const domain = rawDomain.replace(/^https?:\/\//, '').replace(/\/$/, '')
-  if (!OKTA_DOMAIN_PATTERN.test(domain)) {
-    throw new Error(
-      `Invalid Okta domain: "${domain}". Must be a valid Okta domain (e.g., dev-123456.okta.com)`
-    )
-  }
-  return domain
-}
-
 /**
  * Okta API error response
  */

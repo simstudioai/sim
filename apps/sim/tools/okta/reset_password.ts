@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
-import {
-  type OktaApiError,
-  type OktaResetPasswordParams,
-  type OktaResetPasswordResponse,
-  validateOktaDomain,
+import { validateOktaDomain } from '@/lib/core/security/input-validation'
+import type {
+  OktaApiError,
+  OktaResetPasswordParams,
+  OktaResetPasswordResponse,
 } from '@/tools/okta/types'
 import type { ToolConfig } from '@/tools/types'
 
