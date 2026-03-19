@@ -506,7 +506,7 @@ export function TableOfContents({ headings }: TableOfContentsProps) {
     <TocContext.Provider value={tocCtx}>
       <nav
         ref={navRef}
-        className='flex w-[250px] flex-col'
+        className='group/toc flex w-[250px] flex-col'
         aria-label='On this page'
         onPointerMove={onPointerMove}
         onPointerLeave={onPointerLeave}
@@ -548,7 +548,7 @@ function TocOverline() {
           className='h-px w-8 rounded-full bg-[#484848] transition-colors duration-150 ease-out group-hover:bg-[#5D5D5D]'
         />
       </div>
-      <span className='font-medium font-season text-[#FFFFFF] text-[10px] uppercase leading-none tracking-[0.28em] transition-colors duration-150 ease-out group-hover:text-[#A1A1A1]'>
+      <span className='font-medium font-season text-[#FFFFFF] text-[10px] uppercase leading-none tracking-[0.28em] opacity-0 transition-[color,opacity] duration-150 ease-out group-hover:text-[#A1A1A1] group-hover/toc:opacity-100'>
         On this page
       </span>
     </button>
@@ -732,7 +732,7 @@ function NavLabel({
   return (
     <p
       className={clsx(
-        'max-w-[184px] truncate font-medium font-season text-[13px] transition-[color,filter,opacity] duration-150 ease-out',
+        'max-w-[184px] truncate font-medium font-season text-[13px] opacity-0 transition-[color,filter,opacity] duration-150 ease-out group-hover/toc:opacity-100',
         active ? 'text-[#ECECEC]' : 'text-[#777] group-hover/item:text-[#ECECEC]',
         !active && !hovered && 'nav-label-softenable'
       )}

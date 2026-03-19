@@ -2,26 +2,29 @@
   border-bottom: 1px solid #2a2a2a;
   padding-bottom: 1.5rem;
   font-weight: 500;
-  font-size: 30px;
+  font-size: 32px;
+  line-height: 1.15;
   color: #ececec;
   margin-top: 1.5rem !important;
   margin-bottom: 1.5rem;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.02em;
 }
 
 .prose-studio h3 {
   font-weight: 500;
-  font-size: 24px;
+  font-size: 22px;
+  line-height: 1.2;
   color: #ececec;
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.01em;
 }
 
 .prose-studio p {
   margin-bottom: 1.5rem;
-  line-height: 1.8;
-  font-size: 1.05rem;
+  line-height: 1.7;
+  font-size: 15px;
+  letter-spacing: 0.02em;
   color: #cccccc;
 }
 
@@ -96,6 +99,9 @@
 .prose-studio li {
   color: #cccccc;
   margin-bottom: 0.5rem;
+  font-size: 15px;
+  line-height: 1.7;
+  letter-spacing: 0.02em;
 }
 
 .prose-studio li::marker {

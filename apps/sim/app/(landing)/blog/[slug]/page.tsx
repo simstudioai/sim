@@ -54,8 +54,9 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
       />
 
-      <div className='mx-auto flex w-full max-w-[1500px] flex-col items-start gap-8 px-4 pt-10 pb-24 sm:px-6 sm:pt-12 lg:px-8 lg:pt-16 xl:flex-row xl:gap-12'>
-        <div data-blog-main-content className='w-full min-w-0 max-w-5xl flex-1 lg:px-4'>
+      <div className='mx-auto flex w-full max-w-[1700px] xl:max-w-[1950px] flex-col items-start gap-8 px-4 pt-10 pb-24 sm:px-6 sm:pt-12 lg:px-16 lg:pt-16 xl:grid xl:grid-cols-[9rem_minmax(0,1fr)_14rem] xl:items-start xl:gap-8'>
+        <div className='hidden xl:block' />
+        <div data-blog-main-content className='w-full min-w-0 max-w-5xl xl:col-start-2 xl:mx-auto'>
           <Link
             href='/blog'
             className='group mb-8 inline-flex items-center gap-2 border border-[#2A2A2A] bg-[#232323] px-4 py-2 font-season text-[#999] text-[11px] uppercase tracking-widest transition-colors hover:text-[#ECECEC]'
@@ -131,7 +132,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             <meta itemProp='dateModified' content={post.updated ?? post.date} />
           </header>
           <div itemProp='articleBody'>
-            <div className='prose-studio prose prose-lg prose-invert max-w-none'>
+            <div className='prose-studio prose prose-invert max-w-none'>
               <Article />
               {post.faq && post.faq.length > 0 ? <FAQ items={post.faq} /> : null}
             </div>

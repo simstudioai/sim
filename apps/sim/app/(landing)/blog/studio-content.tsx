@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { StudioHero } from '@/app/(landing)/blog/hero'
 import { FeaturedGrid, PostGrid } from '@/app/(landing)/blog/post-grid'
-import { BlogStudioSidebar } from '@/app/(landing)/blog/studio-sidebar-client'
 import { CATEGORIES, getCategoryById, getPrimaryCategory } from '@/app/(landing)/blog/tag-colors'
 
 interface SerializedPost {
@@ -129,23 +128,16 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
   }, [syncUrl])
 
   return (
-    <div className='flex min-h-0 flex-1 flex-col overflow-x-clip px-4 sm:px-6 lg:flex-row lg:px-12'>
-      <BlogStudioSidebar
-        posts={posts}
-        activeTag={activeTag}
-        query={query}
-        onChangeQuery={handleSearch}
-        onSelectTag={handleCategorySelect}
-      />
+    <div className='flex min-h-0 flex-1 flex-col overflow-x-clip px-4 sm:px-6 lg:px-12'>
 
       <main className='relative min-w-0 flex-1'>
         <div className='flex flex-col'>
           {showHero && (
-            <div className='-mr-4 sm:-mr-6 lg:-mr-12'>
+            <div className='-mx-4 sm:-mx-6 lg:-mx-12'>
               <StudioHero />
             </div>
           )}
-          <div className='mx-auto w-full max-w-5xl py-12 lg:mr-8'>
+          <div className='mx-auto w-full max-w-5xl py-12'>
             {lowerQ && (
               <div className='mb-8 flex items-center gap-3'>
                 <span className='font-season text-[#666] text-[10px] uppercase tracking-widest'>
