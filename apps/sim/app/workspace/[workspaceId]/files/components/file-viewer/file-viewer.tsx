@@ -77,6 +77,7 @@ interface FileViewerProps {
   onDirtyChange?: (isDirty: boolean) => void
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+  streamingContent?: string
 }
 
 export function FileViewer({
@@ -89,6 +90,7 @@ export function FileViewer({
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
+  streamingContent,
 }: FileViewerProps) {
   const category = resolveFileCategory(file.type, file.name)
 
@@ -97,12 +99,13 @@ export function FileViewer({
       <TextEditor
         file={file}
         workspaceId={workspaceId}
-        canEdit={canEdit}
+        canEdit={streamingContent !== undefined ? false : canEdit}
         previewMode={previewMode ?? (showPreview ? 'preview' : 'editor')}
         autoFocus={autoFocus}
         onDirtyChange={onDirtyChange}
         onSaveStatusChange={onSaveStatusChange}
         saveRef={saveRef}
+        streamingContent={streamingContent}
       />
     )
   }
@@ -123,6 +126,7 @@ interface TextEditorProps {
   onDirtyChange?: (isDirty: boolean) => void
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+  streamingContent?: string
 }
 
 function TextEditor({
@@ -134,6 +138,7 @@ function TextEditor({
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
+  streamingContent,
 }: TextEditorProps) {
   const initializedRef = useRef(false)
   const contentRef = useRef('')
@@ -157,6 +162,13 @@ function TextEditor({
   const savedContentRef = useRef('')
 
   useEffect(() => {
+    if (streamingContent !== undefined) {
+      setContent(streamingContent)
+      contentRef.current = streamingContent
+      initializedRef.current = true
+      return
+    }
+
     if (fetchedContent === undefined) return
 
     if (!initializedRef.current) {
@@ -180,7 +192,7 @@ function TextEditor({
       savedContentRef.current = fetchedContent
       contentRef.current = fetchedContent
     }
-  }, [fetchedContent, dataUpdatedAt, autoFocus])
+  }, [streamingContent, fetchedContent, dataUpdatedAt, autoFocus])
 
   const handleContentChange = useCallback((value: string) => {
     setContent(value)
@@ -252,23 +264,25 @@ function TextEditor({
     }
   }, [isResizing])
 
-  if (isLoading) {
-    return (
-      <div className='flex flex-1 flex-col gap-[8px] p-[24px]'>
-        <Skeleton className='h-[16px] w-[60%]' />
-        <Skeleton className='h-[16px] w-[80%]' />
-        <Skeleton className='h-[16px] w-[40%]' />
-        <Skeleton className='h-[16px] w-[70%]' />
-      </div>
-    )
-  }
+  if (streamingContent === undefined) {
+    if (isLoading) {
+      return (
+        <div className='flex flex-1 flex-col gap-[8px] p-[24px]'>
+          <Skeleton className='h-[16px] w-[60%]' />
+          <Skeleton className='h-[16px] w-[80%]' />
+          <Skeleton className='h-[16px] w-[40%]' />
+          <Skeleton className='h-[16px] w-[70%]' />
+        </div>
+      )
+    }
 
-  if (error) {
-    return (
-      <div className='flex flex-1 items-center justify-center'>
-        <p className='text-[13px] text-[var(--text-muted)]'>Failed to load file content</p>
-      </div>
-    )
+    if (error) {
+      return (
+        <div className='flex flex-1 items-center justify-center'>
+          <p className='text-[13px] text-[var(--text-muted)]'>Failed to load file content</p>
+        </div>
+      )
+    }
   }
 
   const showEditor = previewMode !== 'preview'

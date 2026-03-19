@@ -175,6 +175,7 @@ export function Home({ chatId }: HomeProps = {}) {
     removeFromQueue,
     sendNow,
     editQueuedMessage,
+    streamingFile,
   } = useChat(workspaceId, chatId, { onResourceEvent: handleResourceEvent })
 
   const [editingInputValue, setEditingInputValue] = useState('')
@@ -469,6 +470,7 @@ export function Home({ chatId }: HomeProps = {}) {
         onReorderResources={reorderResources}
         onCollapse={collapseResource}
         isCollapsed={isResourceCollapsed}
+        streamingFile={streamingFile}
         className={
           isResourceAnimatingIn
             ? 'animate-slide-in-right'

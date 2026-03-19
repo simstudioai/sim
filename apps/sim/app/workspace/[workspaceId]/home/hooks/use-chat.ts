@@ -70,6 +70,7 @@ export interface UseChatReturn {
   removeFromQueue: (id: string) => void
   sendNow: (id: string) => Promise<void>
   editQueuedMessage: (id: string) => QueuedMessage | undefined
+  streamingFile: { fileName: string; content: string } | null
 }
 
 const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
@@ -289,6 +290,13 @@ export function useChat(
   resourcesRef.current = resources
   const activeResourceIdRef = useRef(activeResourceId)
   activeResourceIdRef.current = activeResourceId
+
+  const [streamingFile, setStreamingFile] = useState<{
+    fileName: string
+    content: string
+  } | null>(null)
+  const streamingFileRef = useRef(streamingFile)
+  streamingFileRef.current = streamingFile
 
   const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
   const messageQueueRef = useRef<QueuedMessage[]>([])
@@ -728,6 +736,43 @@ export function useChat(
               }
               break
             }
+            case 'tool_call_delta': {
+              const id = parsed.toolCallId
+              const delta = typeof parsed.data === 'string' ? parsed.data : ''
+              if (!id || !delta) break
+
+              if (activeSubagent === 'file_write') {
+                const prev = streamingFileRef.current
+                if (prev) {
+                  const raw = prev.content + delta
+                  let fileName = prev.fileName
+                  if (!fileName) {
+                    const m = raw.match(/"fileName"\s*:\s*"([^"]+)"/)
+                    if (m) {
+                      fileName = m[1]
+                      setResources((rs) =>
+                        rs.map((r) =>
+                          r.id === 'streaming-file'
+                            ? { ...r, title: fileName }
+                            : r
+                        )
+                      )
+                    }
+                  }
+                  const next = { fileName, content: raw }
+                  streamingFileRef.current = next
+                  setStreamingFile(next)
+                }
+              }
+
+              const idx = toolMap.get(id)
+              if (idx !== undefined && blocks[idx].toolCall) {
+                const tc = blocks[idx].toolCall!
+                tc.streamingArgs = (tc.streamingArgs ?? '') + delta
+                flush()
+              }
+              break
+            }
             case 'tool_result': {
               const id = parsed.toolCallId || getPayloadData(parsed)?.id
               if (!id) break
@@ -753,6 +798,7 @@ export function useChat(
                 } else {
                   tc.status = parsed.success ? 'success' : 'error'
                 }
+                tc.streamingArgs = undefined
                 tc.result = {
                   success: !!parsed.success,
                   output: parsed.result ?? getPayloadData(parsed)?.result,
@@ -907,11 +953,20 @@ export function useChat(
               if (name) {
                 activeSubagent = name
                 blocks.push({ type: 'subagent', content: name })
+                if (name === 'file_write') {
+                  setStreamingFile({ fileName: '', content: '' })
+                  addResource({ type: 'file', id: 'streaming-file', title: 'Writing file...' })
+                }
                 flush()
               }
               break
             }
             case 'subagent_end': {
+              if (activeSubagent === 'file_write') {
+                setStreamingFile(null)
+                streamingFileRef.current = null
+                setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
+              }
               activeSubagent = undefined
               blocks.push({ type: 'subagent_end' })
               flush()
@@ -1323,5 +1378,6 @@ export function useChat(
     removeFromQueue,
     sendNow,
     editQueuedMessage,
+    streamingFile,
   }
 }

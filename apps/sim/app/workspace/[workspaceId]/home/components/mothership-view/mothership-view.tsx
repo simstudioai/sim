@@ -29,6 +29,7 @@ interface MothershipViewProps {
   onCollapse: () => void
   isCollapsed: boolean
   className?: string
+  streamingFile?: { fileName: string; content: string } | null
 }
 
 export const MothershipView = memo(function MothershipView({
@@ -43,6 +44,7 @@ export const MothershipView = memo(function MothershipView({
   onCollapse,
   isCollapsed,
   className,
+  streamingFile,
 }: MothershipViewProps) {
   const active = resources.find((r) => r.id === activeResourceId) ?? resources[0] ?? null
 
@@ -85,6 +87,7 @@ export const MothershipView = memo(function MothershipView({
               workspaceId={workspaceId}
               resource={active}
               previewMode={isActivePreviewable ? previewMode : undefined}
+              streamingFile={active.id === 'streaming-file' ? streamingFile : undefined}
             />
           ) : (
             <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>

@@ -53,6 +53,7 @@ function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
       formatToolName(tc.name),
     status: tc.status,
     result: tc.result,
+    streamingArgs: tc.streamingArgs,
   }
 }
 

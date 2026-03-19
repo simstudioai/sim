@@ -44,6 +44,7 @@ interface ResourceContentProps {
   workspaceId: string
   resource: MothershipResource
   previewMode?: PreviewMode
+  streamingFile?: { fileName: string; content: string } | null
 }
 
 /**
@@ -51,11 +52,48 @@ interface ResourceContentProps {
  * Handles table, file, and workflow resource types with appropriate
  * embedded rendering for each.
  */
+const STREAMING_EPOCH = new Date(0)
+
 export const ResourceContent = memo(function ResourceContent({
   workspaceId,
   resource,
   previewMode,
+  streamingFile,
 }: ResourceContentProps) {
+  const streamFileName = streamingFile?.fileName || 'file.md'
+  const streamingExtractedContent = useMemo(
+    () => (streamingFile ? extractFileContent(streamingFile.content) : ''),
+    [streamingFile]
+  )
+  const syntheticFile = useMemo(
+    () => ({
+      id: 'streaming-file',
+      workspaceId,
+      name: streamFileName,
+      key: '',
+      path: '',
+      size: 0,
+      type: 'text/plain',
+      uploadedBy: '',
+      uploadedAt: STREAMING_EPOCH,
+    }),
+    [workspaceId, streamFileName]
+  )
+
+  if (streamingFile) {
+    return (
+      <div className='flex h-full flex-col overflow-hidden'>
+        <FileViewer
+          file={syntheticFile}
+          workspaceId={workspaceId}
+          canEdit={false}
+          previewMode={previewMode ?? 'preview'}
+          streamingContent={streamingExtractedContent}
+        />
+      </div>
+    )
+  }
+
   switch (resource.type) {
     case 'table':
       return <Table key={resource.id} workspaceId={workspaceId} tableId={resource.id} embedded />
@@ -375,3 +413,17 @@ function EmbeddedFile({ workspaceId, fileId, previewMode }: EmbeddedFileProps) {
     </div>
   )
 }
+
+function extractFileContent(raw: string): string {
+  const marker = '"content":'
+  const idx = raw.indexOf(marker)
+  if (idx === -1) return ''
+  let rest = raw.slice(idx + marker.length).trimStart()
+  if (rest.startsWith('"')) rest = rest.slice(1)
+  return rest
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t')
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, '\\')
+}
+

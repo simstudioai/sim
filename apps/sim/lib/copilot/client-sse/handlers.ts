@@ -790,8 +790,24 @@ export const sseHandlers: Record<string, SSEHandler> = {
       })
     }
   },
-  tool_call_delta: () => {
-    // Argument streaming delta — forwarded from Go, no client action yet
+  tool_call_delta: (data, context, get, set) => {
+    const toolCallId = data?.toolCallId
+    if (!toolCallId) return
+
+    const delta = typeof data?.data === 'string' ? data.data : ''
+    if (!delta) return
+
+    const { toolCallsById } = get()
+    const existing = toolCallsById[toolCallId]
+    if (!existing) return
+
+    const updated: CopilotToolCall = {
+      ...existing,
+      streamingArgs: (existing.streamingArgs ?? '') + delta,
+    }
+    set({ toolCallsById: { ...toolCallsById, [toolCallId]: updated } })
+    upsertToolCallBlock(context, updated)
+    updateStreamingMessage(set, context)
   },
   tool_generating: (data, context, get, set) => {
     const { toolCallId, toolName } = data
@@ -860,6 +876,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
           ...(args ? { params: args } : {}),
           ...(effectiveServerUI ? { serverUI: effectiveServerUI } : {}),
           ...(clientExecutable ? { clientExecutable: true } : {}),
+          ...(!isPartial ? { streamingArgs: undefined } : {}),
           display: resolveToolDisplay(
             toolName,
             initialState,
