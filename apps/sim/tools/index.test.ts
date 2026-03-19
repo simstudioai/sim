@@ -1830,6 +1830,186 @@ describe('Rate Limiting and Retry Logic', () => {
   })
 })
 
+describe('stripInternalFields Safety', () => {
+  let cleanupEnvVars: () => void
+
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+  })
+
+  afterEach(() => {
+    vi.resetAllMocks()
+    cleanupEnvVars()
+  })
+
+  it('should preserve string output from tools without character-indexing', async () => {
+    const stringOutput = '{"type":"button","phone":"917899658001"}'
+
+    const mockTool = {
+      id: 'test_string_output',
+      name: 'Test String Output',
+      description: 'A tool that returns a string as output',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: '/api/test/string-output',
+        method: 'POST' as const,
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: stringOutput,
+      }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_string_output = mockTool
+
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve({ success: true }),
+      })),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool('test_string_output', {}, true)
+
+    expect(result.success).toBe(true)
+    expect(result.output).toBe(stringOutput)
+    expect(typeof result.output).toBe('string')
+
+    Object.assign(tools, originalTools)
+  })
+
+  it('should preserve array output from tools', async () => {
+    const arrayOutput = [{ id: 1 }, { id: 2 }]
+
+    const mockTool = {
+      id: 'test_array_output',
+      name: 'Test Array Output',
+      description: 'A tool that returns an array as output',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: '/api/test/array-output',
+        method: 'POST' as const,
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: arrayOutput,
+      }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_array_output = mockTool
+
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve({ success: true }),
+      })),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool('test_array_output', {}, true)
+
+    expect(result.success).toBe(true)
+    expect(Array.isArray(result.output)).toBe(true)
+    expect(result.output).toEqual(arrayOutput)
+
+    Object.assign(tools, originalTools)
+  })
+
+  it('should still strip __-prefixed fields from object output', async () => {
+    const mockTool = {
+      id: 'test_strip_internal',
+      name: 'Test Strip Internal',
+      description: 'A tool with __internal fields in output',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: '/api/test/strip-internal',
+        method: 'POST' as const,
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'ok', __costDollars: 0.05, _id: 'keep-this' },
+      }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_strip_internal = mockTool
+
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve({ success: true }),
+      })),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool('test_strip_internal', {}, true)
+
+    expect(result.success).toBe(true)
+    expect(result.output.result).toBe('ok')
+    expect(result.output.__costDollars).toBeUndefined()
+    expect(result.output._id).toBe('keep-this')
+
+    Object.assign(tools, originalTools)
+  })
+
+  it('should preserve __-prefixed fields in custom tool output', async () => {
+    const mockTool = {
+      id: 'custom_test-preserve-dunder',
+      name: 'Custom Preserve Dunder',
+      description: 'A custom tool whose output has __ fields',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: '/api/function/execute',
+        method: 'POST' as const,
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'ok', __metadata: { source: 'user' }, __tag: 'important' },
+      }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any)['custom_test-preserve-dunder'] = mockTool
+
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve({ success: true }),
+      })),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool('custom_test-preserve-dunder', {}, true)
+
+    expect(result.success).toBe(true)
+    expect(result.output.result).toBe('ok')
+    expect(result.output.__metadata).toEqual({ source: 'user' })
+    expect(result.output.__tag).toBe('important')
+
+    Object.assign(tools, originalTools)
+  })
+})
+
 describe('Cost Field Handling', () => {
   let cleanupEnvVars: () => void
 
