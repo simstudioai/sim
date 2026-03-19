@@ -1,1 +1,4 @@
-export { MessageContent } from './message-content'
+export {
+  MessageContent,
+  assistantMessageHasRenderableContent,
+} from './message-content'

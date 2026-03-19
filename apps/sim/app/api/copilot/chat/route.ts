@@ -183,36 +183,6 @@ export async function POST(req: NextRequest) {
       })
     } catch {}
 
-    let agentContexts: Array<{ type: string; content: string }> = []
-    if (Array.isArray(normalizedContexts) && normalizedContexts.length > 0) {
-      try {
-        const { processContextsServer } = await import('@/lib/copilot/process-contents')
-        const processed = await processContextsServer(
-          normalizedContexts as any,
-          authenticatedUserId,
-          message,
-          resolvedWorkspaceId
-        )
-        agentContexts = processed
-        logger.info(`[${tracker.requestId}] Contexts processed for request`, {
-          processedCount: agentContexts.length,
-          kinds: agentContexts.map((c) => c.type),
-          lengthPreview: agentContexts.map((c) => c.content?.length ?? 0),
-        })
-        if (
-          Array.isArray(normalizedContexts) &&
-          normalizedContexts.length > 0 &&
-          agentContexts.length === 0
-        ) {
-          logger.warn(
-            `[${tracker.requestId}] Contexts provided but none processed. Check executionId for logs contexts.`
-          )
-        }
-      } catch (e) {
-        logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
-      }
-    }
-
     let currentChat: any = null
     let conversationHistory: any[] = []
     let actualChatId = chatId
@@ -233,6 +203,37 @@ export async function POST(req: NextRequest) {
 
       if (chatId && !currentChat) {
         return createBadRequestResponse('Chat not found')
+      }
+    }
+
+    let agentContexts: Array<{ type: string; content: string }> = []
+    if (Array.isArray(normalizedContexts) && normalizedContexts.length > 0) {
+      try {
+        const { processContextsServer } = await import('@/lib/copilot/process-contents')
+        const processed = await processContextsServer(
+          normalizedContexts as any,
+          authenticatedUserId,
+          message,
+          resolvedWorkspaceId,
+          actualChatId
+        )
+        agentContexts = processed
+        logger.info(`[${tracker.requestId}] Contexts processed for request`, {
+          processedCount: agentContexts.length,
+          kinds: agentContexts.map((c) => c.type),
+          lengthPreview: agentContexts.map((c) => c.content?.length ?? 0),
+        })
+        if (
+          Array.isArray(normalizedContexts) &&
+          normalizedContexts.length > 0 &&
+          agentContexts.length === 0
+        ) {
+          logger.warn(
+            `[${tracker.requestId}] Contexts provided but none processed. Check executionId for logs contexts.`
+          )
+        }
+      } catch (e) {
+        logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
       }
     }
 

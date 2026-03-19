@@ -116,48 +116,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 403 })
     }
 
-    let agentContexts: Array<{ type: string; content: string }> = []
-    if (Array.isArray(contexts) && contexts.length > 0) {
-      try {
-        agentContexts = await processContextsServer(
-          contexts as any,
-          authenticatedUserId,
-          message,
-          workspaceId
-        )
-      } catch (e) {
-        logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
-      }
-    }
-
-    if (Array.isArray(resourceAttachments) && resourceAttachments.length > 0) {
-      const results = await Promise.allSettled(
-        resourceAttachments.map(async (r) => {
-          const ctx = await resolveActiveResourceContext(
-            r.type,
-            r.id,
-            workspaceId,
-            authenticatedUserId
-          )
-          if (!ctx) return null
-          return {
-            ...ctx,
-            tag: r.active ? '@active_tab' : '@open_tab',
-          }
-        })
-      )
-      for (const result of results) {
-        if (result.status === 'fulfilled' && result.value) {
-          agentContexts.push(result.value)
-        } else if (result.status === 'rejected') {
-          logger.error(
-            `[${tracker.requestId}] Failed to resolve resource attachment`,
-            result.reason
-          )
-        }
-      }
-    }
-
     let currentChat: any = null
     let conversationHistory: any[] = []
     let actualChatId = chatId
@@ -178,6 +136,50 @@ export async function POST(req: NextRequest) {
 
       if (chatId && !currentChat) {
         return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
+      }
+    }
+
+    let agentContexts: Array<{ type: string; content: string }> = []
+    if (Array.isArray(contexts) && contexts.length > 0) {
+      try {
+        agentContexts = await processContextsServer(
+          contexts as any,
+          authenticatedUserId,
+          message,
+          workspaceId,
+          actualChatId
+        )
+      } catch (e) {
+        logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
+      }
+    }
+
+    if (Array.isArray(resourceAttachments) && resourceAttachments.length > 0) {
+      const results = await Promise.allSettled(
+        resourceAttachments.map(async (r) => {
+          const ctx = await resolveActiveResourceContext(
+            r.type,
+            r.id,
+            workspaceId,
+            authenticatedUserId,
+            actualChatId
+          )
+          if (!ctx) return null
+          return {
+            ...ctx,
+            tag: r.active ? '@active_tab' : '@open_tab',
+          }
+        })
+      )
+      for (const result of results) {
+        if (result.status === 'fulfilled' && result.value) {
+          agentContexts.push(result.value)
+        } else if (result.status === 'rejected') {
+          logger.error(
+            `[${tracker.requestId}] Failed to resolve resource attachment`,
+            result.reason
+          )
+        }
       }
     }
 

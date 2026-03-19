@@ -1573,6 +1573,30 @@ export const copilotChats = pgTable(
   })
 )
 
+export const copilotWorkflowReadHashes = pgTable(
+  'copilot_workflow_read_hashes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    chatId: uuid('chat_id')
+      .notNull()
+      .references(() => copilotChats.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    hash: text('hash').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    chatIdIdx: index('copilot_workflow_read_hashes_chat_id_idx').on(table.chatId),
+    workflowIdIdx: index('copilot_workflow_read_hashes_workflow_id_idx').on(table.workflowId),
+    chatWorkflowUnique: uniqueIndex('copilot_workflow_read_hashes_chat_workflow_unique').on(
+      table.chatId,
+      table.workflowId
+    ),
+  })
+)
+
 export const workflowCheckpoints = pgTable(
   'workflow_checkpoints',
   {

@@ -1181,6 +1181,7 @@ async function executeServerToolDirect(
       userId: context.userId,
       workspaceId: context.workspaceId,
       userPermission: context.userPermission,
+      chatId: context.chatId,
     })
     return { success: true, output: result }
   } catch (error) {
@@ -1287,7 +1288,8 @@ export async function markToolComplete(
  */
 export async function prepareExecutionContext(
   userId: string,
-  workflowId: string
+  workflowId: string,
+  chatId?: string
 ): Promise<ExecutionContext> {
   const wf = await getWorkflowById(workflowId)
   const workspaceId = wf?.workspaceId ?? undefined
@@ -1298,6 +1300,7 @@ export async function prepareExecutionContext(
     userId,
     workflowId,
     workspaceId,
+    chatId,
     decryptedEnvVars,
   }
 }

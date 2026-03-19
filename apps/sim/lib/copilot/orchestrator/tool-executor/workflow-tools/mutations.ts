@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { upsertWorkflowReadHashForWorkflowState } from '@/lib/copilot/workflow-read-hashes'
 import { createWorkspaceApiKey } from '@/lib/api-key/auth'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -8,6 +9,7 @@ import {
   getExecutionState,
   getLatestExecutionState,
 } from '@/lib/workflows/executor/execution-state'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
   createFolderRecord,
   createWorkflowRecord,
@@ -122,12 +124,33 @@ export async function executeCreateWorkflow(
 
     return {
       success: true,
-      output: {
-        workflowId: result.workflowId,
-        workflowName: result.name,
-        workspaceId: result.workspaceId,
-        folderId: result.folderId,
-      },
+      output: await (async () => {
+        let workflowReadHash: string | undefined
+        if (context.chatId) {
+          const normalized = await loadWorkflowFromNormalizedTables(result.workflowId)
+          if (normalized) {
+            const seeded = await upsertWorkflowReadHashForWorkflowState(
+              context.chatId,
+              result.workflowId,
+              {
+                blocks: normalized.blocks || {},
+                edges: normalized.edges || [],
+                loops: normalized.loops || {},
+                parallels: normalized.parallels || {},
+              }
+            )
+            workflowReadHash = seeded.hash
+          }
+        }
+
+        return {
+          workflowId: result.workflowId,
+          workflowName: result.name,
+          workspaceId: result.workspaceId,
+          folderId: result.folderId,
+          ...(workflowReadHash ? { workflowReadHash } : {}),
+        }
+      })(),
     }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }

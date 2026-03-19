@@ -630,7 +630,11 @@ async function handleDirectToolCall(
   userId: string
 ): Promise<CallToolResult> {
   try {
-    const execContext = await prepareExecutionContext(userId, (args.workflowId as string) || '')
+    const execContext = await prepareExecutionContext(
+      userId,
+      (args.workflowId as string) || '',
+      (args.chatId as string) || undefined
+    )
 
     const toolCall = {
       id: randomUUID(),

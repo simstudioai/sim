@@ -17,6 +17,7 @@ import { MessageActions } from '@/app/workspace/[workspaceId]/components'
 import { useChatHistory, useMarkTaskRead } from '@/hooks/queries/tasks'
 import type { ChatContext } from '@/stores/panel'
 import {
+  assistantMessageHasRenderableContent,
   MessageContent,
   MothershipView,
   QueuedMessages,
@@ -407,15 +408,21 @@ export function Home({ chatId }: HomeProps = {}) {
                 )
               }
 
-              const hasBlocks = msg.contentBlocks && msg.contentBlocks.length > 0
+              const hasAnyBlocks = Boolean(msg.contentBlocks?.length)
+              const hasRenderableAssistant = assistantMessageHasRenderableContent(
+                msg.contentBlocks ?? [],
+                msg.content ?? ''
+              )
               const isLastAssistant = msg.role === 'assistant' && index === messages.length - 1
               const isThisStreaming = isSending && isLastAssistant
 
-              if (!hasBlocks && !msg.content && isThisStreaming) {
+              if (!hasAnyBlocks && !msg.content?.trim() && isThisStreaming) {
                 return <PendingTagIndicator key={msg.id} />
               }
 
-              if (!hasBlocks && !msg.content) return null
+              if (!hasRenderableAssistant && !msg.content?.trim() && !isThisStreaming) {
+                return null
+              }
 
               const isLastMessage = index === messages.length - 1
 

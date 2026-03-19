@@ -32,7 +32,7 @@ export async function orchestrateCopilotStream(
 
   let execContext: ExecutionContext
   if (workflowId) {
-    execContext = await prepareExecutionContext(userId, workflowId)
+    execContext = await prepareExecutionContext(userId, workflowId, chatId)
   } else {
     const decryptedEnvVars = await getEffectiveDecryptedEnv(userId, workspaceId)
     execContext = {

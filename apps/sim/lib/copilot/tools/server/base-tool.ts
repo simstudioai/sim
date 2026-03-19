@@ -4,6 +4,7 @@ export interface ServerToolContext {
   userId: string
   workspaceId?: string
   userPermission?: string
+  chatId?: string
 }
 
 /**
