@@ -433,6 +433,25 @@ export async function executeToolAndReport(
   if (toolCall.status === 'executing') return
   if (wasToolResultSeen(toolCall.id)) return
 
+  if (options?.abortSignal?.aborted || context.wasAborted) {
+    toolCall.status = 'cancelled'
+    toolCall.endTime = Date.now()
+    markToolResultSeen(toolCall.id)
+    markToolComplete(
+      toolCall.id,
+      toolCall.name,
+      499,
+      'Request aborted before tool execution',
+      { cancelled: true }
+    ).catch((err) => {
+      logger.error('markToolComplete failed (aborted before execute)', {
+        toolCallId: toolCall.id,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    })
+    return
+  }
+
   toolCall.status = 'executing'
 
   logger.info('Tool execution started', {

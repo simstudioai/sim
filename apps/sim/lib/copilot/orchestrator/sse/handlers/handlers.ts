@@ -23,6 +23,33 @@ import { executeToolAndReport, waitForToolCompletion, waitForToolDecision } from
 const logger = createLogger('CopilotSseHandlers')
 
 /**
+ * When the Sim→Go stream is aborted, avoid starting server-side tool work and
+ * unblock the Go async waiter with a terminal 499 completion.
+ */
+function abortPendingToolIfStreamDead(
+  toolCall: ToolCallState,
+  toolCallId: string,
+  options: OrchestratorOptions,
+  context: StreamingContext
+): boolean {
+  if (!options.abortSignal?.aborted && !context.wasAborted) {
+    return false
+  }
+  toolCall.status = 'cancelled'
+  toolCall.endTime = Date.now()
+  markToolResultSeen(toolCallId)
+  markToolComplete(toolCall.id, toolCall.name, 499, 'Request aborted before tool execution', {
+    cancelled: true,
+  }).catch((err) => {
+    logger.error('markToolComplete fire-and-forget failed (stream aborted)', {
+      toolCallId: toolCall.id,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  })
+  return true
+}
+
+/**
  * Extract the `ui` object from a Go SSE event. The Go backend enriches
  * tool_call events with `ui: { requiresConfirmation, clientExecutable, ... }`.
  */
@@ -321,7 +348,9 @@ export const sseHandlers: Record<string, SSEHandler> = {
 
     if (options.interactive === false) {
       if (options.autoExecuteTools !== false) {
-        fireToolExecution()
+        if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+          fireToolExecution()
+        }
       }
       return
     }
@@ -345,7 +374,9 @@ export const sseHandlers: Record<string, SSEHandler> = {
           await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
           return
         }
-        fireToolExecution()
+        if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+          fireToolExecution()
+        }
         return
       }
 
@@ -406,7 +437,9 @@ export const sseHandlers: Record<string, SSEHandler> = {
     // delegate to the client (React UI) and wait for completion.
     if (clientExecutable) {
       if (isToolAvailableOnSimSide(toolName)) {
-        fireToolExecution()
+        if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+          fireToolExecution()
+        }
       } else {
         toolCall.status = 'executing'
         const completion = await waitForToolCompletion(
@@ -421,7 +454,9 @@ export const sseHandlers: Record<string, SSEHandler> = {
     }
 
     if (options.autoExecuteTools !== false) {
-      fireToolExecution()
+      if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+        fireToolExecution()
+      }
     }
   },
   reasoning: (event, context) => {
@@ -575,7 +610,9 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
 
     if (options.interactive === false) {
       if (options.autoExecuteTools !== false) {
-        fireToolExecution()
+        if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+          fireToolExecution()
+        }
       }
       return
     }
@@ -598,7 +635,9 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
           await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
           return
         }
-        fireToolExecution()
+        if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+          fireToolExecution()
+        }
         return
       }
       if (decision?.status === 'rejected' || decision?.status === 'error') {
@@ -655,7 +694,9 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
 
     if (clientExecutable) {
       if (isToolAvailableOnSimSide(toolName)) {
-        fireToolExecution()
+        if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+          fireToolExecution()
+        }
       } else {
         toolCall.status = 'executing'
         const completion = await waitForToolCompletion(
@@ -670,7 +711,9 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     }
 
     if (options.autoExecuteTools !== false) {
-      fireToolExecution()
+      if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+        fireToolExecution()
+      }
     }
   },
   tool_result: (event, context) => {
