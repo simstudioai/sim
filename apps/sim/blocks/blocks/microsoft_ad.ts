@@ -10,7 +10,7 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
   description: 'Manage users and groups in Azure AD (Microsoft Entra ID)',
   longDescription:
     'Integrate Azure Active Directory into your workflows. List, create, update, and delete users and groups. Manage group memberships programmatically.',
-  docsLink: 'https://docs.sim.ai/tools/microsoft-ad',
+  docsLink: 'https://docs.sim.ai/tools/microsoft_ad',
   category: 'tools',
   bgColor: '#0078D4',
   icon: AzureIcon,
@@ -93,11 +93,23 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
       title: 'Account Enabled',
       type: 'dropdown',
       options: [
+        { label: 'No Change', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'update_user' },
+    },
+    {
+      id: 'accountEnabledCreate',
+      title: 'Account Enabled',
+      type: 'dropdown',
+      options: [
         { label: 'Yes', id: 'true' },
         { label: 'No', id: 'false' },
       ],
       value: () => 'true',
-      condition: { field: 'operation', value: ['create_user', 'update_user'] },
+      condition: { field: 'operation', value: 'create_user' },
     },
     // Update user optional fields
     {
@@ -308,8 +320,8 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
         if (params.top) result.top = Number(params.top)
         if (params.filter) result.filter = params.filter
         if (params.search) result.search = params.search
-        if (params.accountEnabled !== undefined)
-          result.accountEnabled = params.accountEnabled === 'true'
+        const accountEnabledVal = params.accountEnabled || params.accountEnabledCreate
+        if (accountEnabledVal) result.accountEnabled = accountEnabledVal === 'true'
         if (params.mailEnabled !== undefined) result.mailEnabled = params.mailEnabled === 'true'
         if (params.securityEnabled !== undefined)
           result.securityEnabled = params.securityEnabled === 'true'
@@ -331,6 +343,7 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
     userPrincipalName: { type: 'string' },
     password: { type: 'string' },
     accountEnabled: { type: 'string' },
+    accountEnabledCreate: { type: 'string' },
     givenName: { type: 'string' },
     surname: { type: 'string' },
     jobTitle: { type: 'string' },
