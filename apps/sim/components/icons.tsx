@@ -124,6 +124,15 @@ export function NoteIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function WorkdayIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 32 32' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <circle cx='16' cy='8' r='4' fill='#F68D2E' />
+      <ellipse cx='16' cy='22' rx='10' ry='6' fill='#0875E1' />
+    </svg>
+  )
+}
+
 export function WorkflowIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
