@@ -19,6 +19,13 @@ export const listSecretsTool: ToolConfig<InfisicalListSecretsParams, InfisicalLi
         visibility: 'user-only',
         description: 'Infisical API token',
       },
+      baseUrl: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description:
+          'Infisical instance URL (default: "https://us.infisical.com"). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL.',
+      },
       projectId: {
         type: 'string',
         required: true,
@@ -84,7 +91,8 @@ export const listSecretsTool: ToolConfig<InfisicalListSecretsParams, InfisicalLi
         if (params.includeImports != null)
           searchParams.set('includeImports', String(params.includeImports))
         if (params.tagSlugs) searchParams.set('tagSlugs', params.tagSlugs)
-        return `https://us.infisical.com/api/v4/secrets?${searchParams.toString()}`
+        const base = params.baseUrl?.replace(/\/+$/, '') ?? 'https://us.infisical.com'
+        return `${base}/api/v4/secrets?${searchParams.toString()}`
       },
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,

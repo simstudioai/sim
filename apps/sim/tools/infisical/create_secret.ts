@@ -1,10 +1,16 @@
-import type { InfisicalGetSecretParams, InfisicalGetSecretResponse } from '@/tools/infisical/types'
+import type {
+  InfisicalCreateSecretParams,
+  InfisicalCreateSecretResponse,
+} from '@/tools/infisical/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const getSecretTool: ToolConfig<InfisicalGetSecretParams, InfisicalGetSecretResponse> = {
-  id: 'infisical_get_secret',
-  name: 'Infisical Get Secret',
-  description: 'Retrieve a single secret by name from a project environment.',
+export const createSecretTool: ToolConfig<
+  InfisicalCreateSecretParams,
+  InfisicalCreateSecretResponse
+> = {
+  id: 'infisical_create_secret',
+  name: 'Infisical Create Secret',
+  description: 'Create a new secret in a project environment.',
   version: '1.0.0',
 
   params: {
@@ -13,6 +19,13 @@ export const getSecretTool: ToolConfig<InfisicalGetSecretParams, InfisicalGetSec
       required: true,
       visibility: 'user-only',
       description: 'Infisical API token',
+    },
+    baseUrl: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Infisical instance URL (default: "https://us.infisical.com"). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL.',
     },
     projectId: {
       type: 'string',
@@ -30,19 +43,25 @@ export const getSecretTool: ToolConfig<InfisicalGetSecretParams, InfisicalGetSec
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The name of the secret to retrieve',
+      description: 'The name of the secret to create',
+    },
+    secretValue: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The value of the secret',
     },
     secretPath: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'The path of the secret (default: "/")',
+      description: 'The path for the secret (default: "/")',
     },
-    version: {
-      type: 'number',
+    secretComment: {
+      type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Specific version of the secret to retrieve',
+      description: 'A comment for the secret',
     },
     type: {
       type: 'string',
@@ -50,38 +69,36 @@ export const getSecretTool: ToolConfig<InfisicalGetSecretParams, InfisicalGetSec
       visibility: 'user-or-llm',
       description: 'Secret type: "shared" or "personal" (default: "shared")',
     },
-    viewSecretValue: {
-      type: 'boolean',
+    tagIds: {
+      type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Whether to include the secret value in the response (default: true)',
-    },
-    expandSecretReferences: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Whether to expand secret references (default: true)',
+      description: 'Comma-separated tag IDs to attach to the secret',
     },
   },
 
   request: {
-    method: 'GET',
-    url: (params) => {
-      const searchParams = new URLSearchParams()
-      searchParams.set('projectId', params.projectId)
-      searchParams.set('environment', params.environment)
-      if (params.secretPath) searchParams.set('secretPath', params.secretPath)
-      if (params.version != null) searchParams.set('version', String(params.version))
-      if (params.type) searchParams.set('type', params.type)
-      if (params.viewSecretValue != null)
-        searchParams.set('viewSecretValue', String(params.viewSecretValue))
-      if (params.expandSecretReferences != null)
-        searchParams.set('expandSecretReferences', String(params.expandSecretReferences))
-      return `https://us.infisical.com/api/v4/secrets/${encodeURIComponent(params.secretName.trim())}?${searchParams.toString()}`
-    },
+    method: 'POST',
+    url: (params) =>
+      `${params.baseUrl?.replace(/\/+$/, '') ?? 'https://us.infisical.com'}/api/v4/secrets/${encodeURIComponent(params.secretName.trim())}`,
     headers: (params) => ({
+      'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
     }),
+    body: (params) => {
+      const body: Record<string, unknown> = {
+        projectId: params.projectId,
+        environment: params.environment,
+        secretValue: params.secretValue,
+      }
+      if (params.secretPath) body.secretPath = params.secretPath
+      if (params.secretComment) body.secretComment = params.secretComment
+      if (params.type) body.type = params.type
+      if (params.tagIds) {
+        body.tagIds = params.tagIds.split(',').map((id) => id.trim())
+      }
+      return body
+    },
   },
 
   transformResponse: async (response) => {
@@ -89,11 +106,11 @@ export const getSecretTool: ToolConfig<InfisicalGetSecretParams, InfisicalGetSec
     if (!response.ok) {
       return {
         success: false,
-        output: { secret: {} },
+        output: { secret: {} as InfisicalCreateSecretResponse['output']['secret'] },
         error: data.message ?? `Request failed with status ${response.status}`,
       }
     }
-    const s = data.secret ?? {}
+    const s = data.secret ?? data
     return {
       success: true,
       output: {
@@ -133,7 +150,7 @@ export const getSecretTool: ToolConfig<InfisicalGetSecretParams, InfisicalGetSec
   outputs: {
     secret: {
       type: 'object',
-      description: 'The retrieved secret',
+      description: 'The created secret',
       properties: {
         id: { type: 'string', description: 'Secret ID' },
         workspace: { type: 'string', description: 'Workspace/project ID', optional: true },

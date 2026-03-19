@@ -2,6 +2,7 @@ import type { ToolResponse } from '@/tools/types'
 
 export interface InfisicalListSecretsParams {
   apiKey: string
+  baseUrl?: string
   projectId: string
   environment: string
   secretPath?: string
@@ -14,6 +15,7 @@ export interface InfisicalListSecretsParams {
 
 export interface InfisicalGetSecretParams {
   apiKey: string
+  baseUrl?: string
   projectId: string
   environment: string
   secretName: string
@@ -26,6 +28,7 @@ export interface InfisicalGetSecretParams {
 
 export interface InfisicalCreateSecretParams {
   apiKey: string
+  baseUrl?: string
   projectId: string
   environment: string
   secretName: string
@@ -38,6 +41,7 @@ export interface InfisicalCreateSecretParams {
 
 export interface InfisicalUpdateSecretParams {
   apiKey: string
+  baseUrl?: string
   projectId: string
   environment: string
   secretName: string
@@ -51,6 +55,7 @@ export interface InfisicalUpdateSecretParams {
 
 export interface InfisicalDeleteSecretParams {
   apiKey: string
+  baseUrl?: string
   projectId: string
   environment: string
   secretName: string

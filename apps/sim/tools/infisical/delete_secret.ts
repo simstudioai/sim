@@ -1,16 +1,16 @@
 import type {
-  InfisicalUpdateSecretParams,
-  InfisicalUpdateSecretResponse,
+  InfisicalDeleteSecretParams,
+  InfisicalDeleteSecretResponse,
 } from '@/tools/infisical/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const updateSecretTool: ToolConfig<
-  InfisicalUpdateSecretParams,
-  InfisicalUpdateSecretResponse
+export const deleteSecretTool: ToolConfig<
+  InfisicalDeleteSecretParams,
+  InfisicalDeleteSecretResponse
 > = {
-  id: 'infisical_update_secret',
-  name: 'Infisical Update Secret',
-  description: 'Update an existing secret in a project environment.',
+  id: 'infisical_delete_secret',
+  name: 'Infisical Delete Secret',
+  description: 'Delete a secret from a project environment.',
   version: '1.0.0',
 
   params: {
@@ -19,6 +19,13 @@ export const updateSecretTool: ToolConfig<
       required: true,
       visibility: 'user-only',
       description: 'Infisical API token',
+    },
+    baseUrl: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Infisical instance URL (default: "https://us.infisical.com"). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL.',
     },
     projectId: {
       type: 'string',
@@ -36,13 +43,7 @@ export const updateSecretTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The name of the secret to update',
-    },
-    secretValue: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'The new value for the secret',
+      description: 'The name of the secret to delete',
     },
     secretPath: {
       type: 'string',
@@ -50,36 +51,18 @@ export const updateSecretTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'The path of the secret (default: "/")',
     },
-    secretComment: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'A comment for the secret',
-    },
-    newSecretName: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'New name for the secret (to rename it)',
-    },
     type: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Secret type: "shared" or "personal" (default: "shared")',
     },
-    tagIds: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Comma-separated tag IDs to set on the secret',
-    },
   },
 
   request: {
-    method: 'PATCH',
+    method: 'DELETE',
     url: (params) =>
-      `https://us.infisical.com/api/v4/secrets/${encodeURIComponent(params.secretName.trim())}`,
+      `${params.baseUrl?.replace(/\/+$/, '') ?? 'https://us.infisical.com'}/api/v4/secrets/${encodeURIComponent(params.secretName.trim())}`,
     headers: (params) => ({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
@@ -89,14 +72,8 @@ export const updateSecretTool: ToolConfig<
         projectId: params.projectId,
         environment: params.environment,
       }
-      if (params.secretValue != null) body.secretValue = params.secretValue
       if (params.secretPath) body.secretPath = params.secretPath
-      if (params.secretComment != null) body.secretComment = params.secretComment
-      if (params.newSecretName) body.newSecretName = params.newSecretName
       if (params.type) body.type = params.type
-      if (params.tagIds) {
-        body.tagIds = params.tagIds.split(',').map((id) => id.trim())
-      }
       return body
     },
   },
@@ -106,7 +83,7 @@ export const updateSecretTool: ToolConfig<
     if (!response.ok) {
       return {
         success: false,
-        output: { secret: {} },
+        output: { secret: {} as InfisicalDeleteSecretResponse['output']['secret'] },
         error: data.message ?? `Request failed with status ${response.status}`,
       }
     }
@@ -150,7 +127,7 @@ export const updateSecretTool: ToolConfig<
   outputs: {
     secret: {
       type: 'object',
-      description: 'The updated secret',
+      description: 'The deleted secret',
       properties: {
         id: { type: 'string', description: 'Secret ID' },
         workspace: { type: 'string', description: 'Workspace/project ID', optional: true },

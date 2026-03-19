@@ -90,6 +90,13 @@ export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
       condition: { field: 'operation', value: 'update_secret' },
     },
     {
+      id: 'baseUrl',
+      title: 'Instance URL',
+      type: 'short-input',
+      placeholder: 'https://us.infisical.com (default)',
+      mode: 'advanced',
+    },
+    {
       id: 'secretPath',
       title: 'Secret Path',
       type: 'short-input',
@@ -160,6 +167,7 @@ export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
           environment: params.environment,
         }
 
+        if (params.baseUrl) result.baseUrl = params.baseUrl
         if (params.secretPath) result.secretPath = params.secretPath
 
         switch (params.operation) {
@@ -197,6 +205,7 @@ export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'Infisical API token' },
+    baseUrl: { type: 'string', description: 'Infisical instance URL' },
     projectId: { type: 'string', description: 'Project ID' },
     environment: { type: 'string', description: 'Environment slug' },
     secretName: { type: 'string', description: 'Secret name' },
