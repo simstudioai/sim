@@ -333,8 +333,12 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
         if (params.top) result.top = Number(params.top)
         if (params.filter) result.filter = params.filter
         if (params.search) result.search = params.search
-        const accountEnabledVal = params.accountEnabled || params.accountEnabledCreate
-        if (accountEnabledVal) result.accountEnabled = accountEnabledVal === 'true'
+        if (params.operation === 'update_user') {
+          if (params.accountEnabled) result.accountEnabled = params.accountEnabled === 'true'
+        } else if (params.operation === 'create_user') {
+          if (params.accountEnabledCreate)
+            result.accountEnabled = params.accountEnabledCreate === 'true'
+        }
         if (params.mailEnabled !== undefined) result.mailEnabled = params.mailEnabled === 'true'
         if (params.securityEnabled !== undefined)
           result.securityEnabled = params.securityEnabled === 'true'
@@ -343,8 +347,11 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
         if (params.groupMailNickname) result.mailNickname = params.groupMailNickname
         if (params.groupDescription) result.description = params.groupDescription
         if (params.groupTypes !== undefined) result.groupTypes = params.groupTypes
-        const visibilityVal = params.visibility || params.visibilityCreate
-        if (visibilityVal) result.visibility = visibilityVal
+        if (params.operation === 'update_group') {
+          if (params.visibility) result.visibility = params.visibility
+        } else if (params.operation === 'create_group') {
+          if (params.visibilityCreate) result.visibility = params.visibilityCreate
+        }
         return result
       },
     },

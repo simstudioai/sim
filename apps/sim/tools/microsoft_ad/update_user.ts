@@ -92,13 +92,13 @@ export const updateUserTool: ToolConfig<
     }),
     body: (params) => {
       const body: Record<string, unknown> = {}
-      if (params.displayName !== undefined) body.displayName = params.displayName
-      if (params.givenName !== undefined) body.givenName = params.givenName
-      if (params.surname !== undefined) body.surname = params.surname
-      if (params.jobTitle !== undefined) body.jobTitle = params.jobTitle
-      if (params.department !== undefined) body.department = params.department
-      if (params.officeLocation !== undefined) body.officeLocation = params.officeLocation
-      if (params.mobilePhone !== undefined) body.mobilePhone = params.mobilePhone
+      if (params.displayName) body.displayName = params.displayName
+      if (params.givenName) body.givenName = params.givenName
+      if (params.surname) body.surname = params.surname
+      if (params.jobTitle) body.jobTitle = params.jobTitle
+      if (params.department) body.department = params.department
+      if (params.officeLocation) body.officeLocation = params.officeLocation
+      if (params.mobilePhone) body.mobilePhone = params.mobilePhone
       if (params.accountEnabled !== undefined) body.accountEnabled = params.accountEnabled
       return body
     },

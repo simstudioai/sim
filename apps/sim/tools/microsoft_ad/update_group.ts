@@ -68,10 +68,10 @@ export const updateGroupTool: ToolConfig<
     }),
     body: (params) => {
       const body: Record<string, unknown> = {}
-      if (params.displayName !== undefined) body.displayName = params.displayName
-      if (params.description !== undefined) body.description = params.description
-      if (params.mailNickname !== undefined) body.mailNickname = params.mailNickname
-      if (params.visibility !== undefined) body.visibility = params.visibility
+      if (params.displayName) body.displayName = params.displayName
+      if (params.description) body.description = params.description
+      if (params.mailNickname) body.mailNickname = params.mailNickname
+      if (params.visibility) body.visibility = params.visibility
       return body
     },
   },
