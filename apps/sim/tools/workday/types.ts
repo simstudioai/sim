@@ -106,6 +106,7 @@ export interface WorkdayUpdateWorkerResponse extends ToolResponse {
 export interface WorkdayAssignOnboardingParams extends WorkdayBaseParams {
   workerId: string
   onboardingPlanId: string
+  actionEventId: string
   stages?: string
 }
 
@@ -139,7 +140,7 @@ export interface WorkdayChangeJobParams extends WorkdayBaseParams {
   newJobProfileId?: string
   newLocationId?: string
   newManagerId?: string
-  reason?: string
+  reason: string
 }
 
 export interface WorkdayChangeJobResponse extends ToolResponse {

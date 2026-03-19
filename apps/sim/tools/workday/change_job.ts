@@ -1,9 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { WorkdayChangeJobParams, WorkdayChangeJobResponse } from '@/tools/workday/types'
-import { buildWorkdayBaseUrl, createWorkdayAuthHeader } from '@/tools/workday/utils'
-
-const logger = createLogger('WorkdayChangeJobTool')
 
 export const changeJobTool: ToolConfig<WorkdayChangeJobParams, WorkdayChangeJobResponse> = {
   id: 'workday_change_job',
@@ -75,59 +71,27 @@ export const changeJobTool: ToolConfig<WorkdayChangeJobParams, WorkdayChangeJobR
     },
     reason: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
       description: 'Reason for the job change (e.g., Promotion, Transfer, Reorganization)',
     },
   },
 
   request: {
-    url: (params) => {
-      const baseUrl = buildWorkdayBaseUrl(params.tenantUrl, params.tenant)
-      return `${baseUrl}/workers/${params.workerId}/jobChanges`
-    },
+    url: '/api/tools/workday/change-job',
     method: 'POST',
-    headers: (params) => ({
-      Authorization: createWorkdayAuthHeader(params.username, params.password),
+    headers: () => ({
       'Content-Type': 'application/json',
-      Accept: 'application/json',
     }),
-    body: (params) => {
-      const body: Record<string, unknown> = {
-        effectiveDate: params.effectiveDate,
-      }
-
-      if (params.newPositionId) body.position = { id: params.newPositionId }
-      if (params.newJobProfileId) body.jobProfile = { id: params.newJobProfileId }
-      if (params.newLocationId) body.location = { id: params.newLocationId }
-      if (params.newManagerId) body.manager = { id: params.newManagerId }
-      if (params.reason) body.reason = params.reason
-
-      return body
-    },
+    body: (params) => params,
   },
 
   transformResponse: async (response: Response) => {
-    try {
-      const data = await response.json()
-
-      if (!response.ok) {
-        const error = data.error ?? data.errors?.[0]?.error ?? data
-        throw new Error(typeof error === 'string' ? error : JSON.stringify(error))
-      }
-
-      return {
-        success: true,
-        output: {
-          eventId: data.id ?? null,
-          workerId: data.worker?.id ?? null,
-          effectiveDate: data.effectiveDate ?? null,
-        },
-      }
-    } catch (error) {
-      logger.error('Workday change job - Error processing response:', { error })
-      throw error
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error ?? 'Workday API request failed')
     }
+    return data
   },
 
   outputs: {

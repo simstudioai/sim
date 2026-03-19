@@ -1,12 +1,8 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type {
   WorkdayTerminateWorkerParams,
   WorkdayTerminateWorkerResponse,
 } from '@/tools/workday/types'
-import { buildWorkdayBaseUrl, createWorkdayAuthHeader } from '@/tools/workday/utils'
-
-const logger = createLogger('WorkdayTerminateWorkerTool')
 
 export const terminateWorkerTool: ToolConfig<
   WorkdayTerminateWorkerParams,
@@ -31,17 +27,11 @@ export const terminateWorkerTool: ToolConfig<
       visibility: 'user-only',
       description: 'Workday tenant name',
     },
-    username: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Integration System User username',
-    },
-    password: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Integration System User password',
+      visibility: 'hidden',
+      description: 'OAuth 2.0 access token for Workday REST API',
     },
     workerId: {
       type: 'string',
@@ -76,50 +66,20 @@ export const terminateWorkerTool: ToolConfig<
   },
 
   request: {
-    url: (params) => {
-      const baseUrl = buildWorkdayBaseUrl(params.tenantUrl, params.tenant)
-      return `${baseUrl}/workers/${params.workerId}/terminations`
-    },
+    url: '/api/tools/workday/terminate',
     method: 'POST',
-    headers: (params) => ({
-      Authorization: createWorkdayAuthHeader(params.username, params.password),
+    headers: () => ({
       'Content-Type': 'application/json',
-      Accept: 'application/json',
     }),
-    body: (params) => {
-      const body: Record<string, unknown> = {
-        terminationDate: params.terminationDate,
-        reason: params.reason,
-      }
-
-      if (params.notificationDate) body.notificationDate = params.notificationDate
-      if (params.lastDayOfWork) body.lastDayOfWork = params.lastDayOfWork
-
-      return body
-    },
+    body: (params) => params,
   },
 
   transformResponse: async (response: Response) => {
-    try {
-      const data = await response.json()
-
-      if (!response.ok) {
-        const error = data.error ?? data.errors?.[0]?.error ?? data
-        throw new Error(typeof error === 'string' ? error : JSON.stringify(error))
-      }
-
-      return {
-        success: true,
-        output: {
-          eventId: data.id ?? null,
-          workerId: data.worker?.id ?? null,
-          terminationDate: data.terminationDate ?? null,
-        },
-      }
-    } catch (error) {
-      logger.error('Workday terminate worker - Error processing response:', { error })
-      throw error
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error ?? 'Workday API request failed')
     }
+    return data
   },
 
   outputs: {

@@ -10,12 +10,31 @@ export function createWorkdayAuthHeader(username: string, password: string): str
 }
 
 /**
- * Builds a Workday REST API base URL from tenant URL and tenant name.
- * @param tenantUrl The Workday instance URL (e.g., https://wd5-impl-services1.workday.com)
+ * Builds a Workday REST API base URL.
+ * REST pattern: {tenantUrl}/api/v1/{tenant}
+ * @param tenantUrl The Workday instance URL (e.g., https://wd2-impl-services1.workday.com)
  * @param tenant The tenant name
- * @returns Formatted base URL for API calls
  */
-export function buildWorkdayBaseUrl(tenantUrl: string, tenant: string): string {
+export function buildWorkdayRestUrl(tenantUrl: string, tenant: string): string {
   const baseUrl = tenantUrl.replace(/\/$/, '')
-  return `${baseUrl}/ccx/api/v1/${tenant}`
+  return `${baseUrl}/api/v1/${tenant}`
+}
+
+/**
+ * Builds a Workday SOAP/WS API base URL.
+ * SOAP pattern: {tenantUrl}/ccx/service/{tenant}/{serviceName}/{version}
+ * Used for operations not available via REST (hire, terminate, etc.).
+ * @param tenantUrl The Workday instance URL
+ * @param tenant The tenant name
+ * @param serviceName The WS service name (e.g., Staffing, Human_Resources)
+ * @param version The API version (e.g., v42.0, v45.0)
+ */
+export function buildWorkdaySoapUrl(
+  tenantUrl: string,
+  tenant: string,
+  serviceName: string,
+  version: string
+): string {
+  const baseUrl = tenantUrl.replace(/\/$/, '')
+  return `${baseUrl}/ccx/service/${tenant}/${serviceName}/${version}`
 }

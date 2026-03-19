@@ -1,12 +1,8 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type {
   WorkdayGetCompensationParams,
   WorkdayGetCompensationResponse,
 } from '@/tools/workday/types'
-import { buildWorkdayBaseUrl, createWorkdayAuthHeader } from '@/tools/workday/utils'
-
-const logger = createLogger('WorkdayGetCompensationTool')
 
 export const getCompensationTool: ToolConfig<
   WorkdayGetCompensationParams,
@@ -30,17 +26,11 @@ export const getCompensationTool: ToolConfig<
       visibility: 'user-only',
       description: 'Workday tenant name',
     },
-    username: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Integration System User username',
-    },
-    password: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Integration System User password',
+      visibility: 'hidden',
+      description: 'OAuth 2.0 access token for Workday REST API',
     },
     workerId: {
       type: 'string',
@@ -51,45 +41,20 @@ export const getCompensationTool: ToolConfig<
   },
 
   request: {
-    url: (params) => {
-      const baseUrl = buildWorkdayBaseUrl(params.tenantUrl, params.tenant)
-      return `${baseUrl}/workers/${params.workerId}/compensationPlans`
-    },
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: createWorkdayAuthHeader(params.username, params.password),
-      Accept: 'application/json',
+    url: '/api/tools/workday/get-compensation',
+    method: 'POST',
+    headers: () => ({
+      'Content-Type': 'application/json',
     }),
+    body: (params) => params,
   },
 
   transformResponse: async (response: Response) => {
-    try {
-      const data = await response.json()
-
-      if (!response.ok) {
-        const error = data.error ?? data.errors?.[0]?.error ?? data
-        throw new Error(typeof error === 'string' ? error : JSON.stringify(error))
-      }
-
-      const plans = Array.isArray(data.data) ? data.data : (data.compensationPlans ?? [])
-
-      return {
-        success: true,
-        output: {
-          compensationPlans: plans.map((p: Record<string, unknown>) => ({
-            id: p.id ?? null,
-            planName:
-              (p.compensationPlan as Record<string, unknown>)?.descriptor ?? p.planName ?? null,
-            amount: p.amount ?? p.compensationPlanAmount ?? null,
-            currency: (p.currency as Record<string, unknown>)?.descriptor ?? p.currency ?? null,
-            frequency: (p.frequency as Record<string, unknown>)?.descriptor ?? p.frequency ?? null,
-          })),
-        },
-      }
-    } catch (error) {
-      logger.error('Workday get compensation - Error processing response:', { error })
-      throw error
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error ?? 'Workday API request failed')
     }
+    return data
   },
 
   outputs: {

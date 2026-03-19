@@ -1,12 +1,8 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type {
   WorkdayGetOrganizationsParams,
   WorkdayGetOrganizationsResponse,
 } from '@/tools/workday/types'
-import { buildWorkdayBaseUrl, createWorkdayAuthHeader } from '@/tools/workday/utils'
-
-const logger = createLogger('WorkdayGetOrganizationsTool')
 
 export const getOrganizationsTool: ToolConfig<
   WorkdayGetOrganizationsParams,
@@ -30,17 +26,11 @@ export const getOrganizationsTool: ToolConfig<
       visibility: 'user-only',
       description: 'Workday tenant name',
     },
-    username: {
+    accessToken: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Integration System User username',
-    },
-    password: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Integration System User password',
+      visibility: 'hidden',
+      description: 'OAuth 2.0 access token for Workday REST API',
     },
     type: {
       type: 'string',
@@ -63,52 +53,20 @@ export const getOrganizationsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => {
-      const baseUrl = buildWorkdayBaseUrl(params.tenantUrl, params.tenant)
-      const queryParams = new URLSearchParams()
-
-      if (params.type) queryParams.append('type', params.type)
-      if (params.limit) queryParams.append('limit', params.limit.toString())
-      if (params.offset) queryParams.append('offset', params.offset.toString())
-
-      const queryString = queryParams.toString()
-      return queryString ? `${baseUrl}/organizations?${queryString}` : `${baseUrl}/organizations`
-    },
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: createWorkdayAuthHeader(params.username, params.password),
-      Accept: 'application/json',
+    url: '/api/tools/workday/get-organizations',
+    method: 'POST',
+    headers: () => ({
+      'Content-Type': 'application/json',
     }),
+    body: (params) => params,
   },
 
   transformResponse: async (response: Response) => {
-    try {
-      const data = await response.json()
-
-      if (!response.ok) {
-        const error = data.error ?? data.errors?.[0]?.error ?? data
-        throw new Error(typeof error === 'string' ? error : JSON.stringify(error))
-      }
-
-      const organizations = Array.isArray(data.data) ? data.data : (data.organizations ?? [])
-
-      return {
-        success: true,
-        output: {
-          organizations: organizations.map((o: Record<string, unknown>) => ({
-            id: o.id ?? null,
-            descriptor: o.descriptor ?? null,
-            type: (o.type as Record<string, unknown>)?.descriptor ?? o.type ?? null,
-            subtype: (o.subtype as Record<string, unknown>)?.descriptor ?? o.subtype ?? null,
-            isActive: o.isActive ?? null,
-          })),
-          total: data.total ?? organizations.length,
-        },
-      }
-    } catch (error) {
-      logger.error('Workday get organizations - Error processing response:', { error })
-      throw error
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error ?? 'Workday API request failed')
     }
+    return data
   },
 
   outputs: {

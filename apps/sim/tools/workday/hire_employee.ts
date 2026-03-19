@@ -1,9 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { WorkdayHireEmployeeParams, WorkdayHireEmployeeResponse } from '@/tools/workday/types'
-import { buildWorkdayBaseUrl, createWorkdayAuthHeader } from '@/tools/workday/utils'
-
-const logger = createLogger('WorkdayHireEmployeeTool')
 
 export const hireEmployeeTool: ToolConfig<WorkdayHireEmployeeParams, WorkdayHireEmployeeResponse> =
   {
@@ -83,55 +79,20 @@ export const hireEmployeeTool: ToolConfig<WorkdayHireEmployeeParams, WorkdayHire
     },
 
     request: {
-      url: (params) => {
-        const baseUrl = buildWorkdayBaseUrl(params.tenantUrl, params.tenant)
-        return `${baseUrl}/staffingEvents`
-      },
+      url: '/api/tools/workday/hire',
       method: 'POST',
-      headers: (params) => ({
-        Authorization: createWorkdayAuthHeader(params.username, params.password),
+      headers: () => ({
         'Content-Type': 'application/json',
-        Accept: 'application/json',
       }),
-      body: (params) => {
-        const body: Record<string, unknown> = {
-          type: 'HIRE',
-          preHire: { id: params.preHireId },
-          position: { id: params.positionId },
-          hireDate: params.hireDate,
-        }
-
-        if (params.jobProfileId) body.jobProfile = { id: params.jobProfileId }
-        if (params.locationId) body.location = { id: params.locationId }
-        if (params.managerId) body.manager = { id: params.managerId }
-        if (params.employeeType) body.employeeType = params.employeeType
-
-        return body
-      },
+      body: (params) => params,
     },
 
     transformResponse: async (response: Response) => {
-      try {
-        const data = await response.json()
-
-        if (!response.ok) {
-          const error = data.error ?? data.errors?.[0]?.error ?? data
-          throw new Error(typeof error === 'string' ? error : JSON.stringify(error))
-        }
-
-        return {
-          success: true,
-          output: {
-            workerId: data.worker?.id ?? data.workerId ?? null,
-            employeeId: data.employeeId ?? data.id ?? null,
-            descriptor: data.descriptor ?? data.worker?.descriptor ?? null,
-            hireDate: data.hireDate ?? null,
-          },
-        }
-      } catch (error) {
-        logger.error('Workday hire employee - Error processing response:', { error })
-        throw error
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Workday API request failed')
       }
+      return data
     },
 
     outputs: {

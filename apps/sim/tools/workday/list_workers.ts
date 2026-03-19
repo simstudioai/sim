@@ -1,9 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { WorkdayListWorkersParams, WorkdayListWorkersResponse } from '@/tools/workday/types'
-import { buildWorkdayBaseUrl, createWorkdayAuthHeader } from '@/tools/workday/utils'
-
-const logger = createLogger('WorkdayListWorkersTool')
 
 export const listWorkersTool: ToolConfig<WorkdayListWorkersParams, WorkdayListWorkersResponse> = {
   id: 'workday_list_workers',
@@ -57,57 +53,20 @@ export const listWorkersTool: ToolConfig<WorkdayListWorkersParams, WorkdayListWo
   },
 
   request: {
-    url: (params) => {
-      const baseUrl = buildWorkdayBaseUrl(params.tenantUrl, params.tenant)
-      const queryParams = new URLSearchParams()
-
-      if (params.search) queryParams.append('search', params.search)
-      if (params.limit) queryParams.append('limit', params.limit.toString())
-      if (params.offset) queryParams.append('offset', params.offset.toString())
-
-      const queryString = queryParams.toString()
-      return queryString ? `${baseUrl}/workers?${queryString}` : `${baseUrl}/workers`
-    },
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: createWorkdayAuthHeader(params.username, params.password),
-      Accept: 'application/json',
+    url: '/api/tools/workday/list-workers',
+    method: 'POST',
+    headers: () => ({
+      'Content-Type': 'application/json',
     }),
+    body: (params) => params,
   },
 
   transformResponse: async (response: Response) => {
-    try {
-      const data = await response.json()
-
-      if (!response.ok) {
-        const error = data.error ?? data.errors?.[0]?.error ?? data
-        throw new Error(typeof error === 'string' ? error : JSON.stringify(error))
-      }
-
-      const workers = Array.isArray(data.data) ? data.data : (data.workers ?? [])
-
-      return {
-        success: true,
-        output: {
-          workers: workers.map((w: Record<string, unknown>) => ({
-            id: w.id ?? null,
-            descriptor: w.descriptor ?? null,
-            primaryWorkEmail: w.primaryWorkEmail ?? null,
-            primaryWorkPhone: w.primaryWorkPhone ?? null,
-            businessTitle: w.businessTitle ?? null,
-            supervisoryOrganization:
-              (w.supervisoryOrganization as Record<string, unknown>)?.descriptor ?? null,
-            hireDate: w.hireDate ?? null,
-            workerType: (w.workerType as Record<string, unknown>)?.descriptor ?? null,
-            isActive: w.isActive ?? null,
-          })),
-          total: data.total ?? workers.length,
-        },
-      }
-    } catch (error) {
-      logger.error('Workday list workers - Error processing response:', { error })
-      throw error
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error ?? 'Workday API request failed')
     }
+    return data
   },
 
   outputs: {

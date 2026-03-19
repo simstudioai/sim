@@ -1,12 +1,8 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type {
   WorkdayCreatePrehireParams,
   WorkdayCreatePrehireResponse,
 } from '@/tools/workday/types'
-import { buildWorkdayBaseUrl, createWorkdayAuthHeader } from '@/tools/workday/utils'
-
-const logger = createLogger('WorkdayCreatePrehireTool')
 
 export const createPrehireTool: ToolConfig<
   WorkdayCreatePrehireParams,
@@ -76,65 +72,20 @@ export const createPrehireTool: ToolConfig<
   },
 
   request: {
-    url: (params) => {
-      const baseUrl = buildWorkdayBaseUrl(params.tenantUrl, params.tenant)
-      return `${baseUrl}/preHires`
-    },
+    url: '/api/tools/workday/create-prehire',
     method: 'POST',
-    headers: (params) => ({
-      Authorization: createWorkdayAuthHeader(params.username, params.password),
+    headers: () => ({
       'Content-Type': 'application/json',
-      Accept: 'application/json',
     }),
-    body: (params) => {
-      const nameParts = params.legalName.trim().split(/\s+/)
-      const firstName = nameParts[0]
-      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : ''
-
-      const body: Record<string, unknown> = {
-        name: {
-          firstName,
-          lastName,
-        },
-      }
-
-      if (params.email) {
-        body.email = { emailAddress: params.email, usageType: 'WORK' }
-      }
-      if (params.phoneNumber) {
-        body.phone = { phoneNumber: params.phoneNumber, usageType: 'WORK' }
-      }
-      if (params.address) {
-        body.address = { formattedAddress: params.address }
-      }
-      if (params.sourceId) {
-        body.source = { id: params.sourceId }
-      }
-
-      return body
-    },
+    body: (params) => params,
   },
 
   transformResponse: async (response: Response) => {
-    try {
-      const data = await response.json()
-
-      if (!response.ok) {
-        const error = data.error ?? data.errors?.[0]?.error ?? data
-        throw new Error(typeof error === 'string' ? error : JSON.stringify(error))
-      }
-
-      return {
-        success: true,
-        output: {
-          preHireId: data.id ?? null,
-          descriptor: data.descriptor ?? null,
-        },
-      }
-    } catch (error) {
-      logger.error('Workday create pre-hire - Error processing response:', { error })
-      throw error
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error ?? 'Workday API request failed')
     }
+    return data
   },
 
   outputs: {

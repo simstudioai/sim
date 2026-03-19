@@ -1,9 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { WorkdayGetWorkerParams, WorkdayGetWorkerResponse } from '@/tools/workday/types'
-import { buildWorkdayBaseUrl, createWorkdayAuthHeader } from '@/tools/workday/utils'
-
-const logger = createLogger('WorkdayGetWorkerTool')
 
 export const getWorkerTool: ToolConfig<WorkdayGetWorkerParams, WorkdayGetWorkerResponse> = {
   id: 'workday_get_worker',
@@ -46,47 +42,20 @@ export const getWorkerTool: ToolConfig<WorkdayGetWorkerParams, WorkdayGetWorkerR
   },
 
   request: {
-    url: (params) => {
-      const baseUrl = buildWorkdayBaseUrl(params.tenantUrl, params.tenant)
-      return `${baseUrl}/workers/${params.workerId}`
-    },
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: createWorkdayAuthHeader(params.username, params.password),
-      Accept: 'application/json',
+    url: '/api/tools/workday/get-worker',
+    method: 'POST',
+    headers: () => ({
+      'Content-Type': 'application/json',
     }),
+    body: (params) => params,
   },
 
   transformResponse: async (response: Response) => {
-    try {
-      const data = await response.json()
-
-      if (!response.ok) {
-        const error = data.error ?? data.errors?.[0]?.error ?? data
-        throw new Error(typeof error === 'string' ? error : JSON.stringify(error))
-      }
-
-      return {
-        success: true,
-        output: {
-          worker: {
-            id: data.id ?? null,
-            descriptor: data.descriptor ?? null,
-            primaryWorkEmail: data.primaryWorkEmail ?? null,
-            primaryWorkPhone: data.primaryWorkPhone ?? null,
-            businessTitle: data.businessTitle ?? null,
-            supervisoryOrganization: data.supervisoryOrganization?.descriptor ?? null,
-            hireDate: data.hireDate ?? null,
-            workerType: data.workerType?.descriptor ?? null,
-            isActive: data.isActive ?? null,
-            ...data,
-          },
-        },
-      }
-    } catch (error) {
-      logger.error('Workday get worker - Error processing response:', { error })
-      throw error
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error ?? 'Workday API request failed')
     }
+    return data
   },
 
   outputs: {
