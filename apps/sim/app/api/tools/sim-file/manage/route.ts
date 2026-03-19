@@ -2,7 +2,6 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
-  deleteWorkspaceFile,
   downloadWorkspaceFile,
   getWorkspaceFile,
   getWorkspaceFileByName,
@@ -75,26 +74,31 @@ export async function POST(request: NextRequest) {
         }
 
         if (fileName && !fileId) {
-          if (append) {
-            const existing = await getWorkspaceFileByName(workspaceId, fileName)
-            if (existing) {
+          const existing = await getWorkspaceFileByName(workspaceId, fileName)
+
+          if (existing) {
+            let finalContent: string
+            if (append) {
               const existingBuffer = await downloadWorkspaceFile(existing)
-              const existingContent = existingBuffer.toString('utf-8')
-              const finalContent = existingContent + content
-              const fileBuffer = Buffer.from(finalContent, 'utf-8')
-              await updateWorkspaceFileContent(workspaceId, existing.id, userId, fileBuffer)
-
-              logger.info('File appended by name', {
-                fileId: existing.id,
-                name: existing.name,
-                size: fileBuffer.length,
-              })
-
-              return NextResponse.json({
-                success: true,
-                data: { id: existing.id, name: existing.name, size: fileBuffer.length },
-              })
+              finalContent = existingBuffer.toString('utf-8') + content
+            } else {
+              finalContent = content ?? ''
             }
+
+            const fileBuffer = Buffer.from(finalContent, 'utf-8')
+            await updateWorkspaceFileContent(workspaceId, existing.id, userId, fileBuffer)
+
+            logger.info('File overwritten by name', {
+              fileId: existing.id,
+              name: existing.name,
+              size: fileBuffer.length,
+              append,
+            })
+
+            return NextResponse.json({
+              success: true,
+              data: { id: existing.id, name: existing.name, size: fileBuffer.length },
+            })
           }
 
           const mimeType = inferContentType(fileName, contentType)
@@ -162,36 +166,9 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      case 'delete': {
-        const fileId = body.fileId as string | undefined
-        if (!fileId) {
-          return NextResponse.json(
-            { success: false, error: 'fileId is required for delete operation' },
-            { status: 400 }
-          )
-        }
-
-        const fileRecord = await getWorkspaceFile(workspaceId, fileId)
-        if (!fileRecord) {
-          return NextResponse.json(
-            { success: false, error: `File with ID "${fileId}" not found` },
-            { status: 404 }
-          )
-        }
-
-        await deleteWorkspaceFile(workspaceId, fileId)
-
-        logger.info('Sim file deleted', { fileId, name: fileRecord.name })
-
-        return NextResponse.json({
-          success: true,
-          data: { id: fileId, name: fileRecord.name },
-        })
-      }
-
       default:
         return NextResponse.json(
-          { success: false, error: `Unknown operation: ${operation}. Supported: write, delete` },
+          { success: false, error: `Unknown operation: ${operation}. Supported: write` },
           { status: 400 }
         )
     }

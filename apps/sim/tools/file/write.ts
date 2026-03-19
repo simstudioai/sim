@@ -13,7 +13,7 @@ export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
   id: 'file_write',
   name: 'File Write',
   description:
-    'Write content to a workspace resource file. Provide fileName to create a new file, or fileId to update an existing one. Use append mode to add content to the end of an existing file.',
+    'Write content to a workspace resource file. Provide fileName to create a new file or overwrite an existing one with the same name. Provide fileId to update a specific file. Use append mode to add content to the end instead of replacing.',
   version: '1.0.0',
 
   params: {
@@ -21,7 +21,8 @@ export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Name for a new file (e.g., "data.csv"). Provide this to create a new file.',
+      description:
+        'File name (e.g., "data.csv"). Creates the file if it does not exist, or overwrites/appends to it if it does.',
     },
     fileId: {
       type: 'string',
@@ -48,7 +49,7 @@ export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
       default: false,
       visibility: 'user-only',
       description:
-        'When true, appends content to the end of an existing file instead of replacing it.',
+        'When true, appends content to the end of an existing file. When false (default), replaces the file content entirely.',
     },
   },
 

@@ -455,7 +455,6 @@ import {
   fathomListTeamsTool,
 } from '@/tools/fathom'
 import {
-  fileDeleteTool,
   fileParserV2Tool,
   fileParserV3Tool,
   fileParseTool,
@@ -2423,7 +2422,6 @@ export const tools: Record<string, ToolConfig> = {
   file_parser_v2: fileParserV2Tool,
   file_parser_v3: fileParserV3Tool,
   file_write: fileWriteTool,
-  file_delete: fileDeleteTool,
   firecrawl_scrape: firecrawlScrapeTool,
   firecrawl_search: firecrawlSearchTool,
   firecrawl_crawl: firecrawlCrawlTool,

@@ -247,9 +247,9 @@ export const FileV2Block: BlockConfig<FileParserOutput> = {
 export const FileV3Block: BlockConfig<FileParserV3Output> = {
   type: 'file_v3',
   name: 'File',
-  description: 'Read, write, or delete workspace files',
+  description: 'Read and write workspace files',
   longDescription:
-    'Read and parse files from uploads or URLs, write new or update existing workspace resource files (with optional append), or delete workspace files.',
+    'Read and parse files from uploads or URLs, or write workspace resource files. Writing by name creates the file if it does not exist, or overwrites it if it does. Use append mode to add content to existing files.',
   docsLink: 'https://docs.sim.ai/tools/file',
   category: 'tools',
   bgColor: '#40916C',
@@ -262,7 +262,6 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
       options: [
         { label: 'Read', id: 'file_parser_v3' },
         { label: 'Write', id: 'file_write' },
-        { label: 'Delete', id: 'file_delete' },
       ],
       value: () => 'file_parser_v3',
     },
@@ -293,16 +292,15 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
       id: 'fileName',
       title: 'File Name',
       type: 'short-input' as SubBlockType,
-      placeholder: 'New file name (e.g., data.csv)',
+      placeholder: 'File name (e.g., data.csv) — overwrites if exists',
       condition: { field: 'operation', value: 'file_write' },
     },
     {
       id: 'fileId',
       title: 'File ID',
       type: 'short-input' as SubBlockType,
-      placeholder: 'Existing file ID',
-      condition: { field: 'operation', value: ['file_write', 'file_delete'] },
-      required: { field: 'operation', value: 'file_delete' },
+      placeholder: 'Existing file ID to update',
+      condition: { field: 'operation', value: 'file_write' },
     },
     {
       id: 'content',
@@ -328,7 +326,7 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
     },
   ],
   tools: {
-    access: ['file_parser_v3', 'file_write', 'file_delete'],
+    access: ['file_parser_v3', 'file_write'],
     config: {
       tool: (params) => params.operation || 'file_parser_v3',
       params: (params) => {
@@ -341,13 +339,6 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
             content: params.content,
             contentType: params.contentType,
             append: Boolean(params.append),
-            workspaceId: params._context?.workspaceId,
-          }
-        }
-
-        if (operation === 'file_delete') {
-          return {
-            fileId: params.fileId,
             workspaceId: params._context?.workspaceId,
           }
         }
@@ -388,11 +379,11 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
     },
   },
   inputs: {
-    operation: { type: 'string', description: 'Operation to perform (read, write, delete)' },
+    operation: { type: 'string', description: 'Operation to perform (read or write)' },
     fileInput: { type: 'json', description: 'File input for read (canonical param)' },
     fileType: { type: 'string', description: 'File type for read' },
     fileName: { type: 'string', description: 'Name for a new file (write)' },
-    fileId: { type: 'string', description: 'ID of an existing file (write/delete)' },
+    fileId: { type: 'string', description: 'ID of an existing file to update (write)' },
     content: { type: 'string', description: 'File content to write' },
     contentType: { type: 'string', description: 'MIME content type for write' },
     append: { type: 'string', description: 'Whether to append content (write)' },
@@ -408,11 +399,11 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
     },
     id: {
       type: 'string',
-      description: 'File ID (write/delete)',
+      description: 'File ID (write)',
     },
     name: {
       type: 'string',
-      description: 'File name (write/delete)',
+      description: 'File name (write)',
     },
     size: {
       type: 'number',
