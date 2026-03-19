@@ -62,6 +62,9 @@ function getDisposableDomainsFull(): Set<string> {
 /** MX hostnames used by known disposable email backends */
 const DISPOSABLE_MX_BACKENDS = new Set(['in.mail.gw', 'smtp.catchmail.io', 'mx.yopmail.com'])
 
+/** Per-domain MX result cache — avoids redundant DNS queries for concurrent or repeated sign-ups */
+const mxCache = new Map<string, { result: boolean; expires: number }>()
+
 /**
  * Validates email syntax using RFC 5322 compliant regex
  */
@@ -119,6 +122,10 @@ export async function isDisposableMxBackend(email: string): Promise<boolean> {
   const domain = email.split('@')[1]?.toLowerCase()
   if (!domain) return false
 
+  const now = Date.now()
+  const cached = mxCache.get(domain)
+  if (cached && cached.expires > now) return cached.result
+
   let timeoutId: ReturnType<typeof setTimeout> | undefined
   try {
     const mxCheckPromise = checkMXRecord(domain)
@@ -128,6 +135,7 @@ export async function isDisposableMxBackend(email: string): Promise<boolean> {
       }
     )
     const result = await Promise.race([mxCheckPromise, timeoutPromise])
+    mxCache.set(domain, { result: result.isDisposableBackend, expires: now + 5 * 60 * 1000 })
     return result.isDisposableBackend
   } catch {
     return false

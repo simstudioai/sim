@@ -211,8 +211,11 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
     .map((s) => bySlug.get(s))
     .filter((i): i is Integration => i !== undefined)
   const featuredPairs = getPairsFor(name)
-  const matchingTemplates = TEMPLATES.filter((t) =>
-    t.integrationBlockTypes.includes(integration.type)
+  const baseType = integration.type.replace(/_v\d+$/, '')
+  const matchingTemplates = TEMPLATES.filter(
+    (t) =>
+      t.integrationBlockTypes.includes(integration.type) ||
+      t.integrationBlockTypes.includes(baseType)
   )
 
   // -------------------------------------------------------------------------
