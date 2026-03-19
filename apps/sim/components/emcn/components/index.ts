@@ -146,3 +146,8 @@ export { Textarea } from './textarea/textarea'
 export { TimePicker, type TimePickerProps, timePickerVariants } from './time-picker/time-picker'
 export { ToastProvider, toast, useToast } from './toast/toast'
 export { Tooltip } from './tooltip/tooltip'
+export {
+  TourTooltip,
+  type TourTooltipPlacement,
+  type TourTooltipProps,
+} from './tour-tooltip/tour-tooltip'

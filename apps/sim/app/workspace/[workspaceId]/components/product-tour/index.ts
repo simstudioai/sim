@@ -1,1 +1,2 @@
-export { ProductTour, resetTourCompletion, START_TOUR_EVENT } from './product-tour'
+export { NavTour } from './product-tour'
+export { START_WORKFLOW_TOUR_EVENT, WorkflowTour } from './workflow-tour'

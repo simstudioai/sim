@@ -35,7 +35,7 @@ import {
 } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
-import { START_TOUR_EVENT } from '@/app/workspace/[workspaceId]/components/product-tour'
+import { START_WORKFLOW_TOUR_EVENT } from '@/app/workspace/[workspaceId]/components/product-tour'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
@@ -593,7 +593,7 @@ export const Sidebar = memo(function Sidebar() {
   )
 
   const handleStartTour = useCallback(() => {
-    window.dispatchEvent(new CustomEvent(START_TOUR_EVENT))
+    window.dispatchEvent(new CustomEvent(START_WORKFLOW_TOUR_EVENT))
   }, [])
 
   const { data: fetchedTasks = [], isLoading: tasksLoading } = useTasks(workspaceId)
