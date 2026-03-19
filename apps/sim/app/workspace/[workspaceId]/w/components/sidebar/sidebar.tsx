@@ -641,6 +641,16 @@ export const Sidebar = memo(function Sidebar() {
     setIsTaskDeleteModalOpen(true)
   }, [tasks])
 
+  const navigateToPage = useCallback(
+    (path: string) => {
+      if (!isCollapsed) {
+        setSidebarWidth(SIDEBAR_WIDTH.MIN)
+      }
+      router.push(path)
+    },
+    [isCollapsed, setSidebarWidth, router]
+  )
+
   const handleConfirmDeleteTasks = useCallback(() => {
     const { taskIds: taskIdsToDelete } = contextMenuSelectionRef.current
     if (taskIdsToDelete.length === 0) return
@@ -663,7 +673,7 @@ export const Sidebar = memo(function Sidebar() {
       deleteTasksMutation.mutate(taskIdsToDelete, { onSuccess: onDeleteSuccess })
     }
     setIsTaskDeleteModalOpen(false)
-  }, [pathname, workspaceId, deleteTaskMutation, deleteTasksMutation, router])
+  }, [pathname, workspaceId, deleteTaskMutation, deleteTasksMutation, navigateToPage])
 
   const [visibleTaskCount, setVisibleTaskCount] = useState(5)
   const [renamingTaskId, setRenamingTaskId] = useState<string | null>(null)
@@ -772,19 +782,11 @@ export const Sidebar = memo(function Sidebar() {
     })
   }, [workflowId, workflowsLoading])
 
-  /**
-   * Navigates to a non-workflow page and resets the sidebar width to minimum
-   * when the sidebar is expanded.
-   */
-  const navigateToPage = useCallback(
-    (path: string) => {
-      if (!isCollapsed) {
-        setSidebarWidth(SIDEBAR_WIDTH.MIN)
-      }
-      router.push(path)
-    },
-    [isCollapsed, setSidebarWidth, router]
-  )
+  useEffect(() => {
+    if (!isOnWorkflowPage && !isCollapsed) {
+      setSidebarWidth(SIDEBAR_WIDTH.MIN)
+    }
+  }, [isOnWorkflowPage, isCollapsed, setSidebarWidth])
 
   const handleCreateWorkflow = useCallback(async () => {
     const workflowId = await createWorkflow()

@@ -26,15 +26,15 @@ export function useProfilePictureUpload({
   const [fileName, setFileName] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
 
-  const prevCurrentImageRef = useRef(currentImage)
-  if (currentImage !== prevCurrentImageRef.current) {
-    prevCurrentImageRef.current = currentImage
-    if (previewRef.current && previewRef.current !== currentImage) {
-      URL.revokeObjectURL(previewRef.current)
-      previewRef.current = null
+  useEffect(() => {
+    if (currentImage !== previewUrl) {
+      if (previewRef.current && previewRef.current !== currentImage) {
+        URL.revokeObjectURL(previewRef.current)
+        previewRef.current = null
+      }
+      setPreviewUrl(currentImage || null)
     }
-    setPreviewUrl(currentImage || null)
-  }
+  }, [currentImage, previewUrl])
 
   const validateFile = useCallback((file: File): string | null => {
     if (file.size > MAX_FILE_SIZE) {
