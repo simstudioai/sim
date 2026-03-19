@@ -273,11 +273,16 @@ export function resolveSelectionContextConflicts(
 export function resolveSelectionConflicts(
   nodes: Node[],
   blocks: Record<string, { data?: { parentId?: string } }>,
-  preferredContextId?: string | null
+  preferredNodeId?: string
 ): Node[] {
-  return resolveSelectionContextConflicts(
-    resolveParentChildSelectionConflicts(nodes, blocks),
-    blocks,
-    preferredContextId
-  )
+  const afterParentChild = resolveParentChildSelectionConflicts(nodes, blocks)
+
+  const preferredContextId =
+    preferredNodeId !== undefined
+      ? afterParentChild.find((n) => n.id === preferredNodeId && n.selected)
+        ? getNodeSelectionContextId(afterParentChild.find((n) => n.id === preferredNodeId)!, blocks)
+        : undefined
+      : undefined
+
+  return resolveSelectionContextConflicts(afterParentChild, blocks, preferredContextId)
 }

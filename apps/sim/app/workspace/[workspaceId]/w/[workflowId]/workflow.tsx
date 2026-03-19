@@ -60,7 +60,6 @@ import {
   getClampedPositionForNode,
   getDescendantBlockIds,
   getEdgeSelectionContextId,
-  getNodeSelectionContextId,
   getWorkflowLockToggleIds,
   isBlockProtected,
   isEdgeProtected,
@@ -2718,23 +2717,14 @@ const WorkflowContent = React.memo(
           const updated = applyNodeChanges(changes, currentNodes)
           if (!hasSelectionChange) return updated
 
-          const preferredSelectedId = [...changes]
+          const preferredNodeId = [...changes]
             .reverse()
             .find(
               (change): change is NodeChange & { id: string; selected: boolean } =>
                 change.type === 'select' && 'selected' in change && change.selected === true
             )?.id
-          const preferredContextId = preferredSelectedId
-            ? getNodeSelectionContextId(
-                updated.find((node) => node.id === preferredSelectedId) ?? {
-                  id: preferredSelectedId,
-                  parentId: undefined,
-                },
-                blocks
-              )
-            : undefined
 
-          return resolveSelectionConflicts(updated, blocks, preferredContextId)
+          return resolveSelectionConflicts(updated, blocks, preferredNodeId)
         })
 
         // Handle position changes (e.g., from keyboard arrow key movement)
@@ -3201,12 +3191,19 @@ const WorkflowContent = React.memo(
 
         // When shift+clicking an already-selected node, ReactFlow toggles (deselects)
         // it via onNodesChange before drag starts. Re-select the dragged node so all
-        // previously selected nodes move together as a group.
+        // previously selected nodes move together as a group — but only if the
+        // deselection wasn't from a parent-child conflict (e.g. dragging a child
+        // when its parent subflow is selected).
         const draggedNodeInSelected = allNodes.find((n) => n.id === node.id)
         if (draggedNodeInSelected && !draggedNodeInSelected.selected && selectedNodes.length > 0) {
-          setDisplayNodes((currentNodes) =>
-            currentNodes.map((n) => (n.id === node.id ? { ...n, selected: true } : n))
-          )
+          const draggedParentId = blocks[node.id]?.data?.parentId
+          const parentIsSelected =
+            draggedParentId && selectedNodes.some((n) => n.id === draggedParentId)
+          if (!parentIsSelected) {
+            setDisplayNodes((currentNodes) =>
+              currentNodes.map((n) => (n.id === node.id ? { ...n, selected: true } : n))
+            )
+          }
         }
       },
       [blocks, setDragStartPosition, getNodes, setPotentialParentId]
@@ -3644,9 +3641,6 @@ const WorkflowContent = React.memo(
     const handleNodeClick = useCallback(
       (event: React.MouseEvent, node: Node) => {
         const isMultiSelect = event.shiftKey || event.metaKey || event.ctrlKey
-        const preferredContextId = isMultiSelect
-          ? getNodeSelectionContextId(node, blocks)
-          : undefined
         setDisplayNodes((currentNodes) => {
           const updated = currentNodes.map((currentNode) => ({
             ...currentNode,
@@ -3656,7 +3650,7 @@ const WorkflowContent = React.memo(
                 : currentNode.selected
               : currentNode.id === node.id,
           }))
-          return resolveSelectionConflicts(updated, blocks, preferredContextId)
+          return resolveSelectionConflicts(updated, blocks, isMultiSelect ? node.id : undefined)
         })
       },
       [blocks]
