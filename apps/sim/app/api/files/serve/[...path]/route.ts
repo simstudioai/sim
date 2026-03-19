@@ -102,7 +102,7 @@ async function handleLocalFile(filename: string, userId: string): Promise<NextRe
       throw new FileNotFoundError(`File not found: ${filename}`)
     }
 
-    const filePath = findLocalFile(filename)
+    const filePath = await findLocalFile(filename)
 
     if (!filePath) {
       throw new FileNotFoundError(`File not found: ${filename}`)
@@ -228,7 +228,7 @@ async function handleCloudProxyPublic(
 
 async function handleLocalFilePublic(filename: string): Promise<NextResponse> {
   try {
-    const filePath = findLocalFile(filename)
+    const filePath = await findLocalFile(filename)
 
     if (!filePath) {
       throw new FileNotFoundError(`File not found: ${filename}`)

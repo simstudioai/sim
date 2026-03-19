@@ -189,6 +189,7 @@ import { WebhookRequestBlock } from '@/blocks/blocks/webhook_request'
 import { WhatsAppBlock } from '@/blocks/blocks/whatsapp'
 import { WikipediaBlock } from '@/blocks/blocks/wikipedia'
 import { WordPressBlock } from '@/blocks/blocks/wordpress'
+import { WorkdayBlock } from '@/blocks/blocks/workday'
 import { WorkflowBlock } from '@/blocks/blocks/workflow'
 import { WorkflowInputBlock } from '@/blocks/blocks/workflow_input'
 import { XBlock } from '@/blocks/blocks/x'
@@ -410,6 +411,7 @@ export const registry: Record<string, BlockConfig> = {
   whatsapp: WhatsAppBlock,
   wikipedia: WikipediaBlock,
   wordpress: WordPressBlock,
+  workday: WorkdayBlock,
   workflow: WorkflowBlock,
   workflow_input: WorkflowInputBlock,
   x: XBlock,

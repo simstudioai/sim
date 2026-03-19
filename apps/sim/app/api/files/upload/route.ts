@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     const uploadResults = []
 
     for (const file of files) {
-      const originalName = file.name || 'untitled'
+      const originalName = file.name || 'untitled.md'
 
       if (!validateFileExtension(originalName)) {
         const extension = originalName.split('.').pop()?.toLowerCase() || 'unknown'

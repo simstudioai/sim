@@ -93,7 +93,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
-    const fileName = rawFile.name || 'untitled'
+    const fileName = rawFile.name || 'untitled.md'
 
     const maxSize = 100 * 1024 * 1024
     if (rawFile.size > maxSize) {

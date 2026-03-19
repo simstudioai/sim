@@ -1,0 +1,87 @@
+import { createLogger } from '@sim/logger'
+import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { generateRequestId } from '@/lib/core/utils/request'
+import {
+  createWorkdaySoapClient,
+  extractRefId,
+  normalizeSoapArray,
+  type WorkdayWorkerSoap,
+} from '@/tools/workday/soap'
+
+export const dynamic = 'force-dynamic'
+
+const logger = createLogger('WorkdayGetWorkerAPI')
+
+const RequestSchema = z.object({
+  tenantUrl: z.string().min(1),
+  tenant: z.string().min(1),
+  username: z.string().min(1),
+  password: z.string().min(1),
+  workerId: z.string().min(1),
+})
+
+export async function POST(request: NextRequest) {
+  const requestId = generateRequestId()
+
+  try {
+    const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
+    if (!authResult.success) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const data = RequestSchema.parse(body)
+
+    const client = await createWorkdaySoapClient(
+      data.tenantUrl,
+      data.tenant,
+      'humanResources',
+      data.username,
+      data.password
+    )
+
+    const [result] = await client.Get_WorkersAsync({
+      Request_References: {
+        Worker_Reference: {
+          ID: { attributes: { 'wd:type': 'Employee_ID' }, $value: data.workerId },
+        },
+      },
+      Response_Group: {
+        Include_Reference: true,
+        Include_Personal_Information: true,
+        Include_Employment_Information: true,
+        Include_Compensation: true,
+        Include_Organizations: true,
+      },
+    })
+
+    const worker =
+      normalizeSoapArray(
+        result?.Response_Data?.Worker as WorkdayWorkerSoap | WorkdayWorkerSoap[] | undefined
+      )[0] ?? null
+
+    return NextResponse.json({
+      success: true,
+      output: {
+        worker: worker
+          ? {
+              id: extractRefId(worker.Worker_Reference) ?? null,
+              descriptor: worker.Worker_Descriptor ?? null,
+              personalData: worker.Worker_Data?.Personal_Data ?? null,
+              employmentData: worker.Worker_Data?.Employment_Data ?? null,
+              compensationData: worker.Worker_Data?.Compensation_Data ?? null,
+              organizationData: worker.Worker_Data?.Organization_Data ?? null,
+            }
+          : null,
+      },
+    })
+  } catch (error) {
+    logger.error(`[${requestId}] Workday get worker failed`, { error })
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    )
+  }
+}

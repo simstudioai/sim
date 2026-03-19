@@ -2280,6 +2280,18 @@ import {
   wordpressUpdatePostTool,
   wordpressUploadMediaTool,
 } from '@/tools/wordpress'
+import {
+  workdayAssignOnboardingTool,
+  workdayChangeJobTool,
+  workdayCreatePrehireTool,
+  workdayGetCompensationTool,
+  workdayGetOrganizationsTool,
+  workdayGetWorkerTool,
+  workdayHireEmployeeTool,
+  workdayListWorkersTool,
+  workdayTerminateWorkerTool,
+  workdayUpdateWorkerTool,
+} from '@/tools/workday'
 import { workflowExecutorTool } from '@/tools/workflow'
 import {
   xCreateBookmarkTool,
@@ -4120,6 +4132,16 @@ export const tools: Record<string, ToolConfig> = {
   wordpress_list_users: wordpressListUsersTool,
   wordpress_get_user: wordpressGetUserTool,
   wordpress_search_content: wordpressSearchContentTool,
+  workday_get_worker: workdayGetWorkerTool,
+  workday_list_workers: workdayListWorkersTool,
+  workday_create_prehire: workdayCreatePrehireTool,
+  workday_hire_employee: workdayHireEmployeeTool,
+  workday_update_worker: workdayUpdateWorkerTool,
+  workday_assign_onboarding: workdayAssignOnboardingTool,
+  workday_get_organizations: workdayGetOrganizationsTool,
+  workday_change_job: workdayChangeJobTool,
+  workday_get_compensation: workdayGetCompensationTool,
+  workday_terminate_worker: workdayTerminateWorkerTool,
   google_ads_list_customers: googleAdsListCustomersTool,
   google_ads_search: googleAdsSearchTool,
   google_ads_list_campaigns: googleAdsListCampaignsTool,
