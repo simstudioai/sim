@@ -46,11 +46,6 @@ const VFS_GLOB_OPTIONS: micromatch.Options = {
 }
 
 /**
- * Returns true when `filePath` is `scope` or a descendant path (`scope/...`), matching how
- * `grep -r pattern dir` limits to a directory. If `scope` looks like a glob, filters with
- * micromatch `isMatch` and {@link VFS_GLOB_OPTIONS}.
- */
-/**
  * Splits VFS text into lines for line-oriented grep. Strips a trailing CR so Windows-style
  * CRLF payloads still match patterns anchored at line end (`$`).
  */
@@ -58,6 +53,10 @@ function splitLinesForGrep(content: string): string[] {
   return content.split('\n').map((line) => line.replace(/\r$/, ''))
 }
 
+/**
+ * Returns true when `filePath` is `scope` or a descendant path (`scope/...`). If `scope` looks
+ * like a glob, filters with micromatch `isMatch` and `VFS_GLOB_OPTIONS`.
+ */
 function pathWithinGrepScope(filePath: string, scope: string): boolean {
   const looksLikeGlob =
     /[*?[{]/.test(scope) || scope.includes('!(') || scope.includes('@(') || scope.includes('+(')
