@@ -135,7 +135,6 @@ function validateOpenResourceParams(
     params: {
       type: params.type,
       id: params.id,
-      ...(params.title ? { title: params.title } : {}),
     },
   }
 }
@@ -1039,7 +1038,6 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
     const params = validated.params
     const resourceType = params.type
     const resourceId = params.id
-    const resourceTitle = params.title || resourceType
 
     return {
       success: true,
@@ -1048,7 +1046,7 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
         {
           type: resourceType as 'workflow' | 'table' | 'knowledgebase' | 'file',
           id: resourceId,
-          title: resourceTitle,
+          title: resourceType,
         },
       ],
     }
