@@ -86,6 +86,12 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
   const isRemovingInvitation = cancelInvitation.isPending
 
   useEffect(() => {
+    if (open) {
+      setErrorMessage(null)
+    }
+  }, [open])
+
+  useEffect(() => {
     const intervalsRef = cooldownIntervalsRef.current
     return () => {
       intervalsRef.forEach((interval) => clearInterval(interval))
@@ -459,9 +465,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     <Modal
       open={open}
       onOpenChange={(newOpen: boolean) => {
-        if (newOpen) {
-          setErrorMessage(null)
-        } else {
+        if (!newOpen) {
           resetState()
         }
         onOpenChange(newOpen)

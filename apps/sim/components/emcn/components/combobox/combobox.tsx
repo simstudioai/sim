@@ -466,6 +466,15 @@ const Combobox = memo(
         highlightedIndex >= 0 && highlightedIndex < filteredOptions.length ? highlightedIndex : -1
 
       /**
+       * Reset highlighted index when filtered options shrink below it
+       */
+      useEffect(() => {
+        if (highlightedIndex >= 0 && highlightedIndex >= filteredOptions.length) {
+          setHighlightedIndex(-1)
+        }
+      }, [filteredOptions.length, highlightedIndex])
+
+      /**
        * Scroll highlighted option into view
        */
       useEffect(() => {

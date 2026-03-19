@@ -46,11 +46,6 @@ export function RenameDocumentModal({
     }
   }, [open, initialName])
 
-  /** Resets form state when the modal opens and forwards the open state change */
-  const handleOpenChange = (newOpen: boolean) => {
-    onOpenChange(newOpen)
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -81,7 +76,7 @@ export function RenameDocumentModal({
   }
 
   return (
-    <Modal open={open} onOpenChange={handleOpenChange}>
+    <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size='sm'>
         <ModalHeader>Rename Document</ModalHeader>
         <form onSubmit={handleSubmit} className='flex min-h-0 flex-1 flex-col'>

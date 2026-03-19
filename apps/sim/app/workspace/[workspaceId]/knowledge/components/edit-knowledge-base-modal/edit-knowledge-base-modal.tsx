@@ -81,11 +81,6 @@ export function EditKnowledgeBaseModal({
     }
   }, [open, initialName, initialDescription, reset])
 
-  /** Forwards the open state change to the parent */
-  const handleOpenChange = (newOpen: boolean) => {
-    onOpenChange(newOpen)
-  }
-
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true)
     setError(null)
@@ -102,7 +97,7 @@ export function EditKnowledgeBaseModal({
   }
 
   return (
-    <Modal open={open} onOpenChange={handleOpenChange}>
+    <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size='sm'>
         <ModalHeader>Edit Knowledge Base</ModalHeader>
 

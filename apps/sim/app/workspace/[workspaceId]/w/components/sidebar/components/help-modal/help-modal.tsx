@@ -103,18 +103,11 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
     })
   }, [reset])
 
-  /**
-   * Wrap onOpenChange to reset state when the modal opens
-   */
-  const handleOpenChange = useCallback(
-    (newOpen: boolean) => {
-      if (newOpen) {
-        resetModalState()
-      }
-      onOpenChange(newOpen)
-    },
-    [onOpenChange, resetModalState]
-  )
+  useEffect(() => {
+    if (open) {
+      resetModalState()
+    }
+  }, [open, resetModalState])
 
   /**
    * Fix z-index for popover/dropdown when inside modal
@@ -426,11 +419,11 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
    * Handle modal close action
    */
   const handleClose = useCallback(() => {
-    handleOpenChange(false)
-  }, [handleOpenChange])
+    onOpenChange(false)
+  }, [onOpenChange])
 
   return (
-    <Modal open={open} onOpenChange={handleOpenChange}>
+    <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size='md'>
         <ModalHeader>Help &amp; Support</ModalHeader>
 
