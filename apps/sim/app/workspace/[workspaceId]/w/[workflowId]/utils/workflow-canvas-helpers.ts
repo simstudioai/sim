@@ -245,12 +245,16 @@ export function getEdgeSelectionContextId(
 
 export function resolveSelectionContextConflicts(
   nodes: Node[],
-  blocks: Record<string, { data?: { parentId?: string } }>
+  blocks: Record<string, { data?: { parentId?: string } }>,
+  preferredContextId?: string | null
 ): Node[] {
   const selectedNodes = nodes.filter((node) => node.selected)
   if (selectedNodes.length <= 1) return nodes
 
-  const allowedContextId = getNodeSelectionContextId(selectedNodes[0], blocks)
+  const allowedContextId =
+    preferredContextId !== undefined
+      ? preferredContextId
+      : getNodeSelectionContextId(selectedNodes[0], blocks)
   let hasConflict = false
 
   const resolved = nodes.map((node) => {
@@ -268,10 +272,12 @@ export function resolveSelectionContextConflicts(
 
 export function resolveSelectionConflicts(
   nodes: Node[],
-  blocks: Record<string, { data?: { parentId?: string } }>
+  blocks: Record<string, { data?: { parentId?: string } }>,
+  preferredContextId?: string | null
 ): Node[] {
   return resolveSelectionContextConflicts(
     resolveParentChildSelectionConflicts(nodes, blocks),
-    blocks
+    blocks,
+    preferredContextId
   )
 }

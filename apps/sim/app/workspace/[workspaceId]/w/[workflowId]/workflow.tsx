@@ -60,6 +60,7 @@ import {
   getClampedPositionForNode,
   getDescendantBlockIds,
   getEdgeSelectionContextId,
+  getNodeSelectionContextId,
   getWorkflowLockToggleIds,
   isBlockProtected,
   isEdgeProtected,
@@ -247,7 +248,6 @@ const WorkflowContent = React.memo(
     const [selectedEdges, setSelectedEdges] = useState<SelectedEdgesMap>(new Map())
     const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
     const canvasContainerRef = useRef<HTMLDivElement>(null)
-    const displayNodesRef = useRef<Node[]>([])
     const embeddedFitFrameRef = useRef<number | null>(null)
     const hasCompletedInitialEmbeddedFitRef = useRef(false)
     const canvasMode = useCanvasModeStore((state) => state.mode)
@@ -2479,7 +2479,8 @@ const WorkflowContent = React.memo(
     const [displayNodes, setDisplayNodes] = useState<Node[]>([])
 
     useEffect(() => {
-      displayNodesRef.current = displayNodes
+      const selectedIds = displayNodes.filter((node) => node.selected).map((node) => node.id)
+      syncPanelWithSelection(selectedIds)
     }, [displayNodes])
 
     useEffect(() => {
@@ -2495,8 +2496,6 @@ const WorkflowContent = React.memo(
         }))
         const resolved = resolveSelectionConflicts(withSelection, blocks)
         setDisplayNodes(resolved)
-        const selectedIds = resolved.filter((node) => node.selected).map((node) => node.id)
-        syncPanelWithSelection(selectedIds)
         return
       }
 
@@ -2714,17 +2713,29 @@ const WorkflowContent = React.memo(
     /** Handles node changes - applies changes and resolves parent-child selection conflicts. */
     const onNodesChange = useCallback(
       (changes: NodeChange[]) => {
-        const updated = applyNodeChanges(changes, displayNodesRef.current)
         const hasSelectionChange = changes.some((c) => c.type === 'select')
-        const nextNodes = hasSelectionChange ? resolveSelectionConflicts(updated, blocks) : updated
+        setDisplayNodes((currentNodes) => {
+          const updated = applyNodeChanges(changes, currentNodes)
+          if (!hasSelectionChange) return updated
 
-        displayNodesRef.current = nextNodes
-        setDisplayNodes(nextNodes)
+          const preferredSelectedId = [...changes]
+            .reverse()
+            .find(
+              (change): change is NodeChange & { id: string; selected: boolean } =>
+                change.type === 'select' && 'selected' in change && change.selected === true
+            )?.id
+          const preferredContextId = preferredSelectedId
+            ? getNodeSelectionContextId(
+                updated.find((node) => node.id === preferredSelectedId) ?? {
+                  id: preferredSelectedId,
+                  parentId: undefined,
+                },
+                blocks
+              )
+            : undefined
 
-        if (hasSelectionChange) {
-          const selectedIds = nextNodes.filter((node) => node.selected).map((node) => node.id)
-          syncPanelWithSelection(selectedIds)
-        }
+          return resolveSelectionConflicts(updated, blocks, preferredContextId)
+        })
 
         // Handle position changes (e.g., from keyboard arrow key movement)
         // Update container dimensions when child nodes are moved and persist to backend
@@ -3163,7 +3174,10 @@ const WorkflowContent = React.memo(
           parentId: currentParentId,
         })
 
-        // Capture all selected nodes' positions for multi-node undo/redo
+        // Capture all selected nodes' positions for multi-node undo/redo.
+        // Also include the dragged node itself — during shift+click+drag, ReactFlow
+        // may have toggled (deselected) the node before drag starts, so it might not
+        // appear in the selected set yet.
         const allNodes = getNodes()
         const selectedNodes = allNodes.filter((n) => n.selected)
         multiNodeDragStartRef.current.clear()
@@ -3177,6 +3191,23 @@ const WorkflowContent = React.memo(
             })
           }
         })
+        if (!multiNodeDragStartRef.current.has(node.id)) {
+          multiNodeDragStartRef.current.set(node.id, {
+            x: node.position.x,
+            y: node.position.y,
+            parentId: currentParentId ?? undefined,
+          })
+        }
+
+        // When shift+clicking an already-selected node, ReactFlow toggles (deselects)
+        // it via onNodesChange before drag starts. Re-select the dragged node so all
+        // previously selected nodes move together as a group.
+        const draggedNodeInSelected = allNodes.find((n) => n.id === node.id)
+        if (draggedNodeInSelected && !draggedNodeInSelected.selected && selectedNodes.length > 0) {
+          setDisplayNodes((currentNodes) =>
+            currentNodes.map((n) => (n.id === node.id ? { ...n, selected: true } : n))
+          )
+        }
       },
       [blocks, setDragStartPosition, getNodes, setPotentialParentId]
     )
@@ -3613,22 +3644,20 @@ const WorkflowContent = React.memo(
     const handleNodeClick = useCallback(
       (event: React.MouseEvent, node: Node) => {
         const isMultiSelect = event.shiftKey || event.metaKey || event.ctrlKey
-        const updated = displayNodesRef.current.map((currentNode) => ({
-          ...currentNode,
-          selected: isMultiSelect
-            ? currentNode.id === node.id
-              ? true
-              : currentNode.selected
-            : currentNode.id === node.id,
-        }))
-        const resolved = resolveSelectionConflicts(updated, blocks)
-        const selectedIds = resolved
-          .filter((selectedNode) => selectedNode.selected)
-          .map((selectedNode) => selectedNode.id)
-
-        displayNodesRef.current = resolved
-        setDisplayNodes(resolved)
-        syncPanelWithSelection(selectedIds)
+        const preferredContextId = isMultiSelect
+          ? getNodeSelectionContextId(node, blocks)
+          : undefined
+        setDisplayNodes((currentNodes) => {
+          const updated = currentNodes.map((currentNode) => ({
+            ...currentNode,
+            selected: isMultiSelect
+              ? currentNode.id === node.id
+                ? true
+                : currentNode.selected
+              : currentNode.id === node.id,
+          }))
+          return resolveSelectionConflicts(updated, blocks, preferredContextId)
+        })
       },
       [blocks]
     )
