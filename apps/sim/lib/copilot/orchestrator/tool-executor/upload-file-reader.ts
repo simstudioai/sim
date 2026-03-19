@@ -3,6 +3,7 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
+import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { getServePathPrefix } from '@/lib/uploads'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
@@ -21,6 +22,7 @@ function toWorkspaceFileRecord(row: typeof workspaceFiles.$inferSelect): Workspa
     uploadedBy: row.userId,
     deletedAt: row.deletedAt,
     uploadedAt: row.uploadedAt,
+    storageContext: 'mothership',
   }
 }
 
@@ -51,29 +53,19 @@ export async function listChatUploads(chatId: string): Promise<WorkspaceFileReco
 }
 
 /**
- * Read a specific uploaded file by name within a chat session.
+ * Read a specific uploaded file by display name within a chat session.
+ * Resolves names with `normalizeVfsSegment` so macOS screenshot spacing (e.g. U+202F)
+ * matches when the model passes a visually equivalent path.
  */
 export async function readChatUpload(
   filename: string,
   chatId: string
 ): Promise<FileReadResult | null> {
   try {
-    const rows = await db
-      .select()
-      .from(workspaceFiles)
-      .where(
-        and(
-          eq(workspaceFiles.chatId, chatId),
-          eq(workspaceFiles.context, 'mothership'),
-          eq(workspaceFiles.originalName, filename),
-          isNull(workspaceFiles.deletedAt)
-        )
-      )
-      .limit(1)
-
-    if (rows.length === 0) return null
-
-    const record = toWorkspaceFileRecord(rows[0])
+    const uploads = await listChatUploads(chatId)
+    const segmentKey = normalizeVfsSegment(filename)
+    const record = uploads.find((u) => normalizeVfsSegment(u.name) === segmentKey)
+    if (!record) return null
     return readFileRecord(record)
   } catch (err) {
     logger.warn('Failed to read chat upload', {

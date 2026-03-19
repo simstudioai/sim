@@ -1,3 +1,5 @@
+import micromatch from 'micromatch'
+
 export interface GrepMatch {
   path: string
   line: number
@@ -30,8 +32,46 @@ export interface DirEntry {
 }
 
 /**
- * Regex search over VFS file contents.
- * Supports multiple output modes: content (default), files_with_matches, count.
+ * Micromatch options tuned to match the prior in-house glob: `bash: false` so a single `*`
+ * never crosses path slashes (required for `files` + star + `meta.json` style paths). `nobrace`
+ * and `noext` disable brace and extglob expansion like the old builder. Uses `micromatch` for
+ * well-tested `**` and edge cases instead of a custom `RegExp`.
+ */
+const VFS_GLOB_OPTIONS: micromatch.Options = {
+  bash: false,
+  dot: false,
+  windows: false,
+  nobrace: true,
+  noext: true,
+}
+
+/**
+ * Returns true when `filePath` is `scope` or a descendant path (`scope/...`), matching how
+ * `grep -r pattern dir` limits to a directory. If `scope` looks like a glob, filters with
+ * micromatch `isMatch` and {@link VFS_GLOB_OPTIONS}.
+ */
+/**
+ * Splits VFS text into lines for line-oriented grep. Strips a trailing CR so Windows-style
+ * CRLF payloads still match patterns anchored at line end (`$`).
+ */
+function splitLinesForGrep(content: string): string[] {
+  return content.split('\n').map((line) => line.replace(/\r$/, ''))
+}
+
+function pathWithinGrepScope(filePath: string, scope: string): boolean {
+  const looksLikeGlob =
+    /[*?[{]/.test(scope) || scope.includes('!(') || scope.includes('@(') || scope.includes('+(')
+  if (looksLikeGlob) {
+    return micromatch.isMatch(filePath, scope, VFS_GLOB_OPTIONS)
+  }
+  return filePath === scope || filePath.startsWith(scope + '/')
+}
+
+/**
+ * Regex search over VFS file contents using ECMAScript `RegExp` syntax.
+ * `content` and `count` are line-oriented (split on newline, CR stripped per line).
+ * `files_with_matches` tests the entire file string once, so multiline patterns can match there
+ * but not in line modes.
  */
 export function grep(
   files: Map<string, string>,
@@ -56,7 +96,7 @@ export function grep(
   if (outputMode === 'files_with_matches') {
     const matchingFiles: string[] = []
     for (const [filePath, content] of files) {
-      if (path && !filePath.startsWith(path)) continue
+      if (path && !pathWithinGrepScope(filePath, path)) continue
       regex.lastIndex = 0
       if (regex.test(content)) {
         matchingFiles.push(filePath)
@@ -69,8 +109,8 @@ export function grep(
   if (outputMode === 'count') {
     const counts: GrepCountEntry[] = []
     for (const [filePath, content] of files) {
-      if (path && !filePath.startsWith(path)) continue
-      const lines = content.split('\n')
+      if (path && !pathWithinGrepScope(filePath, path)) continue
+      const lines = splitLinesForGrep(content)
       let count = 0
       for (const line of lines) {
         regex.lastIndex = 0
@@ -87,9 +127,9 @@ export function grep(
   // Default: 'content' mode
   const matches: GrepMatch[] = []
   for (const [filePath, content] of files) {
-    if (path && !filePath.startsWith(path)) continue
+    if (path && !pathWithinGrepScope(filePath, path)) continue
 
-    const lines = content.split('\n')
+    const lines = splitLinesForGrep(content)
     for (let i = 0; i < lines.length; i++) {
       regex.lastIndex = 0
       if (regex.test(lines[i])) {
@@ -119,53 +159,13 @@ export function grep(
 }
 
 /**
- * Convert a glob pattern to a RegExp.
- * Supports *, **, and ? wildcards.
- */
-function globToRegExp(pattern: string): RegExp {
-  let regexStr = '^'
-  let i = 0
-  while (i < pattern.length) {
-    const ch = pattern[i]
-    if (ch === '*') {
-      if (pattern[i + 1] === '*') {
-        // ** matches any number of path segments
-        if (pattern[i + 2] === '/') {
-          regexStr += '(?:.+/)?'
-          i += 3
-        } else {
-          regexStr += '.*'
-          i += 2
-        }
-      } else {
-        // * matches anything except /
-        regexStr += '[^/]*'
-        i++
-      }
-    } else if (ch === '?') {
-      regexStr += '[^/]'
-      i++
-    } else if (/[.+^${}()|[\]\\]/.test(ch)) {
-      regexStr += `\\${ch}`
-      i++
-    } else {
-      regexStr += ch
-      i++
-    }
-  }
-  regexStr += '$'
-  return new RegExp(regexStr)
-}
-
-/**
- * Glob pattern matching against VFS file paths and virtual directories.
- * Returns matching paths (both files and directory prefixes), just like a real filesystem.
+ * Glob pattern matching against VFS file paths and virtual directories using `micromatch`
+ * with {@link VFS_GLOB_OPTIONS} (path-aware `*` and `?`, `**`, no brace or extglob expansion).
+ * Returns matching file keys and virtual directory prefixes.
  */
 export function glob(files: Map<string, string>, pattern: string): string[] {
-  const regex = globToRegExp(pattern)
   const result = new Set<string>()
 
-  // Collect all virtual directory paths from file paths
   const directories = new Set<string>()
   for (const filePath of files.keys()) {
     const parts = filePath.split('/')
@@ -174,16 +174,14 @@ export function glob(files: Map<string, string>, pattern: string): string[] {
     }
   }
 
-  // Match file paths
   for (const filePath of files.keys()) {
-    if (regex.test(filePath)) {
+    if (micromatch.isMatch(filePath, pattern, VFS_GLOB_OPTIONS)) {
       result.add(filePath)
     }
   }
 
-  // Match virtual directory paths
   for (const dir of directories) {
-    if (regex.test(dir)) {
+    if (micromatch.isMatch(dir, pattern, VFS_GLOB_OPTIONS)) {
       result.add(dir)
     }
   }

@@ -12,6 +12,7 @@ import {
   decrementStorageUsage,
   incrementStorageUsage,
 } from '@/lib/billing/storage'
+import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import {
   downloadFile,
   hasCloudStorage,
@@ -44,6 +45,8 @@ export interface WorkspaceFileRecord {
   uploadedBy: string
   deletedAt?: Date | null
   uploadedAt: Date
+  /** Pass-through to `downloadFile` when not default `workspace` (e.g. chat mothership uploads). */
+  storageContext?: 'workspace' | 'mothership'
 }
 
 /**
@@ -363,12 +366,9 @@ export function findWorkspaceFileRecord(
   }
 
   const normalizedReference = normalizeWorkspaceFileReference(fileReference)
+  const segmentKey = normalizeVfsSegment(normalizedReference)
   return (
-    files.find(
-      (file) =>
-        file.name === normalizedReference ||
-        file.name.normalize('NFC') === normalizedReference.normalize('NFC')
-    ) ?? null
+    files.find((file) => normalizeVfsSegment(file.name) === segmentKey) ?? null
   )
 }
 
@@ -445,7 +445,7 @@ export async function downloadWorkspaceFile(fileRecord: WorkspaceFileRecord): Pr
   try {
     const buffer = await downloadFile({
       key: fileRecord.key,
-      context: 'workspace',
+      context: fileRecord.storageContext ?? 'workspace',
     })
     logger.info(
       `Successfully downloaded workspace file: ${fileRecord.name} (${buffer.length} bytes)`
