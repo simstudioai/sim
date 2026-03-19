@@ -1,0 +1,110 @@
+---
+title: Infisical
+description: Manage secrets with Infisical
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="infisical"
+  color="#F7FE62"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Infisical](https://infisical.com/) is an open-source secrets management platform that helps teams centralize and manage application secrets, environment variables, and sensitive configuration data across their infrastructure. This integration brings Infisical's secrets management capabilities directly into Sim workflows.
+
+With Infisical in Sim, you can:
+
+- **List secrets**: Retrieve all secrets from a project environment with filtering by path, tags, and recursive subdirectory support
+- **Get a secret**: Fetch a specific secret by name, with optional version pinning and secret reference expansion
+- **Create secrets**: Add new secrets to any project environment with support for comments, paths, and tag assignments
+- **Update secrets**: Modify existing secret values, comments, names, and tags
+- **Delete secrets**: Remove secrets from a project environment
+
+In Sim, the Infisical integration enables your agents to programmatically manage secrets as part of automated workflows — for example, rotating credentials, syncing environment variables across environments, or auditing secret usage. Simply configure the Infisical block with your API key, select the operation, and provide the project ID and environment slug to get started.
+{/* MANUAL-CONTENT-END */}
+
+## Usage Instructions
+
+Integrate Infisical into your workflow. List, get, create, update, and delete secrets across project environments.
+
+
+
+## Tools
+
+### `infisical_list_secrets`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `secrets` | json | Array of secrets \(list operation\) |
+| `count` | number | Number of secrets returned |
+| `secret` | json | Secret object \(get/create/update/delete operations\) |
+
+### `infisical_get_secret`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `secrets` | json | Array of secrets \(list operation\) |
+| `count` | number | Number of secrets returned |
+| `secret` | json | Secret object \(get/create/update/delete operations\) |
+
+### `infisical_create_secret`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `secrets` | json | Array of secrets \(list operation\) |
+| `count` | number | Number of secrets returned |
+| `secret` | json | Secret object \(get/create/update/delete operations\) |
+
+### `infisical_update_secret`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `secrets` | json | Array of secrets \(list operation\) |
+| `count` | number | Number of secrets returned |
+| `secret` | json | Secret object \(get/create/update/delete operations\) |
+
+### `infisical_delete_secret`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `secrets` | json | Array of secrets \(list operation\) |
+| `count` | number | Number of secrets returned |
+| `secret` | json | Secret object \(get/create/update/delete operations\) |
+
+
