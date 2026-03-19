@@ -1156,7 +1156,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         env.DOCUSIGN_CLIENT_SECRET
       )
       return {
-        tokenEndpoint: 'https://account.docusign.com/oauth/token',
+        tokenEndpoint: 'https://account-d.docusign.com/oauth/token',
         clientId,
         clientSecret,
         useBasicAuth: true,

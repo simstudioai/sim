@@ -2655,9 +2655,9 @@ export const auth = betterAuth({
           providerId: 'docusign',
           clientId: env.DOCUSIGN_CLIENT_ID as string,
           clientSecret: env.DOCUSIGN_CLIENT_SECRET as string,
-          authorizationUrl: 'https://account.docusign.com/oauth/auth',
-          tokenUrl: 'https://account.docusign.com/oauth/token',
-          userInfoUrl: 'https://account.docusign.com/oauth/userinfo',
+          authorizationUrl: 'https://account-d.docusign.com/oauth/auth',
+          tokenUrl: 'https://account-d.docusign.com/oauth/token',
+          userInfoUrl: 'https://account-d.docusign.com/oauth/userinfo',
           scopes: getCanonicalScopesForProvider('docusign'),
           responseType: 'code',
           accessType: 'offline',
@@ -2667,7 +2667,7 @@ export const auth = betterAuth({
             try {
               logger.info('Fetching DocuSign user profile')
 
-              const response = await fetch('https://account.docusign.com/oauth/userinfo', {
+              const response = await fetch('https://account-d.docusign.com/oauth/userinfo', {
                 headers: {
                   Authorization: `Bearer ${tokens.accessToken}`,
                 },
