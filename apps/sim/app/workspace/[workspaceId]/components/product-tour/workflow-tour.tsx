@@ -5,16 +5,17 @@ import { createLogger } from '@sim/logger'
 import dynamic from 'next/dynamic'
 import type { TooltipRenderProps } from 'react-joyride'
 import { TourTooltip } from '@/components/emcn'
-import { navTourSteps } from '@/app/workspace/[workspaceId]/components/product-tour/nav-tour-steps'
 import { useTour } from '@/app/workspace/[workspaceId]/components/product-tour/use-tour'
+import { workflowTourSteps } from '@/app/workspace/[workspaceId]/components/product-tour/workflow-tour-steps'
 
-const logger = createLogger('NavTour')
+const logger = createLogger('WorkflowTour')
 
 const Joyride = dynamic(() => import('react-joyride'), {
   ssr: false,
 })
 
-const NAV_TOUR_STORAGE_KEY = 'sim-nav-tour-completed-v1'
+const WORKFLOW_TOUR_STORAGE_KEY = 'sim-workflow-tour-completed-v1'
+export const START_WORKFLOW_TOUR_EVENT = 'start-workflow-tour'
 
 /** Shared state passed from the tour component to the tooltip adapter via context */
 interface TourState {
@@ -59,9 +60,8 @@ function mapPlacement(placement?: string): 'top' | 'right' | 'bottom' | 'left' |
 
 /**
  * Adapter that bridges Joyride's tooltip render props to the EMCN TourTooltip component.
- * Reads transition state from TourStateContext to coordinate fade animations.
  */
-function NavTooltipAdapter({
+function WorkflowTooltipAdapter({
   step,
   index,
   isLastStep,
@@ -126,23 +126,24 @@ function NavTooltipAdapter({
 }
 
 /**
- * Navigation tour that walks through sidebar items on first workspace visit.
- * Runs once automatically and cannot be retriggered.
+ * Workflow tour that covers the canvas, blocks, copilot, and deployment.
+ * Runs on first workflow visit and can be retriggered via "Take a tour".
  */
-export function NavTour() {
+export function WorkflowTour() {
   const { run, stepIndex, tourKey, isTooltipVisible, isEntrance, handleCallback } = useTour({
-    steps: navTourSteps,
-    storageKey: NAV_TOUR_STORAGE_KEY,
-    autoStartDelay: 1200,
-    resettable: false,
-    tourName: 'Navigation tour',
+    steps: workflowTourSteps,
+    storageKey: WORKFLOW_TOUR_STORAGE_KEY,
+    autoStartDelay: 800,
+    resettable: true,
+    triggerEvent: START_WORKFLOW_TOUR_EVENT,
+    tourName: 'Workflow tour',
   })
 
   const tourState = useMemo<TourState>(
     () => ({
       isTooltipVisible,
       isEntrance,
-      totalSteps: navTourSteps.length,
+      totalSteps: workflowTourSteps.length,
     }),
     [isTooltipVisible, isEntrance]
   )
@@ -151,7 +152,7 @@ export function NavTour() {
     <TourStateContext.Provider value={tourState}>
       <Joyride
         key={tourKey}
-        steps={navTourSteps}
+        steps={workflowTourSteps}
         run={run}
         stepIndex={stepIndex}
         callback={handleCallback}
@@ -159,7 +160,7 @@ export function NavTour() {
         disableScrolling
         disableOverlayClose
         spotlightPadding={4}
-        tooltipComponent={NavTooltipAdapter}
+        tooltipComponent={WorkflowTooltipAdapter}
         floaterProps={{
           disableAnimation: true,
           hideArrow: true,
