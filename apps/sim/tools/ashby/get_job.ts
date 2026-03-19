@@ -30,7 +30,7 @@ export const getJobTool: ToolConfig<AshbyGetJobParams, AshbyGetJobResponse> = {
       Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
     }),
     body: (params) => ({
-      id: params.jobId.trim(),
+      jobId: params.jobId.trim(),
     }),
   },
 
