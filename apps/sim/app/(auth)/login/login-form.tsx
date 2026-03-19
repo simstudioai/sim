@@ -175,6 +175,7 @@ export default function LoginPage({
     }
 
     try {
+      // callbackUrl is already validated at initialization — either a passing callbackUrlParam or '/workspace'
       const safeCallbackUrl = callbackUrl
       let errorHandled = false
 
