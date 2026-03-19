@@ -28,7 +28,7 @@ import {
   updateTagDefinition,
 } from '@/lib/knowledge/tags/service'
 import { StorageService } from '@/lib/uploads'
-import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getQueryStrategy, handleVectorOnlySearch } from '@/app/api/knowledge/search/utils'
 
 const logger = createLogger('KnowledgeBaseServerTool')
@@ -235,13 +235,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const match = args.filePath.match(/^files\/(.+)$/)
-          const fileName = match ? match[1] : args.filePath
           const kbWorkspaceId: string = targetKb.workspaceId
-          const files = await listWorkspaceFiles(kbWorkspaceId)
-          const fileRecord = files.find(
-            (f) => f.name === fileName || f.name.normalize('NFC') === fileName.normalize('NFC')
-          )
+          const fileRecord = await resolveWorkspaceFileReference(kbWorkspaceId, args.filePath)
 
           if (!fileRecord) {
             return {

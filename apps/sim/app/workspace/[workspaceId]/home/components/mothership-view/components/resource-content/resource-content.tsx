@@ -344,10 +344,10 @@ interface EmbeddedFileProps {
 }
 
 function EmbeddedFile({ workspaceId, fileId, previewMode }: EmbeddedFileProps) {
-  const { data: files = [], isLoading } = useWorkspaceFiles(workspaceId)
+  const { data: files = [], isLoading, isFetching } = useWorkspaceFiles(workspaceId)
   const file = useMemo(() => files.find((f) => f.id === fileId), [files, fileId])
 
-  if (isLoading) return LOADING_SKELETON
+  if (isLoading || (isFetching && !file)) return LOADING_SKELETON
 
   if (!file) {
     return (

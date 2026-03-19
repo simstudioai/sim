@@ -56,7 +56,10 @@ import {
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { listTables } from '@/lib/table/service'
-import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  findWorkspaceFileRecord,
+  listWorkspaceFiles,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -397,9 +400,7 @@ export class WorkspaceVFS {
 
     try {
       const files = await listWorkspaceFiles(this._workspaceId)
-      const record = files.find(
-        (f) => f.name === fileName || f.name.normalize('NFC') === fileName.normalize('NFC')
-      )
+      const record = findWorkspaceFileRecord(files, fileName)
       if (!record) return null
       return readFileRecord(record)
     } catch (err) {
