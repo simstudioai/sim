@@ -71,7 +71,7 @@ export const listApplicationsTool: ToolConfig<
       if (params.status) body.status = [params.status]
       if (params.jobId) body.jobId = params.jobId
       if (params.candidateId) body.candidateId = params.candidateId
-      if (params.createdAfter) body.createdAfter = params.createdAfter
+      if (params.createdAfter) body.createdAfter = new Date(params.createdAfter).getTime()
       return body
     },
   },

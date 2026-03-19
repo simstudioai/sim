@@ -21,6 +21,7 @@ export type OAuthProvider =
   | 'airtable'
   | 'notion'
   | 'jira'
+  | 'box'
   | 'dropbox'
   | 'microsoft'
   | 'microsoft-dataverse'
@@ -47,6 +48,7 @@ export type OAuthProvider =
   | 'wordpress'
   | 'spotify'
   | 'calcom'
+  | 'docusign'
 
 export type OAuthService =
   | 'google'
@@ -69,6 +71,7 @@ export type OAuthService =
   | 'airtable'
   | 'notion'
   | 'jira'
+  | 'box'
   | 'dropbox'
   | 'microsoft-dataverse'
   | 'microsoft-excel'
@@ -94,6 +97,7 @@ export type OAuthService =
   | 'wordpress'
   | 'spotify'
   | 'calcom'
+  | 'docusign'
   | 'github'
 
 export interface OAuthProviderConfig {

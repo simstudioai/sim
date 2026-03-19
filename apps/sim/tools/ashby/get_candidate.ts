@@ -30,7 +30,7 @@ export const getCandidateTool: ToolConfig<AshbyGetCandidateParams, AshbyGetCandi
       Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
     }),
     body: (params) => ({
-      candidateId: params.candidateId,
+      candidateId: params.candidateId.trim(),
     }),
   },
 

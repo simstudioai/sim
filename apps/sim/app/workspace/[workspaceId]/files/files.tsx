@@ -151,6 +151,8 @@ export function Files() {
   }
 
   const justCreatedFileIdRef = useRef<string | null>(null)
+  const filesRef = useRef(files)
+  filesRef.current = files
 
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
@@ -483,11 +485,11 @@ export function Files() {
     if (isJustCreated) {
       setPreviewMode('editor')
     } else {
-      const file = selectedFileId ? files.find((f) => f.id === selectedFileId) : null
+      const file = selectedFileId ? filesRef.current.find((f) => f.id === selectedFileId) : null
       const canPreview = file ? isPreviewable(file) : false
       setPreviewMode(canPreview ? 'preview' : 'editor')
     }
-  }, [selectedFileId, files])
+  }, [selectedFileId])
 
   useEffect(() => {
     if (!selectedFile) return

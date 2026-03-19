@@ -1,8 +1,5 @@
-import { existsSync } from 'fs'
-import path from 'path'
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
-import { UPLOAD_DIR } from '@/lib/uploads/config'
 import { sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FilesUtils')
@@ -123,76 +120,29 @@ export function extractFilename(path: string): string {
   return filename
 }
 
-function sanitizeFilename(filename: string): string {
-  if (!filename || typeof filename !== 'string') {
-    throw new Error('Invalid filename provided')
-  }
-
-  if (!filename.includes('/')) {
-    throw new Error('File key must include a context prefix (e.g., kb/, workspace/, execution/)')
-  }
-
-  const segments = filename.split('/')
-
-  const sanitizedSegments = segments.map((segment) => {
-    if (segment === '..' || segment === '.') {
-      throw new Error('Path traversal detected')
-    }
-
-    const sanitized = segment.replace(/\.\./g, '').replace(/[\\]/g, '').replace(/^\./g, '').trim()
-
-    if (!sanitized) {
-      throw new Error('Invalid or empty path segment after sanitization')
-    }
-
-    if (
-      sanitized.includes(':') ||
-      sanitized.includes('|') ||
-      sanitized.includes('?') ||
-      sanitized.includes('*') ||
-      sanitized.includes('\x00') ||
-      /[\x00-\x1F\x7F]/.test(sanitized)
-    ) {
-      throw new Error('Path segment contains invalid characters')
-    }
-
-    return sanitized
-  })
-
-  return sanitizedSegments.join(path.sep)
-}
-
-export function findLocalFile(filename: string): string | null {
+export async function findLocalFile(filename: string): Promise<string | null> {
   try {
     const sanitizedFilename = sanitizeFileKey(filename)
 
-    // Reject if sanitized filename is empty or only contains path separators/dots
     if (!sanitizedFilename || !sanitizedFilename.trim() || /^[/\\.\s]+$/.test(sanitizedFilename)) {
       return null
     }
 
-    const possiblePaths = [
-      path.join(UPLOAD_DIR, sanitizedFilename),
-      path.join(process.cwd(), 'uploads', sanitizedFilename),
-    ]
+    const { existsSync } = await import('fs')
+    const path = await import('path')
+    const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/core/setup.server')
 
-    for (const filePath of possiblePaths) {
-      const resolvedPath = path.resolve(filePath)
-      const allowedDirs = [path.resolve(UPLOAD_DIR), path.resolve(process.cwd(), 'uploads')]
+    const resolvedPath = path.join(UPLOAD_DIR_SERVER, sanitizedFilename)
 
-      // Must be within allowed directory but NOT the directory itself
-      const isWithinAllowedDir = allowedDirs.some(
-        (allowedDir) =>
-          resolvedPath.startsWith(allowedDir + path.sep) && resolvedPath !== allowedDir
-      )
+    if (
+      !resolvedPath.startsWith(UPLOAD_DIR_SERVER + path.sep) ||
+      resolvedPath === UPLOAD_DIR_SERVER
+    ) {
+      return null
+    }
 
-      if (!isWithinAllowedDir) {
-        continue
-      }
-
-      if (existsSync(resolvedPath)) {
-        return resolvedPath
-      }
+    if (existsSync(resolvedPath)) {
+      return resolvedPath
     }
 
     return null

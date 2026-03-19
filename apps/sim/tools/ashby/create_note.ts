@@ -78,35 +78,12 @@ export const createNoteTool: ToolConfig<AshbyCreateNoteParams, AshbyCreateNoteRe
     return {
       success: true,
       output: {
-        id: r.id ?? null,
-        content: r.content ?? null,
-        author: r.author
-          ? {
-              id: r.author.id ?? null,
-              firstName: r.author.firstName ?? null,
-              lastName: r.author.lastName ?? null,
-              email: r.author.email ?? null,
-            }
-          : null,
-        createdAt: r.createdAt ?? null,
+        noteId: r.id ?? null,
       },
     }
   },
 
   outputs: {
-    id: { type: 'string', description: 'Created note UUID' },
-    content: { type: 'string', description: 'Note content as stored' },
-    author: {
-      type: 'object',
-      description: 'Note author',
-      optional: true,
-      properties: {
-        id: { type: 'string', description: 'Author user UUID' },
-        firstName: { type: 'string', description: 'First name' },
-        lastName: { type: 'string', description: 'Last name' },
-        email: { type: 'string', description: 'Email address' },
-      },
-    },
-    createdAt: { type: 'string', description: 'ISO 8601 creation timestamp' },
+    noteId: { type: 'string', description: 'Created note UUID' },
   },
 }

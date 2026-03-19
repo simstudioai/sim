@@ -159,6 +159,7 @@
     "resend": "^4.1.2",
     "rss-parser": "3.13.0",
     "sharp": "0.34.3",
+    "soap": "1.8.0",
     "socket.io": "^4.8.1",
     "socket.io-client": "4.8.1",
     "ssh2": "^1.17.0",

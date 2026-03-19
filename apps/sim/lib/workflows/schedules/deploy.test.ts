@@ -796,6 +796,7 @@ describe('Schedule Deploy Utilities', () => {
 
       expect(mockOnConflictDoUpdate).toHaveBeenCalledWith({
         target: expect.any(Array),
+        targetWhere: expect.objectContaining({ type: 'isNull' }),
         set: expect.objectContaining({
           blockId: 'block-1',
           cronExpression: '0 9 * * *',

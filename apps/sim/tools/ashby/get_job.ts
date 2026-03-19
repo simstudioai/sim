@@ -30,7 +30,7 @@ export const getJobTool: ToolConfig<AshbyGetJobParams, AshbyGetJobResponse> = {
       Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
     }),
     body: (params) => ({
-      jobId: params.jobId,
+      jobId: params.jobId.trim(),
     }),
   },
 
@@ -63,7 +63,7 @@ export const getJobTool: ToolConfig<AshbyGetJobParams, AshbyGetJobResponse> = {
   outputs: {
     id: { type: 'string', description: 'Job UUID' },
     title: { type: 'string', description: 'Job title' },
-    status: { type: 'string', description: 'Job status (Open, Closed, Draft, Archived, On Hold)' },
+    status: { type: 'string', description: 'Job status (Open, Closed, Draft, Archived)' },
     employmentType: {
       type: 'string',
       description: 'Employment type (FullTime, PartTime, Intern, Contract, Temporary)',

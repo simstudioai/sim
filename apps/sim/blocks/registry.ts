@@ -13,6 +13,7 @@ import { ArxivBlock } from '@/blocks/blocks/arxiv'
 import { AsanaBlock } from '@/blocks/blocks/asana'
 import { AshbyBlock } from '@/blocks/blocks/ashby'
 import { AttioBlock } from '@/blocks/blocks/attio'
+import { BoxBlock } from '@/blocks/blocks/box'
 import { BrandfetchBlock } from '@/blocks/blocks/brandfetch'
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
 import { CalComBlock } from '@/blocks/blocks/calcom'
@@ -29,6 +30,7 @@ import { DatabricksBlock } from '@/blocks/blocks/databricks'
 import { DatadogBlock } from '@/blocks/blocks/datadog'
 import { DevinBlock } from '@/blocks/blocks/devin'
 import { DiscordBlock } from '@/blocks/blocks/discord'
+import { DocuSignBlock } from '@/blocks/blocks/docusign'
 import { DropboxBlock } from '@/blocks/blocks/dropbox'
 import { DSPyBlock } from '@/blocks/blocks/dspy'
 import { DubBlock } from '@/blocks/blocks/dub'
@@ -188,6 +190,7 @@ import { WebhookRequestBlock } from '@/blocks/blocks/webhook_request'
 import { WhatsAppBlock } from '@/blocks/blocks/whatsapp'
 import { WikipediaBlock } from '@/blocks/blocks/wikipedia'
 import { WordPressBlock } from '@/blocks/blocks/wordpress'
+import { WorkdayBlock } from '@/blocks/blocks/workday'
 import { WorkflowBlock } from '@/blocks/blocks/workflow'
 import { WorkflowInputBlock } from '@/blocks/blocks/workflow_input'
 import { XBlock } from '@/blocks/blocks/x'
@@ -215,6 +218,7 @@ export const registry: Record<string, BlockConfig> = {
   ashby: AshbyBlock,
   attio: AttioBlock,
   brandfetch: BrandfetchBlock,
+  box: BoxBlock,
   browser_use: BrowserUseBlock,
   calcom: CalComBlock,
   calendly: CalendlyBlock,
@@ -232,6 +236,7 @@ export const registry: Record<string, BlockConfig> = {
   datadog: DatadogBlock,
   devin: DevinBlock,
   discord: DiscordBlock,
+  docusign: DocuSignBlock,
   dropbox: DropboxBlock,
   dspy: DSPyBlock,
   dub: DubBlock,
@@ -408,6 +413,7 @@ export const registry: Record<string, BlockConfig> = {
   whatsapp: WhatsAppBlock,
   wikipedia: WikipediaBlock,
   wordpress: WordPressBlock,
+  workday: WorkdayBlock,
   workflow: WorkflowBlock,
   workflow_input: WorkflowInputBlock,
   x: XBlock,

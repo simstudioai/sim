@@ -3,8 +3,10 @@ import {
   AirtableIcon,
   AsanaIcon,
   AttioIcon,
+  BoxCompanyIcon,
   CalComIcon,
   ConfluenceIcon,
+  DocuSignIcon,
   DropboxIcon,
   GmailIcon,
   GoogleAdsIcon,
@@ -571,6 +573,21 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'linear',
   },
+  box: {
+    name: 'Box',
+    icon: BoxCompanyIcon,
+    services: {
+      box: {
+        name: 'Box',
+        description: 'Manage files, folders, and e-signatures with Box.',
+        providerId: 'box',
+        icon: BoxCompanyIcon,
+        baseProviderIcon: BoxCompanyIcon,
+        scopes: ['root_readwrite', 'sign_requests.readwrite'],
+      },
+    },
+    defaultService: 'box',
+  },
   dropbox: {
     name: 'Dropbox',
     icon: DropboxIcon,
@@ -778,6 +795,21 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'calcom',
+  },
+  docusign: {
+    name: 'DocuSign',
+    icon: DocuSignIcon,
+    services: {
+      docusign: {
+        name: 'DocuSign',
+        description: 'Send documents for e-signature with DocuSign.',
+        providerId: 'docusign',
+        icon: DocuSignIcon,
+        baseProviderIcon: DocuSignIcon,
+        scopes: ['signature', 'extended'],
+      },
+    },
+    defaultService: 'docusign',
   },
   pipedrive: {
     name: 'Pipedrive',
@@ -1107,6 +1139,28 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: false,
+      }
+    }
+    case 'box': {
+      const { clientId, clientSecret } = getCredentials(env.BOX_CLIENT_ID, env.BOX_CLIENT_SECRET)
+      return {
+        tokenEndpoint: 'https://api.box.com/oauth2/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+      }
+    }
+    case 'docusign': {
+      const { clientId, clientSecret } = getCredentials(
+        env.DOCUSIGN_CLIENT_ID,
+        env.DOCUSIGN_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://account-d.docusign.com/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: false,
       }
     }
     case 'dropbox': {
