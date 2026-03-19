@@ -3,7 +3,12 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createWorkdaySoapClient, extractRefId } from '@/tools/workday/soap'
+import {
+  createWorkdaySoapClient,
+  extractRefId,
+  normalizeSoapArray,
+  type WorkdayOrganizationSoap,
+} from '@/tools/workday/soap'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,23 +63,20 @@ export async function POST(request: NextRequest) {
       Response_Group: { Include_Hierarchy_Data: true },
     })
 
-    const rawOrgs = result?.Response_Data?.Organization
-    const orgsArray = Array.isArray(rawOrgs) ? rawOrgs : rawOrgs ? [rawOrgs] : []
+    const orgsArray = normalizeSoapArray(
+      result?.Response_Data?.Organization as
+        | WorkdayOrganizationSoap
+        | WorkdayOrganizationSoap[]
+        | undefined
+    )
 
-    const organizations = orgsArray.map((o: Record<string, unknown>) => {
-      const orgData = o.Organization_Data as Record<string, unknown> | undefined
-      return {
-        id: extractRefId(o.Organization_Reference as Record<string, unknown>) ?? null,
-        descriptor: o.Organization_Descriptor ?? null,
-        type: orgData?.Organization_Type_Reference
-          ? (extractRefId(orgData.Organization_Type_Reference) ?? null)
-          : null,
-        subtype: orgData?.Organization_Subtype_Reference
-          ? (extractRefId(orgData.Organization_Subtype_Reference) ?? null)
-          : null,
-        isActive: orgData?.Inactive != null ? !orgData.Inactive : null,
-      }
-    })
+    const organizations = orgsArray.map((o) => ({
+      id: extractRefId(o.Organization_Reference) ?? null,
+      descriptor: o.Organization_Descriptor ?? null,
+      type: extractRefId(o.Organization_Data?.Organization_Type_Reference) ?? null,
+      subtype: extractRefId(o.Organization_Data?.Organization_Subtype_Reference) ?? null,
+      isActive: o.Organization_Data?.Inactive != null ? !o.Organization_Data.Inactive : null,
+    }))
 
     const total = result?.Response_Results?.Total_Results ?? organizations.length
 

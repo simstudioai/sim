@@ -34,10 +34,80 @@ export interface WorkdayReference {
   attributes?: Record<string, string>
 }
 
-interface WorkdayIdEntry {
+export interface WorkdayIdEntry {
   $value?: string
   _?: string
   attributes?: Record<string, string>
+}
+
+/**
+ * Raw SOAP response shape for a single Worker returned by Get_Workers.
+ * Fields are optional since the Response_Group controls what gets included.
+ */
+export interface WorkdayWorkerSoap {
+  Worker_Reference?: WorkdayReference
+  Worker_Descriptor?: string
+  Worker_Data?: WorkdayWorkerDataSoap
+}
+
+export interface WorkdayWorkerDataSoap {
+  Personal_Data?: Record<string, unknown>
+  Employment_Data?: Record<string, unknown>
+  Compensation_Data?: WorkdayCompensationDataSoap
+  Organization_Data?: Record<string, unknown>
+}
+
+export interface WorkdayCompensationDataSoap {
+  Employee_Base_Pay_Plan_Assignment_Data?:
+    | WorkdayCompensationPlanSoap
+    | WorkdayCompensationPlanSoap[]
+  Employee_Salary_Unit_Plan_Assignment_Data?:
+    | WorkdayCompensationPlanSoap
+    | WorkdayCompensationPlanSoap[]
+  Employee_Bonus_Plan_Assignment_Data?: WorkdayCompensationPlanSoap | WorkdayCompensationPlanSoap[]
+  Employee_Allowance_Plan_Assignment_Data?:
+    | WorkdayCompensationPlanSoap
+    | WorkdayCompensationPlanSoap[]
+  Employee_Commission_Plan_Assignment_Data?:
+    | WorkdayCompensationPlanSoap
+    | WorkdayCompensationPlanSoap[]
+  Employee_Stock_Plan_Assignment_Data?: WorkdayCompensationPlanSoap | WorkdayCompensationPlanSoap[]
+  Employee_Period_Salary_Plan_Assignment_Data?:
+    | WorkdayCompensationPlanSoap
+    | WorkdayCompensationPlanSoap[]
+}
+
+export interface WorkdayCompensationPlanSoap {
+  Compensation_Plan_Reference?: WorkdayReference
+  Amount?: number
+  Per_Unit_Amount?: number
+  Individual_Target_Amount?: number
+  Currency_Reference?: WorkdayReference
+  Frequency_Reference?: WorkdayReference
+}
+
+/**
+ * Raw SOAP response shape for a single Organization returned by Get_Organizations.
+ */
+export interface WorkdayOrganizationSoap {
+  Organization_Reference?: WorkdayReference
+  Organization_Descriptor?: string
+  Organization_Data?: WorkdayOrganizationDataSoap
+}
+
+export interface WorkdayOrganizationDataSoap {
+  Organization_Type_Reference?: WorkdayReference
+  Organization_Subtype_Reference?: WorkdayReference
+  Inactive?: boolean
+}
+
+/**
+ * Normalizes a SOAP response field that may be a single object, an array, or undefined
+ * into a consistently typed array.
+ */
+export function normalizeSoapArray<T>(value: T | T[] | undefined): T[] {
+  if (!value) return []
+  return Array.isArray(value) ? value : [value]
 }
 
 type SoapOperationFn = (

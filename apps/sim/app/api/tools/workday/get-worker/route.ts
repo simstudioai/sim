@@ -3,7 +3,12 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createWorkdaySoapClient, extractRefId, type WorkdayReference } from '@/tools/workday/soap'
+import {
+  createWorkdaySoapClient,
+  extractRefId,
+  normalizeSoapArray,
+  type WorkdayWorkerSoap,
+} from '@/tools/workday/soap'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,24 +57,22 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const rawWorker = result?.Response_Data?.Worker
-    const workerData = (Array.isArray(rawWorker) ? rawWorker[0] : (rawWorker ?? null)) as Record<
-      string,
-      unknown
-    > | null
-    const workerInner = (workerData?.Worker_Data ?? null) as Record<string, unknown> | null
+    const worker =
+      normalizeSoapArray(
+        result?.Response_Data?.Worker as WorkdayWorkerSoap | WorkdayWorkerSoap[] | undefined
+      )[0] ?? null
 
     return NextResponse.json({
       success: true,
       output: {
-        worker: workerData
+        worker: worker
           ? {
-              id: extractRefId(workerData.Worker_Reference as WorkdayReference | undefined) ?? null,
-              descriptor: (workerData.Worker_Descriptor as string) ?? null,
-              personalData: workerInner?.Personal_Data ?? null,
-              employmentData: workerInner?.Employment_Data ?? null,
-              compensationData: workerInner?.Compensation_Data ?? null,
-              organizationData: workerInner?.Organization_Data ?? null,
+              id: extractRefId(worker.Worker_Reference) ?? null,
+              descriptor: worker.Worker_Descriptor ?? null,
+              personalData: worker.Worker_Data?.Personal_Data ?? null,
+              employmentData: worker.Worker_Data?.Employment_Data ?? null,
+              compensationData: worker.Worker_Data?.Compensation_Data ?? null,
+              organizationData: worker.Worker_Data?.Organization_Data ?? null,
             }
           : null,
       },

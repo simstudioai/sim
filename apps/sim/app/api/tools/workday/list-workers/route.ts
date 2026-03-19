@@ -3,7 +3,12 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createWorkdaySoapClient, extractRefId } from '@/tools/workday/soap'
+import {
+  createWorkdaySoapClient,
+  extractRefId,
+  normalizeSoapArray,
+  type WorkdayWorkerSoap,
+} from '@/tools/workday/soap'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,18 +56,16 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const rawWorkers = result?.Response_Data?.Worker
-    const workersArray = Array.isArray(rawWorkers) ? rawWorkers : rawWorkers ? [rawWorkers] : []
+    const workersArray = normalizeSoapArray(
+      result?.Response_Data?.Worker as WorkdayWorkerSoap | WorkdayWorkerSoap[] | undefined
+    )
 
-    const workers = workersArray.map((w: Record<string, unknown>) => {
-      const workerData = w.Worker_Data as Record<string, unknown> | undefined
-      return {
-        id: extractRefId(w.Worker_Reference as Record<string, unknown>) ?? null,
-        descriptor: w.Worker_Descriptor ?? null,
-        personalData: workerData?.Personal_Data ?? null,
-        employmentData: workerData?.Employment_Data ?? null,
-      }
-    })
+    const workers = workersArray.map((w) => ({
+      id: extractRefId(w.Worker_Reference) ?? null,
+      descriptor: w.Worker_Descriptor ?? null,
+      personalData: w.Worker_Data?.Personal_Data ?? null,
+      employmentData: w.Worker_Data?.Employment_Data ?? null,
+    }))
 
     const total = result?.Response_Results?.Total_Results ?? workers.length
 
