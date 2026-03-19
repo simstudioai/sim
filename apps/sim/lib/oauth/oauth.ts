@@ -3,6 +3,7 @@ import {
   AirtableIcon,
   AsanaIcon,
   AttioIcon,
+  AzureIcon,
   BoxCompanyIcon,
   CalComIcon,
   ConfluenceIcon,
@@ -243,6 +244,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     name: 'Microsoft',
     icon: MicrosoftIcon,
     services: {
+      'microsoft-ad': {
+        name: 'Azure AD',
+        description: 'Connect to Azure AD (Microsoft Entra ID) and manage users and groups.',
+        providerId: 'microsoft-ad',
+        icon: AzureIcon,
+        baseProviderIcon: MicrosoftIcon,
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'User.Read.All',
+          'User.ReadWrite.All',
+          'Group.ReadWrite.All',
+          'GroupMember.ReadWrite.All',
+          'Directory.Read.All',
+          'offline_access',
+        ],
+      },
       'microsoft-dataverse': {
         name: 'Microsoft Dataverse',
         description: 'Connect to Microsoft Dataverse and manage records.',
