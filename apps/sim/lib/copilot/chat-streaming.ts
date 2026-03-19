@@ -218,6 +218,15 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           })
       }
 
+      const keepaliveInterval = setInterval(() => {
+        if (clientDisconnected) return
+        try {
+          controller.enqueue(encoder.encode(': keepalive\n\n'))
+        } catch {
+          clientDisconnected = true
+        }
+      }, 15_000)
+
       try {
         await orchestrateCopilotStream(requestPayload, {
           ...orchestrateOptions,
@@ -256,6 +265,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           },
         })
       } finally {
+        clearInterval(keepaliveInterval)
         activeStreams.delete(streamId)
         if (chatId) {
           resolvePendingChatStream(chatId, streamId)
