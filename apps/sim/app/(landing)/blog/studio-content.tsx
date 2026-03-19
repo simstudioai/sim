@@ -88,6 +88,16 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
   const totalPages = Math.max(1, Math.ceil(sorted.length / PER_PAGE))
   const pagePosts = sorted.slice((page - 1) * PER_PAGE, page * PER_PAGE)
 
+  useEffect(() => {
+    if (page === 1) return
+    setPage(1)
+  }, [activeTag, lowerQ, page])
+
+  useEffect(() => {
+    if (page <= totalPages) return
+    setPage(totalPages)
+  }, [page, totalPages])
+
   const isDefaultView = page === 1 && !activeTag && !lowerQ
   const featured: SerializedPost[] = []
   const feed: SerializedPost[] = []
