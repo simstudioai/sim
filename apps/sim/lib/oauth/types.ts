@@ -47,6 +47,7 @@ export type OAuthProvider =
   | 'wordpress'
   | 'spotify'
   | 'calcom'
+  | 'docusign'
 
 export type OAuthService =
   | 'google'
@@ -94,6 +95,7 @@ export type OAuthService =
   | 'wordpress'
   | 'spotify'
   | 'calcom'
+  | 'docusign'
   | 'github'
 
 export interface OAuthProviderConfig {

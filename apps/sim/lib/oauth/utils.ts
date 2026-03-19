@@ -395,6 +395,10 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'user-read-playback-position': 'View playback position in podcasts',
   'ugc-image-upload': 'Upload images to Spotify playlists',
 
+  // DocuSign scopes
+  signature: 'Create and send envelopes for e-signature',
+  extended: 'Extended access to DocuSign account features',
+
   // Attio scopes
   'record_permission:read-write': 'Read and write CRM records',
   'object_configuration:read-write': 'Read and manage object schemas',

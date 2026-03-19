@@ -5,6 +5,7 @@ import {
   AttioIcon,
   CalComIcon,
   ConfluenceIcon,
+  DocuSignIcon,
   DropboxIcon,
   GmailIcon,
   GoogleAdsIcon,
@@ -779,6 +780,21 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'calcom',
   },
+  docusign: {
+    name: 'DocuSign',
+    icon: DocuSignIcon,
+    services: {
+      docusign: {
+        name: 'DocuSign',
+        description: 'Send documents for e-signature with DocuSign.',
+        providerId: 'docusign',
+        icon: DocuSignIcon,
+        baseProviderIcon: DocuSignIcon,
+        scopes: ['signature', 'extended'],
+      },
+    },
+    defaultService: 'docusign',
+  },
   pipedrive: {
     name: 'Pipedrive',
     icon: PipedriveIcon,
@@ -1107,6 +1123,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: false,
+      }
+    }
+    case 'docusign': {
+      const { clientId, clientSecret } = getCredentials(
+        env.DOCUSIGN_CLIENT_ID,
+        env.DOCUSIGN_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://account.docusign.com/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: false,
       }
     }
     case 'dropbox': {
