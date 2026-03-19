@@ -122,6 +122,7 @@ import { Neo4jBlock } from '@/blocks/blocks/neo4j'
 import { NoteBlock } from '@/blocks/blocks/note'
 import { NotionBlock, NotionV2Block } from '@/blocks/blocks/notion'
 import { ObsidianBlock } from '@/blocks/blocks/obsidian'
+import { OktaBlock } from '@/blocks/blocks/okta'
 import { OneDriveBlock } from '@/blocks/blocks/onedrive'
 import { OnePasswordBlock } from '@/blocks/blocks/onepassword'
 import { OpenAIBlock } from '@/blocks/blocks/openai'
@@ -340,6 +341,7 @@ export const registry: Record<string, BlockConfig> = {
   notion: NotionBlock,
   notion_v2: NotionV2Block,
   obsidian: ObsidianBlock,
+  okta: OktaBlock,
   onepassword: OnePasswordBlock,
   onedrive: OneDriveBlock,
   openai: OpenAIBlock,

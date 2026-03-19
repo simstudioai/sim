@@ -683,7 +683,7 @@
     "slug": "ashby",
     "name": "Ashby",
     "description": "Manage candidates, jobs, and applications in Ashby",
-    "longDescription": "Integrate Ashby into the workflow. Can list, search, create, and update candidates, list and get job details, create notes, list notes, list and get applications, create applications, and list offers.",
+    "longDescription": "Integrate Ashby into the workflow. Manage candidates (list, get, create, update, search, tag), applications (list, get, create, change stage), jobs (list, get), job postings (list, get), offers (list, get), notes (list, create), interviews (list), and reference data (sources, tags, archive reasons, custom fields, departments, locations, openings, users).",
     "bgColor": "#5D4ED6",
     "iconName": "AshbyIcon",
     "docsUrl": "https://docs.sim.ai/tools/ashby",
@@ -739,9 +739,69 @@
       {
         "name": "List Offers",
         "description": "Lists all offers with their latest version in an Ashby organization."
+      },
+      {
+        "name": "Change Application Stage",
+        "description": "Moves an application to a different interview stage. Requires an archive reason when moving to an Archived stage."
+      },
+      {
+        "name": "Add Candidate Tag",
+        "description": "Adds a tag to a candidate in Ashby."
+      },
+      {
+        "name": "Remove Candidate Tag",
+        "description": "Removes a tag from a candidate in Ashby."
+      },
+      {
+        "name": "Get Offer",
+        "description": "Retrieves full details about a single offer by its ID."
+      },
+      {
+        "name": "List Sources",
+        "description": "Lists all candidate sources configured in Ashby."
+      },
+      {
+        "name": "List Candidate Tags",
+        "description": "Lists all candidate tags configured in Ashby."
+      },
+      {
+        "name": "List Archive Reasons",
+        "description": "Lists all archive reasons configured in Ashby."
+      },
+      {
+        "name": "List Custom Fields",
+        "description": "Lists all custom field definitions configured in Ashby."
+      },
+      {
+        "name": "List Departments",
+        "description": "Lists all departments in Ashby."
+      },
+      {
+        "name": "List Locations",
+        "description": "Lists all locations configured in Ashby."
+      },
+      {
+        "name": "List Job Postings",
+        "description": "Lists all job postings in Ashby."
+      },
+      {
+        "name": "Get Job Posting",
+        "description": "Retrieves full details about a single job posting by its ID."
+      },
+      {
+        "name": "List Openings",
+        "description": "Lists all openings in Ashby with pagination."
+      },
+      {
+        "name": "List Users",
+        "description": "Lists all users in Ashby with pagination."
+      },
+      {
+        "name": "List Interviews",
+        "description": "Lists interview schedules in Ashby, optionally filtered by application or interview stage."
       }
     ],
-    "operationCount": 13,
+    "operationCount": 28,
     "triggers": [
       {
         "id": "ashby_application_submit",
@@ -1060,6 +1120,83 @@
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",
+    "category": "tools"
+  },
+  {
+    "type": "box",
+    "slug": "box",
+    "name": "Box",
+    "description": "Manage files, folders, and e-signatures with Box",
+    "longDescription": "Integrate Box into your workflow to manage files, folders, and e-signatures. Upload and download files, search content, create folders, send documents for e-signature, track signing status, and more.",
+    "bgColor": "#FFFFFF",
+    "iconName": "BoxCompanyIcon",
+    "docsUrl": "https://docs.sim.ai/tools/box",
+    "operations": [
+      {
+        "name": "Upload File",
+        "description": "Upload a file to a Box folder"
+      },
+      {
+        "name": "Download File",
+        "description": "Download a file from Box"
+      },
+      {
+        "name": "Get File Info",
+        "description": "Get detailed information about a file in Box"
+      },
+      {
+        "name": "List Folder Items",
+        "description": "List files and folders in a Box folder"
+      },
+      {
+        "name": "Create Folder",
+        "description": "Create a new folder in Box"
+      },
+      {
+        "name": "Delete File",
+        "description": "Delete a file from Box"
+      },
+      {
+        "name": "Delete Folder",
+        "description": "Delete a folder from Box"
+      },
+      {
+        "name": "Copy File",
+        "description": "Copy a file to another folder in Box"
+      },
+      {
+        "name": "Search",
+        "description": "Search for files and folders in Box"
+      },
+      {
+        "name": "Update File",
+        "description": "Update file info in Box (rename, move, change description, add tags)"
+      },
+      {
+        "name": "Create Sign Request",
+        "description": "Create a new Box Sign request to send documents for e-signature"
+      },
+      {
+        "name": "Get Sign Request",
+        "description": "Get the details and status of a Box Sign request"
+      },
+      {
+        "name": "List Sign Requests",
+        "description": "List all Box Sign requests"
+      },
+      {
+        "name": "Cancel Sign Request",
+        "description": "Cancel a pending Box Sign request"
+      },
+      {
+        "name": "Resend Sign Request",
+        "description": "Resend a Box Sign request to signers who have not yet signed"
+      }
+    ],
+    "operationCount": 15,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "oauth",
     "category": "tools"
   },
   {
@@ -2115,6 +2252,55 @@
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",
+    "category": "tools"
+  },
+  {
+    "type": "docusign",
+    "slug": "docusign",
+    "name": "DocuSign",
+    "description": "Send documents for e-signature via DocuSign",
+    "longDescription": "Create and send envelopes for e-signature, use templates, check signing status, download signed documents, and manage recipients with DocuSign.",
+    "bgColor": "#FFFFFF",
+    "iconName": "DocuSignIcon",
+    "docsUrl": "https://docs.sim.ai/tools/docusign",
+    "operations": [
+      {
+        "name": "Send Envelope",
+        "description": "Create and send a DocuSign envelope with a document for e-signature"
+      },
+      {
+        "name": "Send from Template",
+        "description": "Create and send a DocuSign envelope using a pre-built template"
+      },
+      {
+        "name": "Get Envelope",
+        "description": "Get the details and status of a DocuSign envelope"
+      },
+      {
+        "name": "List Envelopes",
+        "description": "List envelopes from your DocuSign account with optional filters"
+      },
+      {
+        "name": "Void Envelope",
+        "description": "Void (cancel) a sent DocuSign envelope that has not yet been completed"
+      },
+      {
+        "name": "Download Document",
+        "description": "Download a signed document from a completed DocuSign envelope"
+      },
+      {
+        "name": "List Templates",
+        "description": "List available templates in your DocuSign account"
+      },
+      {
+        "name": "List Recipients",
+        "description": "Get the recipient status details for a DocuSign envelope"
+      }
+    ],
+    "operationCount": 8,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "oauth",
     "category": "tools"
   },
   {
@@ -7209,6 +7395,95 @@
     "category": "tools"
   },
   {
+    "type": "okta",
+    "slug": "okta",
+    "name": "Okta",
+    "description": "Manage users and groups in Okta",
+    "longDescription": "Integrate Okta identity management into your workflow. List, create, update, activate, suspend, and delete users. Reset passwords. Manage groups and group membership.",
+    "bgColor": "#191919",
+    "iconName": "OktaIcon",
+    "docsUrl": "https://docs.sim.ai/tools/okta",
+    "operations": [
+      {
+        "name": "List Users",
+        "description": "List all users in your Okta organization with optional search and filtering"
+      },
+      {
+        "name": "Get User",
+        "description": "Get a specific user by ID or login from your Okta organization"
+      },
+      {
+        "name": "Create User",
+        "description": "Create a new user in your Okta organization"
+      },
+      {
+        "name": "Update User",
+        "description": "Update a user profile in your Okta organization"
+      },
+      {
+        "name": "Activate User",
+        "description": "Activate a user in your Okta organization. Can only be performed on users with STAGED or DEPROVISIONED status. Optionally sends an activation email."
+      },
+      {
+        "name": "Deactivate User",
+        "description": "Deactivate a user in your Okta organization. This transitions the user to DEPROVISIONED status."
+      },
+      {
+        "name": "Suspend User",
+        "description": "Suspend a user in your Okta organization. Only users with ACTIVE status can be suspended. Suspended users cannot log in but retain group and app assignments."
+      },
+      {
+        "name": "Unsuspend User",
+        "description": "Unsuspend a previously suspended user in your Okta organization. Returns the user to ACTIVE status."
+      },
+      {
+        "name": "Reset Password",
+        "description": "Generate a one-time token to reset a user password. Can email the reset link to the user or return it directly. Transitions the user to RECOVERY status."
+      },
+      {
+        "name": "Delete User",
+        "description": "Permanently delete a user from your Okta organization. Can only be performed on DEPROVISIONED users. If the user is active, this will first deactivate them and a second call is needed to delete."
+      },
+      {
+        "name": "List Groups",
+        "description": "List all groups in your Okta organization with optional search and filtering"
+      },
+      {
+        "name": "Get Group",
+        "description": "Get a specific group by ID from your Okta organization"
+      },
+      {
+        "name": "Create Group",
+        "description": "Create a new group in your Okta organization"
+      },
+      {
+        "name": "Update Group",
+        "description": "Update a group profile in your Okta organization. Only groups of OKTA_GROUP type can be updated. All profile properties must be specified (full replacement)."
+      },
+      {
+        "name": "Delete Group",
+        "description": "Delete a group from your Okta organization. Groups of OKTA_GROUP or APP_GROUP type can be removed."
+      },
+      {
+        "name": "Add User to Group",
+        "description": "Add a user to a group in your Okta organization"
+      },
+      {
+        "name": "Remove User from Group",
+        "description": "Remove a user from a group in your Okta organization"
+      },
+      {
+        "name": "List Group Members",
+        "description": "List all members of a specific group in your Okta organization"
+      }
+    ],
+    "operationCount": 18,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools"
+  },
+  {
     "type": "onedrive",
     "slug": "onedrive",
     "name": "OneDrive",
@@ -10300,6 +10575,63 @@
     "triggers": [],
     "triggerCount": 0,
     "authType": "oauth",
+    "category": "tools"
+  },
+  {
+    "type": "workday",
+    "slug": "workday",
+    "name": "Workday",
+    "description": "Manage workers, hiring, onboarding, and HR operations in Workday",
+    "longDescription": "Integrate Workday HRIS into your workflow. Create pre-hires, hire employees, manage worker profiles, assign onboarding plans, handle job changes, retrieve compensation data, and process terminations.",
+    "bgColor": "#F5F0EB",
+    "iconName": "WorkdayIcon",
+    "docsUrl": "https://docs.sim.ai/tools/workday",
+    "operations": [
+      {
+        "name": "Get Worker",
+        "description": "Retrieve a specific worker profile including personal, employment, and organization data."
+      },
+      {
+        "name": "List Workers",
+        "description": "List or search workers with optional filtering and pagination."
+      },
+      {
+        "name": "Create Pre-Hire",
+        "description": "Create a new pre-hire (applicant) record in Workday. This is typically the first step before hiring an employee."
+      },
+      {
+        "name": "Hire Employee",
+        "description": "Hire a pre-hire into an employee position. Converts an applicant into an active employee record with position, start date, and manager assignment."
+      },
+      {
+        "name": "Update Worker",
+        "description": "Update fields on an existing worker record in Workday."
+      },
+      {
+        "name": "Assign Onboarding Plan",
+        "description": "Create or update an onboarding plan assignment for a worker. Sets up onboarding stages and manages the assignment lifecycle."
+      },
+      {
+        "name": "Get Organizations",
+        "description": "Retrieve organizations, departments, and cost centers from Workday."
+      },
+      {
+        "name": "Change Job",
+        "description": "Perform a job change for a worker including transfers, promotions, demotions, and lateral moves."
+      },
+      {
+        "name": "Get Compensation",
+        "description": "Retrieve compensation plan details for a specific worker."
+      },
+      {
+        "name": "Terminate Worker",
+        "description": "Initiate a worker termination in Workday. Triggers the Terminate Employee business process."
+      }
+    ],
+    "operationCount": 10,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
     "category": "tools"
   },
   {

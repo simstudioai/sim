@@ -1192,3 +1192,33 @@ export function validateCallbackUrl(url: string): boolean {
     return false
   }
 }
+
+const OKTA_DOMAIN_PATTERN =
+  /^[a-zA-Z0-9][a-zA-Z0-9-]*\.(okta|okta-gov|okta-emea|oktapreview|trexcloud)\.com$/
+
+/**
+ * Validates and sanitizes an Okta domain to prevent SSRF.
+ * Ensures the domain matches a known Okta domain suffix.
+ *
+ * @param rawDomain - The raw domain string (may include protocol, trailing slash, or whitespace)
+ * @returns The cleaned, validated domain string
+ * @throws Error if the domain does not match a known Okta domain suffix
+ *
+ * @example
+ * ```typescript
+ * const domain = validateOktaDomain(params.domain)
+ * // Returns: "dev-123456.okta.com"
+ * ```
+ */
+export function validateOktaDomain(rawDomain: string): string {
+  const domain = rawDomain
+    .trim()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/$/, '')
+  if (!OKTA_DOMAIN_PATTERN.test(domain)) {
+    throw new Error(
+      `Invalid Okta domain: "${domain}". Must be a valid Okta domain (e.g., dev-123456.okta.com)`
+    )
+  }
+  return domain
+}
