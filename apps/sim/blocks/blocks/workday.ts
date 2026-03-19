@@ -1,5 +1,6 @@
 import { WorkdayIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { getTrigger } from '@/triggers'
 
 export const WorkdayBlock: BlockConfig = {
   type: 'workday',
@@ -341,7 +342,20 @@ Output: {"businessTitle": "Senior Engineer"}`,
       condition: { field: 'operation', value: 'terminate_worker' },
       mode: 'advanced',
     },
+    ...getTrigger('workday_employee_hired').subBlocks,
+    ...getTrigger('workday_employee_terminated').subBlocks,
+    ...getTrigger('workday_job_changed').subBlocks,
+    ...getTrigger('workday_webhook').subBlocks,
   ],
+  triggers: {
+    enabled: true,
+    available: [
+      'workday_employee_hired',
+      'workday_employee_terminated',
+      'workday_job_changed',
+      'workday_webhook',
+    ],
+  },
   tools: {
     access: [
       'workday_get_worker',

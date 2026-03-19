@@ -364,11 +364,22 @@ export function ServiceIcon(props: SVGProps<SVGSVGElement>) {
 ```
 triggers/{service}/
 ├── index.ts      # Barrel export
-├── webhook.ts    # Webhook handler
-└── {event}.ts    # Event-specific handlers
+├── utils.ts      # Trigger options, setup instructions, event matching
+├── webhook.ts    # Generic webhook (catch-all)
+└── {event}.ts    # Event-specific triggers
 ```
 
 Register in `triggers/registry.ts`.
+
+**External Subscription Lifecycle:** If the service supports programmatic webhook registration (e.g., Ashby `webhook.create`, Workday `Put_Subscription`, Attio webhooks API), implement auto-registration so users don't need to manually configure webhooks in the external service:
+
+1. Add `create{Service}Subscription()` and `delete{Service}Subscription()` in `lib/webhooks/provider-subscriptions.ts`
+2. Add branches for your provider in `createExternalWebhookSubscription()` and `cleanupExternalWebhook()`
+3. Add credential fields (API key, OAuth token, etc.) to trigger sub-blocks so the deploy flow can call the external API
+4. Store the external subscription ID in `providerConfig.externalId` for cleanup on undeploy
+5. Subscriptions are created during deploy (`saveTriggerWebhooksForDeploy`) and cleaned up during undeploy (`cleanupWebhooksForWorkflow`)
+
+**SOAP/XML Webhooks:** If the service sends XML/SOAP notifications instead of JSON, the webhook processor (`lib/webhooks/processor.ts`) automatically handles `text/xml`, `application/xml`, and `application/soap+xml` content types via `fast-xml-parser`. Use `extractSoapBody()` and `stripNamespacePrefixes()` from `lib/webhooks/soap-utils.ts` to clean the parsed payload for event matching.
 
 ### Integration Checklist
 
@@ -379,5 +390,6 @@ Register in `triggers/registry.ts`.
 - [ ] Create block in `blocks/blocks/{service}.ts`
 - [ ] Register block in `blocks/registry.ts`
 - [ ] (Optional) Create and register triggers
+- [ ] (If triggers with external subscriptions) Add create/delete functions in `lib/webhooks/provider-subscriptions.ts`
 - [ ] (If file uploads) Create internal API route with `downloadFileFromStorage`
 - [ ] (If file uploads) Use `normalizeFileInput` in block config

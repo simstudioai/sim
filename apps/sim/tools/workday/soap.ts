@@ -8,6 +8,7 @@ const WORKDAY_SERVICES = {
   humanResources: { name: 'Human_Resources', version: 'v45.2' },
   compensation: { name: 'Compensation', version: 'v45.0' },
   recruiting: { name: 'Recruiting', version: 'v45.0' },
+  integrations: { name: 'Integrations', version: 'v29.0' },
 } as const
 
 export type WorkdayServiceKey = keyof typeof WORKDAY_SERVICES
@@ -114,6 +115,14 @@ type SoapOperationFn = (
   args: Record<string, unknown>
 ) => Promise<[WorkdaySoapResult, string, Record<string, unknown>, string]>
 
+export interface WorkdaySubscriptionResult {
+  Subscription_Reference?: WorkdayReference
+}
+
+type SoapSubscriptionFn = (
+  args: Record<string, unknown>
+) => Promise<[WorkdaySubscriptionResult, string, Record<string, unknown>, string]>
+
 export interface WorkdayClient extends soap.Client {
   Get_WorkersAsync: SoapOperationFn
   Get_OrganizationsAsync: SoapOperationFn
@@ -123,6 +132,7 @@ export interface WorkdayClient extends soap.Client {
   Terminate_EmployeeAsync: SoapOperationFn
   Change_Personal_InformationAsync: SoapOperationFn
   Put_Onboarding_Plan_AssignmentAsync: SoapOperationFn
+  Put_SubscriptionAsync: SoapSubscriptionFn
 }
 
 /**

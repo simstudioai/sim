@@ -2136,6 +2136,12 @@ export async function createExternalWebhookSubscription(
       updatedProviderConfig = { ...updatedProviderConfig, externalId: result.id }
       externalSubscriptionCreated = true
     }
+  } else if (provider === 'workday') {
+    const result = await createWorkdaySubscription(webhookData, requestId)
+    if (result) {
+      updatedProviderConfig = { ...updatedProviderConfig, externalId: result.subscriptionId }
+      externalSubscriptionCreated = true
+    }
   }
 
   return { updatedProviderConfig, externalSubscriptionCreated }
@@ -2173,6 +2179,8 @@ export async function cleanupExternalWebhook(
     await deleteGrainWebhook(webhook, requestId)
   } else if (webhook.provider === 'lemlist') {
     await deleteLemlistWebhook(webhook, requestId)
+  } else if (webhook.provider === 'workday') {
+    await deleteWorkdaySubscription(webhook, requestId)
   }
 }
 
@@ -2333,5 +2341,126 @@ export async function deleteAshbyWebhook(webhook: any, requestId: string): Promi
     }
   } catch (error) {
     ashbyLogger.warn(`[${requestId}] Error deleting Ashby webhook (non-fatal)`, error)
+  }
+}
+
+const workdayLogger = createLogger('WorkdaySubscription')
+
+const WORKDAY_TRIGGER_EVENT_TYPES: Record<string, string[]> = {
+  workday_employee_hired: ['Hire_Employee'],
+  workday_employee_terminated: ['Terminate_Employee'],
+  workday_job_changed: ['Change_Job'],
+}
+
+/**
+ * Creates a webhook subscription in Workday via the Put_Subscription SOAP operation.
+ * Uses the Integrations service (v29.0) to register our webhook URL as a push endpoint.
+ */
+export async function createWorkdaySubscription(
+  webhookData: Record<string, unknown>,
+  requestId: string
+): Promise<{ subscriptionId: string } | undefined> {
+  try {
+    const { path, providerConfig } = webhookData
+    const config = (providerConfig as Record<string, unknown>) || {}
+    const { tenantUrl, tenant, username, password, integrationSystemId, triggerId } = config
+
+    if (!tenantUrl || !tenant || !username || !password || !integrationSystemId) {
+      workdayLogger.error(`[${requestId}] Missing Workday credentials for subscription creation`)
+      return undefined
+    }
+
+    const { createWorkdaySoapClient, wdRef, extractRefId } = await import('@/tools/workday/soap')
+
+    const client = await createWorkdaySoapClient(
+      tenantUrl as string,
+      tenant as string,
+      'integrations',
+      username as string,
+      password as string
+    )
+
+    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+
+    const subscriptionData: Record<string, unknown> = {
+      Subscriber_Reference: wdRef('Integration_System_ID', integrationSystemId as string),
+      Endpoint_Info_Data: {
+        Web_Service_API_Version_Reference: wdRef('Version', 'v29.0'),
+        Subscriber_URL: notificationUrl,
+      },
+    }
+
+    const eventTypes = WORKDAY_TRIGGER_EVENT_TYPES[triggerId as string]
+    if (eventTypes) {
+      subscriptionData.Included_Transaction_Log_Type_Reference = eventTypes.map((et) =>
+        wdRef('Business_Process_Type', et)
+      )
+    } else {
+      subscriptionData.Subscribe_to_all_Business_Processes = true
+    }
+
+    const [result] = await client.Put_SubscriptionAsync({
+      Subscription_Data: subscriptionData,
+    })
+
+    const subscriptionId = extractRefId(result?.Subscription_Reference)
+
+    if (subscriptionId) {
+      workdayLogger.info(`[${requestId}] Workday subscription created: ${subscriptionId}`)
+      return { subscriptionId }
+    }
+
+    workdayLogger.warn(`[${requestId}] Workday subscription created but no ID returned`)
+    return undefined
+  } catch (error) {
+    workdayLogger.error(`[${requestId}] Failed to create Workday subscription`, { error })
+    return undefined
+  }
+}
+
+/**
+ * Disables a Workday webhook subscription by calling Put_Subscription
+ * with Disable_Endpoint set to true.
+ */
+export async function deleteWorkdaySubscription(
+  webhook: Record<string, unknown>,
+  requestId: string
+): Promise<void> {
+  try {
+    const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
+    const { tenantUrl, tenant, username, password, externalId, integrationSystemId } =
+      providerConfig
+
+    if (!tenantUrl || !tenant || !username || !password || !externalId) {
+      workdayLogger.warn(
+        `[${requestId}] Missing credentials for Workday subscription cleanup, skipping`
+      )
+      return
+    }
+
+    const { createWorkdaySoapClient, wdRef } = await import('@/tools/workday/soap')
+
+    const client = await createWorkdaySoapClient(
+      tenantUrl as string,
+      tenant as string,
+      'integrations',
+      username as string,
+      password as string
+    )
+
+    await client.Put_SubscriptionAsync({
+      Subscription_Reference: wdRef('WID', externalId as string),
+      Subscription_Data: {
+        Subscriber_Reference: wdRef('Integration_System_ID', integrationSystemId as string),
+        Endpoint_Info_Data: {
+          Web_Service_API_Version_Reference: wdRef('Version', 'v29.0'),
+          Disable_Endpoint: true,
+        },
+      },
+    })
+
+    workdayLogger.info(`[${requestId}] Workday subscription ${externalId} disabled`)
+  } catch (error) {
+    workdayLogger.warn(`[${requestId}] Error disabling Workday subscription (non-fatal)`, error)
   }
 }

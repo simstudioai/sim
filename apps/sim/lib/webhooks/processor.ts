@@ -33,6 +33,7 @@ import {
   validateTypeformSignature,
   verifyProviderWebhook,
 } from '@/lib/webhooks/utils.server'
+import { parseXmlToJson } from '@/lib/webhooks/xml-parser'
 import { executeWebhookJob } from '@/background/webhook-execution'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { isConfluencePayloadMatch } from '@/triggers/confluence/utils'
@@ -147,6 +148,12 @@ export async function parseWebhookBody(
       } else {
         body = Object.fromEntries(formData.entries())
       }
+    } else if (
+      contentType.includes('text/xml') ||
+      contentType.includes('application/xml') ||
+      contentType.includes('application/soap+xml')
+    ) {
+      body = parseXmlToJson(rawBody)
     } else {
       body = JSON.parse(rawBody)
     }
@@ -1141,6 +1148,29 @@ export async function queueWebhookExecution(
               triggerId,
               receivedEvent: eventType,
               bodyKeys: Object.keys(body),
+            }
+          )
+          return NextResponse.json({
+            status: 'skipped',
+            reason: 'event_type_mismatch',
+          })
+        }
+      }
+    }
+
+    if (foundWebhook.provider === 'workday') {
+      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+      const triggerId = providerConfig.triggerId as string | undefined
+
+      if (triggerId && triggerId !== 'workday_webhook') {
+        const { isWorkdayEventMatch } = await import('@/triggers/workday/utils')
+        if (!isWorkdayEventMatch(triggerId, body)) {
+          logger.debug(
+            `[${options.requestId}] Workday event mismatch for trigger ${triggerId}. Skipping execution.`,
+            {
+              webhookId: foundWebhook.id,
+              workflowId: foundWorkflow.id,
+              triggerId,
             }
           )
           return NextResponse.json({

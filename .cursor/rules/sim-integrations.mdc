@@ -210,9 +210,9 @@ export function {Service}Icon(props: SVGProps<SVGSVGElement>) {
 ```
 triggers/{service}/
 ├── index.ts           # Export all triggers
-├── webhook.ts         # Webhook handler
-├── utils.ts           # Shared utilities
-└── {event}.ts         # Specific event handlers
+├── utils.ts           # Trigger options, setup instructions, event matching, output builders
+├── webhook.ts         # Generic webhook (catch-all)
+└── {event}.ts         # Event-specific triggers (e.g., employee_hired.ts)
 ```
 
 **Register in `triggers/registry.ts`:**
@@ -222,6 +222,59 @@ import { {service}WebhookTrigger } from '@/triggers/{service}'
 // Add to TRIGGER_REGISTRY
 {service}_webhook: {service}WebhookTrigger,
 ```
+
+### External Subscription Lifecycle
+
+If the service supports programmatic webhook/subscription creation, implement auto-registration in `lib/webhooks/provider-subscriptions.ts`:
+
+```typescript
+// Create subscription on deploy
+export async function create{Service}Subscription(
+  webhookData: Record<string, unknown>,
+  requestId: string
+): Promise<{ id: string } | undefined> {
+  const { path, providerConfig } = webhookData
+  const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+  // Call external API to register webhook URL...
+  return { id: externalSubscriptionId }
+}
+
+// Delete/disable subscription on undeploy
+export async function delete{Service}Subscription(
+  webhook: Record<string, unknown>,
+  requestId: string
+): Promise<void> {
+  const { externalId } = webhook.providerConfig
+  // Call external API to delete/disable subscription...
+}
+```
+
+Then add branches in the dispatcher functions:
+
+```typescript
+// In createExternalWebhookSubscription():
+} else if (provider === '{service}') {
+  const result = await create{Service}Subscription(webhookData, requestId)
+  if (result) {
+    updatedProviderConfig = { ...updatedProviderConfig, externalId: result.id }
+    externalSubscriptionCreated = true
+  }
+}
+
+// In cleanupExternalWebhook():
+} else if (webhook.provider === '{service}') {
+  await delete{Service}Subscription(webhook, requestId)
+}
+```
+
+Add credential sub-blocks (API key, tenant URL, etc.) to trigger sub-blocks so the deploy flow can call the external API. Credentials are stored in `providerConfig` on the webhook DB row.
+
+### SOAP/XML Webhooks
+
+If the service sends XML/SOAP notifications, the webhook processor handles this automatically via `text/xml`, `application/xml`, `application/soap+xml` content types using `fast-xml-parser`. Use helpers from `lib/webhooks/soap-utils.ts`:
+
+- `extractSoapBody()` — unwraps SOAP envelope
+- `stripNamespacePrefixes()` — strips `wd:`, `env:` etc. from keys
 
 ## File Handling
 
@@ -281,5 +334,7 @@ const file = await processor.processFileData({
 - [ ] Register block in `blocks/registry.ts`
 - [ ] (Optional) Create triggers in `triggers/{service}/`
 - [ ] (Optional) Register triggers in `triggers/registry.ts`
+- [ ] (If triggers with external subscriptions) Add create/delete functions in `lib/webhooks/provider-subscriptions.ts`
+- [ ] (If SOAP/XML webhooks) Use `extractSoapBody()` and `stripNamespacePrefixes()` from `lib/webhooks/soap-utils.ts`
 - [ ] (If file uploads) Create internal API route with `downloadFileFromStorage`
 - [ ] (If file uploads) Use `normalizeFileInput` in block config

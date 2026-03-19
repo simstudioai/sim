@@ -172,6 +172,12 @@ import {
   webflowFormSubmissionTrigger,
 } from '@/triggers/webflow'
 import { whatsappWebhookTrigger } from '@/triggers/whatsapp'
+import {
+  workdayEmployeeHiredTrigger,
+  workdayEmployeeTerminatedTrigger,
+  workdayJobChangedTrigger,
+  workdayWebhookTrigger,
+} from '@/triggers/workday'
 
 export const TRIGGER_REGISTRY: TriggerRegistry = {
   slack_webhook: slackWebhookTrigger,
@@ -320,4 +326,8 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   hubspot_ticket_deleted: hubspotTicketDeletedTrigger,
   hubspot_ticket_property_changed: hubspotTicketPropertyChangedTrigger,
   imap_poller: imapPollingTrigger,
+  workday_employee_hired: workdayEmployeeHiredTrigger,
+  workday_employee_terminated: workdayEmployeeTerminatedTrigger,
+  workday_job_changed: workdayJobChangedTrigger,
+  workday_webhook: workdayWebhookTrigger,
 }
