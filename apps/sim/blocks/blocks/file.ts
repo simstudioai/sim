@@ -247,14 +247,25 @@ export const FileV2Block: BlockConfig<FileParserOutput> = {
 export const FileV3Block: BlockConfig<FileParserV3Output> = {
   type: 'file_v3',
   name: 'File',
-  description: 'Read and parse multiple files',
+  description: 'Read, write, or delete workspace files',
   longDescription:
-    'Upload files directly or import from external URLs to get UserFile objects for use in other blocks.',
+    'Read and parse files from uploads or URLs, write new or update existing workspace resource files (with optional append), or delete workspace files.',
   docsLink: 'https://docs.sim.ai/tools/file',
   category: 'tools',
   bgColor: '#40916C',
   icon: DocumentIcon,
   subBlocks: [
+    {
+      id: 'operation',
+      title: 'Operation',
+      type: 'dropdown' as SubBlockType,
+      options: [
+        { label: 'Read', id: 'file_parser_v3' },
+        { label: 'Write', id: 'file_write' },
+        { label: 'Delete', id: 'file_delete' },
+      ],
+      value: () => 'file_parser_v3',
+    },
     {
       id: 'file',
       title: 'Files',
@@ -265,7 +276,8 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
       multiple: true,
       mode: 'basic',
       maxSize: 100,
-      required: true,
+      required: { field: 'operation', value: 'file_parser_v3' },
+      condition: { field: 'operation', value: 'file_parser_v3' },
     },
     {
       id: 'fileUrl',
@@ -274,22 +286,78 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
       canonicalParamId: 'fileInput',
       placeholder: 'https://example.com/document.pdf',
       mode: 'advanced',
-      required: true,
+      required: { field: 'operation', value: 'file_parser_v3' },
+      condition: { field: 'operation', value: 'file_parser_v3' },
+    },
+    {
+      id: 'fileName',
+      title: 'File Name',
+      type: 'short-input' as SubBlockType,
+      placeholder: 'New file name (e.g., data.csv)',
+      condition: { field: 'operation', value: 'file_write' },
+    },
+    {
+      id: 'fileId',
+      title: 'File ID',
+      type: 'short-input' as SubBlockType,
+      placeholder: 'Existing file ID',
+      condition: { field: 'operation', value: ['file_write', 'file_delete'] },
+      required: { field: 'operation', value: 'file_delete' },
+    },
+    {
+      id: 'content',
+      title: 'Content',
+      type: 'long-input' as SubBlockType,
+      placeholder: 'File content to write...',
+      condition: { field: 'operation', value: 'file_write' },
+      required: { field: 'operation', value: 'file_write' },
+    },
+    {
+      id: 'append',
+      title: 'Append',
+      type: 'switch' as SubBlockType,
+      condition: { field: 'operation', value: 'file_write' },
+    },
+    {
+      id: 'contentType',
+      title: 'Content Type',
+      type: 'short-input' as SubBlockType,
+      placeholder: 'text/plain (auto-detected from extension)',
+      condition: { field: 'operation', value: 'file_write' },
+      mode: 'advanced',
     },
   ],
   tools: {
-    access: ['file_parser_v3'],
+    access: ['file_parser_v3', 'file_write', 'file_delete'],
     config: {
-      tool: () => 'file_parser_v3',
+      tool: (params) => params.operation || 'file_parser_v3',
       params: (params) => {
-        // Use canonical 'fileInput' param directly
+        const operation = params.operation || 'file_parser_v3'
+
+        if (operation === 'file_write') {
+          return {
+            fileName: params.fileName,
+            fileId: params.fileId,
+            content: params.content,
+            contentType: params.contentType,
+            append: Boolean(params.append),
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
+        if (operation === 'file_delete') {
+          return {
+            fileId: params.fileId,
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
         const fileInput = params.fileInput
         if (!fileInput) {
           logger.error('No file input provided')
           throw new Error('File input is required')
         }
 
-        // First, try to normalize as file objects (handles JSON strings from advanced mode)
         const normalizedFiles = normalizeFileInput(fileInput)
         if (normalizedFiles) {
           const filePaths = resolveFilePathsFromInput(normalizedFiles)
@@ -304,7 +372,6 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
           }
         }
 
-        // If normalization fails, treat as direct URL string
         if (typeof fileInput === 'string' && fileInput.trim()) {
           return {
             filePath: fileInput.trim(),
@@ -321,17 +388,39 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
     },
   },
   inputs: {
-    fileInput: { type: 'json', description: 'File input (canonical param)' },
-    fileType: { type: 'string', description: 'File type' },
+    operation: { type: 'string', description: 'Operation to perform (read, write, delete)' },
+    fileInput: { type: 'json', description: 'File input for read (canonical param)' },
+    fileType: { type: 'string', description: 'File type for read' },
+    fileName: { type: 'string', description: 'Name for a new file (write)' },
+    fileId: { type: 'string', description: 'ID of an existing file (write/delete)' },
+    content: { type: 'string', description: 'File content to write' },
+    contentType: { type: 'string', description: 'MIME content type for write' },
+    append: { type: 'string', description: 'Whether to append content (write)' },
   },
   outputs: {
     files: {
       type: 'file[]',
-      description: 'Parsed files as UserFile objects',
+      description: 'Parsed files as UserFile objects (read)',
     },
     combinedContent: {
       type: 'string',
-      description: 'All file contents merged into a single text string',
+      description: 'All file contents merged into a single text string (read)',
+    },
+    id: {
+      type: 'string',
+      description: 'File ID (write/delete)',
+    },
+    name: {
+      type: 'string',
+      description: 'File name (write/delete)',
+    },
+    size: {
+      type: 'number',
+      description: 'File size in bytes (write)',
+    },
+    url: {
+      type: 'string',
+      description: 'URL to access the file (write)',
     },
   },
 }
