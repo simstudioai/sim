@@ -23,7 +23,7 @@ const TOP_NAMES = [...new Set(POPULAR_WORKFLOWS.flatMap((p) => [p.from, p.to]))]
 // ---------------------------------------------------------------------------
 
 export const metadata: Metadata = {
-  title: 'Integrations | Sim',
+  title: 'Integrations',
   description: `Connect ${INTEGRATION_COUNT}+ apps and services with Sim's AI workflow automation. Build intelligent pipelines with ${TOP_NAMES.join(', ')}, and more.`,
   keywords: [
     'workflow automation integrations',

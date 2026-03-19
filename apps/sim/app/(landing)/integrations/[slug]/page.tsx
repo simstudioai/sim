@@ -162,7 +162,7 @@ export async function generateMetadata({
   const metaDesc = `Automate ${name} with AI-powered workflows on Sim. ${description.slice(0, 100).trimEnd()}. Free to start.`
 
   return {
-    title: `${name} Integration | Sim`,
+    title: `${name} Integration`,
     description: metaDesc,
     keywords: [
       `${name} automation`,

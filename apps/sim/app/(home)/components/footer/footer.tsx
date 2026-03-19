@@ -11,7 +11,7 @@ interface FooterItem {
 }
 
 const PRODUCT_LINKS: FooterItem[] = [
-  { label: 'Pricing', href: '#pricing' },
+  { label: 'Pricing', href: '/#pricing' },
   { label: 'Enterprise', href: 'https://form.typeform.com/to/jqCO12pF', external: true },
   { label: 'Self Hosting', href: 'https://docs.sim.ai/self-hosting', external: true },
   { label: 'MCP', href: 'https://docs.sim.ai/mcp', external: true },

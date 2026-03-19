@@ -33,7 +33,7 @@ const ACTOR_COLORS: Record<string, string> = {
 }
 
 /** Left accent bar opacity by recency — newest is brightest. */
-const ACCENT_OPACITIES = [0.75, 0.45, 0.28, 0.15, 0.07] as const
+const ACCENT_OPACITIES = [0.75, 0.5, 0.35, 0.22, 0.12, 0.05] as const
 
 /** Human-readable label per resource type. */
 const RESOURCE_TYPE_LABEL: Record<string, string> = {
@@ -151,7 +151,7 @@ const ENTRY_TEMPLATES: Omit<LogEntry, 'id' | 'insertedAt'>[] = [
   { actor: 'Theo L.', description: 'Locked workflow "Customer Sync"', resourceType: 'workflow' },
 ]
 
-const INITIAL_OFFSETS_MS = [0, 20_000, 75_000, 240_000, 540_000]
+const INITIAL_OFFSETS_MS = [0, 20_000, 75_000, 180_000, 360_000, 600_000]
 
 const MARQUEE_KEYFRAMES = `
   @keyframes marquee {
@@ -192,7 +192,7 @@ function AuditRow({ entry, index }: AuditRowProps) {
   const resourceLabel = RESOURCE_TYPE_LABEL[entry.resourceType]
 
   return (
-    <div className='group relative overflow-hidden border-[#2A2A2A] border-b bg-[#191919] transition-colors duration-150 last:border-b-0 hover:bg-[#212121]'>
+    <div className='group relative overflow-hidden border-[#2A2A2A] border-b bg-[#1C1C1C] transition-colors duration-150 last:border-b-0 hover:bg-[#212121]'>
       {/* Left accent bar — brightness encodes recency */}
       <div
         aria-hidden='true'
@@ -231,11 +231,11 @@ function AuditRow({ entry, index }: AuditRowProps) {
 
 function AuditLogPreview() {
   const counterRef = useRef(ENTRY_TEMPLATES.length)
-  const templateIndexRef = useRef(5 % ENTRY_TEMPLATES.length)
+  const templateIndexRef = useRef(6 % ENTRY_TEMPLATES.length)
 
   const now = Date.now()
   const [entries, setEntries] = useState<LogEntry[]>(() =>
-    ENTRY_TEMPLATES.slice(0, 5).map((t, i) => ({
+    ENTRY_TEMPLATES.slice(0, 6).map((t, i) => ({
       ...t,
       id: i,
       insertedAt: now - INITIAL_OFFSETS_MS[i],
@@ -250,7 +250,7 @@ function AuditLogPreview() {
 
       setEntries((prev) => [
         { ...template, id: counterRef.current++, insertedAt: Date.now() },
-        ...prev.slice(0, 4),
+        ...prev.slice(0, 5),
       ])
     }, 2600)
 
@@ -381,35 +381,50 @@ function AccessControlPanel() {
 
   return (
     <div ref={ref}>
-      {/* Mobile — single row, subset of features */}
-      <div className='flex flex-wrap gap-x-5 gap-y-3 lg:hidden'>
-        {allFeatures.slice(0, 8).map((feature, i) => {
-          const enabled = accessState[feature.key]
-          const category = PERMISSION_CATEGORIES.find((c) =>
-            c.features.some((f) => f.key === feature.key)
-          )!
+      <div className='lg:hidden'>
+        {PERMISSION_CATEGORIES.map((category, catIdx) => {
+          const offsetBefore = PERMISSION_CATEGORIES.slice(0, catIdx).reduce(
+            (sum, c) => sum + c.features.length,
+            0
+          )
 
           return (
-            <motion.div
-              key={feature.key}
-              className='flex cursor-pointer items-center gap-[8px]'
-              initial={{ opacity: 0, x: -6 }}
-              animate={isInView ? { opacity: 1, x: 0 } : {}}
-              transition={{ delay: 0.05 + i * 0.04, duration: 0.3 }}
-              onClick={() =>
-                setAccessState((prev) => ({ ...prev, [feature.key]: !prev[feature.key] }))
-              }
-              whileTap={{ scale: 0.98 }}
-            >
-              <CheckboxIcon checked={enabled} color={category.color} />
-              <ProviderPreviewIcon providerId={feature.providerId} />
-              <span
-                className='font-[430] font-season text-[13px] leading-none tracking-[0.02em]'
-                style={{ color: enabled ? '#F6F6F6AA' : '#F6F6F640' }}
-              >
-                {feature.name}
+            <div key={category.label} className={catIdx > 0 ? 'mt-4' : ''}>
+              <span className='font-[430] font-season text-[#F6F6F6]/30 text-[10px] uppercase leading-none tracking-[0.08em]'>
+                {category.label}
               </span>
-            </motion.div>
+              <div className='mt-[8px] grid grid-cols-2 gap-x-4 gap-y-[8px]'>
+                {category.features.map((feature, featIdx) => {
+                  const enabled = accessState[feature.key]
+
+                  return (
+                    <motion.div
+                      key={feature.key}
+                      className='flex cursor-pointer items-center gap-[8px] rounded-[4px] py-[2px]'
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={isInView ? { opacity: 1, x: 0 } : {}}
+                      transition={{
+                        delay: 0.05 + (offsetBefore + featIdx) * 0.04,
+                        duration: 0.3,
+                      }}
+                      onClick={() =>
+                        setAccessState((prev) => ({ ...prev, [feature.key]: !prev[feature.key] }))
+                      }
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <CheckboxIcon checked={enabled} color={category.color} />
+                      <ProviderPreviewIcon providerId={feature.providerId} />
+                      <span
+                        className='truncate font-[430] font-season text-[13px] leading-none tracking-[0.02em]'
+                        style={{ color: enabled ? '#F6F6F6AA' : '#F6F6F640' }}
+                      >
+                        {feature.name}
+                      </span>
+                    </motion.div>
+                  )
+                })}
+              </div>
+            </div>
           )
         })}
       </div>
