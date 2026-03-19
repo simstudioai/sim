@@ -829,7 +829,7 @@ export async function executeTool(
       }
 
       const strippedOutput = isCustomTool(normalizedToolId)
-        ? (finalResult.output || {})
+        ? finalResult.output || {}
         : stripInternalFields(finalResult.output || {})
 
       return {
@@ -886,7 +886,7 @@ export async function executeTool(
     }
 
     const strippedOutput = isCustomTool(normalizedToolId)
-      ? (finalResult.output || {})
+      ? finalResult.output || {}
       : stripInternalFields(finalResult.output || {})
 
     return {
