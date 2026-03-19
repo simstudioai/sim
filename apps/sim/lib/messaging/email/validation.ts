@@ -67,7 +67,7 @@ const mxCache = new Map<string, { result: boolean; expires: number }>()
 const MX_CACHE_MAX = 1_000
 
 function setMxCache(domain: string, entry: { result: boolean; expires: number }) {
-  if (mxCache.size >= MX_CACHE_MAX) {
+  if (mxCache.size >= MX_CACHE_MAX && !mxCache.has(domain)) {
     mxCache.delete(mxCache.keys().next().value!)
   }
   mxCache.set(domain, entry)

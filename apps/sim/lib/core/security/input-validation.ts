@@ -1181,7 +1181,9 @@ export function validateCallbackUrl(url: string): boolean {
   try {
     if (url.startsWith('/')) return true
 
-    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : ''
+    if (typeof window === 'undefined') return false
+
+    const currentOrigin = window.location.origin
     if (url.startsWith(currentOrigin)) return true
 
     return false
