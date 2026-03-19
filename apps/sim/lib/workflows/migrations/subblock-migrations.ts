@@ -24,8 +24,8 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
     knowledgeBaseId: 'knowledgeBaseSelector',
   },
   ashby: {
-    emailType: 'email',
-    phoneType: 'phoneNumber',
+    emailType: '_removed_emailType',
+    phoneType: '_removed_phoneType',
   },
 }
 
