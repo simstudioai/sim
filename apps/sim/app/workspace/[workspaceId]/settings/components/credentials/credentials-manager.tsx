@@ -493,16 +493,15 @@ export function CredentialsManager() {
     setEnvVars(JSON.parse(JSON.stringify(initialVars)))
   }, [variables])
 
-  const prevWorkspaceEnvDataRef = useRef(workspaceEnvData)
-  if (workspaceEnvData && workspaceEnvData !== prevWorkspaceEnvDataRef.current) {
-    prevWorkspaceEnvDataRef.current = workspaceEnvData
+  useEffect(() => {
+    if (!workspaceEnvData) return
     if (hasSavedRef.current) {
       hasSavedRef.current = false
     } else {
-      setWorkspaceVars(workspaceEnvData?.workspace || {})
-      initialWorkspaceVarsRef.current = workspaceEnvData?.workspace || {}
+      setWorkspaceVars(workspaceEnvData.workspace || {})
+      initialWorkspaceVarsRef.current = workspaceEnvData.workspace || {}
     }
-  }
+  }, [workspaceEnvData])
 
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {

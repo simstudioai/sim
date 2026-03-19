@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Button,
   Input,
@@ -30,11 +30,14 @@ export function CreateWorkspaceModal({
   const [name, setName] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
+  useEffect(() => {
+    if (open) {
+      setName('')
+    }
+  }, [open])
+
   const handleOpenChange = useCallback(
     (newOpen: boolean) => {
-      if (newOpen) {
-        setName('')
-      }
       onOpenChange(newOpen)
     },
     [onOpenChange]

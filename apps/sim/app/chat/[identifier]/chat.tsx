@@ -190,18 +190,16 @@ export default function ChatClient({ identifier }: { identifier: string }) {
     return () => container.removeEventListener('scroll', handleScroll)
   }, [handleScroll])
 
-  /**
-   * Resets scroll tracking state when a new streaming response begins.
-   * Suppresses scroll detection briefly to avoid false positives from
-   * programmatic scrolls.
-   */
-  const resetScrollStateForStreaming = useCallback(() => {
-    setUserHasScrolled(false)
-    isUserScrollingRef.current = true
-    setTimeout(() => {
-      isUserScrollingRef.current = false
-    }, 1000)
-  }, [])
+  useEffect(() => {
+    if (isStreamingResponse) {
+      setUserHasScrolled(false)
+
+      isUserScrollingRef.current = true
+      setTimeout(() => {
+        isUserScrollingRef.current = false
+      }, 1000)
+    }
+  }, [isStreamingResponse])
 
   const fetchChatConfig = async () => {
     try {
@@ -302,7 +300,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
       filesCount: files?.length,
     })
 
-    resetScrollStateForStreaming()
+    setUserHasScrolled(false)
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),

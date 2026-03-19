@@ -264,16 +264,20 @@ const Popover: React.FC<PopoverProps> = ({
     registeredItemsRef.current = []
   }, [])
 
+  React.useEffect(() => {
+    if (!open) {
+      resetState()
+    }
+  }, [open, resetState])
+
   const handleOpenChange = React.useCallback(
     (nextOpen: boolean) => {
       if (nextOpen) {
         setLastHoveredItem(null)
-      } else {
-        resetState()
       }
       onOpenChange?.(nextOpen)
     },
-    [onOpenChange, resetState]
+    [onOpenChange]
   )
 
   const openFolder = React.useCallback(
