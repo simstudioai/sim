@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import { getAllPostMeta } from '@/lib/blog/registry'
 import { StudioContent } from '@/app/(landing)/blog/studio-content'
 
+export const revalidate = 3600
+
 export const metadata: Metadata = {
   title: 'Blog',
   description: 'Announcements, insights, and guides from the Sim team.',

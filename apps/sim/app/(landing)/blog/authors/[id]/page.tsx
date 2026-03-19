@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { getAllPostMeta } from '@/lib/blog/registry'
 import { AuthorWithSidebar } from '@/app/(landing)/blog/authors/[id]/author-with-sidebar'
 
+export const revalidate = 3600
+
 function findAuthorById(posts: Awaited<ReturnType<typeof getAllPostMeta>>, id: string) {
   for (const p of posts) {
     if (p.author.id === id) return p.author
