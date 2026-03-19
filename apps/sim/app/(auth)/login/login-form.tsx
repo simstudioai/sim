@@ -106,13 +106,13 @@ export default function LoginPage({
   const buttonClass = useBrandedButtonClass()
 
   const callbackUrlParam = searchParams?.get('callbackUrl')
+  const isValidCallbackUrl = callbackUrlParam ? validateCallbackUrl(callbackUrlParam) : false
   const invalidCallbackRef = useRef(false)
-  if (callbackUrlParam && !validateCallbackUrl(callbackUrlParam) && !invalidCallbackRef.current) {
+  if (callbackUrlParam && !isValidCallbackUrl && !invalidCallbackRef.current) {
     invalidCallbackRef.current = true
     logger.warn('Invalid callback URL detected and blocked:', { url: callbackUrlParam })
   }
-  const callbackUrl =
-    callbackUrlParam && validateCallbackUrl(callbackUrlParam) ? callbackUrlParam : '/workspace'
+  const callbackUrl = isValidCallbackUrl ? callbackUrlParam! : '/workspace'
   const isInviteFlow = searchParams?.get('invite_flow') === 'true'
 
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
