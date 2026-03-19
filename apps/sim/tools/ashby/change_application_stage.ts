@@ -10,7 +10,7 @@ interface AshbyChangeApplicationStageParams {
 interface AshbyChangeApplicationStageResponse extends ToolResponse {
   output: {
     applicationId: string
-    stageId: string
+    stageId: string | null
   }
 }
 
@@ -81,8 +81,8 @@ export const changeApplicationStageTool: ToolConfig<
     return {
       success: true,
       output: {
-        applicationId: r.applicationId ?? null,
-        stageId: r.stageId ?? null,
+        applicationId: r.id ?? null,
+        stageId: r.currentInterviewStage?.id ?? null,
       },
     }
   },

@@ -224,7 +224,10 @@ export const AshbyBlock: BlockConfig = {
       type: 'short-input',
       required: { field: 'operation', value: 'change_application_stage' },
       placeholder: 'Interview stage UUID',
-      condition: { field: 'operation', value: ['create_application', 'change_application_stage'] },
+      condition: {
+        field: 'operation',
+        value: ['create_application', 'change_application_stage', 'list_interviews'],
+      },
     },
     {
       id: 'creditedToUserId',

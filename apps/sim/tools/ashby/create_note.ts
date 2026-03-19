@@ -78,7 +78,7 @@ export const createNoteTool: ToolConfig<AshbyCreateNoteParams, AshbyCreateNoteRe
     return {
       success: true,
       output: {
-        noteId: r.noteId ?? null,
+        noteId: r.id ?? null,
       },
     }
   },
