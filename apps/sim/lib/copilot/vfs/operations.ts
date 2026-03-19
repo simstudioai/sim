@@ -54,13 +54,14 @@ function splitLinesForGrep(content: string): string[] {
 }
 
 /**
- * Returns true when `filePath` is `scope` or a descendant path (`scope/...`). If `scope` looks
- * like a glob, filters with micromatch `isMatch` and `VFS_GLOB_OPTIONS`.
+ * Returns true when `filePath` is `scope` or a descendant path (`scope/...`). If `scope` contains
+ * `*` or `?`, filters with micromatch `isMatch` and {@link VFS_GLOB_OPTIONS}. Other characters
+ * (including `[`, `{`, spaces) use directory-prefix logic so literal VFS path segments are not
+ * parsed as glob syntax.
  */
 function pathWithinGrepScope(filePath: string, scope: string): boolean {
-  const looksLikeGlob =
-    /[*?[{]/.test(scope) || scope.includes('!(') || scope.includes('@(') || scope.includes('+(')
-  if (looksLikeGlob) {
+  const scopeUsesStarOrQuestionGlob = /[*?]/.test(scope)
+  if (scopeUsesStarOrQuestionGlob) {
     return micromatch.isMatch(filePath, scope, VFS_GLOB_OPTIONS)
   }
   return filePath === scope || filePath.startsWith(scope + '/')

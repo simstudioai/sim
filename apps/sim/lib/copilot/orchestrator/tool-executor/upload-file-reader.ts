@@ -27,6 +27,46 @@ function toWorkspaceFileRecord(row: typeof workspaceFiles.$inferSelect): Workspa
 }
 
 /**
+ * Resolve a mothership upload row by `originalName`, preferring an exact DB match (limit 1) and
+ * only scanning all chat uploads when that misses (e.g. macOS U+202F vs ASCII space in the name).
+ */
+export async function findMothershipUploadRowByChatAndName(
+  chatId: string,
+  fileName: string
+): Promise<typeof workspaceFiles.$inferSelect | null> {
+  const exactRows = await db
+    .select()
+    .from(workspaceFiles)
+    .where(
+      and(
+        eq(workspaceFiles.chatId, chatId),
+        eq(workspaceFiles.context, 'mothership'),
+        eq(workspaceFiles.originalName, fileName),
+        isNull(workspaceFiles.deletedAt)
+      )
+    )
+    .limit(1)
+
+  if (exactRows[0]) {
+    return exactRows[0]
+  }
+
+  const allRows = await db
+    .select()
+    .from(workspaceFiles)
+    .where(
+      and(
+        eq(workspaceFiles.chatId, chatId),
+        eq(workspaceFiles.context, 'mothership'),
+        isNull(workspaceFiles.deletedAt)
+      )
+    )
+
+  const segmentKey = normalizeVfsSegment(fileName)
+  return allRows.find((r) => normalizeVfsSegment(r.originalName) === segmentKey) ?? null
+}
+
+/**
  * List all chat-scoped uploads for a given chat.
  */
 export async function listChatUploads(chatId: string): Promise<WorkspaceFileRecord[]> {
@@ -62,11 +102,9 @@ export async function readChatUpload(
   chatId: string
 ): Promise<FileReadResult | null> {
   try {
-    const uploads = await listChatUploads(chatId)
-    const segmentKey = normalizeVfsSegment(filename)
-    const record = uploads.find((u) => normalizeVfsSegment(u.name) === segmentKey)
-    if (!record) return null
-    return readFileRecord(record)
+    const row = await findMothershipUploadRowByChatAndName(chatId, filename)
+    if (!row) return null
+    return readFileRecord(toWorkspaceFileRecord(row))
   } catch (err) {
     logger.warn('Failed to read chat upload', {
       filename,

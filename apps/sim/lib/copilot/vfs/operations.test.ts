@@ -91,6 +91,12 @@ describe('grep', () => {
     expect(hits).not.toContain('workflowsManual/x')
   })
 
+  it('treats scope with literal brackets as directory prefix, not a glob character class', () => {
+    const files = vfsFromEntries([['weird[bracket]/x.txt', 'needle']])
+    const hits = grep(files, 'needle', 'weird[bracket]', { outputMode: 'files_with_matches' })
+    expect(hits).toContain('weird[bracket]/x.txt')
+  })
+
   it('scopes with glob pattern when path contains metacharacters', () => {
     const files = vfsFromEntries([
       ['workflows/A/state.json', '{"x":1}'],
