@@ -1090,6 +1090,13 @@ import {
   incidentioWorkflowsUpdateTool,
 } from '@/tools/incidentio'
 import {
+  infisicalCreateSecretTool,
+  infisicalDeleteSecretTool,
+  infisicalGetSecretTool,
+  infisicalListSecretsTool,
+  infisicalUpdateSecretTool,
+} from '@/tools/infisical'
+import {
   intercomAssignConversationV2Tool,
   intercomAttachContactToCompanyV2Tool,
   intercomCloseConversationV2Tool,
@@ -4252,6 +4259,11 @@ export const tools: Record<string, ToolConfig> = {
   incidentio_escalation_paths_show: incidentioEscalationPathsShowTool,
   incidentio_escalation_paths_update: incidentioEscalationPathsUpdateTool,
   incidentio_escalation_paths_delete: incidentioEscalationPathsDeleteTool,
+  infisical_list_secrets: infisicalListSecretsTool,
+  infisical_get_secret: infisicalGetSecretTool,
+  infisical_create_secret: infisicalCreateSecretTool,
+  infisical_update_secret: infisicalUpdateSecretTool,
+  infisical_delete_secret: infisicalDeleteSecretTool,
   hubspot_create_company: hubspotCreateCompanyTool,
   hubspot_create_contact: hubspotCreateContactTool,
   hubspot_get_company: hubspotGetCompanyTool,
