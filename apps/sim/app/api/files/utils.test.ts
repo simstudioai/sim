@@ -412,7 +412,7 @@ describe('findLocalFile - Path Traversal Security Tests', () => {
         ]
 
         for (const input of legitimateInputs) {
-          await expect(findLocalFile(input)).resolves.not.toThrow()
+          await expect(findLocalFile(input)).resolves.toBeDefined()
         }
       }
     )
