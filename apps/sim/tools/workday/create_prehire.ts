@@ -63,6 +63,12 @@ export const createPrehireTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Address of the pre-hire',
     },
+    countryCode: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'ISO 3166-1 Alpha-2 country code (defaults to US)',
+    },
   },
 
   request: {

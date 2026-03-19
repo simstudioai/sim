@@ -144,6 +144,15 @@ export const WorkdayBlock: BlockConfig = {
       condition: { field: 'operation', value: 'create_prehire' },
       mode: 'advanced',
     },
+    {
+      id: 'countryCode',
+      title: 'Country Code',
+      type: 'short-input',
+      placeholder: 'US',
+      condition: { field: 'operation', value: 'create_prehire' },
+      mode: 'advanced',
+      description: 'ISO 3166-1 Alpha-2 country code (defaults to US)',
+    },
 
     // Hire Employee
     {
@@ -368,8 +377,12 @@ Output: {"businessTitle": "Senior Engineer"}`,
         }
 
         if (fields && operation === 'update_worker') {
-          const parsedFields = typeof fields === 'string' ? JSON.parse(fields) : fields
-          return { ...rest, fields: parsedFields }
+          try {
+            const parsedFields = typeof fields === 'string' ? JSON.parse(fields) : fields
+            return { ...rest, fields: parsedFields }
+          } catch {
+            throw new Error('Invalid JSON in Fields block')
+          }
         }
 
         return rest
@@ -389,6 +402,7 @@ Output: {"businessTitle": "Senior Engineer"}`,
     email: { type: 'string', description: 'Email address' },
     phoneNumber: { type: 'string', description: 'Phone number' },
     address: { type: 'string', description: 'Address' },
+    countryCode: { type: 'string', description: 'ISO 3166-1 Alpha-2 country code' },
     preHireId: { type: 'string', description: 'Pre-hire record ID' },
     positionId: { type: 'string', description: 'Position ID' },
     hireDate: { type: 'string', description: 'Hire date (YYYY-MM-DD)' },

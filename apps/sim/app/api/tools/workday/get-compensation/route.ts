@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createWorkdaySoapClient } from '@/tools/workday/soap'
+import { createWorkdaySoapClient, extractRefId, type WorkdayReference } from '@/tools/workday/soap'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,15 +57,35 @@ export async function POST(request: NextRequest) {
     const workerInner = workerData?.Worker_Data as Record<string, unknown> | undefined
     const compensationData = workerInner?.Compensation_Data as Record<string, unknown> | undefined
 
-    const rawPlans = compensationData?.Compensation_Plan_Assignment
-    const plansArray = (Array.isArray(rawPlans) ? rawPlans : rawPlans ? [rawPlans] : []) as Record<
-      string,
-      unknown
-    >[]
+    const mapPlan = (p: Record<string, unknown>) => ({
+      id: extractRefId(p.Compensation_Plan_Reference as WorkdayReference | undefined) ?? null,
+      planName:
+        (p.Compensation_Plan_Reference as Record<string, unknown> | undefined)?.attributes
+          ?.Descriptor ?? null,
+      amount: p.Amount ?? p.Per_Unit_Amount ?? p.Individual_Target_Amount ?? null,
+      currency: extractRefId(p.Currency_Reference as WorkdayReference | undefined) ?? null,
+      frequency: extractRefId(p.Frequency_Reference as WorkdayReference | undefined) ?? null,
+    })
 
-    const compensationPlans = plansArray.map((p) => ({
-      ...p,
-    }))
+    const planTypes = [
+      'Employee_Base_Pay_Plan_Assignment_Data',
+      'Employee_Salary_Unit_Plan_Assignment_Data',
+      'Employee_Bonus_Plan_Assignment_Data',
+      'Employee_Allowance_Plan_Assignment_Data',
+      'Employee_Commission_Plan_Assignment_Data',
+      'Employee_Stock_Plan_Assignment_Data',
+      'Employee_Period_Salary_Plan_Assignment_Data',
+    ] as const
+
+    const compensationPlans: ReturnType<typeof mapPlan>[] = []
+    for (const planType of planTypes) {
+      const raw = compensationData?.[planType]
+      if (!raw) continue
+      const arr = Array.isArray(raw) ? raw : [raw]
+      for (const p of arr) {
+        compensationPlans.push(mapPlan(p as Record<string, unknown>))
+      }
+    }
 
     return NextResponse.json({
       success: true,

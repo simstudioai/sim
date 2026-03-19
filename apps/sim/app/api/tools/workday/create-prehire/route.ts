@@ -18,6 +18,7 @@ const RequestSchema = z.object({
   email: z.string().optional(),
   phoneNumber: z.string().optional(),
   address: z.string().optional(),
+  countryCode: z.string().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -45,6 +46,13 @@ export async function POST(request: NextRequest) {
     const parts = data.legalName.trim().split(/\s+/)
     const firstName = parts[0] ?? ''
     const lastName = parts.length > 1 ? parts.slice(1).join(' ') : ''
+
+    if (!lastName) {
+      return NextResponse.json(
+        { success: false, error: 'Legal name must include both a first name and last name' },
+        { status: 400 }
+      )
+    }
 
     const client = await createWorkdaySoapClient(
       data.tenantUrl,
@@ -96,7 +104,7 @@ export async function POST(request: NextRequest) {
           Name_Data: {
             Legal_Name_Data: {
               Name_Detail_Data: {
-                Country_Reference: wdRef('ISO_3166-1_Alpha-2_Code', 'US'),
+                Country_Reference: wdRef('ISO_3166-1_Alpha-2_Code', data.countryCode ?? 'US'),
                 First_Name: firstName,
                 Last_Name: lastName,
               },

@@ -59,6 +59,7 @@ export interface WorkdayCreatePrehireParams extends WorkdayBaseParams {
   email?: string
   phoneNumber?: string
   address?: string
+  countryCode?: string
 }
 
 export interface WorkdayCreatePrehireResponse extends ToolResponse {

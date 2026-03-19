@@ -125,9 +125,11 @@ export function NoteIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 export function WorkdayIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const clipId = `workday_clip_${id}`
   return (
     <svg {...props} viewBox='0 0 64 64' fill='none' xmlns='http://www.w3.org/2000/svg'>
-      <g clipPath='url(#workday-clip)' transform='matrix(0.53333333,0,0,0.53333333,-124.63685,-16)'>
+      <g clipPath={`url(#${clipId})`} transform='matrix(0.53333333,0,0,0.53333333,-124.63685,-16)'>
         <path
           fillRule='evenodd'
           clipRule='evenodd'
@@ -142,7 +144,7 @@ export function WorkdayIcon(props: SVGProps<SVGSVGElement>) {
         />
       </g>
       <defs>
-        <clipPath id='workday-clip'>
+        <clipPath id={clipId}>
           <path d='M 354,30 H 234 v 120 h 120 z' fill='#ffffff' />
         </clipPath>
       </defs>
