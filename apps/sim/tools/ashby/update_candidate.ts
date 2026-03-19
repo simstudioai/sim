@@ -95,7 +95,7 @@ export const updateCandidateTool: ToolConfig<
       if (params.phoneNumber) body.phoneNumber = params.phoneNumber
       if (params.linkedInUrl) body.linkedInUrl = params.linkedInUrl
       if (params.githubUrl) body.githubUrl = params.githubUrl
-      if (params.websiteUrl) body.website = params.websiteUrl
+      if (params.websiteUrl) body.websiteUrl = params.websiteUrl
       if (params.sourceId) body.sourceId = params.sourceId
       return body
     },
