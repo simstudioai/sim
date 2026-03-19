@@ -454,12 +454,7 @@ import {
   fathomListTeamMembersTool,
   fathomListTeamsTool,
 } from '@/tools/fathom'
-import {
-  fileParserV2Tool,
-  fileParserV3Tool,
-  fileParseTool,
-  fileWriteTool,
-} from '@/tools/file'
+import { fileParserV2Tool, fileParserV3Tool, fileParseTool, fileWriteTool } from '@/tools/file'
 import {
   firecrawlAgentTool,
   firecrawlCrawlTool,
