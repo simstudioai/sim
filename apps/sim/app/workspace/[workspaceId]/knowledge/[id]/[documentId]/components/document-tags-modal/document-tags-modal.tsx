@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Badge,
@@ -20,10 +20,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { ALL_TAG_SLOTS, type AllTagSlot, MAX_TAG_SLOTS } from '@/lib/knowledge/constants'
 import type { DocumentTag } from '@/lib/knowledge/tags/types'
 import type { DocumentData } from '@/lib/knowledge/types'
-import {
-  type TagDefinition,
-  useKnowledgeBaseTagDefinitions,
-} from '@/hooks/kb/use-knowledge-base-tag-definitions'
+import { useKnowledgeBaseTagDefinitions } from '@/hooks/kb/use-knowledge-base-tag-definitions'
 import { type TagDefinitionInput, useTagDefinitions } from '@/hooks/kb/use-tag-definitions'
 import { useNextAvailableSlotMutation, useUpdateDocumentTags } from '@/hooks/queries/kb/knowledge'
 
@@ -100,7 +97,6 @@ export function DocumentTagsModal({
   const { saveTagDefinitions, tagDefinitions, fetchTagDefinitions } = documentTagHook
   const { tagDefinitions: kbTagDefinitions, fetchTagDefinitions: refreshTagDefinitions } = kbTagHook
 
-  const [documentTags, setDocumentTags] = useState<DocumentTag[]>([])
   const [editingTagIndex, setEditingTagIndex] = useState<number | null>(null)
   const [isCreatingTag, setIsCreatingTag] = useState(false)
   const [isSavingTag, setIsSavingTag] = useState(false)
@@ -110,12 +106,13 @@ export function DocumentTagsModal({
     value: '',
   })
 
-  const buildDocumentTags = useCallback((docData: DocumentData, definitions: TagDefinition[]) => {
-    const tags: DocumentTag[] = []
+  const documentTags = useMemo(() => {
+    if (!documentData || !tagDefinitions) return []
 
+    const tags: DocumentTag[] = []
     ALL_TAG_SLOTS.forEach((slot) => {
-      const rawValue = docData[slot]
-      const definition = definitions.find((def) => def.tagSlot === slot)
+      const rawValue = documentData[slot]
+      const definition = tagDefinitions.find((def) => def.tagSlot === slot)
 
       if (rawValue !== null && rawValue !== undefined && definition) {
         const stringValue = String(rawValue).trim()
@@ -131,11 +128,7 @@ export function DocumentTagsModal({
     })
 
     return tags
-  }, [])
-
-  const handleTagsChange = useCallback((newTags: DocumentTag[]) => {
-    setDocumentTags(newTags)
-  }, [])
+  }, [documentData, tagDefinitions])
 
   const handleSaveDocumentTags = useCallback(
     async (tagsToSave: DocumentTag[]) => {
@@ -173,7 +166,6 @@ export function DocumentTagsModal({
 
   const handleRemoveTag = async (index: number) => {
     const updatedTags = documentTags.filter((_, i) => i !== index)
-    handleTagsChange(updatedTags)
 
     try {
       await handleSaveDocumentTags(updatedTags)
@@ -284,8 +276,6 @@ export function DocumentTagsModal({
         updatedTags = [...documentTags, newTag]
       }
 
-      handleTagsChange(updatedTags)
-
       if (currentEditingIndex !== null && originalTag) {
         const currentDefinition = kbTagDefinitions.find(
           (def) => def.displayName.toLowerCase() === originalTag.displayName.toLowerCase()
@@ -360,13 +350,6 @@ export function DocumentTagsModal({
     hasTagChanges()
 
   const canAddNewTag = kbTagDefinitions.length < MAX_TAG_SLOTS || availableDefinitions.length > 0
-
-  useEffect(() => {
-    if (documentData && tagDefinitions && !isSavingTag) {
-      const rebuiltTags = buildDocumentTags(documentData, tagDefinitions)
-      setDocumentTags(rebuiltTags)
-    }
-  }, [documentData, tagDefinitions, buildDocumentTags, isSavingTag])
 
   const handleClose = (openState: boolean) => {
     if (!openState) {

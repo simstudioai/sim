@@ -89,21 +89,32 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
   })
 
   /**
-   * Reset all state when modal opens/closes
+   * Reset all form and UI state to prepare for a fresh modal session
    */
-  useEffect(() => {
-    if (open) {
-      setSubmitStatus(null)
-      setImages([])
-      setIsDragging(false)
-      setIsProcessing(false)
-      reset({
-        subject: '',
-        message: '',
-        type: DEFAULT_REQUEST_TYPE,
-      })
-    }
-  }, [open, reset])
+  const resetModalState = useCallback(() => {
+    setSubmitStatus(null)
+    setImages([])
+    setIsDragging(false)
+    setIsProcessing(false)
+    reset({
+      subject: '',
+      message: '',
+      type: DEFAULT_REQUEST_TYPE,
+    })
+  }, [reset])
+
+  /**
+   * Wrap onOpenChange to reset state when the modal opens
+   */
+  const handleOpenChange = useCallback(
+    (newOpen: boolean) => {
+      if (newOpen) {
+        resetModalState()
+      }
+      onOpenChange(newOpen)
+    },
+    [onOpenChange, resetModalState]
+  )
 
   /**
    * Fix z-index for popover/dropdown when inside modal
@@ -415,11 +426,11 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
    * Handle modal close action
    */
   const handleClose = useCallback(() => {
-    onOpenChange(false)
-  }, [onOpenChange])
+    handleOpenChange(false)
+  }, [handleOpenChange])
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange}>
+    <Modal open={open} onOpenChange={handleOpenChange}>
       <ModalContent size='md'>
         <ModalHeader>Help &amp; Support</ModalHeader>
 

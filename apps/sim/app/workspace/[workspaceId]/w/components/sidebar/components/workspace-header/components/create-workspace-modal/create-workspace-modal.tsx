@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   Button,
   Input,
@@ -30,12 +30,15 @@ export function CreateWorkspaceModal({
   const [name, setName] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    if (open) {
-      setName('')
-      requestAnimationFrame(() => inputRef.current?.focus())
-    }
-  }, [open])
+  const handleOpenChange = useCallback(
+    (newOpen: boolean) => {
+      if (newOpen) {
+        setName('')
+      }
+      onOpenChange(newOpen)
+    },
+    [onOpenChange]
+  )
 
   const handleSubmit = useCallback(async () => {
     const trimmed = name.trim()
@@ -54,8 +57,14 @@ export function CreateWorkspaceModal({
   )
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent size='sm'>
+    <Modal open={open} onOpenChange={handleOpenChange}>
+      <ModalContent
+        size='sm'
+        onOpenAutoFocus={(e) => {
+          e.preventDefault()
+          inputRef.current?.focus()
+        }}
+      >
         <ModalHeader>Create Workspace</ModalHeader>
         <ModalBody>
           <Input
@@ -73,7 +82,7 @@ export function CreateWorkspaceModal({
           />
         </ModalBody>
         <ModalFooter>
-          <Button variant='default' onClick={() => onOpenChange(false)} disabled={isCreating}>
+          <Button variant='default' onClick={() => handleOpenChange(false)} disabled={isCreating}>
             Cancel
           </Button>
           <Button

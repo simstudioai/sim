@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
 import { useForm } from 'react-hook-form'
@@ -71,15 +71,17 @@ export function EditKnowledgeBaseModal({
 
   const nameValue = watch('name')
 
-  useEffect(() => {
-    if (open) {
+  /** Resets form state when the modal opens and forwards the open state change */
+  const handleOpenChange = (newOpen: boolean) => {
+    if (newOpen) {
       setError(null)
       reset({
         name: initialName,
         description: initialDescription,
       })
     }
-  }, [open, initialName, initialDescription, reset])
+    onOpenChange(newOpen)
+  }
 
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true)
@@ -97,7 +99,7 @@ export function EditKnowledgeBaseModal({
   }
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange}>
+    <Modal open={open} onOpenChange={handleOpenChange}>
       <ModalContent size='sm'>
         <ModalHeader>Edit Knowledge Base</ModalHeader>
 

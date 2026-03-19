@@ -591,10 +591,15 @@ export const Sidebar = memo(function Sidebar() {
         id: 'settings',
         label: 'Settings',
         icon: Settings,
-        onClick: () => navigateToSettings(),
+        onClick: () => {
+          if (!isCollapsed) {
+            setSidebarWidth(SIDEBAR_WIDTH.MIN)
+          }
+          navigateToSettings()
+        },
       },
     ],
-    [workspaceId, navigateToSettings]
+    [workspaceId, navigateToSettings, isCollapsed, setSidebarWidth]
   )
 
   const { data: fetchedTasks = [], isLoading: tasksLoading } = useTasks(workspaceId)
@@ -648,7 +653,7 @@ export const Sidebar = memo(function Sidebar() {
     const onDeleteSuccess = () => {
       useFolderStore.getState().clearTaskSelection()
       if (isViewingDeletedTask) {
-        router.push(`/workspace/${workspaceId}/home`)
+        navigateToPage(`/workspace/${workspaceId}/home`)
       }
     }
 
@@ -767,11 +772,19 @@ export const Sidebar = memo(function Sidebar() {
     })
   }, [workflowId, workflowsLoading])
 
-  useEffect(() => {
-    if (!isOnWorkflowPage && !isCollapsed) {
-      setSidebarWidth(SIDEBAR_WIDTH.MIN)
-    }
-  }, [isOnWorkflowPage, isCollapsed, setSidebarWidth])
+  /**
+   * Navigates to a non-workflow page and resets the sidebar width to minimum
+   * when the sidebar is expanded.
+   */
+  const navigateToPage = useCallback(
+    (path: string) => {
+      if (!isCollapsed) {
+        setSidebarWidth(SIDEBAR_WIDTH.MIN)
+      }
+      router.push(path)
+    },
+    [isCollapsed, setSidebarWidth, router]
+  )
 
   const handleCreateWorkflow = useCallback(async () => {
     const workflowId = await createWorkflow()
@@ -910,7 +923,7 @@ export const Sidebar = memo(function Sidebar() {
           try {
             const pathWorkspaceId = resolveWorkspaceIdFromPath()
             if (pathWorkspaceId) {
-              router.push(`/workspace/${pathWorkspaceId}/templates`)
+              navigateToPage(`/workspace/${pathWorkspaceId}/templates`)
               logger.info('Navigated to templates', { workspaceId: pathWorkspaceId })
             } else {
               logger.warn('No workspace ID found, cannot navigate to templates')
@@ -926,7 +939,7 @@ export const Sidebar = memo(function Sidebar() {
           try {
             const pathWorkspaceId = resolveWorkspaceIdFromPath()
             if (pathWorkspaceId) {
-              router.push(`/workspace/${pathWorkspaceId}/logs`)
+              navigateToPage(`/workspace/${pathWorkspaceId}/logs`)
               logger.info('Navigated to logs', { workspaceId: pathWorkspaceId })
             } else {
               logger.warn('No workspace ID found, cannot navigate to logs')
@@ -1113,7 +1126,7 @@ export const Sidebar = memo(function Sidebar() {
                             <Button
                               variant='ghost'
                               className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
-                              onClick={() => router.push(`/workspace/${workspaceId}/home`)}
+                              onClick={() => navigateToPage(`/workspace/${workspaceId}/home`)}
                             >
                               <Plus className='h-[16px] w-[16px]' />
                             </Button>
@@ -1131,7 +1144,7 @@ export const Sidebar = memo(function Sidebar() {
                         <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
                       }
                       hover={tasksHover}
-                      onClick={() => router.push(`/workspace/${workspaceId}/home`)}
+                      onClick={() => navigateToPage(`/workspace/${workspaceId}/home`)}
                       ariaLabel='Tasks'
                       className='mt-[6px]'
                     >

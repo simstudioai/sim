@@ -869,9 +869,11 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
     return { matchOffsets: offsets, matchCount: cumulative }
   }, [lines.length, displayLines, visibleLineIndices, searchQuery])
 
-  useEffect(() => {
+  const prevMatchCountRef = useRef(matchCount)
+  if (prevMatchCountRef.current !== matchCount) {
+    prevMatchCountRef.current = matchCount
     onMatchCountChange?.(matchCount)
-  }, [matchCount, onMatchCountChange])
+  }
 
   // Only process visible lines for efficiency (not all lines)
   const visibleLines = useMemo(() => {
@@ -1062,9 +1064,11 @@ const ViewerInner = memo(function ViewerInner({
     return { cumulativeMatches: cumulative, matchCount: cumulative[cumulative.length - 1] }
   }, [lines.length, displayLines, visibleLineIndices, searchQuery])
 
-  useEffect(() => {
+  const prevMatchCountRef = useRef(matchCount)
+  if (prevMatchCountRef.current !== matchCount) {
+    prevMatchCountRef.current = matchCount
     onMatchCountChange?.(matchCount)
-  }, [matchCount, onMatchCountChange])
+  }
 
   // Pre-compute highlighted lines with search for visible indices (for gutter mode)
   const highlightedVisibleLines = useMemo(() => {
