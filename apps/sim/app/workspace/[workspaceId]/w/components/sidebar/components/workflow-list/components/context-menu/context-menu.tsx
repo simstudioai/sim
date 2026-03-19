@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   DropdownMenu,
@@ -39,29 +39,27 @@ function ColorGrid({
   hexInput,
   setHexInput,
   onColorChange,
-  isOpen,
+  buttonRefs,
 }: {
   hexInput: string
   setHexInput: (color: string) => void
   onColorChange?: (color: string) => void
-  isOpen: boolean
+  buttonRefs: RefObject<(HTMLButtonElement | null)[]>
 }) {
   const [focusedIndex, setFocusedIndex] = useState(-1)
   const gridRef = useRef<HTMLDivElement>(null)
-  const buttonRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   useEffect(() => {
-    if (isOpen && gridRef.current) {
-      const selectedIndex = WORKFLOW_COLORS.findIndex(
-        ({ color }) => color.toLowerCase() === hexInput.toLowerCase()
-      )
-      const initialIndex = selectedIndex >= 0 ? selectedIndex : 0
-      setFocusedIndex(initialIndex)
-      setTimeout(() => {
-        buttonRefs.current[initialIndex]?.focus()
-      }, 50)
-    }
-  }, [isOpen, hexInput])
+    const selectedIndex = WORKFLOW_COLORS.findIndex(
+      ({ color }) => color.toLowerCase() === hexInput.toLowerCase()
+    )
+    const idx = selectedIndex >= 0 ? selectedIndex : 0
+    setFocusedIndex(idx)
+    requestAnimationFrame(() => {
+      buttonRefs.current[idx]?.focus()
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent, index: number) => {
@@ -176,10 +174,10 @@ function ColorPickerSubmenu({
   handleHexFocus: (e: React.FocusEvent<HTMLInputElement>) => void
   disabled?: boolean
 }) {
-  const [isSubOpen, setIsSubOpen] = useState(false)
+  const buttonRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   return (
-    <DropdownMenuSub open={isSubOpen} onOpenChange={setIsSubOpen}>
+    <DropdownMenuSub>
       <DropdownMenuSubTrigger className={disabled ? 'pointer-events-none opacity-50' : ''}>
         <Palette />
         Change color
@@ -190,7 +188,7 @@ function ColorPickerSubmenu({
             hexInput={hexInput}
             setHexInput={setHexInput}
             onColorChange={onColorChange}
-            isOpen={isSubOpen}
+            buttonRefs={buttonRefs}
           />
           <div className='flex items-center gap-[4px]'>
             <div
@@ -375,6 +373,7 @@ export function ContextMenu({
         align='start'
         side='bottom'
         sideOffset={4}
+        className='max-h-[var(--radix-dropdown-menu-content-available-height,400px)]'
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {showOpenInNewTab && onOpenInNewTab && (

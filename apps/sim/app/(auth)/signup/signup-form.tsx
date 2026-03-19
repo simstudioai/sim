@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
@@ -82,48 +82,31 @@ function SignupFormContent({
   const searchParams = useSearchParams()
   const { refetch: refetchSession } = useSession()
   const [isLoading, setIsLoading] = useState(false)
-  const [, setMounted] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => searchParams.get('email') ?? '')
   const [emailError, setEmailError] = useState('')
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
-  const [redirectUrl, setRedirectUrl] = useState('')
-  const [isInviteFlow, setIsInviteFlow] = useState(false)
   const buttonClass = useBrandedButtonClass()
+
+  const redirectUrl = useMemo(
+    () => searchParams.get('redirect') || searchParams.get('callbackUrl') || '',
+    [searchParams]
+  )
+  const isInviteFlow = useMemo(
+    () =>
+      searchParams.get('invite_flow') === 'true' ||
+      redirectUrl.startsWith('/invite/') ||
+      redirectUrl.startsWith('/credential-account/'),
+    [searchParams, redirectUrl]
+  )
 
   const [name, setName] = useState('')
   const [nameErrors, setNameErrors] = useState<string[]>([])
   const [showNameValidationError, setShowNameValidationError] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-    const emailParam = searchParams.get('email')
-    if (emailParam) {
-      setEmail(emailParam)
-    }
-
-    // Check both 'redirect' and 'callbackUrl' params (login page uses callbackUrl)
-    const redirectParam = searchParams.get('redirect') || searchParams.get('callbackUrl')
-    if (redirectParam) {
-      setRedirectUrl(redirectParam)
-
-      if (
-        redirectParam.startsWith('/invite/') ||
-        redirectParam.startsWith('/credential-account/')
-      ) {
-        setIsInviteFlow(true)
-      }
-    }
-
-    const inviteFlowParam = searchParams.get('invite_flow')
-    if (inviteFlowParam === 'true') {
-      setIsInviteFlow(true)
-    }
-  }, [searchParams])
 
   const validatePassword = (passwordValue: string): string[] => {
     const errors: string[] = []

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
@@ -99,15 +99,21 @@ export default function LoginPage({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
-  const [_mounted, setMounted] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
   const buttonClass = useBrandedButtonClass()
 
-  const [callbackUrl, setCallbackUrl] = useState('/workspace')
-  const [isInviteFlow, setIsInviteFlow] = useState(false)
+  const callbackUrlParam = searchParams?.get('callbackUrl')
+  const invalidCallbackRef = useRef(false)
+  if (callbackUrlParam && !validateCallbackUrl(callbackUrlParam) && !invalidCallbackRef.current) {
+    invalidCallbackRef.current = true
+    logger.warn('Invalid callback URL detected and blocked:', { url: callbackUrlParam })
+  }
+  const callbackUrl =
+    callbackUrlParam && validateCallbackUrl(callbackUrlParam) ? callbackUrlParam : '/workspace'
+  const isInviteFlow = searchParams?.get('invite_flow') === 'true'
 
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('')
@@ -120,30 +126,11 @@ export default function LoginPage({
   const [email, setEmail] = useState('')
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
-  const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null)
-
-  useEffect(() => {
-    setMounted(true)
-
-    if (searchParams) {
-      const callback = searchParams.get('callbackUrl')
-      if (callback) {
-        if (validateCallbackUrl(callback)) {
-          setCallbackUrl(callback)
-        } else {
-          logger.warn('Invalid callback URL detected and blocked:', { url: callback })
-        }
-      }
-
-      const inviteFlow = searchParams.get('invite_flow') === 'true'
-      setIsInviteFlow(inviteFlow)
-
-      const resetSuccess = searchParams.get('resetSuccess') === 'true'
-      if (resetSuccess) {
-        setResetSuccessMessage('Password reset successful. Please sign in with your new password.')
-      }
-    }
-  }, [searchParams])
+  const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(() =>
+    searchParams?.get('resetSuccess') === 'true'
+      ? 'Password reset successful. Please sign in with your new password.'
+      : null
+  )
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
