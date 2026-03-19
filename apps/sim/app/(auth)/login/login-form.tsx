@@ -175,7 +175,7 @@ export default function LoginPage({
     }
 
     try {
-      const safeCallbackUrl = validateCallbackUrl(callbackUrl) ? callbackUrl : '/workspace'
+      const safeCallbackUrl = callbackUrl
       let errorHandled = false
 
       const result = await client.signIn.email(

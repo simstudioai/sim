@@ -98,7 +98,7 @@ export default function SSOForm() {
     }
 
     try {
-      const safeCallbackUrl = validateCallbackUrl(callbackUrl) ? callbackUrl : '/workspace'
+      const safeCallbackUrl = callbackUrl
 
       await client.signIn.sso({
         email: emailValue,
