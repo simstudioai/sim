@@ -51,8 +51,14 @@ export const listGroupsTool: ToolConfig<
         '$select=id,displayName,description,mail,mailEnabled,mailNickname,securityEnabled,groupTypes,visibility,createdDateTime'
       )
       if (params.top) queryParts.push(`$top=${params.top}`)
+      if (params.search && params.filter) {
+        throw new Error('$search and $filter cannot be used together in Microsoft Graph API')
+      }
       if (params.filter) queryParts.push(`$filter=${encodeURIComponent(params.filter)}`)
-      if (params.search) queryParts.push(`$search="${encodeURIComponent(params.search)}"`)
+      if (params.search) {
+        queryParts.push(`$search="${encodeURIComponent(params.search)}"`)
+        queryParts.push('$count=true')
+      }
       return `https://graph.microsoft.com/v1.0/groups?${queryParts.join('&')}`
     },
     method: 'GET',

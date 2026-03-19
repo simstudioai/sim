@@ -48,8 +48,14 @@ export const listUsersTool: ToolConfig<MicrosoftAdListUsersParams, MicrosoftAdLi
         '$select=id,displayName,givenName,surname,userPrincipalName,mail,jobTitle,department,officeLocation,mobilePhone,accountEnabled'
       )
       if (params.top) queryParts.push(`$top=${params.top}`)
+      if (params.search && params.filter) {
+        throw new Error('$search and $filter cannot be used together in Microsoft Graph API')
+      }
       if (params.filter) queryParts.push(`$filter=${encodeURIComponent(params.filter)}`)
-      if (params.search) queryParts.push(`$search="${encodeURIComponent(params.search)}"`)
+      if (params.search) {
+        queryParts.push(`$search="${encodeURIComponent(params.search)}"`)
+        queryParts.push('$count=true')
+      }
       return `https://graph.microsoft.com/v1.0/users?${queryParts.join('&')}`
     },
     method: 'GET',

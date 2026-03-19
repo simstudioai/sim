@@ -48,9 +48,13 @@ export const addGroupMemberTool: ToolConfig<
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({
-      '@odata.id': `https://graph.microsoft.com/v1.0/directoryObjects/${params.memberId}`,
-    }),
+    body: (params) => {
+      const memberId = params.memberId?.trim()
+      if (!memberId) throw new Error('Member ID is required')
+      return {
+        '@odata.id': `https://graph.microsoft.com/v1.0/directoryObjects/${memberId}`,
+      }
+    },
   },
   transformResponse: async (_response: Response, params?: MicrosoftAdAddGroupMemberParams) => {
     return {
