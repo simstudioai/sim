@@ -15,8 +15,8 @@ import {
   ModalHeader,
 } from '@/components/emcn'
 import { client } from '@/lib/auth/auth-client'
-import { validateCallbackUrl } from '@/lib/auth/validate-callback-url'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
+import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
