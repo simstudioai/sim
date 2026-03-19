@@ -13,6 +13,9 @@ import {
   incrementStorageUsage,
 } from '@/lib/billing/storage'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
+import { normalizeWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-reference'
+
+export { normalizeWorkspaceFileReference }
 import {
   downloadFile,
   hasCloudStorage,
@@ -332,29 +335,8 @@ export async function listWorkspaceFiles(
 }
 
 /**
- * Normalize a workspace file reference to its display name.
- * Supports raw names and VFS-style paths like `files/name`, `files/name/content`,
- * and `files/name/meta.json`.
- */
-export function normalizeWorkspaceFileReference(fileReference: string): string {
-  const trimmed = fileReference.trim().replace(/^\/+/, '')
-
-  if (trimmed.startsWith('files/')) {
-    const withoutPrefix = trimmed.slice('files/'.length)
-    if (withoutPrefix.endsWith('/meta.json')) {
-      return withoutPrefix.slice(0, -'/meta.json'.length)
-    }
-    if (withoutPrefix.endsWith('/content')) {
-      return withoutPrefix.slice(0, -'/content'.length)
-    }
-    return withoutPrefix
-  }
-
-  return trimmed
-}
-
-/**
  * Find a workspace file record in an existing list from either its id or a VFS/name reference.
+ * For copilot `open_resource` and the resource panel, use {@link getWorkspaceFile} with a UUID only.
  */
 export function findWorkspaceFileRecord(
   files: WorkspaceFileRecord[],

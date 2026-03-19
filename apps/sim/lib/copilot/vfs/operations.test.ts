@@ -81,6 +81,16 @@ describe('grep', () => {
     expect(lineOnly).toHaveLength(0)
   })
 
+  it('treats trailing slash on directory scope like grep (files/ matches files/foo)', () => {
+    const files = vfsFromEntries([
+      ['files/TEST BOY.md/meta.json', '"name": "TEST BOY.md"'],
+      ['workflows/x', 'TEST BOY'],
+    ])
+    const hits = grep(files, 'TEST BOY', 'files/', { outputMode: 'files_with_matches' })
+    expect(hits).toContain('files/TEST BOY.md/meta.json')
+    expect(hits).not.toContain('workflows/x')
+  })
+
   it('scopes to directory prefix without matching unrelated prefixes', () => {
     const files = vfsFromEntries([
       ['workflows/a/x', 'needle'],
