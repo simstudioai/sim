@@ -503,24 +503,37 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
       wasBlocked = row.length > 0 ? !!row[0].blocked : false
     }
 
-    if (isOrgPlan(sub.plan)) {
-      await unblockOrgMembers(sub.referenceId, 'payment_failed')
-    } else {
-      // Only unblock users blocked for payment_failed, not disputes
-      await db
-        .update(userStats)
-        .set({ billingBlocked: false, billingBlockedReason: null })
-        .where(
-          and(
-            eq(userStats.userId, sub.referenceId),
-            eq(userStats.billingBlockedReason, 'payment_failed')
+    // For proration invoices (mid-cycle upgrades/seat changes), only unblock if real money
+    // was collected. A $0 credit invoice from a downgrade should not unblock a user who
+    // was blocked for a different failed payment.
+    const isProrationInvoice = invoice.billing_reason === 'subscription_update'
+    const shouldUnblock = !isProrationInvoice || (invoice.amount_paid ?? 0) > 0
+
+    if (shouldUnblock) {
+      if (isOrgPlan(sub.plan)) {
+        await unblockOrgMembers(sub.referenceId, 'payment_failed')
+      } else {
+        await db
+          .update(userStats)
+          .set({ billingBlocked: false, billingBlockedReason: null })
+          .where(
+            and(
+              eq(userStats.userId, sub.referenceId),
+              eq(userStats.billingBlockedReason, 'payment_failed')
+            )
           )
-        )
+      }
+    } else {
+      logger.info('Skipping unblock for zero-amount proration invoice', {
+        invoiceId: invoice.id,
+        billingReason: invoice.billing_reason,
+        amountPaid: invoice.amount_paid,
+      })
     }
 
-    // Only reset usage for cycle renewals — proration invoices (subscription_update) should
-    // unblock the user but not wipe their accumulated usage mid-cycle.
-    if (wasBlocked && invoice.billing_reason !== 'subscription_update') {
+    // Only reset usage for cycle renewals — proration invoices should not wipe
+    // accumulated usage mid-cycle.
+    if (wasBlocked && !isProrationInvoice) {
       await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
     }
   } catch (error) {
