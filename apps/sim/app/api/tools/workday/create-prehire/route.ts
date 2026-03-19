@@ -32,6 +32,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const data = RequestSchema.parse(body)
 
+    if (!data.email && !data.phoneNumber && !data.address) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'At least one contact method (email, phone, or address) is required',
+        },
+        { status: 400 }
+      )
+    }
+
     const parts = data.legalName.trim().split(/\s+/)
     const firstName = parts[0] ?? ''
     const lastName = parts.length > 1 ? parts.slice(1).join(' ') : (parts[0] ?? '')
@@ -43,16 +53,6 @@ export async function POST(request: NextRequest) {
       data.username,
       data.password
     )
-
-    if (!data.email && !data.phoneNumber && !data.address) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'At least one contact method (email, phone, or address) is required',
-        },
-        { status: 400 }
-      )
-    }
 
     const contactData: Record<string, unknown> = {}
     if (data.email) {
