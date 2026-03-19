@@ -272,22 +272,13 @@ export const DocuSignBlock: BlockConfig<DocuSignResponse> = {
     config: {
       tool: (params) => `docusign_${params.operation}`,
       params: (params) => {
-        const {
-          oauthCredential,
-          operation,
-          uploadDocument,
-          documentRef,
-          listEnvelopeStatus,
-          ...rest
-        } = params
+        const { oauthCredential, operation, documentFile, listEnvelopeStatus, ...rest } = params
 
         const cleanParams: Record<string, unknown> = {
           oauthCredential,
         }
 
-        const file = normalizeFileInput(params.uploadDocument || params.documentRef, {
-          single: true,
-        })
+        const file = normalizeFileInput(documentFile, { single: true })
         if (file) {
           cleanParams.file = file
         }
@@ -302,7 +293,7 @@ export const DocuSignBlock: BlockConfig<DocuSignResponse> = {
           cleanParams.status = rest.envelopeStatus
         }
 
-        const excludeKeys = ['uploadDocument', 'documentRef', 'envelopeStatus']
+        const excludeKeys = ['envelopeStatus']
         for (const [key, value] of Object.entries(rest)) {
           if (value !== undefined && value !== null && value !== '' && !excludeKeys.includes(key)) {
             cleanParams[key] = value
