@@ -16,6 +16,7 @@ import {
 } from '@/components/emcn'
 import { client } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
+import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -53,24 +54,6 @@ const PASSWORD_VALIDATIONS = {
   },
 }
 
-const validateCallbackUrl = (url: string): boolean => {
-  try {
-    if (url.startsWith('/')) {
-      return true
-    }
-
-    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : ''
-    if (url.startsWith(currentOrigin)) {
-      return true
-    }
-
-    return false
-  } catch (error) {
-    logger.error('Error validating callback URL:', { error, url })
-    return false
-  }
-}
-
 const validatePassword = (passwordValue: string): string[] => {
   const errors: string[] = []
 
@@ -106,13 +89,13 @@ export default function LoginPage({
   const buttonClass = useBrandedButtonClass()
 
   const callbackUrlParam = searchParams?.get('callbackUrl')
+  const isValidCallbackUrl = callbackUrlParam ? validateCallbackUrl(callbackUrlParam) : false
   const invalidCallbackRef = useRef(false)
-  if (callbackUrlParam && !validateCallbackUrl(callbackUrlParam) && !invalidCallbackRef.current) {
+  if (callbackUrlParam && !isValidCallbackUrl && !invalidCallbackRef.current) {
     invalidCallbackRef.current = true
     logger.warn('Invalid callback URL detected and blocked:', { url: callbackUrlParam })
   }
-  const callbackUrl =
-    callbackUrlParam && validateCallbackUrl(callbackUrlParam) ? callbackUrlParam : '/workspace'
+  const callbackUrl = isValidCallbackUrl ? callbackUrlParam! : '/workspace'
   const isInviteFlow = searchParams?.get('invite_flow') === 'true'
 
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
@@ -192,7 +175,7 @@ export default function LoginPage({
     }
 
     try {
-      const safeCallbackUrl = validateCallbackUrl(callbackUrl) ? callbackUrl : '/workspace'
+      const safeCallbackUrl = callbackUrl
       let errorHandled = false
 
       const result = await client.signIn.email(

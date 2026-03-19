@@ -35,25 +35,6 @@ const ACTOR_COLORS: Record<string, string> = {
 /** Left accent bar opacity by recency — newest is brightest. */
 const ACCENT_OPACITIES = [0.75, 0.5, 0.35, 0.22, 0.12, 0.05] as const
 
-/** Human-readable label per resource type. */
-const RESOURCE_TYPE_LABEL: Record<string, string> = {
-  workflow: 'Workflow',
-  member: 'Member',
-  byok_key: 'BYOK Key',
-  api_key: 'API Key',
-  permission_group: 'Permission Group',
-  credential_set: 'Credential Set',
-  knowledge_base: 'Knowledge Base',
-  environment: 'Environment',
-  mcp_server: 'MCP Server',
-  file: 'File',
-  webhook: 'Webhook',
-  chat: 'Chat',
-  table: 'Table',
-  folder: 'Folder',
-  document: 'Document',
-}
-
 interface LogEntry {
   id: number
   actor: string
@@ -189,7 +170,6 @@ function AuditRow({ entry, index }: AuditRowProps) {
   const color = ACTOR_COLORS[entry.actor] ?? '#F6F6F6'
   const accentOpacity = ACCENT_OPACITIES[index] ?? 0.04
   const timeAgo = formatTimeAgo(entry.insertedAt)
-  const resourceLabel = RESOURCE_TYPE_LABEL[entry.resourceType]
 
   return (
     <div className='group relative overflow-hidden border-[#2A2A2A] border-b bg-[#1C1C1C] transition-colors duration-150 last:border-b-0 hover:bg-[#212121]'>
@@ -292,9 +272,6 @@ function AuditLogPreview() {
   )
 }
 
-const CHECK_PATH =
-  'M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425z'
-
 interface PermissionFeature {
   name: string
   key: string
@@ -376,8 +353,6 @@ function AccessControlPanel() {
   const ref = useRef(null)
   const isInView = useInView(ref, { once: true, margin: '-40px' })
   const [accessState, setAccessState] = useState<Record<string, boolean>>(INITIAL_ACCESS_STATE)
-
-  const allFeatures = PERMISSION_CATEGORIES.flatMap((c) => c.features)
 
   return (
     <div ref={ref}>

@@ -64,6 +64,14 @@ const DISPOSABLE_MX_BACKENDS = new Set(['in.mail.gw', 'smtp.catchmail.io', 'mx.y
 
 /** Per-domain MX result cache — avoids redundant DNS queries for concurrent or repeated sign-ups */
 const mxCache = new Map<string, { result: boolean; expires: number }>()
+const MX_CACHE_MAX = 1_000
+
+function setMxCache(domain: string, entry: { result: boolean; expires: number }) {
+  if (mxCache.size >= MX_CACHE_MAX && !mxCache.has(domain)) {
+    mxCache.delete(mxCache.keys().next().value!)
+  }
+  mxCache.set(domain, entry)
+}
 
 /**
  * Validates email syntax using RFC 5322 compliant regex
@@ -124,7 +132,10 @@ export async function isDisposableMxBackend(email: string): Promise<boolean> {
 
   const now = Date.now()
   const cached = mxCache.get(domain)
-  if (cached && cached.expires > now) return cached.result
+  if (cached) {
+    if (cached.expires > now) return cached.result
+    mxCache.delete(domain)
+  }
 
   let timeoutId: ReturnType<typeof setTimeout> | undefined
   try {
@@ -135,10 +146,10 @@ export async function isDisposableMxBackend(email: string): Promise<boolean> {
       }
     )
     const result = await Promise.race([mxCheckPromise, timeoutPromise])
-    mxCache.set(domain, { result: result.isDisposableBackend, expires: now + 5 * 60 * 1000 })
+    setMxCache(domain, { result: result.isDisposableBackend, expires: now + 5 * 60 * 1000 })
     return result.isDisposableBackend
   } catch {
-    mxCache.set(domain, { result: false, expires: now + 60 * 1000 })
+    setMxCache(domain, { result: false, expires: now + 60 * 1000 })
     return false
   } finally {
     clearTimeout(timeoutId)
