@@ -69,6 +69,7 @@ import type {
   MoveFolderParams,
   MoveWorkflowParams,
   OpenResourceParams,
+  OpenResourceType,
   RenameFolderParams,
   RenameWorkflowParams,
   RunBlockParams,
@@ -107,12 +108,22 @@ import {
 } from './workflow-tools'
 
 const logger = createLogger('CopilotToolExecutor')
+const VALID_OPEN_RESOURCE_TYPES = new Set<OpenResourceType>([
+  'workflow',
+  'table',
+  'knowledgebase',
+  'file',
+])
 
 function validateOpenResourceParams(
   params: OpenResourceParams
 ): { success: true; params: ValidOpenResourceParams } | { success: false; error: string } {
   if (!params.type) {
     return { success: false, error: 'type is required' }
+  }
+
+  if (!VALID_OPEN_RESOURCE_TYPES.has(params.type)) {
+    return { success: false, error: `Invalid resource type: ${params.type}` }
   }
 
   if (!params.id) {
