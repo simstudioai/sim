@@ -196,6 +196,11 @@ async function handleSendEnvelope(
         documentId: '1',
       },
     ]
+  } else if (((status as string) || 'sent') === 'sent') {
+    return NextResponse.json(
+      { success: false, error: 'A document file is required to send an envelope' },
+      { status: 400 }
+    )
   }
 
   const response = await fetch(`${apiBase}/envelopes`, {
