@@ -64,17 +64,21 @@ export function AddDocumentsModal({
     }
   }, [files])
 
-  /** Resets state on open and handles close with upload guard */
+  useEffect(() => {
+    if (open) {
+      setFiles([])
+      setFileError(null)
+      setIsDragging(false)
+      setDragCounter(0)
+      setRetryingIndexes(new Set())
+      clearError()
+    }
+  }, [open, clearError])
+
+  /** Handles close with upload guard */
   const handleOpenChange = useCallback(
     (newOpen: boolean) => {
-      if (newOpen) {
-        setFiles([])
-        setFileError(null)
-        setIsDragging(false)
-        setDragCounter(0)
-        setRetryingIndexes(new Set())
-        clearError()
-      } else {
+      if (!newOpen) {
         if (isUploading) return
         setFiles([])
         setFileError(null)
