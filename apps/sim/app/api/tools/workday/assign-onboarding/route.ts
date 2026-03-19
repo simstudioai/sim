@@ -17,7 +17,6 @@ const RequestSchema = z.object({
   workerId: z.string().min(1),
   onboardingPlanId: z.string().min(1),
   actionEventId: z.string().min(1),
-  stages: z.string().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -43,7 +42,7 @@ export async function POST(request: NextRequest) {
     const [result] = await client.Put_Onboarding_Plan_AssignmentAsync({
       Onboarding_Plan_Assignment_Data: {
         Onboarding_Plan_Reference: wdRef('Onboarding_Plan_ID', data.onboardingPlanId),
-        Person_Reference: wdRef('Employee_ID', data.workerId),
+        Person_Reference: wdRef('WID', data.workerId),
         Action_Event_Reference: wdRef('Background_Check_ID', data.actionEventId),
         Assignment_Effective_Moment: new Date().toISOString(),
         Active: true,

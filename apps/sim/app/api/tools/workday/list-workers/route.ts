@@ -14,7 +14,6 @@ const RequestSchema = z.object({
   tenant: z.string().min(1),
   username: z.string().min(1),
   password: z.string().min(1),
-  search: z.string().optional(),
   limit: z.number().optional(),
   offset: z.number().optional(),
 })

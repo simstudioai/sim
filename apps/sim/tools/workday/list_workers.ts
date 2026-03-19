@@ -32,12 +32,6 @@ export const listWorkersTool: ToolConfig<WorkdayListWorkersParams, WorkdayListWo
       visibility: 'user-only',
       description: 'Integration System User password',
     },
-    search: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Search term to filter workers by name or ID',
-    },
     limit: {
       type: 'number',
       required: false,

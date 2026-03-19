@@ -52,24 +52,6 @@ export const hireEmployeeTool: ToolConfig<WorkdayHireEmployeeParams, WorkdayHire
         visibility: 'user-or-llm',
         description: 'Hire date in ISO 8601 format (e.g., 2025-06-01)',
       },
-      jobProfileId: {
-        type: 'string',
-        required: false,
-        visibility: 'user-or-llm',
-        description: 'Job profile ID for the position',
-      },
-      locationId: {
-        type: 'string',
-        required: false,
-        visibility: 'user-or-llm',
-        description: 'Work location ID',
-      },
-      managerId: {
-        type: 'string',
-        required: false,
-        visibility: 'user-or-llm',
-        description: 'Manager worker ID for the reporting relationship',
-      },
       employeeType: {
         type: 'string',
         required: false,
@@ -104,9 +86,9 @@ export const hireEmployeeTool: ToolConfig<WorkdayHireEmployeeParams, WorkdayHire
         type: 'string',
         description: 'Employee ID assigned to the new hire',
       },
-      descriptor: {
+      eventId: {
         type: 'string',
-        description: 'Display name of the hired employee',
+        description: 'Event ID of the hire business process',
       },
       hireDate: {
         type: 'string',

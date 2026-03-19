@@ -18,7 +18,6 @@ const RequestSchema = z.object({
   email: z.string().optional(),
   phoneNumber: z.string().optional(),
   address: z.string().optional(),
-  sourceId: z.string().optional(),
 })
 
 export async function POST(request: NextRequest) {

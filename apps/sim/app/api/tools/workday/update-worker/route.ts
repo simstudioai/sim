@@ -44,17 +44,15 @@ export async function POST(request: NextRequest) {
         Run_Now: true,
       },
       Change_Personal_Information_Data: {
-        Worker_Reference: wdRef('Employee_ID', data.workerId),
+        Person_Reference: wdRef('Employee_ID', data.workerId),
         Personal_Information_Data: data.fields,
       },
     })
 
-    const eventRef = result?.Event_Reference
-
     return NextResponse.json({
       success: true,
       output: {
-        eventId: extractRefId(eventRef),
+        eventId: extractRefId(result?.Personal_Information_Change_Event_Reference),
         workerId: data.workerId,
       },
     })

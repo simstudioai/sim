@@ -66,9 +66,13 @@ export const updateWorkerTool: ToolConfig<WorkdayUpdateWorkerParams, WorkdayUpda
     },
 
     outputs: {
-      worker: {
-        type: 'json',
-        description: 'Updated worker record',
+      eventId: {
+        type: 'string',
+        description: 'Event ID of the change personal information business process',
+      },
+      workerId: {
+        type: 'string',
+        description: 'Worker ID that was updated',
       },
     },
   }

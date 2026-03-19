@@ -26,11 +26,17 @@ export const getOrganizationsTool: ToolConfig<
       visibility: 'user-only',
       description: 'Workday tenant name',
     },
-    accessToken: {
+    username: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
-      description: 'OAuth 2.0 access token for Workday REST API',
+      visibility: 'user-only',
+      description: 'Integration System User username',
+    },
+    password: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Integration System User password',
     },
     type: {
       type: 'string',

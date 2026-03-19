@@ -63,12 +63,6 @@ export const createPrehireTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Address of the pre-hire',
     },
-    sourceId: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Recruiting source ID (e.g., referral, job board)',
-    },
   },
 
   request: {

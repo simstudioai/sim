@@ -57,13 +57,6 @@ export const assignOnboardingTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Action event ID that enables the onboarding plan (e.g., the hiring event ID)',
     },
-    stages: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'JSON array of onboarding stage IDs to include (optional, defaults to all stages)',
-    },
   },
 
   request: {

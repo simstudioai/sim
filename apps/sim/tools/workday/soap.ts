@@ -25,6 +25,7 @@ export interface WorkdaySoapResult {
   Position_Reference?: WorkdayReference
   Applicant_Reference?: WorkdayReference & { attributes?: { Descriptor?: string } }
   Onboarding_Plan_Assignment_Reference?: WorkdayReference
+  Personal_Information_Change_Event_Reference?: WorkdayReference
   Exceptions_Response_Data?: unknown
 }
 

@@ -17,9 +17,6 @@ const RequestSchema = z.object({
   preHireId: z.string().min(1),
   positionId: z.string().min(1),
   hireDate: z.string().min(1),
-  jobProfileId: z.string().optional(),
-  locationId: z.string().optional(),
-  managerId: z.string().optional(),
   employeeType: z.string().optional(),
 })
 

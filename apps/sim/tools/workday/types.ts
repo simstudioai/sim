@@ -42,7 +42,6 @@ export interface WorkdayGetWorkerResponse extends ToolResponse {
 
 /** List Workers */
 export interface WorkdayListWorkersParams extends WorkdayBaseParams {
-  search?: string
   limit?: number
   offset?: number
 }
@@ -60,7 +59,6 @@ export interface WorkdayCreatePrehireParams extends WorkdayBaseParams {
   email?: string
   phoneNumber?: string
   address?: string
-  sourceId?: string
 }
 
 export interface WorkdayCreatePrehireResponse extends ToolResponse {
@@ -75,9 +73,6 @@ export interface WorkdayHireEmployeeParams extends WorkdayBaseParams {
   preHireId: string
   positionId: string
   hireDate: string
-  jobProfileId?: string
-  locationId?: string
-  managerId?: string
   employeeType?: string
 }
 
@@ -85,7 +80,7 @@ export interface WorkdayHireEmployeeResponse extends ToolResponse {
   output: {
     workerId: string
     employeeId: string
-    descriptor: string
+    eventId: string
     hireDate: string
   }
 }
@@ -98,7 +93,8 @@ export interface WorkdayUpdateWorkerParams extends WorkdayBaseParams {
 
 export interface WorkdayUpdateWorkerResponse extends ToolResponse {
   output: {
-    worker: WorkdayWorker
+    eventId: string
+    workerId: string
   }
 }
 
@@ -107,7 +103,6 @@ export interface WorkdayAssignOnboardingParams extends WorkdayBaseParams {
   workerId: string
   onboardingPlanId: string
   actionEventId: string
-  stages?: string
 }
 
 export interface WorkdayAssignOnboardingResponse extends ToolResponse {
