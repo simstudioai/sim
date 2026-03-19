@@ -11,6 +11,10 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { McpClient } from '@/lib/mcp/client'
 import { mcpConnectionManager } from '@/lib/mcp/connection-manager'
 import { isMcpDomainAllowed, validateMcpDomain } from '@/lib/mcp/domain-check'
+import { CircuitBreakerMiddleware } from '@/lib/mcp/resilience/circuit-breaker'
+import { ResiliencePipeline } from '@/lib/mcp/resilience/pipeline'
+import { SchemaValidatorMiddleware } from '@/lib/mcp/resilience/schema-validator'
+import { TelemetryMiddleware } from '@/lib/mcp/resilience/telemetry'
 import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
 import {
   createMcpCacheAdapter,
@@ -35,9 +39,22 @@ class McpService {
   private readonly cacheTimeout = MCP_CONSTANTS.CACHE_TIMEOUT
   private unsubscribeConnectionManager?: () => void
 
+  private pipeline: ResiliencePipeline
+  private schemaValidator: SchemaValidatorMiddleware
+  private circuitBreaker: CircuitBreakerMiddleware
+  private telemetry: TelemetryMiddleware
+
   constructor() {
     this.cacheAdapter = createMcpCacheAdapter()
     logger.info(`MCP Service initialized with ${getMcpCacheType()} cache`)
+
+    this.schemaValidator = new SchemaValidatorMiddleware()
+    this.circuitBreaker = new CircuitBreakerMiddleware()
+    this.telemetry = new TelemetryMiddleware()
+    this.pipeline = new ResiliencePipeline()
+      .use(this.telemetry)
+      .use(this.schemaValidator)
+      .use(this.circuitBreaker)
 
     if (mcpConnectionManager) {
       this.unsubscribeConnectionManager = mcpConnectionManager.subscribe((event) => {
@@ -194,7 +211,16 @@ class McpService {
         const client = await this.createClient(resolvedConfig)
 
         try {
-          const result = await client.callTool(toolCall)
+          const context = {
+            serverId,
+            workspaceId,
+            userId,
+            toolCall,
+            extraHeaders,
+          }
+          const result = await this.pipeline.execute(context, async (ctx) => {
+            return await client.callTool(ctx.toolCall)
+          })
           logger.info(`[${requestId}] Successfully executed tool ${toolCall.name}`)
           return result
         } finally {
@@ -322,6 +348,7 @@ class McpService {
         try {
           const cached = await this.cacheAdapter.get(cacheKey)
           if (cached) {
+            cached.tools.forEach((t: McpTool) => this.schemaValidator.cacheTool(t))
             return cached.tools
           }
         } catch (error) {
@@ -414,6 +441,7 @@ class McpService {
       logger.info(
         `[${requestId}] Discovered ${allTools.length} tools from ${servers.length - failedCount}/${servers.length} servers`
       )
+      allTools.forEach((t: McpTool) => this.schemaValidator.cacheTool(t))
       return allTools
     } catch (error) {
       logger.error(`[${requestId}] Failed to discover MCP tools for user ${userId}:`, error)
@@ -450,6 +478,7 @@ class McpService {
         try {
           const tools = await client.listTools()
           logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
+          tools.forEach((t: McpTool) => this.schemaValidator.cacheTool(t))
           return tools
         } finally {
           await client.disconnect()
@@ -533,6 +562,7 @@ class McpService {
         await this.cacheAdapter.clear()
         logger.debug('Cleared all MCP tool cache')
       }
+      this.schemaValidator.clearCache()
     } catch (error) {
       logger.warn('Failed to clear cache:', error)
     }

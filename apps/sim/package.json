@@ -181,6 +181,7 @@
     "@sim/tsconfig": "workspace:*",
     "@testing-library/jest-dom": "^6.6.3",
     "@trigger.dev/build": "4.1.2",
+    "@types/bun": "1.3.10",
     "@types/fluent-ffmpeg": "2.1.28",
     "@types/html-to-text": "9.0.4",
     "@types/js-yaml": "4.0.9",
