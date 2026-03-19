@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
+import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -38,7 +39,13 @@ function toCredentialResponse(
   scope: string | null
 ) {
   const storedScope = scope?.trim()
-  const scopes = storedScope ? storedScope.split(/[\s,]+/).filter(Boolean) : []
+  // Some providers (e.g. Box) don't return scopes in their token response,
+  // so the DB column stays empty. Fall back to the configured scopes for
+  // the provider so the credential-selector doesn't show a false
+  // "Additional permissions required" banner.
+  const scopes = storedScope
+    ? storedScope.split(/[\s,]+/).filter(Boolean)
+    : getCanonicalScopesForProvider(providerId)
   const [_, featureType = 'default'] = providerId.split('-')
 
   return {
