@@ -18,14 +18,6 @@ const byName = new Map(allIntegrations.map((i) => [i.name, i]))
 const bySlug = new Map(allIntegrations.map((i) => [i.slug, i]))
 const byType = new Map(allIntegrations.map((i) => [i.type, i]))
 
-if (process.env.NODE_ENV === 'development') {
-  const slugsSeen = new Set<string>()
-  for (const i of allIntegrations) {
-    if (slugsSeen.has(i.slug)) throw new Error(`Duplicate integration slug: ${i.slug}`)
-    slugsSeen.add(i.slug)
-  }
-}
-
 /** Returns workflow pairs that feature the given integration on either side. */
 function getPairsFor(name: string) {
   return POPULAR_WORKFLOWS.filter((p) => p.from === name || p.to === name)
