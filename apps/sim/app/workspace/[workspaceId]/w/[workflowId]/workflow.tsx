@@ -169,16 +169,17 @@ function mapEdgesByNode(edges: Edge[], nodeIds: Set<string>): Map<string, Edge[]
 
 /**
  * Syncs the panel editor with the current selection state.
- * Shows block details when exactly one block is selected, clears otherwise.
+ * Shows the last selected block in the panel. Clears when nothing is selected.
  */
 function syncPanelWithSelection(selectedIds: string[]) {
   const { currentBlockId, clearCurrentBlock, setCurrentBlockId } = usePanelEditorStore.getState()
-  if (selectedIds.length === 1 && selectedIds[0] !== currentBlockId) {
-    setCurrentBlockId(selectedIds[0])
-  } else if (selectedIds.length === 0 && currentBlockId) {
-    clearCurrentBlock()
-  } else if (selectedIds.length > 1 && currentBlockId) {
-    clearCurrentBlock()
+  if (selectedIds.length === 0) {
+    if (currentBlockId) clearCurrentBlock()
+  } else {
+    const lastSelectedId = selectedIds[selectedIds.length - 1]
+    if (lastSelectedId !== currentBlockId) {
+      setCurrentBlockId(lastSelectedId)
+    }
   }
 }
 
@@ -2477,10 +2478,15 @@ const WorkflowContent = React.memo(
     // Local state for nodes - allows smooth drag without store updates on every frame
     const [displayNodes, setDisplayNodes] = useState<Node[]>([])
 
+    const selectedNodeIds = useMemo(
+      () => displayNodes.filter((node) => node.selected).map((node) => node.id),
+      [displayNodes]
+    )
+    const selectedNodeIdsKey = selectedNodeIds.join(',')
+
     useEffect(() => {
-      const selectedIds = displayNodes.filter((node) => node.selected).map((node) => node.id)
-      syncPanelWithSelection(selectedIds)
-    }, [displayNodes])
+      syncPanelWithSelection(selectedNodeIds)
+    }, [selectedNodeIdsKey])
 
     useEffect(() => {
       // Check for pending selection (from paste/duplicate), otherwise preserve existing selection
