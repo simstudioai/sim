@@ -100,26 +100,6 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
   }
   const showHero = isDefaultView
 
-  const handleCategorySelect = useCallback(
-    (id: string | null) => {
-      setActiveTag(id)
-      setQuery('')
-      setPage(1)
-      syncUrl(id, '')
-    },
-    [syncUrl]
-  )
-
-  const handleSearch = useCallback(
-    (value: string) => {
-      setQuery(value)
-      setActiveTag(null)
-      setPage(1)
-      syncUrl(null, value.trim())
-    },
-    [syncUrl]
-  )
-
   const handleClearAll = useCallback(() => {
     setActiveTag(null)
     setQuery('')
@@ -129,7 +109,6 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
 
   return (
     <div className='flex min-h-0 flex-1 flex-col overflow-x-clip px-4 sm:px-6 lg:px-12'>
-
       <main className='relative min-w-0 flex-1'>
         <div className='flex flex-col'>
           {showHero && (
