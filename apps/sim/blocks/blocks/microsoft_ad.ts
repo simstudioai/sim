@@ -280,11 +280,24 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
       title: 'Visibility',
       type: 'dropdown',
       options: [
+        { label: 'No Change', id: '' },
+        { label: 'Private', id: 'Private' },
+        { label: 'Public', id: 'Public' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'update_group' },
+      mode: 'advanced',
+    },
+    {
+      id: 'visibilityCreate',
+      title: 'Visibility',
+      type: 'dropdown',
+      options: [
         { label: 'Private', id: 'Private' },
         { label: 'Public', id: 'Public' },
       ],
       value: () => 'Private',
-      condition: { field: 'operation', value: ['create_group', 'update_group'] },
+      condition: { field: 'operation', value: 'create_group' },
       mode: 'advanced',
     },
     // Member ID (for add/remove member)
@@ -330,7 +343,8 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
         if (params.groupMailNickname) result.mailNickname = params.groupMailNickname
         if (params.groupDescription) result.description = params.groupDescription
         if (params.groupTypes !== undefined) result.groupTypes = params.groupTypes
-        if (params.visibility) result.visibility = params.visibility
+        const visibilityVal = params.visibility || params.visibilityCreate
+        if (visibilityVal) result.visibility = visibilityVal
         return result
       },
     },
@@ -361,6 +375,7 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
     securityEnabled: { type: 'string' },
     groupTypes: { type: 'string' },
     visibility: { type: 'string' },
+    visibilityCreate: { type: 'string' },
     memberId: { type: 'string' },
   },
   outputs: {
