@@ -1057,6 +1057,12 @@ export const workspaceFiles = pgTable(
     keyActiveUniqueIdx: uniqueIndex('workspace_files_key_active_unique')
       .on(table.key)
       .where(sql`${table.deletedAt} IS NULL`),
+    /** One active display name per workspace for workspace-scoped files (VFS / file picker). */
+    workspaceOriginalNameActiveUnique: uniqueIndex('workspace_files_workspace_name_active_unique')
+      .on(table.workspaceId, table.originalName)
+      .where(
+        sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
+      ),
     keyIdx: index('workspace_files_key_idx').on(table.key),
     userIdIdx: index('workspace_files_user_id_idx').on(table.userId),
     workspaceIdIdx: index('workspace_files_workspace_id_idx').on(table.workspaceId),
@@ -1205,6 +1211,10 @@ export const knowledgeBase = pgTable(
     userWorkspaceIdx: index('kb_user_workspace_idx').on(table.userId, table.workspaceId),
     // Index for soft delete filtering
     deletedAtIdx: index('kb_deleted_at_idx').on(table.deletedAt),
+    /** One active (non-deleted) name per workspace; matches user_table_definitions pattern */
+    workspaceNameActiveUnique: uniqueIndex('kb_workspace_name_active_unique')
+      .on(table.workspaceId, table.name)
+      .where(sql`${table.deletedAt} IS NULL`),
   })
 )
 
