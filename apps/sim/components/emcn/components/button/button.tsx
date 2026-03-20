@@ -24,7 +24,7 @@ const buttonVariants = cva(
         ghost: 'text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)]',
         subtle:
           'text-[var(--text-body)] hover-hover:text-[var(--text-body)] hover-hover:bg-[var(--surface-4)]',
-        'ghost-secondary': 'text-[var(--text-muted)]',
+        'ghost-secondary': 'text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]',
         /** Branded button - requires branded-button-gradient or branded-button-custom class for colors */
         branded:
           'rounded-[10px] border text-white hover-hover:text-white text-base transition-[transform,background-color,color,border-color] duration-200',

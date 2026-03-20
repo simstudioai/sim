@@ -630,7 +630,16 @@ const PopoverContent = React.forwardRef<
           ...style,
         }}
       >
-        {children}
+        {showArrow ? (
+          <div
+            className='overflow-auto flex-1 flex flex-col'
+            style={{ maxHeight: `${maxHeight || 400}px` }}
+          >
+            {children}
+          </div>
+        ) : (
+          children
+        )}
         {showArrow && (
           <PopoverPrimitive.Arrow width={14} height={7} asChild>
             <svg
