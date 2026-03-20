@@ -162,35 +162,35 @@
     "operations": [
       {
         "name": "List Bases",
-        "description": "List all bases the authenticated user has access to"
+        "description": ""
       },
       {
         "name": "List Tables",
-        "description": "List all tables and their schema in an Airtable base"
+        "description": ""
       },
       {
         "name": "Get Base Schema",
-        "description": "Get the schema of all tables, fields, and views in an Airtable base"
+        "description": ""
       },
       {
         "name": "List Records",
-        "description": "Read records from an Airtable table"
+        "description": ""
       },
       {
         "name": "Get Record",
-        "description": "Retrieve a single record from an Airtable table by its ID"
+        "description": ""
       },
       {
         "name": "Create Records",
-        "description": "Write new records to an Airtable table"
+        "description": ""
       },
       {
         "name": "Update Record",
-        "description": "Update an existing record in an Airtable table by ID"
+        "description": ""
       },
       {
         "name": "Update Multiple Records",
-        "description": "Update multiple existing records in an Airtable table"
+        "description": ""
       }
     ],
     "operationCount": 8,
@@ -277,11 +277,11 @@
       },
       {
         "name": "Delete Index",
-        "description": "Delete a record by objectID from an Algolia index"
+        "description": ""
       },
       {
         "name": "Copy/Move Index",
-        "description": "Search an Algolia index"
+        "description": ""
       },
       {
         "name": "Clear Records",
@@ -587,7 +587,7 @@
       },
       {
         "name": "Add to Sequence",
-        "description": "Add contacts to an Apollo sequence"
+        "description": ""
       },
       {
         "name": "Create Task",
@@ -1357,7 +1357,7 @@
       },
       {
         "name": "List Event Types",
-        "description": "Create a new event type in Cal.com"
+        "description": ""
       },
       {
         "name": "Update Event Type",
@@ -1464,7 +1464,7 @@
       },
       {
         "name": "List Event Types",
-        "description": "Retrieve a list of invitees for a scheduled event"
+        "description": ""
       },
       {
         "name": "Get Event Type",
@@ -1704,11 +1704,11 @@
     "operations": [
       {
         "name": "Read Page",
-        "description": "Create a new page in a Confluence space."
+        "description": ""
       },
       {
         "name": "Create Page",
-        "description": "Create a new page in a Confluence space."
+        "description": ""
       },
       {
         "name": "Update Page",
@@ -1716,7 +1716,7 @@
       },
       {
         "name": "Delete Page",
-        "description": "Delete a Confluence page. By default moves to trash; use purge=true to permanently delete."
+        "description": ""
       },
       {
         "name": "List Pages in Space",
@@ -1986,31 +1986,31 @@
     "operations": [
       {
         "name": "Launch Agent",
-        "description": "Cursor API key"
+        "description": "Start a new cloud agent to work on a GitHub repository with the given instructions."
       },
       {
         "name": "Add Follow-up",
-        "description": "Cursor API key"
+        "description": "Add a follow-up instruction to an existing cloud agent."
       },
       {
         "name": "Get Agent Status",
-        "description": "Cursor API key"
+        "description": "Retrieve the current status and results of a cloud agent."
       },
       {
         "name": "Get Conversation",
-        "description": "Cursor API key"
+        "description": "Retrieve the conversation history of a cloud agent, including all user prompts and assistant responses."
       },
       {
         "name": "List Agents",
-        "description": "Cursor API key"
+        "description": "List all cloud agents for the authenticated user with optional pagination."
       },
       {
         "name": "Stop Agent",
-        "description": "Cursor API key"
+        "description": "Stop a running cloud agent. This pauses the agent without deleting it."
       },
       {
         "name": "Delete Agent",
-        "description": "Cursor API key"
+        "description": "Permanently delete a cloud agent. This action cannot be undone."
       }
     ],
     "operationCount": 7,
@@ -2559,15 +2559,15 @@
       },
       {
         "name": "Create Index",
-        "description": "Index (create or update) a document in Elasticsearch."
+        "description": ""
       },
       {
         "name": "Delete Index",
-        "description": "Delete a document from Elasticsearch by ID."
+        "description": ""
       },
       {
         "name": "Get Index Info",
-        "description": "Index (create or update) a document in Elasticsearch."
+        "description": ""
       },
       {
         "name": "List Indices",
@@ -3950,7 +3950,7 @@
     "operations": [
       {
         "name": "List Files",
-        "description": "List files and folders in Google Drive with complete metadata"
+        "description": "List Google Drive files"
       },
       {
         "name": "Get File Info",
@@ -3962,7 +3962,7 @@
       },
       {
         "name": "Create File",
-        "description": "Create a new folder in Google Drive with complete metadata returned"
+        "description": ""
       },
       {
         "name": "Upload File",
@@ -4321,31 +4321,31 @@
       },
       {
         "name": "Clear Data",
-        "description": "Clear values from a specific range in a Google Sheets spreadsheet"
+        "description": ""
       },
       {
         "name": "Get Spreadsheet Info",
-        "description": "Get metadata about a Google Sheets spreadsheet including title and sheet list"
+        "description": ""
       },
       {
         "name": "Create Spreadsheet",
-        "description": "Create a new Google Sheets spreadsheet"
+        "description": ""
       },
       {
         "name": "Batch Read",
-        "description": "Read multiple ranges from a Google Sheets spreadsheet in a single request"
+        "description": ""
       },
       {
         "name": "Batch Update",
-        "description": "Update multiple ranges in a Google Sheets spreadsheet in a single request"
+        "description": ""
       },
       {
         "name": "Batch Clear",
-        "description": "Clear multiple ranges in a Google Sheets spreadsheet in a single request"
+        "description": ""
       },
       {
         "name": "Copy Sheet",
-        "description": "Copy a sheet from one spreadsheet to another"
+        "description": ""
       }
     ],
     "operationCount": 11,
@@ -4406,7 +4406,7 @@
       },
       {
         "name": "Reorder Slides",
-        "description": "Read content from a Google Slides presentation"
+        "description": ""
       },
       {
         "name": "Create Table",
@@ -4663,7 +4663,7 @@
       },
       {
         "name": "List Meeting Types",
-        "description": "List recordings from Grain with optional filters and pagination"
+        "description": ""
       },
       {
         "name": "Create Webhook",
@@ -4916,7 +4916,7 @@
       },
       {
         "name": "Get Contacts",
-        "description": "Retrieve a single contact by ID or email from HubSpot"
+        "description": ""
       },
       {
         "name": "Create Contact",
@@ -4932,7 +4932,7 @@
       },
       {
         "name": "Get Companies",
-        "description": "Retrieve all users from HubSpot account"
+        "description": ""
       },
       {
         "name": "Create Company",
@@ -4948,7 +4948,7 @@
       },
       {
         "name": "Get Deals",
-        "description": "Retrieve all users from HubSpot account"
+        "description": ""
       }
     ],
     "operationCount": 10,
@@ -5385,127 +5385,127 @@
     "operations": [
       {
         "name": "Create Contact",
-        "description": "Intercom API access token"
+        "description": "Create a new contact in Intercom with email, external_id, or role"
       },
       {
         "name": "Get Contact",
-        "description": "Intercom API access token"
+        "description": "Get a single contact by ID from Intercom"
       },
       {
         "name": "Update Contact",
-        "description": "Intercom API access token"
+        "description": "Update an existing contact in Intercom"
       },
       {
         "name": "List Contacts",
-        "description": "Intercom API access token"
+        "description": "List all contacts from Intercom with pagination support"
       },
       {
         "name": "Search Contacts",
-        "description": "Intercom API access token"
+        "description": "Search for contacts in Intercom using a query"
       },
       {
         "name": "Delete Contact",
-        "description": "Intercom API access token"
+        "description": "Delete a contact from Intercom by ID"
       },
       {
         "name": "Create Company",
-        "description": "Intercom API access token"
+        "description": "Create or update a company in Intercom"
       },
       {
         "name": "Get Company",
-        "description": "Intercom API access token"
+        "description": "Retrieve a single company by ID from Intercom"
       },
       {
         "name": "List Companies",
-        "description": "Intercom API access token"
+        "description": "List all companies from Intercom with pagination support. Note: This endpoint has a limit of 10,000 companies that can be returned using pagination. For datasets larger than 10,000 companies, use the Scroll API instead."
       },
       {
         "name": "Get Conversation",
-        "description": "Intercom API access token"
+        "description": "Retrieve a single conversation by ID from Intercom"
       },
       {
         "name": "List Conversations",
-        "description": "Intercom API access token"
+        "description": "List all conversations from Intercom with pagination support"
       },
       {
         "name": "Reply to Conversation",
-        "description": "Intercom API access token"
+        "description": "Reply to a conversation as an admin in Intercom"
       },
       {
         "name": "Search Conversations",
-        "description": "Intercom API access token"
+        "description": "Search for conversations in Intercom using a query"
       },
       {
         "name": "Create Ticket",
-        "description": "Intercom API access token"
+        "description": "Create a new ticket in Intercom"
       },
       {
         "name": "Get Ticket",
-        "description": "Intercom API access token"
+        "description": "Retrieve a single ticket by ID from Intercom"
       },
       {
         "name": "Update Ticket",
-        "description": "Intercom API access token"
+        "description": ""
       },
       {
         "name": "Create Message",
-        "description": "Intercom API access token"
+        "description": "Create and send a new admin-initiated message in Intercom"
       },
       {
         "name": "List Admins",
-        "description": "Intercom API access token"
+        "description": ""
       },
       {
         "name": "Close Conversation",
-        "description": "Intercom API access token"
+        "description": ""
       },
       {
         "name": "Open Conversation",
-        "description": "Intercom API access token"
+        "description": ""
       },
       {
         "name": "Snooze Conversation",
-        "description": "Intercom API access token"
+        "description": ""
       },
       {
         "name": "Assign Conversation",
-        "description": "Intercom API access token"
+        "description": ""
       },
       {
         "name": "List Tags",
-        "description": "Intercom API access token"
+        "description": ""
       },
       {
         "name": "Create Tag",
-        "description": "Intercom API access token"
+        "description": ""
       },
       {
         "name": "Tag Contact",
-        "description": "Intercom API access token"
+        "description": ""
       },
       {
         "name": "Untag Contact",
-        "description": "Intercom API access token"
+        "description": ""
       },
       {
         "name": "Tag Conversation",
-        "description": "Intercom API access token"
+        "description": ""
       },
       {
         "name": "Create Note",
-        "description": "Intercom API access token"
+        "description": ""
       },
       {
         "name": "Create Event",
-        "description": "Intercom API access token"
+        "description": ""
       },
       {
         "name": "Attach Contact to Company",
-        "description": "Intercom API access token"
+        "description": ""
       },
       {
         "name": "Detach Contact from Company",
-        "description": "Intercom API access token"
+        "description": ""
       }
     ],
     "operationCount": 31,
@@ -5551,7 +5551,7 @@
     "operations": [
       {
         "name": "Read Issue",
-        "description": "Retrieve multiple Jira issues from a project in bulk"
+        "description": ""
       },
       {
         "name": "Update Issue",
@@ -5563,19 +5563,19 @@
       },
       {
         "name": "Delete Issue",
-        "description": "Delete a Jira issue"
+        "description": ""
       },
       {
         "name": "Assign Issue",
-        "description": "Assign a Jira issue to a user"
+        "description": ""
       },
       {
         "name": "Transition Issue",
-        "description": "Move a Jira issue between workflow statuses (e.g., To Do -> In Progress)"
+        "description": ""
       },
       {
         "name": "Search Issues",
-        "description": "Search for Jira issues using JQL (Jira Query Language)"
+        "description": ""
       },
       {
         "name": "Add Comment",
@@ -5623,11 +5623,11 @@
       },
       {
         "name": "Create Issue Link",
-        "description": "Create a link relationship between two Jira issues"
+        "description": ""
       },
       {
         "name": "Delete Issue Link",
-        "description": "Delete a link between two Jira issues"
+        "description": ""
       },
       {
         "name": "Add Watcher",
@@ -5695,87 +5695,87 @@
     "operations": [
       {
         "name": "Get Service Desks",
-        "description": "Get all service desks from Jira Service Management"
+        "description": ""
       },
       {
         "name": "Get Request Types",
-        "description": "Get the fields required to create a request of a specific type in Jira Service Management"
+        "description": ""
       },
       {
         "name": "Create Request",
-        "description": "Create a new service request in Jira Service Management"
+        "description": ""
       },
       {
         "name": "Get Request",
-        "description": "Get a single service request from Jira Service Management"
+        "description": ""
       },
       {
         "name": "Get Requests",
-        "description": "Get multiple service requests from Jira Service Management"
+        "description": ""
       },
       {
         "name": "Add Comment",
-        "description": "Add a comment (public or internal) to a service request in Jira Service Management"
+        "description": ""
       },
       {
         "name": "Get Comments",
-        "description": "Get comments for a service request in Jira Service Management"
+        "description": ""
       },
       {
         "name": "Get Customers",
-        "description": "Get customers for a service desk in Jira Service Management"
+        "description": ""
       },
       {
         "name": "Add Customer",
-        "description": "Add customers to a service desk in Jira Service Management"
+        "description": ""
       },
       {
         "name": "Get Organizations",
-        "description": "Get organizations for a service desk in Jira Service Management"
+        "description": ""
       },
       {
         "name": "Create Organization",
-        "description": "Create a new organization in Jira Service Management"
+        "description": ""
       },
       {
         "name": "Add Organization",
-        "description": "Add an organization to a service desk in Jira Service Management"
+        "description": ""
       },
       {
         "name": "Get Queues",
-        "description": "Get queues for a service desk in Jira Service Management"
+        "description": ""
       },
       {
         "name": "Get SLA",
-        "description": "Get SLA information for a service request in Jira Service Management"
+        "description": ""
       },
       {
         "name": "Get Transitions",
-        "description": "Get available transitions for a service request in Jira Service Management"
+        "description": ""
       },
       {
         "name": "Transition Request",
-        "description": "Transition a service request to a new status in Jira Service Management"
+        "description": ""
       },
       {
         "name": "Get Participants",
-        "description": "Get participants for a request in Jira Service Management"
+        "description": ""
       },
       {
         "name": "Add Participants",
-        "description": "Add participants to a request in Jira Service Management"
+        "description": ""
       },
       {
         "name": "Get Approvals",
-        "description": "Get approvals for a request in Jira Service Management"
+        "description": ""
       },
       {
         "name": "Answer Approval",
-        "description": "Approve or decline an approval request in Jira Service Management"
+        "description": ""
       },
       {
         "name": "Get Request Type Fields",
-        "description": "Get the fields required to create a request of a specific type in Jira Service Management"
+        "description": ""
       }
     ],
     "operationCount": 21,
@@ -7605,7 +7605,7 @@
       },
       {
         "name": "Create File",
-        "description": "Create a new folder in OneDrive"
+        "description": ""
       },
       {
         "name": "Upload File",
@@ -7642,39 +7642,39 @@
     "operations": [
       {
         "name": "Send Email",
-        "description": "Send emails using Outlook"
+        "description": ""
       },
       {
         "name": "Draft Email",
-        "description": "Draft emails using Outlook"
+        "description": ""
       },
       {
         "name": "Read Email",
-        "description": "Read emails from Outlook"
+        "description": ""
       },
       {
         "name": "Forward Email",
-        "description": "Forward an existing Outlook message to specified recipients"
+        "description": ""
       },
       {
         "name": "Move Email",
-        "description": "Move emails between Outlook folders"
+        "description": ""
       },
       {
         "name": "Mark as Read",
-        "description": "Mark an Outlook message as read"
+        "description": ""
       },
       {
         "name": "Mark as Unread",
-        "description": "Mark an Outlook message as unread"
+        "description": ""
       },
       {
         "name": "Delete Email",
-        "description": "Delete an Outlook message (move to Deleted Items)"
+        "description": ""
       },
       {
         "name": "Copy Email",
-        "description": "Copy an Outlook message to another folder"
+        "description": ""
       }
     ],
     "operationCount": 9,
@@ -7736,15 +7736,15 @@
     "operations": [
       {
         "name": "Search",
-        "description": "Search the web using Parallel AI. Provides comprehensive search results with intelligent processing and content extraction."
+        "description": ""
       },
       {
         "name": "Extract from URLs",
-        "description": "Extract targeted information from specific URLs using Parallel AI. Processes provided URLs to pull relevant content based on your objective."
+        "description": ""
       },
       {
         "name": "Deep Research",
-        "description": "Conduct comprehensive deep research across the web using Parallel AI. Synthesizes information from multiple sources with citations. Can take up to 45 minutes to complete."
+        "description": ""
       }
     ],
     "operationCount": 3,
@@ -7790,7 +7790,7 @@
     "operations": [
       {
         "name": "Generate Embeddings",
-        "description": "Generate embeddings from text using Pinecone"
+        "description": ""
       },
       {
         "name": "Upsert Text",
@@ -8259,15 +8259,15 @@
     "operations": [
       {
         "name": "Upsert",
-        "description": "Insert or update points in a Qdrant collection"
+        "description": ""
       },
       {
         "name": "Search",
-        "description": "Search for similar vectors in a Qdrant collection"
+        "description": ""
       },
       {
         "name": "Fetch",
-        "description": "Fetch points by ID from a Qdrant collection"
+        "description": ""
       }
     ],
     "operationCount": 3,
@@ -8316,7 +8316,7 @@
       },
       {
         "name": "Unsave",
-        "description": "Save a Reddit post or comment to your saved items"
+        "description": "Remove a Reddit post or comment from your saved items"
       },
       {
         "name": "Reply",
@@ -8494,7 +8494,7 @@
     "operations": [
       {
         "name": "Send Email",
-        "description": "Retrieve details of a previously sent email by its ID"
+        "description": "Send an email using your own Resend API key and from address"
       },
       {
         "name": "Get Email",
@@ -8745,7 +8745,7 @@
       },
       {
         "name": "List Report Types",
-        "description": "Get a list of reports accessible by the current user"
+        "description": ""
       },
       {
         "name": "List Dashboards",
@@ -9009,7 +9009,7 @@
       },
       {
         "name": "Create File",
-        "description": "Create a directory on a remote SFTP server"
+        "description": ""
       },
       {
         "name": "Download File",
@@ -9062,7 +9062,7 @@
       },
       {
         "name": "Read List",
-        "description": "Read a specific page from a SharePoint site"
+        "description": ""
       },
       {
         "name": "Update List",
@@ -9233,11 +9233,11 @@
     "operations": [
       {
         "name": "Send Message",
-        "description": "Send messages to Slack channels or direct messages. Supports Slack mrkdwn formatting."
+        "description": ""
       },
       {
         "name": "Send Ephemeral Message",
-        "description": "Send an ephemeral message visible only to a specific user in a channel. Optionally reply in a thread. The message does not persist across sessions."
+        "description": ""
       },
       {
         "name": "Create Canvas",
@@ -9245,7 +9245,7 @@
       },
       {
         "name": "Read Messages",
-        "description": "Read the latest messages from Slack channels. Retrieve conversation history with filtering options."
+        "description": ""
       },
       {
         "name": "Get Message",
@@ -9277,19 +9277,19 @@
       },
       {
         "name": "Update Message",
-        "description": "Update a message previously sent by the bot in Slack"
+        "description": ""
       },
       {
         "name": "Delete Message",
-        "description": "Delete a message previously sent by the bot in Slack"
+        "description": ""
       },
       {
         "name": "Add Reaction",
-        "description": "Add an emoji reaction to a Slack message"
+        "description": ""
       },
       {
         "name": "Remove Reaction",
-        "description": "Remove an emoji reaction from a Slack message"
+        "description": ""
       },
       {
         "name": "Get Channel Info",
@@ -10090,67 +10090,67 @@
     "operations": [
       {
         "name": "Get",
-        "description": "Get the value of a key from Upstash Redis."
+        "description": ""
       },
       {
         "name": "Set",
-        "description": "Set the value of a key in Upstash Redis with an optional expiration time in seconds."
+        "description": ""
       },
       {
         "name": "Delete",
-        "description": "Delete a key from Upstash Redis."
+        "description": ""
       },
       {
         "name": "List Keys",
-        "description": "List keys matching a pattern in Upstash Redis. Defaults to listing all keys (*)."
+        "description": ""
       },
       {
         "name": "HSET",
-        "description": "Set a field in a hash stored at a key in Upstash Redis."
+        "description": ""
       },
       {
         "name": "HGET",
-        "description": "Get the value of a field in a hash stored at a key in Upstash Redis."
+        "description": ""
       },
       {
         "name": "HGETALL",
-        "description": "Get all fields and values of a hash stored at a key in Upstash Redis."
+        "description": ""
       },
       {
         "name": "INCR",
-        "description": "Atomically increment the integer value of a key by one in Upstash Redis. If the key does not exist, it is set to 0 before incrementing."
+        "description": ""
       },
       {
         "name": "INCRBY",
-        "description": "Increment the integer value of a key by a given amount. Use a negative value to decrement. If the key does not exist, it is set to 0 before the operation."
+        "description": ""
       },
       {
         "name": "EXISTS",
-        "description": "Check if a key exists in Upstash Redis. Returns true if the key exists, false otherwise."
+        "description": ""
       },
       {
         "name": "SETNX",
-        "description": "Set the value of a key only if it does not already exist. Returns true if the key was set, false if it already existed."
+        "description": ""
       },
       {
         "name": "LPUSH",
-        "description": "Prepend a value to the beginning of a list in Upstash Redis. Creates the list if it does not exist."
+        "description": ""
       },
       {
         "name": "LRANGE",
-        "description": "Get a range of elements from a list in Upstash Redis. Use 0 and -1 for start and stop to get all elements."
+        "description": ""
       },
       {
         "name": "EXPIRE",
-        "description": "Set a timeout on a key in Upstash Redis. After the timeout, the key is deleted."
+        "description": ""
       },
       {
         "name": "TTL",
-        "description": "Get the remaining time to live of a key in Upstash Redis. Returns -1 if the key has no expiration, -2 if the key does not exist."
+        "description": ""
       },
       {
         "name": "Command",
-        "description": "Execute an arbitrary Redis command against Upstash Redis. Pass the full command as a JSON array (e.g., ["
+        "description": ""
       }
     ],
     "operationCount": 16,
@@ -10461,23 +10461,23 @@
     "operations": [
       {
         "name": "List Items",
-        "description": "List all items from a Webflow CMS collection"
+        "description": ""
       },
       {
         "name": "Get Item",
-        "description": "Get a single item from a Webflow CMS collection"
+        "description": ""
       },
       {
         "name": "Create Item",
-        "description": "Create a new item in a Webflow CMS collection"
+        "description": ""
       },
       {
         "name": "Update Item",
-        "description": "Update an existing item in a Webflow CMS collection"
+        "description": ""
       },
       {
         "name": "Delete Item",
-        "description": "Delete an item from a Webflow CMS collection"
+        "description": ""
       }
     ],
     "operationCount": 5,
