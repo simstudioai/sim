@@ -105,9 +105,7 @@ export const ResourceContent = memo(function ResourceContent({
           workspaceId={workspaceId}
           fileId={resource.id}
           previewMode={previewMode}
-          streamingContent={
-            streamingFile ? extractFileContent(streamingFile.content) : undefined
-          }
+          streamingContent={streamingFile ? extractFileContent(streamingFile.content) : undefined}
         />
       )
 

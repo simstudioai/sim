@@ -785,8 +785,7 @@ export function useChat(
               const delta = typeof parsed.data === 'string' ? parsed.data : ''
               if (!id || !delta) break
 
-              const toolName =
-                typeof parsed.toolName === 'string' ? parsed.toolName : ''
+              const toolName = typeof parsed.toolName === 'string' ? parsed.toolName : ''
               const streamWorkspaceFile =
                 activeSubagent === 'file_write' || toolName === 'workspace_file'
 
@@ -807,9 +806,7 @@ export function useChat(
                   if (m) {
                     fileName = m[1]
                     setResources((rs) =>
-                      rs.map((r) =>
-                        r.id === 'streaming-file' ? { ...r, title: fileName } : r
-                      )
+                      rs.map((r) => (r.id === 'streaming-file' ? { ...r, title: fileName } : r))
                     )
                   }
                 }
