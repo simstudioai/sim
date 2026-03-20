@@ -19,6 +19,7 @@ import {
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataByKey, insertFileMetadata } from '@/lib/uploads/server/metadata'
+import { getPostgresErrorCode } from '@/lib/core/utils/pg-error'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { isUuid, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
@@ -110,7 +111,7 @@ export async function uploadWorkspaceFile(
 
   const exists = await fileExistsInWorkspace(workspaceId, fileName)
   if (exists) {
-    throw new Error(`A file named "${fileName}" already exists in this workspace`)
+    throw new FileConflictError(fileName)
   }
 
   const quotaCheck = await checkStorageQuota(userId, fileBuffer.length)
@@ -204,6 +205,12 @@ export async function uploadWorkspaceFile(
       context: 'workspace',
     }
   } catch (error) {
+    if (error instanceof FileConflictError) {
+      throw error
+    }
+    if (getPostgresErrorCode(error) === '23505') {
+      throw new FileConflictError(fileName)
+    }
     logger.error(`Failed to upload workspace file ${fileName}:`, error)
     throw new Error(
       `Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -573,17 +580,25 @@ export async function renameWorkspaceFile(
     throw new FileConflictError(trimmedName)
   }
 
-  const updated = await db
-    .update(workspaceFiles)
-    .set({ originalName: trimmedName })
-    .where(
-      and(
-        eq(workspaceFiles.id, fileId),
-        eq(workspaceFiles.workspaceId, workspaceId),
-        eq(workspaceFiles.context, 'workspace')
+  let updated: { id: string }[]
+  try {
+    updated = await db
+      .update(workspaceFiles)
+      .set({ originalName: trimmedName })
+      .where(
+        and(
+          eq(workspaceFiles.id, fileId),
+          eq(workspaceFiles.workspaceId, workspaceId),
+          eq(workspaceFiles.context, 'workspace')
+        )
       )
-    )
-    .returning({ id: workspaceFiles.id })
+      .returning({ id: workspaceFiles.id })
+  } catch (error: unknown) {
+    if (getPostgresErrorCode(error) === '23505') {
+      throw new FileConflictError(trimmedName)
+    }
+    throw error
+  }
 
   if (updated.length === 0) {
     throw new Error('File not found or could not be renamed')
@@ -651,22 +666,43 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
     throw new Error('Cannot restore file into an archived workspace')
   }
 
-  const newName = await generateRestoreName(
-    fileRecord.name,
-    (candidate) => fileExistsInWorkspace(workspaceId, candidate),
-    { hasExtension: true }
-  )
+  /**
+   * A concurrent upload/rename can claim the chosen name after `generateRestoreName`'s check (MVCC).
+   * Retries pick a new random suffix; 23505 maps to {@link FileConflictError} after exhaustion.
+   */
+  const maxUniqueViolationRetries = 8
+  let attemptedRestoreName = ''
 
-  await db
-    .update(workspaceFiles)
-    .set({ deletedAt: null, originalName: newName })
-    .where(
-      and(
-        eq(workspaceFiles.id, fileId),
-        eq(workspaceFiles.workspaceId, workspaceId),
-        eq(workspaceFiles.context, 'workspace')
+  for (let attempt = 0; attempt < maxUniqueViolationRetries; attempt++) {
+    attemptedRestoreName = ''
+    try {
+      const newName = await generateRestoreName(
+        fileRecord.name,
+        (candidate) => fileExistsInWorkspace(workspaceId, candidate),
+        { hasExtension: true }
       )
-    )
+      attemptedRestoreName = newName
 
-  logger.info(`Successfully restored workspace file: ${newName}`)
+      await db
+        .update(workspaceFiles)
+        .set({ deletedAt: null, originalName: newName })
+        .where(
+          and(
+            eq(workspaceFiles.id, fileId),
+            eq(workspaceFiles.workspaceId, workspaceId),
+            eq(workspaceFiles.context, 'workspace')
+          )
+        )
+
+      logger.info(`Successfully restored workspace file: ${newName}`)
+      return
+    } catch (error: unknown) {
+      if (getPostgresErrorCode(error) !== '23505') {
+        throw error
+      }
+      if (attempt === maxUniqueViolationRetries - 1) {
+        throw new FileConflictError(attemptedRestoreName || fileRecord.name)
+      }
+    }
+  }
 }

@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { restoreWorkspaceFile } from '@/lib/uploads/contexts/workspace'
+import { FileConflictError, restoreWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('RestoreWorkspaceFileAPI')
@@ -31,6 +31,9 @@ export async function POST(
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof FileConflictError) {
+      return NextResponse.json({ error: error.message }, { status: 409 })
+    }
     logger.error(`[${requestId}] Error restoring workspace file ${fileId}`, error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
