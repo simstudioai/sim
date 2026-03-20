@@ -9,9 +9,6 @@
 
 interface TemplateLayoutProps {
   children: React.ReactNode
-  params: Promise<{
-    id: string
-  }>
 }
 
 /**

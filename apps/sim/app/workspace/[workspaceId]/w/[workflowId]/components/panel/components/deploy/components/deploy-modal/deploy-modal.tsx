@@ -73,7 +73,7 @@ interface WorkflowDeploymentInfoUI {
   isPublicApi: boolean
 }
 
-type TabView = 'general' | 'api' | 'chat' | 'template' | 'mcp' | 'form' | 'a2a'
+type TabView = 'general' | 'api' | 'chat' | /* 'template' | */ 'mcp' | 'form' | 'a2a'
 
 export function DeployModal({
   open,

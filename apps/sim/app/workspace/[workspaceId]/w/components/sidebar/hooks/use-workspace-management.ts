@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useLeaveWorkspace } from '@/hooks/queries/invitations'
 import {
   useCreateWorkspace,
@@ -33,7 +33,6 @@ export function useWorkspaceManagement({
   sessionUserId,
 }: UseWorkspaceManagementProps) {
   const router = useRouter()
-  const pathname = usePathname()
   const queryClient = useQueryClient()
   const switchToWorkspace = useWorkflowRegistry((state) => state.switchToWorkspace)
 
@@ -50,12 +49,10 @@ export function useWorkspaceManagement({
 
   const workspaceIdRef = useRef<string>(workspaceId)
   const routerRef = useRef<ReturnType<typeof useRouter>>(router)
-  const pathnameRef = useRef<string | null>(pathname || null)
   const hasValidatedRef = useRef<boolean>(false)
 
   workspaceIdRef.current = workspaceId
   routerRef.current = router
-  pathnameRef.current = pathname || null
 
   const activeWorkspace = useMemo(() => {
     if (!workspaces.length) return null
