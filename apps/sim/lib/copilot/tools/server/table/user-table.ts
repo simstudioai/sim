@@ -18,6 +18,7 @@ import {
   insertRow,
   queryRows,
   renameColumn,
+  renameTable,
   updateColumnConstraints,
   updateColumnType,
   updateRow,
@@ -875,6 +876,35 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             success: true,
             message: `Updated column "${colName}"`,
             data: { schema: result?.schema },
+          }
+        }
+
+        case 'rename': {
+          if (!args.tableId) {
+            return { success: false, message: 'Table ID is required' }
+          }
+          if (!args.name) {
+            return { success: false, message: 'Name is required for renaming a table' }
+          }
+          if (!workspaceId) {
+            return { success: false, message: 'Workspace ID is required' }
+          }
+
+          const table = await getTableById(args.tableId)
+          if (!table) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
+          if (table.workspaceId !== workspaceId) {
+            return { success: false, message: 'Table not found' }
+          }
+
+          const requestId = crypto.randomUUID().slice(0, 8)
+          const renamed = await renameTable(args.tableId, args.name, requestId)
+
+          return {
+            success: true,
+            message: `Renamed table to "${renamed.name}"`,
+            data: { table: { id: renamed.id, name: renamed.name } },
           }
         }
 
