@@ -199,8 +199,7 @@ export function Preview({
 
       const workflowName =
         childWorkflowState.metadata?.name ||
-        (blockExecution?.output as { childWorkflowName?: string } | undefined)
-          ?.childWorkflowName ||
+        (blockExecution?.output as { childWorkflowName?: string } | undefined)?.childWorkflowName ||
         'Nested Workflow'
 
       setWorkflowStack((prev) => [
