@@ -520,7 +520,21 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
         // Enrich each operation with a description from the tool registry
         const operations: OperationInfo[] = rawOps.map(({ label, id }) => {
           const toolId = `${baseType}_${id}`
-          const desc = toolDescMap.get(toolId) || toolDescMap.get(id) || ''
+          let desc = toolDescMap.get(toolId) || toolDescMap.get(id) || ''
+
+          // Fallback: some tool IDs differ from the operation ID (e.g. operation "send"
+          // maps to tool "slack_message"). Find a tool in this namespace whose description
+          // starts with the same action verb as the operation label ("Send Message" → "send").
+          if (!desc) {
+            const verb = label.split(/\s+/)[0].toLowerCase()
+            for (const [tId, tDesc] of toolDescMap) {
+              if (tId.startsWith(`${baseType}_`) && tDesc.toLowerCase().startsWith(verb)) {
+                desc = tDesc
+                break
+              }
+            }
+          }
+
           return { name: label, description: desc }
         })
 
