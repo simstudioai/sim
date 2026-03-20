@@ -256,10 +256,14 @@ export async function POST(req: NextRequest) {
       await waitForPendingChatStream(actualChatId)
     }
 
+    const executionId = crypto.randomUUID()
+    const runId = crypto.randomUUID()
     const stream = createSSEStream({
       requestPayload,
       userId: authenticatedUserId,
       streamId: userMessageId,
+      executionId,
+      runId,
       chatId: actualChatId,
       currentChat,
       isNewChat: conversationHistory.length === 0,
@@ -271,6 +275,8 @@ export async function POST(req: NextRequest) {
         userId: authenticatedUserId,
         workspaceId,
         chatId: actualChatId,
+        executionId,
+        runId,
         goRoute: '/api/mothership',
         autoExecuteTools: true,
         interactive: true,

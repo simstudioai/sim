@@ -317,10 +317,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (stream) {
+      const executionId = crypto.randomUUID()
+      const runId = crypto.randomUUID()
       const sseStream = createSSEStream({
         requestPayload,
         userId: authenticatedUserId,
         streamId: userMessageIdToUse,
+        executionId,
+        runId,
         chatId: actualChatId,
         currentChat,
         isNewChat: conversationHistory.length === 0,
@@ -333,6 +337,8 @@ export async function POST(req: NextRequest) {
           userId: authenticatedUserId,
           workflowId,
           chatId: actualChatId,
+          executionId,
+          runId,
           goRoute: '/api/copilot',
           autoExecuteTools: true,
           interactive: true,
