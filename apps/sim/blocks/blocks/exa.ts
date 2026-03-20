@@ -6,10 +6,10 @@ import type { ExaResponse } from '@/tools/exa/types'
 export const ExaBlock: BlockConfig<ExaResponse> = {
   type: 'exa',
   name: 'Exa',
-  description: 'Search with Exa AI',
+  description: 'Search the web with Exa',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Exa into the workflow. Can search, get contents, find similar links, answer a question, and perform research.',
+    'Integrate Exa, one of the best web search APIs for AI, into the workflow. Can search, get contents, find similar links, answer a question, and perform research.',
   docsLink: 'https://docs.sim.ai/tools/exa',
   category: 'tools',
   bgColor: '#1F40ED',
