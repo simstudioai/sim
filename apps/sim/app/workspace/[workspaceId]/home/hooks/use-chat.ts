@@ -764,24 +764,37 @@ export function useChat(
               const delta = typeof parsed.data === 'string' ? parsed.data : ''
               if (!id || !delta) break
 
-              if (activeSubagent === 'file_write') {
-                const prev = streamingFileRef.current
-                if (prev) {
-                  const raw = prev.content + delta
-                  let fileName = prev.fileName
-                  if (!fileName) {
-                    const m = raw.match(/"fileName"\s*:\s*"([^"]+)"/)
-                    if (m) {
-                      fileName = m[1]
-                      setResources((rs) =>
-                        rs.map((r) => (r.id === 'streaming-file' ? { ...r, title: fileName } : r))
-                      )
-                    }
+              const toolName =
+                typeof parsed.toolName === 'string' ? parsed.toolName : ''
+              const streamWorkspaceFile =
+                activeSubagent === 'file_write' || toolName === 'workspace_file'
+
+              if (streamWorkspaceFile) {
+                let prev = streamingFileRef.current
+                if (!prev) {
+                  prev = { fileName: '', content: '' }
+                  streamingFileRef.current = prev
+                  setStreamingFile(prev)
+                  if (toolName === 'workspace_file' && activeSubagent !== 'file_write') {
+                    addResource({ type: 'file', id: 'streaming-file', title: 'Writing file...' })
                   }
-                  const next = { fileName, content: raw }
-                  streamingFileRef.current = next
-                  setStreamingFile(next)
                 }
+                const raw = prev.content + delta
+                let fileName = prev.fileName
+                if (!fileName) {
+                  const m = raw.match(/"fileName"\s*:\s*"([^"]+)"/)
+                  if (m) {
+                    fileName = m[1]
+                    setResources((rs) =>
+                      rs.map((r) =>
+                        r.id === 'streaming-file' ? { ...r, title: fileName } : r
+                      )
+                    )
+                  }
+                }
+                const next = { fileName, content: raw }
+                streamingFileRef.current = next
+                setStreamingFile(next)
               }
 
               const idx = toolMap.get(id)
@@ -875,6 +888,12 @@ export function useChat(
                 }
 
                 onToolResultRef.current?.(tc.name, tc.status === 'success', tc.result?.output)
+
+                if (tc.name === 'workspace_file') {
+                  setStreamingFile(null)
+                  streamingFileRef.current = null
+                  setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
+                }
               }
 
               break
@@ -973,7 +992,11 @@ export function useChat(
                 activeSubagent = name
                 blocks.push({ type: 'subagent', content: name })
                 if (name === 'file_write') {
-                  setStreamingFile({ fileName: '', content: '' })
+                  const emptyFile = { fileName: '', content: '' }
+                  // Ref must be updated synchronously: tool_call_delta can arrive before React
+                  // re-renders after setStreamingFile, and the handler only appends when prev exists.
+                  streamingFileRef.current = emptyFile
+                  setStreamingFile(emptyFile)
                   addResource({ type: 'file', id: 'streaming-file', title: 'Writing file...' })
                 }
                 flush()

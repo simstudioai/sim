@@ -80,7 +80,7 @@ export const ResourceContent = memo(function ResourceContent({
     [workspaceId, streamFileName]
   )
 
-  if (streamingFile) {
+  if (streamingFile && resource.id === 'streaming-file') {
     return (
       <div className='flex h-full flex-col overflow-hidden'>
         <FileViewer
@@ -105,6 +105,9 @@ export const ResourceContent = memo(function ResourceContent({
           workspaceId={workspaceId}
           fileId={resource.id}
           previewMode={previewMode}
+          streamingContent={
+            streamingFile ? extractFileContent(streamingFile.content) : undefined
+          }
         />
       )
 
@@ -379,9 +382,10 @@ interface EmbeddedFileProps {
   workspaceId: string
   fileId: string
   previewMode?: PreviewMode
+  streamingContent?: string
 }
 
-function EmbeddedFile({ workspaceId, fileId, previewMode }: EmbeddedFileProps) {
+function EmbeddedFile({ workspaceId, fileId, previewMode, streamingContent }: EmbeddedFileProps) {
   const { data: files = [], isLoading, isFetching } = useWorkspaceFiles(workspaceId)
   const file = useMemo(() => files.find((f) => f.id === fileId), [files, fileId])
 
@@ -409,6 +413,7 @@ function EmbeddedFile({ workspaceId, fileId, previewMode }: EmbeddedFileProps) {
         workspaceId={workspaceId}
         canEdit={true}
         previewMode={previewMode}
+        streamingContent={streamingContent}
       />
     </div>
   )
