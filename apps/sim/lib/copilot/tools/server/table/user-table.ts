@@ -883,8 +883,9 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!args.tableId) {
             return { success: false, message: 'Table ID is required' }
           }
-          if (!args.name) {
-            return { success: false, message: 'Name is required for renaming a table' }
+          const newName = (args as Record<string, unknown>).newName as string | undefined
+          if (!newName) {
+            return { success: false, message: 'newName is required for renaming a table' }
           }
           if (!workspaceId) {
             return { success: false, message: 'Workspace ID is required' }
@@ -899,7 +900,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const requestId = crypto.randomUUID().slice(0, 8)
-          const renamed = await renameTable(args.tableId, args.name, requestId)
+          const renamed = await renameTable(args.tableId, newName, requestId)
 
           return {
             success: true,
