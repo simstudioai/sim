@@ -1,10 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { updateRunStatus } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_API_URL, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
 import { prepareExecutionContext } from '@/lib/copilot/orchestrator/tool-executor'
 import type {
   ExecutionContext,
   OrchestratorOptions,
   OrchestratorResult,
+  SSEEvent,
 } from '@/lib/copilot/orchestrator/types'
 import { env } from '@/lib/core/config/env'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
@@ -71,8 +73,28 @@ export async function orchestrateCopilotStream(
     let route = goRoute
     let payload = requestPayload
 
+    const callerOnEvent = options.onEvent
+
     for (;;) {
       context.streamComplete = false
+
+      const loopOptions = {
+        ...options,
+        onEvent: async (event: SSEEvent) => {
+          if (event.type === 'done') {
+            const d = (event.data ?? {}) as Record<string, unknown>
+            const response = (d.response ?? {}) as Record<string, unknown>
+            if (response.async_pause) {
+              if (runId) {
+                await updateRunStatus(runId, 'paused_waiting_for_tool').catch(() => {})
+              }
+              return
+            }
+          }
+          await callerOnEvent?.(event)
+        },
+      }
+
       await runStreamLoop(
         `${SIM_AGENT_API_URL}${route}`,
         {
@@ -86,7 +108,7 @@ export async function orchestrateCopilotStream(
         },
         context,
         execContext,
-        options
+        loopOptions
       )
 
       const continuation = context.awaitingAsyncContinuation

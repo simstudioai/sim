@@ -197,11 +197,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
 
         const eventId = ++localSeq
 
-        const response = (event?.data?.response || {}) as Record<string, unknown>
-        if (event.type === 'done' && response.async_pause) {
-          await updateRunStatus(runId, 'paused_waiting_for_tool').catch(() => {})
-        }
-
         // Enqueue to client stream FIRST for minimal latency.
         // Redis persistence happens after so the client never waits on I/O.
         try {

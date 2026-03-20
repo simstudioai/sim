@@ -1155,7 +1155,7 @@ export function useChat(
             }))
           : undefined
 
-      const requestChatId = selectedChatIdRef.current
+      const requestChatId = selectedChatIdRef.current ?? chatIdRef.current
       if (requestChatId) {
         const cachedUserMsg: TaskStoredMessage = {
           id: userMessageId,
