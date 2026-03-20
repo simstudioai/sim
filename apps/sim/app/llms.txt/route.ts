@@ -12,7 +12,6 @@ Sim lets teams create agents, workflows, knowledge bases, tables, and docs. Over
 ## Core Pages
 
 - [Homepage](${baseUrl}): Product overview, features, and pricing
-- [Templates](${baseUrl}/templates): Pre-built workflow templates to get started quickly
 - [Changelog](${baseUrl}/changelog): Product updates and release notes
 - [Sim Blog](${baseUrl}/blog): Announcements, insights, and guides
 

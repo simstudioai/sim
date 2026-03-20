@@ -919,22 +919,22 @@ export const Sidebar = memo(function Sidebar() {
           }
         },
       },
-      {
-        id: 'goto-templates',
-        handler: () => {
-          try {
-            const pathWorkspaceId = resolveWorkspaceIdFromPath()
-            if (pathWorkspaceId) {
-              navigateToPage(`/workspace/${pathWorkspaceId}/templates`)
-              logger.info('Navigated to templates', { workspaceId: pathWorkspaceId })
-            } else {
-              logger.warn('No workspace ID found, cannot navigate to templates')
-            }
-          } catch (err) {
-            logger.error('Failed to navigate to templates', { err })
-          }
-        },
-      },
+      // {
+      //   id: 'goto-templates',
+      //   handler: () => {
+      //     try {
+      //       const pathWorkspaceId = resolveWorkspaceIdFromPath()
+      //       if (pathWorkspaceId) {
+      //         navigateToPage(`/workspace/${pathWorkspaceId}/templates`)
+      //         logger.info('Navigated to templates', { workspaceId: pathWorkspaceId })
+      //       } else {
+      //         logger.warn('No workspace ID found, cannot navigate to templates')
+      //       }
+      //     } catch (err) {
+      //       logger.error('Failed to navigate to templates', { err })
+      //     }
+      //   },
+      // },
       {
         id: 'goto-logs',
         handler: () => {

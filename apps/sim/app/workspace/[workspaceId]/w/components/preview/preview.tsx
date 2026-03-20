@@ -197,7 +197,10 @@ export function Preview({
       const childTraceSpans = extractChildTraceSpans(blockExecution)
       const childBlockExecutions = buildBlockExecutions(childTraceSpans)
 
-      const workflowName = childWorkflowState.metadata?.name || 'Nested Workflow'
+      const workflowName =
+        childWorkflowState.metadata?.name ||
+        (blockExecution?.output as { childWorkflowName?: string } | undefined)?.childWorkflowName ||
+        'Nested Workflow'
 
       setWorkflowStack((prev) => [
         ...prev,

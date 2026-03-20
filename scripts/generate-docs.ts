@@ -317,26 +317,48 @@ function extractOperationsFromContent(blockContent: string): { label: string; id
  * Scan all tool files under apps/sim/tools/ and build a map from tool ID to description.
  * Used to enrich operation entries with descriptions.
  */
-async function buildToolDescriptionMap(): Promise<Map<string, string>> {
+interface ToolMaps {
+  desc: Map<string, string>
+  name: Map<string, string>
+}
+
+async function buildToolDescriptionMap(): Promise<ToolMaps> {
   const toolsDir = path.join(rootDir, 'apps/sim/tools')
-  const map = new Map<string, string>()
+  const desc = new Map<string, string>()
+  const name = new Map<string, string>()
   try {
     const toolFiles = await glob(`${toolsDir}/**/*.ts`)
     for (const file of toolFiles) {
       if (file.endsWith('index.ts') || file.endsWith('types.ts')) continue
       const content = fs.readFileSync(file, 'utf-8')
-      // Match top-level id + description fields in ToolConfig objects
-      const idMatches = [...content.matchAll(/\bid\s*:\s*['"]([^'"]+)['"]/g)]
-      const descMatches = [...content.matchAll(/\bdescription\s*:\s*['"]([^'"]{5,})['"]/g)]
-      if (idMatches.length > 0 && descMatches.length > 0) {
-        // The first id match and first description match are the tool's own fields
-        map.set(idMatches[0][1], descMatches[0][1])
+
+      // Find every `id: 'tool_id'` occurrence in the file. For each, search
+      // the next ~600 characters for `name:` and `description:` fields, cutting
+      // off at the first `params:` block within that window. This handles both
+      // the simple inline pattern (id → description → params in one object) and
+      // the two-step pattern (base object holds params, ToolConfig export holds
+      // id + description after the base object).
+      const idRegex = /\bid\s*:\s*['"]([^'"]+)['"]/g
+      let idMatch: RegExpExecArray | null
+      while ((idMatch = idRegex.exec(content)) !== null) {
+        const toolId = idMatch[1]
+        if (desc.has(toolId)) continue
+        const windowStart = idMatch.index
+        const windowEnd = Math.min(windowStart + 600, content.length)
+        const window = content.substring(windowStart, windowEnd)
+        // Stop before any params block so we don't pick up param-level values
+        const paramsOffset = window.search(/\bparams\s*:\s*\{/)
+        const searchWindow = paramsOffset > 0 ? window.substring(0, paramsOffset) : window
+        const descMatch = searchWindow.match(/\bdescription\s*:\s*['"]([^'"]{5,})['"]/)
+        const nameMatch = searchWindow.match(/\bname\s*:\s*['"]([^'"]+)['"]/)
+        if (descMatch) desc.set(toolId, descMatch[1])
+        if (nameMatch) name.set(toolId, nameMatch[1])
       }
     }
   } catch {
     // Non-fatal: descriptions will be empty strings
   }
-  return map
+  return { desc, name }
 }
 
 /**
@@ -481,7 +503,7 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
     }
 
     const triggerRegistry = await buildTriggerRegistry()
-    const toolDescMap = await buildToolDescriptionMap()
+    const { desc: toolDescMap, name: toolNameMap } = await buildToolDescriptionMap()
     const integrations: IntegrationEntry[] = []
     const seenBaseTypes = new Set<string>()
     const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
@@ -517,11 +539,27 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
         const iconName = (config as any).iconName || iconMapping[blockType] || ''
         const rawOps: { label: string; id: string }[] = (config as any).operations || []
 
-        // Enrich each operation with a description from the tool registry
+        // Enrich each operation with a description from the tool registry.
+        // Primary lookup: derive toolId as `{baseType}_{operationId}` and check
+        // the map directly. Fallback: some blocks use short op IDs that don't
+        // match tool IDs (e.g. Slack uses "send" while the tool ID is
+        // "slack_message"). In that case, find the tool in tools.access whose
+        // name exactly matches the operation label.
+        const toolsAccess: string[] = (config as any).tools?.access || []
         const operations: OperationInfo[] = rawOps.map(({ label, id }) => {
           const toolId = `${baseType}_${id}`
-          const desc = toolDescMap.get(toolId) || toolDescMap.get(id) || ''
-          return { name: label, description: desc }
+          let opDesc = toolDescMap.get(toolId) || toolDescMap.get(id) || ''
+
+          if (!opDesc && toolsAccess.length > 0) {
+            for (const tId of toolsAccess) {
+              if (toolNameMap.get(tId)?.toLowerCase() === label.toLowerCase()) {
+                opDesc = toolDescMap.get(tId) || ''
+                if (opDesc) break
+              }
+            }
+          }
+
+          return { name: label, description: opDesc }
         })
 
         const triggerIds: string[] = (config as any).triggerIds || []
