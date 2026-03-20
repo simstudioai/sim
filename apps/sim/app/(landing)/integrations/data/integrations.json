@@ -1123,6 +1123,75 @@
     "category": "tools"
   },
   {
+    "type": "microsoft_ad",
+    "slug": "azure-ad",
+    "name": "Azure AD",
+    "description": "Manage users and groups in Azure AD (Microsoft Entra ID)",
+    "longDescription": "Integrate Azure Active Directory into your workflows. List, create, update, and delete users and groups. Manage group memberships programmatically.",
+    "bgColor": "#0078D4",
+    "iconName": "AzureIcon",
+    "docsUrl": "https://docs.sim.ai/tools/microsoft_ad",
+    "operations": [
+      {
+        "name": "List Users",
+        "description": "List users in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Get User",
+        "description": "Get a user by ID or user principal name from Azure AD"
+      },
+      {
+        "name": "Create User",
+        "description": "Create a new user in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Update User",
+        "description": "Update user properties in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Delete User",
+        "description": "Delete a user from Azure AD (Microsoft Entra ID). The user is moved to a temporary container and can be restored within 30 days."
+      },
+      {
+        "name": "List Groups",
+        "description": "List groups in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Get Group",
+        "description": "Get a group by ID from Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Create Group",
+        "description": "Create a new group in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Update Group",
+        "description": "Update group properties in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Delete Group",
+        "description": "Delete a group from Azure AD (Microsoft Entra ID). Microsoft 365 and security groups can be restored within 30 days."
+      },
+      {
+        "name": "List Group Members",
+        "description": "List members of a group in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Add Group Member",
+        "description": "Add a member to a group in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Remove Group Member",
+        "description": "Remove a member from a group in Azure AD (Microsoft Entra ID)"
+      }
+    ],
+    "operationCount": 13,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "oauth",
+    "category": "tools"
+  },
+  {
     "type": "box",
     "slug": "box",
     "name": "Box",
@@ -1917,31 +1986,31 @@
     "operations": [
       {
         "name": "Launch Agent",
-        "description": "Cursor API key"
+        "description": "Start a new cloud agent to work on a GitHub repository with the given instructions."
       },
       {
         "name": "Add Follow-up",
-        "description": "Cursor API key"
+        "description": "Add a follow-up instruction to an existing cloud agent."
       },
       {
         "name": "Get Agent Status",
-        "description": "Cursor API key"
+        "description": "Retrieve the current status and results of a cloud agent."
       },
       {
         "name": "Get Conversation",
-        "description": "Cursor API key"
+        "description": "Retrieve the conversation history of a cloud agent, including all user prompts and assistant responses."
       },
       {
         "name": "List Agents",
-        "description": "Cursor API key"
+        "description": "List all cloud agents for the authenticated user with optional pagination."
       },
       {
         "name": "Stop Agent",
-        "description": "Cursor API key"
+        "description": "Stop a running cloud agent. This pauses the agent without deleting it."
       },
       {
         "name": "Delete Agent",
-        "description": "Cursor API key"
+        "description": "Permanently delete a cloud agent. This action cannot be undone."
       }
     ],
     "operationCount": 7,
@@ -3881,7 +3950,7 @@
     "operations": [
       {
         "name": "List Files",
-        "description": "List files and folders in Google Drive with complete metadata"
+        "description": "List Google Drive files"
       },
       {
         "name": "Get File Info",
@@ -5268,6 +5337,43 @@
     "category": "tools"
   },
   {
+    "type": "infisical",
+    "slug": "infisical",
+    "name": "Infisical",
+    "description": "Manage secrets with Infisical",
+    "longDescription": "Integrate Infisical into your workflow. List, get, create, update, and delete secrets across project environments.",
+    "bgColor": "#F7FE62",
+    "iconName": "InfisicalIcon",
+    "docsUrl": "https://docs.sim.ai/tools/infisical",
+    "operations": [
+      {
+        "name": "List Secrets",
+        "description": "List all secrets in a project environment. Returns secret keys, values, comments, tags, and metadata."
+      },
+      {
+        "name": "Get Secret",
+        "description": "Retrieve a single secret by name from a project environment."
+      },
+      {
+        "name": "Create Secret",
+        "description": "Create a new secret in a project environment."
+      },
+      {
+        "name": "Update Secret",
+        "description": "Update an existing secret in a project environment."
+      },
+      {
+        "name": "Delete Secret",
+        "description": "Delete a secret from a project environment."
+      }
+    ],
+    "operationCount": 5,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools"
+  },
+  {
     "type": "intercom_v2",
     "slug": "intercom",
     "name": "Intercom",
@@ -5279,63 +5385,63 @@
     "operations": [
       {
         "name": "Create Contact",
-        "description": "Intercom API access token"
+        "description": "Create a new contact in Intercom with email, external_id, or role"
       },
       {
         "name": "Get Contact",
-        "description": "Intercom API access token"
+        "description": "Get a single contact by ID from Intercom"
       },
       {
         "name": "Update Contact",
-        "description": "Intercom API access token"
+        "description": "Update an existing contact in Intercom"
       },
       {
         "name": "List Contacts",
-        "description": "Intercom API access token"
+        "description": "List all contacts from Intercom with pagination support"
       },
       {
         "name": "Search Contacts",
-        "description": "Intercom API access token"
+        "description": "Search for contacts in Intercom using a query"
       },
       {
         "name": "Delete Contact",
-        "description": "Intercom API access token"
+        "description": "Delete a contact from Intercom by ID"
       },
       {
         "name": "Create Company",
-        "description": "Intercom API access token"
+        "description": "Create or update a company in Intercom"
       },
       {
         "name": "Get Company",
-        "description": "Intercom API access token"
+        "description": "Retrieve a single company by ID from Intercom"
       },
       {
         "name": "List Companies",
-        "description": "Intercom API access token"
+        "description": "List all companies from Intercom with pagination support. Note: This endpoint has a limit of 10,000 companies that can be returned using pagination. For datasets larger than 10,000 companies, use the Scroll API instead."
       },
       {
         "name": "Get Conversation",
-        "description": "Intercom API access token"
+        "description": "Retrieve a single conversation by ID from Intercom"
       },
       {
         "name": "List Conversations",
-        "description": "Intercom API access token"
+        "description": "List all conversations from Intercom with pagination support"
       },
       {
         "name": "Reply to Conversation",
-        "description": "Intercom API access token"
+        "description": "Reply to a conversation as an admin in Intercom"
       },
       {
         "name": "Search Conversations",
-        "description": "Intercom API access token"
+        "description": "Search for conversations in Intercom using a query"
       },
       {
         "name": "Create Ticket",
-        "description": "Intercom API access token"
+        "description": "Create a new ticket in Intercom"
       },
       {
         "name": "Get Ticket",
-        "description": "Intercom API access token"
+        "description": "Retrieve a single ticket by ID from Intercom"
       },
       {
         "name": "Update Ticket",
@@ -5343,7 +5449,7 @@
       },
       {
         "name": "Create Message",
-        "description": "Intercom API access token"
+        "description": "Create and send a new admin-initiated message in Intercom"
       },
       {
         "name": "List Admins",
@@ -6850,15 +6956,15 @@
     "operations": [
       {
         "name": "Add Memories",
-        "description": ""
+        "description": "Add memories to Mem0 for persistent storage and retrieval"
       },
       {
         "name": "Search Memories",
-        "description": ""
+        "description": "Search for memories in Mem0 using semantic search"
       },
       {
         "name": "Get Memories",
-        "description": ""
+        "description": "Retrieve memories from Mem0 by ID or filter criteria"
       }
     ],
     "operationCount": 3,
@@ -6883,7 +6989,7 @@
       },
       {
         "name": "Get All Memories",
-        "description": ""
+        "description": "Retrieve all memories from the database"
       },
       {
         "name": "Get Memory",
@@ -8210,7 +8316,7 @@
       },
       {
         "name": "Unsave",
-        "description": ""
+        "description": "Remove a Reddit post or comment from your saved items"
       },
       {
         "name": "Reply",
@@ -8388,7 +8494,7 @@
     "operations": [
       {
         "name": "Send Email",
-        "description": ""
+        "description": "Send an email using your own Resend API key and from address"
       },
       {
         "name": "Get Email",

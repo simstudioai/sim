@@ -1,6 +1,5 @@
 import type { ComponentType, ElementType, HTMLAttributes, SVGProps } from 'react'
 import { cn } from '@/lib/core/utils/cn'
-import { isLightBg } from '@/app/(landing)/integrations/data/utils'
 
 interface IntegrationIconProps extends HTMLAttributes<HTMLElement> {
   bgColor: string
@@ -33,9 +32,6 @@ export function IntegrationIcon({
   as: Tag = 'div',
   ...rest
 }: IntegrationIconProps) {
-  const isLight = isLightBg(bgColor)
-  const fgColor = isLight ? 'text-[#1C1C1C]' : 'text-white'
-
   return (
     <Tag
       className={cn('flex shrink-0 items-center justify-center', className)}
@@ -43,9 +39,9 @@ export function IntegrationIcon({
       {...rest}
     >
       {Icon ? (
-        <Icon className={cn(iconClassName, fgColor)} />
+        <Icon className={cn(iconClassName, 'text-white')} />
       ) : (
-        <span className={cn('font-[500] leading-none', fallbackClassName, fgColor)}>
+        <span className={cn('font-[500] text-white leading-none', fallbackClassName)}>
           {name.charAt(0)}
         </span>
       )}

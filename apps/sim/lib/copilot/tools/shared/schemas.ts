@@ -127,6 +127,7 @@ export const UserTableArgsSchema = z.object({
     'rename_column',
     'delete_column',
     'update_column',
+    'rename',
   ]),
   args: z
     .object({
