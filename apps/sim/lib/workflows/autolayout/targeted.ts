@@ -2,6 +2,7 @@ import {
   CONTAINER_PADDING,
   DEFAULT_HORIZONTAL_SPACING,
   DEFAULT_VERTICAL_SPACING,
+  MAX_OVERLAP_ITERATIONS,
 } from '@/lib/workflows/autolayout/constants'
 import { assignLayers, layoutBlocksCore } from '@/lib/workflows/autolayout/core'
 import type { Edge, LayoutOptions } from '@/lib/workflows/autolayout/types'
@@ -226,6 +227,14 @@ function layoutGroup(
     gridSize
   )
 
+  resolveVerticalOverlapsWithFrozen(
+    needsLayoutSet,
+    layoutEligibleChildIds,
+    blocks,
+    verticalSpacing,
+    gridSize
+  )
+
   if (parentBlock) {
     updateContainerDimensions(parentBlock, childIds, blocks)
   }
@@ -283,6 +292,63 @@ function shiftDownstreamFrozenBlocks(
         )
         shifted.add(targetId)
         queue.push(targetId)
+      }
+    }
+  }
+}
+
+/**
+ * Resolves Y-axis overlaps between changed/shifted blocks and frozen blocks
+ * that share the same column (overlapping X ranges). When a new block is
+ * inserted into the same layer as existing blocks (e.g. adding a parallel
+ * branch), this pushes frozen blocks downward to make room, cascading
+ * through any further blocks below.
+ */
+function resolveVerticalOverlapsWithFrozen(
+  needsLayoutSet: Set<string>,
+  eligibleIds: string[],
+  blocks: Record<string, BlockState>,
+  verticalSpacing: number,
+  gridSize?: number
+): void {
+  const blockInfos = eligibleIds
+    .map((id) => {
+      const block = blocks[id]
+      if (!block) return null
+      return { id, block, metrics: getBlockMetrics(block) }
+    })
+    .filter((info): info is NonNullable<typeof info> => info !== null)
+
+  if (blockInfos.length < 2) return
+
+  const movedSet = new Set(needsLayoutSet)
+  let hasOverlap = true
+  let iteration = 0
+
+  while (hasOverlap && iteration < MAX_OVERLAP_ITERATIONS) {
+    hasOverlap = false
+    iteration++
+
+    blockInfos.sort((a, b) => a.block.position.y - b.block.position.y)
+
+    for (let i = 0; i < blockInfos.length - 1; i++) {
+      const upper = blockInfos[i]
+      const lower = blockInfos[i + 1]
+
+      if (!movedSet.has(upper.id) && !movedSet.has(lower.id)) continue
+
+      const upperRight = upper.block.position.x + upper.metrics.width
+      const lowerRight = lower.block.position.x + lower.metrics.width
+      if (upper.block.position.x >= lowerRight || lower.block.position.x >= upperRight) continue
+
+      const requiredY = upper.block.position.y + upper.metrics.height + verticalSpacing
+      if (lower.block.position.y < requiredY) {
+        lower.block.position = snapPositionToGrid(
+          { x: lower.block.position.x, y: requiredY },
+          gridSize
+        )
+        movedSet.add(lower.id)
+        hasOverlap = true
       }
     }
   }
