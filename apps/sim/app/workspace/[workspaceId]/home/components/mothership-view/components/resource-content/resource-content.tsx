@@ -21,7 +21,10 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
-import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import {
+  useUserPermissionsContext,
+  useWorkspacePermissionsContext,
+} from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/components'
 import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
@@ -384,6 +387,7 @@ interface EmbeddedFileProps {
 }
 
 function EmbeddedFile({ workspaceId, fileId, previewMode, streamingContent }: EmbeddedFileProps) {
+  const { canEdit } = useUserPermissionsContext()
   const { data: files = [], isLoading, isFetching } = useWorkspaceFiles(workspaceId)
   const file = useMemo(() => files.find((f) => f.id === fileId), [files, fileId])
 
@@ -409,7 +413,7 @@ function EmbeddedFile({ workspaceId, fileId, previewMode, streamingContent }: Em
         key={file.id}
         file={file}
         workspaceId={workspaceId}
-        canEdit={true}
+        canEdit={canEdit}
         previewMode={previewMode}
         streamingContent={streamingContent}
       />
