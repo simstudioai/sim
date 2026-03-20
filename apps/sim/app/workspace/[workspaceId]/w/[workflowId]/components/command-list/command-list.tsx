@@ -29,11 +29,11 @@ interface CommandItem {
  * Available commands list
  */
 const commands: CommandItem[] = [
-  {
-    label: 'Templates',
-    icon: Layout,
-    shortcut: 'Y',
-  },
+  // {
+  //   label: 'Templates',
+  //   icon: Layout,
+  //   shortcut: 'Y',
+  // },
   {
     label: 'New Agent',
     icon: AgentIcon,
@@ -78,14 +78,14 @@ export function CommandList() {
     (label: string) => {
       try {
         switch (label) {
-          case 'Templates': {
-            if (!workspaceId) {
-              logger.warn('No workspace ID found, cannot navigate to templates from command list')
-              return
-            }
-            router.push(`/workspace/${workspaceId}/templates`)
-            return
-          }
+          // case 'Templates': {
+          //   if (!workspaceId) {
+          //     logger.warn('No workspace ID found, cannot navigate to templates from command list')
+          //     return
+          //   }
+          //   router.push(`/workspace/${workspaceId}/templates`)
+          //   return
+          // }
           case 'New Agent': {
             const event = new CustomEvent('add-block-from-toolbar', {
               detail: { type: 'agent', enableTriggerMode: false },

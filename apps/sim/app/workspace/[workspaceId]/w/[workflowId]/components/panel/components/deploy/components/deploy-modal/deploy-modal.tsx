@@ -33,7 +33,7 @@ import {
   useDeployWorkflow,
   useUndeployWorkflow,
 } from '@/hooks/queries/deployments'
-import { useTemplateByWorkflow } from '@/hooks/queries/templates'
+// import { useTemplateByWorkflow } from '@/hooks/queries/templates'
 import { useWorkflowMcpServers } from '@/hooks/queries/workflow-mcp-servers'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -102,8 +102,8 @@ export function DeployModal({
   const [selectedStreamingOutputs, setSelectedStreamingOutputs] = useState<string[]>([])
 
   const [showUndeployConfirm, setShowUndeployConfirm] = useState(false)
-  const [templateFormValid, setTemplateFormValid] = useState(false)
-  const [templateSubmitting, setTemplateSubmitting] = useState(false)
+  // const [templateFormValid, setTemplateFormValid] = useState(false)
+  // const [templateSubmitting, setTemplateSubmitting] = useState(false)
   const [mcpToolSubmitting, setMcpToolSubmitting] = useState(false)
   const [mcpToolCanSave, setMcpToolCanSave] = useState(false)
   const [a2aSubmitting, setA2aSubmitting] = useState(false)
@@ -159,17 +159,17 @@ export function DeployModal({
   const hasA2aAgent = !!existingA2aAgent
   const isA2aPublished = existingA2aAgent?.isPublished ?? false
 
-  const { data: existingTemplate } = useTemplateByWorkflow(workflowId || '', {
-    enabled: !!workflowId,
-  })
-  const hasExistingTemplate = !!existingTemplate
-  const templateStatus = existingTemplate
-    ? {
-        status: existingTemplate.status as 'pending' | 'approved' | 'rejected' | null,
-        views: existingTemplate.views,
-        stars: existingTemplate.stars,
-      }
-    : null
+  // const { data: existingTemplate } = useTemplateByWorkflow(workflowId || '', {
+  //   enabled: !!workflowId,
+  // })
+  // const hasExistingTemplate = !!existingTemplate
+  // const templateStatus = existingTemplate
+  //   ? {
+  //       status: existingTemplate.status as 'pending' | 'approved' | 'rejected' | null,
+  //       views: existingTemplate.views,
+  //       stars: existingTemplate.stars,
+  //     }
+  //   : null
 
   const deployMutation = useDeployWorkflow()
   const undeployMutation = useUndeployWorkflow()

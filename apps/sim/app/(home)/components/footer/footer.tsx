@@ -23,7 +23,7 @@ const PRODUCT_LINKS: FooterItem[] = [
 
 const RESOURCES_LINKS: FooterItem[] = [
   { label: 'Blog', href: '/blog' },
-  { label: 'Templates', href: '/templates' },
+  // { label: 'Templates', href: '/templates' },
   { label: 'Docs', href: 'https://docs.sim.ai', external: true },
   { label: 'Careers', href: 'https://jobs.ashbyhq.com/sim', external: true },
   { label: 'Changelog', href: '/changelog' },

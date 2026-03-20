@@ -177,7 +177,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'general' && <General />}
       {effectiveSection === 'integrations' && <Integrations />}
       {effectiveSection === 'secrets' && <Credentials />}
-      {effectiveSection === 'template-profile' && <TemplateProfile />}
+      {/* {effectiveSection === 'template-profile' && <TemplateProfile />} */}
       {effectiveSection === 'credential-sets' && <CredentialSets />}
       {effectiveSection === 'access-control' && <AccessControl />}
       {effectiveSection === 'apikeys' && <ApiKeys />}

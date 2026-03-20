@@ -114,16 +114,7 @@ export function useWorkspaceManagement({
 
       try {
         await switchToWorkspace(workspace.id)
-        const currentPath = pathnameRef.current || ''
-        const templateDetailMatch = currentPath.match(/^\/workspace\/[^/]+\/templates\/([^/]+)$/)
-        if (templateDetailMatch) {
-          const templateId = templateDetailMatch[1]
-          routerRef.current?.push(`/workspace/${workspace.id}/templates/${templateId}`)
-        } else if (/^\/workspace\/[^/]+\/templates$/.test(currentPath)) {
-          routerRef.current?.push(`/workspace/${workspace.id}/templates`)
-        } else {
-          routerRef.current?.push(`/workspace/${workspace.id}/home`)
-        }
+        routerRef.current?.push(`/workspace/${workspace.id}/home`)
         logger.info(`Switched to workspace: ${workspace.name} (${workspace.id})`)
       } catch (error) {
         logger.error('Error switching workspace:', error)
