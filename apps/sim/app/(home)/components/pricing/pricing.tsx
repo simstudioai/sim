@@ -78,7 +78,7 @@ const PRICING_TIERS: PricingTier[] = [
       'SSO & SCIM · SOC2 & HIPAA',
       'Self hosting · Dedicated support',
     ],
-    cta: { label: 'Book a demo', href: '/contact' },
+    cta: { label: 'Book a demo', href: 'https://form.typeform.com/to/jqCO12pF' },
   },
 ]
 

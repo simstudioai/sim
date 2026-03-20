@@ -1123,6 +1123,75 @@
     "category": "tools"
   },
   {
+    "type": "microsoft_ad",
+    "slug": "azure-ad",
+    "name": "Azure AD",
+    "description": "Manage users and groups in Azure AD (Microsoft Entra ID)",
+    "longDescription": "Integrate Azure Active Directory into your workflows. List, create, update, and delete users and groups. Manage group memberships programmatically.",
+    "bgColor": "#0078D4",
+    "iconName": "AzureIcon",
+    "docsUrl": "https://docs.sim.ai/tools/microsoft_ad",
+    "operations": [
+      {
+        "name": "List Users",
+        "description": "List users in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Get User",
+        "description": "Get a user by ID or user principal name from Azure AD"
+      },
+      {
+        "name": "Create User",
+        "description": "Create a new user in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Update User",
+        "description": "Update user properties in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Delete User",
+        "description": "Delete a user from Azure AD (Microsoft Entra ID). The user is moved to a temporary container and can be restored within 30 days."
+      },
+      {
+        "name": "List Groups",
+        "description": "List groups in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Get Group",
+        "description": "Get a group by ID from Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Create Group",
+        "description": "Create a new group in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Update Group",
+        "description": "Update group properties in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Delete Group",
+        "description": "Delete a group from Azure AD (Microsoft Entra ID). Microsoft 365 and security groups can be restored within 30 days."
+      },
+      {
+        "name": "List Group Members",
+        "description": "List members of a group in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Add Group Member",
+        "description": "Add a member to a group in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Remove Group Member",
+        "description": "Remove a member from a group in Azure AD (Microsoft Entra ID)"
+      }
+    ],
+    "operationCount": 13,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "oauth",
+    "category": "tools"
+  },
+  {
     "type": "box",
     "slug": "box",
     "name": "Box",
@@ -5262,6 +5331,43 @@
       }
     ],
     "operationCount": 44,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools"
+  },
+  {
+    "type": "infisical",
+    "slug": "infisical",
+    "name": "Infisical",
+    "description": "Manage secrets with Infisical",
+    "longDescription": "Integrate Infisical into your workflow. List, get, create, update, and delete secrets across project environments.",
+    "bgColor": "#F7FE62",
+    "iconName": "InfisicalIcon",
+    "docsUrl": "https://docs.sim.ai/tools/infisical",
+    "operations": [
+      {
+        "name": "List Secrets",
+        "description": "List all secrets in a project environment. Returns secret keys, values, comments, tags, and metadata."
+      },
+      {
+        "name": "Get Secret",
+        "description": "Retrieve a single secret by name from a project environment."
+      },
+      {
+        "name": "Create Secret",
+        "description": "Create a new secret in a project environment."
+      },
+      {
+        "name": "Update Secret",
+        "description": "Update an existing secret in a project environment."
+      },
+      {
+        "name": "Delete Secret",
+        "description": "Delete a secret from a project environment."
+      }
+    ],
+    "operationCount": 5,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
