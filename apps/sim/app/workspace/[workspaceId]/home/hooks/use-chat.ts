@@ -894,15 +894,17 @@ export function useChat(
                   }
                 }
 
-                if (tc.status === 'success' && isResourceToolName(tc.name)) {
-                  const resources = extractResourcesFromToolResult(
-                    tc.name,
-                    toolArgsMap.get(id) as Record<string, unknown> | undefined,
-                    tc.result?.output
-                  )
-                  for (const resource of resources) {
-                    invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
-                  }
+                const extractedResources =
+                  tc.status === 'success' && isResourceToolName(tc.name)
+                    ? extractResourcesFromToolResult(
+                        tc.name,
+                        toolArgsMap.get(id) as Record<string, unknown> | undefined,
+                        tc.result?.output
+                      )
+                    : []
+
+                for (const resource of extractedResources) {
+                  invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
                 }
 
                 onToolResultRef.current?.(tc.name, tc.status === 'success', tc.result?.output)
@@ -910,7 +912,19 @@ export function useChat(
                 if (tc.name === 'workspace_file') {
                   setStreamingFile(null)
                   streamingFileRef.current = null
-                  setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
+
+                  const fileResource = extractedResources.find((r) => r.type === 'file')
+                  if (fileResource) {
+                    setResources((rs) => {
+                      const without = rs.filter((r) => r.id !== 'streaming-file')
+                      if (without.some((r) => r.type === 'file' && r.id === fileResource.id))
+                        return without
+                      return [...without, fileResource]
+                    })
+                    setActiveResourceId(fileResource.id)
+                  } else {
+                    setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
+                  }
                 }
               }
 
