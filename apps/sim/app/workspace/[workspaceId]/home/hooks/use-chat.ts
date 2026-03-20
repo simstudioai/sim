@@ -324,6 +324,9 @@ export function useChat(
 
   const abortControllerRef = useRef<AbortController | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
+  /** Panel/task selection — drives createNewChat + request chatId; may differ from chatIdRef while a stream is still finishing. */
+  const selectedChatIdRef = useRef<string | undefined>(initialChatId)
+  selectedChatIdRef.current = initialChatId
   const appliedChatIdRef = useRef<string | undefined>(undefined)
   const pendingUserMsgRef = useRef<{ id: string; content: string } | null>(null)
   const streamIdRef = useRef<string | undefined>(undefined)
@@ -348,12 +351,12 @@ export function useChat(
     })
     setActiveResourceId(resource.id)
 
-    const currentChatId = chatIdRef.current
-    if (currentChatId) {
+    const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
+    if (persistChatId) {
       fetch('/api/copilot/chat/resources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId: currentChatId, resource }),
+        body: JSON.stringify({ chatId: persistChatId, resource }),
       }).catch((err) => {
         logger.warn('Failed to persist resource', err)
       })
@@ -371,10 +374,27 @@ export function useChat(
 
   useEffect(() => {
     if (sendingRef.current) {
-      chatIdRef.current = initialChatId
-      setResolvedChatId(initialChatId)
-      setMessageQueue([])
-      return
+      const streamOwnerId = chatIdRef.current
+      const navigatedToDifferentChat =
+        initialChatId !== streamOwnerId &&
+        (initialChatId !== undefined || streamOwnerId !== undefined)
+
+      if (navigatedToDifferentChat) {
+        const abandonedChatId = streamOwnerId
+        // Detach the current UI from the old stream without cancelling it on the server.
+        // Reopening that chat later will reconnect through the existing chatHistory flow.
+        streamGenRef.current++
+        abortControllerRef.current = null
+        sendingRef.current = false
+        setIsSending(false)
+        if (abandonedChatId) {
+          queryClient.invalidateQueries({ queryKey: taskKeys.detail(abandonedChatId) })
+        }
+      } else {
+        setResolvedChatId(initialChatId)
+        setMessageQueue([])
+        return
+      }
     }
     chatIdRef.current = initialChatId
     setResolvedChatId(initialChatId)
@@ -386,7 +406,7 @@ export function useChat(
     setResources([])
     setActiveResourceId(null)
     setMessageQueue([])
-  }, [initialChatId])
+  }, [initialChatId, queryClient])
 
   useEffect(() => {
     if (workflowIdRef.current) return
@@ -582,6 +602,7 @@ export function useChat(
         buffer = lines.pop() || ''
 
         for (const line of lines) {
+          if (isStale()) break
           if (!line.startsWith('data: ')) continue
           const raw = line.slice(6)
 
@@ -598,7 +619,14 @@ export function useChat(
               if (parsed.chatId) {
                 const isNewChat = !chatIdRef.current
                 chatIdRef.current = parsed.chatId
-                setResolvedChatId(parsed.chatId)
+                const selected = selectedChatIdRef.current
+                if (selected == null) {
+                  if (isNewChat) {
+                    setResolvedChatId(parsed.chatId)
+                  }
+                } else if (parsed.chatId === selected) {
+                  setResolvedChatId(parsed.chatId)
+                }
                 queryClient.invalidateQueries({
                   queryKey: taskKeys.list(workspaceId),
                 })
@@ -980,6 +1008,10 @@ export function useChat(
             }
           }
         }
+        if (isStale()) {
+          reader.cancel().catch(() => {})
+          break
+        }
       }
     },
     [workspaceId, queryClient, addResource, removeResource]
@@ -1123,14 +1155,15 @@ export function useChat(
             }))
           : undefined
 
-      if (chatIdRef.current) {
+      const requestChatId = selectedChatIdRef.current ?? chatIdRef.current
+      if (requestChatId) {
         const cachedUserMsg: TaskStoredMessage = {
           id: userMessageId,
           role: 'user' as const,
           content: message,
           ...(storedAttachments && { fileAttachments: storedAttachments }),
         }
-        queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(chatIdRef.current), (old) => {
+        queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(requestChatId), (old) => {
           return old
             ? {
                 ...old,
@@ -1187,8 +1220,8 @@ export function useChat(
             message,
             workspaceId,
             userMessageId,
-            createNewChat: !chatIdRef.current,
-            ...(chatIdRef.current ? { chatId: chatIdRef.current } : {}),
+            createNewChat: !requestChatId,
+            ...(requestChatId ? { chatId: requestChatId } : {}),
             ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
             ...(resourceAttachments ? { resourceAttachments } : {}),
             ...(contexts && contexts.length > 0 ? { contexts } : {}),
@@ -1228,10 +1261,9 @@ export function useChat(
       while (!chatIdRef.current && sendingRef.current && Date.now() - start < 3000) {
         await new Promise((r) => setTimeout(r, 50))
       }
-      if (!chatIdRef.current) return
     }
 
-    if (sendingRef.current) {
+    if (sendingRef.current && chatIdRef.current) {
       await persistPartialResponse()
     }
     const sid =

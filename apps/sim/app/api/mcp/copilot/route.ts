@@ -36,7 +36,7 @@ import {
 
 const logger = createLogger('CopilotMcpAPI')
 const mcpRateLimiter = new RateLimiter()
-const DEFAULT_COPILOT_MODEL = 'claude-opus-4-5'
+const DEFAULT_COPILOT_MODEL = 'claude-opus-4-6'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -630,7 +630,11 @@ async function handleDirectToolCall(
   userId: string
 ): Promise<CallToolResult> {
   try {
-    const execContext = await prepareExecutionContext(userId, (args.workflowId as string) || '')
+    const execContext = await prepareExecutionContext(
+      userId,
+      (args.workflowId as string) || '',
+      (args.chatId as string) || undefined
+    )
 
     const toolCall = {
       id: randomUUID(),

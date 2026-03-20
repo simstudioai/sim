@@ -51,7 +51,7 @@ const ChatMessageSchema = z.object({
   workflowId: z.string().optional(),
   workspaceId: z.string().optional(),
   workflowName: z.string().optional(),
-  model: z.string().optional().default('claude-opus-4-5'),
+  model: z.string().optional().default('claude-opus-4-6'),
   mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
@@ -183,6 +183,29 @@ export async function POST(req: NextRequest) {
       })
     } catch {}
 
+    let currentChat: any = null
+    let conversationHistory: any[] = []
+    let actualChatId = chatId
+    const selectedModel = model || 'claude-opus-4-6'
+
+    if (chatId || createNewChat) {
+      const chatResult = await resolveOrCreateChat({
+        chatId,
+        userId: authenticatedUserId,
+        workflowId,
+        model: selectedModel,
+      })
+      currentChat = chatResult.chat
+      actualChatId = chatResult.chatId || chatId
+      conversationHistory = Array.isArray(chatResult.conversationHistory)
+        ? chatResult.conversationHistory
+        : []
+
+      if (chatId && !currentChat) {
+        return createBadRequestResponse('Chat not found')
+      }
+    }
+
     let agentContexts: Array<{ type: string; content: string }> = []
     if (Array.isArray(normalizedContexts) && normalizedContexts.length > 0) {
       try {
@@ -191,7 +214,8 @@ export async function POST(req: NextRequest) {
           normalizedContexts as any,
           authenticatedUserId,
           message,
-          resolvedWorkspaceId
+          resolvedWorkspaceId,
+          actualChatId
         )
         agentContexts = processed
         logger.info(`[${tracker.requestId}] Contexts processed for request`, {
@@ -210,29 +234,6 @@ export async function POST(req: NextRequest) {
         }
       } catch (e) {
         logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
-      }
-    }
-
-    let currentChat: any = null
-    let conversationHistory: any[] = []
-    let actualChatId = chatId
-    const selectedModel = model || 'claude-opus-4-5'
-
-    if (chatId || createNewChat) {
-      const chatResult = await resolveOrCreateChat({
-        chatId,
-        userId: authenticatedUserId,
-        workflowId,
-        model: selectedModel,
-      })
-      currentChat = chatResult.chat
-      actualChatId = chatResult.chatId || chatId
-      conversationHistory = Array.isArray(chatResult.conversationHistory)
-        ? chatResult.conversationHistory
-        : []
-
-      if (chatId && !currentChat) {
-        return createBadRequestResponse('Chat not found')
       }
     }
 
@@ -316,10 +317,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (stream) {
+      const executionId = crypto.randomUUID()
+      const runId = crypto.randomUUID()
       const sseStream = createSSEStream({
         requestPayload,
         userId: authenticatedUserId,
         streamId: userMessageIdToUse,
+        executionId,
+        runId,
         chatId: actualChatId,
         currentChat,
         isNewChat: conversationHistory.length === 0,
@@ -332,6 +337,8 @@ export async function POST(req: NextRequest) {
           userId: authenticatedUserId,
           workflowId,
           chatId: actualChatId,
+          executionId,
+          runId,
           goRoute: '/api/copilot',
           autoExecuteTools: true,
           interactive: true,

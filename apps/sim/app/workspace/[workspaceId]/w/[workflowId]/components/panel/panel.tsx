@@ -31,12 +31,12 @@ import {
   Trash,
 } from '@/components/emcn'
 import { Lock, Unlock, Upload } from '@/components/emcn/icons'
-import { Trash as TrashIcon } from '@/components/emcn/icons/trash'
 import { VariableIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
-import { MessageActions } from '@/app/workspace/[workspaceId]/components'
+import { ConversationListItem, MessageActions } from '@/app/workspace/[workspaceId]/components'
 import {
+  assistantMessageHasRenderableContent,
   MessageContent,
   QueuedMessages,
   UserInput,
@@ -220,7 +220,7 @@ export const Panel = memo(function Panel() {
   const [copilotChatId, setCopilotChatId] = useState<string | undefined>(undefined)
   const [copilotChatTitle, setCopilotChatTitle] = useState<string | null>(null)
   const [copilotChatList, setCopilotChatList] = useState<
-    { id: string; title: string | null; updatedAt: string }[]
+    { id: string; title: string | null; updatedAt: string; conversationId: string | null }[]
   >([])
   const [isCopilotHistoryOpen, setIsCopilotHistoryOpen] = useState(false)
 
@@ -236,7 +236,12 @@ export const Panel = memo(function Panel() {
         const allChats = Array.isArray(data?.chats) ? data.chats : []
         const filtered = allChats.filter(
           (c: { workflowId?: string }) => c.workflowId === activeWorkflowId
-        )
+        ) as Array<{
+          id: string
+          title: string | null
+          updatedAt: string
+          conversationId: string | null
+        }>
         setCopilotChatList(filtered)
 
         const currentId = copilotChatIdRef.current
@@ -259,11 +264,6 @@ export const Panel = memo(function Panel() {
     copilotInitialLoadDoneRef.current = false
     loadCopilotChats()
   }, [loadCopilotChats])
-
-  const handleCopilotNewChat = useCallback(() => {
-    setCopilotChatId(undefined)
-    setCopilotChatTitle(null)
-  }, [])
 
   const handleCopilotSelectChat = useCallback((chat: { id: string; title: string | null }) => {
     setCopilotChatId(chat.id)
@@ -323,6 +323,26 @@ export const Panel = memo(function Panel() {
     onToolResult,
     onTitleUpdate: loadCopilotChats,
   })
+
+  const handleCopilotNewChat = useCallback(() => {
+    if (!activeWorkflowId || !workspaceId) return
+    fetch('/api/copilot/chats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspaceId, workflowId: activeWorkflowId }),
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('create chat failed'))))
+      .then((data: { id?: string }) => {
+        if (data?.id) {
+          setCopilotChatId(data.id)
+          setCopilotChatTitle(null)
+          loadCopilotChats()
+        }
+      })
+      .catch((err) => {
+        logger.error('Failed to create copilot chat', err)
+      })
+  }, [activeWorkflowId, workspaceId, loadCopilotChats])
 
   const prevResolvedRef = useRef<string | undefined>(undefined)
   useEffect(() => {
@@ -743,24 +763,28 @@ export const Panel = memo(function Panel() {
                                     active={copilotChatId === chat.id}
                                     onClick={() => handleCopilotSelectChat(chat)}
                                   >
-                                    <span className='min-w-0 flex-1 truncate'>
-                                      {chat.title || 'New Chat'}
-                                    </span>
-                                    <div
-                                      className={`flex flex-shrink-0 items-center gap-[4px] ${copilotChatId !== chat.id ? 'opacity-0 transition-opacity group-hover:opacity-100' : ''}`}
-                                    >
-                                      <Button
-                                        variant='ghost'
-                                        className='h-[16px] w-[16px] p-0'
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          handleCopilotDeleteChat(chat.id)
-                                        }}
-                                        aria-label='Delete chat'
-                                      >
-                                        <TrashIcon className='h-[10px] w-[10px]' />
-                                      </Button>
-                                    </div>
+                                    <ConversationListItem
+                                      title={chat.title || 'New Chat'}
+                                      isActive={Boolean(chat.conversationId)}
+                                      titleClassName='text-[13px]'
+                                      actions={
+                                        <div
+                                          className={`flex flex-shrink-0 items-center gap-[4px] ${copilotChatId !== chat.id ? 'opacity-0 transition-opacity group-hover:opacity-100' : ''}`}
+                                        >
+                                          <Button
+                                            variant='ghost'
+                                            className='h-[16px] w-[16px] p-0'
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleCopilotDeleteChat(chat.id)
+                                            }}
+                                            aria-label='Delete chat'
+                                          >
+                                            <Trash className='h-[10px] w-[10px]' />
+                                          </Button>
+                                        </div>
+                                      }
+                                    />
                                   </PopoverItem>
                                 </div>
                               ))}
@@ -788,16 +812,26 @@ export const Panel = memo(function Panel() {
                         )
                       }
 
-                      const hasBlocks = msg.contentBlocks && msg.contentBlocks.length > 0
+                      const hasAnyBlocks = Boolean(msg.contentBlocks?.length)
+                      const hasRenderableAssistant = assistantMessageHasRenderableContent(
+                        msg.contentBlocks ?? [],
+                        msg.content ?? ''
+                      )
                       const isLastAssistant =
                         msg.role === 'assistant' && index === copilotMessages.length - 1
                       const isThisStreaming = copilotIsSending && isLastAssistant
 
-                      if (!hasBlocks && !msg.content && isThisStreaming) {
+                      if (
+                        !hasAnyBlocks &&
+                        !msg.content?.trim() &&
+                        isThisStreaming
+                      ) {
                         return <PendingTagIndicator key={msg.id} />
                       }
 
-                      if (!hasBlocks && !msg.content) return null
+                      if (!hasRenderableAssistant && !msg.content?.trim() && !isThisStreaming) {
+                        return null
+                      }
 
                       const isLastMessage = index === copilotMessages.length - 1
 

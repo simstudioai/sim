@@ -40,10 +40,13 @@ export interface StreamLoopOptions extends OrchestratorOptions {
 export function createStreamingContext(overrides?: Partial<StreamingContext>): StreamingContext {
   return {
     chatId: undefined,
+    executionId: undefined,
+    runId: undefined,
     messageId: crypto.randomUUID(),
     accumulatedContent: '',
     contentBlocks: [],
     toolCalls: new Map(),
+    pendingToolPromises: new Map(),
     currentThinkingBlock: null,
     isInThinkingBlock: false,
     subAgentParentToolCallId: undefined,

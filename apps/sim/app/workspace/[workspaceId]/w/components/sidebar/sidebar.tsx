@@ -38,6 +38,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
+import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
 import {
   CollapsedFolderItems,
   CollapsedSidebarMenu,
@@ -1159,16 +1160,11 @@ export const Sidebar = memo(function Sidebar() {
                         tasks.map((task) => (
                           <DropdownMenuItem key={task.id} asChild>
                             <Link href={task.href}>
-                              <span className='relative flex-shrink-0'>
-                                <Blimp className='h-[16px] w-[16px]' />
-                                {task.isActive && (
-                                  <span className='-bottom-[1px] -right-[1px] absolute h-[6px] w-[6px] rounded-full border border-[var(--surface-1)] bg-amber-400' />
-                                )}
-                                {!task.isActive && task.isUnread && (
-                                  <span className='-bottom-[1px] -right-[1px] absolute h-[6px] w-[6px] rounded-full border border-[var(--surface-1)] bg-[#33C482]' />
-                                )}
-                              </span>
-                              <span>{task.name}</span>
+                              <ConversationListItem
+                                title={task.name}
+                                isActive={task.isActive}
+                                isUnread={task.isUnread}
+                              />
                             </Link>
                           </DropdownMenuItem>
                         ))

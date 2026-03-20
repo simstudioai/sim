@@ -9,7 +9,7 @@ import { authenticateV1Request } from '@/app/api/v1/auth'
 export const maxDuration = 3600
 
 const logger = createLogger('CopilotHeadlessAPI')
-const DEFAULT_COPILOT_MODEL = 'claude-opus-4-5'
+const DEFAULT_COPILOT_MODEL = 'claude-opus-4-6'
 
 const RequestSchema = z.object({
   message: z.string().min(1, 'message is required'),

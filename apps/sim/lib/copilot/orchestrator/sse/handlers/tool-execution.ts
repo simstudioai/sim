@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import { completeAsyncToolCall, markAsyncToolRunning } from '@/lib/copilot/async-runs/repository'
 import {
   TOOL_DECISION_INITIAL_POLL_MS,
   TOOL_DECISION_MAX_POLL_MS,
@@ -202,6 +203,28 @@ async function maybeWriteOutputToFile(
 
 const MAX_OUTPUT_TABLE_ROWS = 10_000
 const BATCH_CHUNK_SIZE = 500
+
+export interface AsyncToolCompletion {
+  status: string
+  message?: string
+  data?: Record<string, unknown>
+}
+
+function abortRequested(
+  context: StreamingContext,
+  execContext: ExecutionContext,
+  options?: OrchestratorOptions
+): boolean {
+  return Boolean(options?.abortSignal?.aborted || execContext.abortSignal?.aborted || context.wasAborted)
+}
+
+function cancelledCompletion(message: string): AsyncToolCompletion {
+  return {
+    status: 'cancelled',
+    message,
+    data: { cancelled: true },
+  }
+}
 
 async function maybeWriteOutputToTable(
   toolName: string,
@@ -426,17 +449,27 @@ export async function executeToolAndReport(
   context: StreamingContext,
   execContext: ExecutionContext,
   options?: OrchestratorOptions
-): Promise<void> {
+): Promise<AsyncToolCompletion> {
   const toolCall = context.toolCalls.get(toolCallId)
-  if (!toolCall) return
+  if (!toolCall) return { status: 'error', message: 'Tool call not found' }
 
-  if (toolCall.status === 'executing') return
-  if (wasToolResultSeen(toolCall.id)) return
+  if (toolCall.status === 'executing') {
+    return { status: 'running', message: 'Tool already executing' }
+  }
+  if (wasToolResultSeen(toolCall.id)) {
+    return { status: 'success', message: 'Tool result already processed' }
+  }
 
-  if (options?.abortSignal?.aborted || context.wasAborted) {
+  if (abortRequested(context, execContext, options)) {
     toolCall.status = 'cancelled'
     toolCall.endTime = Date.now()
     markToolResultSeen(toolCall.id)
+    await completeAsyncToolCall({
+      toolCallId: toolCall.id,
+      status: 'cancelled',
+      result: { cancelled: true },
+      error: 'Request aborted before tool execution',
+    }).catch(() => {})
     markToolComplete(
       toolCall.id,
       toolCall.name,
@@ -449,10 +482,11 @@ export async function executeToolAndReport(
         error: err instanceof Error ? err.message : String(err),
       })
     })
-    return
+    return cancelledCompletion('Request aborted before tool execution')
   }
 
   toolCall.status = 'executing'
+  await markAsyncToolRunning(toolCall.id, 'sim-stream').catch(() => {})
 
   logger.info('Tool execution started', {
     toolCallId: toolCall.id,
@@ -462,9 +496,57 @@ export async function executeToolAndReport(
 
   try {
     let result = await executeToolServerSide(toolCall, execContext)
+    if (abortRequested(context, execContext, options)) {
+      toolCall.status = 'cancelled'
+      toolCall.endTime = Date.now()
+      markToolResultSeen(toolCall.id)
+      await completeAsyncToolCall({
+        toolCallId: toolCall.id,
+        status: 'cancelled',
+        result: { cancelled: true },
+        error: 'Request aborted during tool execution',
+      }).catch(() => {})
+      return cancelledCompletion('Request aborted during tool execution')
+    }
     result = await maybeWriteOutputToFile(toolCall.name, toolCall.params, result, execContext)
+    if (abortRequested(context, execContext, options)) {
+      toolCall.status = 'cancelled'
+      toolCall.endTime = Date.now()
+      markToolResultSeen(toolCall.id)
+      await completeAsyncToolCall({
+        toolCallId: toolCall.id,
+        status: 'cancelled',
+        result: { cancelled: true },
+        error: 'Request aborted during tool post-processing',
+      }).catch(() => {})
+      return cancelledCompletion('Request aborted during tool post-processing')
+    }
     result = await maybeWriteOutputToTable(toolCall.name, toolCall.params, result, execContext)
+    if (abortRequested(context, execContext, options)) {
+      toolCall.status = 'cancelled'
+      toolCall.endTime = Date.now()
+      markToolResultSeen(toolCall.id)
+      await completeAsyncToolCall({
+        toolCallId: toolCall.id,
+        status: 'cancelled',
+        result: { cancelled: true },
+        error: 'Request aborted during tool post-processing',
+      }).catch(() => {})
+      return cancelledCompletion('Request aborted during tool post-processing')
+    }
     result = await maybeWriteReadCsvToTable(toolCall.name, toolCall.params, result, execContext)
+    if (abortRequested(context, execContext, options)) {
+      toolCall.status = 'cancelled'
+      toolCall.endTime = Date.now()
+      markToolResultSeen(toolCall.id)
+      await completeAsyncToolCall({
+        toolCallId: toolCall.id,
+        status: 'cancelled',
+        result: { cancelled: true },
+        error: 'Request aborted during tool post-processing',
+      }).catch(() => {})
+      return cancelledCompletion('Request aborted during tool post-processing')
+    }
     toolCall.status = result.success ? 'success' : 'error'
     toolCall.result = result
     toolCall.error = result.error
@@ -501,6 +583,17 @@ export async function executeToolAndReport(
     }
 
     markToolResultSeen(toolCall.id)
+    await completeAsyncToolCall({
+      toolCallId: toolCall.id,
+      status: result.success ? 'completed' : 'failed',
+      result: result.success ? asRecord(result.output) : { error: result.error || 'Tool failed' },
+      error: result.success ? null : result.error || 'Tool failed',
+    }).catch(() => {})
+
+    if (abortRequested(context, execContext, options)) {
+      toolCall.status = 'cancelled'
+      return cancelledCompletion('Request aborted before tool result delivery')
+    }
 
     // Fire-and-forget: notify the copilot backend that the tool completed.
     // IMPORTANT: We must NOT await this — the Go backend may block on the
@@ -536,6 +629,11 @@ export async function executeToolAndReport(
       },
     }
     await options?.onEvent?.(resultEvent)
+
+    if (abortRequested(context, execContext, options)) {
+      toolCall.status = 'cancelled'
+      return cancelledCompletion('Request aborted before resource persistence')
+    }
 
     if (result.success && execContext.chatId) {
       let isDeleteOp = false
@@ -589,7 +687,24 @@ export async function executeToolAndReport(
         }
       }
     }
+    return {
+      status: result.success ? 'success' : 'error',
+      message: result.error || (result.success ? 'Tool completed' : 'Tool failed'),
+      data: asRecord(result.output),
+    }
   } catch (error) {
+    if (abortRequested(context, execContext, options)) {
+      toolCall.status = 'cancelled'
+      toolCall.endTime = Date.now()
+      markToolResultSeen(toolCall.id)
+      await completeAsyncToolCall({
+        toolCallId: toolCall.id,
+        status: 'cancelled',
+        result: { cancelled: true },
+        error: 'Request aborted during tool execution',
+      }).catch(() => {})
+      return cancelledCompletion('Request aborted during tool execution')
+    }
     toolCall.status = 'error'
     toolCall.error = error instanceof Error ? error.message : String(error)
     toolCall.endTime = Date.now()
@@ -602,6 +717,12 @@ export async function executeToolAndReport(
     })
 
     markToolResultSeen(toolCall.id)
+    await completeAsyncToolCall({
+      toolCallId: toolCall.id,
+      status: 'failed',
+      result: { error: toolCall.error },
+      error: toolCall.error,
+    }).catch(() => {})
 
     // Fire-and-forget (same reasoning as above).
     // Pass error as structured data so the Go side can surface it to the LLM.
@@ -626,6 +747,11 @@ export async function executeToolAndReport(
       },
     }
     await options?.onEvent?.(errorEvent)
+    return {
+      status: 'error',
+      message: toolCall.error,
+      data: { error: toolCall.error },
+    }
   }
 }
 

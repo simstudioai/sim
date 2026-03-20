@@ -1,5 +1,9 @@
 import { createLogger } from '@sim/logger'
-import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import {
+  assertServerToolNotAborted,
+  type BaseServerTool,
+  type ServerToolContext,
+} from '@/lib/copilot/tools/server/base-tool'
 import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-metadata-tool'
 import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/get-trigger-blocks'
 import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
@@ -111,8 +115,12 @@ export async function routeExecution(
     }
   }
 
+  assertServerToolNotAborted(context)
+
   // Validate input if tool declares a schema
   const args = tool.inputSchema ? tool.inputSchema.parse(payload ?? {}) : (payload ?? {})
+
+  assertServerToolNotAborted(context)
 
   // Execute
   const result = await tool.execute(args, context)

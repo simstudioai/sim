@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
+import { upsertAsyncToolCall } from '@/lib/copilot/async-runs/repository'
 import {
   asRecord,
   getEventData,
@@ -337,7 +338,31 @@ export const sseHandlers: Record<string, SSEHandler> = {
     // same LLM turn execute concurrently. executeToolAndReport is self-contained:
     // it updates tool state, calls markToolComplete, and emits result events.
     const fireToolExecution = () => {
-      executeToolAndReport(toolCallId, context, execContext, options).catch((err) => {
+      void upsertAsyncToolCall({
+        runId: context.runId || crypto.randomUUID(),
+        toolCallId,
+        toolName,
+        args,
+      }).catch(() => {})
+      const pendingPromise = executeToolAndReport(toolCallId, context, execContext, options).catch(
+        (err) => {
+          logger.error('Parallel tool execution failed', {
+            toolCallId,
+            toolName,
+            error: err instanceof Error ? err.message : String(err),
+          })
+          return {
+            status: 'error',
+            message: err instanceof Error ? err.message : String(err),
+            data: { error: err instanceof Error ? err.message : String(err) },
+          }
+        }
+      )
+      context.pendingToolPromises.set(toolCallId, pendingPromise)
+      pendingPromise.finally(() => {
+        context.pendingToolPromises.delete(toolCallId)
+      })
+      pendingPromise.catch((err) => {
         logger.error('Parallel tool execution failed', {
           toolCallId,
           toolName,
@@ -498,6 +523,19 @@ export const sseHandlers: Record<string, SSEHandler> = {
   },
   done: (event, context) => {
     const d = asRecord(event.data)
+    const response = asRecord(d.response)
+    const asyncPause = asRecord(response.async_pause)
+    if (asyncPause.checkpointId) {
+      context.awaitingAsyncContinuation = {
+        checkpointId: String(asyncPause.checkpointId),
+        executionId:
+          typeof asyncPause.executionId === 'string' ? asyncPause.executionId : context.executionId,
+        runId: typeof asyncPause.runId === 'string' ? asyncPause.runId : context.runId,
+        pendingToolCallIds: Array.isArray(asyncPause.pendingToolCallIds)
+          ? asyncPause.pendingToolCallIds.map((id) => String(id))
+          : [],
+      }
+    }
     if (d.usage) {
       const u = asRecord(d.usage)
       context.usage = {
@@ -599,7 +637,31 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     }
 
     const fireToolExecution = () => {
-      executeToolAndReport(toolCallId, context, execContext, options).catch((err) => {
+      void upsertAsyncToolCall({
+        runId: context.runId || crypto.randomUUID(),
+        toolCallId,
+        toolName,
+        args,
+      }).catch(() => {})
+      const pendingPromise = executeToolAndReport(toolCallId, context, execContext, options).catch(
+        (err) => {
+          logger.error('Parallel subagent tool execution failed', {
+            toolCallId,
+            toolName,
+            error: err instanceof Error ? err.message : String(err),
+          })
+          return {
+            status: 'error',
+            message: err instanceof Error ? err.message : String(err),
+            data: { error: err instanceof Error ? err.message : String(err) },
+          }
+        }
+      )
+      context.pendingToolPromises.set(toolCallId, pendingPromise)
+      pendingPromise.finally(() => {
+        context.pendingToolPromises.delete(toolCallId)
+      })
+      pendingPromise.catch((err) => {
         logger.error('Parallel subagent tool execution failed', {
           toolCallId,
           toolName,
