@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { PillsRing } from '@/components/emcn'
 import type { ToolCallResult, ToolCallStatus } from '../../../../types'
 import { getToolIcon } from '../../utils'
@@ -20,9 +20,30 @@ const CARD_TOOLS = new Set<string>([
   'fast_edit',
   'custom_tool',
   'research',
-  'agent',
   'job',
 ])
+
+/**
+ * Extract a readable preview from partial tool-call JSON.
+ * For workspace_file, pulls out the "content" field value.
+ * For other tools, returns the raw accumulated JSON.
+ */
+function extractStreamingPreview(toolName: string, raw: string): string {
+  if (toolName === 'workspace_file') {
+    const marker = '"content":'
+    const idx = raw.indexOf(marker)
+    if (idx === -1) return ''
+    let rest = raw.slice(idx + marker.length).trimStart()
+    if (rest.startsWith('"')) rest = rest.slice(1)
+    // Unescape common JSON escape sequences for display
+    return rest
+      .replace(/\\n/g, '\n')
+      .replace(/\\t/g, '\t')
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, '\\')
+  }
+  return raw
+}
 
 function CircleCheck({ className }: { className?: string }) {
   return (
@@ -110,9 +131,16 @@ interface ToolCallItemProps {
   displayTitle: string
   status: ToolCallStatus
   result?: ToolCallResult
+  streamingArgs?: string
 }
 
-export function ToolCallItem({ toolName, displayTitle, status, result }: ToolCallItemProps) {
+export function ToolCallItem({
+  toolName,
+  displayTitle,
+  status,
+  result,
+  streamingArgs,
+}: ToolCallItemProps) {
   const showCard =
     CARD_TOOLS.has(toolName) &&
     status === 'success' &&
@@ -123,7 +151,60 @@ export function ToolCallItem({ toolName, displayTitle, status, result }: ToolCal
     return <ToolCallCard toolName={toolName} displayTitle={displayTitle} result={result!} />
   }
 
+  if (streamingArgs && status === 'executing') {
+    return (
+      <StreamingToolCard
+        toolName={toolName}
+        displayTitle={displayTitle}
+        streamingArgs={streamingArgs}
+      />
+    )
+  }
+
   return <FlatToolLine toolName={toolName} displayTitle={displayTitle} status={status} />
+}
+
+function StreamingToolCard({
+  toolName,
+  displayTitle,
+  streamingArgs,
+}: {
+  toolName: string
+  displayTitle: string
+  streamingArgs: string
+}) {
+  const preview = useMemo(
+    () => extractStreamingPreview(toolName, streamingArgs),
+    [toolName, streamingArgs]
+  )
+  const scrollRef = useRef<HTMLPreElement>(null)
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [preview])
+
+  return (
+    <div className='pl-[24px]'>
+      <div className='overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--surface-3)]'>
+        <div className='flex items-center gap-[8px] px-[10px] py-[6px]'>
+          <PillsRing className='h-[15px] w-[15px] text-[var(--text-tertiary)]' animate />
+          <span className='font-base text-[13px] text-[var(--text-secondary)]'>{displayTitle}</span>
+        </div>
+        {preview && (
+          <div className='border-[var(--border)] border-t px-[10px] py-[6px]'>
+            <pre
+              ref={scrollRef}
+              className='max-h-[200px] overflow-y-auto whitespace-pre-wrap break-all font-mono text-[12px] text-[var(--text-body)] leading-[1.5]'
+            >
+              {preview}
+              <span className='inline-block h-[14px] w-[1px] animate-pulse bg-[var(--text-tertiary)]' />
+            </pre>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function ToolCallCard({
