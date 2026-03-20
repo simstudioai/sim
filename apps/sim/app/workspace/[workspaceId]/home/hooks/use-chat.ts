@@ -70,6 +70,7 @@ export interface UseChatReturn {
   removeFromQueue: (id: string) => void
   sendNow: (id: string) => Promise<void>
   editQueuedMessage: (id: string) => QueuedMessage | undefined
+  streamingFile: { fileName: string; content: string } | null
 }
 
 const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
@@ -249,6 +250,12 @@ function extractResourceFromReadResult(
 
 export interface UseChatOptions {
   onResourceEvent?: () => void
+  apiPath?: string
+  stopPath?: string
+  workflowId?: string
+  onToolResult?: (toolName: string, success: boolean, result: unknown) => void
+  onTitleUpdate?: () => void
+  onStreamEnd?: (chatId: string, messages: ChatMessage[]) => void
 }
 
 export function useChat(
@@ -267,6 +274,18 @@ export function useChat(
   const [activeResourceId, setActiveResourceId] = useState<string | null>(null)
   const onResourceEventRef = useRef(options?.onResourceEvent)
   onResourceEventRef.current = options?.onResourceEvent
+  const apiPathRef = useRef(options?.apiPath ?? MOTHERSHIP_CHAT_API_PATH)
+  apiPathRef.current = options?.apiPath ?? MOTHERSHIP_CHAT_API_PATH
+  const stopPathRef = useRef(options?.stopPath ?? '/api/mothership/chat/stop')
+  stopPathRef.current = options?.stopPath ?? '/api/mothership/chat/stop'
+  const workflowIdRef = useRef(options?.workflowId)
+  workflowIdRef.current = options?.workflowId
+  const onToolResultRef = useRef(options?.onToolResult)
+  onToolResultRef.current = options?.onToolResult
+  const onTitleUpdateRef = useRef(options?.onTitleUpdate)
+  onTitleUpdateRef.current = options?.onTitleUpdate
+  const onStreamEndRef = useRef(options?.onStreamEnd)
+  onStreamEndRef.current = options?.onStreamEnd
   const resourcesRef = useRef(resources)
   resourcesRef.current = resources
 
@@ -281,6 +300,13 @@ export function useChat(
 
   const activeResourceIdRef = useRef(effectiveActiveResourceId)
   activeResourceIdRef.current = effectiveActiveResourceId
+
+  const [streamingFile, setStreamingFile] = useState<{
+    fileName: string
+    content: string
+  } | null>(null)
+  const streamingFileRef = useRef(streamingFile)
+  streamingFileRef.current = streamingFile
 
   const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
   const messageQueueRef = useRef<QueuedMessage[]>([])
@@ -298,6 +324,9 @@ export function useChat(
 
   const abortControllerRef = useRef<AbortController | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
+  /** Panel/task selection — drives createNewChat + request chatId; may differ from chatIdRef while a stream is still finishing. */
+  const selectedChatIdRef = useRef<string | undefined>(initialChatId)
+  selectedChatIdRef.current = initialChatId
   const appliedChatIdRef = useRef<string | undefined>(undefined)
   const pendingUserMsgRef = useRef<{ id: string; content: string } | null>(null)
   const streamIdRef = useRef<string | undefined>(undefined)
@@ -322,12 +351,17 @@ export function useChat(
     })
     setActiveResourceId(resource.id)
 
-    const currentChatId = chatIdRef.current
-    if (currentChatId) {
+    // Ephemeral UI tab — must not be stored; it would reappear as "Writing file..." after refresh.
+    if (resource.id === 'streaming-file') {
+      return true
+    }
+
+    const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
+    if (persistChatId) {
       fetch('/api/copilot/chat/resources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId: currentChatId, resource }),
+        body: JSON.stringify({ chatId: persistChatId, resource }),
       }).catch((err) => {
         logger.warn('Failed to persist resource', err)
       })
@@ -345,10 +379,27 @@ export function useChat(
 
   useEffect(() => {
     if (sendingRef.current) {
-      chatIdRef.current = initialChatId
-      setResolvedChatId(initialChatId)
-      setMessageQueue([])
-      return
+      const streamOwnerId = chatIdRef.current
+      const navigatedToDifferentChat =
+        initialChatId !== streamOwnerId &&
+        (initialChatId !== undefined || streamOwnerId !== undefined)
+
+      if (navigatedToDifferentChat) {
+        const abandonedChatId = streamOwnerId
+        // Detach the current UI from the old stream without cancelling it on the server.
+        // Reopening that chat later will reconnect through the existing chatHistory flow.
+        streamGenRef.current++
+        abortControllerRef.current = null
+        sendingRef.current = false
+        setIsSending(false)
+        if (abandonedChatId) {
+          queryClient.invalidateQueries({ queryKey: taskKeys.detail(abandonedChatId) })
+        }
+      } else {
+        setResolvedChatId(initialChatId)
+        setMessageQueue([])
+        return
+      }
     }
     chatIdRef.current = initialChatId
     setResolvedChatId(initialChatId)
@@ -360,9 +411,10 @@ export function useChat(
     setResources([])
     setActiveResourceId(null)
     setMessageQueue([])
-  }, [initialChatId])
+  }, [initialChatId, queryClient])
 
   useEffect(() => {
+    if (workflowIdRef.current) return
     if (!isHomePage || !chatIdRef.current) return
     streamGenRef.current++
     chatIdRef.current = undefined
@@ -395,14 +447,30 @@ export function useChat(
     const mappedMessages = chatHistory.messages.map(mapStoredMessage)
     setMessages(mappedMessages)
 
-    if (chatHistory.resources.length > 0) {
-      setResources(chatHistory.resources)
-      setActiveResourceId(chatHistory.resources[chatHistory.resources.length - 1].id)
+    if (chatHistory.resources.some((r) => r.id === 'streaming-file')) {
+      fetch('/api/copilot/chat/resources', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chatId: chatHistory.id,
+          resourceType: 'file',
+          resourceId: 'streaming-file',
+        }),
+      }).catch(() => {})
+    }
 
-      for (const resource of chatHistory.resources) {
+    const persistedResources = chatHistory.resources.filter((r) => r.id !== 'streaming-file')
+    if (persistedResources.length > 0) {
+      setResources(persistedResources)
+      setActiveResourceId(persistedResources[persistedResources.length - 1].id)
+
+      for (const resource of persistedResources) {
         if (resource.type !== 'workflow') continue
         ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)
       }
+    } else if (chatHistory.resources.some((r) => r.id === 'streaming-file')) {
+      setResources([])
+      setActiveResourceId(null)
     }
 
     if (activeStreamId && !sendingRef.current) {
@@ -426,7 +494,7 @@ export function useChat(
           if (batchEvents.length === 0 && streamStatus === 'unknown') {
             const cid = chatIdRef.current
             if (cid) {
-              fetch('/api/mothership/chat/stop', {
+              fetch(stopPathRef.current, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ chatId: cid, streamId: activeStreamId, content: '' }),
@@ -503,6 +571,7 @@ export function useChat(
       const toolArgsMap = new Map<string, Record<string, unknown>>()
       const clientExecutionStarted = new Set<string>()
       let activeSubagent: string | undefined
+      let activeCompactionId: string | undefined
       let runningText = ''
       let lastContentSource: 'main' | 'subagent' | null = null
       let streamRequestId: string | undefined
@@ -554,6 +623,7 @@ export function useChat(
         buffer = lines.pop() || ''
 
         for (const line of lines) {
+          if (isStale()) break
           if (!line.startsWith('data: ')) continue
           const raw = line.slice(6)
 
@@ -570,7 +640,14 @@ export function useChat(
               if (parsed.chatId) {
                 const isNewChat = !chatIdRef.current
                 chatIdRef.current = parsed.chatId
-                setResolvedChatId(parsed.chatId)
+                const selected = selectedChatIdRef.current
+                if (selected == null) {
+                  if (isNewChat) {
+                    setResolvedChatId(parsed.chatId)
+                  }
+                } else if (parsed.chatId === selected) {
+                  setResolvedChatId(parsed.chatId)
+                }
                 queryClient.invalidateQueries({
                   queryKey: taskKeys.list(workspaceId),
                 })
@@ -592,11 +669,13 @@ export function useChat(
                       resources: [],
                     })
                   }
-                  window.history.replaceState(
-                    null,
-                    '',
-                    `/workspace/${workspaceId}/task/${parsed.chatId}`
-                  )
+                  if (!workflowIdRef.current) {
+                    window.history.replaceState(
+                      null,
+                      '',
+                      `/workspace/${workspaceId}/task/${parsed.chatId}`
+                    )
+                  }
                 }
               }
               break
@@ -701,6 +780,49 @@ export function useChat(
               }
               break
             }
+            case 'tool_call_delta': {
+              const id = parsed.toolCallId
+              const delta = typeof parsed.data === 'string' ? parsed.data : ''
+              if (!id || !delta) break
+
+              const toolName = typeof parsed.toolName === 'string' ? parsed.toolName : ''
+              const streamWorkspaceFile =
+                activeSubagent === 'file_write' || toolName === 'workspace_file'
+
+              if (streamWorkspaceFile) {
+                let prev = streamingFileRef.current
+                if (!prev) {
+                  prev = { fileName: '', content: '' }
+                  streamingFileRef.current = prev
+                  setStreamingFile(prev)
+                  if (toolName === 'workspace_file' && activeSubagent !== 'file_write') {
+                    addResource({ type: 'file', id: 'streaming-file', title: 'Writing file...' })
+                  }
+                }
+                const raw = prev.content + delta
+                let fileName = prev.fileName
+                if (!fileName) {
+                  const m = raw.match(/"fileName"\s*:\s*"([^"]+)"/)
+                  if (m) {
+                    fileName = m[1]
+                    setResources((rs) =>
+                      rs.map((r) => (r.id === 'streaming-file' ? { ...r, title: fileName } : r))
+                    )
+                  }
+                }
+                const next = { fileName, content: raw }
+                streamingFileRef.current = next
+                setStreamingFile(next)
+              }
+
+              const idx = toolMap.get(id)
+              if (idx !== undefined && blocks[idx].toolCall) {
+                const tc = blocks[idx].toolCall!
+                tc.streamingArgs = (tc.streamingArgs ?? '') + delta
+                flush()
+              }
+              break
+            }
             case 'tool_result': {
               const id = parsed.toolCallId || getPayloadData(parsed)?.id
               if (!id) break
@@ -726,6 +848,7 @@ export function useChat(
                 } else {
                   tc.status = parsed.success ? 'success' : 'error'
                 }
+                tc.streamingArgs = undefined
                 tc.result = {
                   success: !!parsed.success,
                   output: parsed.result ?? getPayloadData(parsed)?.result,
@@ -771,14 +894,36 @@ export function useChat(
                   }
                 }
 
-                if (tc.status === 'success' && isResourceToolName(tc.name)) {
-                  const resources = extractResourcesFromToolResult(
-                    tc.name,
-                    toolArgsMap.get(id) as Record<string, unknown> | undefined,
-                    tc.result?.output
-                  )
-                  for (const resource of resources) {
-                    invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
+                const extractedResources =
+                  tc.status === 'success' && isResourceToolName(tc.name)
+                    ? extractResourcesFromToolResult(
+                        tc.name,
+                        toolArgsMap.get(id) as Record<string, unknown> | undefined,
+                        tc.result?.output
+                      )
+                    : []
+
+                for (const resource of extractedResources) {
+                  invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
+                }
+
+                onToolResultRef.current?.(tc.name, tc.status === 'success', tc.result?.output)
+
+                if (tc.name === 'workspace_file') {
+                  setStreamingFile(null)
+                  streamingFileRef.current = null
+
+                  const fileResource = extractedResources.find((r) => r.type === 'file')
+                  if (fileResource) {
+                    setResources((rs) => {
+                      const without = rs.filter((r) => r.id !== 'streaming-file')
+                      if (without.some((r) => r.type === 'file' && r.id === fileResource.id))
+                        return without
+                      return [...without, fileResource]
+                    })
+                    setActiveResourceId(fileResource.id)
+                  } else {
+                    setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
                   }
                 }
               }
@@ -825,6 +970,44 @@ export function useChat(
               }
               break
             }
+            case 'context_compaction_start': {
+              const compactionId = `compaction_${Date.now()}`
+              activeCompactionId = compactionId
+              toolMap.set(compactionId, blocks.length)
+              blocks.push({
+                type: 'tool_call',
+                toolCall: {
+                  id: compactionId,
+                  name: 'context_compaction',
+                  status: 'executing',
+                  displayTitle: 'Compacting context...',
+                },
+              })
+              flush()
+              break
+            }
+            case 'context_compaction': {
+              const compactionId = activeCompactionId || `compaction_${Date.now()}`
+              activeCompactionId = undefined
+              const idx = toolMap.get(compactionId)
+              if (idx !== undefined && blocks[idx]?.toolCall) {
+                blocks[idx].toolCall!.status = 'success'
+                blocks[idx].toolCall!.displayTitle = 'Compacted context'
+              } else {
+                toolMap.set(compactionId, blocks.length)
+                blocks.push({
+                  type: 'tool_call',
+                  toolCall: {
+                    id: compactionId,
+                    name: 'context_compaction',
+                    status: 'success',
+                    displayTitle: 'Compacted context',
+                  },
+                })
+              }
+              flush()
+              break
+            }
             case 'tool_error': {
               const id = parsed.toolCallId || getPayloadData(parsed)?.id
               if (!id) break
@@ -840,11 +1023,24 @@ export function useChat(
               if (name) {
                 activeSubagent = name
                 blocks.push({ type: 'subagent', content: name })
+                if (name === 'file_write') {
+                  const emptyFile = { fileName: '', content: '' }
+                  // Ref must be updated synchronously: tool_call_delta can arrive before React
+                  // re-renders after setStreamingFile, and the handler only appends when prev exists.
+                  streamingFileRef.current = emptyFile
+                  setStreamingFile(emptyFile)
+                  addResource({ type: 'file', id: 'streaming-file', title: 'Writing file...' })
+                }
                 flush()
               }
               break
             }
             case 'subagent_end': {
+              if (activeSubagent === 'file_write') {
+                setStreamingFile(null)
+                streamingFileRef.current = null
+                setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
+              }
               activeSubagent = undefined
               blocks.push({ type: 'subagent_end' })
               flush()
@@ -854,6 +1050,7 @@ export function useChat(
               queryClient.invalidateQueries({
                 queryKey: taskKeys.list(workspaceId),
               })
+              onTitleUpdateRef.current?.()
               break
             }
             case 'error': {
@@ -861,6 +1058,10 @@ export function useChat(
               break
             }
           }
+        }
+        if (isStale()) {
+          reader.cancel().catch(() => {})
+          break
         }
       }
     },
@@ -902,7 +1103,7 @@ export function useChat(
     }
 
     try {
-      const res = await fetch('/api/mothership/chat/stop', {
+      const res = await fetch(stopPathRef.current, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -931,12 +1132,22 @@ export function useChat(
     queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
   }, [workspaceId, queryClient])
 
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
+
   const finalize = useCallback(
     (options?: { error?: boolean }) => {
       sendingRef.current = false
       setIsSending(false)
       abortControllerRef.current = null
       invalidateChatQueries()
+
+      if (!options?.error) {
+        const cid = chatIdRef.current
+        if (cid && onStreamEndRef.current) {
+          onStreamEndRef.current(cid, messagesRef.current)
+        }
+      }
 
       if (options?.error) {
         setMessageQueue([])
@@ -995,14 +1206,15 @@ export function useChat(
             }))
           : undefined
 
-      if (chatIdRef.current) {
+      const requestChatId = selectedChatIdRef.current ?? chatIdRef.current
+      if (requestChatId) {
         const cachedUserMsg: TaskStoredMessage = {
           id: userMessageId,
           role: 'user' as const,
           content: message,
           ...(storedAttachments && { fileAttachments: storedAttachments }),
         }
-        queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(chatIdRef.current), (old) => {
+        queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(requestChatId), (old) => {
           return old
             ? {
                 ...old,
@@ -1052,18 +1264,19 @@ export function useChat(
               }))
             : undefined
 
-        const response = await fetch(MOTHERSHIP_CHAT_API_PATH, {
+        const response = await fetch(apiPathRef.current, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message,
             workspaceId,
             userMessageId,
-            createNewChat: !chatIdRef.current,
-            ...(chatIdRef.current ? { chatId: chatIdRef.current } : {}),
+            createNewChat: !requestChatId,
+            ...(requestChatId ? { chatId: requestChatId } : {}),
             ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
             ...(resourceAttachments ? { resourceAttachments } : {}),
             ...(contexts && contexts.length > 0 ? { contexts } : {}),
+            ...(workflowIdRef.current ? { workflowId: workflowIdRef.current } : {}),
             userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
           signal: abortController.signal,
@@ -1099,10 +1312,9 @@ export function useChat(
       while (!chatIdRef.current && sendingRef.current && Date.now() - start < 3000) {
         await new Promise((r) => setTimeout(r, 50))
       }
-      if (!chatIdRef.current) return
     }
 
-    if (sendingRef.current) {
+    if (sendingRef.current && chatIdRef.current) {
       await persistPartialResponse()
     }
     const sid =
@@ -1238,5 +1450,6 @@ export function useChat(
     removeFromQueue,
     sendNow,
     editQueuedMessage,
+    streamingFile,
   }
 }

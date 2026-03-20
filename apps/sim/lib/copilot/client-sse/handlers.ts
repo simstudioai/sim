@@ -790,8 +790,24 @@ export const sseHandlers: Record<string, SSEHandler> = {
       })
     }
   },
-  tool_call_delta: () => {
-    // Argument streaming delta — forwarded from Go, no client action yet
+  tool_call_delta: (data, context, get, set) => {
+    const toolCallId = data?.toolCallId
+    if (!toolCallId) return
+
+    const delta = typeof data?.data === 'string' ? data.data : ''
+    if (!delta) return
+
+    const { toolCallsById } = get()
+    const existing = toolCallsById[toolCallId]
+    if (!existing) return
+
+    const updated: CopilotToolCall = {
+      ...existing,
+      streamingArgs: (existing.streamingArgs ?? '') + delta,
+    }
+    set({ toolCallsById: { ...toolCallsById, [toolCallId]: updated } })
+    upsertToolCallBlock(context, updated)
+    updateStreamingMessage(set, context)
   },
   tool_generating: (data, context, get, set) => {
     const { toolCallId, toolName } = data
@@ -860,6 +876,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
           ...(args ? { params: args } : {}),
           ...(effectiveServerUI ? { serverUI: effectiveServerUI } : {}),
           ...(clientExecutable ? { clientExecutable: true } : {}),
+          ...(!isPartial ? { streamingArgs: undefined } : {}),
           display: resolveToolDisplay(
             toolName,
             initialState,
@@ -933,6 +950,43 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const chunk: string = typeof data?.data === 'string' ? data.data : data?.content || ''
     if (!chunk) return
     appendThinkingContent(context, chunk)
+    updateStreamingMessage(set, context)
+  },
+  context_compaction_start: (_data, context, get, set) => {
+    const id = `compaction_${Date.now()}`
+    context.activeCompactionId = id
+    const toolName = 'context_compaction'
+    const state = ClientToolCallState.executing
+    const tc: CopilotToolCall = {
+      id,
+      name: toolName,
+      state,
+      params: {},
+      display: resolveToolDisplay(toolName, state, id, {}),
+    }
+    const { toolCallsById } = get()
+    set({ toolCallsById: { ...toolCallsById, [id]: tc } })
+    upsertToolCallBlock(context, tc)
+    updateStreamingMessage(set, context)
+  },
+  context_compaction: (data, context, get, set) => {
+    const eventData = asRecord(data?.data)
+    const summaryChars = (eventData.summary_chars as number) || 0
+    const id = context.activeCompactionId || `compaction_${Date.now()}`
+    context.activeCompactionId = undefined
+    const toolName = 'context_compaction'
+    const state = ClientToolCallState.success
+    const params = { summary_chars: summaryChars }
+    const tc: CopilotToolCall = {
+      id,
+      name: toolName,
+      state,
+      params,
+      display: resolveToolDisplay(toolName, state, id, params),
+    }
+    const { toolCallsById } = get()
+    set({ toolCallsById: { ...toolCallsById, [id]: tc } })
+    upsertToolCallBlock(context, tc)
     updateStreamingMessage(set, context)
   },
   content: (data, context, get, set) => {

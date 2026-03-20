@@ -90,10 +90,22 @@ export interface ContentBlock {
 export interface StreamingContext {
   chatId?: string
   requestId?: string
+  executionId?: string
+  runId?: string
   messageId: string
   accumulatedContent: string
   contentBlocks: ContentBlock[]
   toolCalls: Map<string, ToolCallState>
+  pendingToolPromises: Map<
+    string,
+    Promise<{ status: string; message?: string; data?: Record<string, unknown> }>
+  >
+  awaitingAsyncContinuation?: {
+    checkpointId: string
+    executionId?: string
+    runId?: string
+    pendingToolCallIds: string[]
+  }
   currentThinkingBlock: ContentBlock | null
   isInThinkingBlock: boolean
   subAgentParentToolCallId?: string
@@ -178,6 +190,9 @@ export interface ExecutionContext {
   workflowId: string
   workspaceId?: string
   chatId?: string
+  executionId?: string
+  runId?: string
+  abortSignal?: AbortSignal
   userTimezone?: string
   userPermission?: string
   decryptedEnvVars?: Record<string, string>

@@ -4,7 +4,6 @@ import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/provide
 import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useNotificationStore } from '@/stores/notifications'
-import { useCopilotStore } from '@/stores/panel'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -25,15 +24,6 @@ export const DiffControls = memo(function DiffControls() {
     )
   )
 
-  const { updatePreviewToolCallState } = useCopilotStore(
-    useCallback(
-      (state) => ({
-        updatePreviewToolCallState: state.updatePreviewToolCallState,
-      }),
-      []
-    )
-  )
-
   const { activeWorkflowId } = useWorkflowRegistry(
     useCallback((state) => ({ activeWorkflowId: state.activeWorkflowId }), [])
   )
@@ -46,81 +36,21 @@ export const DiffControls = memo(function DiffControls() {
 
   const handleAccept = useCallback(() => {
     logger.info('Accepting proposed changes with backup protection')
-
-    // Resolve target toolCallId for build/edit and update to terminal success state in the copilot store
-    // This happens synchronously first for instant UI feedback
-    try {
-      const { toolCallsById, messages } = useCopilotStore.getState()
-      let id: string | undefined
-      outer: for (let mi = messages.length - 1; mi >= 0; mi--) {
-        const m = messages[mi]
-        if (m.role !== 'assistant' || !m.contentBlocks) continue
-        const blocks = m.contentBlocks as any[]
-        for (let bi = blocks.length - 1; bi >= 0; bi--) {
-          const b = blocks[bi]
-          if (b?.type === 'tool_call') {
-            const tn = b.toolCall?.name
-            if (tn === 'edit_workflow') {
-              id = b.toolCall?.id
-              break outer
-            }
-          }
-        }
-      }
-      if (!id) {
-        const candidates = Object.values(toolCallsById).filter((t) => t.name === 'edit_workflow')
-        id = candidates.length ? candidates[candidates.length - 1].id : undefined
-      }
-      if (id) updatePreviewToolCallState('accepted', id)
-    } catch {}
-
-    // Accept changes without blocking the UI; errors will be logged by the store handler
     acceptChanges().catch((error) => {
       logger.error('Failed to accept changes (background):', error)
     })
-
-    // Create checkpoint in the background (fire-and-forget) so it doesn't block UI
     logger.info('Accept triggered; UI will update optimistically')
-  }, [updatePreviewToolCallState, acceptChanges])
+  }, [acceptChanges])
 
   const handleReject = useCallback(() => {
     logger.info('Rejecting proposed changes (optimistic)')
-
-    // Resolve target toolCallId for build/edit and update to terminal rejected state in the copilot store
-    try {
-      const { toolCallsById, messages } = useCopilotStore.getState()
-      let id: string | undefined
-      outer: for (let mi = messages.length - 1; mi >= 0; mi--) {
-        const m = messages[mi]
-        if (m.role !== 'assistant' || !m.contentBlocks) continue
-        const blocks = m.contentBlocks as any[]
-        for (let bi = blocks.length - 1; bi >= 0; bi--) {
-          const b = blocks[bi]
-          if (b?.type === 'tool_call') {
-            const tn = b.toolCall?.name
-            if (tn === 'edit_workflow') {
-              id = b.toolCall?.id
-              break outer
-            }
-          }
-        }
-      }
-      if (!id) {
-        const candidates = Object.values(toolCallsById).filter((t) => t.name === 'edit_workflow')
-        id = candidates.length ? candidates[candidates.length - 1].id : undefined
-      }
-      if (id) updatePreviewToolCallState('rejected', id)
-    } catch {}
-
-    // Reject changes optimistically
     rejectChanges().catch((error) => {
       logger.error('Failed to reject changes (background):', error)
     })
-  }, [updatePreviewToolCallState, rejectChanges])
+  }, [rejectChanges])
 
   const preventZoomRef = usePreventZoom()
 
-  // Register global command to accept changes (Cmd/Ctrl + Shift + Enter)
   const acceptCommand = useMemo(
     () =>
       createCommand({
@@ -135,7 +65,6 @@ export const DiffControls = memo(function DiffControls() {
   )
   useRegisterGlobalCommands([acceptCommand])
 
-  // Don't show anything if no diff is available or diff is not ready
   if (!hasActiveDiff || !isDiffReady) {
     return null
   }

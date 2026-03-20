@@ -28,6 +28,10 @@ export async function* parseSSEStream(
       buffer = lines.pop() || ''
 
       for (const line of lines) {
+        if (abortSignal?.aborted) {
+          logger.info('SSE stream aborted mid-chunk (between events)')
+          return
+        }
         if (!line.trim()) continue
         if (!line.startsWith('data: ')) continue
 

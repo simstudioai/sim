@@ -53,6 +53,7 @@ function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
       formatToolName(tc.name),
     status: tc.status,
     result: tc.result,
+    streamingArgs: tc.streamingArgs,
   }
 }
 
@@ -211,6 +212,26 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
   return segments
 }
 
+/**
+ * Mirrors the segment resolution inside {@link MessageContent} so list renderers
+ * can tell whether an assistant message has anything visible yet. Avoids treating
+ * `contentBlocks: [{ type: 'text', content: '' }]` as "has content" — that briefly
+ * made MessageContent return null while streaming and caused a double Thinking flash.
+ */
+export function assistantMessageHasRenderableContent(
+  blocks: ContentBlock[],
+  fallbackContent: string
+): boolean {
+  const parsed = blocks.length > 0 ? parseBlocks(blocks) : []
+  const segments: MessageSegment[] =
+    parsed.length > 0
+      ? parsed
+      : fallbackContent.trim()
+        ? [{ type: 'text' as const, content: fallbackContent }]
+        : []
+  return segments.length > 0
+}
+
 interface MessageContentProps {
   blocks: ContentBlock[]
   fallbackContent: string
@@ -233,7 +254,16 @@ export function MessageContent({
         ? [{ type: 'text' as const, content: fallbackContent }]
         : []
 
-  if (segments.length === 0) return null
+  if (segments.length === 0) {
+    if (isStreaming) {
+      return (
+        <div className='space-y-[10px]'>
+          <PendingTagIndicator />
+        </div>
+      )
+    }
+    return null
+  }
 
   const lastSegment = segments[segments.length - 1]
   const hasTrailingContent = lastSegment.type === 'text' || lastSegment.type === 'stopped'

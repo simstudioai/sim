@@ -2,7 +2,16 @@ import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
+import {
+  assertServerToolNotAborted,
+  type BaseServerTool,
+  type ServerToolContext,
+} from '@/lib/copilot/tools/server/base-tool'
+import {
+  computeWorkflowReadHashFromWorkflowState,
+  getWorkflowReadHash,
+  upsertWorkflowReadHashForWorkflowState,
+} from '@/lib/copilot/workflow-read-hashes'
 import { applyTargetedLayout } from '@/lib/workflows/autolayout'
 import {
   DEFAULT_HORIZONTAL_SPACING,
@@ -62,7 +71,7 @@ async function getCurrentWorkflowStateFromDb(
 
 export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown> = {
   name: 'edit_workflow',
-  async execute(params: EditWorkflowParams, context?: { userId: string }): Promise<unknown> {
+  async execute(params: EditWorkflowParams, context?: ServerToolContext): Promise<unknown> {
     const logger = createLogger('EditWorkflowServerTool')
     const { operations, workflowId, currentUserWorkflow } = params
     if (!Array.isArray(operations) || operations.length === 0) {
@@ -86,20 +95,36 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       operationCount: operations.length,
       workflowId,
       hasCurrentUserWorkflow: !!currentUserWorkflow,
+      chatId: context.chatId,
     })
 
-    // Get current workflow state
-    let workflowState: any
-    if (currentUserWorkflow) {
-      try {
-        workflowState = JSON.parse(currentUserWorkflow)
-      } catch (error) {
-        logger.error('Failed to parse currentUserWorkflow', error)
-        throw new Error('Invalid currentUserWorkflow format')
-      }
-    } else {
-      const fromDb = await getCurrentWorkflowStateFromDb(workflowId)
-      workflowState = fromDb.workflowState
+    if (!context.chatId) {
+      throw new Error(
+        'Workflow has changed or was not read in this chat. Re-read the workflow before editing.'
+      )
+    }
+
+    assertServerToolNotAborted(context)
+
+    const fromDb = await getCurrentWorkflowStateFromDb(workflowId)
+    const workflowState = fromDb.workflowState
+    const storedReadHash = await getWorkflowReadHash(context.chatId, workflowId)
+    if (!storedReadHash) {
+      throw new Error(
+        'Workflow has changed or was not read in this chat. Re-read the workflow before editing.'
+      )
+    }
+
+    const currentReadState = computeWorkflowReadHashFromWorkflowState({
+      blocks: workflowState.blocks || {},
+      edges: workflowState.edges || [],
+      loops: workflowState.loops || {},
+      parallels: workflowState.parallels || {},
+    })
+    if (storedReadHash !== currentReadState.hash) {
+      throw new Error(
+        'Workflow changed since it was last read in this chat. Re-read the workflow before editing.'
+      )
     }
 
     // Get permission config for the user
@@ -178,6 +203,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     // Extract and persist custom tools to database (reuse workspaceId from selector validation)
     if (context?.userId && workspaceId) {
       try {
+        assertServerToolNotAborted(context)
         const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
         const { saved, errors } = await extractAndPersistCustomTools(
           finalWorkflowState,
@@ -269,6 +295,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       isDeployed: false,
     }
 
+    assertServerToolNotAborted(context)
     const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowStateForDb as any)
     if (!saveResult.success) {
       logger.error('Failed to persist workflow state to database', {
@@ -279,6 +306,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     }
 
     // Update workflow's lastSynced timestamp
+    assertServerToolNotAborted(context)
     await db
       .update(workflowTable)
       .set({
@@ -290,12 +318,20 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     logger.info('Workflow state persisted to database', { workflowId })
 
     const sanitizationWarnings = validation.warnings.length > 0 ? validation.warnings : undefined
+    assertServerToolNotAborted(context)
+    const updatedReadState = await upsertWorkflowReadHashForWorkflowState(
+      context.chatId,
+      workflowId,
+      workflowStateForDb
+    )
 
     return {
       success: true,
       workflowId,
       workflowName: workflowName ?? 'Workflow',
       workflowState: { ...finalWorkflowState, blocks: layoutedBlocks },
+      copilotSanitizedWorkflowState: updatedReadState.sanitizedState,
+      workflowReadHash: updatedReadState.hash,
       ...(inputErrors && {
         inputValidationErrors: inputErrors,
         inputValidationMessage: `${inputErrors.length} input(s) were rejected due to validation errors. The workflow was still updated with valid inputs only. Errors: ${inputErrors.join('; ')}`,

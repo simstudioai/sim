@@ -6,7 +6,7 @@ import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 const logger = createLogger('FileReader')
 
 const MAX_TEXT_READ_BYTES = 5 * 1024 * 1024 // 5 MB
-const MAX_IMAGE_READ_BYTES = 20 * 1024 * 1024 // 20 MB
+const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024 // 20 MB
 
 const TEXT_TYPES = new Set([
   'text/plain',

@@ -27,7 +27,8 @@ export async function persistChatResources(
   chatId: string,
   newResources: ChatResource[]
 ): Promise<void> {
-  if (newResources.length === 0) return
+  const toMerge = newResources.filter((r) => r.id !== 'streaming-file')
+  if (toMerge.length === 0) return
 
   try {
     const [chat] = await db
@@ -46,7 +47,7 @@ export async function persistChatResources(
       map.set(`${r.type}:${r.id}`, r)
     }
 
-    for (const r of newResources) {
+    for (const r of toMerge) {
       const key = `${r.type}:${r.id}`
       const prev = map.get(key)
       if (!prev || (GENERIC.has(prev.title) && !GENERIC.has(r.title))) {

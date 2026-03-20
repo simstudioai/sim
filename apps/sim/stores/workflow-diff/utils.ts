@@ -106,47 +106,7 @@ export async function persistWorkflowStateToServer(
 }
 
 export async function getLatestUserMessageId(): Promise<string | null> {
-  try {
-    const { useCopilotStore } = await import('@/stores/panel/copilot/store')
-    const { messages } = useCopilotStore.getState()
-    if (!Array.isArray(messages) || messages.length === 0) {
-      return null
-    }
-
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i]
-      if (m?.role === 'user' && m?.id) {
-        return m.id
-      }
-    }
-  } catch (error) {
-    logger.warn('Failed to capture trigger message id', { error })
-  }
   return null
-}
-
-export async function findLatestEditWorkflowToolCallId(): Promise<string | undefined> {
-  try {
-    const { useCopilotStore } = await import('@/stores/panel/copilot/store')
-    const { messages, toolCallsById } = useCopilotStore.getState()
-
-    for (let mi = messages.length - 1; mi >= 0; mi--) {
-      const message = messages[mi]
-      if (message.role !== 'assistant' || !message.contentBlocks) continue
-      for (const block of message.contentBlocks) {
-        if (block?.type === 'tool_call' && block.toolCall?.name === 'edit_workflow') {
-          return block.toolCall?.id
-        }
-      }
-    }
-
-    const fallback = Object.values(toolCallsById).filter((call) => call.name === 'edit_workflow')
-
-    return fallback.length ? fallback[fallback.length - 1].id : undefined
-  } catch (error) {
-    logger.warn('Failed to resolve edit_workflow tool call id', { error })
-    return undefined
-  }
 }
 
 export function createBatchedUpdater(set: (updates: Partial<WorkflowDiffState>) => void) {

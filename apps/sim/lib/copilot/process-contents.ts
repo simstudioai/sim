@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { readFileRecord } from '@/lib/copilot/vfs/file-reader'
 import { serializeTableMeta } from '@/lib/copilot/vfs/serializers'
+import { upsertWorkflowReadHashForSanitizedState } from '@/lib/copilot/workflow-read-hashes'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
 import { getTableById } from '@/lib/table/service'
 import { canAccessTemplate } from '@/lib/templates/permissions'
@@ -101,7 +102,8 @@ export async function processContextsServer(
   contexts: ChatContext[] | undefined,
   userId: string,
   userMessage?: string,
-  currentWorkspaceId?: string
+  currentWorkspaceId?: string,
+  chatId?: string
 ): Promise<AgentContext[]> {
   if (!Array.isArray(contexts) || contexts.length === 0) return []
   const tasks = contexts.map(async (ctx) => {
@@ -120,7 +122,8 @@ export async function processContextsServer(
           userId,
           ctx.label ? `@${ctx.label}` : '@',
           ctx.kind,
-          currentWorkspaceId
+          currentWorkspaceId,
+          chatId
         )
       }
       if (ctx.kind === 'knowledge' && ctx.knowledgeId) {
@@ -311,7 +314,8 @@ async function processWorkflowFromDb(
   userId: string | undefined,
   tag: string,
   kind: 'workflow' | 'current_workflow' = 'workflow',
-  currentWorkspaceId?: string
+  currentWorkspaceId?: string,
+  chatId?: string
 ): Promise<AgentContext | null> {
   try {
     let workflowName: string | undefined
@@ -349,6 +353,9 @@ async function processWorkflowFromDb(
       parallels: normalized.parallels || {},
     }
     const sanitizedState = sanitizeForCopilot(workflowState)
+    if (chatId) {
+      await upsertWorkflowReadHashForSanitizedState(chatId, workflowId, sanitizedState)
+    }
     const content = JSON.stringify(
       {
         workflowId,
@@ -722,12 +729,20 @@ export async function resolveActiveResourceContext(
   resourceType: string,
   resourceId: string,
   workspaceId: string,
-  _userId: string
+  _userId: string,
+  chatId?: string
 ): Promise<AgentContext | null> {
   try {
     switch (resourceType) {
       case 'workflow': {
-        const ctx = await processWorkflowFromDb(resourceId, undefined, '@active_resource')
+        const ctx = await processWorkflowFromDb(
+          resourceId,
+          undefined,
+          '@active_resource',
+          'workflow',
+          undefined,
+          chatId
+        )
         if (!ctx) return null
         return { type: 'active_resource', tag: '@active_resource', content: ctx.content }
       }

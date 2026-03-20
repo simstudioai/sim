@@ -42,6 +42,7 @@ export interface StreamingContext {
   subAgentToolCalls: Record<string, CopilotToolCall[]>
   subAgentBlocks: Record<string, SubAgentContentBlock[]>
   suppressStreamingUpdates?: boolean
+  activeCompactionId?: string
 }
 
 export type ClientStreamingContext = StreamingContext

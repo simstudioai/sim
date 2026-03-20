@@ -1,11 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { v4 as uuidv4 } from 'uuid'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
-import { resolveToolDisplay } from '@/lib/copilot/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { useExecutionStore } from '@/stores/execution/store'
-import { useCopilotStore } from '@/stores/panel/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('CopilotRunToolExecution')
@@ -228,34 +226,8 @@ async function doExecuteRunTool(
   }
 }
 
-/** Update the tool call state directly in the copilot store (like staging's setState). */
-function setToolState(toolCallId: string, state: ClientToolCallState): void {
-  try {
-    const store = useCopilotStore.getState()
-    const current = store.toolCallsById[toolCallId]
-    if (!current) return
-    const updated = {
-      ...store.toolCallsById,
-      [toolCallId]: {
-        ...current,
-        state,
-        display: resolveToolDisplay(
-          current.name,
-          state,
-          toolCallId,
-          current.params,
-          current.serverUI
-        ),
-      },
-    }
-    useCopilotStore.setState({ toolCallsById: updated })
-  } catch (err) {
-    logger.warn('[RunTool] Failed to update tool state', {
-      toolCallId,
-      state,
-      error: err instanceof Error ? err.message : String(err),
-    })
-  }
+function setToolState(_toolCallId: string, _state: ClientToolCallState): void {
+  // no-op: tool state is tracked by the mothership SSE stream
 }
 
 /**
@@ -271,6 +243,7 @@ function buildResultData(result: unknown): Record<string, unknown> | undefined {
     return {
       success: r.success,
       output: r.output,
+      logs: r.logs,
       error: r.error,
     }
   }
@@ -280,6 +253,7 @@ function buildResultData(result: unknown): Record<string, unknown> | undefined {
     return {
       success: exec.success,
       output: exec.output,
+      logs: exec.logs,
       error: exec.error,
     }
   }
