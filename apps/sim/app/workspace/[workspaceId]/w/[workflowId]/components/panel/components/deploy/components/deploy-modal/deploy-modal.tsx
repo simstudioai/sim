@@ -406,10 +406,10 @@ export function DeployModal({
     }
   }, [])
 
-  const handleTemplateFormSubmit = useCallback(() => {
-    const form = document.getElementById('template-deploy-form') as HTMLFormElement
-    form?.requestSubmit()
-  }, [])
+  // const handleTemplateFormSubmit = useCallback(() => {
+  //   const form = document.getElementById('template-deploy-form') as HTMLFormElement
+  //   form?.requestSubmit()
+  // }, [])
 
   const handleMcpToolFormSubmit = useCallback(() => {
     const form = document.getElementById('mcp-deploy-form') as HTMLFormElement
@@ -453,11 +453,11 @@ export function DeployModal({
     setShowA2aDeleteConfirm(false)
   }, [])
 
-  const handleTemplateDelete = useCallback(() => {
-    const form = document.getElementById('template-deploy-form')
-    const deleteTrigger = form?.querySelector('[data-template-delete-trigger]') as HTMLButtonElement
-    deleteTrigger?.click()
-  }, [])
+  // const handleTemplateDelete = useCallback(() => {
+  //   const form = document.getElementById('template-deploy-form')
+  //   const deleteTrigger = form?.querySelector('[data-template-delete-trigger]') as HTMLButtonElement
+  //   deleteTrigger?.click()
+  // }, [])
 
   const isSubmitting = deployMutation.isPending
   const isUndeploying = undeployMutation.isPending
@@ -938,28 +938,28 @@ function StatusBadge({ isWarning }: StatusBadgeProps) {
   )
 }
 
-interface TemplateStatusBadgeProps {
-  status: 'pending' | 'approved' | 'rejected' | null
-  views?: number
-  stars?: number
-}
+// interface TemplateStatusBadgeProps {
+//   status: 'pending' | 'approved' | 'rejected' | null
+//   views?: number
+//   stars?: number
+// }
 
-function TemplateStatusBadge({ status, views, stars }: TemplateStatusBadgeProps) {
-  const isPending = status === 'pending'
-  const label = isPending ? 'Under review' : 'Live'
+// function TemplateStatusBadge({ status, views, stars }: TemplateStatusBadgeProps) {
+//   const isPending = status === 'pending'
+//   const label = isPending ? 'Under review' : 'Live'
 
-  const statsText =
-    status === 'approved' && views !== undefined && views > 0
-      ? `${views} views${stars !== undefined && stars > 0 ? ` • ${stars} stars` : ''}`
-      : null
+//   const statsText =
+//     status === 'approved' && views !== undefined && views > 0
+//       ? `${views} views${stars !== undefined && stars > 0 ? ` • ${stars} stars` : ''}`
+//       : null
 
-  return (
-    <Badge variant={isPending ? 'amber' : 'green'} size='lg' dot>
-      {label}
-      {statsText && <span>• {statsText}</span>}
-    </Badge>
-  )
-}
+//   return (
+//     <Badge variant={isPending ? 'amber' : 'green'} size='lg' dot>
+//       {label}
+//       {statsText && <span>• {statsText}</span>}
+//     </Badge>
+//   )
+// }
 
 interface GeneralFooterProps {
   isDeployed?: boolean

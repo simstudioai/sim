@@ -57,13 +57,13 @@ const Credentials = dynamic(
     ),
   { loading: () => <CredentialsSkeleton /> }
 )
-const TemplateProfile = dynamic(
-  () =>
-    import(
-      '@/app/workspace/[workspaceId]/settings/components/template-profile/template-profile'
-    ).then((m) => m.TemplateProfile),
-  { loading: () => <SettingsSectionSkeleton /> }
-)
+// const TemplateProfile = dynamic(
+//   () =>
+//     import(
+//       '@/app/workspace/[workspaceId]/settings/components/template-profile/template-profile'
+//     ).then((m) => m.TemplateProfile),
+//   { loading: () => <SettingsSectionSkeleton /> }
+// )
 const CredentialSets = dynamic(
   () =>
     import(
