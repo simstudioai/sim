@@ -5,7 +5,6 @@ import { TEMPLATES } from '@/app/workspace/[workspaceId]/home/components/templat
 import { IntegrationIcon } from '../components/integration-icon'
 import { blockTypeToIconMap } from '../data/icon-mapping'
 import integrations from '../data/integrations.json'
-import { POPULAR_WORKFLOWS } from '../data/popular-workflows'
 import type { AuthType, FAQItem, Integration } from '../data/types'
 import { IntegrationFAQ } from './components/integration-faq'
 import { TemplateCardButton } from './components/template-card-button'
@@ -14,44 +13,52 @@ const allIntegrations = integrations as Integration[]
 const INTEGRATION_COUNT = allIntegrations.length
 
 /** Fast O(1) lookups — avoids repeated linear scans inside render loops. */
-const byName = new Map(allIntegrations.map((i) => [i.name, i]))
 const bySlug = new Map(allIntegrations.map((i) => [i.slug, i]))
 const byType = new Map(allIntegrations.map((i) => [i.type, i]))
-
-/** Returns workflow pairs that feature the given integration on either side. */
-function getPairsFor(name: string) {
-  return POPULAR_WORKFLOWS.filter((p) => p.from === name || p.to === name)
-}
 
 /**
  * Returns up to `limit` related integration slugs.
  *
- * Scoring:
- *   +100  — integration appears as a workflow pair partner (explicit editorial signal)
- *   +N    — N operation names shared with the current integration (semantic similarity)
+ * Scoring (additive):
+ *   +3 per shared operation name  — strongest signal (same capability)
+ *   +2 per shared operation word  — weaker signal (e.g. both have "create" ops)
+ *   +1  same auth type            — comparable setup experience
  *
- * This means genuine partners always rank first; operation-similar integrations
- * (e.g. Slack → Teams → Discord for "Send Message") fill the rest organically.
+ * Every integration gets a score, so the sidebar always has suggestions.
+ * Ties are broken by alphabetical slug order for determinism.
  */
 function getRelatedSlugs(
-  name: string,
   slug: string,
   operations: Integration['operations'],
+  authType: AuthType,
   limit = 6
 ): string[] {
-  const partners = new Set(getPairsFor(name).map((p) => (p.from === name ? p.to : p.from)))
-  const currentOps = new Set(operations.map((o) => o.name.toLowerCase()))
+  const currentOpNames = new Set(operations.map((o) => o.name.toLowerCase()))
+  const currentOpWords = new Set(
+    operations.flatMap((o) =>
+      o.name
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((w) => w.length > 3)
+    )
+  )
 
   return allIntegrations
     .filter((i) => i.slug !== slug)
-    .map((i) => ({
-      slug: i.slug,
-      score:
-        (partners.has(i.name) ? 100 : 0) +
-        i.operations.filter((o) => currentOps.has(o.name.toLowerCase())).length,
-    }))
-    .filter(({ score }) => score > 0)
-    .sort((a, b) => b.score - a.score)
+    .map((i) => {
+      const sharedNames = i.operations.filter((o) =>
+        currentOpNames.has(o.name.toLowerCase())
+      ).length
+      const sharedWords = i.operations.filter((o) =>
+        o.name
+          .toLowerCase()
+          .split(/\s+/)
+          .some((w) => w.length > 3 && currentOpWords.has(w))
+      ).length
+      const sameAuth = i.authType === authType ? 1 : 0
+      return { slug: i.slug, score: sharedNames * 3 + sharedWords * 2 + sameAuth }
+    })
+    .sort((a, b) => b.score - a.score || a.slug.localeCompare(b.slug))
     .slice(0, limit)
     .map(({ slug: s }) => s)
 }
@@ -70,7 +77,6 @@ function buildFAQs(integration: Integration): FAQItem[] {
   const { name, description, operations, triggers, authType } = integration
   const topOps = operations.slice(0, 5)
   const topOpNames = topOps.map((o) => o.name)
-  const pairs = getPairsFor(name)
   const authStep = AUTH_STEP[authType]
 
   const faqs: FAQItem[] = [
@@ -89,6 +95,10 @@ function buildFAQs(integration: Integration): FAQItem[] {
       question: `How do I connect ${name} to Sim?`,
       answer: `Getting started takes under five minutes: (1) Create a free account at sim.ai. (2) Open a new workflow. (3) Drag a ${name} block onto the canvas. (4) ${authStep} (5) Choose the tool you want to use, wire it to the inputs you need, and click Run. Your automation is live.`,
     },
+    {
+      question: `Can I use ${name} as a tool inside an AI agent in Sim?`,
+      answer: `Yes — this is one of Sim's core capabilities. Instead of hard-coding when and how ${name} is used, you give an AI agent access to ${name} tools and describe the goal in plain language. The agent decides which tools to call, in what order, and how to handle the results. This means your automation adapts to context rather than breaking when inputs change.`,
+    },
     ...(topOpNames.length >= 2
       ? [
           {
@@ -97,19 +107,15 @@ function buildFAQs(integration: Integration): FAQItem[] {
           },
         ]
       : []),
-    ...(pairs.length > 0
-      ? [
-          {
-            question: `Can I connect ${name} to ${pairs[0].from === name ? pairs[0].to : pairs[0].from} with Sim?`,
-            answer: `Yes. ${pairs[0].description} In Sim, you set this up by adding both a ${name} block and a ${pairs[0].from === name ? pairs[0].to : pairs[0].from} block to the same workflow and connecting them through an AI agent that orchestrates the logic between them.`,
-          },
-        ]
-      : []),
     ...(triggers.length > 0
       ? [
           {
-            question: `Can ${name} trigger a Sim workflow automatically?`,
-            answer: `Yes. ${name} supports ${triggers.length} webhook trigger${triggers.length === 1 ? '' : 's'} that can instantly start a Sim workflow: ${triggers.map((t) => t.name).join(', ')}. No polling needed — the workflow fires the moment the event occurs in ${name}.`,
+            question: `How do I trigger a Sim workflow from ${name} automatically?`,
+            answer: `In your Sim workflow, switch the ${name} block to Trigger mode and copy the generated webhook URL. Paste that URL into ${name}'s webhook settings and select the events you want to listen for (${triggers.map((t) => t.name).join(', ')}). From that point on, every matching event in ${name} instantly fires your workflow — no polling, no delay.`,
+          },
+          {
+            question: `What data does Sim receive when a ${name} event triggers a workflow?`,
+            answer: `When ${name} fires a webhook, Sim receives the full event payload that ${name} sends — typically the record or object that changed, along with metadata like the event type and timestamp. Inside your workflow, every field from that payload is available as a variable you can pass to AI agents, conditions, or other integrations.`,
           },
         ]
       : []),
@@ -190,11 +196,10 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
 
   const IconComponent = blockTypeToIconMap[integration.type]
   const faqs = buildFAQs(integration)
-  const relatedSlugs = getRelatedSlugs(name, slug, operations)
+  const relatedSlugs = getRelatedSlugs(slug, operations, authType)
   const relatedIntegrations = relatedSlugs
     .map((s) => bySlug.get(s))
     .filter((i): i is Integration => i !== undefined)
-  const featuredPairs = getPairsFor(name)
   const baseType = integration.type.replace(/_v\d+$/, '')
   const matchingTemplates = TEMPLATES.filter(
     (t) =>
@@ -420,15 +425,18 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             {triggers.length > 0 && (
               <section aria-labelledby='triggers-heading'>
                 <h2 id='triggers-heading' className='mb-2 font-[500] text-[#ECECEC] text-[20px]'>
-                  Triggers
+                  Real-time triggers
                 </h2>
-                <p className='mb-6 text-[#999] text-[14px]'>
-                  These events in {name} can automatically start a Sim workflow — no polling
-                  required.
+                <p className='mb-4 text-[#999] text-[14px] leading-relaxed'>
+                  Connect a {name} webhook to Sim and your workflow fires the instant an event
+                  happens — no polling, no delay. Sim receives the full event payload and makes
+                  every field available as a variable inside your workflow.
                 </p>
+
+                {/* Event cards */}
                 <ul
                   className='grid grid-cols-1 gap-3 sm:grid-cols-2'
-                  aria-label={`${name} triggers`}
+                  aria-label={`${name} trigger events`}
                 >
                   {triggers.map((trigger) => (
                     <li
@@ -447,7 +455,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                           >
                             <polygon points='13 2 3 14 12 14 11 22 21 10 12 10 13 2' />
                           </svg>
-                          Trigger
+                          Event
                         </span>
                       </div>
                       <p className='font-[500] text-[#ECECEC] text-[13px]'>{trigger.name}</p>
@@ -462,73 +470,6 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               </section>
             )}
 
-            {/* Popular workflows featuring this integration */}
-            {featuredPairs.length > 0 && (
-              <section aria-labelledby='workflows-heading'>
-                <h2 id='workflows-heading' className='mb-2 font-[500] text-[#ECECEC] text-[20px]'>
-                  Popular workflows with {name}
-                </h2>
-                <p className='mb-6 text-[#999] text-[14px]'>
-                  Common automation patterns teams build on Sim using {name}.
-                </p>
-                <ul
-                  className='grid grid-cols-1 gap-4 sm:grid-cols-2'
-                  aria-label='Popular workflow combinations'
-                >
-                  {featuredPairs.map(({ from, to, headline, description: desc }) => {
-                    const fromInt = byName.get(from)
-                    const toInt = byName.get(to)
-                    const FromIcon = fromInt ? blockTypeToIconMap[fromInt.type] : undefined
-                    const ToIcon = toInt ? blockTypeToIconMap[toInt.type] : undefined
-                    const fromBg = fromInt?.bgColor ?? '#6B7280'
-                    const toBg = toInt?.bgColor ?? '#6B7280'
-
-                    return (
-                      <li key={`${from}-${to}`}>
-                        <div className='h-full rounded-lg border border-[#2A2A2A] bg-[#242424] p-5'>
-                          <div className='mb-3 flex items-center gap-2 text-[12px]'>
-                            <span className='inline-flex items-center gap-1 rounded-[3px] bg-[#2A2A2A] px-1.5 py-0.5 font-[500] text-[#ECECEC]'>
-                              {FromIcon && (
-                                <IntegrationIcon
-                                  bgColor={fromBg}
-                                  name={from}
-                                  Icon={FromIcon}
-                                  as='span'
-                                  className='h-3.5 w-3.5 rounded-[2px]'
-                                  iconClassName='h-2.5 w-2.5'
-                                  aria-hidden='true'
-                                />
-                              )}
-                              {from}
-                            </span>
-                            <span className='text-[#555]' aria-hidden='true'>
-                              →
-                            </span>
-                            <span className='inline-flex items-center gap-1 rounded-[3px] bg-[#2A2A2A] px-1.5 py-0.5 font-[500] text-[#ECECEC]'>
-                              {ToIcon && (
-                                <IntegrationIcon
-                                  bgColor={toBg}
-                                  name={to}
-                                  Icon={ToIcon}
-                                  as='span'
-                                  className='h-3.5 w-3.5 rounded-[2px]'
-                                  iconClassName='h-2.5 w-2.5'
-                                  aria-hidden='true'
-                                />
-                              )}
-                              {to}
-                            </span>
-                          </div>
-                          <p className='mb-1 font-[500] text-[#ECECEC] text-[14px]'>{headline}</p>
-                          <p className='text-[#999] text-[13px] leading-relaxed'>{desc}</p>
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </section>
-            )}
-
             {/* Workflow templates */}
             {matchingTemplates.length > 0 && (
               <section aria-labelledby='templates-heading'>
@@ -539,7 +480,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                   Ready-to-use workflows featuring {name}. Click any to build it instantly.
                 </p>
                 <ul
-                  className='grid grid-cols-1 gap-3 sm:grid-cols-2'
+                  className='grid grid-cols-1 gap-4 sm:grid-cols-2'
                   aria-label='Workflow templates'
                 >
                   {matchingTemplates.map((template) => {
@@ -551,34 +492,49 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                     return (
                       <li key={template.title}>
                         <TemplateCardButton prompt={template.prompt}>
-                          {/* Integration icons */}
-                          <div className='mb-3 flex items-center gap-1.5'>
-                            {allTypes.map((bt) => {
-                              const int = byType.get(bt)
+                          {/* Integration pills row */}
+                          <div className='mb-3 flex flex-wrap items-center gap-1.5 text-[12px]'>
+                            {allTypes.map((bt, idx) => {
+                              // Templates may use unversioned keys (e.g. "notion") while the
+                              // icon map has versioned keys ("notion_v2") — fall back to _v2.
+                              const resolvedBt = byType.get(bt)
+                                ? bt
+                                : byType.get(`${bt}_v2`)
+                                  ? `${bt}_v2`
+                                  : bt
+                              const int = byType.get(resolvedBt)
                               const intName = int?.name ?? bt
                               return (
-                                <IntegrationIcon
-                                  key={bt}
-                                  bgColor={int?.bgColor ?? '#6B7280'}
-                                  name={intName}
-                                  Icon={blockTypeToIconMap[bt]}
-                                  className='h-6 w-6 rounded-[5px]'
-                                  iconClassName='h-3.5 w-3.5'
-                                  fallbackClassName='text-[9px]'
-                                  title={intName}
-                                  aria-label={intName}
-                                />
+                                <span key={bt} className='inline-flex items-center gap-1.5'>
+                                  {idx > 0 && (
+                                    <span className='text-[#555]' aria-hidden='true'>
+                                      →
+                                    </span>
+                                  )}
+                                  <span className='inline-flex items-center gap-1 rounded-[3px] bg-[#2A2A2A] px-1.5 py-0.5 font-[500] text-[#ECECEC]'>
+                                    <IntegrationIcon
+                                      bgColor={int?.bgColor ?? '#6B7280'}
+                                      name={intName}
+                                      Icon={blockTypeToIconMap[resolvedBt]}
+                                      as='span'
+                                      className='h-3.5 w-3.5 rounded-[2px]'
+                                      iconClassName='h-2.5 w-2.5'
+                                      aria-hidden='true'
+                                    />
+                                    {intName}
+                                  </span>
+                                </span>
                               )
                             })}
                           </div>
 
-                          <p className='mb-3 font-[500] text-[#ECECEC] text-[13px] leading-snug'>
+                          <p className='mb-1 font-[500] text-[#ECECEC] text-[14px]'>
                             {template.title}
                           </p>
 
-                          <span className='text-[#555] text-[12px] transition-colors group-hover:text-[#999]'>
+                          <p className='mt-3 text-[#555] text-[13px] transition-colors group-hover:text-[#999]'>
                             Try this workflow →
-                          </span>
+                          </p>
                         </TemplateCardButton>
                       </li>
                     )
@@ -660,40 +616,34 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                   <dd className='text-[#ECECEC]'>Free to start</dd>
                 </div>
               </dl>
-              <a
-                href='https://sim.ai'
-                className='mt-5 flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] font-[430] font-season text-[#1C1C1C] text-[13px] transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
-              >
-                Get started free
-              </a>
-            </div>
-
-            {/* Docs */}
-            <div className='rounded-lg border border-[#2A2A2A] bg-[#242424] p-5'>
-              <h3 className='mb-2 font-[500] text-[#ECECEC] text-[14px]'>Documentation</h3>
-              <p className='mb-4 text-[#999] text-[13px] leading-relaxed'>
-                Full API reference, authentication setup, and usage examples for {name}.
-              </p>
-              <a
-                href={docsUrl}
-                target='_blank'
-                rel='noopener noreferrer'
-                className='inline-flex items-center gap-1.5 text-[#999] text-[13px] transition-colors hover:text-[#ECECEC]'
-              >
-                docs.sim.ai
-                <svg
-                  aria-hidden='true'
-                  className='h-3 w-3'
-                  fill='none'
-                  stroke='currentColor'
-                  strokeWidth={2}
-                  viewBox='0 0 24 24'
+              <div className='mt-5 flex flex-col gap-2'>
+                <a
+                  href='https://sim.ai'
+                  className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] font-[430] font-season text-[#1C1C1C] text-[13px] transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
                 >
-                  <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
-                  <polyline points='15 3 21 3 21 9' />
-                  <line x1='10' x2='21' y1='14' y2='3' />
-                </svg>
-              </a>
+                  Get started free
+                </a>
+                <a
+                  href={docsUrl}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='flex h-[32px] w-full items-center justify-center gap-1.5 rounded-[5px] border border-[#3d3d3d] font-[430] font-season text-[#ECECEC] text-[13px] transition-colors hover:bg-[#2A2A2A]'
+                >
+                  View docs
+                  <svg
+                    aria-hidden='true'
+                    className='h-3 w-3'
+                    fill='none'
+                    stroke='currentColor'
+                    strokeWidth={2}
+                    viewBox='0 0 24 24'
+                  >
+                    <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
+                    <polyline points='15 3 21 3 21 9' />
+                    <line x1='10' x2='21' y1='14' y2='3' />
+                  </svg>
+                </a>
+              </div>
             </div>
 
             {/* Related integrations — internal linking for SEO */}
@@ -738,6 +688,43 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
           aria-labelledby='cta-heading'
           className='mt-20 rounded-xl border border-[#2A2A2A] bg-[#242424] p-8 text-center sm:p-12'
         >
+          {/* Logo pair: Sim × Integration */}
+          <div className='mx-auto mb-6 flex items-center justify-center gap-3'>
+            <img
+              src='/brandbook/logo/small.png'
+              alt='Sim'
+              className='h-14 w-14 shrink-0 rounded-xl'
+            />
+            <div className='flex items-center gap-2'>
+              <span className='h-px w-5 bg-[#3d3d3d]' aria-hidden='true' />
+              <span
+                className='flex h-7 w-7 items-center justify-center rounded-full border border-[#3d3d3d]'
+                aria-hidden='true'
+              >
+                <svg
+                  className='h-3.5 w-3.5 text-[#666]'
+                  viewBox='0 0 24 24'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth={2}
+                  strokeLinecap='round'
+                >
+                  <path d='M5 12h14' />
+                  <path d='M12 5v14' />
+                </svg>
+              </span>
+              <span className='h-px w-5 bg-[#3d3d3d]' aria-hidden='true' />
+            </div>
+            <IntegrationIcon
+              bgColor={bgColor}
+              name={name}
+              Icon={IconComponent}
+              className='h-14 w-14 rounded-xl'
+              iconClassName='h-7 w-7'
+              fallbackClassName='text-[22px]'
+              aria-hidden='true'
+            />
+          </div>
           <h2
             id='cta-heading'
             className='mb-3 font-[500] text-[#ECECEC] text-[28px] sm:text-[34px]'

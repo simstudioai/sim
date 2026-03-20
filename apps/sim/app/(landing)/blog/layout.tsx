@@ -1,7 +1,9 @@
+import { getNavBlogPosts } from '@/lib/blog/registry'
 import Footer from '@/app/(home)/components/footer/footer'
 import Navbar from '@/app/(home)/components/navbar/navbar'
 
-export default function StudioLayout({ children }: { children: React.ReactNode }) {
+export default async function StudioLayout({ children }: { children: React.ReactNode }) {
+  const blogPosts = await getNavBlogPosts()
   const orgJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Organization',
@@ -34,7 +36,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
         dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
       />
       <header>
-        <Navbar />
+        <Navbar blogPosts={blogPosts} />
       </header>
       <main className='relative flex-1'>{children}</main>
       <Footer />

@@ -57,13 +57,13 @@ const Credentials = dynamic(
     ),
   { loading: () => <CredentialsSkeleton /> }
 )
-const TemplateProfile = dynamic(
-  () =>
-    import(
-      '@/app/workspace/[workspaceId]/settings/components/template-profile/template-profile'
-    ).then((m) => m.TemplateProfile),
-  { loading: () => <SettingsSectionSkeleton /> }
-)
+// const TemplateProfile = dynamic(
+//   () =>
+//     import(
+//       '@/app/workspace/[workspaceId]/settings/components/template-profile/template-profile'
+//     ).then((m) => m.TemplateProfile),
+//   { loading: () => <SettingsSectionSkeleton /> }
+// )
 const CredentialSets = dynamic(
   () =>
     import(
@@ -177,7 +177,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'general' && <General />}
       {effectiveSection === 'integrations' && <Integrations />}
       {effectiveSection === 'secrets' && <Credentials />}
-      {effectiveSection === 'template-profile' && <TemplateProfile />}
+      {/* {effectiveSection === 'template-profile' && <TemplateProfile />} */}
       {effectiveSection === 'credential-sets' && <CredentialSets />}
       {effectiveSection === 'access-control' && <AccessControl />}
       {effectiveSection === 'apikeys' && <ApiKeys />}

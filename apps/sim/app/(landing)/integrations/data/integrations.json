@@ -683,7 +683,7 @@
     "slug": "ashby",
     "name": "Ashby",
     "description": "Manage candidates, jobs, and applications in Ashby",
-    "longDescription": "Integrate Ashby into the workflow. Can list, search, create, and update candidates, list and get job details, create notes, list notes, list and get applications, create applications, and list offers.",
+    "longDescription": "Integrate Ashby into the workflow. Manage candidates (list, get, create, update, search, tag), applications (list, get, create, change stage), jobs (list, get), job postings (list, get), offers (list, get), notes (list, create), interviews (list), and reference data (sources, tags, archive reasons, custom fields, departments, locations, openings, users).",
     "bgColor": "#5D4ED6",
     "iconName": "AshbyIcon",
     "docsUrl": "https://docs.sim.ai/tools/ashby",
@@ -739,9 +739,69 @@
       {
         "name": "List Offers",
         "description": "Lists all offers with their latest version in an Ashby organization."
+      },
+      {
+        "name": "Change Application Stage",
+        "description": "Moves an application to a different interview stage. Requires an archive reason when moving to an Archived stage."
+      },
+      {
+        "name": "Add Candidate Tag",
+        "description": "Adds a tag to a candidate in Ashby."
+      },
+      {
+        "name": "Remove Candidate Tag",
+        "description": "Removes a tag from a candidate in Ashby."
+      },
+      {
+        "name": "Get Offer",
+        "description": "Retrieves full details about a single offer by its ID."
+      },
+      {
+        "name": "List Sources",
+        "description": "Lists all candidate sources configured in Ashby."
+      },
+      {
+        "name": "List Candidate Tags",
+        "description": "Lists all candidate tags configured in Ashby."
+      },
+      {
+        "name": "List Archive Reasons",
+        "description": "Lists all archive reasons configured in Ashby."
+      },
+      {
+        "name": "List Custom Fields",
+        "description": "Lists all custom field definitions configured in Ashby."
+      },
+      {
+        "name": "List Departments",
+        "description": "Lists all departments in Ashby."
+      },
+      {
+        "name": "List Locations",
+        "description": "Lists all locations configured in Ashby."
+      },
+      {
+        "name": "List Job Postings",
+        "description": "Lists all job postings in Ashby."
+      },
+      {
+        "name": "Get Job Posting",
+        "description": "Retrieves full details about a single job posting by its ID."
+      },
+      {
+        "name": "List Openings",
+        "description": "Lists all openings in Ashby with pagination."
+      },
+      {
+        "name": "List Users",
+        "description": "Lists all users in Ashby with pagination."
+      },
+      {
+        "name": "List Interviews",
+        "description": "Lists interview schedules in Ashby, optionally filtered by application or interview stage."
       }
     ],
-    "operationCount": 13,
+    "operationCount": 28,
     "triggers": [
       {
         "id": "ashby_application_submit",
@@ -1060,6 +1120,152 @@
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",
+    "category": "tools"
+  },
+  {
+    "type": "microsoft_ad",
+    "slug": "azure-ad",
+    "name": "Azure AD",
+    "description": "Manage users and groups in Azure AD (Microsoft Entra ID)",
+    "longDescription": "Integrate Azure Active Directory into your workflows. List, create, update, and delete users and groups. Manage group memberships programmatically.",
+    "bgColor": "#0078D4",
+    "iconName": "AzureIcon",
+    "docsUrl": "https://docs.sim.ai/tools/microsoft_ad",
+    "operations": [
+      {
+        "name": "List Users",
+        "description": "List users in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Get User",
+        "description": "Get a user by ID or user principal name from Azure AD"
+      },
+      {
+        "name": "Create User",
+        "description": "Create a new user in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Update User",
+        "description": "Update user properties in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Delete User",
+        "description": "Delete a user from Azure AD (Microsoft Entra ID). The user is moved to a temporary container and can be restored within 30 days."
+      },
+      {
+        "name": "List Groups",
+        "description": "List groups in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Get Group",
+        "description": "Get a group by ID from Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Create Group",
+        "description": "Create a new group in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Update Group",
+        "description": "Update group properties in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Delete Group",
+        "description": "Delete a group from Azure AD (Microsoft Entra ID). Microsoft 365 and security groups can be restored within 30 days."
+      },
+      {
+        "name": "List Group Members",
+        "description": "List members of a group in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Add Group Member",
+        "description": "Add a member to a group in Azure AD (Microsoft Entra ID)"
+      },
+      {
+        "name": "Remove Group Member",
+        "description": "Remove a member from a group in Azure AD (Microsoft Entra ID)"
+      }
+    ],
+    "operationCount": 13,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "oauth",
+    "category": "tools"
+  },
+  {
+    "type": "box",
+    "slug": "box",
+    "name": "Box",
+    "description": "Manage files, folders, and e-signatures with Box",
+    "longDescription": "Integrate Box into your workflow to manage files, folders, and e-signatures. Upload and download files, search content, create folders, send documents for e-signature, track signing status, and more.",
+    "bgColor": "#FFFFFF",
+    "iconName": "BoxCompanyIcon",
+    "docsUrl": "https://docs.sim.ai/tools/box",
+    "operations": [
+      {
+        "name": "Upload File",
+        "description": "Upload a file to a Box folder"
+      },
+      {
+        "name": "Download File",
+        "description": "Download a file from Box"
+      },
+      {
+        "name": "Get File Info",
+        "description": "Get detailed information about a file in Box"
+      },
+      {
+        "name": "List Folder Items",
+        "description": "List files and folders in a Box folder"
+      },
+      {
+        "name": "Create Folder",
+        "description": "Create a new folder in Box"
+      },
+      {
+        "name": "Delete File",
+        "description": "Delete a file from Box"
+      },
+      {
+        "name": "Delete Folder",
+        "description": "Delete a folder from Box"
+      },
+      {
+        "name": "Copy File",
+        "description": "Copy a file to another folder in Box"
+      },
+      {
+        "name": "Search",
+        "description": "Search for files and folders in Box"
+      },
+      {
+        "name": "Update File",
+        "description": "Update file info in Box (rename, move, change description, add tags)"
+      },
+      {
+        "name": "Create Sign Request",
+        "description": "Create a new Box Sign request to send documents for e-signature"
+      },
+      {
+        "name": "Get Sign Request",
+        "description": "Get the details and status of a Box Sign request"
+      },
+      {
+        "name": "List Sign Requests",
+        "description": "List all Box Sign requests"
+      },
+      {
+        "name": "Cancel Sign Request",
+        "description": "Cancel a pending Box Sign request"
+      },
+      {
+        "name": "Resend Sign Request",
+        "description": "Resend a Box Sign request to signers who have not yet signed"
+      }
+    ],
+    "operationCount": 15,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "oauth",
     "category": "tools"
   },
   {
@@ -1780,31 +1986,31 @@
     "operations": [
       {
         "name": "Launch Agent",
-        "description": "Cursor API key"
+        "description": "Start a new cloud agent to work on a GitHub repository with the given instructions."
       },
       {
         "name": "Add Follow-up",
-        "description": "Cursor API key"
+        "description": "Add a follow-up instruction to an existing cloud agent."
       },
       {
         "name": "Get Agent Status",
-        "description": "Cursor API key"
+        "description": "Retrieve the current status and results of a cloud agent."
       },
       {
         "name": "Get Conversation",
-        "description": "Cursor API key"
+        "description": "Retrieve the conversation history of a cloud agent, including all user prompts and assistant responses."
       },
       {
         "name": "List Agents",
-        "description": "Cursor API key"
+        "description": "List all cloud agents for the authenticated user with optional pagination."
       },
       {
         "name": "Stop Agent",
-        "description": "Cursor API key"
+        "description": "Stop a running cloud agent. This pauses the agent without deleting it."
       },
       {
         "name": "Delete Agent",
-        "description": "Cursor API key"
+        "description": "Permanently delete a cloud agent. This action cannot be undone."
       }
     ],
     "operationCount": 7,
@@ -2115,6 +2321,55 @@
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",
+    "category": "tools"
+  },
+  {
+    "type": "docusign",
+    "slug": "docusign",
+    "name": "DocuSign",
+    "description": "Send documents for e-signature via DocuSign",
+    "longDescription": "Create and send envelopes for e-signature, use templates, check signing status, download signed documents, and manage recipients with DocuSign.",
+    "bgColor": "#FFFFFF",
+    "iconName": "DocuSignIcon",
+    "docsUrl": "https://docs.sim.ai/tools/docusign",
+    "operations": [
+      {
+        "name": "Send Envelope",
+        "description": "Create and send a DocuSign envelope with a document for e-signature"
+      },
+      {
+        "name": "Send from Template",
+        "description": "Create and send a DocuSign envelope using a pre-built template"
+      },
+      {
+        "name": "Get Envelope",
+        "description": "Get the details and status of a DocuSign envelope"
+      },
+      {
+        "name": "List Envelopes",
+        "description": "List envelopes from your DocuSign account with optional filters"
+      },
+      {
+        "name": "Void Envelope",
+        "description": "Void (cancel) a sent DocuSign envelope that has not yet been completed"
+      },
+      {
+        "name": "Download Document",
+        "description": "Download a signed document from a completed DocuSign envelope"
+      },
+      {
+        "name": "List Templates",
+        "description": "List available templates in your DocuSign account"
+      },
+      {
+        "name": "List Recipients",
+        "description": "Get the recipient status details for a DocuSign envelope"
+      }
+    ],
+    "operationCount": 8,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "oauth",
     "category": "tools"
   },
   {
@@ -3695,7 +3950,7 @@
     "operations": [
       {
         "name": "List Files",
-        "description": "List files and folders in Google Drive with complete metadata"
+        "description": "List Google Drive files"
       },
       {
         "name": "Get File Info",
@@ -5082,6 +5337,43 @@
     "category": "tools"
   },
   {
+    "type": "infisical",
+    "slug": "infisical",
+    "name": "Infisical",
+    "description": "Manage secrets with Infisical",
+    "longDescription": "Integrate Infisical into your workflow. List, get, create, update, and delete secrets across project environments.",
+    "bgColor": "#F7FE62",
+    "iconName": "InfisicalIcon",
+    "docsUrl": "https://docs.sim.ai/tools/infisical",
+    "operations": [
+      {
+        "name": "List Secrets",
+        "description": "List all secrets in a project environment. Returns secret keys, values, comments, tags, and metadata."
+      },
+      {
+        "name": "Get Secret",
+        "description": "Retrieve a single secret by name from a project environment."
+      },
+      {
+        "name": "Create Secret",
+        "description": "Create a new secret in a project environment."
+      },
+      {
+        "name": "Update Secret",
+        "description": "Update an existing secret in a project environment."
+      },
+      {
+        "name": "Delete Secret",
+        "description": "Delete a secret from a project environment."
+      }
+    ],
+    "operationCount": 5,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools"
+  },
+  {
     "type": "intercom_v2",
     "slug": "intercom",
     "name": "Intercom",
@@ -5093,63 +5385,63 @@
     "operations": [
       {
         "name": "Create Contact",
-        "description": "Intercom API access token"
+        "description": "Create a new contact in Intercom with email, external_id, or role"
       },
       {
         "name": "Get Contact",
-        "description": "Intercom API access token"
+        "description": "Get a single contact by ID from Intercom"
       },
       {
         "name": "Update Contact",
-        "description": "Intercom API access token"
+        "description": "Update an existing contact in Intercom"
       },
       {
         "name": "List Contacts",
-        "description": "Intercom API access token"
+        "description": "List all contacts from Intercom with pagination support"
       },
       {
         "name": "Search Contacts",
-        "description": "Intercom API access token"
+        "description": "Search for contacts in Intercom using a query"
       },
       {
         "name": "Delete Contact",
-        "description": "Intercom API access token"
+        "description": "Delete a contact from Intercom by ID"
       },
       {
         "name": "Create Company",
-        "description": "Intercom API access token"
+        "description": "Create or update a company in Intercom"
       },
       {
         "name": "Get Company",
-        "description": "Intercom API access token"
+        "description": "Retrieve a single company by ID from Intercom"
       },
       {
         "name": "List Companies",
-        "description": "Intercom API access token"
+        "description": "List all companies from Intercom with pagination support. Note: This endpoint has a limit of 10,000 companies that can be returned using pagination. For datasets larger than 10,000 companies, use the Scroll API instead."
       },
       {
         "name": "Get Conversation",
-        "description": "Intercom API access token"
+        "description": "Retrieve a single conversation by ID from Intercom"
       },
       {
         "name": "List Conversations",
-        "description": "Intercom API access token"
+        "description": "List all conversations from Intercom with pagination support"
       },
       {
         "name": "Reply to Conversation",
-        "description": "Intercom API access token"
+        "description": "Reply to a conversation as an admin in Intercom"
       },
       {
         "name": "Search Conversations",
-        "description": "Intercom API access token"
+        "description": "Search for conversations in Intercom using a query"
       },
       {
         "name": "Create Ticket",
-        "description": "Intercom API access token"
+        "description": "Create a new ticket in Intercom"
       },
       {
         "name": "Get Ticket",
-        "description": "Intercom API access token"
+        "description": "Retrieve a single ticket by ID from Intercom"
       },
       {
         "name": "Update Ticket",
@@ -5157,7 +5449,7 @@
       },
       {
         "name": "Create Message",
-        "description": "Intercom API access token"
+        "description": "Create and send a new admin-initiated message in Intercom"
       },
       {
         "name": "List Admins",
@@ -6664,15 +6956,15 @@
     "operations": [
       {
         "name": "Add Memories",
-        "description": ""
+        "description": "Add memories to Mem0 for persistent storage and retrieval"
       },
       {
         "name": "Search Memories",
-        "description": ""
+        "description": "Search for memories in Mem0 using semantic search"
       },
       {
         "name": "Get Memories",
-        "description": ""
+        "description": "Retrieve memories from Mem0 by ID or filter criteria"
       }
     ],
     "operationCount": 3,
@@ -6697,7 +6989,7 @@
       },
       {
         "name": "Get All Memories",
-        "description": ""
+        "description": "Retrieve all memories from the database"
       },
       {
         "name": "Get Memory",
@@ -7203,6 +7495,95 @@
       }
     ],
     "operationCount": 15,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools"
+  },
+  {
+    "type": "okta",
+    "slug": "okta",
+    "name": "Okta",
+    "description": "Manage users and groups in Okta",
+    "longDescription": "Integrate Okta identity management into your workflow. List, create, update, activate, suspend, and delete users. Reset passwords. Manage groups and group membership.",
+    "bgColor": "#191919",
+    "iconName": "OktaIcon",
+    "docsUrl": "https://docs.sim.ai/tools/okta",
+    "operations": [
+      {
+        "name": "List Users",
+        "description": "List all users in your Okta organization with optional search and filtering"
+      },
+      {
+        "name": "Get User",
+        "description": "Get a specific user by ID or login from your Okta organization"
+      },
+      {
+        "name": "Create User",
+        "description": "Create a new user in your Okta organization"
+      },
+      {
+        "name": "Update User",
+        "description": "Update a user profile in your Okta organization"
+      },
+      {
+        "name": "Activate User",
+        "description": "Activate a user in your Okta organization. Can only be performed on users with STAGED or DEPROVISIONED status. Optionally sends an activation email."
+      },
+      {
+        "name": "Deactivate User",
+        "description": "Deactivate a user in your Okta organization. This transitions the user to DEPROVISIONED status."
+      },
+      {
+        "name": "Suspend User",
+        "description": "Suspend a user in your Okta organization. Only users with ACTIVE status can be suspended. Suspended users cannot log in but retain group and app assignments."
+      },
+      {
+        "name": "Unsuspend User",
+        "description": "Unsuspend a previously suspended user in your Okta organization. Returns the user to ACTIVE status."
+      },
+      {
+        "name": "Reset Password",
+        "description": "Generate a one-time token to reset a user password. Can email the reset link to the user or return it directly. Transitions the user to RECOVERY status."
+      },
+      {
+        "name": "Delete User",
+        "description": "Permanently delete a user from your Okta organization. Can only be performed on DEPROVISIONED users. If the user is active, this will first deactivate them and a second call is needed to delete."
+      },
+      {
+        "name": "List Groups",
+        "description": "List all groups in your Okta organization with optional search and filtering"
+      },
+      {
+        "name": "Get Group",
+        "description": "Get a specific group by ID from your Okta organization"
+      },
+      {
+        "name": "Create Group",
+        "description": "Create a new group in your Okta organization"
+      },
+      {
+        "name": "Update Group",
+        "description": "Update a group profile in your Okta organization. Only groups of OKTA_GROUP type can be updated. All profile properties must be specified (full replacement)."
+      },
+      {
+        "name": "Delete Group",
+        "description": "Delete a group from your Okta organization. Groups of OKTA_GROUP or APP_GROUP type can be removed."
+      },
+      {
+        "name": "Add User to Group",
+        "description": "Add a user to a group in your Okta organization"
+      },
+      {
+        "name": "Remove User from Group",
+        "description": "Remove a user from a group in your Okta organization"
+      },
+      {
+        "name": "List Group Members",
+        "description": "List all members of a specific group in your Okta organization"
+      }
+    ],
+    "operationCount": 18,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -7935,7 +8316,7 @@
       },
       {
         "name": "Unsave",
-        "description": ""
+        "description": "Remove a Reddit post or comment from your saved items"
       },
       {
         "name": "Reply",
@@ -8113,7 +8494,7 @@
     "operations": [
       {
         "name": "Send Email",
-        "description": ""
+        "description": "Send an email using your own Resend API key and from address"
       },
       {
         "name": "Get Email",
@@ -10300,6 +10681,63 @@
     "triggers": [],
     "triggerCount": 0,
     "authType": "oauth",
+    "category": "tools"
+  },
+  {
+    "type": "workday",
+    "slug": "workday",
+    "name": "Workday",
+    "description": "Manage workers, hiring, onboarding, and HR operations in Workday",
+    "longDescription": "Integrate Workday HRIS into your workflow. Create pre-hires, hire employees, manage worker profiles, assign onboarding plans, handle job changes, retrieve compensation data, and process terminations.",
+    "bgColor": "#F5F0EB",
+    "iconName": "WorkdayIcon",
+    "docsUrl": "https://docs.sim.ai/tools/workday",
+    "operations": [
+      {
+        "name": "Get Worker",
+        "description": "Retrieve a specific worker profile including personal, employment, and organization data."
+      },
+      {
+        "name": "List Workers",
+        "description": "List or search workers with optional filtering and pagination."
+      },
+      {
+        "name": "Create Pre-Hire",
+        "description": "Create a new pre-hire (applicant) record in Workday. This is typically the first step before hiring an employee."
+      },
+      {
+        "name": "Hire Employee",
+        "description": "Hire a pre-hire into an employee position. Converts an applicant into an active employee record with position, start date, and manager assignment."
+      },
+      {
+        "name": "Update Worker",
+        "description": "Update fields on an existing worker record in Workday."
+      },
+      {
+        "name": "Assign Onboarding Plan",
+        "description": "Create or update an onboarding plan assignment for a worker. Sets up onboarding stages and manages the assignment lifecycle."
+      },
+      {
+        "name": "Get Organizations",
+        "description": "Retrieve organizations, departments, and cost centers from Workday."
+      },
+      {
+        "name": "Change Job",
+        "description": "Perform a job change for a worker including transfers, promotions, demotions, and lateral moves."
+      },
+      {
+        "name": "Get Compensation",
+        "description": "Retrieve compensation plan details for a specific worker."
+      },
+      {
+        "name": "Terminate Worker",
+        "description": "Initiate a worker termination in Workday. Triggers the Terminate Employee business process."
+      }
+    ],
+    "operationCount": 10,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
     "category": "tools"
   },
   {

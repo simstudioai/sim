@@ -1,5 +1,6 @@
 import fs from 'fs/promises'
 import path from 'path'
+import { cache } from 'react'
 import matter from 'gray-matter'
 import { compileMDX } from 'next-mdx-remote/rsc'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
@@ -89,6 +90,20 @@ async function scanFrontmatters(): Promise<BlogMeta[]> {
 export async function getAllPostMeta(): Promise<BlogMeta[]> {
   return (await scanFrontmatters()).filter((p) => !p.draft)
 }
+
+export const getNavBlogPosts = cache(
+  async (): Promise<Pick<BlogMeta, 'slug' | 'title' | 'ogImage'>[]> => {
+    const allPosts = await getAllPostMeta()
+    const featuredPost = allPosts.find((p) => p.featured) ?? allPosts[0]
+    if (!featuredPost) return []
+    const recentPosts = allPosts.filter((p) => p.slug !== featuredPost.slug).slice(0, 4)
+    return [featuredPost, ...recentPosts].map((p) => ({
+      slug: p.slug,
+      title: p.title,
+      ogImage: p.ogImage,
+    }))
+  }
+)
 
 export async function getAllTags(): Promise<TagWithCount[]> {
   const posts = await getAllPostMeta()
