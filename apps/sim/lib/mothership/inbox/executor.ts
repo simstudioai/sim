@@ -89,7 +89,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       const chatResult = await resolveOrCreateChat({
         userId,
         workspaceId: ws.id,
-        model: 'claude-opus-4-5',
+        model: 'claude-opus-4-6',
         type: 'mothership',
       })
       chatId = chatResult.chatId
@@ -103,7 +103,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
 
       requestChatTitle({
         message: titleInput,
-        model: 'claude-opus-4-5',
+        model: 'claude-opus-4-6',
       })
         .then(async (title) => {
           if (title && chatId) {

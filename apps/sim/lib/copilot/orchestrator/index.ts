@@ -60,6 +60,7 @@ export async function orchestrateCopilotStream(
   }
   execContext.executionId = executionId
   execContext.runId = runId
+  execContext.abortSignal = options.abortSignal
 
   const payloadMsgId = requestPayload?.messageId
   const context = createStreamingContext({

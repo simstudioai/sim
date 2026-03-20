@@ -2,7 +2,11 @@ import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import {
+  assertServerToolNotAborted,
+  type BaseServerTool,
+  type ServerToolContext,
+} from '@/lib/copilot/tools/server/base-tool'
 import { applyTargetedLayout } from '@/lib/workflows/autolayout'
 import {
   DEFAULT_HORIZONTAL_SPACING,
@@ -99,6 +103,8 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
         'Workflow has changed or was not read in this chat. Re-read the workflow before editing.'
       )
     }
+
+    assertServerToolNotAborted(context)
 
     const fromDb = await getCurrentWorkflowStateFromDb(workflowId)
     const workflowState = fromDb.workflowState
@@ -197,6 +203,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     // Extract and persist custom tools to database (reuse workspaceId from selector validation)
     if (context?.userId && workspaceId) {
       try {
+        assertServerToolNotAborted(context)
         const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
         const { saved, errors } = await extractAndPersistCustomTools(
           finalWorkflowState,
@@ -288,6 +295,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       isDeployed: false,
     }
 
+    assertServerToolNotAborted(context)
     const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowStateForDb as any)
     if (!saveResult.success) {
       logger.error('Failed to persist workflow state to database', {
@@ -298,6 +306,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     }
 
     // Update workflow's lastSynced timestamp
+    assertServerToolNotAborted(context)
     await db
       .update(workflowTable)
       .set({
@@ -309,6 +318,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     logger.info('Workflow state persisted to database', { workflowId })
 
     const sanitizationWarnings = validation.warnings.length > 0 ? validation.warnings : undefined
+    assertServerToolNotAborted(context)
     const updatedReadState = await upsertWorkflowReadHashForWorkflowState(
       context.chatId,
       workflowId,

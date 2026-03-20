@@ -51,7 +51,7 @@ const ChatMessageSchema = z.object({
   workflowId: z.string().optional(),
   workspaceId: z.string().optional(),
   workflowName: z.string().optional(),
-  model: z.string().optional().default('claude-opus-4-5'),
+  model: z.string().optional().default('claude-opus-4-6'),
   mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
     let currentChat: any = null
     let conversationHistory: any[] = []
     let actualChatId = chatId
-    const selectedModel = model || 'claude-opus-4-5'
+    const selectedModel = model || 'claude-opus-4-6'
 
     if (chatId || createNewChat) {
       const chatResult = await resolveOrCreateChat({

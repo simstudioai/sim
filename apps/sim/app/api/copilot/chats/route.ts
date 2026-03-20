@@ -22,7 +22,7 @@ const CreateWorkflowCopilotChatSchema = z.object({
   workflowId: z.string().min(1),
 })
 
-const DEFAULT_COPILOT_MODEL = 'claude-opus-4-5'
+const DEFAULT_COPILOT_MODEL = 'claude-opus-4-6'
 
 export async function GET(_request: NextRequest) {
   try {

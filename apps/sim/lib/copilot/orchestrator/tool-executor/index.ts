@@ -1182,6 +1182,7 @@ async function executeServerToolDirect(
       workspaceId: context.workspaceId,
       userPermission: context.userPermission,
       chatId: context.chatId,
+      abortSignal: context.abortSignal,
     })
     return { success: true, output: result }
   } catch (error) {

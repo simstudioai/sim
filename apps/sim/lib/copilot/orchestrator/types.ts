@@ -192,6 +192,7 @@ export interface ExecutionContext {
   chatId?: string
   executionId?: string
   runId?: string
+  abortSignal?: AbortSignal
   userTimezone?: string
   userPermission?: string
   decryptedEnvVars?: Record<string, string>

@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
         chatId,
         userId: authenticatedUserId,
         workspaceId,
-        model: 'claude-opus-4-5',
+        model: 'claude-opus-4-6',
         type: 'mothership',
       })
       currentChat = chatResult.chat
@@ -268,7 +268,7 @@ export async function POST(req: NextRequest) {
       currentChat,
       isNewChat: conversationHistory.length === 0,
       message,
-      titleModel: 'claude-opus-4-5',
+      titleModel: 'claude-opus-4-6',
       requestId: tracker.requestId,
       workspaceId,
       orchestrateOptions: {

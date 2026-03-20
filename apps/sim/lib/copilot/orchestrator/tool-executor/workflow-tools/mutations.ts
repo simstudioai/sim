@@ -91,6 +91,15 @@ import type {
 
 const logger = createLogger('WorkflowMutations')
 
+function assertWorkflowMutationNotAborted(
+  context: ExecutionContext,
+  message = 'Request aborted before workflow mutation could be applied.'
+): void {
+  if (context.abortSignal?.aborted) {
+    throw new Error(message)
+  }
+}
+
 export async function executeCreateWorkflow(
   params: CreateWorkflowParams,
   context: ExecutionContext
@@ -113,6 +122,7 @@ export async function executeCreateWorkflow(
     const folderId = params?.folderId || null
 
     await ensureWorkspaceAccess(workspaceId, context.userId, true)
+    assertWorkflowMutationNotAborted(context)
 
     const result = await createWorkflowRecord({
       userId: context.userId,
@@ -127,6 +137,7 @@ export async function executeCreateWorkflow(
       output: await (async () => {
         let workflowReadHash: string | undefined
         if (context.chatId) {
+          assertWorkflowMutationNotAborted(context)
           const normalized = await loadWorkflowFromNormalizedTables(result.workflowId)
           if (normalized) {
             const seeded = await upsertWorkflowReadHashForWorkflowState(
@@ -175,6 +186,7 @@ export async function executeCreateFolder(
     const parentId = params?.parentId || null
 
     await ensureWorkspaceAccess(workspaceId, context.userId, true)
+    assertWorkflowMutationNotAborted(context)
 
     const result = await createFolderRecord({
       userId: context.userId,
@@ -320,6 +332,7 @@ export async function executeSetGlobalWorkflowVariables(
 
     const nextVarsRecord = Object.fromEntries(Object.values(byName).map((v) => [String(v.id), v]))
 
+    assertWorkflowMutationNotAborted(context)
     await setWorkflowVariables(workflowId, nextVarsRecord)
 
     return { success: true, output: { updated: Object.values(byName).length } }
@@ -346,6 +359,7 @@ export async function executeRenameWorkflow(
     }
 
     await ensureWorkflowAccess(workflowId, context.userId)
+    assertWorkflowMutationNotAborted(context)
     await updateWorkflowRecord(workflowId, { name })
 
     return { success: true, output: { workflowId, name } }
@@ -366,6 +380,7 @@ export async function executeMoveWorkflow(
 
     await ensureWorkflowAccess(workflowId, context.userId)
     const folderId = params.folderId || null
+    assertWorkflowMutationNotAborted(context)
     await updateWorkflowRecord(workflowId, { folderId })
 
     return { success: true, output: { workflowId, folderId } }
@@ -390,6 +405,7 @@ export async function executeMoveFolder(
       return { success: false, error: 'A folder cannot be moved into itself' }
     }
 
+    assertWorkflowMutationNotAborted(context)
     await updateFolderRecord(folderId, { parentId })
 
     return { success: true, output: { folderId, parentId } }
@@ -455,6 +471,7 @@ export async function executeGenerateApiKey(
     const workspaceId =
       params.workspaceId || context.workspaceId || (await getDefaultWorkspaceId(context.userId))
     await ensureWorkspaceAccess(workspaceId, context.userId, true)
+    assertWorkflowMutationNotAborted(context)
 
     const newKey = await createWorkspaceApiKey({
       workspaceId,
@@ -563,6 +580,7 @@ export async function executeUpdateWorkflow(
     }
 
     await ensureWorkflowAccess(workflowId, context.userId)
+    assertWorkflowMutationNotAborted(context)
     await updateWorkflowRecord(workflowId, updates)
 
     return {
@@ -585,6 +603,7 @@ export async function executeDeleteWorkflow(
     }
 
     const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
+    assertWorkflowMutationNotAborted(context)
     await deleteWorkflowRecord(workflowId)
 
     return {
@@ -615,6 +634,7 @@ export async function executeDeleteFolder(
       return { success: false, error: 'Folder not found' }
     }
 
+    assertWorkflowMutationNotAborted(context)
     const deleted = await deleteFolderRecord(folderId)
     if (!deleted) {
       return { success: false, error: 'Folder not found' }
@@ -643,6 +663,7 @@ export async function executeRenameFolder(
       return { success: false, error: 'Folder name must be 200 characters or less' }
     }
 
+    assertWorkflowMutationNotAborted(context)
     await updateFolderRecord(folderId, { name })
 
     return { success: true, output: { folderId, name } }
