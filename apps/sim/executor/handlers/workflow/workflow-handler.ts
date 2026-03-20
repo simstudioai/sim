@@ -363,6 +363,10 @@ export class WorkflowBlockHandler implements BlockHandler {
     const workflowStateWithVariables = {
       ...workflowState,
       variables: workflowVariables,
+      metadata: {
+        ...(workflowState.metadata || {}),
+        name: workflowData.name || DEFAULTS.WORKFLOW_NAME,
+      },
     }
 
     if (Object.keys(workflowVariables).length > 0) {
