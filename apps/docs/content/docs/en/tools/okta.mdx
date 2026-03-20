@@ -1,0 +1,517 @@
+---
+title: Okta
+description: Manage users and groups in Okta
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="okta"
+  color="#191919"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Okta](https://www.okta.com/) is an identity and access management platform that provides secure authentication, authorization, and user management for organizations.
+
+With the Okta integration in Sim, you can:
+
+- **List and search users**: Retrieve users from your Okta org with SCIM search expressions and filters
+- **Manage user lifecycle**: Create, activate, deactivate, suspend, unsuspend, and delete users
+- **Update user profiles**: Modify user attributes like name, email, phone, title, and department
+- **Reset passwords**: Trigger password reset flows with optional email notification
+- **Manage groups**: Create, update, delete, and list groups in your organization
+- **Manage group membership**: Add or remove users from groups, and list group members
+
+In Sim, the Okta integration enables your agents to automate identity management tasks as part of their workflows. This allows for scenarios such as onboarding new employees, offboarding departing users, managing group-based access, auditing user status, and responding to security events by suspending or deactivating accounts.
+
+## Need Help?
+
+If you encounter issues with the Okta integration, contact us at [help@sim.ai](mailto:help@sim.ai)
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Okta identity management into your workflow. List, create, update, activate, suspend, and delete users. Reset passwords. Manage groups and group membership.
+
+
+
+## Tools
+
+### `okta_list_users`
+
+List all users in your Okta organization with optional search and filtering
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `search` | string | No | Okta search expression \(e.g., profile.firstName eq "John" or profile.email co "example.com"\) |
+| `filter` | string | No | Okta filter expression \(e.g., status eq "ACTIVE"\) |
+| `limit` | number | No | Maximum number of users to return \(default: 200, max: 200\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | Array of Okta user objects |
+|   ↳ `id` | string | User ID |
+|   ↳ `status` | string | User status \(ACTIVE, STAGED, PROVISIONED, etc.\) |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `email` | string | Email address |
+|   ↳ `login` | string | Login \(usually email\) |
+|   ↳ `mobilePhone` | string | Mobile phone |
+|   ↳ `title` | string | Job title |
+|   ↳ `department` | string | Department |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `lastLogin` | string | Last login timestamp |
+|   ↳ `lastUpdated` | string | Last update timestamp |
+|   ↳ `activated` | string | Activation timestamp |
+|   ↳ `statusChanged` | string | Status change timestamp |
+| `count` | number | Number of users returned |
+| `success` | boolean | Operation success status |
+
+### `okta_get_user`
+
+Get a specific user by ID or login from your Okta organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `userId` | string | Yes | User ID or login \(email\) to look up |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | User ID |
+| `status` | string | User status |
+| `firstName` | string | First name |
+| `lastName` | string | Last name |
+| `email` | string | Email address |
+| `login` | string | Login \(usually email\) |
+| `mobilePhone` | string | Mobile phone |
+| `secondEmail` | string | Secondary email |
+| `displayName` | string | Display name |
+| `title` | string | Job title |
+| `department` | string | Department |
+| `organization` | string | Organization |
+| `manager` | string | Manager name |
+| `managerId` | string | Manager ID |
+| `division` | string | Division |
+| `employeeNumber` | string | Employee number |
+| `userType` | string | User type |
+| `created` | string | Creation timestamp |
+| `activated` | string | Activation timestamp |
+| `lastLogin` | string | Last login timestamp |
+| `lastUpdated` | string | Last update timestamp |
+| `statusChanged` | string | Status change timestamp |
+| `passwordChanged` | string | Password change timestamp |
+| `success` | boolean | Operation success status |
+
+### `okta_create_user`
+
+Create a new user in your Okta organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `firstName` | string | Yes | First name of the user |
+| `lastName` | string | Yes | Last name of the user |
+| `email` | string | Yes | Email address of the user |
+| `login` | string | No | Login for the user \(defaults to email if not provided\) |
+| `password` | string | No | Password for the user \(if not set, user will be emailed to set password\) |
+| `mobilePhone` | string | No | Mobile phone number |
+| `title` | string | No | Job title |
+| `department` | string | No | Department |
+| `activate` | boolean | No | Whether to activate the user immediately \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Created user ID |
+| `status` | string | User status |
+| `firstName` | string | First name |
+| `lastName` | string | Last name |
+| `email` | string | Email address |
+| `login` | string | Login |
+| `created` | string | Creation timestamp |
+| `lastUpdated` | string | Last update timestamp |
+| `success` | boolean | Operation success status |
+
+### `okta_update_user`
+
+Update a user profile in your Okta organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `userId` | string | Yes | User ID or login to update |
+| `firstName` | string | No | Updated first name |
+| `lastName` | string | No | Updated last name |
+| `email` | string | No | Updated email address |
+| `login` | string | No | Updated login |
+| `mobilePhone` | string | No | Updated mobile phone number |
+| `title` | string | No | Updated job title |
+| `department` | string | No | Updated department |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | User ID |
+| `status` | string | User status |
+| `firstName` | string | First name |
+| `lastName` | string | Last name |
+| `email` | string | Email address |
+| `login` | string | Login |
+| `created` | string | Creation timestamp |
+| `lastUpdated` | string | Last update timestamp |
+| `success` | boolean | Operation success status |
+
+### `okta_activate_user`
+
+Activate a user in your Okta organization. Can only be performed on users with STAGED or DEPROVISIONED status. Optionally sends an activation email.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `userId` | string | Yes | User ID or login to activate |
+| `sendEmail` | boolean | No | Send activation email to the user \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | Activated user ID |
+| `activated` | boolean | Whether the user was activated |
+| `activationUrl` | string | Activation URL \(only returned when sendEmail is false\) |
+| `activationToken` | string | Activation token \(only returned when sendEmail is false\) |
+| `success` | boolean | Operation success status |
+
+### `okta_deactivate_user`
+
+Deactivate a user in your Okta organization. This transitions the user to DEPROVISIONED status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `userId` | string | Yes | User ID or login to deactivate |
+| `sendEmail` | boolean | No | Send deactivation email to admin \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | Deactivated user ID |
+| `deactivated` | boolean | Whether the user was deactivated |
+| `success` | boolean | Operation success status |
+
+### `okta_suspend_user`
+
+Suspend a user in your Okta organization. Only users with ACTIVE status can be suspended. Suspended users cannot log in but retain group and app assignments.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `userId` | string | Yes | User ID or login to suspend |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | Suspended user ID |
+| `suspended` | boolean | Whether the user was suspended |
+| `success` | boolean | Operation success status |
+
+### `okta_unsuspend_user`
+
+Unsuspend a previously suspended user in your Okta organization. Returns the user to ACTIVE status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `userId` | string | Yes | User ID or login to unsuspend |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | Unsuspended user ID |
+| `unsuspended` | boolean | Whether the user was unsuspended |
+| `success` | boolean | Operation success status |
+
+### `okta_reset_password`
+
+Generate a one-time token to reset a user password. Can email the reset link to the user or return it directly. Transitions the user to RECOVERY status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `userId` | string | Yes | User ID or login to reset password for |
+| `sendEmail` | boolean | No | Send password reset email to the user \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | User ID |
+| `resetPasswordUrl` | string | Password reset URL \(only returned when sendEmail is false\) |
+| `success` | boolean | Operation success status |
+
+### `okta_delete_user`
+
+Permanently delete a user from your Okta organization. Can only be performed on DEPROVISIONED users. If the user is active, this will first deactivate them and a second call is needed to delete.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `userId` | string | Yes | User ID to delete |
+| `sendEmail` | boolean | No | Send deactivation email to admin \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | Deleted user ID |
+| `deleted` | boolean | Whether the user was deleted |
+| `success` | boolean | Operation success status |
+
+### `okta_list_groups`
+
+List all groups in your Okta organization with optional search and filtering
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `search` | string | No | Okta search expression for groups \(e.g., profile.name sw "Engineering" or type eq "OKTA_GROUP"\) |
+| `filter` | string | No | Okta filter expression \(e.g., type eq "OKTA_GROUP"\) |
+| `limit` | number | No | Maximum number of groups to return \(default: 10000, max: 10000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groups` | array | Array of Okta group objects |
+|   ↳ `id` | string | Group ID |
+|   ↳ `name` | string | Group name |
+|   ↳ `description` | string | Group description |
+|   ↳ `type` | string | Group type \(OKTA_GROUP, APP_GROUP, BUILT_IN\) |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `lastUpdated` | string | Last update timestamp |
+|   ↳ `lastMembershipUpdated` | string | Last membership change timestamp |
+| `count` | number | Number of groups returned |
+| `success` | boolean | Operation success status |
+
+### `okta_get_group`
+
+Get a specific group by ID from your Okta organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `groupId` | string | Yes | Group ID to look up |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Group ID |
+| `name` | string | Group name |
+| `description` | string | Group description |
+| `type` | string | Group type |
+| `created` | string | Creation timestamp |
+| `lastUpdated` | string | Last update timestamp |
+| `lastMembershipUpdated` | string | Last membership change timestamp |
+| `success` | boolean | Operation success status |
+
+### `okta_create_group`
+
+Create a new group in your Okta organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `name` | string | Yes | Name of the group |
+| `description` | string | No | Description of the group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Created group ID |
+| `name` | string | Group name |
+| `description` | string | Group description |
+| `type` | string | Group type |
+| `created` | string | Creation timestamp |
+| `lastUpdated` | string | Last update timestamp |
+| `lastMembershipUpdated` | string | Last membership change timestamp |
+| `success` | boolean | Operation success status |
+
+### `okta_update_group`
+
+Update a group profile in your Okta organization. Only groups of OKTA_GROUP type can be updated. All profile properties must be specified (full replacement).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `groupId` | string | Yes | Group ID to update |
+| `name` | string | Yes | Updated group name |
+| `description` | string | No | Updated group description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Group ID |
+| `name` | string | Group name |
+| `description` | string | Group description |
+| `type` | string | Group type |
+| `created` | string | Creation timestamp |
+| `lastUpdated` | string | Last update timestamp |
+| `lastMembershipUpdated` | string | Last membership change timestamp |
+| `success` | boolean | Operation success status |
+
+### `okta_delete_group`
+
+Delete a group from your Okta organization. Groups of OKTA_GROUP or APP_GROUP type can be removed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `groupId` | string | Yes | Group ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groupId` | string | Deleted group ID |
+| `deleted` | boolean | Whether the group was deleted |
+| `success` | boolean | Operation success status |
+
+### `okta_add_user_to_group`
+
+Add a user to a group in your Okta organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `groupId` | string | Yes | Group ID to add the user to |
+| `userId` | string | Yes | User ID to add to the group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groupId` | string | Group ID |
+| `userId` | string | User ID added to the group |
+| `added` | boolean | Whether the user was added |
+| `success` | boolean | Operation success status |
+
+### `okta_remove_user_from_group`
+
+Remove a user from a group in your Okta organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `groupId` | string | Yes | Group ID to remove the user from |
+| `userId` | string | Yes | User ID to remove from the group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groupId` | string | Group ID |
+| `userId` | string | User ID removed from the group |
+| `removed` | boolean | Whether the user was removed |
+| `success` | boolean | Operation success status |
+
+### `okta_list_group_members`
+
+List all members of a specific group in your Okta organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Okta API token for authentication |
+| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
+| `groupId` | string | Yes | Group ID to list members for |
+| `limit` | number | No | Maximum number of members to return \(default: 1000, max: 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | Array of group member user objects |
+|   ↳ `id` | string | User ID |
+|   ↳ `status` | string | User status |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `email` | string | Email address |
+|   ↳ `login` | string | Login |
+|   ↳ `mobilePhone` | string | Mobile phone |
+|   ↳ `title` | string | Job title |
+|   ↳ `department` | string | Department |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `lastLogin` | string | Last login timestamp |
+|   ↳ `lastUpdated` | string | Last update timestamp |
+|   ↳ `activated` | string | Activation timestamp |
+|   ↳ `statusChanged` | string | Status change timestamp |
+| `count` | number | Number of members returned |
+| `success` | boolean | Operation success status |
+
+

@@ -7,7 +7,6 @@ import { PanelLeft } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import {
   LandingPromptStorage,
-  LandingTemplateStorage,
   type LandingWorkflowSeed,
   LandingWorkflowSeedStorage,
 } from '@/lib/core/utils/browser-storage'
@@ -104,12 +103,12 @@ export function Home({ chatId }: HomeProps = {}) {
       return
     }
 
-    const templateId = LandingTemplateStorage.consume()
-    if (templateId) {
-      logger.info('Retrieved landing page template, redirecting to template detail')
-      router.replace(`/workspace/${workspaceId}/templates/${templateId}?use=true`)
-      return
-    }
+    // const templateId = LandingTemplateStorage.consume()
+    // if (templateId) {
+    //   logger.info('Retrieved landing page template, redirecting to template detail')
+    //   router.replace(`/workspace/${workspaceId}/templates/${templateId}?use=true`)
+    //   return
+    // }
 
     const prompt = LandingPromptStorage.consume()
     if (prompt) {
