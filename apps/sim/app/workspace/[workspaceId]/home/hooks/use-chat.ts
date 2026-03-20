@@ -351,6 +351,11 @@ export function useChat(
     })
     setActiveResourceId(resource.id)
 
+    // Ephemeral UI tab — must not be stored; it would reappear as "Writing file..." after refresh.
+    if (resource.id === 'streaming-file') {
+      return true
+    }
+
     const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
     if (persistChatId) {
       fetch('/api/copilot/chat/resources', {
@@ -442,14 +447,30 @@ export function useChat(
     const mappedMessages = chatHistory.messages.map(mapStoredMessage)
     setMessages(mappedMessages)
 
-    if (chatHistory.resources.length > 0) {
-      setResources(chatHistory.resources)
-      setActiveResourceId(chatHistory.resources[chatHistory.resources.length - 1].id)
+    if (chatHistory.resources.some((r) => r.id === 'streaming-file')) {
+      fetch('/api/copilot/chat/resources', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chatId: chatHistory.id,
+          resourceType: 'file',
+          resourceId: 'streaming-file',
+        }),
+      }).catch(() => {})
+    }
 
-      for (const resource of chatHistory.resources) {
+    const persistedResources = chatHistory.resources.filter((r) => r.id !== 'streaming-file')
+    if (persistedResources.length > 0) {
+      setResources(persistedResources)
+      setActiveResourceId(persistedResources[persistedResources.length - 1].id)
+
+      for (const resource of persistedResources) {
         if (resource.type !== 'workflow') continue
         ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)
       }
+    } else if (chatHistory.resources.some((r) => r.id === 'streaming-file')) {
+      setResources([])
+      setActiveResourceId(null)
     }
 
     if (activeStreamId && !sendingRef.current) {
