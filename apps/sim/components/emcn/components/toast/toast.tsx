@@ -149,6 +149,9 @@ function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: 
             {t.variant === 'error' && (
               <span className='mr-[8px] mb-[2px] inline-block h-[8px] w-[8px] rounded-[2px] bg-[var(--text-error)] align-middle' />
             )}
+            {t.variant === 'success' && (
+              <span className='mr-[8px] mb-[2px] inline-block h-[8px] w-[8px] rounded-[2px] bg-[var(--text-success)] align-middle' />
+            )}
             {t.message}
           </div>
           <div className='flex shrink-0 items-start gap-[2px]'>
