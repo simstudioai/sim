@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
-import { Layout, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { Button, Library } from '@/components/emcn'

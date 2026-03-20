@@ -14,7 +14,6 @@ import {
   ShieldCheck,
   TerminalWindow,
   TrashOutline,
-  User,
   Users,
   Wrench,
 } from '@/components/emcn'
