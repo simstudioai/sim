@@ -4253,7 +4253,7 @@ export function ZoomIcon(props: SVGProps<SVGSVGElement>) {
       fill='currentColor'
       width='800px'
       height='800px'
-      viewBox='0 0 32 32'
+      viewBox='-1 8 34 16'
       version='1.1'
       xmlns='http://www.w3.org/2000/svg'
     >
