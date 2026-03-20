@@ -213,7 +213,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'ChannelMessage.ReadWrite': 'Read and write to Microsoft channels',
   'ChannelMember.Read.All': 'Read team channel members',
   'Group.Read.All': 'Read Microsoft groups',
-  'Group.ReadWrite.All': 'Write to Microsoft groups',
+  'Group.ReadWrite.All': 'Read and write all groups',
   'Team.ReadBasic.All': 'Read Microsoft teams',
   'TeamMember.Read.All': 'Read team members',
   'Mail.ReadWrite': 'Write to Microsoft emails',
@@ -227,6 +227,10 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'Sites.ReadWrite.All': 'Read and write Sharepoint sites',
   'Sites.Manage.All': 'Manage Sharepoint sites',
   'https://dynamics.microsoft.com/user_impersonation': 'Access Microsoft Dataverse on your behalf',
+  'User.Read.All': 'Read all user profiles',
+  'User.ReadWrite.All': 'Read and write all user profiles',
+  'GroupMember.ReadWrite.All': 'Read and write all group memberships',
+  'Directory.Read.All': 'Read directory data',
 
   // Discord scopes
   identify: 'Read Discord user',

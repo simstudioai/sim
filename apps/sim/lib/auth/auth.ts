@@ -69,7 +69,11 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
-import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import {
+  isDisposableEmailFull,
+  isDisposableMxBackend,
+  quickValidateEmail,
+} from '@/lib/messaging/email/validation'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 import { createAnonymousSession, ensureAnonymousUserExists } from './anonymous'
@@ -479,6 +483,7 @@ export const auth = betterAuth({
         'google-tasks',
         'vertex-ai',
 
+        'microsoft-ad',
         'microsoft-dataverse',
         'microsoft-teams',
         'microsoft-excel',
@@ -624,12 +629,23 @@ export const auth = betterAuth({
         }
       }
 
-      if (ctx.path.startsWith('/sign-up') && blockedSignupDomains) {
+      if (ctx.path.startsWith('/sign-up')) {
         const requestEmail = ctx.body?.email?.toLowerCase()
         if (requestEmail) {
-          const emailDomain = requestEmail.split('@')[1]
-          if (emailDomain && blockedSignupDomains.has(emailDomain)) {
-            throw new Error('Sign-ups from this email domain are not allowed.')
+          // Check manually blocked domains
+          if (blockedSignupDomains) {
+            const emailDomain = requestEmail.split('@')[1]
+            if (emailDomain && blockedSignupDomains.has(emailDomain)) {
+              throw new Error('Sign-ups from this email domain are not allowed.')
+            }
+          }
+
+          // Check disposable email domains (full list + MX backend check)
+          if (isDisposableEmailFull(requestEmail)) {
+            throw new Error('Sign-ups from disposable email addresses are not allowed.')
+          }
+          if (await isDisposableMxBackend(requestEmail)) {
+            throw new Error('Sign-ups from disposable email addresses are not allowed.')
           }
         }
       }
@@ -1258,6 +1274,46 @@ export const auth = betterAuth({
               }
             } catch (error) {
               logger.error('Error in Google getUserInfo', { error })
+              throw error
+            }
+          },
+        },
+
+        {
+          providerId: 'microsoft-ad',
+          clientId: env.MICROSOFT_CLIENT_ID as string,
+          clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
+          authorizationUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+          tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+          userInfoUrl: 'https://graph.microsoft.com/v1.0/me',
+          scopes: getCanonicalScopesForProvider('microsoft-ad'),
+          responseType: 'code',
+          accessType: 'offline',
+          authentication: 'basic',
+          pkce: true,
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-ad`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://graph.microsoft.com/v1.0/me', {
+                headers: { Authorization: `Bearer ${tokens.accessToken}` },
+              })
+              if (!response.ok) {
+                await response.text().catch(() => {})
+                logger.error('Failed to fetch Microsoft user info', { status: response.status })
+                throw new Error(`Failed to fetch Microsoft user info: ${response.statusText}`)
+              }
+              const profile = await response.json()
+              const now = new Date()
+              return {
+                id: `${profile.id}-${crypto.randomUUID()}`,
+                name: profile.displayName || 'Microsoft User',
+                email: profile.mail || profile.userPrincipalName,
+                emailVerified: true,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Microsoft getUserInfo', { error })
               throw error
             }
           },

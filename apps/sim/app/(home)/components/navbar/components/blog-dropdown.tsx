@@ -1,23 +1,11 @@
 import Link from 'next/link'
 import { cn } from '@/lib/core/utils/cn'
 
-const FEATURED_POST = {
-  title: 'Build with Sim for Enterprise',
-  slug: 'enterprise',
-  image: '/blog/thumbnails/enterprise.webp',
-} as const
-
-const POSTS = [
-  { title: 'Introducing Sim v0.5', slug: 'v0-5', image: '/blog/thumbnails/v0-5.webp' },
-  { title: '$7M Series A', slug: 'series-a', image: '/blog/thumbnails/series-a.webp' },
-  {
-    title: 'Realtime Collaboration',
-    slug: 'multiplayer',
-    image: '/blog/thumbnails/multiplayer.webp',
-  },
-  { title: 'Inside the Executor', slug: 'executor', image: '/blog/thumbnails/executor.webp' },
-  { title: 'Inside Sim Copilot', slug: 'copilot', image: '/blog/thumbnails/copilot.webp' },
-] as const
+export interface NavBlogPost {
+  slug: string
+  title: string
+  ogImage: string
+}
 
 function BlogCard({
   slug,
@@ -63,34 +51,32 @@ function BlogCard({
   )
 }
 
-export function BlogDropdown() {
+interface BlogDropdownProps {
+  posts: NavBlogPost[]
+}
+
+export function BlogDropdown({ posts }: BlogDropdownProps) {
+  const [featured, ...rest] = posts
+
+  if (!featured) return null
+
   return (
     <div className='w-[560px] rounded-[5px] border border-[#2A2A2A] bg-[#1C1C1C] p-[16px] shadow-[0_16px_48px_rgba(0,0,0,0.4)]'>
       <div className='grid grid-cols-3 gap-[8px]'>
         <BlogCard
-          slug={FEATURED_POST.slug}
-          image={FEATURED_POST.image}
-          title={FEATURED_POST.title}
+          slug={featured.slug}
+          image={featured.ogImage}
+          title={featured.title}
           imageHeight='190px'
           titleSize='13px'
           className='col-span-2 row-span-2'
         />
 
-        {POSTS.slice(0, 2).map((post) => (
+        {rest.map((post) => (
           <BlogCard
             key={post.slug}
             slug={post.slug}
-            image={post.image}
-            title={post.title}
-            imageHeight='72px'
-          />
-        ))}
-
-        {POSTS.slice(2).map((post) => (
-          <BlogCard
-            key={post.slug}
-            slug={post.slug}
-            image={post.image}
+            image={post.ogImage}
             title={post.title}
             imageHeight='72px'
           />

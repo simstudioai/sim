@@ -303,7 +303,7 @@ export default function Collaboration() {
         </div>
 
         <Link
-          href='/studio/multiplayer'
+          href='/blog/multiplayer'
           target='_blank'
           rel='noopener noreferrer'
           className='relative mx-4 mb-6 flex cursor-none items-center gap-[14px] rounded-[5px] border border-[#2A2A2A] bg-[#1C1C1C] px-[12px] py-[10px] transition-colors hover:border-[#3d3d3d] hover:bg-[#232323] sm:mx-8 md:absolute md:bottom-10 md:left-[80px] md:z-20 md:mx-0 md:mb-0'

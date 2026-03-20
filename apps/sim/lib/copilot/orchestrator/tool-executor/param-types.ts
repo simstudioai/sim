@@ -202,3 +202,15 @@ export interface UpdateWorkspaceMcpServerParams {
 export interface DeleteWorkspaceMcpServerParams {
   serverId: string
 }
+
+export type OpenResourceType = 'workflow' | 'table' | 'knowledgebase' | 'file'
+
+export interface OpenResourceParams {
+  type?: OpenResourceType
+  id?: string
+}
+
+export interface ValidOpenResourceParams {
+  type: OpenResourceType
+  id: string
+}

@@ -1,0 +1,262 @@
+---
+title: Workday
+description: Manage workers, hiring, onboarding, and HR operations in Workday
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="workday"
+  color="#F5F0EB"
+/>
+
+## Usage Instructions
+
+Integrate Workday HRIS into your workflow. Create pre-hires, hire employees, manage worker profiles, assign onboarding plans, handle job changes, retrieve compensation data, and process terminations.
+
+
+
+## Tools
+
+### `workday_get_worker`
+
+Retrieve a specific worker profile including personal, employment, and organization data.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tenantUrl` | string | Yes | Workday instance URL \(e.g., https://wd5-impl-services1.workday.com\) |
+| `tenant` | string | Yes | Workday tenant name |
+| `username` | string | Yes | Integration System User username |
+| `password` | string | Yes | Integration System User password |
+| `workerId` | string | Yes | Worker ID to retrieve \(e.g., 3aa5550b7fe348b98d7b5741afc65534\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `worker` | json | Worker profile with personal, employment, and organization data |
+
+### `workday_list_workers`
+
+List or search workers with optional filtering and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tenantUrl` | string | Yes | Workday instance URL \(e.g., https://wd5-impl-services1.workday.com\) |
+| `tenant` | string | Yes | Workday tenant name |
+| `username` | string | Yes | Integration System User username |
+| `password` | string | Yes | Integration System User password |
+| `limit` | number | No | Maximum number of workers to return \(default: 20\) |
+| `offset` | number | No | Number of records to skip for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workers` | array | Array of worker profiles |
+| `total` | number | Total number of matching workers |
+
+### `workday_create_prehire`
+
+Create a new pre-hire (applicant) record in Workday. This is typically the first step before hiring an employee.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tenantUrl` | string | Yes | Workday instance URL \(e.g., https://wd5-impl-services1.workday.com\) |
+| `tenant` | string | Yes | Workday tenant name |
+| `username` | string | Yes | Integration System User username |
+| `password` | string | Yes | Integration System User password |
+| `legalName` | string | Yes | Full legal name of the pre-hire \(e.g., "Jane Doe"\) |
+| `email` | string | No | Email address of the pre-hire |
+| `phoneNumber` | string | No | Phone number of the pre-hire |
+| `address` | string | No | Address of the pre-hire |
+| `countryCode` | string | No | ISO 3166-1 Alpha-2 country code \(defaults to US\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `preHireId` | string | ID of the created pre-hire record |
+| `descriptor` | string | Display name of the pre-hire |
+
+### `workday_hire_employee`
+
+Hire a pre-hire into an employee position. Converts an applicant into an active employee record with position, start date, and manager assignment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tenantUrl` | string | Yes | Workday instance URL \(e.g., https://wd5-impl-services1.workday.com\) |
+| `tenant` | string | Yes | Workday tenant name |
+| `username` | string | Yes | Integration System User username |
+| `password` | string | Yes | Integration System User password |
+| `preHireId` | string | Yes | Pre-hire \(applicant\) ID to convert into an employee |
+| `positionId` | string | Yes | Position ID to assign the new hire to |
+| `hireDate` | string | Yes | Hire date in ISO 8601 format \(e.g., 2025-06-01\) |
+| `employeeType` | string | No | Employee type \(e.g., Regular, Temporary, Contractor\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workerId` | string | Worker ID of the newly hired employee |
+| `employeeId` | string | Employee ID assigned to the new hire |
+| `eventId` | string | Event ID of the hire business process |
+| `hireDate` | string | Effective hire date |
+
+### `workday_update_worker`
+
+Update fields on an existing worker record in Workday.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tenantUrl` | string | Yes | Workday instance URL \(e.g., https://wd5-impl-services1.workday.com\) |
+| `tenant` | string | Yes | Workday tenant name |
+| `username` | string | Yes | Integration System User username |
+| `password` | string | Yes | Integration System User password |
+| `workerId` | string | Yes | Worker ID to update |
+| `fields` | json | Yes | Fields to update as JSON \(e.g., \{"businessTitle": "Senior Engineer", "primaryWorkEmail": "new@company.com"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Event ID of the change personal information business process |
+| `workerId` | string | Worker ID that was updated |
+
+### `workday_assign_onboarding`
+
+Create or update an onboarding plan assignment for a worker. Sets up onboarding stages and manages the assignment lifecycle.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tenantUrl` | string | Yes | Workday instance URL \(e.g., https://wd5-impl-services1.workday.com\) |
+| `tenant` | string | Yes | Workday tenant name |
+| `username` | string | Yes | Integration System User username |
+| `password` | string | Yes | Integration System User password |
+| `workerId` | string | Yes | Worker ID to assign the onboarding plan to |
+| `onboardingPlanId` | string | Yes | Onboarding plan ID to assign |
+| `actionEventId` | string | Yes | Action event ID that enables the onboarding plan \(e.g., the hiring event ID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assignmentId` | string | Onboarding plan assignment ID |
+| `workerId` | string | Worker ID the plan was assigned to |
+| `planId` | string | Onboarding plan ID that was assigned |
+
+### `workday_get_organizations`
+
+Retrieve organizations, departments, and cost centers from Workday.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tenantUrl` | string | Yes | Workday instance URL \(e.g., https://wd5-impl-services1.workday.com\) |
+| `tenant` | string | Yes | Workday tenant name |
+| `username` | string | Yes | Integration System User username |
+| `password` | string | Yes | Integration System User password |
+| `type` | string | No | Organization type filter \(e.g., Supervisory, Cost_Center, Company, Region\) |
+| `limit` | number | No | Maximum number of organizations to return \(default: 20\) |
+| `offset` | number | No | Number of records to skip for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `organizations` | array | Array of organization records |
+| `total` | number | Total number of matching organizations |
+
+### `workday_change_job`
+
+Perform a job change for a worker including transfers, promotions, demotions, and lateral moves.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tenantUrl` | string | Yes | Workday instance URL \(e.g., https://wd5-impl-services1.workday.com\) |
+| `tenant` | string | Yes | Workday tenant name |
+| `username` | string | Yes | Integration System User username |
+| `password` | string | Yes | Integration System User password |
+| `workerId` | string | Yes | Worker ID for the job change |
+| `effectiveDate` | string | Yes | Effective date for the job change in ISO 8601 format \(e.g., 2025-06-01\) |
+| `newPositionId` | string | No | New position ID \(for transfers\) |
+| `newJobProfileId` | string | No | New job profile ID \(for role changes\) |
+| `newLocationId` | string | No | New work location ID \(for relocations\) |
+| `newSupervisoryOrgId` | string | No | Target supervisory organization ID \(for org transfers\) |
+| `reason` | string | Yes | Reason for the job change \(e.g., Promotion, Transfer, Reorganization\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Job change event ID |
+| `workerId` | string | Worker ID the job change was applied to |
+| `effectiveDate` | string | Effective date of the job change |
+
+### `workday_get_compensation`
+
+Retrieve compensation plan details for a specific worker.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tenantUrl` | string | Yes | Workday instance URL \(e.g., https://wd5-impl-services1.workday.com\) |
+| `tenant` | string | Yes | Workday tenant name |
+| `username` | string | Yes | Integration System User username |
+| `password` | string | Yes | Integration System User password |
+| `workerId` | string | Yes | Worker ID to retrieve compensation data for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `compensationPlans` | array | Array of compensation plan details |
+|   ↳ `id` | string | Compensation plan ID |
+|   ↳ `planName` | string | Name of the compensation plan |
+|   ↳ `amount` | number | Compensation amount |
+|   ↳ `currency` | string | Currency code |
+|   ↳ `frequency` | string | Pay frequency |
+
+### `workday_terminate_worker`
+
+Initiate a worker termination in Workday. Triggers the Terminate Employee business process.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tenantUrl` | string | Yes | Workday instance URL \(e.g., https://wd5-impl-services1.workday.com\) |
+| `tenant` | string | Yes | Workday tenant name |
+| `username` | string | Yes | Integration System User username |
+| `password` | string | Yes | Integration System User password |
+| `workerId` | string | Yes | Worker ID to terminate |
+| `terminationDate` | string | Yes | Termination date in ISO 8601 format \(e.g., 2025-06-01\) |
+| `reason` | string | Yes | Termination reason \(e.g., Resignation, End_of_Contract, Retirement\) |
+| `notificationDate` | string | No | Date the termination was communicated in ISO 8601 format |
+| `lastDayOfWork` | string | No | Last day of work in ISO 8601 format \(defaults to termination date\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Termination event ID |
+| `workerId` | string | Worker ID that was terminated |
+| `terminationDate` | string | Effective termination date |
+
+
