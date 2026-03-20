@@ -1,4 +1,4 @@
-import { getAllPostMeta } from '@/lib/blog/registry'
+import { getNavBlogPosts } from '@/lib/blog/registry'
 import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
 import { season } from '@/app/_styles/fonts/season/season'
 import {
@@ -33,12 +33,7 @@ import {
  *   enterprise (Enterprise) -> pricing (Pricing) -> testimonials (Testimonials).
  */
 export default async function Landing() {
-  const allPosts = await getAllPostMeta()
-  const featuredPost = allPosts.find((p) => p.featured) ?? allPosts[0]
-  const recentPosts = allPosts.filter((p) => p !== featuredPost).slice(0, 4)
-  const blogPosts = [featuredPost, ...recentPosts]
-    .filter(Boolean)
-    .map((p) => ({ slug: p.slug, title: p.title, ogImage: p.ogImage }))
+  const blogPosts = await getNavBlogPosts()
 
   return (
     <div className={`${season.variable} ${martianMono.variable} min-h-screen bg-[#1C1C1C]`}>
