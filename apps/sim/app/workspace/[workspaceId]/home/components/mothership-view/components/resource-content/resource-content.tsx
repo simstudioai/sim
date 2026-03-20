@@ -299,7 +299,7 @@ function EmbeddedFileActions({ workspaceId, fileId }: EmbeddedFileActionsProps) 
   }, [file])
 
   const handleOpenInFiles = useCallback(() => {
-    router.push(`/workspace/${workspaceId}/files?fileId=${encodeURIComponent(fileId)}`)
+    router.push(`/workspace/${workspaceId}/files/${encodeURIComponent(fileId)}`)
   }, [router, workspaceId, fileId])
 
   return (
