@@ -2,12 +2,22 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { env } from '@/lib/core/config/env'
+import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
+import { RateLimiter } from '@/lib/core/rate-limiter'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getEmailDomain } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 
 const logger = createLogger('IntegrationRequestAPI')
+
+const rateLimiter = new RateLimiter()
+
+const PUBLIC_ENDPOINT_RATE_LIMIT: TokenBucketConfig = {
+  maxTokens: 10,
+  refillRate: 5,
+  refillIntervalMs: 60_000,
+}
 
 const integrationRequestSchema = z.object({
   integrationName: z.string().min(1, 'Integration name is required').max(200),
@@ -19,6 +29,25 @@ export async function POST(req: NextRequest) {
   const requestId = generateRequestId()
 
   try {
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const storageKey = `public:integration-request:${ip}`
+
+    const { allowed, remaining, resetAt } = await rateLimiter.checkRateLimitDirect(
+      storageKey,
+      PUBLIC_ENDPOINT_RATE_LIMIT
+    )
+
+    if (!allowed) {
+      logger.warn(`[${requestId}] Rate limit exceeded for IP ${ip}`, { remaining, resetAt })
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(Math.ceil((resetAt.getTime() - Date.now()) / 1000)) },
+        }
+      )
+    }
+
     const body = await req.json()
 
     const validationResult = integrationRequestSchema.safeParse(body)

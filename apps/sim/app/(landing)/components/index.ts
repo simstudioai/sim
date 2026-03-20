@@ -1,4 +1,5 @@
 import Background from '@/app/(landing)/components/background/background'
+import ExternalRedirect from '@/app/(landing)/components/external-redirect'
 import Footer from '@/app/(landing)/components/footer/footer'
 import Hero from '@/app/(landing)/components/hero/hero'
 import Integrations from '@/app/(landing)/components/integrations/integrations'
@@ -20,4 +21,5 @@ export {
   Footer,
   StructuredData,
   LegalLayout,
+  ExternalRedirect,
 }

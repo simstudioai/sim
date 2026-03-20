@@ -523,14 +523,36 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
           let desc = toolDescMap.get(toolId) || toolDescMap.get(id) || ''
 
           // Fallback: some tool IDs differ from the operation ID (e.g. operation "send"
-          // maps to tool "slack_message"). Find a tool in this namespace whose description
-          // starts with the same action verb as the operation label ("Send Message" → "send").
+          // maps to tool "slack_message"). Score candidates by word overlap with the
+          // operation label, scoped to this block's tools.access list to avoid
+          // cross-operation contamination when multiple tools share a verb.
           if (!desc) {
-            const verb = label.split(/\s+/)[0].toLowerCase()
-            for (const [tId, tDesc] of toolDescMap) {
-              if (tId.startsWith(`${baseType}_`) && tDesc.toLowerCase().startsWith(verb)) {
+            const toolsAccess: string[] = (config as any).tools?.access || []
+            const labelWords = label.toLowerCase().split(/\s+/)
+            const labelVerb = labelWords[0]
+            const candidates =
+              toolsAccess.length > 0
+                ? toolsAccess
+                : [...toolDescMap.keys()].filter((t) => t.startsWith(`${baseType}_`))
+
+            let bestScore = -1
+            for (const tId of candidates) {
+              const tDesc = toolDescMap.get(tId)
+              if (!tDesc) continue
+              const toolIdWords = tId.toLowerCase().split('_')
+              // Exact word matches weighted 2x over partial substring matches
+              const exact = labelWords.filter((w) => toolIdWords.includes(w)).length
+              const partial = labelWords.filter(
+                (w) =>
+                  !toolIdWords.includes(w) &&
+                  toolIdWords.some((tw) => tw.includes(w) || w.includes(tw))
+              ).length
+              // Verb tiebreaker: +0.5 if description starts with the same action word
+              const verbBonus = tDesc.toLowerCase().startsWith(labelVerb) ? 0.5 : 0
+              const score = exact * 2 + partial + verbBonus
+              if (score > bestScore) {
+                bestScore = score
                 desc = tDesc
-                break
               }
             }
           }

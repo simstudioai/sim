@@ -162,7 +162,7 @@
     "operations": [
       {
         "name": "List Bases",
-        "description": "List all tables and their schema in an Airtable base"
+        "description": "List all bases the authenticated user has access to"
       },
       {
         "name": "List Tables",
@@ -174,15 +174,15 @@
       },
       {
         "name": "List Records",
-        "description": "List all tables and their schema in an Airtable base"
+        "description": "Read records from an Airtable table"
       },
       {
         "name": "Get Record",
-        "description": "Get the schema of all tables, fields, and views in an Airtable base"
+        "description": "Retrieve a single record from an Airtable table by its ID"
       },
       {
         "name": "Create Records",
-        "description": ""
+        "description": "Write new records to an Airtable table"
       },
       {
         "name": "Update Record",
@@ -190,7 +190,7 @@
       },
       {
         "name": "Update Multiple Records",
-        "description": "Update an existing record in an Airtable table by ID"
+        "description": "Update multiple existing records in an Airtable table"
       }
     ],
     "operationCount": 8,
@@ -281,7 +281,7 @@
       },
       {
         "name": "Copy/Move Index",
-        "description": ""
+        "description": "Search an Algolia index"
       },
       {
         "name": "Clear Records",
@@ -1357,7 +1357,7 @@
       },
       {
         "name": "List Event Types",
-        "description": "List all availability schedules from Cal.com"
+        "description": "Create a new event type in Cal.com"
       },
       {
         "name": "Update Event Type",
@@ -1464,7 +1464,7 @@
       },
       {
         "name": "List Event Types",
-        "description": ""
+        "description": "Retrieve a list of invitees for a scheduled event"
       },
       {
         "name": "Get Event Type",
@@ -1704,11 +1704,11 @@
     "operations": [
       {
         "name": "Read Page",
-        "description": ""
+        "description": "Create a new page in a Confluence space."
       },
       {
         "name": "Create Page",
-        "description": "Create a property on a Confluence space."
+        "description": "Create a new page in a Confluence space."
       },
       {
         "name": "Update Page",
@@ -1716,7 +1716,7 @@
       },
       {
         "name": "Delete Page",
-        "description": "Delete a property from a Confluence space."
+        "description": "Delete a Confluence page. By default moves to trash; use purge=true to permanently delete."
       },
       {
         "name": "List Pages in Space",
@@ -2559,7 +2559,7 @@
       },
       {
         "name": "Create Index",
-        "description": ""
+        "description": "Index (create or update) a document in Elasticsearch."
       },
       {
         "name": "Delete Index",
@@ -2567,7 +2567,7 @@
       },
       {
         "name": "Get Index Info",
-        "description": "Get comprehensive statistics about the Elasticsearch cluster."
+        "description": "Index (create or update) a document in Elasticsearch."
       },
       {
         "name": "List Indices",
@@ -3566,51 +3566,51 @@
     "operations": [
       {
         "name": "Send Email",
-        "description": "Send emails using Gmail"
+        "description": ""
       },
       {
         "name": "Read Email",
-        "description": "Read emails from Gmail"
+        "description": ""
       },
       {
         "name": "Draft Email",
-        "description": "Draft emails using Gmail"
+        "description": ""
       },
       {
         "name": "Search Email",
-        "description": "Search emails in Gmail"
+        "description": ""
       },
       {
         "name": "Move Email",
-        "description": "Move an email thread to trash in Gmail"
+        "description": ""
       },
       {
         "name": "Mark as Read",
-        "description": "Mark a Gmail message as unread"
+        "description": ""
       },
       {
         "name": "Mark as Unread",
-        "description": "Mark a Gmail message as unread"
+        "description": ""
       },
       {
         "name": "Archive Email",
-        "description": "Archive a Gmail message (remove from inbox)"
+        "description": ""
       },
       {
         "name": "Unarchive Email",
-        "description": "Unarchive a Gmail message (move back to inbox)"
+        "description": ""
       },
       {
         "name": "Delete Email",
-        "description": "Delete a label from Gmail"
+        "description": ""
       },
       {
         "name": "Add Label",
-        "description": "Add label(s) to a Gmail message"
+        "description": ""
       },
       {
         "name": "Remove Label",
-        "description": "Remove an email thread from trash in Gmail"
+        "description": ""
       }
     ],
     "operationCount": 12,
@@ -4333,15 +4333,15 @@
       },
       {
         "name": "Batch Read",
-        "description": ""
+        "description": "Read multiple ranges from a Google Sheets spreadsheet in a single request"
       },
       {
         "name": "Batch Update",
-        "description": ""
+        "description": "Update multiple ranges in a Google Sheets spreadsheet in a single request"
       },
       {
         "name": "Batch Clear",
-        "description": ""
+        "description": "Clear multiple ranges in a Google Sheets spreadsheet in a single request"
       },
       {
         "name": "Copy Sheet",
@@ -4406,7 +4406,7 @@
       },
       {
         "name": "Reorder Slides",
-        "description": ""
+        "description": "Read content from a Google Slides presentation"
       },
       {
         "name": "Create Table",
@@ -4663,7 +4663,7 @@
       },
       {
         "name": "List Meeting Types",
-        "description": "List available Grain views for webhook subscriptions"
+        "description": "List recordings from Grain with optional filters and pagination"
       },
       {
         "name": "Create Webhook",
@@ -4916,7 +4916,7 @@
       },
       {
         "name": "Get Contacts",
-        "description": ""
+        "description": "Retrieve a single contact by ID or email from HubSpot"
       },
       {
         "name": "Create Contact",
@@ -4932,7 +4932,7 @@
       },
       {
         "name": "Get Companies",
-        "description": ""
+        "description": "Retrieve all users from HubSpot account"
       },
       {
         "name": "Create Company",
@@ -4948,7 +4948,7 @@
       },
       {
         "name": "Get Deals",
-        "description": ""
+        "description": "Retrieve all users from HubSpot account"
       }
     ],
     "operationCount": 10,
@@ -5445,7 +5445,7 @@
       },
       {
         "name": "Update Ticket",
-        "description": ""
+        "description": "Intercom API access token"
       },
       {
         "name": "Create Message",
@@ -5453,59 +5453,59 @@
       },
       {
         "name": "List Admins",
-        "description": ""
+        "description": "Intercom API access token"
       },
       {
         "name": "Close Conversation",
-        "description": ""
+        "description": "Intercom API access token"
       },
       {
         "name": "Open Conversation",
-        "description": ""
+        "description": "Intercom API access token"
       },
       {
         "name": "Snooze Conversation",
-        "description": ""
+        "description": "Intercom API access token"
       },
       {
         "name": "Assign Conversation",
-        "description": ""
+        "description": "Intercom API access token"
       },
       {
         "name": "List Tags",
-        "description": ""
+        "description": "Intercom API access token"
       },
       {
         "name": "Create Tag",
-        "description": ""
+        "description": "Intercom API access token"
       },
       {
         "name": "Tag Contact",
-        "description": ""
+        "description": "Intercom API access token"
       },
       {
         "name": "Untag Contact",
-        "description": ""
+        "description": "Intercom API access token"
       },
       {
         "name": "Tag Conversation",
-        "description": ""
+        "description": "Intercom API access token"
       },
       {
         "name": "Create Note",
-        "description": ""
+        "description": "Intercom API access token"
       },
       {
         "name": "Create Event",
-        "description": ""
+        "description": "Intercom API access token"
       },
       {
         "name": "Attach Contact to Company",
-        "description": ""
+        "description": "Intercom API access token"
       },
       {
         "name": "Detach Contact from Company",
-        "description": ""
+        "description": "Intercom API access token"
       }
     ],
     "operationCount": 31,
@@ -5551,7 +5551,7 @@
     "operations": [
       {
         "name": "Read Issue",
-        "description": ""
+        "description": "Retrieve multiple Jira issues from a project in bulk"
       },
       {
         "name": "Update Issue",
@@ -5563,7 +5563,7 @@
       },
       {
         "name": "Delete Issue",
-        "description": "Delete a worklog entry from a Jira issue"
+        "description": "Delete a Jira issue"
       },
       {
         "name": "Assign Issue",
@@ -5571,11 +5571,11 @@
       },
       {
         "name": "Transition Issue",
-        "description": ""
+        "description": "Move a Jira issue between workflow statuses (e.g., To Do -> In Progress)"
       },
       {
         "name": "Search Issues",
-        "description": "Search for Jira users by email address or display name. Returns matching users with their accountId, displayName, and emailAddress."
+        "description": "Search for Jira issues using JQL (Jira Query Language)"
       },
       {
         "name": "Add Comment",
@@ -5623,11 +5623,11 @@
       },
       {
         "name": "Create Issue Link",
-        "description": "Create a new Jira issue"
+        "description": "Create a link relationship between two Jira issues"
       },
       {
         "name": "Delete Issue Link",
-        "description": "Delete a worklog entry from a Jira issue"
+        "description": "Delete a link between two Jira issues"
       },
       {
         "name": "Add Watcher",
@@ -5695,87 +5695,87 @@
     "operations": [
       {
         "name": "Get Service Desks",
-        "description": ""
+        "description": "Get all service desks from Jira Service Management"
       },
       {
         "name": "Get Request Types",
-        "description": ""
+        "description": "Get the fields required to create a request of a specific type in Jira Service Management"
       },
       {
         "name": "Create Request",
-        "description": ""
+        "description": "Create a new service request in Jira Service Management"
       },
       {
         "name": "Get Request",
-        "description": ""
+        "description": "Get a single service request from Jira Service Management"
       },
       {
         "name": "Get Requests",
-        "description": ""
+        "description": "Get multiple service requests from Jira Service Management"
       },
       {
         "name": "Add Comment",
-        "description": ""
+        "description": "Add a comment (public or internal) to a service request in Jira Service Management"
       },
       {
         "name": "Get Comments",
-        "description": ""
+        "description": "Get comments for a service request in Jira Service Management"
       },
       {
         "name": "Get Customers",
-        "description": ""
+        "description": "Get customers for a service desk in Jira Service Management"
       },
       {
         "name": "Add Customer",
-        "description": ""
+        "description": "Add customers to a service desk in Jira Service Management"
       },
       {
         "name": "Get Organizations",
-        "description": ""
+        "description": "Get organizations for a service desk in Jira Service Management"
       },
       {
         "name": "Create Organization",
-        "description": ""
+        "description": "Create a new organization in Jira Service Management"
       },
       {
         "name": "Add Organization",
-        "description": ""
+        "description": "Add an organization to a service desk in Jira Service Management"
       },
       {
         "name": "Get Queues",
-        "description": ""
+        "description": "Get queues for a service desk in Jira Service Management"
       },
       {
         "name": "Get SLA",
-        "description": ""
+        "description": "Get SLA information for a service request in Jira Service Management"
       },
       {
         "name": "Get Transitions",
-        "description": ""
+        "description": "Get available transitions for a service request in Jira Service Management"
       },
       {
         "name": "Transition Request",
-        "description": ""
+        "description": "Transition a service request to a new status in Jira Service Management"
       },
       {
         "name": "Get Participants",
-        "description": ""
+        "description": "Get participants for a request in Jira Service Management"
       },
       {
         "name": "Add Participants",
-        "description": ""
+        "description": "Add participants to a request in Jira Service Management"
       },
       {
         "name": "Get Approvals",
-        "description": ""
+        "description": "Get approvals for a request in Jira Service Management"
       },
       {
         "name": "Answer Approval",
-        "description": ""
+        "description": "Approve or decline an approval request in Jira Service Management"
       },
       {
         "name": "Get Request Type Fields",
-        "description": ""
+        "description": "Get the fields required to create a request of a specific type in Jira Service Management"
       }
     ],
     "operationCount": 21,
@@ -6964,7 +6964,7 @@
       },
       {
         "name": "Get Memories",
-        "description": ""
+        "description": "Retrieve memories from Mem0 by ID or filter criteria"
       }
     ],
     "operationCount": 3,
@@ -6989,7 +6989,7 @@
       },
       {
         "name": "Get All Memories",
-        "description": ""
+        "description": "Retrieve all memories from the database"
       },
       {
         "name": "Get Memory",
@@ -7662,7 +7662,7 @@
       },
       {
         "name": "Mark as Read",
-        "description": "Mark an Outlook message as unread"
+        "description": "Mark an Outlook message as read"
       },
       {
         "name": "Mark as Unread",
@@ -7736,15 +7736,15 @@
     "operations": [
       {
         "name": "Search",
-        "description": ""
+        "description": "Search the web using Parallel AI. Provides comprehensive search results with intelligent processing and content extraction."
       },
       {
         "name": "Extract from URLs",
-        "description": ""
+        "description": "Extract targeted information from specific URLs using Parallel AI. Processes provided URLs to pull relevant content based on your objective."
       },
       {
         "name": "Deep Research",
-        "description": ""
+        "description": "Conduct comprehensive deep research across the web using Parallel AI. Synthesizes information from multiple sources with citations. Can take up to 45 minutes to complete."
       }
     ],
     "operationCount": 3,
@@ -8259,7 +8259,7 @@
     "operations": [
       {
         "name": "Upsert",
-        "description": ""
+        "description": "Insert or update points in a Qdrant collection"
       },
       {
         "name": "Search",
@@ -8316,7 +8316,7 @@
       },
       {
         "name": "Unsave",
-        "description": ""
+        "description": "Save a Reddit post or comment to your saved items"
       },
       {
         "name": "Reply",
@@ -8494,7 +8494,7 @@
     "operations": [
       {
         "name": "Send Email",
-        "description": "Send an email using your own Resend API key and from address"
+        "description": "Retrieve details of a previously sent email by its ID"
       },
       {
         "name": "Get Email",
@@ -8745,7 +8745,7 @@
       },
       {
         "name": "List Report Types",
-        "description": ""
+        "description": "Get a list of reports accessible by the current user"
       },
       {
         "name": "List Dashboards",
@@ -9237,7 +9237,7 @@
       },
       {
         "name": "Send Ephemeral Message",
-        "description": "Send messages to Slack channels or direct messages. Supports Slack mrkdwn formatting."
+        "description": "Send an ephemeral message visible only to a specific user in a channel. Optionally reply in a thread. The message does not persist across sessions."
       },
       {
         "name": "Create Canvas",
@@ -9277,7 +9277,7 @@
       },
       {
         "name": "Update Message",
-        "description": "Update an existing modal view in Slack. Identify the view by view_id or external_id, and provide the updated view payload."
+        "description": "Update a message previously sent by the bot in Slack"
       },
       {
         "name": "Delete Message",
@@ -10090,11 +10090,11 @@
     "operations": [
       {
         "name": "Get",
-        "description": "Get the remaining time to live of a key in Upstash Redis. Returns -1 if the key has no expiration, -2 if the key does not exist."
+        "description": "Get the value of a key from Upstash Redis."
       },
       {
         "name": "Set",
-        "description": "Set the value of a key only if it does not already exist. Returns true if the key was set, false if it already existed."
+        "description": "Set the value of a key in Upstash Redis with an optional expiration time in seconds."
       },
       {
         "name": "Delete",
@@ -10106,51 +10106,51 @@
       },
       {
         "name": "HSET",
-        "description": ""
+        "description": "Set a field in a hash stored at a key in Upstash Redis."
       },
       {
         "name": "HGET",
-        "description": ""
+        "description": "Get the value of a field in a hash stored at a key in Upstash Redis."
       },
       {
         "name": "HGETALL",
-        "description": ""
+        "description": "Get all fields and values of a hash stored at a key in Upstash Redis."
       },
       {
         "name": "INCR",
-        "description": "Increment the integer value of a key by a given amount. Use a negative value to decrement. If the key does not exist, it is set to 0 before the operation."
+        "description": "Atomically increment the integer value of a key by one in Upstash Redis. If the key does not exist, it is set to 0 before incrementing."
       },
       {
         "name": "INCRBY",
-        "description": ""
+        "description": "Increment the integer value of a key by a given amount. Use a negative value to decrement. If the key does not exist, it is set to 0 before the operation."
       },
       {
         "name": "EXISTS",
-        "description": ""
+        "description": "Check if a key exists in Upstash Redis. Returns true if the key exists, false otherwise."
       },
       {
         "name": "SETNX",
-        "description": ""
+        "description": "Set the value of a key only if it does not already exist. Returns true if the key was set, false if it already existed."
       },
       {
         "name": "LPUSH",
-        "description": ""
+        "description": "Prepend a value to the beginning of a list in Upstash Redis. Creates the list if it does not exist."
       },
       {
         "name": "LRANGE",
-        "description": ""
+        "description": "Get a range of elements from a list in Upstash Redis. Use 0 and -1 for start and stop to get all elements."
       },
       {
         "name": "EXPIRE",
-        "description": ""
+        "description": "Set a timeout on a key in Upstash Redis. After the timeout, the key is deleted."
       },
       {
         "name": "TTL",
-        "description": ""
+        "description": "Get the remaining time to live of a key in Upstash Redis. Returns -1 if the key has no expiration, -2 if the key does not exist."
       },
       {
         "name": "Command",
-        "description": ""
+        "description": "Execute an arbitrary Redis command against Upstash Redis. Pass the full command as a JSON array (e.g., ["
       }
     ],
     "operationCount": 16,

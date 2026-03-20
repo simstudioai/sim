@@ -613,6 +613,8 @@ export default function Enterprise() {
             </p>
             <Link
               href='https://form.typeform.com/to/jqCO12pF'
+              target='_blank'
+              rel='noopener noreferrer'
               className='group/cta inline-flex h-[32px] items-center gap-[6px] rounded-[5px] border border-white bg-white px-[10px] font-[430] font-season text-[14px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
             >
               Book a demo
