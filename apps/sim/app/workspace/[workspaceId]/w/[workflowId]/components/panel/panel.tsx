@@ -821,11 +821,7 @@ export const Panel = memo(function Panel() {
                         msg.role === 'assistant' && index === copilotMessages.length - 1
                       const isThisStreaming = copilotIsSending && isLastAssistant
 
-                      if (
-                        !hasAnyBlocks &&
-                        !msg.content?.trim() &&
-                        isThisStreaming
-                      ) {
+                      if (!hasAnyBlocks && !msg.content?.trim() && isThisStreaming) {
                         return <PendingTagIndicator key={msg.id} />
                       }
 

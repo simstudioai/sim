@@ -426,4 +426,3 @@ function extractFileContent(raw: string): string {
     .replace(/\\"/g, '"')
     .replace(/\\\\/g, '\\')
 }
-

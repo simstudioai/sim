@@ -120,8 +120,7 @@ export async function orchestrateCopilotStream(
           const completion = await context.pendingToolPromises.get(toolCallId)
           const toolState = context.toolCalls.get(toolCallId)
           const success =
-            completion?.status === 'success' ||
-            (!completion && toolState?.result?.success === true)
+            completion?.status === 'success' || (!completion && toolState?.result?.success === true)
           const data =
             completion?.data ||
             (toolState?.result?.output as Record<string, unknown> | undefined) ||

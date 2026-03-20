@@ -774,11 +774,7 @@ export function useChat(
                     if (m) {
                       fileName = m[1]
                       setResources((rs) =>
-                        rs.map((r) =>
-                          r.id === 'streaming-file'
-                            ? { ...r, title: fileName }
-                            : r
-                        )
+                        rs.map((r) => (r.id === 'streaming-file' ? { ...r, title: fileName } : r))
                       )
                     }
                   }

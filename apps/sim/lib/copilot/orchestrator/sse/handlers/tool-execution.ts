@@ -215,7 +215,9 @@ function abortRequested(
   execContext: ExecutionContext,
   options?: OrchestratorOptions
 ): boolean {
-  return Boolean(options?.abortSignal?.aborted || execContext.abortSignal?.aborted || context.wasAborted)
+  return Boolean(
+    options?.abortSignal?.aborted || execContext.abortSignal?.aborted || context.wasAborted
+  )
 }
 
 function cancelledCompletion(message: string): AsyncToolCompletion {
@@ -470,13 +472,9 @@ export async function executeToolAndReport(
       result: { cancelled: true },
       error: 'Request aborted before tool execution',
     }).catch(() => {})
-    markToolComplete(
-      toolCall.id,
-      toolCall.name,
-      499,
-      'Request aborted before tool execution',
-      { cancelled: true }
-    ).catch((err) => {
+    markToolComplete(toolCall.id, toolCall.name, 499, 'Request aborted before tool execution', {
+      cancelled: true,
+    }).catch((err) => {
       logger.error('markToolComplete failed (aborted before execute)', {
         toolCallId: toolCall.id,
         error: err instanceof Error ? err.message : String(err),

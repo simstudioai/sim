@@ -1760,7 +1760,9 @@ export const copilotAsyncToolCalls = pgTable(
     toolCallIdIdx: index('copilot_async_tool_calls_tool_call_id_idx').on(table.toolCallId),
     statusIdx: index('copilot_async_tool_calls_status_idx').on(table.status),
     runStatusIdx: index('copilot_async_tool_calls_run_status_idx').on(table.runId, table.status),
-    toolCallUnique: uniqueIndex('copilot_async_tool_calls_tool_call_id_unique').on(table.toolCallId),
+    toolCallUnique: uniqueIndex('copilot_async_tool_calls_tool_call_id_unique').on(
+      table.toolCallId
+    ),
   })
 )
 

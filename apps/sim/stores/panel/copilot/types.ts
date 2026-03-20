@@ -1,5 +1,8 @@
-import type { ClientToolCallState, ClientToolDisplay } from '@/lib/copilot/tools/client/tool-display-registry'
 import type { ServerToolUI } from '@/lib/copilot/store-utils'
+import type {
+  ClientToolCallState,
+  ClientToolDisplay,
+} from '@/lib/copilot/tools/client/tool-display-registry'
 import type { ChatContext as PanelChatContext } from '@/stores/panel/types'
 
 export type ChatContext = PanelChatContext

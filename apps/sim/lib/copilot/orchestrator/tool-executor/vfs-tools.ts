@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { upsertWorkflowReadHashForSanitizedState } from '@/lib/copilot/workflow-read-hashes'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
+import { upsertWorkflowReadHashForSanitizedState } from '@/lib/copilot/workflow-read-hashes'
 import { listChatUploads, readChatUpload } from './upload-file-reader'
 
 const logger = createLogger('VfsTools')

@@ -1,4 +1,4 @@
 export {
-  MessageContent,
   assistantMessageHasRenderableContent,
+  MessageContent,
 } from './message-content'

@@ -20,11 +20,7 @@ export async function getToolConfirmation(toolCallId: string): Promise<{
     if (!row) return null
     return {
       status:
-        row.status === 'completed'
-          ? 'success'
-          : row.status === 'failed'
-            ? 'error'
-            : row.status,
+        row.status === 'completed' ? 'success' : row.status === 'failed' ? 'error' : row.status,
       message: row.error || undefined,
       data: (row.result as Record<string, unknown> | null) || undefined,
     }

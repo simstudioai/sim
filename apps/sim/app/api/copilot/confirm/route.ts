@@ -50,7 +50,11 @@ async function updateToolCallStatus(
     args: {},
     status: durableStatus,
   }).catch(() => {})
-  if (durableStatus === 'completed' || durableStatus === 'failed' || durableStatus === 'cancelled') {
+  if (
+    durableStatus === 'completed' ||
+    durableStatus === 'failed' ||
+    durableStatus === 'cancelled'
+  ) {
     await completeAsyncToolCall({
       toolCallId,
       status: durableStatus,

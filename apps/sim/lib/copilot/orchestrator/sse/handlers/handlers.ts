@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
 import { upsertAsyncToolCall } from '@/lib/copilot/async-runs/repository'
+import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
 import {
   asRecord,
   getEventData,

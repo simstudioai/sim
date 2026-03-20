@@ -1,9 +1,7 @@
 import { useMemo } from 'react'
-import { useThrottledValue } from '@/hooks/use-throttled-value'
-import {
-  ChatMessageAttachments,
-} from '@/app/workspace/[workspaceId]/home/components'
+import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components'
 import type { ChatMessageAttachment } from '@/app/workspace/[workspaceId]/home/types'
+import { useThrottledValue } from '@/hooks/use-throttled-value'
 
 interface ChatMessageProps {
   message: {
@@ -73,7 +71,11 @@ export function ChatMessage({ message }: ChatMessageProps) {
     return (
       <div className='w-full max-w-full overflow-hidden opacity-100 transition-opacity duration-200'>
         {hasAttachments && (
-          <ChatMessageAttachments attachments={message.attachments!} align='start' className='mb-[4px]' />
+          <ChatMessageAttachments
+            attachments={message.attachments!}
+            align='start'
+            className='mb-[4px]'
+          />
         )}
 
         {formattedContent && !formattedContent.startsWith('Uploaded') && (

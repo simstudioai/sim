@@ -1,10 +1,10 @@
 import { db } from '@sim/db'
 import {
+  type CopilotAsyncToolStatus,
+  type CopilotRunStatus,
   copilotAsyncToolCalls,
   copilotRunCheckpoints,
   copilotRuns,
-  type CopilotAsyncToolStatus,
-  type CopilotRunStatus,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
@@ -153,7 +153,11 @@ export async function markAsyncToolStatus(
   } = {}
 ) {
   const claimedAt =
-    status === 'running' && updates.claimedBy ? (updates.completedAt ? undefined : new Date()) : undefined
+    status === 'running' && updates.claimedBy
+      ? updates.completedAt
+        ? undefined
+        : new Date()
+      : undefined
 
   const [row] = await db
     .update(copilotAsyncToolCalls)
@@ -196,7 +200,11 @@ export async function completeAsyncToolCall(input: {
     return null
   }
 
-  if (existing.status === 'completed' || existing.status === 'failed' || existing.status === 'cancelled') {
+  if (
+    existing.status === 'completed' ||
+    existing.status === 'failed' ||
+    existing.status === 'cancelled'
+  ) {
     return existing
   }
 

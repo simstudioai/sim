@@ -34,11 +34,11 @@ import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { START_BLOCK_RESERVED_FIELDS } from '@/lib/workflows/types'
+import type { ChatMessageAttachment } from '@/app/workspace/[workspaceId]/home/types'
 import {
   ChatMessage,
   OutputSelect,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components'
-import type { ChatMessageAttachment } from '@/app/workspace/[workspaceId]/home/types'
 import { useChatFileUpload } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/hooks'
 import {
   usePreventZoom,

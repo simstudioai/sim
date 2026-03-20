@@ -51,7 +51,10 @@ export function computeWorkflowReadHashFromWorkflowState(state: WorkflowStateLik
   }
 }
 
-export async function getWorkflowReadHash(chatId: string, workflowId: string): Promise<string | null> {
+export async function getWorkflowReadHash(
+  chatId: string,
+  workflowId: string
+): Promise<string | null> {
   const [row] = await db
     .select({ hash: copilotWorkflowReadHashes.hash })
     .from(copilotWorkflowReadHashes)

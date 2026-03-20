@@ -35,10 +35,10 @@ import {
 } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
+import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
-import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
 import {
   CollapsedFolderItems,
   CollapsedSidebarMenu,

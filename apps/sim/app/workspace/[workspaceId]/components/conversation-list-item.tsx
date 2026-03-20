@@ -26,10 +26,10 @@ export function ConversationListItem({
       <span className='relative flex-shrink-0'>
         <Blimp className='h-[16px] w-[16px] text-[var(--text-icon)]' />
         {isActive && (
-          <span className='absolute -right-[1px] -bottom-[1px] h-[6px] w-[6px] rounded-full border border-[var(--surface-1)] bg-amber-400' />
+          <span className='-right-[1px] -bottom-[1px] absolute h-[6px] w-[6px] rounded-full border border-[var(--surface-1)] bg-amber-400' />
         )}
         {!isActive && isUnread && (
-          <span className='absolute -right-[1px] -bottom-[1px] h-[6px] w-[6px] rounded-full border border-[var(--surface-1)] bg-[#33C482]' />
+          <span className='-right-[1px] -bottom-[1px] absolute h-[6px] w-[6px] rounded-full border border-[var(--surface-1)] bg-[#33C482]' />
         )}
       </span>
       <span className={cn('min-w-0 flex-1 truncate', titleClassName)}>{title}</span>
