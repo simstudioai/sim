@@ -90,9 +90,10 @@ export function applyTargetedLayout(
 
 /**
  * Selects the best anchor block for offset computation.
- * Prefers an unchanged block that is a direct edge-neighbor of a block
- * that needs layout, so the offset aligns new blocks relative to their
- * actual graph neighbors rather than an arbitrary/outlier block.
+ * Prefers an upstream (predecessor) anchor over a downstream one because
+ * upstream blocks keep their layer assignment when new blocks are inserted
+ * after them, giving a stable offset. Downstream blocks shift to later
+ * layers in the ideal layout, producing a large incorrect offset.
  */
 function selectBestAnchor(
   eligibleIds: string[],
@@ -107,11 +108,14 @@ function selectBestAnchor(
   const candidateSet = new Set(candidates)
 
   for (const edge of edges) {
-    if (needsLayoutSet.has(edge.source) && candidateSet.has(edge.target)) {
-      return edge.target
-    }
     if (needsLayoutSet.has(edge.target) && candidateSet.has(edge.source)) {
       return edge.source
+    }
+  }
+
+  for (const edge of edges) {
+    if (needsLayoutSet.has(edge.source) && candidateSet.has(edge.target)) {
+      return edge.target
     }
   }
 
@@ -213,8 +217,74 @@ function layoutGroup(
     block.position = snapPositionToGrid({ x: newPos.x + offsetX, y: newPos.y + offsetY }, gridSize)
   }
 
+  shiftDownstreamFrozenBlocks(
+    needsLayoutSet,
+    layoutEligibleChildIds,
+    blocks,
+    edges,
+    horizontalSpacing,
+    gridSize
+  )
+
   if (parentBlock) {
     updateContainerDimensions(parentBlock, childIds, blocks)
+  }
+}
+
+/**
+ * Shifts frozen (unchanged) blocks rightward when a newly placed block
+ * overlaps with them in the X-axis. Traverses the DAG forward from changed
+ * blocks via BFS, cascading shifts through downstream frozen blocks so that
+ * insertions between existing layers push everything after them to the right.
+ *
+ * Only considers edges within the current layout group (scoped to subflow).
+ */
+function shiftDownstreamFrozenBlocks(
+  needsLayoutSet: Set<string>,
+  eligibleIds: string[],
+  blocks: Record<string, BlockState>,
+  edges: Edge[],
+  horizontalSpacing: number,
+  gridSize?: number
+): void {
+  const eligibleSet = new Set(eligibleIds)
+
+  const downstreamMap = new Map<string, string[]>()
+  for (const edge of edges) {
+    if (!eligibleSet.has(edge.source) || !eligibleSet.has(edge.target)) continue
+    if (!downstreamMap.has(edge.source)) downstreamMap.set(edge.source, [])
+    downstreamMap.get(edge.source)!.push(edge.target)
+  }
+
+  const shifted = new Set<string>()
+  const queue: string[] = Array.from(needsLayoutSet)
+
+  while (queue.length > 0) {
+    const sourceId = queue.shift()!
+    const sourceBlock = blocks[sourceId]
+    if (!sourceBlock) continue
+
+    const sourceMetrics = getBlockMetrics(sourceBlock)
+    const sourceRight = sourceBlock.position.x + sourceMetrics.width
+
+    const successors = downstreamMap.get(sourceId) || []
+    for (const targetId of successors) {
+      if (needsLayoutSet.has(targetId)) continue
+      if (shifted.has(targetId)) continue
+
+      const targetBlock = blocks[targetId]
+      if (!targetBlock) continue
+
+      if (targetBlock.position.x < sourceRight + horizontalSpacing) {
+        const shiftX = sourceRight + horizontalSpacing - targetBlock.position.x
+        targetBlock.position = snapPositionToGrid(
+          { x: targetBlock.position.x + shiftX, y: targetBlock.position.y },
+          gridSize
+        )
+        shifted.add(targetId)
+        queue.push(targetId)
+      }
+    }
   }
 }
 
