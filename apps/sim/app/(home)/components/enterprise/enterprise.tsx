@@ -22,13 +22,27 @@ import { DemoRequestModal } from '@/app/(home)/components/demo-request/demo-requ
 import { AccessControlPanel } from '@/app/(home)/components/enterprise/components/access-control-panel'
 import { AuditLogPreview } from '@/app/(home)/components/enterprise/components/audit-log-preview'
 
-const MARQUEE_KEYFRAMES = `
-  @keyframes marquee {
+const ENTERPRISE_FEATURE_MARQUEE_STYLES = `
+  @keyframes enterprise-feature-marquee {
     0% { transform: translateX(0); }
     100% { transform: translateX(-25%); }
   }
+  .enterprise-feature-marquee-track {
+    animation: enterprise-feature-marquee 30s linear infinite;
+  }
+  .enterprise-feature-marquee:hover .enterprise-feature-marquee-track {
+    animation-play-state: paused;
+  }
+  .enterprise-feature-marquee-tag {
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
   @media (prefers-reduced-motion: reduce) {
-    @keyframes marquee { 0%, 100% { transform: none; } }
+    .enterprise-feature-marquee-track {
+      animation: none;
+    }
+    .enterprise-feature-marquee-tag {
+      transition: none;
+    }
   }
 `
 
@@ -172,9 +186,9 @@ export default function Enterprise() {
 
           <TrustStrip />
 
-          {/* Scrolling feature ticker */}
-          <div className='relative mt-6 overflow-hidden border-[#2A2A2A] border-t'>
-            <style dangerouslySetInnerHTML={{ __html: MARQUEE_KEYFRAMES }} />
+          {/* Scrolling feature ticker — keyframe loop; pause on hover. Tags use transitions for hover. */}
+          <div className='enterprise-feature-marquee relative mt-6 overflow-hidden border-[#2A2A2A] border-t'>
+            <style dangerouslySetInnerHTML={{ __html: ENTERPRISE_FEATURE_MARQUEE_STYLES }} />
             {/* Fade edges */}
             <div
               aria-hidden='true'
@@ -187,12 +201,12 @@ export default function Enterprise() {
               style={{ background: 'linear-gradient(to left, #1C1C1C, transparent)' }}
             />
             {/* Duplicate tags for seamless loop */}
-            <div className='flex w-max' style={{ animation: 'marquee 30s linear infinite' }}>
+            <div className='enterprise-feature-marquee-track flex w-max'>
               {[...FEATURE_TAGS, ...FEATURE_TAGS, ...FEATURE_TAGS, ...FEATURE_TAGS].map(
                 (tag, i) => (
                   <span
                     key={i}
-                    className='whitespace-nowrap border-[#2A2A2A] border-r px-5 py-4 font-[430] font-season text-[#F6F6F6]/40 text-[13px] leading-none tracking-[0.02em]'
+                    className='enterprise-feature-marquee-tag whitespace-nowrap border-[#2A2A2A] border-r px-5 py-4 font-[430] font-season text-[#F6F6F6]/40 text-[13px] leading-none tracking-[0.02em] hover:bg-white/[0.04] hover:text-[#F6F6F6]/55'
                   >
                     {tag}
                   </span>
