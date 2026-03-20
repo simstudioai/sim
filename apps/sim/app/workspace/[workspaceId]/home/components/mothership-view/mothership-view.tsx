@@ -9,6 +9,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ResourceActions, ResourceContent, ResourceTabs } from './components'
 
 const PREVIEW_CYCLE: Record<PreviewMode, PreviewMode> = {
@@ -85,6 +86,7 @@ export const MothershipView = memo(
     ref
   ) {
     const active = resources.find((r) => r.id === activeResourceId) ?? resources[0] ?? null
+    const { canEdit } = useUserPermissionsContext()
 
     const streamingForActive =
       streamingFile && active && shouldShowStreamingFilePanel(streamingFile, active)
@@ -102,7 +104,9 @@ export const MothershipView = memo(
     }
 
     const isActivePreviewable =
-      active?.type === 'file' && RICH_PREVIEWABLE_EXTENSIONS.has(getFileExtension(active.title))
+      canEdit &&
+      active?.type === 'file' &&
+      RICH_PREVIEWABLE_EXTENSIONS.has(getFileExtension(active.title))
 
     return (
       <div
