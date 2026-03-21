@@ -60,6 +60,7 @@ const TOOL_ICONS: Record<MothershipToolName | SubagentName | 'mothership', IconC
   debug: Bug,
   edit: Pencil,
   fast_edit: Pencil,
+  context_compaction: Asterisk,
   open_resource: Eye,
 }
 

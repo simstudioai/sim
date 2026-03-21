@@ -34,6 +34,7 @@ describe('sse-handlers tool lifecycle', () => {
       accumulatedContent: '',
       contentBlocks: [],
       toolCalls: new Map(),
+      pendingToolPromises: new Map(),
       currentThinkingBlock: null,
       isInThinkingBlock: false,
       subAgentParentToolCallId: undefined,

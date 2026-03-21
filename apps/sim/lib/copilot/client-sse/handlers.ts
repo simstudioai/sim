@@ -1,9 +1,13 @@
 import { createLogger } from '@sim/logger'
+import {
+  appendTextBlock,
+  beginThinkingBlock,
+  finalizeThinkingBlock,
+} from '@/lib/copilot/client-sse/content-blocks'
 import { STREAM_STORAGE_KEY } from '@/lib/copilot/constants'
 import { asRecord } from '@/lib/copilot/orchestrator/sse/utils'
 import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
 import {
-  abortAllInProgressTools,
   isBackgroundState,
   isRejectedState,
   isReviewState,
@@ -16,7 +20,6 @@ import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { appendTextBlock, beginThinkingBlock, finalizeThinkingBlock } from './content-blocks'
 import { executeRunToolOnClient } from './run-tool-execution'
 import type { ClientContentBlock, ClientStreamingContext } from './types'
 
@@ -26,6 +29,81 @@ const TEXT_BLOCK_TYPE = 'text'
 const MAX_BATCH_INTERVAL = 50
 const MIN_BATCH_INTERVAL = 16
 const MAX_QUEUE_SIZE = 5
+
+interface StreamMessage extends Record<string, unknown> {
+  id: string
+  requestId?: string
+  content?: string
+  contentBlocks?: ClientContentBlock[]
+  error?: string
+}
+
+interface ChatSummary extends Record<string, unknown> {
+  id: string
+  title?: string
+}
+
+function isStreamMessage(value: Record<string, unknown>): value is StreamMessage {
+  return typeof value.id === 'string'
+}
+
+function getStreamMessages(store: CopilotStore): StreamMessage[] {
+  return store.messages.filter(isStreamMessage)
+}
+
+function getChatState(store: CopilotStore): {
+  currentChat?: ChatSummary
+  chats: ChatSummary[]
+} {
+  const currentChat = asRecord(store.currentChat)
+  const rawChats = Array.isArray(store.chats) ? store.chats : []
+
+  return {
+    currentChat:
+      typeof currentChat.id === 'string'
+        ? { ...currentChat, id: currentChat.id, title: currentChat.title as string | undefined }
+        : undefined,
+    chats: rawChats
+      .map((chat) => asRecord(chat))
+      .filter(
+        (chat): chat is Record<string, unknown> & { id: string } => typeof chat.id === 'string'
+      )
+      .map((chat) => ({ ...chat, id: chat.id, title: chat.title as string | undefined })),
+  }
+}
+
+function abortInProgressTools(set: StoreSet, get: () => CopilotStore): void {
+  const { toolCallsById } = get()
+  const updatedToolCalls = Object.fromEntries(
+    Object.entries(toolCallsById).map(([toolCallId, toolCall]) => {
+      if (
+        toolCall.state === ClientToolCallState.executing ||
+        toolCall.state === ClientToolCallState.generating ||
+        toolCall.state === ClientToolCallState.pending
+      ) {
+        const state = ClientToolCallState.aborted
+        return [
+          toolCallId,
+          {
+            ...toolCall,
+            state,
+            display: resolveToolDisplay(
+              toolCall.name,
+              state,
+              toolCall.id,
+              toolCall.params,
+              toolCall.serverUI
+            ),
+          },
+        ]
+      }
+
+      return [toolCallId, toolCall]
+    })
+  )
+
+  set({ toolCallsById: updatedToolCalls })
+}
 
 function writeActiveStreamToStorage(info: CopilotStreamInfo | null): void {
   if (typeof window === 'undefined') return
@@ -87,7 +165,7 @@ export function flushStreamingUpdates(set: StoreSet) {
   set((state: CopilotStore) => {
     if (updates.size === 0) return state
     return {
-      messages: state.messages.map((msg) => {
+      messages: getStreamMessages(state).map((msg) => {
         const update = updates.get(msg.id)
         if (update) {
           return {
@@ -123,7 +201,7 @@ export function updateStreamingMessage(set: StoreSet, context: ClientStreamingCo
         lastBatchTime = performance.now()
         set((state: CopilotStore) => {
           if (updates.size === 0) return state
-          const messages = state.messages
+          const messages = getStreamMessages(state)
           const lastMessage = messages[messages.length - 1]
           const lastMessageUpdate = lastMessage ? updates.get(lastMessage.id) : null
           if (updates.size === 1 && lastMessageUpdate) {
@@ -441,7 +519,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
   title_updated: (_data, _context, get, set) => {
     const title = _data.title
     if (!title) return
-    const { currentChat, chats } = get()
+    const { currentChat, chats } = getChatState(get())
     if (currentChat) {
       set({
         currentChat: { ...currentChat, title },
@@ -990,7 +1068,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     updateStreamingMessage(set, context)
   },
   content: (data, context, get, set) => {
-    if (!data.data) return
+    if (typeof data.data !== 'string') return
     context.pendingContent += data.data
     processContentBuffer(context, get, set)
   },
@@ -1008,7 +1086,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
   error: (data, context, _get, set) => {
     logger.error('Stream error:', data.error)
     set((state: CopilotStore) => ({
-      messages: state.messages.map((msg) =>
+      messages: getStreamMessages(state).map((msg) =>
         msg.id === context.messageId
           ? {
               ...msg,
@@ -1031,7 +1109,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     }
     finalizeThinkingBlock(context)
     updateStreamingMessage(set, context)
-    abortAllInProgressTools(set, get)
+    abortInProgressTools(set, get)
   },
   default: () => {},
 }
