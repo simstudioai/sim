@@ -128,6 +128,7 @@
     "mammoth": "^1.9.0",
     "marked": "17.0.4",
     "micromatch": "4.0.8",
+    "mermaid": "11.13.0",
     "mongodb": "6.19.0",
     "mysql2": "3.14.3",
     "nanoid": "^3.3.7",
