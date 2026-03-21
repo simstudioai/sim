@@ -472,11 +472,13 @@ export default function LoginPage({
           </div>
 
           {turnstileSiteKey && (
-            <Turnstile
-              ref={turnstileRef}
-              siteKey={turnstileSiteKey}
-              options={{ size: 'invisible', execution: 'execute' }}
-            />
+            <div className='h-0 w-0 overflow-hidden'>
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={turnstileSiteKey}
+                options={{ size: 'invisible', execution: 'execute' }}
+              />
+            </div>
           )}
 
           {formError && (
