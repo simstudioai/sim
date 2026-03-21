@@ -25,6 +25,8 @@ export const env = createEnv({
     ALLOWED_LOGIN_EMAILS:                  z.string().optional(),                  // Comma-separated list of allowed email addresses for login
     ALLOWED_LOGIN_DOMAINS:                 z.string().optional(),                  // Comma-separated list of allowed email domains for login
     BLOCKED_SIGNUP_DOMAINS:                z.string().optional(),                  // Comma-separated list of email domains blocked from signing up (e.g., "gmail.com,yahoo.com")
+    TURNSTILE_SECRET_KEY:                  z.string().min(1).optional(),           // Cloudflare Turnstile secret key for captcha verification
+    SIGNUP_EMAIL_VALIDATION_ENABLED:       z.boolean().optional(),                 // Enable disposable email blocking via better-auth-harmony (55K+ domains)
     ENCRYPTION_KEY:                        z.string().min(32),                     // Key for encrypting sensitive data
     API_ENCRYPTION_KEY:                    z.string().min(32).optional(),          // Dedicated key for encrypting API keys (optional for OSS)
     INTERNAL_API_SECRET:                   z.string().min(32),                     // Secret for internal API authentication
@@ -411,6 +413,7 @@ export const env = createEnv({
     NEXT_PUBLIC_DISABLE_PUBLIC_API:        z.boolean().optional(),                   // Disable public API access UI toggle globally
     NEXT_PUBLIC_INBOX_ENABLED:             z.boolean().optional(),                   // Enable inbox (Sim Mailer) on self-hosted
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: z.boolean().optional().default(true), // Control visibility of email/password login forms
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY:        z.string().min(1).optional(),           // Cloudflare Turnstile site key for captcha widget
   },
 
   // Variables available on both server and client
@@ -444,6 +447,7 @@ export const env = createEnv({
     NEXT_PUBLIC_DISABLE_PUBLIC_API: process.env.NEXT_PUBLIC_DISABLE_PUBLIC_API,
     NEXT_PUBLIC_INBOX_ENABLED: process.env.NEXT_PUBLIC_INBOX_ENABLED,
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: process.env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED,
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
     NEXT_PUBLIC_E2B_ENABLED: process.env.NEXT_PUBLIC_E2B_ENABLED,
     NEXT_PUBLIC_COPILOT_TRAINING_ENABLED: process.env.NEXT_PUBLIC_COPILOT_TRAINING_ENABLED,
     NEXT_PUBLIC_ENABLE_PLAYGROUND: process.env.NEXT_PUBLIC_ENABLE_PLAYGROUND,

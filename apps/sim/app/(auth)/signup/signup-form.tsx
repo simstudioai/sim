@@ -1,6 +1,7 @@
 'use client'
 
-import { Suspense, useMemo, useState } from 'react'
+import { Suspense, useMemo, useRef, useState } from 'react'
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
 import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
@@ -90,6 +91,9 @@ function SignupFormContent({
   const [emailError, setEmailError] = useState('')
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+  const turnstileRef = useRef<TurnstileInstance>(null)
+  const turnstileSiteKey = useMemo(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'), [])
   const buttonClass = useBrandedButtonClass()
 
   const redirectUrl = useMemo(
@@ -245,6 +249,21 @@ function SignupFormContent({
 
       const sanitizedName = trimmedName
 
+      // Execute Turnstile challenge on submit and get a fresh token
+      let token: string | undefined
+      if (turnstileSiteKey && turnstileRef.current) {
+        try {
+          turnstileRef.current.reset()
+          turnstileRef.current.execute()
+          token = await turnstileRef.current.getResponsePromise(15_000)
+        } catch {
+          setFormError('Captcha verification failed. Please try again.')
+          setIsLoading(false)
+          return
+        }
+      }
+
+      setFormError(null)
       const response = await client.signUp.email(
         {
           email: emailValue,
@@ -252,6 +271,11 @@ function SignupFormContent({
           name: sanitizedName,
         },
         {
+          fetchOptions: {
+            headers: {
+              ...(token ? { 'x-captcha-response': token } : {}),
+            },
+          },
           onError: (ctx) => {
             logger.error('Signup error:', ctx.error)
             const errorMessage: string[] = ['Failed to create account']
@@ -452,6 +476,20 @@ function SignupFormContent({
               )}
             </div>
           </div>
+
+          {turnstileSiteKey && (
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={turnstileSiteKey}
+              options={{ size: 'invisible', execution: 'execute' }}
+            />
+          )}
+
+          {formError && (
+            <div className='text-red-400 text-xs'>
+              <p>{formError}</p>
+            </div>
+          )}
 
           <BrandedButton
             type='submit'
