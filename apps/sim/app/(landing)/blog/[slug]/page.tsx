@@ -1,13 +1,18 @@
+import { ArrowLeft } from 'lucide-react'
 import type { Metadata } from 'next'
-import Image from 'next/image'
 import Link from 'next/link'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/emcn'
 import { FAQ } from '@/lib/blog/faq'
+import '@/app/(landing)/studio/[slug]/prose-studio.css'
 import { getAllPostMeta, getPostBySlug, getRelatedPosts } from '@/lib/blog/registry'
 import { buildArticleJsonLd, buildBreadcrumbJsonLd, buildPostMetadata } from '@/lib/blog/seo'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { BackLink } from '@/app/(landing)/blog/[slug]/back-link'
-import { ShareButton } from '@/app/(landing)/blog/[slug]/share-button'
+import {
+  AnimatedColorBlocks,
+  AnimatedColorBlocksVertical,
+} from '@/app/(landing)/blog/[slug]/animated-blocks'
+import { ArticleSidebar } from '@/app/(landing)/blog/[slug]/article-sidebar'
+import { ShareButtons } from '@/app/(landing)/blog/[slug]/share-button'
+import { getPrimaryCategory } from '@/app/(landing)/blog/tag-colors'
 
 export async function generateStaticParams() {
   const posts = await getAllPostMeta()
@@ -34,6 +39,11 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   const breadcrumbLd = buildBreadcrumbJsonLd(post)
   const related = await getRelatedPosts(slug, 3)
 
+  const category = getPrimaryCategory(post.tags)
+  const categoryColor = category.color
+  const displayAuthors = post.authors && post.authors.length > 0 ? post.authors : [post.author]
+  const shareUrl = `${getBaseUrl()}/studio/${slug}`
+
   return (
     <article className='w-full' itemScope itemType='https://schema.org/BlogPosting'>
       <script
@@ -44,127 +54,86 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
         type='application/ld+json'
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
       />
-      <header className='mx-auto max-w-[1450px] px-6 pt-8 sm:px-8 sm:pt-12 md:px-12 md:pt-16'>
-        <div className='mb-6'>
-          <BackLink />
-        </div>
-        <div className='flex flex-col gap-8 md:flex-row md:gap-12'>
-          <div className='w-full flex-shrink-0 md:w-[450px]'>
-            <div className='relative w-full overflow-hidden rounded-lg'>
-              <Image
-                src={post.ogImage}
-                alt={post.title}
-                width={450}
-                height={360}
-                className='h-auto w-full'
-                sizes='(max-width: 768px) 100vw, 450px'
-                priority
-                itemProp='image'
-                unoptimized
-              />
+
+      <div className='mx-auto flex w-full max-w-[1400px] flex-col items-start gap-8 px-6 pb-24 pt-16 xl:flex-row'>
+        <div className='max-w-3xl flex-grow xl:mx-auto'>
+          <Link
+            href='/studio'
+            className='group mb-8 inline-flex items-center gap-2 border border-[#2A2A2A] bg-[#232323] px-4 py-2 font-mono text-[11px] uppercase tracking-widest text-[#999] transition-colors hover:text-[#ECECEC]'
+            style={{ borderRadius: '5px' }}
+          >
+            <ArrowLeft
+              className='h-3 w-3 transition-transform group-hover:-translate-x-1'
+              aria-hidden='true'
+            />
+            All Posts
+          </Link>
+          <header className='relative mb-12 border-b border-[#2A2A2A] pb-8'>
+            <div className='absolute right-0 top-0'>
+              <AnimatedColorBlocks />
+              <div className='absolute right-0 top-[12px]'>
+                <AnimatedColorBlocksVertical />
+              </div>
             </div>
-          </div>
-          <div className='flex flex-1 flex-col justify-between'>
+            <div className='mb-6 flex items-center gap-3'>
+              <span
+                className='inline-block h-3 w-3'
+                style={{ backgroundColor: categoryColor }}
+                aria-hidden='true'
+              />
+              <div className='font-mono text-[11px] uppercase tracking-widest text-[#999]'>
+                <time dateTime={post.date} itemProp='datePublished'>
+                  {new Date(post.date).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: '2-digit',
+                    year: 'numeric',
+                  })}
+                </time>
+                {' // '}
+                <span style={{ color: categoryColor }}>{category.label}</span>
+              </div>
+            </div>
             <h1
-              className='font-[500] text-[#ECECEC] text-[36px] leading-tight tracking-tight sm:text-[48px] md:text-[56px] lg:text-[64px]'
+              className='mb-6 font-[500] text-[36px] leading-[1.15] tracking-tight text-[#ECECEC] sm:text-[40px] md:text-[48px]'
               itemProp='headline'
             >
               {post.title}
             </h1>
-            <div className='mt-4 flex items-center justify-between'>
-              <div className='flex items-center gap-3'>
-                {(post.authors || [post.author]).map((a, idx) => (
-                  <div key={idx} className='flex items-center gap-2'>
-                    {a?.avatarUrl ? (
-                      <Avatar className='size-6'>
-                        <AvatarImage src={a.avatarUrl} alt={a.name} />
-                        <AvatarFallback>{a.name.slice(0, 2)}</AvatarFallback>
-                      </Avatar>
-                    ) : null}
-                    <Link
-                      href={a?.url || '#'}
-                      target='_blank'
-                      rel='noopener noreferrer author'
-                      className='text-[#999] text-[14px] leading-[1.5] hover:text-[#ECECEC] sm:text-[16px]'
-                      itemProp='author'
-                      itemScope
-                      itemType='https://schema.org/Person'
-                    >
-                      <span itemProp='name'>{a?.name}</span>
-                    </Link>
-                  </div>
-                ))}
-              </div>
-              <ShareButton url={`${getBaseUrl()}/blog/${slug}`} title={post.title} />
-            </div>
-          </div>
-        </div>
-        <hr className='mt-8 border-[#2A2A2A] border-t sm:mt-12' />
-        <div className='flex flex-col gap-6 py-8 sm:flex-row sm:items-start sm:justify-between sm:gap-8 sm:py-10'>
-          <div className='flex flex-shrink-0 items-center gap-4'>
-            <time
-              className='block text-[#999] text-[14px] leading-[1.5] sm:text-[16px]'
-              dateTime={post.date}
-              itemProp='datePublished'
-            >
-              {new Date(post.date).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-              })}
-            </time>
-            <meta itemProp='dateModified' content={post.updated ?? post.date} />
-          </div>
-          <div className='flex-1'>
-            <p className='m-0 block translate-y-[-4px] font-[400] text-[#999] text-[18px] leading-[1.5] sm:text-[20px] md:text-[26px]'>
+            <p className='text-[18px] leading-relaxed text-[#999]' itemProp='description'>
               {post.description}
             </p>
-          </div>
-        </div>
-      </header>
 
-      <div className='mx-auto max-w-[900px] px-6 pb-20 sm:px-8 md:px-12' itemProp='articleBody'>
-        <div className='prose prose-lg prose-invert max-w-none prose-blockquote:border-[#3d3d3d] prose-hr:border-[#2A2A2A] prose-a:text-[#ECECEC] prose-blockquote:text-[#999] prose-code:text-[#ECECEC] prose-headings:text-[#ECECEC] prose-li:text-[#999] prose-p:text-[#999] prose-strong:text-[#ECECEC]'>
-          <Article />
-          {post.faq && post.faq.length > 0 ? <FAQ items={post.faq} /> : null}
-        </div>
-      </div>
-      {related.length > 0 && (
-        <div className='mx-auto max-w-[900px] px-6 pb-24 sm:px-8 md:px-12'>
-          <h2 className='mb-4 font-[500] text-[#ECECEC] text-[24px]'>Related posts</h2>
-          <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3'>
-            {related.map((p) => (
-              <Link key={p.slug} href={`/blog/${p.slug}`} className='group'>
-                <div className='overflow-hidden rounded-lg border border-[#2A2A2A]'>
-                  <Image
-                    src={p.ogImage}
-                    alt={p.title}
-                    width={600}
-                    height={315}
-                    className='h-[160px] w-full object-cover'
-                    sizes='(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'
-                    loading='lazy'
-                    unoptimized
-                  />
-                  <div className='p-3'>
-                    <div className='mb-1 text-[#999] text-xs'>
-                      {new Date(p.date).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </div>
-                    <div className='font-[500] text-[#ECECEC] text-sm leading-tight'>{p.title}</div>
-                  </div>
-                </div>
-              </Link>
-            ))}
+            <meta itemProp='dateModified' content={post.updated ?? post.date} />
+          </header>
+          <div itemProp='articleBody'>
+            <div className='prose-studio prose prose-lg prose-invert max-w-none'>
+              <Article />
+              {post.faq && post.faq.length > 0 ? <FAQ items={post.faq} /> : null}
+            </div>
+          </div>
+          <div className='mt-16 flex items-center justify-between border-t border-[#2A2A2A] pt-8'>
+            <div className='font-mono text-[11px] text-[#999]'>Share this entry:</div>
+            <ShareButtons url={shareUrl} title={post.title} />
           </div>
         </div>
-      )}
+        <ArticleSidebar
+          author={post.author}
+          authors={displayAuthors}
+          tags={post.tags}
+          headings={post.headings ?? []}
+          related={related}
+        />
+      </div>
+
       <meta itemProp='publisher' content='Sim' />
       <meta itemProp='inLanguage' content='en-US' />
       <meta itemProp='keywords' content={post.tags.join(', ')} />
+      {displayAuthors.map((a, idx) => (
+        <span key={idx} itemProp='author' itemScope itemType='https://schema.org/Person'>
+          <meta itemProp='name' content={a.name} />
+          {a.url && <meta itemProp='url' content={a.url} />}
+        </span>
+      ))}
     </article>
   )
 }

@@ -1,20 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { Share2 } from 'lucide-react'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/emcn'
+import { Check, Linkedin, Link2, Twitter } from 'lucide-react'
 
-interface ShareButtonProps {
+interface ShareButtonsProps {
   url: string
   title: string
 }
 
-export function ShareButton({ url, title }: ShareButtonProps) {
+export function ShareButtons({ url, title }: ShareButtonsProps) {
   const [copied, setCopied] = useState(false)
 
   const handleCopyLink = async () => {
@@ -37,24 +31,39 @@ export function ShareButton({ url, title }: ShareButtonProps) {
     window.open(linkedInUrl, '_blank', 'noopener,noreferrer')
   }
 
+  const btnClass =
+    'flex h-10 w-10 items-center justify-center rounded-[5px] border border-[#2A2A2A] bg-[#232323] text-[#999] transition-all hover:border-[#2ABBF8] hover:text-[#2ABBF8]'
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          className='flex items-center gap-1.5 text-[#999] text-sm hover:text-[#ECECEC]'
-          aria-label='Share this post'
-        >
-          <Share2 className='h-4 w-4' />
-          <span>Share</span>
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='end'>
-        <DropdownMenuItem onSelect={handleCopyLink}>
-          {copied ? 'Copied!' : 'Copy link'}
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={handleShareTwitter}>Share on X</DropdownMenuItem>
-        <DropdownMenuItem onSelect={handleShareLinkedIn}>Share on LinkedIn</DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className='flex gap-2'>
+      <button
+        type='button'
+        onClick={handleShareTwitter}
+        className={btnClass}
+        aria-label='Share on X'
+      >
+        <Twitter className='h-4 w-4' aria-hidden='true' />
+      </button>
+      <button
+        type='button'
+        onClick={handleShareLinkedIn}
+        className={btnClass}
+        aria-label='Share on LinkedIn'
+      >
+        <Linkedin className='h-4 w-4' aria-hidden='true' />
+      </button>
+      <button
+        type='button'
+        onClick={handleCopyLink}
+        className={btnClass}
+        aria-label={copied ? 'Link copied' : 'Copy link'}
+      >
+        {copied ? (
+          <Check className='h-4 w-4 text-[#00F701]' aria-hidden='true' />
+        ) : (
+          <Link2 className='h-4 w-4' aria-hidden='true' />
+        )}
+      </button>
+    </div>
   )
 }

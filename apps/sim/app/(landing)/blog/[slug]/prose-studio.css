@@ -1,0 +1,157 @@
+.prose-studio h2 {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #2a2a2a;
+  padding-bottom: 0.5rem;
+  font-weight: 500;
+  font-size: 1.5rem;
+  color: #ececec;
+  margin-top: 3rem;
+  margin-bottom: 1.5rem;
+  letter-spacing: -0.025em;
+}
+
+.prose-studio h2::before {
+  content: "\25A0";
+  color: #00f701;
+  font-size: 0.6em;
+  margin-right: 0.75rem;
+  flex-shrink: 0;
+}
+
+.prose-studio h3 {
+  font-weight: 500;
+  font-size: 1.25rem;
+  color: #ececec;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  letter-spacing: -0.015em;
+}
+
+.prose-studio p {
+  margin-bottom: 1.5rem;
+  line-height: 1.8;
+  font-size: 1.05rem;
+  color: #cccccc;
+}
+
+.prose-studio strong {
+  color: #ececec;
+  font-weight: 600;
+}
+
+.prose-studio a {
+  color: #ececec;
+  text-decoration: underline;
+  text-decoration-color: #3d3d3d;
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.15s ease;
+}
+
+.prose-studio a:hover {
+  text-decoration-color: #ececec;
+}
+
+/* Inline code */
+.prose-studio code:not(pre code) {
+  font-family: var(--font-martian-mono), "JetBrains Mono", monospace;
+  background: #232323;
+  color: #2abbf8;
+  padding: 0.15rem 0.4rem;
+  border-radius: 2px;
+  font-size: 0.85em;
+  border: 1px solid #2a2a2a;
+}
+
+/* Code blocks */
+.prose-studio pre {
+  background: #111111;
+  border: 1px solid #2a2a2a;
+  border-radius: 5px;
+  padding: 1.5rem;
+  margin: 2rem 0;
+  overflow-x: auto;
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+
+.prose-studio pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  color: #d4d4d8;
+}
+
+/* Blockquotes */
+.prose-studio blockquote {
+  padding: 1.5rem 2rem;
+  margin: 2.5rem 0;
+  background: #232323;
+  border-left: 2px solid #fa4edf;
+  border-radius: 0 5px 5px 0;
+  font-style: italic;
+  font-size: 1.125rem;
+  color: #cccccc;
+}
+
+.prose-studio blockquote p {
+  margin-bottom: 0;
+}
+
+/* Lists */
+.prose-studio ul,
+.prose-studio ol {
+  color: #cccccc;
+  margin-bottom: 1.5rem;
+}
+
+.prose-studio li {
+  color: #cccccc;
+  margin-bottom: 0.5rem;
+}
+
+.prose-studio li::marker {
+  color: #666;
+}
+
+/* Horizontal rules */
+.prose-studio hr {
+  border-color: #2a2a2a;
+  margin: 3rem 0;
+}
+
+/* Images */
+.prose-studio img {
+  border-radius: 5px;
+  border: 1px solid #2a2a2a;
+}
+
+/* Tables */
+.prose-studio table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.prose-studio th {
+  color: #ececec;
+  font-weight: 500;
+  border-bottom: 1px solid #2a2a2a;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+.prose-studio td {
+  color: #cccccc;
+  border-bottom: 1px solid #1f1f1f;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .prose-studio a {
+    transition: none;
+  }
+}

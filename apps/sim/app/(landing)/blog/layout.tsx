@@ -1,6 +1,15 @@
 import { getNavBlogPosts } from '@/lib/blog/registry'
+import type { Metadata } from 'next'
 import Footer from '@/app/(home)/components/footer/footer'
 import Navbar from '@/app/(home)/components/navbar/navbar'
+import { StudioSidebar } from '@/app/(landing)/blog/sidebar'
+
+export const metadata: Metadata = {
+  title: {
+    template: '%s | Sim Studio',
+    default: 'Sim Studio',
+  },
+}
 
 export default async function StudioLayout({ children }: { children: React.ReactNode }) {
   const blogPosts = await getNavBlogPosts()
@@ -35,10 +44,13 @@ export default async function StudioLayout({ children }: { children: React.React
         type='application/ld+json'
         dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
       />
-      <header>
+      <header className='sticky top-0 z-50'>
         <Navbar blogPosts={blogPosts} />
       </header>
-      <main className='relative flex-1'>{children}</main>
+      <div className='flex flex-1 flex-col lg:flex-row'>
+        <StudioSidebar />
+        <main className='relative flex-1'>{children}</main>
+      </div>
       <Footer />
     </div>
   )
