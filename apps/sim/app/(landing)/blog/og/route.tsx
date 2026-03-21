@@ -3,6 +3,7 @@ import path from 'path'
 import { ImageResponse } from 'next/og'
 import type { NextRequest } from 'next/server'
 import { getPostBySlug } from '@/lib/blog/registry'
+import { formatDate } from '@/lib/core/utils/formatting'
 import { getPrimaryCategory } from '@/app/(landing)/blog/tag-colors'
 
 function getTitleFontSize(title: string): number {
@@ -10,14 +11,6 @@ function getTitleFontSize(title: string): number {
   if (title.length > 60) return 40
   if (title.length > 40) return 48
   return 56
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
 }
 
 export async function GET(request: NextRequest) {
@@ -209,7 +202,7 @@ export async function GET(request: NextRequest) {
             }}
           />
           <span style={{ fontSize: 14, color: '#666666', fontWeight: 500 }}>
-            {formatDate(post.date)}
+            {formatDate(new Date(post.date))}
           </span>
         </div>
         <span

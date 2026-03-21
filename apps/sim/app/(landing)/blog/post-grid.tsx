@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from 'framer-motion'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/emcn'
+import { formatDate } from '@/lib/core/utils/formatting'
 import { getPrimaryCategory } from '@/app/(landing)/blog/tag-colors'
 
 const EASE_OUT_QUINT = [0.23, 1, 0.32, 1] as const
@@ -55,14 +56,6 @@ interface Post {
 
 interface PostGridProps {
   posts: Post[]
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
 }
 
 function PostCard({ post, priority = false }: { post: Post; priority?: boolean }) {
@@ -126,7 +119,7 @@ function PostCard({ post, priority = false }: { post: Post; priority?: boolean }
                 </span>
               </div>
               <span className='h-1 w-1 bg-[#3d3d3d]' aria-hidden='true' />
-              <time dateTime={post.date}>{formatDate(post.date)}</time>
+              <time dateTime={post.date}>{formatDate(new Date(post.date))}</time>
             </div>
           </div>
         </article>
@@ -197,7 +190,7 @@ function FeaturedLeadCard({ post }: { post: Post }) {
                 </span>
               </div>
               <span className='h-1 w-1 bg-[#3d3d3d]' aria-hidden='true' />
-              <time dateTime={post.date}>{formatDate(post.date)}</time>
+              <time dateTime={post.date}>{formatDate(new Date(post.date))}</time>
             </div>
           </div>
         </div>

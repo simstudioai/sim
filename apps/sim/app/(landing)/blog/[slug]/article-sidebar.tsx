@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import type { Author, BlogMeta } from '@/lib/blog/schema'
+import { formatDate } from '@/lib/core/utils/formatting'
 import { TableOfContents } from '@/app/(landing)/blog/[slug]/table-of-contents'
 import { getTagColor } from '@/app/(landing)/blog/tag-colors'
 
@@ -9,14 +10,6 @@ interface ArticleSidebarProps {
   authors: Author[]
   headings: { text: string; id: string }[]
   related: BlogMeta[]
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
 }
 
 export function ArticleSidebar({ author, authors, headings, related }: ArticleSidebarProps) {
@@ -91,7 +84,9 @@ export function ArticleSidebar({ author, authors, headings, related }: ArticleSi
                   <h4 className='mb-1 text-[13px] font-[500] leading-tight text-[#ECECEC] transition-colors group-hover:text-[#FFCC02]'>
                     {p.title}
                   </h4>
-                  <div className='font-season text-[10px] text-[#666]'>{formatDate(p.date)}</div>
+                  <div className='font-season text-[10px] text-[#666]'>
+                    {formatDate(new Date(p.date))}
+                  </div>
                 </Link>
               )
             })}

@@ -1,11 +1,37 @@
 'use client'
 
 import React from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
+import { ArrowUpRight } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/emcn'
 import type { ChangelogEntry } from '@/app/changelog/components/changelog-content'
+import { formatDate } from '@/lib/core/utils/formatting'
 
 type Props = { initialEntries: ChangelogEntry[] }
+
+const EASE_OUT_QUINT = [0.23, 1, 0.32, 1] as const
+const CARD_DURATION = 0.35
+const CARD_Y = 16
+
+const SECTION_COLORS: Record<string, string> = {
+  features: '#00F701',
+  'new features': '#00F701',
+  'bug fixes': '#FA4EDF',
+  fixes: '#FA4EDF',
+  improvements: '#2ABBF8',
+  'other changes': '#8B5CF6',
+  chores: '#8B5CF6',
+  documentation: '#FFCC02',
+  'breaking changes': '#FF4444',
+}
+
+function getSectionColor(heading: string): string {
+  const normalized = heading.trim().toLowerCase()
+  return SECTION_COLORS[normalized] ?? '#8B5CF6'
+}
+
+let currentSectionColor = '#999'
 
 function sanitizeContent(body: string): string {
   return body.replace(/&nbsp/g, '')
@@ -32,24 +58,238 @@ function stripContributors(body: string): string {
   return output
 }
 
-function isContributorsLabel(nodeChildren: React.ReactNode): boolean {
-  return /^\s*contributors\s*:?\s*$/i.test(String(nodeChildren))
-}
-
 function stripPrReferences(body: string): string {
   return body.replace(/\s*\(\s*\[#\d+\]\([^)]*\)\s*\)/g, '').replace(/\s*\(\s*#\d+\s*\)/g, '')
+}
+
+function stripViewOnGitHub(body: string): string {
+  return body.replace(/\n*\[View changes on GitHub\]\([^)]*\)\s*$/gi, '')
+}
+
+function stripCommitPrefix(text: string): string {
+  const cleaned = text.replace(
+    /^(feat|fix|improvement|chore|refactor|docs|test|ci|perf|style|build|revert)\([^)]*\)\s*:\s*/i,
+    ''
+  )
+  if (cleaned.length === 0) return text
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
+}
+
+function isContributorsLabel(nodeChildren: React.ReactNode): boolean {
+  return /^\s*contributors\s*:?\s*$/i.test(String(nodeChildren))
 }
 
 function cleanMarkdown(body: string): string {
   const sanitized = sanitizeContent(body)
   const withoutContribs = stripContributors(sanitized)
   const withoutPrs = stripPrReferences(withoutContribs)
-  return withoutPrs
+  const withoutGhLink = stripViewOnGitHub(withoutPrs)
+  return withoutGhLink
 }
 
 function extractMentions(body: string): string[] {
   const matches = body.match(/@([A-Za-z0-9-]+)/g) ?? []
   return Array.from(new Set(matches.map((m) => m.slice(1))))
+}
+
+function ReleaseCard({ entry, index }: { entry: ChangelogEntry; index: number }) {
+  const shouldReduceMotion = useReducedMotion()
+
+  return (
+    <motion.article
+      initial={shouldReduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: CARD_Y }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-40px' }}
+      transition={{
+        duration: CARD_DURATION,
+        ease: EASE_OUT_QUINT,
+        delay: index < 10 ? index * 0.06 : 0,
+      }}
+      className='overflow-hidden border border-[#2A2A2A] bg-[#232323] transition-[border-color,background-color,transform] duration-200 ease-out [@media(hover:hover)]:hover:-translate-y-0.5 [@media(hover:hover)]:hover:border-[#3d3d3d] [@media(hover:hover)]:hover:bg-[#282828]'
+    >
+      <div className='p-6 sm:p-8'>
+        <div className='mb-5 flex items-center justify-between'>
+          <div className='flex items-center gap-3'>
+            <a
+              href={entry.url}
+              target='_blank'
+              rel='noopener noreferrer'
+              className='inline-block bg-[#FFCC02] px-2 py-0.5 font-season text-[10px] font-bold uppercase tracking-wider text-black transition-opacity hover:opacity-80'
+            >
+              {entry.tag}
+            </a>
+            <span className='h-1 w-1 bg-[#3d3d3d]' aria-hidden='true' />
+            <time className='font-season text-[10px] uppercase tracking-wider text-[#666]'>
+              {formatDate(new Date(entry.date))}
+            </time>
+          </div>
+          <a
+            href={entry.url}
+            target='_blank'
+            rel='noopener noreferrer'
+            className='flex items-center gap-1 font-season text-[10px] uppercase tracking-wider text-[#666] transition-colors hover:text-[#ECECEC]'
+            aria-label={`View ${entry.tag} on GitHub`}
+          >
+            GitHub
+            <ArrowUpRight className='h-3 w-3' />
+          </a>
+        </div>
+        {entry.title !== entry.tag && (
+          <h3 className='mb-4 font-[500] text-[22px] leading-tight tracking-[-0.01em] text-[#ECECEC]'>
+            {entry.title}
+          </h3>
+        )}
+        <div className='max-w-none'>
+          <ReactMarkdown
+            components={{
+              h2: ({ children, ...props }) => {
+                if (isContributorsLabel(children)) return null
+                const text = String(children)
+                const color = getSectionColor(text)
+                currentSectionColor = color
+                return (
+                  <h4
+                    className='mt-6 mb-3 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest first:mt-0'
+                    style={{ color }}
+                    {...props}
+                  >
+                    <span
+                      className='inline-block h-[6px] w-[6px] flex-shrink-0'
+                      style={{ backgroundColor: color }}
+                      aria-hidden='true'
+                    />
+                    {children}
+                  </h4>
+                )
+              },
+              h3: ({ children, ...props }) => {
+                if (isContributorsLabel(children)) return null
+                const text = String(children)
+                const color = getSectionColor(text)
+                currentSectionColor = color
+                return (
+                  <h5
+                    className='mt-5 mb-2 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest first:mt-0'
+                    style={{ color }}
+                    {...props}
+                  >
+                    <span
+                      className='inline-block h-[6px] w-[6px] flex-shrink-0'
+                      style={{ backgroundColor: color }}
+                      aria-hidden='true'
+                    />
+                    {children}
+                  </h5>
+                )
+              },
+              ul: ({ children, ...props }) => (
+                <ul className='mb-4 space-y-2' {...props}>
+                  {children}
+                </ul>
+              ),
+              li: ({ children, ...props }) => {
+                const text = String(children)
+                if (/^\s*contributors\s*:?\s*$/i.test(text)) return null
+                return (
+                  <li className='flex items-start gap-2.5 text-[14px] leading-relaxed' {...props}>
+                    <span
+                      className='mt-[8px] inline-block h-[5px] w-[5px] flex-shrink-0 rounded-full opacity-40'
+                      style={{ backgroundColor: currentSectionColor }}
+                      aria-hidden='true'
+                    />
+                    <span className='text-[#CCCCCC]'>
+                      <CleanedListContent>{children}</CleanedListContent>
+                    </span>
+                  </li>
+                )
+              },
+              p: ({ children, ...props }) =>
+                /^\s*contributors\s*:?\s*$/i.test(String(children)) ? null : (
+                  <p className='mb-3 text-[14px] leading-relaxed text-[#999]' {...props}>
+                    {children}
+                  </p>
+                ),
+              strong: ({ children, ...props }) => (
+                <strong className='font-[500] text-[#ECECEC]' {...props}>
+                  {children}
+                </strong>
+              ),
+              code: ({ children, ...props }) => (
+                <code
+                  className='rounded border border-[#2A2A2A] bg-[#1C1C1C] px-1 py-0.5 font-mono text-[12px] text-[#2ABBF8]'
+                  {...props}
+                >
+                  {children}
+                </code>
+              ),
+              img: () => null,
+              a: ({ className, ...props }: any) => (
+                <a
+                  {...props}
+                  className={`text-[#ECECEC] underline decoration-[#3d3d3d] underline-offset-2 transition-colors hover:decoration-[#ECECEC] ${className ?? ''}`}
+                  target='_blank'
+                  rel='noreferrer'
+                />
+              ),
+            }}
+          >
+            {cleanMarkdown(entry.content)}
+          </ReactMarkdown>
+        </div>
+      </div>
+      {entry.contributors && entry.contributors.length > 0 && (
+        <div className='flex items-center gap-3 border-t border-[#2A2A2A] px-6 py-4 sm:px-8'>
+          <div className='flex -space-x-1.5'>
+            {entry.contributors.slice(0, 8).map((contributor) => (
+              <a
+                key={contributor}
+                href={`https://github.com/${contributor}`}
+                target='_blank'
+                rel='noreferrer noopener'
+                aria-label={`View @${contributor} on GitHub`}
+                title={`@${contributor}`}
+                className='block transition-transform [@media(hover:hover)]:hover:z-10 [@media(hover:hover)]:hover:scale-110'
+              >
+                <Avatar className='size-5 border border-[#232323]'>
+                  <AvatarImage
+                    src={`https://avatars.githubusercontent.com/${contributor}`}
+                    alt={`@${contributor}`}
+                  />
+                  <AvatarFallback className='bg-[#2A2A2A] font-season text-[8px] text-[#999]'>
+                    {contributor.slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              </a>
+            ))}
+            {entry.contributors.length > 8 && (
+              <div className='relative flex size-5 items-center justify-center rounded-full border border-[#232323] bg-[#2A2A2A] font-season text-[8px] text-[#999]'>
+                +{entry.contributors.length - 8}
+              </div>
+            )}
+          </div>
+          <span className='font-season text-[10px] uppercase tracking-wider text-[#999]'>
+            {entry.contributors
+              .slice(0, 3)
+              .map((c) => c)
+              .join(', ')}
+            {entry.contributors.length > 3 && ` +${entry.contributors.length - 3}`}
+          </span>
+        </div>
+      )}
+    </motion.article>
+  )
+}
+
+function CleanedListContent({ children }: { children: React.ReactNode }) {
+  let cleaned = false
+  const result = React.Children.map(children, (child) => {
+    if (!cleaned && typeof child === 'string') {
+      cleaned = true
+      return stripCommitPrefix(child)
+    }
+    return child
+  })
+  return <>{result}</>
 }
 
 export default function ChangelogList({ initialEntries }: Props) {
@@ -63,28 +303,32 @@ export default function ChangelogList({ initialEntries }: Props) {
     setLoading(true)
     try {
       const nextPage = page + 1
-      const res = await fetch(
-        `https://api.github.com/repos/simstudioai/sim/releases?per_page=10&page=${nextPage}`,
-        { headers: { Accept: 'application/vnd.github+json' } }
-      )
-      const releases: any[] = await res.json()
-      const mapped: ChangelogEntry[] = (releases || [])
-        .filter((r) => !r.prerelease)
-        .map((r) => ({
-          tag: r.tag_name,
-          title: r.name || r.tag_name,
-          content: sanitizeContent(String(r.body || '')),
-          date: r.published_at,
-          url: r.html_url,
-          contributors: extractMentions(String(r.body || '')),
-        }))
+      const res = await fetch(`/api/changelog/releases?page=${nextPage}`)
 
-      if (mapped.length === 0) {
+      if (!res.ok) {
         setDone(true)
-      } else {
-        setEntries((prev) => [...prev, ...mapped])
-        setPage(nextPage)
+        return
       }
+
+      const data = await res.json()
+      const releases = data?.releases
+
+      if (!Array.isArray(releases) || releases.length === 0) {
+        setDone(true)
+        return
+      }
+
+      const mapped: ChangelogEntry[] = releases.map((r: any) => ({
+        tag: r.tag,
+        title: r.title,
+        content: r.content,
+        date: r.date,
+        url: r.url,
+        contributors: extractMentions(String(r.content || '')),
+      }))
+
+      setEntries((prev) => [...prev, ...mapped])
+      setPage(nextPage)
     } catch {
       setDone(true)
     } finally {
@@ -93,133 +337,22 @@ export default function ChangelogList({ initialEntries }: Props) {
   }
 
   return (
-    <div className='space-y-10'>
-      {entries.map((entry) => (
-        <div key={entry.tag}>
-          <div className='flex items-center justify-between gap-4'>
-            <div className='flex items-center gap-2'>
-              <div className='font-[500] text-[#ECECEC] text-[18px] tracking-tight'>
-                {entry.tag}
-              </div>
-              {entry.contributors && entry.contributors.length > 0 && (
-                <div className='-space-x-2 flex'>
-                  {entry.contributors.slice(0, 5).map((contributor) => (
-                    <a
-                      key={contributor}
-                      href={`https://github.com/${contributor}`}
-                      target='_blank'
-                      rel='noreferrer noopener'
-                      aria-label={`View @${contributor} on GitHub`}
-                      title={`@${contributor}`}
-                      className='block'
-                    >
-                      <Avatar className='size-6 ring-2 ring-[#1C1C1C]'>
-                        <AvatarImage
-                          src={`https://avatars.githubusercontent.com/${contributor}`}
-                          alt={`@${contributor}`}
-                          className='hover:z-10'
-                        />
-                        <AvatarFallback>{contributor.slice(0, 2).toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                    </a>
-                  ))}
-                  {entry.contributors.length > 5 && (
-                    <div className='relative flex size-6 items-center justify-center rounded-full bg-[#2A2A2A] text-[#ECECEC] text-[10px] ring-2 ring-[#1C1C1C] hover:z-10'>
-                      +{entry.contributors.length - 5}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className='text-[#999] text-xs'>
-              {new Date(entry.date).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-              })}
-            </div>
-          </div>
-
-          <div className='max-w-none'>
-            <ReactMarkdown
-              components={{
-                h2: ({ children, ...props }) =>
-                  isContributorsLabel(children) ? null : (
-                    <h3
-                      className='mt-5 mb-2 font-[500] text-[#ECECEC] text-[13px] tracking-tight'
-                      {...props}
-                    >
-                      {children}
-                    </h3>
-                  ),
-                h3: ({ children, ...props }) =>
-                  isContributorsLabel(children) ? null : (
-                    <h4
-                      className='mt-4 mb-1 font-[500] text-[#ECECEC] text-[13px] tracking-tight'
-                      {...props}
-                    >
-                      {children}
-                    </h4>
-                  ),
-                ul: ({ children, ...props }) => (
-                  <ul className='mt-2 mb-3 space-y-1.5' {...props}>
-                    {children}
-                  </ul>
-                ),
-                li: ({ children, ...props }) => {
-                  const text = String(children)
-                  if (/^\s*contributors\s*:?\s*$/i.test(text)) return null
-                  return (
-                    <li className='text-[#999] text-[13px] leading-relaxed' {...props}>
-                      {children}
-                    </li>
-                  )
-                },
-                p: ({ children, ...props }) =>
-                  /^\s*contributors\s*:?\s*$/i.test(String(children)) ? null : (
-                    <p className='mb-3 text-[#999] text-[13px] leading-relaxed' {...props}>
-                      {children}
-                    </p>
-                  ),
-                strong: ({ children, ...props }) => (
-                  <strong className='font-[500] text-[#ECECEC]' {...props}>
-                    {children}
-                  </strong>
-                ),
-                code: ({ children, ...props }) => (
-                  <code
-                    className='rounded bg-[#2A2A2A] px-1 py-0.5 font-mono text-[#ECECEC] text-xs'
-                    {...props}
-                  >
-                    {children}
-                  </code>
-                ),
-                img: () => null,
-                a: ({ className, ...props }: any) => (
-                  <a
-                    {...props}
-                    className={`underline ${className ?? ''}`}
-                    target='_blank'
-                    rel='noreferrer'
-                  />
-                ),
-              }}
-            >
-              {cleanMarkdown(entry.content)}
-            </ReactMarkdown>
-          </div>
-        </div>
-      ))}
+    <div>
+      <div className='space-y-6'>
+        {entries.map((entry, index) => (
+          <ReleaseCard key={entry.tag} entry={entry} index={index} />
+        ))}
+      </div>
 
       {!done && (
-        <div>
+        <div className='mt-12 flex items-center justify-center border-t border-[#2A2A2A] pt-12'>
           <button
             type='button'
             onClick={loadMore}
             disabled={loading}
-            className='rounded-[5px] border border-[#3d3d3d] px-3 py-1.5 text-[#ECECEC] text-[13px] transition-colors hover:bg-[#2A2A2A] disabled:opacity-60'
+            className='rounded-[5px] border border-[#3d3d3d] bg-[#232323] px-6 py-2.5 font-season text-[11px] uppercase tracking-wider text-[#999] transition-colors hover:border-[#666] hover:text-[#ECECEC] disabled:opacity-60'
           >
-            {loading ? 'Loading…' : 'Show more'}
+            {loading ? 'Loading...' : 'Load more releases'}
           </button>
         </div>
       )}
