@@ -59,6 +59,15 @@ export const bedrockProvider: ProviderConfig = {
       region,
     })
 
+    const hasAccessKey = Boolean(request.bedrockAccessKeyId)
+    const hasSecretKey = Boolean(request.bedrockSecretKey)
+    if (hasAccessKey !== hasSecretKey) {
+      throw new Error(
+        'Both bedrockAccessKeyId and bedrockSecretKey must be provided together. ' +
+          'Provide both for explicit credentials, or omit both to use the AWS default credential chain.'
+      )
+    }
+
     const clientConfig: {
       region: string
       credentials?: { accessKeyId: string; secretAccessKey: string }
