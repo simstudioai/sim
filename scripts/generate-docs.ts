@@ -592,6 +592,10 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
           triggerCount: triggers.length,
           authType,
           category: config.category,
+          ...((config as any).integrationType
+            ? { integrationType: (config as any).integrationType }
+            : {}),
+          ...((config as any).tags ? { tags: (config as any).tags } : {}),
         })
       }
     }
@@ -762,6 +766,15 @@ function extractBlockConfigFromContent(
       (baseConfig as any)?.docsLink ||
       `https://docs.sim.ai/tools/${stripVersionSuffix(blockType)}`
 
+    const integrationType =
+      extractEnumPropertyFromContent(blockContent, 'integrationType') ||
+      (baseConfig as any)?.integrationType ||
+      null
+    const tags =
+      extractArrayPropertyFromContent(blockContent, 'tags') ||
+      (baseConfig as any)?.tags ||
+      null
+
     return {
       type: blockType,
       name,
@@ -777,6 +790,8 @@ function extractBlockConfigFromContent(
       operations: operations.length > 0 ? operations : (baseConfig as any)?.operations || [],
       triggerIds: triggerIds.length > 0 ? triggerIds : (baseConfig as any)?.triggerIds || [],
       docsLink,
+      ...(integrationType ? { integrationType } : {}),
+      ...(tags ? { tags } : {}),
     }
   } catch (error) {
     console.error(`Error extracting block configuration for ${blockName}:`, error)
@@ -839,6 +854,54 @@ function extractStringPropertyFromContent(
   }
 
   return null
+}
+
+/**
+ * Extract an enum property value from block content.
+ * Matches patterns like `integrationType: IntegrationType.DeveloperTools`
+ * and returns the string value (e.g., 'developer-tools').
+ */
+function extractEnumPropertyFromContent(content: string, propName: string): string | null {
+  const match = content.match(new RegExp(`${propName}\\s*:\\s*IntegrationType\\.(\\w+)`))
+  if (!match) return null
+  const enumKey = match[1]
+  // Convert enum key to kebab-case value (e.g., DeveloperTools -> developer-tools)
+  const ENUM_MAP: Record<string, string> = {
+    AI: 'ai',
+    Analytics: 'analytics',
+    Automation: 'automation',
+    Communication: 'communication',
+    CRM: 'crm',
+    CustomerSupport: 'customer-support',
+    Databases: 'databases',
+    Design: 'design',
+    DeveloperTools: 'developer-tools',
+    Documents: 'documents',
+    Ecommerce: 'ecommerce',
+    Email: 'email',
+    FileStorage: 'file-storage',
+    HR: 'hr',
+    Media: 'media',
+    Other: 'other',
+    Productivity: 'productivity',
+    SalesIntelligence: 'sales-intelligence',
+    Search: 'search',
+    Security: 'security',
+    Social: 'social',
+  }
+  return ENUM_MAP[enumKey] || enumKey.toLowerCase()
+}
+
+/**
+ * Extract a string array property from block content.
+ * Matches patterns like `tags: ['api', 'oauth', 'webhooks']`
+ */
+function extractArrayPropertyFromContent(content: string, propName: string): string[] | null {
+  const match = content.match(new RegExp(`${propName}\\s*:\\s*\\[([^\\]]+)\\]`))
+  if (!match) return null
+  const items = match[1].match(/'([^']+)'|"([^"]+)"/g)
+  if (!items) return null
+  return items.map((item) => item.replace(/['"]/g, ''))
 }
 
 function extractIconNameFromContent(content: string): string | null {
