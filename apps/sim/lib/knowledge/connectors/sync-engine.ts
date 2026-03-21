@@ -279,6 +279,8 @@ export async function executeSync(
     startedAt: new Date(),
   })
 
+  let syncExitedCleanly = false
+
   try {
     const externalDocs: ExternalDocument[] = []
     let cursor: string | undefined
@@ -441,7 +443,7 @@ export async function executeSync(
         const hydrated = await Promise.allSettled(
           deferredOps.map(async (op) => {
             const fullDoc = await connectorConfig.getDocument(
-              accessToken,
+              accessToken!,
               sourceConfig,
               op.extDoc.externalId,
               syncContext
@@ -449,7 +451,12 @@ export async function executeSync(
             if (!fullDoc?.content.trim()) return null
             return {
               ...op,
-              extDoc: { ...op.extDoc, content: fullDoc.content, contentDeferred: false },
+              extDoc: {
+                ...op.extDoc,
+                content: fullDoc.content,
+                contentHash: fullDoc.contentHash ?? op.extDoc.contentHash,
+                contentDeferred: false,
+              },
             }
           })
         )
@@ -593,6 +600,7 @@ export async function executeSync(
       )
 
     logger.info('Sync completed', { connectorId, ...result })
+    syncExitedCleanly = true
     return result
   } catch (error) {
     if (error instanceof ConnectorDeletedException) {
@@ -624,6 +632,7 @@ export async function executeSync(
       }
 
       result.error = 'Connector deleted during sync'
+      syncExitedCleanly = true
       return result
     }
 
@@ -663,15 +672,11 @@ export async function executeSync(
     }
 
     result.error = errorMessage
+    syncExitedCleanly = true
     return result
   } finally {
-    try {
-      const [row] = await db
-        .select({ status: knowledgeConnector.status })
-        .from(knowledgeConnector)
-        .where(eq(knowledgeConnector.id, connectorId))
-        .limit(1)
-      if (row?.status === 'syncing') {
+    if (!syncExitedCleanly) {
+      try {
         await db
           .update(knowledgeConnector)
           .set({
@@ -681,12 +686,12 @@ export async function executeSync(
           })
           .where(eq(knowledgeConnector.id, connectorId))
         logger.warn('Reset stale syncing status in finally block', { connectorId })
+      } catch (finallyError) {
+        logger.warn('Failed to reset syncing status in finally block', {
+          connectorId,
+          error: finallyError instanceof Error ? finallyError.message : String(finallyError),
+        })
       }
-    } catch (finallyError) {
-      logger.warn('Failed to check/reset syncing status in finally block', {
-        connectorId,
-        error: finallyError instanceof Error ? finallyError.message : String(finallyError),
-      })
     }
   }
 }
