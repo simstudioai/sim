@@ -3771,10 +3771,13 @@ const WorkflowContent = React.memo(
         const edgeContextId = `${edge.id}${parentLoopId ? `-${parentLoopId}` : ''}`
         const connectedToElevated =
           elevatedNodeIdSet.has(edge.source) || elevatedNodeIdSet.has(edge.target)
+        // Derive elevated z-index from connected nodes so edges inside subflows
+        // (child nodes at z-1000) stay above their sibling child blocks.
+        const elevatedZIndex = Math.max(22, sourceNode?.zIndex ?? 21, targetNode?.zIndex ?? 21)
 
         return {
           ...edge,
-          zIndex: connectedToElevated ? 22 : 0,
+          zIndex: connectedToElevated ? elevatedZIndex : 0,
           data: {
             ...edge.data,
             isSelected: selectedEdges.has(edgeContextId),
