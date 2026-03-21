@@ -87,6 +87,7 @@ export default function LoginPage({
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
   const turnstileRef = useRef<TurnstileInstance>(null)
   const turnstileSiteKey = useMemo(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'), [])
   const buttonClass = useBrandedButtonClass()
@@ -176,13 +177,13 @@ export default function LoginPage({
           turnstileRef.current.execute()
           token = await turnstileRef.current.getResponsePromise(15_000)
         } catch {
-          setPasswordErrors(['Captcha verification failed. Please try again.'])
-          setShowValidationError(true)
+          setFormError('Captcha verification failed. Please try again.')
           setIsLoading(false)
           return
         }
       }
 
+      setFormError(null)
       const result = await client.signIn.email(
         {
           email,
@@ -476,6 +477,12 @@ export default function LoginPage({
               siteKey={turnstileSiteKey}
               options={{ size: 'invisible', execution: 'execute' }}
             />
+          )}
+
+          {formError && (
+            <div className='text-red-400 text-xs'>
+              <p>{formError}</p>
+            </div>
           )}
 
           <BrandedButton

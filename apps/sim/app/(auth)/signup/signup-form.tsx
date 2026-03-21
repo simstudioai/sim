@@ -91,6 +91,7 @@ function SignupFormContent({
   const [emailError, setEmailError] = useState('')
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
   const turnstileRef = useRef<TurnstileInstance>(null)
   const turnstileSiteKey = useMemo(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'), [])
   const buttonClass = useBrandedButtonClass()
@@ -256,13 +257,13 @@ function SignupFormContent({
           turnstileRef.current.execute()
           token = await turnstileRef.current.getResponsePromise(15_000)
         } catch {
-          setPasswordErrors(['Captcha verification failed. Please try again.'])
-          setShowValidationError(true)
+          setFormError('Captcha verification failed. Please try again.')
           setIsLoading(false)
           return
         }
       }
 
+      setFormError(null)
       const response = await client.signUp.email(
         {
           email: emailValue,
@@ -482,6 +483,12 @@ function SignupFormContent({
               siteKey={turnstileSiteKey}
               options={{ size: 'invisible', execution: 'execute' }}
             />
+          )}
+
+          {formError && (
+            <div className='text-red-400 text-xs'>
+              <p>{formError}</p>
+            </div>
           )}
 
           <BrandedButton
