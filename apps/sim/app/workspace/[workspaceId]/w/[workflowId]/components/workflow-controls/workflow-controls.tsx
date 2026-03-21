@@ -80,7 +80,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
   }
 
   if (!showWorkflowControls) {
-    return null
+    return <div data-tour='workflow-controls' className='hidden' />
   }
 
   return (

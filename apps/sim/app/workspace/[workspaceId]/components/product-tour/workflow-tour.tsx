@@ -191,6 +191,7 @@ export function WorkflowTour() {
             position: 'fixed' as React.CSSProperties['position'],
             height: '100%',
             overflow: 'visible',
+            pointerEvents: 'none' as React.CSSProperties['pointerEvents'],
           },
         }}
       />

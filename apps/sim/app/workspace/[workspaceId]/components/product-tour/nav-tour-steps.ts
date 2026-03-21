@@ -37,7 +37,7 @@ export const navTourSteps: Step[] = [
     target: '[data-item-id="knowledge-base"]',
     title: 'Knowledge Base',
     content:
-      'Build knowledge bases from your documents. Agents use these to answer questions with your own data.',
+      'Build knowledge bases from your documents. Set up connectors to give your agents realtime access to your data sources from sources like Notion, Drive, Slack, Confluence, and more.',
     placement: 'right',
     disableBeacon: true,
   },
@@ -45,7 +45,7 @@ export const navTourSteps: Step[] = [
     target: '[data-item-id="scheduled-tasks"]',
     title: 'Scheduled Tasks',
     content:
-      'View and manage workflows running on a schedule. Monitor upcoming and past executions.',
+      'View and manage background tasks. Set up new tasks, or view the tasks the Mothership is monitoring for upcoming or past executions.',
     placement: 'right',
     disableBeacon: true,
   },
@@ -53,7 +53,15 @@ export const navTourSteps: Step[] = [
     target: '[data-item-id="logs"]',
     title: 'Logs',
     content:
-      'Monitor every workflow execution. See inputs, outputs, errors, and timing for each run.',
+      'Monitor every workflow execution. See inputs, outputs, errors, and timing for each run. View analytics on performance and costs, filter previous runs, and view snapshots of the workflow at the time of execution.',
+    placement: 'right',
+    disableBeacon: true,
+  },
+  {
+    target: '.tasks-section',
+    title: 'Tasks',
+    content:
+      'Tasks that work for you. Mothership can create, edit, and delete resource throughout the platform. It can also perform actions on your behalf, like sending emails, creating tasks, and more.',
     placement: 'right',
     disableBeacon: true,
   },
@@ -61,7 +69,7 @@ export const navTourSteps: Step[] = [
     target: '.workflows-section',
     title: 'Workflows',
     content:
-      'All your workflows live here. Create new ones with the + button and organize them into folders.',
+      'All your workflows live here. Create new ones with the + button and organize them into folders. Deploy your workflows as API, webhook, schedule, or chat widget. Then hit Run to test it out.',
     placement: 'right',
     disableBeacon: true,
   },

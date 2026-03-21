@@ -16,6 +16,7 @@ const Joyride = dynamic(() => import('react-joyride'), {
 })
 
 const NAV_TOUR_STORAGE_KEY = 'sim-nav-tour-completed-v1'
+export const START_NAV_TOUR_EVENT = 'start-nav-tour'
 
 /** Shared state passed from the tour component to the tooltip adapter via context */
 interface TourState {
@@ -134,7 +135,8 @@ export function NavTour() {
     steps: navTourSteps,
     storageKey: NAV_TOUR_STORAGE_KEY,
     autoStartDelay: 1200,
-    resettable: false,
+    resettable: true,
+    triggerEvent: START_NAV_TOUR_EVENT,
     tourName: 'Navigation tour',
     disabled: isWorkflowPage,
   })
@@ -194,6 +196,7 @@ export function NavTour() {
             position: 'fixed' as React.CSSProperties['position'],
             height: '100%',
             overflow: 'visible',
+            pointerEvents: 'none' as React.CSSProperties['pointerEvents'],
           },
         }}
       />

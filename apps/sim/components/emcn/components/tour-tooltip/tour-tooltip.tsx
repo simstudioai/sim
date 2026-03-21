@@ -147,7 +147,7 @@ function TourTooltip({
   const isCentered = placement === 'center'
 
   const cardClasses = cn(
-    'w-[300px] overflow-hidden rounded-[8px] bg-[var(--bg)]',
+    'w-[260px] overflow-hidden rounded-[8px] bg-[var(--bg)]',
     isEntrance && 'animate-tour-tooltip-in motion-reduce:animate-none',
     className
   )
