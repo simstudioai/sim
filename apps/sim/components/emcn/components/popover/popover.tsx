@@ -627,7 +627,7 @@ const PopoverContent = React.forwardRef<
                 arrowClassName ??
                 cn(
                   colorScheme === 'inverted'
-                    ? 'fill-[##242424] stroke-[#363636] dark:fill-[var(--surface-3)] dark:stroke-[var(--border-1)]'
+                    ? 'fill-[#242424] stroke-[#363636] dark:fill-[var(--surface-3)] dark:stroke-[var(--border-1)]'
                     : 'fill-[var(--surface-3)] stroke-[var(--border-1)] dark:fill-[var(--surface-3)]'
                 )
               }
