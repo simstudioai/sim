@@ -256,11 +256,16 @@ function SignupFormContent({
       if (turnstileSiteKey && turnstileRef.current) {
         try {
           turnstileRef.current.reset()
-          token = await new Promise<string>((resolve, reject) => {
-            captchaResolveRef.current = resolve
-            captchaRejectRef.current = reject
-            turnstileRef.current?.execute()
-          })
+          token = await Promise.race([
+            new Promise<string>((resolve, reject) => {
+              captchaResolveRef.current = resolve
+              captchaRejectRef.current = reject
+              turnstileRef.current?.execute()
+            }),
+            new Promise<string>((_, reject) =>
+              setTimeout(() => reject(new Error('Captcha timed out')), 15_000)
+            ),
+          ])
         } catch {
           setPasswordErrors(['Captcha verification failed. Please try again.'])
           setShowValidationError(true)
