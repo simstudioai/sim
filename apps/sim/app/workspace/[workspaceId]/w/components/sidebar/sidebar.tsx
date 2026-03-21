@@ -620,7 +620,7 @@ export const Sidebar = memo(function Sidebar() {
     window.dispatchEvent(
       new CustomEvent(isOnWorkflowPage ? START_WORKFLOW_TOUR_EVENT : START_NAV_TOUR_EVENT)
     )
-  }, [])
+  }, [isOnWorkflowPage])
 
   const { data: fetchedTasks = [], isLoading: tasksLoading } = useTasks(workspaceId)
 
