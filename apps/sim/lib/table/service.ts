@@ -11,6 +11,8 @@ import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, gt, gte, inArray, isNull, sql } from 'drizzle-orm'
+import { getPostgresErrorCode } from '@/lib/core/utils/pg-error'
+import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { buildFilterClause, buildSortClause } from './sql'
 import type {
@@ -49,6 +51,13 @@ import {
 } from './validation'
 
 const logger = createLogger('TableService')
+
+export class TableConflictError extends Error {
+  readonly code = 'TABLE_EXISTS' as const
+  constructor(name: string) {
+    super(`A table named "${name}" already exists in this workspace`)
+  }
+}
 
 export type TableScope = 'active' | 'archived' | 'all'
 
@@ -394,18 +403,25 @@ export async function renameTable(
   }
 
   const now = new Date()
-  const result = await db
-    .update(userTableDefinitions)
-    .set({ name: newName, updatedAt: now })
-    .where(eq(userTableDefinitions.id, tableId))
-    .returning({ id: userTableDefinitions.id })
+  try {
+    const result = await db
+      .update(userTableDefinitions)
+      .set({ name: newName, updatedAt: now })
+      .where(eq(userTableDefinitions.id, tableId))
+      .returning({ id: userTableDefinitions.id })
 
-  if (result.length === 0) {
-    throw new Error(`Table ${tableId} not found`)
+    if (result.length === 0) {
+      throw new Error(`Table ${tableId} not found`)
+    }
+
+    logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
+    return { id: tableId, name: newName }
+  } catch (error: unknown) {
+    if (getPostgresErrorCode(error) === '23505') {
+      throw new TableConflictError(newName)
+    }
+    throw error
   }
-
-  logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
-  return { id: tableId, name: newName }
 }
 
 /**
@@ -468,12 +484,52 @@ export async function restoreTable(tableId: string, requestId: string): Promise<
     }
   }
 
-  await db
-    .update(userTableDefinitions)
-    .set({ archivedAt: null, updatedAt: new Date() })
-    .where(eq(userTableDefinitions.id, tableId))
+  /**
+   * A concurrent rename/create can claim the chosen name after `generateRestoreName`'s check (MVCC).
+   * Retries pick a new random suffix; 23505 maps to {@link TableConflictError} after exhaustion.
+   */
+  const maxUniqueViolationRetries = 8
+  let attemptedRestoreName = ''
 
-  logger.info(`[${requestId}] Restored table ${tableId}`)
+  for (let attempt = 0; attempt < maxUniqueViolationRetries; attempt++) {
+    attemptedRestoreName = ''
+    try {
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT 1 FROM user_table_definitions WHERE id = ${tableId} FOR UPDATE`)
+
+        attemptedRestoreName = await generateRestoreName(table.name, async (candidate) => {
+          const [match] = await tx
+            .select({ id: userTableDefinitions.id })
+            .from(userTableDefinitions)
+            .where(
+              and(
+                eq(userTableDefinitions.workspaceId, table.workspaceId),
+                eq(userTableDefinitions.name, candidate),
+                isNull(userTableDefinitions.archivedAt)
+              )
+            )
+            .limit(1)
+          return !!match
+        })
+
+        const now = new Date()
+        await tx
+          .update(userTableDefinitions)
+          .set({ archivedAt: null, updatedAt: now, name: attemptedRestoreName })
+          .where(eq(userTableDefinitions.id, tableId))
+      })
+      break
+    } catch (error: unknown) {
+      if (getPostgresErrorCode(error) !== '23505') {
+        throw error
+      }
+      if (attempt === maxUniqueViolationRetries - 1) {
+        throw new TableConflictError(attemptedRestoreName || table.name)
+      }
+    }
+  }
+
+  logger.info(`[${requestId}] Restored table ${tableId} as "${attemptedRestoreName}"`)
 }
 
 /**

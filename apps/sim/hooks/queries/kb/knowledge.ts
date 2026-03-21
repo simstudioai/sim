@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from '@/components/emcn'
 import type {
   ChunkData,
   ChunksPagination,
@@ -773,6 +774,9 @@ export function useUpdateKnowledgeBase(workspaceId?: string) {
 
   return useMutation({
     mutationFn: updateKnowledgeBase,
+    onError: (error) => {
+      toast.error(error.message, { duration: 5000 })
+    },
     onSuccess: (_, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
