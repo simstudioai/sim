@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { BlogStudioSidebar } from '@/app/(landing)/blog/studio-sidebar-client'
-import { PostGrid } from '@/app/(landing)/blog/post-grid'
-import { CATEGORIES, getPrimaryCategory } from '@/app/(landing)/blog/tag-colors'
 import type { BlogMeta } from '@/lib/blog/schema'
+import { PostGrid } from '@/app/(landing)/blog/post-grid'
+import { BlogStudioSidebar } from '@/app/(landing)/blog/studio-sidebar-client'
+import { CATEGORIES, getPrimaryCategory } from '@/app/(landing)/blog/tag-colors'
 
 interface AuthorWithSidebarProps {
   allPosts: BlogMeta[]
@@ -14,7 +14,13 @@ interface AuthorWithSidebarProps {
   children: React.ReactNode
 }
 
-export function AuthorWithSidebar({ allPosts, authorPosts, activeTag, initialQuery, children }: AuthorWithSidebarProps) {
+export function AuthorWithSidebar({
+  allPosts,
+  authorPosts,
+  activeTag,
+  initialQuery,
+  children,
+}: AuthorWithSidebarProps) {
   const [selectedTag, setSelectedTag] = useState<string | null>(activeTag)
   const [query, setQuery] = useState(initialQuery)
 
@@ -40,7 +46,8 @@ export function AuthorWithSidebar({ allPosts, authorPosts, activeTag, initialQue
   const lowerQ = query.trim().toLowerCase()
 
   const filteredAuthorPosts = useMemo(() => {
-    const validTag = selectedTag && CATEGORIES.some((c) => c.id === selectedTag) ? selectedTag : null
+    const validTag =
+      selectedTag && CATEGORIES.some((c) => c.id === selectedTag) ? selectedTag : null
 
     let filtered = authorPosts
 

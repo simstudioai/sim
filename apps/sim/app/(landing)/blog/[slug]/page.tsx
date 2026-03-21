@@ -54,17 +54,17 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
       />
 
-      <div className='mx-auto flex w-full max-w-[1700px] xl:max-w-[1950px] flex-col items-start gap-8 px-4 pt-10 pb-24 sm:px-6 sm:pt-12 lg:px-16 lg:pt-16 xl:grid xl:grid-cols-[9rem_minmax(0,1fr)_14rem] xl:items-start xl:gap-8'>
+      <div className='mx-auto flex w-full max-w-[1700px] flex-col items-start gap-8 px-4 pt-10 pb-24 sm:px-6 sm:pt-12 lg:px-16 lg:pt-16 xl:grid xl:max-w-[1950px] xl:grid-cols-[9rem_minmax(0,1fr)_14rem] xl:items-start xl:gap-8'>
         <div className='hidden xl:block' />
         <div data-blog-main-content className='w-full min-w-0 max-w-5xl xl:col-start-2 xl:mx-auto'>
           <Link
             href='/blog'
             className={cn(
               buttonVariants({ variant: 'ghost', size: 'sm' }),
-              'group mb-8 gap-1 font-season text-[#999] text-sm hover:text-[#ECECEC] !px-0'
+              'group !px-0 mb-8 gap-1 font-season text-[#999] text-sm hover:text-[#ECECEC]'
             )}
           >
-            <span className='relative inline-flex h-4 w-4 shrink-0 group-hover:-translate-x-0.5 transition-transform duration-200'>
+            <span className='group-hover:-translate-x-0.5 relative inline-flex h-4 w-4 shrink-0 transition-transform duration-200'>
               <ChevronLeft
                 className='absolute inset-0 h-4 w-4 opacity-100 transition-opacity duration-200 group-hover:pointer-events-none group-hover:opacity-0'
                 aria-hidden
@@ -81,7 +81,11 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
               <ArticleHeaderItem className='mb-4 flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
                 <div className='flex items-center gap-3'>
                   <div className='font-season text-[#999] tracking-widest'>
-                    <time dateTime={post.date} itemProp='datePublished' className='text-[12px] uppercase'>
+                    <time
+                      dateTime={post.date}
+                      itemProp='datePublished'
+                      className='text-[12px] uppercase'
+                    >
                       {new Date(post.date).toLocaleDateString('en-US', {
                         month: 'short',
                         day: '2-digit',
@@ -169,8 +173,7 @@ interface ArticleAuthorsProps {
 function ArticleAuthors({ authors }: ArticleAuthorsProps) {
   return (
     <div className='mt-12'>
-      <div className='mb-6 flex items-center gap-2 font-season text-[#666] text-[11px] uppercase tracking-widest'>
-        <span className='inline-block h-2 w-2 bg-[#FA4EDF]' aria-hidden='true' />
+      <div className='mb-6 flex items-center gap-2 font-season text-[#666] text-md tracking-widest'>
         {authors.length > 1 ? 'Authors' : 'Written by'}
       </div>
       <div className='flex flex-wrap gap-6'>
@@ -224,8 +227,7 @@ interface RelatedArticlesProps {
 function RelatedArticles({ posts }: RelatedArticlesProps) {
   return (
     <div className='mt-12 border-[#2A2A2A] border-t pt-8'>
-      <div className='mb-6 flex items-center gap-2 font-season text-[#666] text-[11px] uppercase tracking-widest'>
-        <span className='inline-block h-2 w-2 bg-[#FFCC02]' aria-hidden='true' />
+      <div className='mb-6 flex items-center gap-2 font-season text-[#666] text-md tracking-widest'>
         Related articles
       </div>
       <div className='grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'>
