@@ -1,7 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { cache } from 'react'
-import { slug as githubSlug } from 'github-slugger'
+import GithubSlugger from 'github-slugger'
 import matter from 'gray-matter'
 import { compileMDX } from 'next-mdx-remote/rsc'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
@@ -31,10 +31,6 @@ async function loadAuthors(): Promise<Record<string, any>> {
   }
   cachedAuthors = authors
   return authors
-}
-
-function slugify(text: string): string {
-  return githubSlug(text)
 }
 
 async function scanFrontmatters(): Promise<BlogMeta[]> {
@@ -154,6 +150,8 @@ export async function getPostBySlug(slug: string): Promise<BlogPost> {
       },
     },
   })
+
+  const slugger = new GithubSlugger()
   const headings: { text: string; id: string; level: number }[] = []
   const lines = content.split('\n')
   for (const line of lines) {
@@ -161,7 +159,7 @@ export async function getPostBySlug(slug: string): Promise<BlogPost> {
     if (match) {
       const level = match[1].length
       const text = match[2].trim()
-      headings.push({ text, id: slugify(text), level })
+      headings.push({ text, id: slugger.slug(text), level })
     }
   }
   return {
