@@ -63,7 +63,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
         <div className='max-w-4xl flex-grow xl:mx-auto'>
           <Link
             href='/studio'
-            className='group mb-8 inline-flex items-center gap-2 border border-[#2A2A2A] bg-[#232323] px-4 py-2 font-mono text-[11px] uppercase tracking-widest text-[#999] transition-colors hover:text-[#ECECEC]'
+            className='group mb-8 inline-flex items-center gap-2 border border-[#2A2A2A] bg-[#232323] px-4 py-2 font-season text-[11px] uppercase tracking-widest text-[#999] transition-colors hover:text-[#ECECEC]'
             style={{ borderRadius: '5px' }}
           >
             <ArrowLeft
@@ -86,7 +86,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                   style={{ backgroundColor: categoryColor }}
                   aria-hidden='true'
                 />
-                <div className='font-mono text-[11px] uppercase tracking-widest text-[#999]'>
+                <div className='font-season text-[11px] uppercase tracking-widest text-[#999]'>
                   <time dateTime={post.date} itemProp='datePublished'>
                     {new Date(post.date).toLocaleDateString('en-US', {
                       month: 'short',
@@ -114,7 +114,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
 
               {post.tags.length > 0 && (
                 <ArticleHeaderItem>
-                  <div className='flex flex-wrap items-center gap-x-1.5 gap-y-1 font-mono text-[11px] text-[#666]'>
+                  <div className='flex flex-wrap items-center gap-x-1.5 gap-y-1 font-season text-[11px] text-[#666]'>
                     {post.tags.map((tag, i) => (
                       <span key={tag}>
                         <Link
@@ -142,7 +142,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             </div>
           </div>
           <div className='mt-16 flex items-center justify-between border-t border-[#2A2A2A] pt-8'>
-            <div className='font-mono text-[11px] text-[#999]'>Share this entry:</div>
+            <div className='font-season text-[11px] text-[#999]'>Share this entry:</div>
             <ShareButtons url={shareUrl} title={post.title} />
           </div>
         </div>

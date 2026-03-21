@@ -91,13 +91,13 @@ function PostCard({ post, priority = false }: { post: Post; priority?: boolean }
           <div className='flex flex-1 flex-col p-6'>
             <div className='mb-3 flex items-center gap-3'>
               <span
-                className='inline-block px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-black'
+                className='inline-block px-2 py-0.5 font-season text-[10px] font-bold uppercase tracking-wider text-black'
                 style={{ backgroundColor: color }}
               >
                 {category.label}
               </span>
               {post.readingTime && (
-                <span className='font-mono text-[10px] uppercase text-[#666]'>
+                <span className='font-season text-[10px] uppercase text-[#666]'>
                   {post.readingTime} min read
                 </span>
               )}
@@ -108,13 +108,13 @@ function PostCard({ post, priority = false }: { post: Post; priority?: boolean }
             <p className='mb-6 line-clamp-2 text-[14px] leading-relaxed text-[#999]'>
               {post.description}
             </p>
-            <div className='mt-auto flex items-center gap-3 border-t border-[#2A2A2A] pt-4 font-mono text-[10px] uppercase text-[#666]'>
+            <div className='mt-auto flex items-center gap-3 border-t border-[#2A2A2A] pt-4 font-season text-[10px] uppercase text-[#666]'>
               <div className='flex items-center gap-2'>
                 <div className='flex -space-x-1.5'>
                   {authors.slice(0, 2).map((a, idx) => (
                     <Avatar key={idx} className='size-5 border border-[#1C1C1C]'>
                       <AvatarImage src={a?.avatarUrl} alt={a?.name} />
-                      <AvatarFallback className='bg-[#2A2A2A] font-mono text-[8px] text-[#999]'>
+                      <AvatarFallback className='bg-[#2A2A2A] font-season text-[8px] text-[#999]'>
                         {a?.name.slice(0, 2)}
                       </AvatarFallback>
                     </Avatar>
@@ -163,13 +163,13 @@ function FeaturedLeadCard({ post }: { post: Post }) {
         <div className='relative z-10 flex h-full flex-col justify-between p-8'>
           <div className='flex items-center gap-3'>
             <span
-              className='inline-block px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-black'
+              className='inline-block px-2 py-0.5 font-season text-[10px] font-bold uppercase tracking-wider text-black'
               style={{ backgroundColor: color }}
             >
               {category.label}
             </span>
             {post.readingTime && (
-              <span className='font-mono text-[10px] uppercase text-[#666]'>
+              <span className='font-season text-[10px] uppercase text-[#666]'>
                 {post.readingTime} min read
               </span>
             )}
@@ -179,13 +179,13 @@ function FeaturedLeadCard({ post }: { post: Post }) {
               {post.title}
             </h3>
             <p className='mb-6 max-w-2xl text-[14px] text-[#999]'>{post.description}</p>
-            <div className='flex items-center gap-3 font-mono text-[10px] uppercase text-[#666]'>
+            <div className='flex items-center gap-3 font-season text-[10px] uppercase text-[#666]'>
               <div className='flex items-center gap-2'>
                 <div className='flex -space-x-1.5'>
                   {authors.slice(0, 2).map((a, idx) => (
                     <Avatar key={idx} className='size-5 border border-[#1C1C1C]'>
                       <AvatarImage src={a?.avatarUrl} alt={a?.name} />
-                      <AvatarFallback className='bg-[#2A2A2A] font-mono text-[8px] text-[#999]'>
+                      <AvatarFallback className='bg-[#2A2A2A] font-season text-[8px] text-[#999]'>
                         {a?.name.slice(0, 2)}
                       </AvatarFallback>
                     </Avatar>

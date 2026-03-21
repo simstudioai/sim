@@ -40,11 +40,17 @@ export async function GET(request: NextRequest) {
   const authors = post.authors && post.authors.length > 0 ? post.authors : [post.author]
   const authorNames = authors.map((a) => a.name).join(', ')
 
-  const fontsDir = path.join(process.cwd(), 'app', '_styles', 'fonts', 'season')
-  const [fontMedium, fontBold] = await Promise.all([
-    fs.readFile(path.join(fontsDir, 'SeasonSans-Medium.woff')),
-    fs.readFile(path.join(fontsDir, 'SeasonSans-Bold.woff')),
-  ])
+  let fontMedium: Buffer
+  let fontBold: Buffer
+  try {
+    const fontsDir = path.join(process.cwd(), 'app', '_styles', 'fonts', 'season')
+    ;[fontMedium, fontBold] = await Promise.all([
+      fs.readFile(path.join(fontsDir, 'SeasonSans-Medium.woff')),
+      fs.readFile(path.join(fontsDir, 'SeasonSans-Bold.woff')),
+    ])
+  } catch {
+    return new Response('Font assets not found', { status: 500 })
+  }
 
   const COLORS = ['#2ABBF8', '#FA4EDF', '#FFCC02', '#00F701'] as const
 

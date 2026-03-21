@@ -64,7 +64,6 @@ const TAG_TO_CATEGORY: Record<string, string> = {
   n8n: 'insights',
 }
 
-
 export function getTagCategory(tag: string): string {
   return TAG_TO_CATEGORY[tag] ?? 'insights'
 }
@@ -89,8 +88,4 @@ export function getPrimaryCategory(tags: string[]): Category {
 export function getTagColor(tag: string): string {
   const catId = getTagCategory(tag)
   return getCategoryById(catId).color
-}
-
-export function getPrimaryTagColor(tags: string[]): string {
-  return getPrimaryCategory(tags).color
 }

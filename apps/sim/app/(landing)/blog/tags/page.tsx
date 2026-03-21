@@ -23,7 +23,7 @@ export default async function TagsIndex() {
   return (
     <WithSidebar>
       <div className='mx-auto max-w-5xl px-8 py-16 lg:px-12'>
-        <div className='mb-8 flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-[#666]'>
+        <div className='mb-8 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#666]'>
           <span className='inline-block h-2 w-2 bg-[#FA4EDF]' aria-hidden='true' />
           Browse by Category
         </div>
@@ -37,7 +37,7 @@ export default async function TagsIndex() {
         <div className='flex flex-wrap gap-3'>
           <Link
             href='/studio'
-            className='border border-[#3d3d3d] bg-[#232323] px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-[#ECECEC] transition-colors hover:border-[#ECECEC]'
+            className='border border-[#3d3d3d] bg-[#232323] px-4 py-2 font-season text-[11px] uppercase tracking-wider text-[#ECECEC] transition-colors hover:border-[#ECECEC]'
             style={{ borderRadius: '5px' }}
           >
             All Posts ({allPosts.length})
@@ -48,7 +48,7 @@ export default async function TagsIndex() {
               <Link
                 key={cat.id}
                 href={`/studio?tag=${encodeURIComponent(cat.id)}`}
-                className='flex items-center gap-2 px-4 py-2 font-mono text-[11px] uppercase tracking-wider transition-colors hover:opacity-80'
+                className='flex items-center gap-2 px-4 py-2 font-season text-[11px] uppercase tracking-wider transition-colors hover:opacity-80'
                 style={{
                   borderRadius: '5px',
                   border: `1px solid ${cat.color}`,

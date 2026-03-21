@@ -46,7 +46,7 @@ export function StudioHero() {
         <div className='flex flex-col items-start'>
           <motion.div
             variants={itemVariants}
-            className='mb-6 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-[#999]'
+            className='mb-6 inline-flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#999]'
           >
             <span className='inline-block h-2 w-2 flex-shrink-0 bg-[#2ABBF8]' aria-hidden='true' />
             Sim / Studio

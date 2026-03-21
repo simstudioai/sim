@@ -1,0 +1,47 @@
+/* Firefox */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a2a #1c1c1c;
+}
+
+/* WebKit (Chrome, Safari, Edge) */
+html::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+html::-webkit-scrollbar-track {
+  background: #1c1c1c;
+}
+
+html::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+  border-radius: 3px;
+}
+
+html::-webkit-scrollbar-thumb:hover {
+  background: #3d3d3d;
+}
+
+.studio-scroll *::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.studio-scroll *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.studio-scroll *::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+  border-radius: 2px;
+}
+
+.studio-scroll *::-webkit-scrollbar-thumb:hover {
+  background: #3d3d3d;
+}
+
+.studio-scroll * {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a2a transparent;
+}

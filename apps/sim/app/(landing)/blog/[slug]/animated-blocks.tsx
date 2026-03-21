@@ -20,14 +20,22 @@ export function AnimatedColorBlocks() {
   const [blocks, setBlocks] = useState<BlockState[]>(
     COLORS.map(() => ({ opacity: prefersReducedMotion ? 1 : 0, transitioning: false }))
   )
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([])
   const mounted = useRef(true)
+
+  function schedule(fn: () => void, ms: number) {
+    const id = setTimeout(fn, ms)
+    timers.current.push(id)
+    return id
+  }
 
   useEffect(() => {
     mounted.current = true
+    timers.current = []
     if (prefersReducedMotion) return
 
     COLORS.forEach((_, i) => {
-      setTimeout(() => {
+      schedule(() => {
         if (!mounted.current) return
         setBlocks((prev) =>
           prev.map((b, idx) => (idx === i ? { opacity: 1, transitioning: true } : b))
@@ -36,14 +44,15 @@ export function AnimatedColorBlocks() {
     })
 
     const totalEnterMs = COLORS.length * ENTER_STAGGER_MS + ENTER_DURATION_MS + HOLD_MS
-    const cycleTimer = setTimeout(() => {
+    schedule(() => {
       if (!mounted.current) return
       startCycle()
     }, totalEnterMs)
 
     return () => {
       mounted.current = false
-      clearTimeout(cycleTimer)
+      timers.current.forEach(clearTimeout)
+      timers.current = []
     }
   }, [prefersReducedMotion])
 
@@ -51,7 +60,7 @@ export function AnimatedColorBlocks() {
     if (!mounted.current) return
 
     COLORS.forEach((_, i) => {
-      setTimeout(() => {
+      schedule(() => {
         if (!mounted.current) return
         setBlocks((prev) =>
           prev.map((b, idx) => (idx === i ? { opacity: 0.15, transitioning: true } : b))
@@ -60,10 +69,10 @@ export function AnimatedColorBlocks() {
     })
 
     const exitTotalMs = COLORS.length * EXIT_STAGGER_MS + EXIT_DURATION_MS
-    setTimeout(() => {
+    schedule(() => {
       if (!mounted.current) return
       COLORS.forEach((_, i) => {
-        setTimeout(() => {
+        schedule(() => {
           if (!mounted.current) return
           setBlocks((prev) =>
             prev.map((b, idx) =>
@@ -76,7 +85,7 @@ export function AnimatedColorBlocks() {
 
     const cycleDuration =
       exitTotalMs + 200 + COLORS.length * ENTER_STAGGER_MS + ENTER_DURATION_MS + HOLD_MS
-    setTimeout(() => startCycle(), cycleDuration)
+    schedule(() => startCycle(), cycleDuration)
   }
 
   return (
@@ -104,16 +113,18 @@ export function AnimatedColorBlocksVertical() {
       transitioning: false,
     }))
   )
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([])
   const mounted = useRef(true)
 
   useEffect(() => {
     mounted.current = true
+    timers.current = []
     if (prefersReducedMotion) return
 
     const baseDelay = COLORS.length * ENTER_STAGGER_MS + 100
 
     COLORS.slice(0, 3).forEach((_, i) => {
-      setTimeout(
+      const id = setTimeout(
         () => {
           if (!mounted.current) return
           setBlocks((prev) =>
@@ -122,10 +133,13 @@ export function AnimatedColorBlocksVertical() {
         },
         baseDelay + i * ENTER_STAGGER_MS
       )
+      timers.current.push(id)
     })
 
     return () => {
       mounted.current = false
+      timers.current.forEach(clearTimeout)
+      timers.current = []
     }
   }, [prefersReducedMotion])
 

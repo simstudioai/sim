@@ -83,7 +83,7 @@ export function CategoryList({ items, activeId }: CategoryListProps) {
             >
               <span className='relative z-10'>{item.label}</span>
               <span
-                className='relative z-10 font-mono text-[10px]'
+                className='relative z-10 font-season text-[10px]'
                 style={{
                   padding: '2px 6px',
                   borderRadius: '2px',

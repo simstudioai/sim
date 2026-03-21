@@ -1,8 +1,10 @@
 import { getNavBlogPosts } from '@/lib/blog/registry'
 import type { Metadata } from 'next'
+import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
+import { season } from '@/app/_styles/fonts/season/season'
 import Footer from '@/app/(home)/components/footer/footer'
 import Navbar from '@/app/(home)/components/navbar/navbar'
-import { StudioSidebar } from '@/app/(landing)/blog/sidebar'
+import '@/app/(landing)/studio/studio-scrollbar.css'
 
 export const metadata: Metadata = {
   title: {
@@ -35,7 +37,9 @@ export default async function StudioLayout({ children }: { children: React.React
   }
 
   return (
-    <div className='flex min-h-screen flex-col bg-[#1C1C1C] font-[430] font-season text-[#ECECEC]'>
+    <div
+      className={`${season.variable} ${martianMono.variable} studio-scroll flex min-h-screen flex-col bg-[#1C1C1C] font-[430] font-season text-[#ECECEC]`}
+    >
       <script
         type='application/ld+json'
         dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}

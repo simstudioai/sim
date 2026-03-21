@@ -7,16 +7,23 @@ import { WithSidebar } from '@/app/(landing)/blog/with-sidebar'
 
 export const revalidate = 3600
 
+function findAuthorById(posts: Awaited<ReturnType<typeof getAllPostMeta>>, id: string) {
+  for (const p of posts) {
+    if (p.author.id === id) return p.author
+    const coAuthor = p.authors?.find((a) => a.id === id)
+    if (coAuthor) return coAuthor
+  }
+  return null
+}
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ id: string }>
 }): Promise<Metadata> {
   const { id } = await params
-  const posts = (await getAllPostMeta()).filter(
-    (p) => p.author.id === id || p.authors?.some((a) => a.id === id)
-  )
-  const author = posts[0]?.author
+  const allPosts = await getAllPostMeta()
+  const author = findAuthorById(allPosts, id)
   return { title: author?.name ?? 'Author' }
 }
 
@@ -24,7 +31,7 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
   const { id } = await params
   const allPosts = await getAllPostMeta()
   const posts = allPosts.filter((p) => p.author.id === id || p.authors?.some((a) => a.id === id))
-  const author = posts[0]?.author
+  const author = findAuthorById(allPosts, id)
 
   if (!author) {
     return (
@@ -32,7 +39,7 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
         <h1 className='font-[500] text-[32px] text-[#ECECEC]'>Author not found</h1>
         <Link
           href='/studio'
-          className='mt-4 inline-block font-mono text-[12px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
+          className='mt-4 inline-block font-season text-[12px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
         >
           Back to all posts
         </Link>
@@ -73,7 +80,7 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
             </div>
           )}
           <div>
-            <div className='mb-1 font-mono text-[10px] uppercase tracking-widest text-[#FA4EDF]'>
+            <div className='mb-1 font-season text-[10px] uppercase tracking-widest text-[#FA4EDF]'>
               Author
             </div>
             <h1 className='font-[500] text-[32px] leading-tight tracking-[-0.02em] text-[#ECECEC]'>
@@ -84,14 +91,14 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
                 href={author.url}
                 target='_blank'
                 rel='noopener noreferrer'
-                className='font-mono text-[11px] text-[#999] transition-colors hover:text-[#ECECEC]'
+                className='font-season text-[11px] text-[#999] transition-colors hover:text-[#ECECEC]'
               >
                 {author.xHandle ? `@${author.xHandle}` : 'Profile'}
               </Link>
             )}
           </div>
         </div>
-        <h2 className='mb-8 flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-[#666]'>
+        <h2 className='mb-8 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#666]'>
           <span className='inline-block h-2 w-2 bg-[#00F701]' aria-hidden='true' />
           Posts by {author.name}
         </h2>
