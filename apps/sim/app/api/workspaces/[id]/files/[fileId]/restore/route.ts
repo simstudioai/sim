@@ -39,7 +39,7 @@ export async function POST(
       resourceType: AuditResourceType.FILE,
       resourceId: fileId,
       resourceName: fileId,
-      description: `Restored workspace file`,
+      description: `Restored workspace file ${fileId}`,
       request,
     })
 
