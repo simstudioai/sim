@@ -351,7 +351,6 @@ export function useChat(
     })
     setActiveResourceId(resource.id)
 
-    // Ephemeral UI tab — must not be stored; it would reappear as "Writing file..." after refresh.
     if (resource.id === 'streaming-file') {
       return true
     }
@@ -795,9 +794,6 @@ export function useChat(
                   prev = { fileName: '', content: '' }
                   streamingFileRef.current = prev
                   setStreamingFile(prev)
-                  if (toolName === 'workspace_file' && activeSubagent !== 'file_write') {
-                    addResource({ type: 'file', id: 'streaming-file', title: 'Writing file...' })
-                  }
                 }
                 const raw = prev.content + delta
                 let fileName = prev.fileName
@@ -805,8 +801,35 @@ export function useChat(
                   const m = raw.match(/"fileName"\s*:\s*"([^"]+)"/)
                   if (m) {
                     fileName = m[1]
+                  }
+                }
+                const fileIdMatch = raw.match(/"fileId"\s*:\s*"([^"]+)"/)
+                const matchedResourceId = fileIdMatch?.[1]
+                if (
+                  matchedResourceId &&
+                  resourcesRef.current.some(
+                    (resource) => resource.type === 'file' && resource.id === matchedResourceId
+                  )
+                ) {
+                  setActiveResourceId(matchedResourceId)
+                  setResources((rs) => rs.filter((resource) => resource.id !== 'streaming-file'))
+                } else if (fileName || fileIdMatch) {
+                  const hasStreamingResource = resourcesRef.current.some(
+                    (resource) => resource.id === 'streaming-file'
+                  )
+                  if (!hasStreamingResource) {
+                    addResource({
+                      type: 'file',
+                      id: 'streaming-file',
+                      title: fileName || 'Writing file...',
+                    })
+                  } else if (fileName) {
                     setResources((rs) =>
-                      rs.map((r) => (r.id === 'streaming-file' ? { ...r, title: fileName } : r))
+                      rs.map((resource) =>
+                        resource.id === 'streaming-file'
+                          ? { ...resource, title: fileName }
+                          : resource
+                      )
                     )
                   }
                 }
@@ -917,8 +940,9 @@ export function useChat(
                   if (fileResource) {
                     setResources((rs) => {
                       const without = rs.filter((r) => r.id !== 'streaming-file')
-                      if (without.some((r) => r.type === 'file' && r.id === fileResource.id))
+                      if (without.some((r) => r.type === 'file' && r.id === fileResource.id)) {
                         return without
+                      }
                       return [...without, fileResource]
                     })
                     setActiveResourceId(fileResource.id)
@@ -1029,7 +1053,6 @@ export function useChat(
                   // re-renders after setStreamingFile, and the handler only appends when prev exists.
                   streamingFileRef.current = emptyFile
                   setStreamingFile(emptyFile)
-                  addResource({ type: 'file', id: 'streaming-file', title: 'Writing file...' })
                 }
                 flush()
               }
@@ -1335,6 +1358,9 @@ export function useChat(
         body: JSON.stringify({ streamId: sid }),
       }).catch(() => {})
     }
+    setStreamingFile(null)
+    streamingFileRef.current = null
+    setResources((rs) => rs.filter((resource) => resource.id !== 'streaming-file'))
 
     setMessages((prev) =>
       prev.map((msg) => {
