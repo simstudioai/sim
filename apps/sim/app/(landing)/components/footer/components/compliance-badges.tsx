@@ -6,7 +6,11 @@ export default function ComplianceBadges() {
   return (
     <div className='mt-[6px] flex items-center gap-[12px]'>
       {/* SOC2 badge */}
-      <Link href='https://trust.delve.co/sim-studio' target='_blank' rel='noopener noreferrer'>
+      <Link
+        href='https://app.vanta.com/sim.ai/trust/v35ia0jil4l7dteqjgaktn'
+        target='_blank'
+        rel='noopener noreferrer'
+      >
         <Image
           src='/footer/soc2.png'
           alt='SOC2 Compliant'
@@ -18,7 +22,11 @@ export default function ComplianceBadges() {
         />
       </Link>
       {/* HIPAA badge */}
-      <Link href='https://trust.delve.co/sim-studio' target='_blank' rel='noopener noreferrer'>
+      <Link
+        href='https://app.vanta.com/sim.ai/trust/v35ia0jil4l7dteqjgaktn'
+        target='_blank'
+        rel='noopener noreferrer'
+      >
         <HIPAABadgeIcon className='h-[54px] w-[54px]' />
       </Link>
     </div>
