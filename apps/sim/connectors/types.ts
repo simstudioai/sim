@@ -24,8 +24,10 @@ export interface ExternalDocument {
   mimeType: string
   /** Link back to the original document */
   sourceUrl?: string
-  /** SHA-256 of content for change detection */
+  /** Hash of content for change detection (format varies by connector) */
   contentHash: string
+  /** When true, content is empty and will be fetched via getDocument for new/changed docs only */
+  contentDeferred?: boolean
   /** Additional source-specific metadata */
   metadata?: Record<string, unknown>
 }

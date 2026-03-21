@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getTableById, restoreTable } from '@/lib/table'
@@ -33,6 +34,19 @@ export async function POST(
     await restoreTable(tableId, requestId)
 
     logger.info(`[${requestId}] Restored table ${tableId}`)
+
+    recordAudit({
+      workspaceId: table.workspaceId,
+      actorId: auth.userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      action: AuditAction.TABLE_RESTORED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: tableId,
+      resourceName: table.name,
+      description: `Restored table "${table.name}"`,
+      request,
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {
