@@ -45,15 +45,25 @@ const TEXT_EDITABLE_EXTENSIONS = new Set([
 const IFRAME_PREVIEWABLE_MIME_TYPES = new Set(['application/pdf'])
 const IFRAME_PREVIEWABLE_EXTENSIONS = new Set(['pdf'])
 
-type FileCategory = 'text-editable' | 'iframe-previewable' | 'unsupported'
+const IMAGE_PREVIEWABLE_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+])
+const IMAGE_PREVIEWABLE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp'])
+
+type FileCategory = 'text-editable' | 'iframe-previewable' | 'image-previewable' | 'unsupported'
 
 function resolveFileCategory(mimeType: string | null, filename: string): FileCategory {
   if (mimeType && TEXT_EDITABLE_MIME_TYPES.has(mimeType)) return 'text-editable'
   if (mimeType && IFRAME_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'iframe-previewable'
+  if (mimeType && IMAGE_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'image-previewable'
 
   const ext = getFileExtension(filename)
   if (TEXT_EDITABLE_EXTENSIONS.has(ext)) return 'text-editable'
   if (IFRAME_PREVIEWABLE_EXTENSIONS.has(ext)) return 'iframe-previewable'
+  if (IMAGE_PREVIEWABLE_EXTENSIONS.has(ext)) return 'image-previewable'
 
   return 'unsupported'
 }
@@ -113,6 +123,10 @@ export function FileViewer({
 
   if (category === 'iframe-previewable') {
     return <IframePreview file={file} />
+  }
+
+  if (category === 'image-previewable') {
+    return <ImagePreview file={file} />
   }
 
   return <UnsupportedPreview file={file} />
@@ -265,6 +279,40 @@ function TextEditor({
   const isStreaming = streamingContent !== undefined
   const revealedContent = useStreamingText(content, isStreaming)
 
+  const textareaStuckRef = useRef(true)
+
+  useEffect(() => {
+    if (!isStreaming) return
+    textareaStuckRef.current = true
+
+    const el = textareaRef.current
+    if (!el) return
+
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) textareaStuckRef.current = false
+    }
+
+    const onScroll = () => {
+      const dist = el.scrollHeight - el.scrollTop - el.clientHeight
+      if (dist <= 5) textareaStuckRef.current = true
+    }
+
+    el.addEventListener('wheel', onWheel, { passive: true })
+    el.addEventListener('scroll', onScroll, { passive: true })
+
+    return () => {
+      el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('scroll', onScroll)
+    }
+  }, [isStreaming])
+
+  useEffect(() => {
+    if (!isStreaming || !textareaStuckRef.current) return
+    const el = textareaRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+  }, [isStreaming, revealedContent])
+
   if (streamingContent === undefined) {
     if (isLoading) {
       return (
@@ -286,8 +334,11 @@ function TextEditor({
     }
   }
 
-  const showEditor = previewMode !== 'preview'
-  const showPreviewPane = previewMode !== 'editor'
+  const previewType = resolvePreviewType(file.type, file.name)
+  const isIframeRendered = previewType === 'html' || previewType === 'svg'
+  const effectiveMode = isStreaming && isIframeRendered ? 'editor' : previewMode
+  const showEditor = effectiveMode !== 'preview'
+  const showPreviewPane = effectiveMode !== 'editor'
 
   return (
     <div ref={containerRef} className='relative flex flex-1 overflow-hidden'>
@@ -346,6 +397,21 @@ function IframePreview({ file }: { file: WorkspaceFileRecord }) {
         onError={() => {
           logger.error(`Failed to load file: ${file.name}`)
         }}
+      />
+    </div>
+  )
+}
+
+function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
+  const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
+
+  return (
+    <div className='flex flex-1 items-center justify-center overflow-auto bg-[var(--surface-1)] p-6'>
+      <img
+        src={serveUrl}
+        alt={file.name}
+        className='max-h-full max-w-full rounded-md object-contain'
+        loading='eager'
       />
     </div>
   )

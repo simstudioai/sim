@@ -62,6 +62,7 @@ const TOOL_ICONS: Record<MothershipToolName | SubagentName | 'mothership', IconC
   fast_edit: Pencil,
   context_compaction: Asterisk,
   open_resource: Eye,
+  file_write: File,
 }
 
 export function getAgentIcon(name: string): IconComponent {

@@ -122,6 +122,7 @@ export type SubagentName =
   | 'run'
   | 'agent'
   | 'job'
+  | 'file_write'
 
 export type ToolPhase =
   | 'workspace'
@@ -224,6 +225,7 @@ export const SUBAGENT_LABELS: Record<SubagentName, string> = {
   run: 'Run agent',
   agent: 'Agent manager',
   job: 'Job agent',
+  file_write: 'File Write',
 } as const
 
 export interface ToolUIMetadata {

@@ -914,8 +914,15 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Table operation failed', { operation, error: errorMessage })
-      return { success: false, message: `Operation failed: ${errorMessage}` }
+      const cause =
+        error instanceof Error && error.cause
+          ? error.cause instanceof Error
+            ? error.cause.message
+            : String(error.cause)
+          : undefined
+      logger.error('Table operation failed', { operation, error: errorMessage, cause })
+      const displayMessage = cause ? `${errorMessage} (${cause})` : errorMessage
+      return { success: false, message: `Operation failed: ${displayMessage}` }
     }
   },
 }

@@ -741,6 +741,8 @@ const SERVER_TOOLS = new Set<string>([
   'workspace_file',
   'get_execution_summary',
   'get_job_logs',
+  'generate_visualization',
+  'generate_image',
 ])
 
 /**

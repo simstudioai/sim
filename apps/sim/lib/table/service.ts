@@ -235,55 +235,67 @@ export async function createTable(
 
   // Wrap count check, duplicate check, and insert in a transaction with FOR UPDATE
   // to prevent TOCTOU race on the table count limit
-  await db.transaction(async (trx) => {
-    await trx.execute(sql`SELECT 1 FROM workspace WHERE id = ${data.workspaceId} FOR UPDATE`)
+  try {
+    await db.transaction(async (trx) => {
+      await trx.execute(sql`SELECT 1 FROM workspace WHERE id = ${data.workspaceId} FOR UPDATE`)
 
-    const [{ count: existingCount }] = await trx
-      .select({ count: count() })
-      .from(userTableDefinitions)
-      .where(
-        and(
-          eq(userTableDefinitions.workspaceId, data.workspaceId),
-          isNull(userTableDefinitions.archivedAt)
+      const [{ count: existingCount }] = await trx
+        .select({ count: count() })
+        .from(userTableDefinitions)
+        .where(
+          and(
+            eq(userTableDefinitions.workspaceId, data.workspaceId),
+            isNull(userTableDefinitions.archivedAt)
+          )
         )
-      )
 
-    if (Number(existingCount) >= maxTables) {
-      throw new Error(`Workspace has reached maximum table limit (${maxTables})`)
-    }
+      if (Number(existingCount) >= maxTables) {
+        throw new Error(`Workspace has reached maximum table limit (${maxTables})`)
+      }
 
-    const duplicateName = await trx
-      .select({ id: userTableDefinitions.id })
-      .from(userTableDefinitions)
-      .where(
-        and(
-          eq(userTableDefinitions.workspaceId, data.workspaceId),
-          eq(userTableDefinitions.name, data.name),
-          isNull(userTableDefinitions.archivedAt)
+      const duplicateName = await trx
+        .select({ id: userTableDefinitions.id, archivedAt: userTableDefinitions.archivedAt })
+        .from(userTableDefinitions)
+        .where(
+          and(
+            eq(userTableDefinitions.workspaceId, data.workspaceId),
+            eq(userTableDefinitions.name, data.name)
+          )
         )
-      )
-      .limit(1)
+        .limit(1)
 
-    if (duplicateName.length > 0) {
-      throw new Error(`Table with name "${data.name}" already exists in this workspace`)
+      if (duplicateName.length > 0) {
+        if (duplicateName[0].archivedAt) {
+          throw new TableConflictError(data.name)
+        }
+        throw new TableConflictError(data.name)
+      }
+
+      await trx.insert(userTableDefinitions).values(newTable)
+
+      const initialRowCount = data.initialRowCount ?? 0
+      if (initialRowCount > 0) {
+        const rowsToInsert = Array.from({ length: initialRowCount }, (_, i) => ({
+          id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
+          tableId,
+          data: {},
+          position: i,
+          workspaceId: data.workspaceId,
+          createdAt: now,
+          updatedAt: now,
+        }))
+        await trx.insert(userTableRows).values(rowsToInsert)
+      }
+    })
+  } catch (error: unknown) {
+    if (error instanceof TableConflictError) {
+      throw error
     }
-
-    await trx.insert(userTableDefinitions).values(newTable)
-
-    const initialRowCount = data.initialRowCount ?? 0
-    if (initialRowCount > 0) {
-      const rowsToInsert = Array.from({ length: initialRowCount }, (_, i) => ({
-        id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
-        tableId,
-        data: {},
-        position: i,
-        workspaceId: data.workspaceId,
-        createdAt: now,
-        updatedAt: now,
-      }))
-      await trx.insert(userTableRows).values(rowsToInsert)
+    if (getPostgresErrorCode(error) === '23505') {
+      throw new TableConflictError(data.name)
     }
-  })
+    throw error
+  }
 
   logger.info(`[${requestId}] Created table ${tableId} in workspace ${data.workspaceId}`)
 

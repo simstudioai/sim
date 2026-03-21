@@ -31,6 +31,16 @@ type MessageSegment = TextSegment | AgentGroupSegment | OptionsSegment | Stopped
 
 const SUBAGENT_KEYS = new Set(Object.keys(SUBAGENT_LABELS))
 
+/**
+ * Maps subagent names to the Mothership tool that dispatches them when the
+ * tool name differs from the subagent name (e.g. `workspace_file` → `file_write`).
+ * When a `subagent` block arrives, any trailing dispatch tool in the previous
+ * group is absorbed so it doesn't render as a separate Mothership entry.
+ */
+const SUBAGENT_DISPATCH_TOOLS: Record<string, string> = {
+  file_write: 'workspace_file',
+}
+
 function formatToolName(name: string): string {
   return name
     .replace(/_v\d+$/, '')
@@ -109,10 +119,22 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
       if (!block.content) continue
       const key = block.content
       if (group && group.agentName === key) continue
-      if (group) {
+
+      const dispatchToolName = SUBAGENT_DISPATCH_TOOLS[key]
+      if (group && dispatchToolName) {
+        const last = group.items[group.items.length - 1]
+        if (last?.type === 'tool' && last.data.toolName === dispatchToolName) {
+          group.items.pop()
+        }
+        if (group.items.length > 0) {
+          segments.push(group)
+        }
+        group = null
+      } else if (group) {
         segments.push(group)
         group = null
       }
+
       group = {
         type: 'agent_group',
         id: `agent-${key}-${i}`,
