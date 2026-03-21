@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import dynamic from 'next/dynamic'
+import { usePathname } from 'next/navigation'
 import type { TooltipRenderProps } from 'react-joyride'
 import { TourTooltip } from '@/components/emcn'
 import { navTourSteps } from '@/app/workspace/[workspaceId]/components/product-tour/nav-tour-steps'
@@ -125,17 +126,17 @@ function NavTooltipAdapter({
   )
 }
 
-/**
- * Navigation tour that walks through sidebar items on first workspace visit.
- * Runs once automatically and cannot be retriggered.
- */
 export function NavTour() {
+  const pathname = usePathname()
+  const isWorkflowPage = /\/w\/[^/]+/.test(pathname)
+
   const { run, stepIndex, tourKey, isTooltipVisible, isEntrance, handleCallback } = useTour({
     steps: navTourSteps,
     storageKey: NAV_TOUR_STORAGE_KEY,
     autoStartDelay: 1200,
     resettable: false,
     tourName: 'Navigation tour',
+    disabled: isWorkflowPage,
   })
 
   const tourState = useMemo<TourState>(
