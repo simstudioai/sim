@@ -64,6 +64,11 @@ export const env = createEnv({
     PERSONAL_EMAIL_FROM:                   z.string().min(1).optional(),           // From address for personalized emails
     EMAIL_DOMAIN:                          z.string().min(1).optional(),           // Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)
     AZURE_ACS_CONNECTION_STRING:           z.string().optional(),                  // Azure Communication Services connection string
+    SMTP_HOST:                             z.string().min(1).optional(),           // SMTP server hostname for self-hosted email delivery
+    SMTP_PORT:                             z.string().regex(/^\d+$/).optional(),  // SMTP server port (e.g. 587, 465)
+    SMTP_SECURE:                           z.enum(['TLS', 'SSL', 'None']).optional(), // SMTP security mode (STARTTLS, implicit TLS, or plain)
+    SMTP_USERNAME:                         z.string().min(1).optional(),           // SMTP username for authenticated relays
+    SMTP_PASSWORD:                         z.string().min(1).optional(),           // SMTP password for authenticated relays
 
     // SMS & Messaging
     TWILIO_ACCOUNT_SID:                    z.string().min(1).optional(),           // Twilio Account SID for SMS sending
