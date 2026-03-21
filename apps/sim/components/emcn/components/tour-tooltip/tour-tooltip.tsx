@@ -62,7 +62,7 @@ function TourCard({
         <p className='text-[12px] text-[var(--text-secondary)] leading-[1.6]'>{description}</p>
       </div>
 
-      <div className='flex items-center justify-between border-t border-[var(--border)] px-4 py-3'>
+      <div className='flex items-center justify-between border-[var(--border)] border-t px-4 py-3'>
         <span className='text-[11px] text-[var(--text-muted)] [font-variant-numeric:tabular-nums]'>
           {step} / {totalSteps}
         </span>
@@ -173,7 +173,7 @@ function TourTooltip({
         <div
           className={cn(
             cardClasses,
-            'relative pointer-events-auto border border-[var(--border)] shadow-sm'
+            'pointer-events-auto relative border border-[var(--border)] shadow-sm'
           )}
         >
           {cardContent}
