@@ -97,6 +97,10 @@ export const getNavBlogPosts = cache(
     }))
   }
 )
+export async function getPostMetaBySlug(slug: string): Promise<BlogMeta | null> {
+  const meta = await scanFrontmatters()
+  return meta.find((m) => m.slug === slug) ?? null
+}
 
 export async function getAllTags(): Promise<TagWithCount[]> {
   const posts = await getAllPostMeta()

@@ -3,7 +3,6 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { getAllPostMeta } from '@/lib/blog/registry'
 import { AuthorWithSidebar } from '@/app/(landing)/blog/authors/[id]/author-with-sidebar'
-import { PostGrid } from '@/app/(landing)/blog/post-grid'
 
 function findAuthorById(posts: Awaited<ReturnType<typeof getAllPostMeta>>, id: string) {
   for (const p of posts) {
@@ -33,7 +32,7 @@ export default async function AuthorPage({
   searchParams: Promise<{ tag?: string; q?: string }>
 }) {
   const { id } = await params
-  const { tag } = await searchParams
+  const { tag, q } = await searchParams
   const allPosts = await getAllPostMeta()
   const posts = allPosts.filter((p) => p.author.id === id || p.authors?.some((a) => a.id === id))
   const author = findAuthorById(allPosts, id)
@@ -62,54 +61,55 @@ export default async function AuthorPage({
   }
 
   return (
-    <AuthorWithSidebar allPosts={allPosts} activeTag={tag ?? null}>
-      <div className='mx-auto w-full max-w-5xl px-4 py-16 sm:px-0 lg:mr-8 lg:px-0 lg:py-16'>
-        <script
-          type='application/ld+json'
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }}
-        />
-        <div className='mb-12 flex items-center gap-4'>
-          {author.avatarUrl && (
-            <div
-              className='h-16 w-16 shrink-0 overflow-hidden border border-[#2A2A2A] bg-[#232323]'
-              style={{ borderRadius: '5px' }}
-            >
-              <Image
-                src={author.avatarUrl}
-                alt={author.name}
-                width={64}
-                height={64}
-                className='h-full w-full object-cover'
-                unoptimized
-              />
-            </div>
-          )}
-          <div>
-            <div className='mb-1 font-season text-[#FA4EDF] text-[10px] uppercase tracking-widest'>
-              Author
-            </div>
-            <h1 className='font-[500] text-[#ECECEC] text-[32px] leading-tight tracking-[-0.02em]'>
-              {author.name}
-            </h1>
-            {author.url && (
-              <Link
-                href={author.url}
-                target='_blank'
-                rel='noopener noreferrer'
-                className='font-season text-[#999] text-[11px] transition-colors hover:text-[#ECECEC]'
-              >
-                {author.xHandle ? `@${author.xHandle}` : 'Profile'}
-              </Link>
-            )}
+    <AuthorWithSidebar
+      allPosts={allPosts}
+      authorPosts={posts}
+      activeTag={tag ?? null}
+      initialQuery={q ?? ''}
+    >
+      <script
+        type='application/ld+json'
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }}
+      />
+      <div className='mb-12 flex items-center gap-4'>
+        {author.avatarUrl && (
+          <div
+            className='h-16 w-16 shrink-0 overflow-hidden border border-[#2A2A2A] bg-[#232323]'
+            style={{ borderRadius: '5px' }}
+          >
+            <Image
+              src={author.avatarUrl}
+              alt={author.name}
+              width={64}
+              height={64}
+              className='h-full w-full object-cover'
+              unoptimized
+            />
           </div>
+        )}
+        <div>
+          <div className='mb-1 font-season text-[#FA4EDF] text-[10px] uppercase tracking-widest'>
+            Author
+          </div>
+          <h1 className='font-[500] text-[#ECECEC] text-[32px] leading-tight tracking-[-0.02em]'>
+            {author.name}
+          </h1>
+          {author.url && (
+            <Link
+              href={author.url}
+              target='_blank'
+              rel='noopener noreferrer'
+              className='font-season text-[#999] text-[11px] transition-colors hover:text-[#ECECEC]'
+            >
+              {author.xHandle ? `@${author.xHandle}` : 'Profile'}
+            </Link>
+          )}
         </div>
-        <h2 className='mb-8 flex items-center gap-2 font-season text-[#666] text-[11px] uppercase tracking-widest'>
-          <span className='inline-block h-2 w-2 bg-[#00F701]' aria-hidden='true' />
-          Posts by {author.name}
-        </h2>
-
-        <PostGrid posts={posts} />
       </div>
+      <h2 className='mb-8 flex items-center gap-2 font-season text-[#666] text-[11px] uppercase tracking-widest'>
+        <span className='inline-block h-2 w-2 bg-[#00F701]' aria-hidden='true' />
+        Posts by {author.name}
+      </h2>
     </AuthorWithSidebar>
   )
 }

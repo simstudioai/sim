@@ -2,7 +2,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import { ImageResponse } from 'next/og'
 import type { NextRequest } from 'next/server'
-import { getPostBySlug } from '@/lib/blog/registry'
+import { getPostMetaBySlug } from '@/lib/blog/registry'
 import { formatDate } from '@/lib/core/utils/formatting'
 import { getPrimaryCategory } from '@/app/(landing)/blog/tag-colors'
 
@@ -20,10 +20,9 @@ export async function GET(request: NextRequest) {
     return new Response('Missing slug parameter', { status: 400 })
   }
 
-  let post
-  try {
-    post = await getPostBySlug(slug)
-  } catch {
+  const post = await getPostMetaBySlug(slug)
+
+  if (!post) {
     return new Response('Post not found', { status: 404 })
   }
 

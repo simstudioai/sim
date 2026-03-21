@@ -53,7 +53,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       />
 
       <div className='mx-auto flex w-full max-w-[1500px] flex-col items-start gap-8 px-4 pt-10 pb-24 sm:px-6 sm:pt-12 lg:px-8 lg:pt-16 xl:flex-row xl:gap-12'>
-        <div data-blog-main-content className='mx-auto w-full min-w-0 max-w-5xl flex-grow'>
+        <div data-blog-main-content className='mx-auto w-full min-w-0 max-w-5xl flex-grow lg:px-4'>
           <Link
             href='/blog'
             className='group mb-8 inline-flex items-center gap-2 border border-[#2A2A2A] bg-[#232323] px-4 py-2 font-season text-[#999] text-[11px] uppercase tracking-widest transition-colors hover:text-[#ECECEC]'
