@@ -29,7 +29,7 @@ export function ChangelogHero() {
   const shouldReduceMotion = useReducedMotion()
 
   return (
-    <section className='relative overflow-hidden border-b border-[#2A2A2A] pb-10 pt-12'>
+    <section className='relative overflow-hidden border-[#2A2A2A] border-b pt-12 pb-10'>
       <div className='pointer-events-none absolute inset-0' aria-hidden='true' />
       <motion.div
         className='relative z-10 mx-auto max-w-5xl px-6'
@@ -40,13 +40,13 @@ export function ChangelogHero() {
         <div className='flex flex-col items-start'>
           <motion.h1
             variants={itemVariants}
-            className='mb-3 max-w-3xl text-balance font-[430] text-[40px] leading-[1.1] tracking-[-0.02em] text-[#ECECEC] sm:text-[56px] md:text-[64px]'
+            className='mb-3 max-w-3xl text-balance font-[430] text-[#ECECEC] text-[40px] leading-[1.1] tracking-[-0.02em] sm:text-[56px] md:text-[64px]'
           >
             What&apos;s new in <span className='text-[#666]'>Sim.</span>
           </motion.h1>
           <motion.p
             variants={itemVariants}
-            className='max-w-2xl text-[18px] leading-relaxed tracking-[0.02em] text-[#999]'
+            className='max-w-2xl text-[#999] text-[18px] leading-relaxed tracking-[0.02em]'
           >
             Stay up-to-date with the latest features, improvements, and bug fixes.
           </motion.p>
@@ -62,14 +62,14 @@ export function ChangelogHero() {
             </Link>
             <Link
               href='https://docs.sim.ai'
-              className='inline-flex items-center gap-2 rounded-[5px] border border-[#3d3d3d] px-[9px] py-[5px] text-[13.5px] text-[#ECECEC] transition-colors hover:bg-[#2A2A2A]'
+              className='inline-flex items-center gap-2 rounded-[5px] border border-[#3d3d3d] px-[9px] py-[5px] text-[#ECECEC] text-[13.5px] transition-colors hover:bg-[#2A2A2A]'
             >
               <BookOpen className='h-4 w-4' />
               Documentation
             </Link>
             <Link
               href='/changelog.xml'
-              className='inline-flex items-center gap-2 rounded-[5px] border border-[#3d3d3d] px-[9px] py-[5px] text-[13.5px] text-[#ECECEC] transition-colors hover:bg-[#2A2A2A]'
+              className='inline-flex items-center gap-2 rounded-[5px] border border-[#3d3d3d] px-[9px] py-[5px] text-[#ECECEC] text-[13.5px] transition-colors hover:bg-[#2A2A2A]'
             >
               <Rss className='h-4 w-4' />
               RSS Feed

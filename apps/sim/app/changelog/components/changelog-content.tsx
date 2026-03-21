@@ -60,7 +60,7 @@ export default async function ChangelogContent() {
     <div className='flex flex-col'>
       <ChangelogHero />
       <main className='mx-auto w-full max-w-5xl px-6 py-12'>
-        <h2 className='mb-8 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#666]'>
+        <h2 className='mb-8 flex items-center gap-2 font-season text-[#666] text-[11px] uppercase tracking-widest'>
           <span className='inline-block h-2 w-2 bg-[#666]' aria-hidden='true' />
           All Releases
         </h2>

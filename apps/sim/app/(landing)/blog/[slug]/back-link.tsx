@@ -7,9 +7,9 @@ export function BackLink() {
       href='/blog'
       className='group flex items-center gap-1 text-[#999] text-sm hover:text-[#ECECEC]'
     >
-      <span className='inline-flex transition-transform duration-200 group-hover:-translate-x-0.5'>
-        <ChevronLeft className='h-4 w-4 block group-hover:hidden' aria-hidden='true' />
-        <ArrowLeft className='h-4 w-4 hidden group-hover:block' aria-hidden='true' />
+      <span className='group-hover:-translate-x-0.5 inline-flex transition-transform duration-200'>
+        <ChevronLeft className='block h-4 w-4 group-hover:hidden' aria-hidden='true' />
+        <ArrowLeft className='hidden h-4 w-4 group-hover:block' aria-hidden='true' />
       </span>
       Back to Blog
     </Link>

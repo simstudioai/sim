@@ -46,7 +46,7 @@ export function CategoryList({ items, activeId }: CategoryListProps) {
     <ul ref={listRef} className='relative flex flex-col'>
       {activeItem && highlight && (
         <motion.div
-          className='absolute left-0 right-0 rounded-sm'
+          className='absolute right-0 left-0 rounded-sm'
           style={{
             backgroundColor: `${activeItem.color}0D`,
             border: `1px solid ${activeItem.color}`,
@@ -72,7 +72,7 @@ export function CategoryList({ items, activeId }: CategoryListProps) {
           >
             <Link
               href={item.href}
-              className={`relative flex items-center justify-between rounded-sm px-3 py-2 text-[13px] transition-colors duration-150 ease ${
+              className={`ease relative flex items-center justify-between rounded-sm px-3 py-2 text-[13px] transition-colors duration-150 ${
                 isActive
                   ? ''
                   : '[@media(hover:hover)]:hover:bg-[#232323] [@media(hover:hover)]:hover:text-[#ECECEC]'

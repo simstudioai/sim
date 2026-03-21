@@ -101,13 +101,13 @@ export function CodeBlock({ code, language }: CodeBlockProps) {
       className='my-8 overflow-hidden border border-[#2A2A2A] bg-[#111111]'
       style={{ borderRadius: '2px' }}
     >
-      <div className='flex items-center justify-between border-b border-[#2A2A2A] bg-[#232323] px-4 py-2'>
+      <div className='flex items-center justify-between border-[#2A2A2A] border-b bg-[#232323] px-4 py-2'>
         <div className='flex items-center gap-2'>
           <span className='inline-block h-2 w-2 bg-[#00F701]' aria-hidden='true' />
           <span className='inline-block h-2 w-2 bg-[#2ABBF8]' aria-hidden='true' />
           <span className='inline-block h-2 w-2 bg-[#FA4EDF]' aria-hidden='true' />
         </div>
-        <span className='font-mono text-[10px] uppercase tracking-widest text-[#ECECEC]'>
+        <span className='font-mono text-[#ECECEC] text-[10px] uppercase tracking-widest'>
           {label}
         </span>
         <button

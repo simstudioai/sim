@@ -27,7 +27,7 @@ export function StudioHero() {
   const shouldReduceMotion = useReducedMotion()
 
   return (
-    <section className='relative overflow-hidden border-b border-[#2A2A2A] pt-12 pb-8'>
+    <section className='relative overflow-hidden border-[#2A2A2A] border-b pt-12 pb-8'>
       <div
         className='pointer-events-none absolute inset-0 opacity-50'
         aria-hidden='true'
@@ -46,13 +46,13 @@ export function StudioHero() {
         <div className='flex flex-col items-start gap-[12px]'>
           <motion.h1
             variants={itemVariants}
-            className='max-w-3xl text-balance font-[430] text-[40px] leading-[1.1] tracking-[-0.02em] text-[#ECECEC] sm:text-[56px] md:text-[64px]'
+            className='max-w-3xl text-balance font-[430] text-[#ECECEC] text-[40px] leading-[1.1] tracking-[-0.02em] sm:text-[56px] md:text-[64px]'
           >
             Building the future of <span className='text-[#666]'>autonomous workflows.</span>
           </motion.h1>
           <motion.p
             variants={itemVariants}
-            className='max-w-2xl text-[18px] leading-relaxed tracking-[0.02em] text-[#999]'
+            className='max-w-2xl text-[#999] text-[18px] leading-relaxed tracking-[0.02em]'
           >
             Deep dives, product updates, and technical tutorials from the team building Sim.
           </motion.p>

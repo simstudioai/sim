@@ -9,6 +9,7 @@ import { Badge, ChevronDown } from '@/components/emcn'
 import { LandingWorkflowSeedStorage } from '@/lib/core/utils/browser-storage'
 import { cn } from '@/lib/core/utils/cn'
 import { TEMPLATE_WORKFLOWS } from '@/app/(home)/components/templates/template-workflows'
+import { hexToRgba } from '@/lib/core/utils/formatting'
 
 const logger = createLogger('LandingTemplates')
 
@@ -22,13 +23,6 @@ const LandingPreviewWorkflow = dynamic(
     loading: () => <div className='h-full w-full bg-[#1b1b1b]' />,
   }
 )
-
-function hexToRgba(hex: string, alpha: number): string {
-  const r = Number.parseInt(hex.slice(1, 3), 16)
-  const g = Number.parseInt(hex.slice(3, 5), 16)
-  const b = Number.parseInt(hex.slice(5, 7), 16)
-  return `rgba(${r},${g},${b},${alpha})`
-}
 
 const LEFT_WALL_CLIP = 'polygon(0 8px, 100% 0, 100% 100%, 0 100%)'
 const BOTTOM_WALL_CLIP = 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)'
@@ -412,7 +406,7 @@ export default function Templates() {
       ref={sectionRef}
       id='templates'
       aria-labelledby='templates-heading'
-      className='mt-[40px] mb-[80px]'
+      className='mt-[40px] mb-[80px] overflow-x-clip'
     >
       <p className='sr-only'>
         Sim includes {TEMPLATE_WORKFLOWS.length} pre-built workflow templates covering OCR
@@ -449,7 +443,7 @@ export default function Templates() {
             </svg>
           </div>
 
-          <div className='px-[20px] pt-[60px] lg:px-[80px] lg:pt-[100px]'>
+          <div className='px-4 pt-[60px] sm:px-6 lg:px-[80px] lg:pt-[100px]'>
             <div className='flex flex-col items-start gap-[20px]'>
               <Badge
                 variant='blue'
@@ -517,7 +511,7 @@ export default function Templates() {
                         aria-controls={TEMPLATES_PANEL_ID}
                         onClick={() => setActiveIndex(index)}
                         className={cn(
-                          'relative w-full text-left',
+                          'relative w-full overflow-x-clip text-left',
                           isActive
                             ? 'z-10'
                             : cn(
@@ -543,7 +537,7 @@ export default function Templates() {
                                   className='absolute right-[-8px] bottom-0 left-2 h-2'
                                   style={buildBottomWallStyle(depth)}
                                 />
-                                <div className='-translate-y-2 relative flex translate-x-2 items-center bg-[#242424] px-[12px] py-[10px] shadow-[inset_0_0_0_1.5px_#3E3E3E]'>
+                                <div className='-translate-y-2 relative flex w-full translate-x-2 items-center bg-[#242424] px-[12px] py-[10px] shadow-[inset_0_0_0_1.5px_#3E3E3E]'>
                                   <span className='flex-1 font-[430] font-season text-[16px] text-white'>
                                     {workflow.name}
                                   </span>

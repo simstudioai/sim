@@ -95,12 +95,12 @@ function ReleaseCard({ entry, index }: { entry: ChangelogEntry; index: number })
               href={entry.url}
               target='_blank'
               rel='noopener noreferrer'
-              className='inline-block border border-[#3d3d3d] bg-[#2A2A2A] px-2 py-0.5 font-season text-[10px] font-bold uppercase tracking-wider text-[#ECECEC] transition-colors hover:border-[#666]'
+              className='inline-block border border-[#3d3d3d] bg-[#2A2A2A] px-2 py-0.5 font-bold font-season text-[#ECECEC] text-[10px] uppercase tracking-wider transition-colors hover:border-[#666]'
             >
               {entry.tag}
             </a>
             <span className='h-1 w-1 bg-[#3d3d3d]' aria-hidden='true' />
-            <time className='font-season text-[10px] uppercase tracking-wider text-[#666]'>
+            <time className='font-season text-[#666] text-[10px] uppercase tracking-wider'>
               {formatDate(new Date(entry.date))}
             </time>
           </div>
@@ -108,7 +108,7 @@ function ReleaseCard({ entry, index }: { entry: ChangelogEntry; index: number })
             href={entry.url}
             target='_blank'
             rel='noopener noreferrer'
-            className='flex items-center gap-1 font-season text-[10px] uppercase tracking-wider text-[#666] transition-colors hover:text-[#ECECEC]'
+            className='flex items-center gap-1 font-season text-[#666] text-[10px] uppercase tracking-wider transition-colors hover:text-[#ECECEC]'
             aria-label={`View ${entry.tag} on GitHub`}
           >
             GitHub
@@ -116,7 +116,7 @@ function ReleaseCard({ entry, index }: { entry: ChangelogEntry; index: number })
           </a>
         </div>
         {entry.title !== entry.tag && (
-          <h3 className='mb-4 font-[500] text-[20px] leading-tight tracking-[-0.01em] text-[#ECECEC]'>
+          <h3 className='mb-4 font-[500] text-[#ECECEC] text-[20px] leading-tight tracking-[-0.01em]'>
             {entry.title}
           </h3>
         )}
@@ -127,7 +127,7 @@ function ReleaseCard({ entry, index }: { entry: ChangelogEntry; index: number })
                 if (isContributorsLabel(children)) return null
                 return (
                   <h4
-                    className='mt-6 mb-3 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#999] first:mt-0'
+                    className='mt-6 mb-3 flex items-center gap-2 font-season text-[#999] text-[11px] uppercase tracking-widest first:mt-0'
                     {...props}
                   >
                     <span
@@ -142,7 +142,7 @@ function ReleaseCard({ entry, index }: { entry: ChangelogEntry; index: number })
                 if (isContributorsLabel(children)) return null
                 return (
                   <h5
-                    className='mt-5 mb-2 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#999] first:mt-0'
+                    className='mt-5 mb-2 flex items-center gap-2 font-season text-[#999] text-[11px] uppercase tracking-widest first:mt-0'
                     {...props}
                   >
                     <span
@@ -175,7 +175,7 @@ function ReleaseCard({ entry, index }: { entry: ChangelogEntry; index: number })
               },
               p: ({ children, ...props }) =>
                 /^\s*contributors\s*:?\s*$/i.test(String(children)) ? null : (
-                  <p className='mb-3 text-[14px] leading-relaxed text-[#999]' {...props}>
+                  <p className='mb-3 text-[#999] text-[14px] leading-relaxed' {...props}>
                     {children}
                   </p>
                 ),
@@ -186,7 +186,7 @@ function ReleaseCard({ entry, index }: { entry: ChangelogEntry; index: number })
               ),
               code: ({ children, ...props }) => (
                 <code
-                  className='rounded-[2px] border border-[#2A2A2A] bg-[#1C1C1C] px-1 py-0.5 font-mono text-[12px] text-[#CCCCCC]'
+                  className='rounded-[2px] border border-[#2A2A2A] bg-[#1C1C1C] px-1 py-0.5 font-mono text-[#CCCCCC] text-[12px]'
                   {...props}
                 >
                   {children}
@@ -208,8 +208,8 @@ function ReleaseCard({ entry, index }: { entry: ChangelogEntry; index: number })
         </div>
       </div>
       {entry.contributors && entry.contributors.length > 0 && (
-        <div className='flex items-center gap-3 border-t border-[#2A2A2A] px-6 py-4 sm:px-8'>
-          <div className='flex -space-x-1.5'>
+        <div className='flex items-center gap-3 border-[#2A2A2A] border-t px-6 py-4 sm:px-8'>
+          <div className='-space-x-1.5 flex'>
             {entry.contributors.slice(0, 8).map((contributor) => (
               <a
                 key={contributor}
@@ -225,19 +225,19 @@ function ReleaseCard({ entry, index }: { entry: ChangelogEntry; index: number })
                     src={`https://avatars.githubusercontent.com/${contributor}`}
                     alt={`@${contributor}`}
                   />
-                  <AvatarFallback className='bg-[#2A2A2A] font-season text-[8px] text-[#999]'>
+                  <AvatarFallback className='bg-[#2A2A2A] font-season text-[#999] text-[8px]'>
                     {contributor.slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
               </a>
             ))}
             {entry.contributors.length > 8 && (
-              <div className='relative flex size-5 items-center justify-center rounded-full border border-[#232323] bg-[#2A2A2A] font-season text-[8px] text-[#999]'>
+              <div className='relative flex size-5 items-center justify-center rounded-full border border-[#232323] bg-[#2A2A2A] font-season text-[#999] text-[8px]'>
                 +{entry.contributors.length - 8}
               </div>
             )}
           </div>
-          <span className='font-season text-[10px] uppercase tracking-wider text-[#999]'>
+          <span className='font-season text-[#999] text-[10px] uppercase tracking-wider'>
             {entry.contributors
               .slice(0, 3)
               .map((c) => c)
@@ -315,12 +315,12 @@ export default function ChangelogList({ initialEntries }: Props) {
       </div>
 
       {!done && (
-        <div className='mt-12 flex items-center justify-center border-t border-[#2A2A2A] pt-12'>
+        <div className='mt-12 flex items-center justify-center border-[#2A2A2A] border-t pt-12'>
           <button
             type='button'
             onClick={loadMore}
             disabled={loading}
-            className='rounded-[5px] border border-[#3d3d3d] bg-[#232323] px-6 py-2.5 font-season text-[11px] uppercase tracking-wider text-[#999] transition-colors hover:border-[#666] hover:text-[#ECECEC] disabled:opacity-60'
+            className='rounded-[5px] border border-[#3d3d3d] bg-[#232323] px-6 py-2.5 font-season text-[#999] text-[11px] uppercase tracking-wider transition-colors hover:border-[#666] hover:text-[#ECECEC] disabled:opacity-60'
           >
             {loading ? 'Loading...' : 'Load more releases'}
           </button>

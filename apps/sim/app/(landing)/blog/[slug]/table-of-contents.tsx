@@ -498,7 +498,7 @@ export function TableOfContents({ headings }: TableOfContentsProps) {
       <nav
         ref={navRef}
         className='flex w-[250px] flex-col'
-        aria-label='Table of contents'
+        aria-label='On this page'
         onPointerMove={onPointerMove}
         onPointerLeave={onPointerLeave}
       >
@@ -540,7 +540,7 @@ function TocOverline() {
         />
       </div>
       <span className='font-medium font-season text-[#FFFFFF] text-[10px] uppercase leading-none tracking-[0.28em] transition-colors duration-150 ease-out group-hover:text-[#A1A1A1]'>
-        Table of Contents
+        On this page
       </span>
     </button>
   )

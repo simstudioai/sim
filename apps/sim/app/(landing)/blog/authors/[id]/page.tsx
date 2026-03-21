@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import { getAllPostMeta } from '@/lib/blog/registry'
+import { AuthorWithSidebar } from '@/app/(landing)/blog/authors/[id]/author-with-sidebar'
 import { PostGrid } from '@/app/(landing)/blog/post-grid'
-import { WithSidebar } from '@/app/(landing)/blog/with-sidebar'
 
 function findAuthorById(posts: Awaited<ReturnType<typeof getAllPostMeta>>, id: string) {
   for (const p of posts) {
@@ -25,8 +25,15 @@ export async function generateMetadata({
   return { title: author?.name ?? 'Author' }
 }
 
-export default async function AuthorPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function AuthorPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ tag?: string; q?: string }>
+}) {
   const { id } = await params
+  const { tag } = await searchParams
   const allPosts = await getAllPostMeta()
   const posts = allPosts.filter((p) => p.author.id === id || p.authors?.some((a) => a.id === id))
   const author = findAuthorById(allPosts, id)
@@ -34,10 +41,10 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
   if (!author) {
     return (
       <div className='mx-auto max-w-5xl px-8 py-16 lg:px-12'>
-        <h1 className='font-[500] text-[32px] text-[#ECECEC]'>Author not found</h1>
+        <h1 className='font-[500] text-[#ECECEC] text-[32px]'>Author not found</h1>
         <Link
           href='/blog'
-          className='mt-4 inline-block font-season text-[12px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
+          className='mt-4 inline-block font-season text-[#999] text-[12px] uppercase tracking-wider transition-colors hover:text-[#ECECEC]'
         >
           Back to all posts
         </Link>
@@ -55,8 +62,8 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
   }
 
   return (
-    <WithSidebar>
-      <div className='mx-auto max-w-5xl px-8 py-16 lg:px-12'>
+    <AuthorWithSidebar allPosts={allPosts} activeTag={tag ?? null}>
+      <div className='mx-auto w-full max-w-5xl px-4 py-16 sm:px-0 lg:mr-8 lg:px-0 lg:py-16'>
         <script
           type='application/ld+json'
           dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }}
@@ -78,10 +85,10 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
             </div>
           )}
           <div>
-            <div className='mb-1 font-season text-[10px] uppercase tracking-widest text-[#FA4EDF]'>
+            <div className='mb-1 font-season text-[#FA4EDF] text-[10px] uppercase tracking-widest'>
               Author
             </div>
-            <h1 className='font-[500] text-[32px] leading-tight tracking-[-0.02em] text-[#ECECEC]'>
+            <h1 className='font-[500] text-[#ECECEC] text-[32px] leading-tight tracking-[-0.02em]'>
               {author.name}
             </h1>
             {author.url && (
@@ -89,20 +96,20 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
                 href={author.url}
                 target='_blank'
                 rel='noopener noreferrer'
-                className='font-season text-[11px] text-[#999] transition-colors hover:text-[#ECECEC]'
+                className='font-season text-[#999] text-[11px] transition-colors hover:text-[#ECECEC]'
               >
                 {author.xHandle ? `@${author.xHandle}` : 'Profile'}
               </Link>
             )}
           </div>
         </div>
-        <h2 className='mb-8 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#666]'>
+        <h2 className='mb-8 flex items-center gap-2 font-season text-[#666] text-[11px] uppercase tracking-widest'>
           <span className='inline-block h-2 w-2 bg-[#00F701]' aria-hidden='true' />
           Posts by {author.name}
         </h2>
 
         <PostGrid posts={posts} />
       </div>
-    </WithSidebar>
+    </AuthorWithSidebar>
   )
 }

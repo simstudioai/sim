@@ -66,7 +66,7 @@ function PostCard({ post, priority = false }: { post: Post; priority?: boolean }
   return (
     <motion.div variants={cardVariants} className='h-full'>
       <Link href={`/blog/${post.slug}`} className='group flex h-full flex-col'>
-        <article className='flex h-full flex-col overflow-hidden border border-[#2A2A2A] bg-[#232323] transition-[border-color,background-color,transform] duration-200 ease-out active:scale-[0.99] [@media(hover:hover)]:group-hover:border-[#3d3d3d] [@media(hover:hover)]:group-hover:bg-[#282828] [@media(hover:hover)]:group-hover:-translate-y-0.5'>
+        <article className='[@media(hover:hover)]:group-hover:-translate-y-0.5 flex h-full flex-col overflow-hidden border border-[#2A2A2A] bg-[#232323] transition-[border-color,background-color,transform] duration-200 ease-out active:scale-[0.99] [@media(hover:hover)]:group-hover:border-[#3d3d3d] [@media(hover:hover)]:group-hover:bg-[#282828]'>
           <div className='relative aspect-video w-full overflow-hidden bg-[#1C1C1C]'>
             <Image
               src={post.ogImage}
@@ -82,30 +82,30 @@ function PostCard({ post, priority = false }: { post: Post; priority?: boolean }
           <div className='flex flex-1 flex-col p-6'>
             <div className='mb-3 flex items-center gap-3'>
               <span
-                className='inline-block px-2 py-0.5 font-season text-[10px] font-bold uppercase tracking-wider text-black'
+                className='inline-block px-2 py-0.5 font-bold font-season text-[10px] text-black uppercase tracking-wider'
                 style={{ backgroundColor: color }}
               >
                 {category.label}
               </span>
               {post.readingTime && (
-                <span className='font-season text-[10px] uppercase text-[#666]'>
+                <span className='font-season text-[#666] text-[10px] uppercase'>
                   {post.readingTime} min read
                 </span>
               )}
             </div>
-            <h3 className='mb-3 line-clamp-2 font-[500] text-[20px] leading-tight tracking-[-0.01em] text-[#ECECEC] transition-colors duration-150 [@media(hover:hover)]:group-hover:text-[#00F701]'>
+            <h3 className='mb-3 line-clamp-2 font-[500] text-[#ECECEC] text-[20px] leading-tight tracking-[-0.01em] transition-colors duration-150 [@media(hover:hover)]:group-hover:text-[#00F701]'>
               {post.title}
             </h3>
-            <p className='mb-6 line-clamp-2 text-[15px] leading-relaxed text-[#999]'>
+            <p className='mb-6 line-clamp-2 text-[#999] text-[15px] leading-relaxed'>
               {post.description}
             </p>
-            <div className='mt-auto flex items-center gap-3 border-t border-[#2A2A2A] pt-4 font-season text-[10px] uppercase text-[#666]'>
+            <div className='mt-auto flex items-center gap-3 border-[#2A2A2A] border-t pt-4 font-season text-[#666] text-[10px] uppercase'>
               <div className='flex items-center gap-2'>
-                <div className='flex -space-x-1.5'>
+                <div className='-space-x-1.5 flex'>
                   {authors.slice(0, 2).map((a, idx) => (
                     <Avatar key={idx} className='size-5 border border-[#1C1C1C]'>
                       <AvatarImage src={a?.avatarUrl} alt={a?.name} />
-                      <AvatarFallback className='bg-[#2A2A2A] font-season text-[8px] text-[#999]'>
+                      <AvatarFallback className='bg-[#2A2A2A] font-season text-[#999] text-[8px]'>
                         {a?.name.slice(0, 2)}
                       </AvatarFallback>
                     </Avatar>
@@ -137,7 +137,7 @@ function FeaturedLeadCard({ post }: { post: Post }) {
     <motion.div variants={leadVariants} className='col-span-full'>
       <Link
         href={`/blog/${post.slug}`}
-        className='group relative flex min-h-[400px] flex-col justify-end overflow-hidden border border-[#2A2A2A] bg-[#232323] transition-[border-color,transform] duration-200 ease-out [@media(hover:hover)]:hover:border-[#00F701] [@media(hover:hover)]:hover:-translate-y-0.5'
+        className='group [@media(hover:hover)]:hover:-translate-y-0.5 relative flex min-h-[400px] flex-col justify-end overflow-hidden border border-[#2A2A2A] bg-[#232323] transition-[border-color,transform] duration-200 ease-out [@media(hover:hover)]:hover:border-[#00F701]'
       >
         <div className='absolute inset-0'>
           <Image
@@ -154,29 +154,29 @@ function FeaturedLeadCard({ post }: { post: Post }) {
         <div className='relative z-10 flex h-full flex-col justify-between p-8'>
           <div className='flex items-center gap-3'>
             <span
-              className='inline-block px-2 py-0.5 font-season text-[10px] font-bold uppercase tracking-wider text-black'
+              className='inline-block px-2 py-0.5 font-bold font-season text-[10px] text-black uppercase tracking-wider'
               style={{ backgroundColor: color }}
             >
               {category.label}
             </span>
             {post.readingTime && (
-              <span className='font-season text-[10px] uppercase text-[#666]'>
+              <span className='font-season text-[#666] text-[10px] uppercase'>
                 {post.readingTime} min read
               </span>
             )}
           </div>
           <div className='mt-auto'>
-            <h3 className='mb-4 max-w-2xl font-[500] text-[32px] leading-tight tracking-[-0.02em] text-[#ECECEC] transition-colors duration-150 [@media(hover:hover)]:group-hover:text-[#00F701]'>
+            <h3 className='mb-4 max-w-2xl font-[500] text-[#ECECEC] text-[32px] leading-tight tracking-[-0.02em] transition-colors duration-150 [@media(hover:hover)]:group-hover:text-[#00F701]'>
               {post.title}
             </h3>
-            <p className='mb-6 max-w-2xl text-[15px] text-[#999]'>{post.description}</p>
-            <div className='flex items-center gap-3 font-season text-[10px] uppercase text-[#666]'>
+            <p className='mb-6 max-w-2xl text-[#999] text-[15px]'>{post.description}</p>
+            <div className='flex items-center gap-3 font-season text-[#666] text-[10px] uppercase'>
               <div className='flex items-center gap-2'>
-                <div className='flex -space-x-1.5'>
+                <div className='-space-x-1.5 flex'>
                   {authors.slice(0, 2).map((a, idx) => (
                     <Avatar key={idx} className='size-5 border border-[#1C1C1C]'>
                       <AvatarImage src={a?.avatarUrl} alt={a?.name} />
-                      <AvatarFallback className='bg-[#2A2A2A] font-season text-[8px] text-[#999]'>
+                      <AvatarFallback className='bg-[#2A2A2A] font-season text-[#999] text-[8px]'>
                         {a?.name.slice(0, 2)}
                       </AvatarFallback>
                     </Avatar>

@@ -1,10 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useReducedMotion } from 'framer-motion'
-import { Search } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { StudioHero } from '@/app/(landing)/blog/hero'
 import { FeaturedGrid, PostGrid } from '@/app/(landing)/blog/post-grid'
+import { BlogStudioSidebar } from '@/app/(landing)/blog/studio-sidebar-client'
 import { CATEGORIES, getCategoryById, getPrimaryCategory } from '@/app/(landing)/blog/tag-colors'
 
 interface SerializedPost {
@@ -27,42 +26,6 @@ interface StudioContentProps {
 }
 
 const PER_PAGE = 20
-
-const LEFT_WALL_CLIP = 'polygon(0 8px, 100% 0, 100% 100%, 0 100%)'
-const BOTTOM_WALL_CLIP = 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)'
-
-const DEPTH_SEGMENTS = [
-  [0.3, 10],
-  [0.5, 8],
-  [0.8, 6],
-  [1, 5],
-  [0.4, 12],
-  [0.7, 8],
-  [1, 6],
-  [0.5, 10],
-  [0.9, 7],
-  [0.6, 12],
-  [1, 8],
-  [0.35, 8],
-] as const
-
-function hexToRgba(hex: string, alpha: number): string {
-  const r = Number.parseInt(hex.slice(1, 3), 16)
-  const g = Number.parseInt(hex.slice(3, 5), 16)
-  const b = Number.parseInt(hex.slice(5, 7), 16)
-  return `rgba(${r},${g},${b},${alpha})`
-}
-
-function buildBottomWallGradient(color: string): string {
-  let pos = 0
-  const stops: string[] = []
-  for (const [opacity, width] of DEPTH_SEGMENTS) {
-    const c = hexToRgba(color, opacity)
-    stops.push(`${c} ${pos}%`, `${c} ${pos + width}%`)
-    pos += width
-  }
-  return `linear-gradient(135deg, ${stops.join(', ')})`
-}
 
 export function StudioContent({ posts, initialTag, initialQuery }: StudioContentProps) {
   const [activeTag, setActiveTag] = useState<string | null>(initialTag ?? null)
@@ -87,24 +50,6 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
-
-  const categoryItems = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const cat of CATEGORIES) counts[cat.id] = 0
-    for (const post of posts) {
-      const catId = getPrimaryCategory(post.tags).id
-      counts[catId] = (counts[catId] ?? 0) + 1
-    }
-    return [
-      { id: null as string | null, label: 'All Posts', count: posts.length, color: '#00F701' },
-      ...CATEGORIES.map((cat) => ({
-        id: cat.id as string | null,
-        label: cat.label,
-        count: counts[cat.id] ?? 0,
-        color: cat.color,
-      })),
-    ]
-  }, [posts])
 
   const lowerQ = query.trim().toLowerCase()
 
@@ -156,8 +101,6 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
   }
   const showHero = isDefaultView
 
-  const activeItem = categoryItems.find((item) => item.id === activeTag) ?? categoryItems[0]
-
   const handleCategorySelect = useCallback(
     (id: string | null) => {
       setActiveTag(id)
@@ -186,43 +129,30 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
   }, [syncUrl])
 
   return (
-    <div className='flex min-h-0 flex-1 flex-col lg:flex-row px-12'>
-      <aside className='flex w-full shrink-0 flex-col border-r border-[#2A2A2A] bg-[#1C1C1C] px-6 pt-12 lg:sticky lg:top-[52px] lg:h-[calc(100vh-52px)] lg:w-64 lg:overflow-y-auto'>
-        <div className='flex h-full flex-col'>
-          <div className='mb-6'>
-            <h2 className='mb-4 font-season text-[10px] uppercase tracking-widest text-[#666]'>
-              Find Insights
-            </h2>
-            <SidebarSearch value={query} onChange={handleSearch} />
-          </div>
-          <CategoriesDepthContainer>
-            <h2 className='mb-3 font-season text-[10px] uppercase tracking-widest text-[#ECECEC]'>
-              Categories
-            </h2>
-            <SidebarCategories
-              items={categoryItems}
-              activeId={activeTag}
-              onSelect={handleCategorySelect}
-            />
-          </CategoriesDepthContainer>
-        </div>
-      </aside>
+    <div className='flex min-h-0 flex-1 flex-col overflow-x-clip px-4 sm:px-6 lg:flex-row lg:px-12'>
+      <BlogStudioSidebar
+        posts={posts}
+        activeTag={activeTag}
+        query={query}
+        onChangeQuery={handleSearch}
+        onSelectTag={handleCategorySelect}
+      />
 
       <main className='relative min-w-0 flex-1'>
         <div className='flex flex-col'>
           {showHero && (
-            <div className='-mr-12'>
+            <div className='-mr-4 sm:-mr-6 lg:-mr-12'>
               <StudioHero />
             </div>
           )}
           <div className='mx-auto w-full max-w-5xl py-12 lg:mr-8'>
             {lowerQ && (
               <div className='mb-8 flex items-center gap-3'>
-                <span className='font-season text-[10px] uppercase tracking-widest text-[#666]'>
+                <span className='font-season text-[#666] text-[10px] uppercase tracking-widest'>
                   Results for:
                 </span>
                 <span
-                  className='px-2 py-0.5 font-season text-[10px] uppercase tracking-wider text-[#ECECEC]'
+                  className='px-2 py-0.5 font-season text-[#ECECEC] text-[10px] uppercase tracking-wider'
                   style={{ border: '1px solid #3d3d3d' }}
                 >
                   {query.trim()}
@@ -230,7 +160,7 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
                 <button
                   type='button'
                   onClick={handleClearAll}
-                  className='font-season text-[10px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
+                  className='font-season text-[#999] text-[10px] uppercase tracking-wider transition-colors hover:text-[#ECECEC]'
                 >
                   Clear
                 </button>
@@ -239,7 +169,7 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
 
             {activeCategory && !lowerQ && (
               <div className='mb-8 flex items-center gap-3'>
-                <span className='font-season text-[10px] uppercase tracking-widest text-[#666]'>
+                <span className='font-season text-[#666] text-[10px] uppercase tracking-widest'>
                   Filtered by:
                 </span>
                 <span
@@ -254,7 +184,7 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
                 <button
                   type='button'
                   onClick={handleClearAll}
-                  className='font-season text-[10px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
+                  className='font-season text-[#999] text-[10px] uppercase tracking-wider transition-colors hover:text-[#ECECEC]'
                 >
                   Clear
                 </button>
@@ -263,7 +193,7 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
 
             {featured.length > 0 && (
               <section className='mb-10'>
-                <h2 className='mb-8 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#666]'>
+                <h2 className='mb-8 flex items-center gap-2 font-season text-[#666] text-[11px] uppercase tracking-widest'>
                   <span className='inline-block h-2 w-2 bg-[#FA4EDF]' aria-hidden='true' />
                   Featured Content
                 </h2>
@@ -273,7 +203,7 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
 
             {feed.length > 0 && (
               <section>
-                <h2 className='mb-8 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#666]'>
+                <h2 className='mb-8 flex items-center gap-2 font-season text-[#666] text-[11px] uppercase tracking-widest'>
                   <span className='inline-block h-2 w-2 bg-[#00F701]' aria-hidden='true' />
                   {lowerQ ? 'Search Results' : activeCategory ? activeCategory.label : 'All Posts'}
                 </h2>
@@ -283,13 +213,13 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
 
             {pagePosts.length === 0 && (
               <div className='py-20 text-center'>
-                <p className='text-[14px] text-[#666]'>
+                <p className='text-[#666] text-[14px]'>
                   {lowerQ ? `No posts matching "${query.trim()}".` : 'No posts found.'}
                 </p>
                 <button
                   type='button'
                   onClick={handleClearAll}
-                  className='mt-4 inline-block font-season text-[12px] uppercase tracking-wider text-[#999] transition-colors hover:text-[#ECECEC]'
+                  className='mt-4 inline-block font-season text-[#999] text-[12px] uppercase tracking-wider transition-colors hover:text-[#ECECEC]'
                 >
                   View all posts
                 </button>
@@ -297,25 +227,25 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
             )}
 
             {totalPages > 1 && (
-              <div className='mt-20 flex items-center justify-center gap-4 border-t border-[#2A2A2A] pt-12'>
+              <div className='mt-20 flex items-center justify-center gap-4 border-[#2A2A2A] border-t pt-12'>
                 {page > 1 && (
                   <button
                     type='button'
                     onClick={() => setPage((p) => p - 1)}
-                    className='border border-[#3d3d3d] bg-[#232323] px-6 py-2.5 font-season text-[11px] uppercase tracking-wider text-[#999] transition-colors hover:border-[#666] hover:text-[#ECECEC]'
+                    className='border border-[#3d3d3d] bg-[#232323] px-6 py-2.5 font-season text-[#999] text-[11px] uppercase tracking-wider transition-colors hover:border-[#666] hover:text-[#ECECEC]'
                     style={{ borderRadius: '5px' }}
                   >
                     Previous
                   </button>
                 )}
-                <span className='font-season text-[10px] uppercase tracking-wider text-[#666]'>
+                <span className='font-season text-[#666] text-[10px] uppercase tracking-wider'>
                   Page {page} of {totalPages}
                 </span>
                 {page < totalPages && (
                   <button
                     type='button'
                     onClick={() => setPage((p) => p + 1)}
-                    className='border border-[#3d3d3d] bg-[#232323] px-6 py-2.5 font-season text-[11px] uppercase tracking-wider text-[#999] transition-colors hover:border-[#666] hover:text-[#ECECEC]'
+                    className='border border-[#3d3d3d] bg-[#232323] px-6 py-2.5 font-season text-[#999] text-[11px] uppercase tracking-wider transition-colors hover:border-[#666] hover:text-[#ECECEC]'
                     style={{ borderRadius: '5px' }}
                   >
                     Load more articles
@@ -327,156 +257,5 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
         </div>
       </main>
     </div>
-  )
-}
-
-interface CategoriesDepthContainerProps {
-  children: React.ReactNode
-}
-
-function CategoriesDepthContainer({ children }: CategoriesDepthContainerProps) {
-  return (
-    <div className='pt-6'>
-      <div className='bg-transparent'>{children}</div>
-    </div>
-  )
-}
-
-interface SidebarSearchProps {
-  value: string
-  onChange: (value: string) => void
-}
-
-function SidebarSearch({ value, onChange }: SidebarSearchProps) {
-  return (
-    <form onSubmit={(e) => e.preventDefault()} className='relative'>
-      <input
-        type='text'
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder='SEARCH POSTS...'
-        className='w-full border border-[#2A2A2A] bg-[#232323] px-4 py-2 pr-9 font-season text-[11px] text-[#ECECEC] placeholder:text-[#666] transition-colors focus:border-[#3d3d3d] focus:outline-none'
-        style={{ borderRadius: '4px' }}
-        aria-label='Search blog posts'
-      />
-      <span className='absolute right-0 top-0 flex h-full items-center px-3 text-[#666]'>
-        <Search className='h-3.5 w-3.5' aria-hidden='true' />
-      </span>
-    </form>
-  )
-}
-
-interface SidebarCategoryItem {
-  id: string | null
-  label: string
-  count: number
-  color: string
-}
-
-interface SidebarCategoriesProps {
-  items: SidebarCategoryItem[]
-  activeId: string | null
-  onSelect: (id: string | null) => void
-}
-
-function SidebarCategories({ items, activeId, onSelect }: SidebarCategoriesProps) {
-  const shouldReduceMotion = useReducedMotion()
-  const listRef = useRef<HTMLUListElement>(null)
-  const itemRefs = useRef<Map<string, HTMLLIElement>>(new Map())
-
-  const activeItem = items.find((item) => item.id === activeId) ?? items[0]
-
-  return (
-    <ul ref={listRef} className='relative flex flex-col'>
-      {items.map((item) => {
-        const isActive = item.id === activeId
-        const key = item.id ?? 'all'
-        return (
-          <li
-            key={key}
-            ref={(el) => {
-              if (el) itemRefs.current.set(key, el)
-            }}
-          >
-            <button
-              type='button'
-              onClick={() => onSelect(item.id)}
-              className={`relative w-full text-left ${
-                isActive
-                  ? 'z-10'
-                  : 'shadow-[inset_0_-1px_0_0_#2A2A2A] last:shadow-none hover:bg-[#232323]/50'
-              }`}
-            >
-              <div
-                className='pointer-events-none absolute top-[-4px] bottom-0 left-0 w-1'
-                style={{
-                  clipPath: LEFT_WALL_CLIP,
-                  backgroundColor: hexToRgba(item.color, 0.63),
-                  opacity: isActive ? 1 : 0,
-                  transition: shouldReduceMotion
-                    ? 'none'
-                    : isActive
-                      ? 'opacity 250ms cubic-bezier(0.2, 0, 0, 1) 50ms'
-                      : 'opacity 200ms cubic-bezier(0.4, 0, 1, 1)',
-                }}
-                aria-hidden='true'
-              />
-              <div
-                className='pointer-events-none absolute right-[-4px] bottom-0 left-1 h-1'
-                style={{
-                  clipPath: BOTTOM_WALL_CLIP,
-                  background: buildBottomWallGradient(item.color),
-                  opacity: isActive ? 1 : 0,
-                  transition: shouldReduceMotion
-                    ? 'none'
-                    : isActive
-                      ? 'opacity 250ms cubic-bezier(0.2, 0, 0, 1) 50ms'
-                      : 'opacity 200ms cubic-bezier(0.4, 0, 1, 1)',
-                }}
-                aria-hidden='true'
-              />
-              <div
-                className='relative flex items-center px-[12px] py-[10px]'
-                style={{
-                  transform: isActive ? 'translate(4px, -4px)' : 'translate(0px, 0px)',
-                  backgroundColor: isActive ? '#242424' : 'transparent',
-                  boxShadow: isActive
-                    ? 'inset 0 0 0 1.5px #3E3E3E'
-                    : 'inset 0 0 0 1.5px transparent',
-                  transition: shouldReduceMotion
-                    ? 'none'
-                    : isActive
-                      ? 'transform 350ms cubic-bezier(0.34, 1.4, 0.64, 1), background-color 250ms ease 30ms, box-shadow 250ms ease 30ms'
-                      : 'transform 300ms cubic-bezier(0.4, 0, 0.2, 1), background-color 200ms ease, box-shadow 200ms ease',
-                }}
-              >
-                <span
-                  className='flex-1 font-[430] font-season text-[14px]'
-                  style={{
-                    color: isActive ? '#FFFFFF' : 'rgba(246, 246, 240, 0.5)',
-                    transition: shouldReduceMotion ? 'none' : 'color 250ms ease',
-                  }}
-                >
-                  {item.label}
-                </span>
-                <span
-                  className='font-season text-[10px]'
-                  style={{
-                    padding: '2px 6px',
-                    borderRadius: '2px',
-                    border: isActive ? '1px solid #3E3E3E' : '1px solid #2A2A2A',
-                    color: isActive ? item.color : '#666',
-                    backgroundColor: isActive ? '#232323' : 'transparent',
-                    transition: shouldReduceMotion ? 'none' : 'all 200ms ease',
-                  }}
-                >
-                  {String(item.count).padStart(2, '0')}
-                </span>
-              </div>
-            </button>
-          </li>
-        )
-      })}
-    </ul>
   )
 }

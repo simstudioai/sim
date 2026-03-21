@@ -52,20 +52,20 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
       />
 
-      <div className='mx-auto flex w-full max-w-[1500px] flex-col items-start gap-2 pb-24 pt-16 xl:flex-row'>
-        <div data-blog-main-content className='max-w-5xl flex-grow mx-auto'>
+      <div className='mx-auto flex w-full max-w-[1500px] flex-col items-start gap-8 px-4 pt-10 pb-24 sm:px-6 sm:pt-12 lg:px-8 lg:pt-16 xl:flex-row xl:gap-12'>
+        <div data-blog-main-content className='mx-auto w-full min-w-0 max-w-5xl flex-grow'>
           <Link
             href='/blog'
-            className='group mb-8 inline-flex items-center gap-2 border border-[#2A2A2A] bg-[#232323] px-4 py-2 font-season text-[11px] uppercase tracking-widest text-[#999] transition-colors hover:text-[#ECECEC]'
+            className='group mb-8 inline-flex items-center gap-2 border border-[#2A2A2A] bg-[#232323] px-4 py-2 font-season text-[#999] text-[11px] uppercase tracking-widest transition-colors hover:text-[#ECECEC]'
             style={{ borderRadius: '5px' }}
           >
             <ArrowLeft
-              className='h-3 w-3 transition-transform group-hover:-translate-x-1'
+              className='group-hover:-translate-x-1 h-3 w-3 transition-transform'
               aria-hidden='true'
             />
             All Posts
           </Link>
-          <header className='mb-12 border-b border-[#2A2A2A] pb-8'>
+          <header className='mb-12 border-[#2A2A2A] border-b pb-8'>
             <ArticleHeaderMotion>
               <ArticleHeaderItem className='mb-6 flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
                 <div className='flex items-center gap-3'>
@@ -74,7 +74,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                     style={{ backgroundColor: categoryColor }}
                     aria-hidden='true'
                   />
-                  <div className='font-season text-[11px] uppercase tracking-widest text-[#999]'>
+                  <div className='font-season text-[#999] text-[11px] uppercase tracking-widest'>
                     <time dateTime={post.date} itemProp='datePublished'>
                       {new Date(post.date).toLocaleDateString('en-US', {
                         month: 'short',
@@ -87,27 +87,27 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                   </div>
                 </div>
 
-                <div className='shrink-0'>
+                <div className='shrink-0 self-start sm:self-auto'>
                   <ShareButtons url={shareUrl} title={post.title} />
                 </div>
               </ArticleHeaderItem>
               <ArticleHeaderItem>
                 <h1
-                  className='mb-6 font-[500] text-[36px] leading-[1.15] tracking-tight text-[#ECECEC] sm:text-[40px] md:text-[48px]'
+                  className='mb-6 font-[500] text-[#ECECEC] text-[36px] leading-[1.15] tracking-tight sm:text-[40px] md:text-[48px]'
                   itemProp='headline'
                 >
                   {post.title}
                 </h1>
               </ArticleHeaderItem>
               <ArticleHeaderItem>
-                <p className='mb-6 text-[18px] leading-relaxed text-[#999]' itemProp='description'>
+                <p className='mb-6 text-[#999] text-[18px] leading-relaxed' itemProp='description'>
                   {post.description}
                 </p>
               </ArticleHeaderItem>
 
               {post.tags.length > 0 && (
                 <ArticleHeaderItem>
-                  <div className='flex flex-wrap items-center gap-x-1.5 gap-y-1 font-season text-[11px] text-[#666]'>
+                  <div className='flex flex-wrap items-center gap-x-1.5 gap-y-1 font-season text-[#666] text-[11px]'>
                     {post.tags.map((tag, i) => (
                       <span key={tag}>
                         <Link
@@ -165,7 +165,7 @@ interface ArticleAuthorsProps {
 function ArticleAuthors({ authors }: ArticleAuthorsProps) {
   return (
     <div className='mt-12'>
-      <div className='mb-6 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#666]'>
+      <div className='mb-6 flex items-center gap-2 font-season text-[#666] text-[11px] uppercase tracking-widest'>
         <span className='inline-block h-2 w-2 bg-[#FA4EDF]' aria-hidden='true' />
         {authors.length > 1 ? 'Authors' : 'Written by'}
       </div>
@@ -177,7 +177,7 @@ function ArticleAuthors({ authors }: ArticleAuthorsProps) {
             style={{ borderRadius: '2px' }}
           >
             <div
-              className='flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden border border-[#2A2A2A] bg-[#1C1C1C] font-season text-lg text-[#2ABBF8]'
+              className='flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden border border-[#2A2A2A] bg-[#1C1C1C] font-season text-[#2ABBF8] text-lg'
               style={{ borderRadius: '2px' }}
             >
               {a.avatarUrl ? (
@@ -200,7 +200,7 @@ function ArticleAuthors({ authors }: ArticleAuthorsProps) {
                   href={a.url}
                   target='_blank'
                   rel='noopener noreferrer'
-                  className='font-season text-[11px] text-[#999] transition-colors hover:text-[#ECECEC]'
+                  className='font-season text-[#999] text-[11px] transition-colors hover:text-[#ECECEC]'
                 >
                   {a.xHandle ? `@${a.xHandle}` : 'Profile'}
                 </Link>
@@ -219,8 +219,8 @@ interface RelatedArticlesProps {
 
 function RelatedArticles({ posts }: RelatedArticlesProps) {
   return (
-    <div className='mt-12 border-t border-[#2A2A2A] pt-8'>
-      <div className='mb-6 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#666]'>
+    <div className='mt-12 border-[#2A2A2A] border-t pt-8'>
+      <div className='mb-6 flex items-center gap-2 font-season text-[#666] text-[11px] uppercase tracking-widest'>
         <span className='inline-block h-2 w-2 bg-[#FFCC02]' aria-hidden='true' />
         Related articles
       </div>
@@ -232,24 +232,24 @@ function RelatedArticles({ posts }: RelatedArticlesProps) {
             <Link
               key={p.slug}
               href={`/blog/${p.slug}`}
-              className='group flex flex-col border border-[#2A2A2A] bg-[#232323] p-5 transition-[border-color,background-color,transform] duration-200 ease-out [@media(hover:hover)]:hover:border-[#3d3d3d] [@media(hover:hover)]:hover:bg-[#282828] [@media(hover:hover)]:hover:-translate-y-0.5'
+              className='group [@media(hover:hover)]:hover:-translate-y-0.5 flex flex-col border border-[#2A2A2A] bg-[#232323] p-5 transition-[border-color,background-color,transform] duration-200 ease-out [@media(hover:hover)]:hover:border-[#3d3d3d] [@media(hover:hover)]:hover:bg-[#282828]'
               style={{ borderRadius: '2px' }}
             >
               <div className='mb-3 flex items-center gap-3'>
                 <span
-                  className='inline-block px-2 py-0.5 font-season text-[10px] font-bold uppercase tracking-wider text-black'
+                  className='inline-block px-2 py-0.5 font-bold font-season text-[10px] text-black uppercase tracking-wider'
                   style={{ backgroundColor: color }}
                 >
                   {cat.label}
                 </span>
               </div>
-              <h4 className='mb-2 text-[15px] font-[500] leading-tight text-[#ECECEC] transition-colors duration-150 [@media(hover:hover)]:group-hover:text-[#FFCC02]'>
+              <h4 className='mb-2 font-[500] text-[#ECECEC] text-[15px] leading-tight transition-colors duration-150 [@media(hover:hover)]:group-hover:text-[#FFCC02]'>
                 {p.title}
               </h4>
-              <p className='mb-4 line-clamp-2 text-[13px] leading-relaxed text-[#999]'>
+              <p className='mb-4 line-clamp-2 text-[#999] text-[13px] leading-relaxed'>
                 {p.description}
               </p>
-              <div className='mt-auto font-season text-[10px] text-[#666]'>
+              <div className='mt-auto font-season text-[#666] text-[10px]'>
                 {formatDate(new Date(p.date))}
               </div>
             </Link>

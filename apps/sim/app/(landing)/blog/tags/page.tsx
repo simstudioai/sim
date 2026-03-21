@@ -21,21 +21,21 @@ export default async function TagsIndex() {
 
   return (
     <div className='mx-auto max-w-5xl px-8 py-16 lg:px-12'>
-      <div className='mb-8 flex items-center gap-2 font-season text-[11px] uppercase tracking-widest text-[#666]'>
+      <div className='mb-8 flex items-center gap-2 font-season text-[#666] text-[11px] uppercase tracking-widest'>
         <span className='inline-block h-2 w-2 bg-[#FA4EDF]' aria-hidden='true' />
         Browse by Category
       </div>
 
-      <h1 className='mb-4 font-[500] text-[40px] leading-tight tracking-[-0.02em] text-[#ECECEC]'>
+      <h1 className='mb-4 font-[500] text-[#ECECEC] text-[40px] leading-tight tracking-[-0.02em]'>
         Topics
       </h1>
-      <p className='mb-10 text-[18px] tracking-[0.02em] text-[#999]'>
+      <p className='mb-10 text-[#999] text-[18px] tracking-[0.02em]'>
         Filter posts by category to find what interests you.
       </p>
       <div className='flex flex-wrap gap-3'>
         <Link
           href='/blog'
-          className='border border-[#3d3d3d] bg-[#232323] px-4 py-2 font-season text-[11px] uppercase tracking-wider text-[#ECECEC] transition-colors hover:border-[#ECECEC]'
+          className='border border-[#3d3d3d] bg-[#232323] px-4 py-2 font-season text-[#ECECEC] text-[11px] uppercase tracking-wider transition-colors hover:border-[#ECECEC]'
           style={{ borderRadius: '5px' }}
           prefetch
         >

@@ -91,18 +91,18 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
         className='my-8 overflow-hidden border border-[#2A2A2A] bg-[#111111]'
         style={{ borderRadius: '2px' }}
       >
-        <div className='flex items-center justify-between border-b border-[#2A2A2A] bg-[#232323] px-4 py-2'>
+        <div className='flex items-center justify-between border-[#2A2A2A] border-b bg-[#232323] px-4 py-2'>
           <div className='flex items-center gap-2'>
             <span className='inline-block h-2 w-2 bg-[#00F701]' aria-hidden='true' />
             <span className='inline-block h-2 w-2 bg-[#2ABBF8]' aria-hidden='true' />
             <span className='inline-block h-2 w-2 bg-[#FA4EDF]' aria-hidden='true' />
           </div>
-          <span className='font-mono text-[10px] uppercase tracking-widest text-[#ECECEC]'>
+          <span className='font-mono text-[#ECECEC] text-[10px] uppercase tracking-widest'>
             Mermaid
           </span>
           <span />
         </div>
-        <pre className='overflow-x-auto p-4 font-mono text-[13px] leading-relaxed text-[#d4d4d8]'>
+        <pre className='overflow-x-auto p-4 font-mono text-[#d4d4d8] text-[13px] leading-relaxed'>
           {chart}
         </pre>
       </div>
@@ -115,7 +115,7 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
         className='my-8 flex items-center justify-center border border-[#2A2A2A] bg-[#1C1C1C] py-12'
         style={{ borderRadius: '2px' }}
       >
-        <div className='flex items-center gap-3 font-mono text-[11px] uppercase tracking-widest text-[#666]'>
+        <div className='flex items-center gap-3 font-mono text-[#666] text-[11px] uppercase tracking-widest'>
           <span className='inline-block h-2 w-2 animate-pulse bg-[#2ABBF8]' />
           Rendering diagram...
         </div>
@@ -128,13 +128,13 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
       className='my-8 overflow-hidden border border-[#2A2A2A] bg-[#1C1C1C]'
       style={{ borderRadius: '2px' }}
     >
-      <div className='flex items-center justify-between border-b border-[#2A2A2A] bg-[#232323] px-4 py-2'>
+      <div className='flex items-center justify-between border-[#2A2A2A] border-b bg-[#232323] px-4 py-2'>
         <div className='flex items-center gap-2'>
           <span className='inline-block h-2 w-2 bg-[#00F701]' aria-hidden='true' />
           <span className='inline-block h-2 w-2 bg-[#2ABBF8]' aria-hidden='true' />
           <span className='inline-block h-2 w-2 bg-[#FA4EDF]' aria-hidden='true' />
         </div>
-        <span className='font-mono text-[10px] uppercase tracking-widest text-[#ECECEC]'>
+        <span className='font-mono text-[#ECECEC] text-[10px] uppercase tracking-widest'>
           Diagram
         </span>
         <span />
