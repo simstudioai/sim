@@ -70,7 +70,7 @@ spec:
               value: {{ include "sim.socketServerUrl" . | quote }}
             - name: OLLAMA_URL
               value: {{ include "sim.ollamaUrl" . | quote }}
-            {{- range $key, $value := omit .Values.app.env "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" }}
+            {{- range $key, $value := omit .Values.app.env "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" "SMTP_USERNAME" "SMTP_PASSWORD" }}
             {{- if not (kindIs "invalid" $value) }}
             - name: {{ $key }}
               value: {{ $value | quote }}
