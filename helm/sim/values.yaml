@@ -64,6 +64,8 @@ app:
         INTERNAL_API_SECRET: "INTERNAL_API_SECRET"
         CRON_SECRET: "CRON_SECRET"
         API_ENCRYPTION_KEY: "API_ENCRYPTION_KEY"
+        SMTP_USERNAME: "SMTP_USERNAME"
+        SMTP_PASSWORD: "SMTP_PASSWORD"
 
   # Environment variables
   env:
@@ -100,6 +102,11 @@ app:
     RESEND_API_KEY: ""                                    # Resend API key for transactional emails
     FROM_EMAIL_ADDRESS: ""                                # Complete from address (e.g., "Sim <noreply@domain.com>" or "DoNotReply@domain.com")
     EMAIL_DOMAIN: ""                                      # Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)
+    SMTP_HOST: ""                                         # SMTP hostname for app-level outgoing email (alternative to Resend/Azure)
+    SMTP_PORT: "587"                                      # SMTP port (587 for STARTTLS, 465 for SSL)
+    SMTP_SECURE: "TLS"                                    # SMTP security mode: TLS, SSL, or None
+    SMTP_USERNAME: ""                                     # SMTP username (stored in app secret when chart manages secrets)
+    SMTP_PASSWORD: ""                                     # SMTP password (stored in app secret when chart manages secrets)
     
     # OAuth Integration Credentials (leave empty if not using)
     GOOGLE_CLIENT_ID: ""                                  # Google OAuth client ID
@@ -1214,6 +1221,10 @@ externalSecrets:
       CRON_SECRET: ""
       # Path to API_ENCRYPTION_KEY in external store (optional)
       API_ENCRYPTION_KEY: ""
+      # Path to SMTP_USERNAME in external store (optional)
+      SMTP_USERNAME: ""
+      # Path to SMTP_PASSWORD in external store (optional)
+      SMTP_PASSWORD: ""
 
     # PostgreSQL password (for internal PostgreSQL)
     postgresql:

@@ -156,6 +156,28 @@
               "type": "string",
               "description": "Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)"
             },
+            "SMTP_HOST": {
+              "type": "string",
+              "description": "SMTP hostname for app-level outgoing email"
+            },
+            "SMTP_PORT": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "description": "SMTP port (e.g. 587 or 465)"
+            },
+            "SMTP_SECURE": {
+              "type": "string",
+              "enum": ["TLS", "SSL", "None"],
+              "description": "SMTP security mode"
+            },
+            "SMTP_USERNAME": {
+              "type": "string",
+              "description": "SMTP username for authenticated relays"
+            },
+            "SMTP_PASSWORD": {
+              "type": "string",
+              "description": "SMTP password for authenticated relays"
+            },
             "GOOGLE_CLIENT_ID": {
               "type": "string",
               "description": "Google OAuth client ID"
