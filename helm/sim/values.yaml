@@ -176,6 +176,11 @@ app:
     DISABLE_REGISTRATION: ""                              # Set to "true" to disable new user signups
     EMAIL_PASSWORD_SIGNUP_ENABLED: ""                     # Set to "false" to disable email/password login (SSO-only mode, server-side enforcement)
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: ""         # Set to "false" to hide email/password login form (UI-side)
+    SIGNUP_EMAIL_VALIDATION_ENABLED: ""                   # Set to "true" to block 55K+ disposable email domains (requires normalized_email migration)
+
+    # Bot Protection (Cloudflare Turnstile)
+    TURNSTILE_SECRET_KEY: ""                              # Cloudflare Turnstile secret key (leave empty to disable captcha)
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: ""                    # Cloudflare Turnstile site key (leave empty to disable captcha)
 
     # Access Control (leave empty if not restricting login)
     ALLOWED_LOGIN_EMAILS: ""                             # Comma-separated list of allowed email addresses for login
