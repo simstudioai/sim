@@ -742,7 +742,7 @@ async function addDocument(
       await tx.insert(document).values({
         id: documentId,
         knowledgeBaseId,
-        filename: extDoc.title,
+        filename: processingFilename,
         fileUrl,
         fileSize: contentBuffer.length,
         mimeType: 'text/plain',
@@ -841,7 +841,7 @@ async function updateDocument(
       await tx
         .update(document)
         .set({
-          filename: extDoc.title,
+          filename: processingFilename,
           fileUrl,
           fileSize: contentBuffer.length,
           contentHash: extDoc.contentHash,
