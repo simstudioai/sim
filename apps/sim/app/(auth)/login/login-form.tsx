@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
 import { Eye, EyeOff } from 'lucide-react'
@@ -120,19 +120,6 @@ export default function LoginPage({
       ? 'Password reset successful. Please sign in with your new password.'
       : null
   )
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Enter' && forgotPasswordOpen) {
-        handleForgotPassword()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [forgotPasswordEmail, forgotPasswordOpen])
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newEmail = e.target.value
@@ -602,45 +589,51 @@ export default function LoginPage({
         <ModalContent className='dark' size='sm'>
           <ModalHeader>Reset Password</ModalHeader>
           <ModalBody>
-            <ModalDescription className='mb-4 text-[var(--text-muted)] text-sm'>
-              Enter your email address and we'll send you a link to reset your password if your
-              account exists.
-            </ModalDescription>
-            <div className='space-y-4'>
-              <div className='space-y-2'>
-                <Label htmlFor='reset-email'>Email</Label>
-                <Input
-                  id='reset-email'
-                  value={forgotPasswordEmail}
-                  onChange={(e) => setForgotPasswordEmail(e.target.value)}
-                  placeholder='Enter your email'
-                  required
-                  type='email'
-                  className={cn(
-                    resetStatus.type === 'error' && 'border-red-500 focus:border-red-500'
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                handleForgotPassword()
+              }}
+            >
+              <ModalDescription className='mb-4 text-[var(--text-muted)] text-sm'>
+                Enter your email address and we'll send you a link to reset your password if your
+                account exists.
+              </ModalDescription>
+              <div className='space-y-4'>
+                <div className='space-y-2'>
+                  <Label htmlFor='reset-email'>Email</Label>
+                  <Input
+                    id='reset-email'
+                    value={forgotPasswordEmail}
+                    onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                    placeholder='Enter your email'
+                    required
+                    type='email'
+                    className={cn(
+                      resetStatus.type === 'error' && 'border-red-500 focus:border-red-500'
+                    )}
+                  />
+                  {resetStatus.type === 'error' && (
+                    <div className='mt-1 text-red-400 text-xs'>
+                      <p>{resetStatus.message}</p>
+                    </div>
                   )}
-                />
-                {resetStatus.type === 'error' && (
-                  <div className='mt-1 text-red-400 text-xs'>
+                </div>
+                {resetStatus.type === 'success' && (
+                  <div className='mt-1 text-[#4CAF50] text-xs'>
                     <p>{resetStatus.message}</p>
                   </div>
                 )}
+                <BrandedButton
+                  type='submit'
+                  disabled={isSubmittingReset}
+                  loading={isSubmittingReset}
+                  loadingText='Sending'
+                >
+                  Send Reset Link
+                </BrandedButton>
               </div>
-              {resetStatus.type === 'success' && (
-                <div className='mt-1 text-[#4CAF50] text-xs'>
-                  <p>{resetStatus.message}</p>
-                </div>
-              )}
-              <BrandedButton
-                type='button'
-                onClick={handleForgotPassword}
-                disabled={isSubmittingReset}
-                loading={isSubmittingReset}
-                loadingText='Sending'
-              >
-                Send Reset Link
-              </BrandedButton>
-            </div>
+            </form>
           </ModalBody>
         </ModalContent>
       </Modal>
