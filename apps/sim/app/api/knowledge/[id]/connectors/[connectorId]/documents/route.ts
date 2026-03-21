@@ -191,10 +191,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         actorName: auth.userName,
         actorEmail: auth.userEmail,
         action: AuditAction.CONNECTOR_DOCUMENT_RESTORED,
-        resourceType: AuditResourceType.DOCUMENT,
+        resourceType: AuditResourceType.CONNECTOR,
         resourceId: connectorId,
         description: `Restored ${updated.length} excluded document(s) for knowledge base "${writeCheck.knowledgeBase.name}"`,
-        metadata: { knowledgeBaseId, connectorId, documentCount: updated.length },
+        metadata: { knowledgeBaseId, documentCount: updated.length },
         request,
       })
 
@@ -226,10 +226,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       actorName: auth.userName,
       actorEmail: auth.userEmail,
       action: AuditAction.CONNECTOR_DOCUMENT_EXCLUDED,
-      resourceType: AuditResourceType.DOCUMENT,
+      resourceType: AuditResourceType.CONNECTOR,
       resourceId: connectorId,
       description: `Excluded ${updated.length} document(s) from knowledge base "${writeCheck.knowledgeBase.name}"`,
-      metadata: { knowledgeBaseId, connectorId, documentCount: updated.length },
+      metadata: { knowledgeBaseId, documentCount: updated.length },
       request,
     })
 
