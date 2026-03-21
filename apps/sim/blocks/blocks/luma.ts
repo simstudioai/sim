@@ -10,7 +10,7 @@ export const LumaBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/luma',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['calendar', 'api'],
+  tags: ['events', 'calendar', 'scheduling'],
   bgColor: '#FFFFFF',
   icon: LumaIcon,
   authMode: AuthMode.ApiKey,

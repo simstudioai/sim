@@ -70,7 +70,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
   docsLink: 'https://docs.sim.ai/blocks/agent',
   category: 'blocks',
   integrationType: IntegrationType.AI,
-  tags: ['llm', 'automation'],
+  tags: ['llm', 'agentic', 'automation'],
   bgColor: 'var(--brand-primary-hex)',
   icon: AgentIcon,
   subBlocks: [

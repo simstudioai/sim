@@ -15,7 +15,7 @@ export const FathomBlock: BlockConfig<FathomResponse> = {
   docsLink: 'https://docs.sim.ai/tools/fathom',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['meeting'],
+  tags: ['meeting', 'note-taking'],
   bgColor: '#181C1E',
   icon: FathomIcon,
   subBlocks: [

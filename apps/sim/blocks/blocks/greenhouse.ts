@@ -11,7 +11,7 @@ export const GreenhouseBlock: BlockConfig<GreenhouseResponse> = {
   docsLink: 'https://docs.sim.ai/tools/greenhouse',
   category: 'tools',
   integrationType: IntegrationType.HR,
-  tags: ['oauth'],
+  tags: ['hiring'],
   bgColor: '#469776',
   icon: GreenhouseIcon,
   authMode: AuthMode.ApiKey,

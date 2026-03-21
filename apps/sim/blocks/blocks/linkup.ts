@@ -11,7 +11,7 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
   docsLink: 'https://docs.sim.ai/tools/linkup',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['api'],
+  tags: ['web-scraping', 'enrichment'],
   bgColor: '#D6D3C7',
   icon: LinkupIcon,
 

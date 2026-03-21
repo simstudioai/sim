@@ -16,7 +16,7 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
   docsLink: 'https://docs.sim.ai/tools/hubspot',
   category: 'tools',
   integrationType: IntegrationType.CRM,
-  tags: ['oauth', 'marketing'],
+  tags: ['marketing', 'sales-engagement', 'customer-support'],
   bgColor: '#FF7A59',
   icon: HubspotIcon,
   subBlocks: [

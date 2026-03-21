@@ -11,7 +11,7 @@ export const VercelBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/vercel',
   category: 'tools',
   integrationType: IntegrationType.DeveloperTools,
-  tags: ['cloud', 'oauth'],
+  tags: ['cloud', 'ci-cd'],
   bgColor: '#171717',
   icon: VercelIcon,
   authMode: AuthMode.ApiKey,

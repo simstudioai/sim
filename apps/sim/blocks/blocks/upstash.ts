@@ -47,7 +47,7 @@ export const UpstashBlock: BlockConfig<UpstashResponse> = {
   docsLink: 'https://docs.sim.ai/tools/upstash',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['api'],
+  tags: ['cloud', 'data-warehouse'],
   bgColor: '#181C1E',
   authMode: AuthMode.ApiKey,
   icon: UpstashIcon,

@@ -11,7 +11,7 @@ export const SimilarwebBlock: BlockConfig = {
   docsLink: 'https://developers.similarweb.com/docs/similarweb-web-traffic-api',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['marketing', 'api'],
+  tags: ['marketing', 'data-analytics', 'seo'],
   bgColor: '#000922',
   icon: SimilarwebIcon,
   authMode: AuthMode.ApiKey,

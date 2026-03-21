@@ -13,7 +13,7 @@ export const KalshiBlock: BlockConfig = {
   authMode: AuthMode.ApiKey,
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['prediction-markets', 'api'],
+  tags: ['prediction-markets', 'data-analytics'],
   hideFromToolbar: true,
   bgColor: '#09C285',
   icon: KalshiIcon,
@@ -710,7 +710,7 @@ export const KalshiV2Block: BlockConfig = {
   longDescription:
     'Integrate Kalshi prediction markets into the workflow. Can get markets, market, events, event, balance, positions, orders, orderbook, trades, candlesticks, fills, series, exchange status, and place/cancel/amend trades.',
   integrationType: IntegrationType.Analytics,
-  tags: ['prediction-markets', 'api'],
+  tags: ['prediction-markets', 'data-analytics'],
   hideFromToolbar: false,
   tools: {
     ...KalshiBlock.tools,

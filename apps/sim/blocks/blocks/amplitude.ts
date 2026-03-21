@@ -10,7 +10,7 @@ export const AmplitudeBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/amplitude',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['marketing'],
+  tags: ['data-analytics', 'marketing'],
   bgColor: '#1B1F3B',
   icon: AmplitudeIcon,
   authMode: AuthMode.ApiKey,

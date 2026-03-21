@@ -12,7 +12,7 @@ export const GongBlock: BlockConfig<GongResponse> = {
   docsLink: 'https://docs.sim.ai/tools/gong',
   category: 'tools',
   integrationType: IntegrationType.SalesIntelligence,
-  tags: ['meeting', 'oauth'],
+  tags: ['meeting', 'sales-engagement', 'speech-to-text'],
   bgColor: '#8039DF',
   icon: GongIcon,
   subBlocks: [

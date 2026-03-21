@@ -79,6 +79,8 @@ interface IntegrationEntry {
   triggerCount: number
   authType: 'oauth' | 'api-key' | 'none'
   category: string
+  integrationType?: string
+  tags?: string[]
 }
 
 /**
@@ -592,10 +594,8 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
           triggerCount: triggers.length,
           authType,
           category: config.category,
-          ...((config as any).integrationType
-            ? { integrationType: (config as any).integrationType }
-            : {}),
-          ...((config as any).tags ? { tags: (config as any).tags } : {}),
+          ...(config.integrationType ? { integrationType: config.integrationType } : {}),
+          ...(config.tags ? { tags: config.tags } : {}),
         })
       }
     }
@@ -763,16 +763,16 @@ function extractBlockConfigFromContent(
     const triggerIds = extractTriggersAvailable(blockContent)
     const docsLink =
       extractStringPropertyFromContent(blockContent, 'docsLink', true) ||
-      (baseConfig as any)?.docsLink ||
+      baseConfig?.docsLink ||
       `https://docs.sim.ai/tools/${stripVersionSuffix(blockType)}`
 
     const integrationType =
       extractEnumPropertyFromContent(blockContent, 'integrationType') ||
-      (baseConfig as any)?.integrationType ||
+      baseConfig?.integrationType ||
       null
     const tags =
       extractArrayPropertyFromContent(blockContent, 'tags') ||
-      (baseConfig as any)?.tags ||
+      baseConfig?.tags ||
       null
 
     return {

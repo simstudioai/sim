@@ -13,7 +13,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
     'Comprehensive Discord integration: messages, threads, channels, roles, members, invites, and webhooks.',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['oauth', 'webhooks'],
+  tags: ['messaging', 'webhooks', 'automation'],
   bgColor: '#5865F2',
   icon: DiscordIcon,
   docsLink: 'https://docs.sim.ai/tools/discord',

@@ -17,7 +17,7 @@ export const McpBlock: BlockConfig<McpResponse> = {
   docsLink: 'https://docs.sim.ai/mcp',
   category: 'tools',
   integrationType: IntegrationType.DeveloperTools,
-  tags: ['api', 'automation'],
+  tags: ['agentic', 'automation', 'llm'],
   bgColor: '#181C1E',
   icon: McpIcon,
   subBlocks: [

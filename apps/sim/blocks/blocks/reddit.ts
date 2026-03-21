@@ -14,7 +14,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
   docsLink: 'https://docs.sim.ai/tools/reddit',
   category: 'tools',
   integrationType: IntegrationType.Social,
-  tags: ['api'],
+  tags: ['content-management', 'web-scraping'],
   bgColor: '#FF5700',
   icon: RedditIcon,
   subBlocks: [

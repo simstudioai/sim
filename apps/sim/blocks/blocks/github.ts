@@ -15,7 +15,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
   docsLink: 'https://docs.sim.ai/tools/github',
   category: 'tools',
   integrationType: IntegrationType.DeveloperTools,
-  tags: ['oauth', 'webhooks'],
+  tags: ['version-control', 'ci-cd'],
   bgColor: '#181C1E',
   icon: GithubIcon,
   triggerAllowed: true,
@@ -2026,7 +2026,7 @@ export const GitHubV2Block: BlockConfig<GitHubResponse> = {
   name: 'GitHub',
   hideFromToolbar: false,
   integrationType: IntegrationType.DeveloperTools,
-  tags: ['oauth', 'webhooks'],
+  tags: ['version-control', 'ci-cd'],
   tools: {
     ...GitHubBlock.tools,
     access: (GitHubBlock.tools?.access || []).map((toolId) => `${toolId}_v2`),

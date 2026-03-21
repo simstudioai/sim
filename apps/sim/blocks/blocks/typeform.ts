@@ -14,7 +14,7 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
   docsLink: 'https://docs.sim.ai/tools/typeform',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['oauth'],
+  tags: ['forms', 'data-analytics'],
   bgColor: '#262627', // Typeform brand color
   icon: TypeformIcon,
   subBlocks: [

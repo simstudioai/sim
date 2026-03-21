@@ -12,7 +12,7 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
   docsLink: 'https://docs.sim.ai/tools/serper',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['api'],
+  tags: ['web-scraping', 'seo'],
   bgColor: '#2B3543',
   icon: SerperIcon,
   subBlocks: [

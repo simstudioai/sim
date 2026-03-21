@@ -15,7 +15,7 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
   `,
   category: 'blocks',
   integrationType: IntegrationType.DeveloperTools,
-  tags: ['api'],
+  tags: ['automation', 'webhooks'],
   bgColor: '#2F55FF',
   icon: ApiIcon,
   subBlocks: [

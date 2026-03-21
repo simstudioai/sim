@@ -12,7 +12,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
   docsLink: 'https://docs.sim.ai/tools/cloudflare',
   category: 'tools',
   integrationType: IntegrationType.DeveloperTools,
-  tags: ['cloud', 'api'],
+  tags: ['cloud', 'monitoring'],
   bgColor: '#F5F6FA',
   icon: CloudflareIcon,
   subBlocks: [

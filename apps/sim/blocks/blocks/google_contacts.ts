@@ -14,7 +14,7 @@ export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
   docsLink: 'https://docs.sim.ai/tools/google_contacts',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['oauth', 'google-workspace'],
+  tags: ['google-workspace', 'customer-support', 'enrichment'],
   bgColor: '#E0E0E0',
   icon: GoogleContactsIcon,
   subBlocks: [

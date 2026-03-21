@@ -18,7 +18,7 @@ export const FirefliesBlock: BlockConfig<FirefliesResponse> = {
   docsLink: 'https://docs.sim.ai/tools/fireflies',
   category: 'tools',
   integrationType: IntegrationType.Media,
-  tags: ['meeting', 'oauth'],
+  tags: ['meeting', 'speech-to-text', 'note-taking'],
   icon: FirefliesIcon,
   bgColor: '#100730',
   subBlocks: [
@@ -616,7 +616,7 @@ export const FirefliesV2Block: BlockConfig<FirefliesResponse> = {
   description: 'Interact with Fireflies.ai meeting transcripts and recordings',
   hideFromToolbar: false,
   integrationType: IntegrationType.Media,
-  tags: ['meeting', 'oauth'],
+  tags: ['meeting', 'speech-to-text', 'note-taking'],
   subBlocks: firefliesV2SubBlocks,
   tools: {
     ...FirefliesBlock.tools,

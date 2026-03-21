@@ -12,7 +12,7 @@ export const GoogleBooksBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/google_books',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['api', 'google-workspace'],
+  tags: ['google-workspace', 'knowledge-base', 'content-management'],
   bgColor: '#E0E0E0',
   icon: GoogleBooksIcon,
 

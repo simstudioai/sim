@@ -13,7 +13,7 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
   docsLink: 'https://cursor.com/docs/cloud-agent/api/endpoints',
   category: 'tools',
   integrationType: IntegrationType.DeveloperTools,
-  tags: ['api'],
+  tags: ['agentic', 'automation'],
   bgColor: '#1E1E1E',
   icon: CursorIcon,
   authMode: AuthMode.ApiKey,

@@ -16,7 +16,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
   docsLink: 'https://docs.sim.ai/tools/notion',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['oauth'],
+  tags: ['note-taking', 'knowledge-base', 'content-management'],
   bgColor: '#181C1E',
   icon: NotionIcon,
   subBlocks: [
@@ -432,7 +432,7 @@ export const NotionV2Block: BlockConfig<any> = {
   docsLink: 'https://docs.sim.ai/tools/notion',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['oauth'],
+  tags: ['note-taking', 'knowledge-base', 'content-management'],
   bgColor: '#181C1E',
   icon: NotionIcon,
   hideFromToolbar: false,

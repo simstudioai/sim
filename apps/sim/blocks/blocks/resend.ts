@@ -11,7 +11,7 @@ export const ResendBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/resend',
   category: 'tools',
   integrationType: IntegrationType.Email,
-  tags: ['api'],
+  tags: ['email-marketing', 'messaging'],
   bgColor: '#181C1E',
   icon: ResendIcon,
   authMode: AuthMode.ApiKey,

@@ -11,7 +11,7 @@ export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
   docsLink: 'https://docs.sim.ai/tools/clay',
   category: 'tools',
   integrationType: IntegrationType.SalesIntelligence,
-  tags: ['enrichment'],
+  tags: ['enrichment', 'sales-engagement', 'data-analytics'],
   bgColor: '#E0E0E0',
   icon: ClayIcon,
   subBlocks: [

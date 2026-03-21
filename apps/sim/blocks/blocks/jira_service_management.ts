@@ -14,7 +14,7 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
   docsLink: 'https://docs.sim.ai/tools/jira-service-management',
   category: 'tools',
   integrationType: IntegrationType.CustomerSupport,
-  tags: ['customer-support', 'oauth'],
+  tags: ['customer-support', 'ticketing', 'incident-management'],
   bgColor: '#E0E0E0',
   icon: JiraServiceManagementIcon,
   subBlocks: [

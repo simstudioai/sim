@@ -12,7 +12,7 @@ export const MailchimpBlock: BlockConfig = {
   authMode: AuthMode.ApiKey,
   category: 'tools',
   integrationType: IntegrationType.Email,
-  tags: ['marketing', 'oauth'],
+  tags: ['email-marketing', 'marketing', 'automation'],
   bgColor: '#FFE01B',
   icon: MailchimpIcon,
   subBlocks: [

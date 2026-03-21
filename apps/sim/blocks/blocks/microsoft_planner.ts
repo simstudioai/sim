@@ -36,7 +36,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
   docsLink: 'https://docs.sim.ai/tools/microsoft_planner',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['project-management', 'oauth', 'microsoft-365'],
+  tags: ['project-management', 'microsoft-365', 'ticketing'],
   bgColor: '#E0E0E0',
   icon: MicrosoftPlannerIcon,
   subBlocks: [

@@ -14,7 +14,7 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
   docsLink: 'https://docs.sim.ai/tools/gitlab',
   category: 'tools',
   integrationType: IntegrationType.DeveloperTools,
-  tags: ['oauth'],
+  tags: ['version-control', 'ci-cd'],
   icon: GitLabIcon,
   bgColor: '#E0E0E0',
   subBlocks: [

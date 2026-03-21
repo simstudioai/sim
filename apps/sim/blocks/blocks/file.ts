@@ -55,7 +55,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
   docsLink: 'https://docs.sim.ai/tools/file',
   category: 'tools',
   integrationType: IntegrationType.FileStorage,
-  tags: ['api'],
+  tags: ['document-processing'],
   bgColor: '#40916C',
   icon: DocumentIcon,
   hideFromToolbar: true,
@@ -256,7 +256,7 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
   docsLink: 'https://docs.sim.ai/tools/file',
   category: 'tools',
   integrationType: IntegrationType.FileStorage,
-  tags: ['api'],
+  tags: ['document-processing'],
   bgColor: '#40916C',
   icon: DocumentIcon,
   subBlocks: [

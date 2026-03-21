@@ -12,7 +12,7 @@ export const Neo4jBlock: BlockConfig<Neo4jResponse | Neo4jIntrospectResponse> = 
   docsLink: 'https://docs.sim.ai/tools/neo4j',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['api'],
+  tags: ['data-warehouse', 'data-analytics'],
   bgColor: '#FFFFFF',
   icon: Neo4jIcon,
   subBlocks: [

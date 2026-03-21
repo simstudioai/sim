@@ -12,7 +12,7 @@ export const JinaBlock: BlockConfig<ReadUrlResponse | SearchResponse> = {
   docsLink: 'https://docs.sim.ai/tools/jina',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['web-scraping', 'api'],
+  tags: ['web-scraping', 'knowledge-base'],
   bgColor: '#333333',
   icon: JinaAIIcon,
   subBlocks: [

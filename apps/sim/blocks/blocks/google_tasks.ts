@@ -13,7 +13,7 @@ export const GoogleTasksBlock: BlockConfig<GoogleTasksResponse> = {
   docsLink: 'https://docs.sim.ai/tools/google_tasks',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['oauth', 'google-workspace'],
+  tags: ['google-workspace', 'project-management', 'scheduling'],
   bgColor: '#E0E0E0',
   icon: GoogleTasksIcon,
   authMode: AuthMode.OAuth,

@@ -14,7 +14,7 @@ export const S3Block: BlockConfig<S3Response> = {
   docsLink: 'https://docs.sim.ai/tools/s3',
   category: 'tools',
   integrationType: IntegrationType.FileStorage,
-  tags: ['cloud'],
+  tags: ['cloud', 'data-warehouse'],
   bgColor: 'linear-gradient(45deg, #1B660F 0%, #6CAE3E 100%)',
   icon: S3Icon,
   subBlocks: [

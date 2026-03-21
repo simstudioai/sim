@@ -11,7 +11,7 @@ export const PolymarketBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/polymarket',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['prediction-markets', 'api'],
+  tags: ['prediction-markets', 'data-analytics'],
   bgColor: '#4C82FB',
   icon: PolymarketIcon,
   subBlocks: [

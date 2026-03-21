@@ -11,7 +11,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
   docsLink: 'https://docs.sim.ai/tools/langsmith',
   category: 'tools',
   integrationType: IntegrationType.DeveloperTools,
-  tags: ['monitoring', 'api'],
+  tags: ['monitoring', 'llm', 'data-analytics'],
   bgColor: '#181C1E',
   icon: LangsmithIcon,
   authMode: AuthMode.ApiKey,

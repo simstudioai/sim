@@ -15,7 +15,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
   docsLink: 'https://docs.sim.ai/tools/google_calendar',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['calendar', 'oauth', 'google-workspace'],
+  tags: ['calendar', 'scheduling', 'google-workspace'],
   bgColor: '#E0E0E0',
   icon: GoogleCalendarIcon,
   hideFromToolbar: true,
@@ -651,7 +651,7 @@ export const GoogleCalendarV2Block: BlockConfig<GoogleCalendarResponse> = {
   name: 'Google Calendar',
   hideFromToolbar: false,
   integrationType: IntegrationType.Productivity,
-  tags: ['calendar', 'oauth', 'google-workspace'],
+  tags: ['calendar', 'scheduling', 'google-workspace'],
   tools: {
     ...GoogleCalendarBlock.tools,
     access: [

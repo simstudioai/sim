@@ -19,7 +19,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
   docsLink: 'https://docs.sim.ai/tools/microsoft_excel',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['oauth', 'microsoft-365'],
+  tags: ['spreadsheet', 'microsoft-365'],
   bgColor: '#E0E0E0',
   icon: MicrosoftExcelIcon,
   subBlocks: [
@@ -341,7 +341,7 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
   docsLink: 'https://docs.sim.ai/tools/microsoft_excel',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['oauth', 'microsoft-365'],
+  tags: ['spreadsheet', 'microsoft-365'],
   bgColor: '#E0E0E0',
   icon: MicrosoftExcelIcon,
   subBlocks: [

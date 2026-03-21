@@ -15,7 +15,7 @@ export const CalendlyBlock: BlockConfig<ToolResponse> = {
   docsLink: 'https://docs.sim.ai/tools/calendly',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['calendar', 'oauth'],
+  tags: ['scheduling', 'calendar', 'meeting'],
   bgColor: '#FFFFFF',
   icon: CalendlyIcon,
   subBlocks: [

@@ -13,7 +13,7 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
   docsLink: 'https://docs.sim.ai/tools/firecrawl',
   category: 'tools',
   integrationType: IntegrationType.Automation,
-  tags: ['web-scraping', 'api'],
+  tags: ['web-scraping', 'automation'],
   bgColor: '#181C1E',
   icon: FirecrawlIcon,
   subBlocks: [

@@ -12,7 +12,7 @@ export const EnrichBlock: BlockConfig = {
   docsLink: 'https://docs.enrich.so/',
   category: 'tools',
   integrationType: IntegrationType.SalesIntelligence,
-  tags: ['enrichment', 'api'],
+  tags: ['enrichment', 'data-analytics'],
   bgColor: '#E5E5E6',
   icon: EnrichSoIcon,
   subBlocks: [

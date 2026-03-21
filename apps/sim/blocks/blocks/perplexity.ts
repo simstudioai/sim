@@ -14,7 +14,7 @@ export const PerplexityBlock: BlockConfig<PerplexityResponse> = {
   docsLink: 'https://docs.sim.ai/tools/perplexity',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['llm', 'api'],
+  tags: ['llm', 'web-scraping', 'agentic'],
   bgColor: '#20808D', // Perplexity turquoise color
   icon: PerplexityIcon,
   subBlocks: [

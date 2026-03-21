@@ -18,7 +18,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
   docsLink: 'https://docs.sim.ai/tools/sharepoint',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['oauth', 'microsoft-365'],
+  tags: ['microsoft-365', 'content-management', 'document-processing'],
   bgColor: '#E0E0E0',
   icon: MicrosoftSharepointIcon,
   subBlocks: [

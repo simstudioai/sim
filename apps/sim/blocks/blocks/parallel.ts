@@ -12,7 +12,7 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
   docsLink: 'https://docs.sim.ai/tools/parallel-ai',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['api'],
+  tags: ['web-scraping', 'llm', 'agentic'],
   bgColor: '#E0E0E0',
   icon: ParallelIcon,
   subBlocks: [

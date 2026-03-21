@@ -11,7 +11,7 @@ export const ObsidianBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/obsidian',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['api'],
+  tags: ['note-taking', 'knowledge-base'],
   bgColor: '#0F0F0F',
   icon: ObsidianIcon,
   authMode: AuthMode.ApiKey,

@@ -14,7 +14,7 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
   docsLink: 'https://docs.sim.ai/tools/stt',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['speech-to-text'],
+  tags: ['speech-to-text', 'document-processing'],
   bgColor: '#181C1E',
   icon: STTIcon,
 

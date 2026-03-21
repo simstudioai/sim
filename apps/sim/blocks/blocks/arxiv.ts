@@ -12,7 +12,7 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
   docsLink: 'https://docs.sim.ai/tools/arxiv',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['document-processing'],
+  tags: ['document-processing', 'knowledge-base'],
   bgColor: '#E0E0E0',
   icon: ArxivIcon,
   subBlocks: [

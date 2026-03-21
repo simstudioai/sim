@@ -12,7 +12,7 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
   icon: Mem0Icon,
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['llm', 'api'],
+  tags: ['llm', 'knowledge-base', 'agentic'],
   docsLink: 'https://docs.sim.ai/tools/mem0',
   subBlocks: [
     {

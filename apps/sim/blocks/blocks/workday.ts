@@ -11,7 +11,7 @@ export const WorkdayBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/workday',
   category: 'tools',
   integrationType: IntegrationType.HR,
-  tags: ['oauth'],
+  tags: ['hiring', 'project-management'],
   bgColor: '#F5F0EB',
   icon: WorkdayIcon,
   subBlocks: [

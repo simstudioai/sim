@@ -13,7 +13,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
   docsLink: 'https://docs.sim.ai/tools/exa',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['api'],
+  tags: ['web-scraping', 'enrichment'],
   bgColor: '#1F40ED',
   icon: ExaAIIcon,
   subBlocks: [

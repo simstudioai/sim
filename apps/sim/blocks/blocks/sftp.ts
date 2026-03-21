@@ -13,7 +13,7 @@ export const SftpBlock: BlockConfig<SftpUploadResult> = {
   docsLink: 'https://docs.sim.ai/tools/sftp',
   category: 'tools',
   integrationType: IntegrationType.FileStorage,
-  tags: ['api'],
+  tags: ['cloud', 'automation'],
   bgColor: '#2D3748',
   icon: SftpIcon,
   authMode: AuthMode.ApiKey,

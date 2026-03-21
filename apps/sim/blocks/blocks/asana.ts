@@ -13,7 +13,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
   docsLink: 'https://docs.sim.ai/tools/asana',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['project-management', 'oauth'],
+  tags: ['project-management', 'ticketing', 'automation'],
   bgColor: '#E0E0E0',
   icon: AsanaIcon,
   subBlocks: [

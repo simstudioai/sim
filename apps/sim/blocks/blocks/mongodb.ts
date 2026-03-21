@@ -12,7 +12,7 @@ export const MongoDBBlock: BlockConfig<MongoDBResponse | MongoDBIntrospectRespon
   docsLink: 'https://docs.sim.ai/tools/mongodb',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['api'],
+  tags: ['data-warehouse', 'cloud'],
   bgColor: '#E0E0E0',
   icon: MongoDBIcon,
   subBlocks: [

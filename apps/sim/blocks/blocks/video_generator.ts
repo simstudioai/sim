@@ -14,7 +14,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
   docsLink: 'https://docs.sim.ai/tools/video-generator',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['video-generation'],
+  tags: ['video-generation', 'llm'],
   bgColor: '#181C1E',
   icon: VideoIcon,
 

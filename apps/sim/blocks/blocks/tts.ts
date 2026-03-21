@@ -12,7 +12,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
   docsLink: 'https://docs.sim.ai/tools/tts',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['text-to-speech'],
+  tags: ['text-to-speech', 'llm'],
   bgColor: '#181C1E',
   icon: TTSIcon,
 

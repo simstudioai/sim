@@ -14,7 +14,7 @@ export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
   docsLink: 'https://docs.sim.ai/tools/linkedin',
   category: 'tools',
   integrationType: IntegrationType.Social,
-  tags: ['oauth', 'marketing'],
+  tags: ['marketing', 'sales-engagement', 'enrichment'],
   bgColor: '#0072B1',
   icon: LinkedInIcon,
   subBlocks: [

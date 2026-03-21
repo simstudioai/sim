@@ -12,7 +12,7 @@ export const MySQLBlock: BlockConfig<MySQLResponse> = {
   docsLink: 'https://docs.sim.ai/tools/mysql',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['api'],
+  tags: ['data-warehouse', 'data-analytics'],
   bgColor: '#E0E0E0',
   icon: MySQLIcon,
   subBlocks: [

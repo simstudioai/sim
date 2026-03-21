@@ -13,7 +13,7 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
   docsLink: 'https://docs.sim.ai/tools/incidentio',
   category: 'tools',
   integrationType: IntegrationType.DeveloperTools,
-  tags: ['incident-management', 'api'],
+  tags: ['incident-management', 'monitoring'],
   bgColor: '#E0E0E0',
   icon: IncidentioIcon,
   subBlocks: [

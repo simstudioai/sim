@@ -82,7 +82,7 @@ export const RedisBlock: BlockConfig<RedisResponse> = {
   docsLink: 'https://docs.sim.ai/tools/redis',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['api'],
+  tags: ['cloud', 'data-warehouse'],
   bgColor: '#FF4438',
   authMode: AuthMode.ApiKey,
   icon: RedisIcon,

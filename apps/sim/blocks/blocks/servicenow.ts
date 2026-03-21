@@ -12,7 +12,7 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
   docsLink: 'https://docs.sim.ai/tools/servicenow',
   category: 'tools',
   integrationType: IntegrationType.CustomerSupport,
-  tags: ['customer-support', 'oauth'],
+  tags: ['customer-support', 'ticketing', 'incident-management'],
   bgColor: '#032D42',
   icon: ServiceNowIcon,
   subBlocks: [

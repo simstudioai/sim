@@ -13,7 +13,7 @@ export const DatabricksBlock: BlockConfig<DatabricksResponse> = {
   docsLink: 'https://docs.sim.ai/tools/databricks',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['data-warehouse', 'cloud'],
+  tags: ['data-warehouse', 'data-analytics', 'cloud'],
   bgColor: '#F9F7F4',
   icon: DatabricksIcon,
   subBlocks: [

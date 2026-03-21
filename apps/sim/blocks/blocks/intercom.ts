@@ -14,7 +14,7 @@ export const IntercomBlock: BlockConfig = {
   authMode: AuthMode.ApiKey,
   category: 'tools',
   integrationType: IntegrationType.CustomerSupport,
-  tags: ['customer-support', 'oauth'],
+  tags: ['customer-support', 'messaging'],
   bgColor: '#E0E0E0',
   icon: IntercomIcon,
   subBlocks: [
@@ -1407,7 +1407,7 @@ export const IntercomV2Block: BlockConfig = {
   type: 'intercom_v2',
   name: 'Intercom',
   integrationType: IntegrationType.CustomerSupport,
-  tags: ['customer-support', 'oauth'],
+  tags: ['customer-support', 'messaging'],
   hideFromToolbar: false,
   tools: {
     ...IntercomBlock.tools,

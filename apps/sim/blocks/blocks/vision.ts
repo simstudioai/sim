@@ -31,7 +31,7 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
   docsLink: 'https://docs.sim.ai/tools/vision',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['llm'],
+  tags: ['llm', 'document-processing', 'ocr'],
   bgColor: '#4D5FFF',
   icon: EyeIcon,
   subBlocks: [

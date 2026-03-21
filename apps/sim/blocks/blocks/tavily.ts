@@ -12,7 +12,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
     'Integrate Tavily into the workflow. Can search the web and extract content from specific URLs. Requires API Key.',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['api'],
+  tags: ['web-scraping', 'enrichment'],
   docsLink: 'https://docs.sim.ai/tools/tavily',
   bgColor: '#0066FF',
   icon: TavilyIcon,

@@ -18,7 +18,7 @@ export const TranslateBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/translate',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['api'],
+  tags: ['document-processing', 'llm'],
   bgColor: '#FF4B4B',
   icon: TranslateIcon,
   subBlocks: [

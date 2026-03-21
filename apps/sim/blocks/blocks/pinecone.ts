@@ -13,7 +13,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
   docsLink: 'https://docs.sim.ai/tools/pinecone',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['vector-search', 'api'],
+  tags: ['vector-search', 'knowledge-base'],
   bgColor: '#0D1117',
   icon: PineconeIcon,
 

@@ -14,7 +14,7 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
   docsLink: 'https://docs.sim.ai/tools/spotify',
   category: 'tools',
   integrationType: IntegrationType.Media,
-  tags: ['oauth'],
+  tags: ['content-management', 'automation'],
   hideFromToolbar: true,
   bgColor: '#000000',
   icon: SpotifyIcon,

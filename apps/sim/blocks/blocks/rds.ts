@@ -12,7 +12,7 @@ export const RDSBlock: BlockConfig<RdsResponse | RdsIntrospectResponse> = {
   docsLink: 'https://docs.sim.ai/tools/rds',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['cloud'],
+  tags: ['cloud', 'data-warehouse'],
   bgColor: 'linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)',
   icon: RDSIcon,
   subBlocks: [

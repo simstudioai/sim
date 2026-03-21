@@ -17,7 +17,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
   docsLink: 'https://docs.sim.ai/tools/google_sheets',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['oauth', 'google-workspace'],
+  tags: ['spreadsheet', 'google-workspace', 'data-analytics'],
   bgColor: '#E0E0E0',
   icon: GoogleSheetsIcon,
   subBlocks: [
@@ -305,7 +305,7 @@ export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
   docsLink: 'https://docs.sim.ai/tools/google_sheets',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['oauth', 'google-workspace'],
+  tags: ['spreadsheet', 'google-workspace', 'data-analytics'],
   bgColor: '#E0E0E0',
   icon: GoogleSheetsIcon,
   subBlocks: [

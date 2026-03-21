@@ -13,7 +13,7 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
   docsLink: 'https://docs.sim.ai/tools/microsoft_ad',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['oauth', 'microsoft-365'],
+  tags: ['identity', 'microsoft-365'],
   bgColor: '#0078D4',
   icon: AzureIcon,
   authMode: AuthMode.OAuth,

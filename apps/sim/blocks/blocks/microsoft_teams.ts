@@ -16,7 +16,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
   docsLink: 'https://docs.sim.ai/tools/microsoft_teams',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['oauth', 'microsoft-365'],
+  tags: ['messaging', 'microsoft-365'],
   triggerAllowed: true,
   bgColor: '#E0E0E0',
   icon: MicrosoftTeamsIcon,

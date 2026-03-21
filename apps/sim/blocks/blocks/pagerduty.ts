@@ -10,7 +10,7 @@ export const PagerDutyBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/pagerduty',
   category: 'tools',
   integrationType: IntegrationType.DeveloperTools,
-  tags: ['incident-management', 'oauth'],
+  tags: ['incident-management', 'monitoring'],
   bgColor: '#06AC38',
   icon: PagerDutyIcon,
   authMode: AuthMode.ApiKey,

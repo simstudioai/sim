@@ -12,7 +12,7 @@ export const ApifyBlock: BlockConfig<RunActorResult> = {
   docsLink: 'https://docs.sim.ai/tools/apify',
   category: 'tools',
   integrationType: IntegrationType.Automation,
-  tags: ['web-scraping', 'automation'],
+  tags: ['web-scraping', 'automation', 'data-analytics'],
   bgColor: '#E0E0E0',
   icon: ApifyIcon,
 

@@ -12,7 +12,7 @@ export const MailgunBlock: BlockConfig<SendMessageResult> = {
   docsLink: 'https://docs.sim.ai/tools/mailgun',
   category: 'tools',
   integrationType: IntegrationType.Email,
-  tags: ['api'],
+  tags: ['messaging', 'email-marketing'],
   bgColor: '#E0E0E0',
   icon: MailgunIcon,
 

@@ -17,7 +17,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
   docsLink: 'https://docs.sim.ai/tools/jira',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['project-management', 'oauth'],
+  tags: ['project-management', 'ticketing'],
   bgColor: '#E0E0E0',
   icon: JiraIcon,
   subBlocks: [

@@ -17,7 +17,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
   docsLink: 'https://docs.sim.ai/tools/confluence',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['oauth'],
+  tags: ['knowledge-base', 'content-management', 'note-taking'],
   bgColor: '#E0E0E0',
   icon: ConfluenceIcon,
   subBlocks: [

@@ -11,7 +11,7 @@ export const GammaBlock: BlockConfig<GammaResponse> = {
   docsLink: 'https://docs.sim.ai/tools/gamma',
   category: 'tools',
   integrationType: IntegrationType.Design,
-  tags: ['api'],
+  tags: ['document-processing', 'content-management'],
   bgColor: '#002253',
   icon: GammaIcon,
   authMode: AuthMode.ApiKey,

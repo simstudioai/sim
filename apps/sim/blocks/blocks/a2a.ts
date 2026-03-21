@@ -65,7 +65,7 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
   docsLink: 'https://docs.sim.ai/blocks/a2a',
   category: 'tools',
   integrationType: IntegrationType.DeveloperTools,
-  tags: ['api', 'automation'],
+  tags: ['agentic', 'automation'],
   bgColor: '#4151B5',
   icon: A2AIcon,
   subBlocks: [

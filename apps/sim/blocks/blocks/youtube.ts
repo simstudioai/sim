@@ -13,7 +13,7 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
   docsLink: 'https://docs.sim.ai/tools/youtube',
   category: 'tools',
   integrationType: IntegrationType.Media,
-  tags: ['oauth', 'google-workspace'],
+  tags: ['google-workspace', 'marketing', 'content-management'],
   bgColor: '#FF0000',
   icon: YouTubeIcon,
   subBlocks: [

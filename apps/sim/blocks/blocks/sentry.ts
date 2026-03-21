@@ -13,7 +13,7 @@ export const SentryBlock: BlockConfig<SentryResponse> = {
   docsLink: 'https://docs.sim.ai/tools/sentry',
   category: 'tools',
   integrationType: IntegrationType.DeveloperTools,
-  tags: ['monitoring', 'api'],
+  tags: ['error-tracking', 'monitoring'],
   bgColor: '#E0E0E0',
   icon: SentryIcon,
   subBlocks: [

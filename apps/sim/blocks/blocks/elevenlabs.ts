@@ -11,7 +11,7 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
   docsLink: 'https://docs.sim.ai/tools/elevenlabs',
   category: 'tools',
   integrationType: IntegrationType.Media,
-  tags: ['text-to-speech', 'api'],
+  tags: ['text-to-speech'],
   bgColor: '#181C1E',
   icon: ElevenLabsIcon,
 

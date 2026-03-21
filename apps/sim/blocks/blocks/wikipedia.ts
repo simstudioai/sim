@@ -12,7 +12,7 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
   docsLink: 'https://docs.sim.ai/tools/wikipedia',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['api'],
+  tags: ['knowledge-base', 'web-scraping'],
   bgColor: '#000000',
   icon: WikipediaIcon,
   subBlocks: [

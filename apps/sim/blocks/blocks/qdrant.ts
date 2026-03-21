@@ -12,7 +12,7 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
   docsLink: 'https://qdrant.tech/documentation/',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['vector-search', 'api'],
+  tags: ['vector-search', 'knowledge-base'],
   bgColor: '#1A223F',
   icon: QdrantIcon,
 

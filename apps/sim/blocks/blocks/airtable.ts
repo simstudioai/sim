@@ -15,7 +15,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
   docsLink: 'https://docs.sim.ai/tools/airtable',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['api'],
+  tags: ['spreadsheet', 'automation'],
   bgColor: '#E0E0E0',
   icon: AirtableIcon,
   subBlocks: [

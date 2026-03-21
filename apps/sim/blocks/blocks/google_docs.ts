@@ -14,7 +14,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
   docsLink: 'https://docs.sim.ai/tools/google_docs',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['oauth', 'google-workspace'],
+  tags: ['google-workspace', 'document-processing', 'content-management'],
   bgColor: '#E0E0E0',
   icon: GoogleDocsIcon,
   subBlocks: [

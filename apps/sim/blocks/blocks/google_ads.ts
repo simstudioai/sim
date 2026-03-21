@@ -12,7 +12,7 @@ export const GoogleAdsBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/google_ads',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['marketing', 'oauth', 'google-workspace'],
+  tags: ['marketing', 'google-workspace', 'data-analytics'],
   bgColor: '#E0E0E0',
   icon: GoogleAdsIcon,
   authMode: AuthMode.OAuth,

@@ -10,7 +10,7 @@ export const OnePasswordBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/onepassword',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['api'],
+  tags: ['secrets-management', 'identity'],
   bgColor: '#E0E0E0',
   icon: OnePasswordIcon,
   authMode: AuthMode.ApiKey,

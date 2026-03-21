@@ -13,7 +13,7 @@ export const ApolloBlock: BlockConfig<ApolloResponse> = {
   docsLink: 'https://docs.sim.ai/tools/apollo',
   category: 'tools',
   integrationType: IntegrationType.SalesIntelligence,
-  tags: ['enrichment'],
+  tags: ['enrichment', 'sales-engagement'],
   bgColor: '#EBF212',
   icon: ApolloIcon,
   subBlocks: [

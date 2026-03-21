@@ -13,7 +13,7 @@ export const RevenueCatBlock: BlockConfig<RevenueCatResponse> = {
   docsLink: 'https://docs.sim.ai/tools/revenuecat',
   category: 'tools',
   integrationType: IntegrationType.Ecommerce,
-  tags: ['payments', 'api'],
+  tags: ['payments', 'subscriptions'],
   bgColor: '#F25A5A',
   icon: RevenueCatIcon,
   subBlocks: [

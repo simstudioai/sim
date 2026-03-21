@@ -14,7 +14,7 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
   docsLink: 'https://docs.sim.ai/tools/zoom',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['meeting', 'oauth'],
+  tags: ['meeting', 'calendar', 'scheduling'],
   bgColor: '#2D8CFF',
   icon: ZoomIcon,
   subBlocks: [

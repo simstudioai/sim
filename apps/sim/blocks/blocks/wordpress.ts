@@ -15,7 +15,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
   docsLink: 'https://docs.sim.ai/tools/wordpress',
   category: 'tools',
   integrationType: IntegrationType.Design,
-  tags: ['oauth'],
+  tags: ['content-management', 'seo'],
   bgColor: '#21759B',
   icon: WordpressIcon,
   subBlocks: [

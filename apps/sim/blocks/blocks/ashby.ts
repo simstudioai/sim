@@ -11,7 +11,7 @@ export const AshbyBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/ashby',
   category: 'tools',
   integrationType: IntegrationType.HR,
-  tags: ['oauth'],
+  tags: ['hiring'],
   bgColor: '#5D4ED6',
   icon: AshbyIcon,
   authMode: AuthMode.ApiKey,

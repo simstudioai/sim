@@ -14,7 +14,7 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
   docsLink: 'https://docs.sim.ai/tools/salesforce',
   category: 'tools',
   integrationType: IntegrationType.CRM,
-  tags: ['oauth'],
+  tags: ['sales-engagement', 'customer-support'],
   bgColor: '#E0E0E0',
   icon: SalesforceIcon,
   subBlocks: [

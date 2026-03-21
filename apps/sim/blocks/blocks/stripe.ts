@@ -14,7 +14,7 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
   docsLink: 'https://docs.sim.ai/tools/stripe',
   category: 'tools',
   integrationType: IntegrationType.Ecommerce,
-  tags: ['payments', 'api'],
+  tags: ['payments', 'subscriptions', 'webhooks'],
   bgColor: '#635BFF',
   icon: StripeIcon,
   subBlocks: [

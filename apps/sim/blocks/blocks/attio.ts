@@ -13,7 +13,7 @@ export const AttioBlock: BlockConfig<AttioResponse> = {
   docsLink: 'https://docs.sim.ai/tools/attio',
   category: 'tools',
   integrationType: IntegrationType.CRM,
-  tags: ['oauth'],
+  tags: ['sales-engagement', 'enrichment'],
   bgColor: '#1D1E20',
   icon: AttioIcon,
   authMode: AuthMode.OAuth,

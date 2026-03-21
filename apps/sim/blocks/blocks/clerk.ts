@@ -12,7 +12,7 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
   docsLink: 'https://docs.sim.ai/tools/clerk',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['oauth'],
+  tags: ['identity', 'automation'],
   bgColor: '#131316',
   icon: ClerkIcon,
 

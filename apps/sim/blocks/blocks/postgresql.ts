@@ -12,7 +12,7 @@ export const PostgreSQLBlock: BlockConfig<PostgresResponse> = {
   docsLink: 'https://docs.sim.ai/tools/postgresql',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['api'],
+  tags: ['data-warehouse', 'data-analytics'],
   bgColor: '#336791',
   icon: PostgresIcon,
   subBlocks: [

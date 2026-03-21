@@ -12,7 +12,7 @@ export const HexBlock: BlockConfig<HexResponse> = {
   docsLink: 'https://docs.sim.ai/tools/hex',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['data-warehouse', 'api'],
+  tags: ['data-warehouse', 'data-analytics'],
   bgColor: '#14151A',
   icon: HexIcon,
   authMode: AuthMode.ApiKey,

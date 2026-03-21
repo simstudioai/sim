@@ -10,7 +10,7 @@ export const DSPyBlock: BlockConfig = {
     'Integrate with your self-hosted DSPy programs for LLM-powered predictions. Supports Predict, Chain of Thought, and ReAct agents. DSPy is the framework for programming—not prompting—language models.',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['llm'],
+  tags: ['llm', 'agentic', 'automation'],
   bgColor: '#E0E0E0',
   icon: DsPyIcon,
 

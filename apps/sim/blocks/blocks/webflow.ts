@@ -15,7 +15,7 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
   docsLink: 'https://docs.sim.ai/tools/webflow',
   category: 'tools',
   integrationType: IntegrationType.Design,
-  tags: ['oauth'],
+  tags: ['content-management', 'seo'],
   triggerAllowed: true,
   bgColor: '#E0E0E0',
   icon: WebflowIcon,

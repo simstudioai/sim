@@ -15,7 +15,7 @@ export const MicrosoftDataverseBlock: BlockConfig<DataverseResponse> = {
   docsLink: 'https://docs.sim.ai/tools/microsoft_dataverse',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['oauth', 'microsoft-365'],
+  tags: ['microsoft-365', 'data-warehouse', 'cloud'],
   bgColor: '#E0E0E0',
   icon: MicrosoftDataverseIcon,
   subBlocks: [

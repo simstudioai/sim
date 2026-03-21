@@ -13,7 +13,7 @@ export const LemlistBlock: BlockConfig<LemlistResponse> = {
   docsLink: 'https://docs.sim.ai/tools/lemlist',
   category: 'tools',
   integrationType: IntegrationType.Email,
-  tags: ['marketing', 'api'],
+  tags: ['sales-engagement', 'email-marketing', 'automation'],
   bgColor: '#316BFF',
   icon: LemlistIcon,
   subBlocks: [

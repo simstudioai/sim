@@ -11,7 +11,7 @@ export const GooglePagespeedBlock: BlockConfig<GooglePagespeedAnalyzeResponse> =
   docsLink: 'https://docs.sim.ai/tools/google_pagespeed',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['api', 'google-workspace'],
+  tags: ['google-workspace', 'seo', 'monitoring'],
   bgColor: '#E0E0E0',
   icon: GooglePagespeedIcon,
   authMode: AuthMode.ApiKey,

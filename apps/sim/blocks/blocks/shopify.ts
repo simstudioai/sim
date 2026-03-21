@@ -19,7 +19,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
   docsLink: 'https://docs.sim.ai/tools/shopify',
   category: 'tools',
   integrationType: IntegrationType.Ecommerce,
-  tags: ['oauth'],
+  tags: ['payments', 'subscriptions'],
   icon: ShopifyIcon,
   bgColor: '#FFFFFF',
   subBlocks: [

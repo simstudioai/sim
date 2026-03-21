@@ -17,7 +17,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
   docsLink: 'https://docs.sim.ai/tools/linear',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['project-management', 'oauth'],
+  tags: ['project-management', 'ticketing'],
   icon: LinearIcon,
   bgColor: '#5E6AD2',
   subBlocks: [

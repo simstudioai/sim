@@ -16,7 +16,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
   docsLink: 'https://docs.sim.ai/tools/supabase',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['api'],
+  tags: ['cloud', 'data-warehouse', 'vector-search'],
   bgColor: '#1C1C1C',
   icon: SupabaseIcon,
   subBlocks: [

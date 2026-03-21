@@ -13,7 +13,7 @@ export const AirweaveBlock: BlockConfig<AirweaveSearchResponse> = {
   docsLink: 'https://docs.airweave.ai',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['vector-search'],
+  tags: ['vector-search', 'knowledge-base'],
   bgColor: '#6366F1',
   icon: AirweaveIcon,
   subBlocks: [

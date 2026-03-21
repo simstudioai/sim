@@ -146,7 +146,7 @@ export const GoogleTranslateBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/google_translate',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['api', 'google-workspace'],
+  tags: ['google-workspace', 'content-management', 'automation'],
   bgColor: '#E0E0E0',
   icon: GoogleTranslateIcon,
   authMode: AuthMode.ApiKey,

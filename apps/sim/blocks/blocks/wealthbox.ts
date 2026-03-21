@@ -14,7 +14,7 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
   docsLink: 'https://docs.sim.ai/tools/wealthbox',
   category: 'tools',
   integrationType: IntegrationType.CRM,
-  tags: ['api'],
+  tags: ['sales-engagement', 'customer-support'],
   bgColor: '#E0E0E0',
   icon: WealthboxIcon,
   subBlocks: [

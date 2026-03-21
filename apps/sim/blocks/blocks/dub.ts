@@ -13,7 +13,7 @@ export const DubBlock: BlockConfig<DubResponse> = {
   docsLink: 'https://docs.sim.ai/tools/dub',
   category: 'tools',
   integrationType: IntegrationType.DeveloperTools,
-  tags: ['api', 'marketing'],
+  tags: ['link-management', 'marketing', 'data-analytics'],
   bgColor: '#181C1E',
   icon: DubIcon,
   subBlocks: [

@@ -14,7 +14,7 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
   docsLink: 'https://docs.sim.ai/tools/pipedrive',
   category: 'tools',
   integrationType: IntegrationType.CRM,
-  tags: ['oauth'],
+  tags: ['sales-engagement', 'project-management'],
   bgColor: '#2E6936',
   icon: PipedriveIcon,
   subBlocks: [

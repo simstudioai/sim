@@ -15,7 +15,7 @@ export const CalComBlock: BlockConfig<ToolResponse> = {
   docsLink: 'https://docs.sim.ai/tools/calcom',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['calendar', 'oauth'],
+  tags: ['scheduling', 'calendar', 'meeting'],
   bgColor: '#FFFFFE',
   icon: CalComIcon,
   subBlocks: [

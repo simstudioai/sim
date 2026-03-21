@@ -36,7 +36,7 @@ export const StagehandBlock: BlockConfig<StagehandResponse> = {
   docsLink: 'https://docs.sim.ai/tools/stagehand',
   category: 'tools',
   integrationType: IntegrationType.Automation,
-  tags: ['web-scraping', 'automation'],
+  tags: ['web-scraping', 'automation', 'agentic'],
   bgColor: '#FFC83C',
   icon: StagehandIcon,
   subBlocks: [

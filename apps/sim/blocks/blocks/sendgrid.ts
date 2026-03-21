@@ -13,7 +13,7 @@ export const SendGridBlock: BlockConfig<SendMailResult> = {
   docsLink: 'https://docs.sim.ai/tools/sendgrid',
   category: 'tools',
   integrationType: IntegrationType.Email,
-  tags: ['api', 'marketing'],
+  tags: ['email-marketing', 'messaging'],
   bgColor: '#1A82E2',
   icon: SendgridIcon,
 

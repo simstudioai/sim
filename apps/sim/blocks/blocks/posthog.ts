@@ -13,7 +13,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
   docsLink: 'https://docs.sim.ai/tools/posthog',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['monitoring', 'api'],
+  tags: ['data-analytics', 'monitoring'],
   bgColor: '#E0E0E0',
   icon: PosthogIcon,
   subBlocks: [

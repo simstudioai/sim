@@ -11,7 +11,7 @@ export const SearchBlock: BlockConfig = {
   icon: SearchIcon,
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['api'],
+  tags: ['web-scraping', 'seo'],
   docsLink: 'https://docs.sim.ai/tools/search',
   subBlocks: [
     {

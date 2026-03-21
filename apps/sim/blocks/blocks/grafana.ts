@@ -13,7 +13,7 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
   docsLink: 'https://docs.sim.ai/tools/grafana',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['monitoring', 'api'],
+  tags: ['monitoring', 'data-analytics'],
   bgColor: '#E0E0E0',
   icon: GrafanaIcon,
   subBlocks: [

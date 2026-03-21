@@ -17,7 +17,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
   docsLink: 'https://docs.sim.ai/tools/slack',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['oauth', 'webhooks'],
+  tags: ['messaging', 'webhooks', 'automation'],
   bgColor: '#611f69',
   icon: SlackIcon,
   triggerAllowed: true,

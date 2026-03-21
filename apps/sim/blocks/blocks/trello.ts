@@ -22,7 +22,7 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
   docsLink: 'https://docs.sim.ai/tools/trello',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['project-management', 'oauth'],
+  tags: ['project-management', 'ticketing'],
   bgColor: '#0052CC',
   icon: TrelloIcon,
   subBlocks: [

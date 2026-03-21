@@ -13,7 +13,7 @@ export const BoxBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/box',
   category: 'tools',
   integrationType: IntegrationType.FileStorage,
-  tags: ['oauth', 'cloud'],
+  tags: ['cloud', 'content-management', 'e-signatures'],
   bgColor: '#FFFFFF',
   icon: BoxCompanyIcon,
   authMode: AuthMode.OAuth,

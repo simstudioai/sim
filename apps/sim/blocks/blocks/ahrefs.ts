@@ -13,7 +13,7 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
   docsLink: 'https://docs.ahrefs.com/docs/api/reference/introduction',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['marketing'],
+  tags: ['seo', 'marketing', 'data-analytics'],
   bgColor: '#E0E0E0',
   icon: AhrefsIcon,
   subBlocks: [

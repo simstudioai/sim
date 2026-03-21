@@ -12,7 +12,7 @@ export const DuckDuckGoBlock: BlockConfig<DuckDuckGoResponse> = {
   docsLink: 'https://docs.sim.ai/tools/duckduckgo',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['api'],
+  tags: ['web-scraping', 'seo'],
   bgColor: '#FFFFFF',
   icon: DuckDuckGoIcon,
   subBlocks: [

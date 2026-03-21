@@ -13,7 +13,7 @@ export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
   docsLink: 'https://www.tinybird.co/docs/api-reference',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['data-warehouse', 'api'],
+  tags: ['data-warehouse', 'data-analytics'],
   bgColor: '#2EF598',
   icon: TinybirdIcon,
   subBlocks: [

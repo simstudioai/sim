@@ -13,7 +13,7 @@ export const XBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/x',
   category: 'tools',
   integrationType: IntegrationType.Social,
-  tags: ['oauth'],
+  tags: ['marketing', 'messaging'],
   bgColor: '#000000',
   icon: xIcon,
   subBlocks: [

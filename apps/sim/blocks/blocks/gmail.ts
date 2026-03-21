@@ -47,7 +47,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
   docsLink: 'https://docs.sim.ai/tools/gmail',
   category: 'tools',
   integrationType: IntegrationType.Email,
-  tags: ['oauth', 'google-workspace'],
+  tags: ['google-workspace', 'messaging'],
   bgColor: '#E0E0E0',
   icon: GmailIcon,
   hideFromToolbar: true,
@@ -556,7 +556,7 @@ export const GmailV2Block: BlockConfig<GmailToolResponse> = {
   name: 'Gmail',
   hideFromToolbar: false,
   integrationType: IntegrationType.Email,
-  tags: ['oauth', 'google-workspace'],
+  tags: ['google-workspace', 'messaging'],
   tools: {
     ...GmailBlock.tools,
     access: [

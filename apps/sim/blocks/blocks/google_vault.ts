@@ -13,7 +13,7 @@ export const GoogleVaultBlock: BlockConfig = {
   docsLink: 'https://developers.google.com/vault',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['oauth', 'google-workspace'],
+  tags: ['google-workspace', 'secrets-management', 'document-processing'],
   bgColor: '#E8F0FE',
   icon: GoogleVaultIcon,
   subBlocks: [

@@ -13,7 +13,7 @@ export const SSHBlock: BlockConfig<SSHResponse> = {
   docsLink: 'https://docs.sim.ai/tools/ssh',
   category: 'tools',
   integrationType: IntegrationType.DeveloperTools,
-  tags: ['api'],
+  tags: ['cloud', 'automation'],
   bgColor: '#000000',
   icon: SshIcon,
   subBlocks: [

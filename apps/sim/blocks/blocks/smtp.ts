@@ -13,7 +13,7 @@ export const SmtpBlock: BlockConfig<SmtpSendMailResult> = {
   docsLink: 'https://docs.sim.ai/tools/smtp',
   category: 'tools',
   integrationType: IntegrationType.Email,
-  tags: ['api'],
+  tags: ['email-marketing', 'messaging'],
   bgColor: '#2D3748',
   icon: SmtpIcon,
   authMode: AuthMode.ApiKey,

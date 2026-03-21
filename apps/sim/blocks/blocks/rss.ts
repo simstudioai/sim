@@ -11,7 +11,7 @@ export const RssBlock: BlockConfig = {
     'Subscribe to any RSS or Atom feed and automatically trigger your workflow when new content is published. Perfect for monitoring blogs, news sites, podcasts, and any content that publishes an RSS feed.',
   category: 'triggers',
   integrationType: IntegrationType.Search,
-  tags: ['api'],
+  tags: ['content-management', 'automation'],
   bgColor: '#F97316',
   icon: RssIcon,
   triggerAllowed: true,

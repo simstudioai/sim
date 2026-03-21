@@ -12,7 +12,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
   docsLink: 'https://docs.sim.ai/tools/image_generator',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['image-generation'],
+  tags: ['image-generation', 'llm'],
   bgColor: '#4D5FFF',
   icon: ImageIcon,
   subBlocks: [

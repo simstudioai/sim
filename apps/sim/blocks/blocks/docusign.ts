@@ -14,7 +14,7 @@ export const DocuSignBlock: BlockConfig<DocuSignResponse> = {
   docsLink: 'https://docs.sim.ai/tools/docusign',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['oauth'],
+  tags: ['e-signatures', 'document-processing'],
   bgColor: '#FFFFFF',
   icon: DocuSignIcon,
   authMode: AuthMode.OAuth,

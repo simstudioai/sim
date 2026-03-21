@@ -12,7 +12,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
   docsLink: 'https://docs.sim.ai/tools/browser_use',
   category: 'tools',
   integrationType: IntegrationType.Automation,
-  tags: ['web-scraping', 'automation'],
+  tags: ['web-scraping', 'automation', 'agentic'],
   bgColor: '#181C1E',
   icon: BrowserUseIcon,
   subBlocks: [

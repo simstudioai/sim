@@ -11,7 +11,7 @@ export const AlgoliaBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/algolia',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['vector-search', 'api'],
+  tags: ['vector-search', 'knowledge-base'],
   bgColor: '#003DFF',
   icon: AlgoliaIcon,
   authMode: AuthMode.ApiKey,

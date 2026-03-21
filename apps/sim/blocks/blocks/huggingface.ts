@@ -13,7 +13,7 @@ export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
   docsLink: 'https://docs.sim.ai/tools/huggingface',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['llm', 'api'],
+  tags: ['llm', 'agentic'],
   bgColor: '#0B0F19',
   icon: HuggingFaceIcon,
   subBlocks: [

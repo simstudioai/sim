@@ -16,7 +16,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
   docsLink: 'https://docs.sim.ai/tools/outlook',
   category: 'tools',
   integrationType: IntegrationType.Email,
-  tags: ['oauth', 'microsoft-365'],
+  tags: ['microsoft-365', 'messaging', 'automation'],
   triggerAllowed: true,
   bgColor: '#E0E0E0',
   icon: OutlookIcon,

@@ -12,7 +12,7 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
   docsLink: 'https://docs.sim.ai/tools/okta',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['oauth'],
+  tags: ['identity', 'automation'],
   bgColor: '#191919',
   icon: OktaIcon,
 

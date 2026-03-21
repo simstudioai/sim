@@ -13,7 +13,7 @@ export const GoogleMeetBlock: BlockConfig<GoogleMeetResponse> = {
   docsLink: 'https://docs.sim.ai/tools/google_meet',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['meeting', 'oauth', 'google-workspace'],
+  tags: ['meeting', 'google-workspace', 'scheduling'],
   bgColor: '#E0E0E0',
   icon: GoogleMeetIcon,
   authMode: AuthMode.OAuth,

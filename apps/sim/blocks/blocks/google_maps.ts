@@ -11,7 +11,7 @@ export const GoogleMapsBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/google_maps',
   category: 'tools',
   integrationType: IntegrationType.DeveloperTools,
-  tags: ['api', 'google-workspace'],
+  tags: ['google-workspace', 'enrichment'],
   bgColor: '#E0E0E0',
   icon: GoogleMapsIcon,
 

@@ -13,7 +13,7 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
   docsLink: 'https://docs.sim.ai/tools/datadog',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['monitoring', 'cloud'],
+  tags: ['monitoring', 'incident-management', 'error-tracking'],
   bgColor: '#632CA6',
   icon: DatadogIcon,
   subBlocks: [

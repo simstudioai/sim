@@ -13,7 +13,7 @@ export const GoogleGroupsBlock: BlockConfig = {
   docsLink: 'https://developers.google.com/admin-sdk/directory/v1/guides/manage-groups',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['oauth', 'google-workspace'],
+  tags: ['google-workspace', 'messaging', 'identity'],
   bgColor: '#E8F0FE',
   icon: GoogleGroupsIcon,
   subBlocks: [

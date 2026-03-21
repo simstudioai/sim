@@ -13,7 +13,7 @@ export const GoogleFormsBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/google_forms',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['oauth', 'google-workspace'],
+  tags: ['google-workspace', 'forms', 'data-analytics'],
   bgColor: '#E0E0E0',
   icon: GoogleFormsIcon,
   subBlocks: [

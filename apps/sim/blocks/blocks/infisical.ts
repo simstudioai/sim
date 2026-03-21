@@ -12,7 +12,7 @@ export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
   docsLink: 'https://docs.sim.ai/tools/infisical',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['api'],
+  tags: ['secrets-management'],
   bgColor: '#F7FE62',
   icon: InfisicalIcon,
   authMode: AuthMode.ApiKey,

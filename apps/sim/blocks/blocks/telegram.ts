@@ -15,7 +15,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
   docsLink: 'https://docs.sim.ai/tools/telegram',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['api'],
+  tags: ['messaging', 'webhooks', 'automation'],
   bgColor: '#E0E0E0',
   icon: TelegramIcon,
   triggerAllowed: true,

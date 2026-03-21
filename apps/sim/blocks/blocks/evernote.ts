@@ -11,7 +11,7 @@ export const EvernoteBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/evernote',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['oauth'],
+  tags: ['note-taking', 'knowledge-base'],
   bgColor: '#E0E0E0',
   icon: EvernoteIcon,
   authMode: AuthMode.ApiKey,

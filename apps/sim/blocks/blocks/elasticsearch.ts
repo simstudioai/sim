@@ -13,7 +13,7 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
   docsLink: 'https://docs.sim.ai/tools/elasticsearch',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['vector-search'],
+  tags: ['vector-search', 'data-analytics'],
   bgColor: '#E0E0E0',
   icon: ElasticsearchIcon,
   subBlocks: [

@@ -17,7 +17,7 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
   docsLink: 'https://docs.sim.ai/tools/google_slides',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['oauth', 'google-workspace'],
+  tags: ['google-workspace', 'document-processing', 'content-management'],
   bgColor: '#E0E0E0',
   icon: GoogleSlidesIcon,
   subBlocks: [
@@ -958,7 +958,7 @@ export const GoogleSlidesV2Block: BlockConfig<GoogleSlidesResponse> = {
   description: 'Read, write, and create presentations',
   hideFromToolbar: false,
   integrationType: IntegrationType.Documents,
-  tags: ['oauth', 'google-workspace'],
+  tags: ['google-workspace', 'document-processing', 'content-management'],
   subBlocks: googleSlidesV2SubBlocks,
   tools: {
     access: GoogleSlidesBlock.tools!.access,

@@ -12,7 +12,7 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
   docsLink: 'https://docs.sim.ai/tools/hunter',
   category: 'tools',
   integrationType: IntegrationType.SalesIntelligence,
-  tags: ['enrichment', 'api'],
+  tags: ['enrichment', 'sales-engagement'],
   bgColor: '#E0E0E0',
   icon: HunterIOIcon,
   subBlocks: [

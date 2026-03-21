@@ -15,7 +15,7 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
   docsLink: 'https://docs.sim.ai/tools/dropbox',
   category: 'tools',
   integrationType: IntegrationType.FileStorage,
-  tags: ['oauth', 'cloud'],
+  tags: ['cloud', 'document-processing'],
   icon: DropboxIcon,
   bgColor: '#0061FF',
   subBlocks: [

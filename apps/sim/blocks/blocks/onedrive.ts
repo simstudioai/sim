@@ -19,7 +19,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
   docsLink: 'https://docs.sim.ai/tools/onedrive',
   category: 'tools',
   integrationType: IntegrationType.FileStorage,
-  tags: ['oauth', 'microsoft-365', 'cloud'],
+  tags: ['microsoft-365', 'cloud', 'document-processing'],
   bgColor: '#E0E0E0',
   icon: MicrosoftOneDriveIcon,
   subBlocks: [

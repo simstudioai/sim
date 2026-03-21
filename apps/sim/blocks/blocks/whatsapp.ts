@@ -13,7 +13,7 @@ export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
   docsLink: 'https://docs.sim.ai/tools/whatsapp',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['api'],
+  tags: ['messaging', 'automation'],
   bgColor: '#25D366',
   icon: WhatsAppIcon,
   triggerAllowed: true,

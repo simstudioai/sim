@@ -12,7 +12,7 @@ export const GoogleBigQueryBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/google_bigquery',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['data-warehouse', 'oauth', 'google-workspace'],
+  tags: ['data-warehouse', 'google-workspace', 'data-analytics'],
   bgColor: '#E0E0E0',
   icon: GoogleBigQueryIcon,
   authMode: AuthMode.OAuth,

@@ -13,7 +13,7 @@ export const LoopsBlock: BlockConfig<LoopsResponse> = {
   docsLink: 'https://docs.sim.ai/tools/loops',
   category: 'tools',
   integrationType: IntegrationType.Email,
-  tags: ['marketing', 'api'],
+  tags: ['email-marketing', 'marketing', 'automation'],
   bgColor: '#FAFAF9',
   icon: LoopsIcon,
   subBlocks: [

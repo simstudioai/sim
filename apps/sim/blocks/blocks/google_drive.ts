@@ -15,7 +15,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
   docsLink: 'https://docs.sim.ai/tools/google_drive',
   category: 'tools',
   integrationType: IntegrationType.FileStorage,
-  tags: ['oauth', 'cloud', 'google-workspace'],
+  tags: ['cloud', 'google-workspace', 'document-processing'],
   bgColor: '#E0E0E0',
   icon: GoogleDriveIcon,
   subBlocks: [

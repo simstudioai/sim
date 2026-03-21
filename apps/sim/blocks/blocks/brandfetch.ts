@@ -12,7 +12,7 @@ export const BrandfetchBlock: BlockConfig<BrandfetchGetBrandResponse | Brandfetc
   docsLink: 'https://docs.sim.ai/tools/brandfetch',
   category: 'tools',
   integrationType: IntegrationType.SalesIntelligence,
-  tags: ['enrichment', 'api'],
+  tags: ['enrichment', 'marketing'],
   bgColor: '#000000',
   icon: BrandfetchIcon,
   authMode: AuthMode.ApiKey,
