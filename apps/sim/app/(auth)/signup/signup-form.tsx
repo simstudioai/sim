@@ -505,7 +505,12 @@ function SignupFormContent({
                 captchaResolveRef.current = null
                 captchaRejectRef.current = null
               }}
-              onExpire={() => setCaptchaToken(null)}
+              onExpire={() => {
+                setCaptchaToken(null)
+                captchaRejectRef.current?.(new Error('Captcha expired'))
+                captchaResolveRef.current = null
+                captchaRejectRef.current = null
+              }}
               options={{ size: 'invisible', execution: 'execute' }}
             />
           )}
