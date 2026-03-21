@@ -73,7 +73,7 @@ export function ArticleSidebar({ author, authors, headings, related }: ArticleSi
 
       {related.length > 0 && (
         <div className='border border-[#2A2A2A] bg-[#232323] p-5' style={{ borderRadius: '5px' }}>
-          <div className='mb-4 flex items-center gap-2 border-b border-[#2A2A2A] pb-3 font-season text-[11px] uppercase tracking-widest text-[#ECECEC]'>
+          <div className='mb-4 flex items-center gap-2 pb-3 font-season text-[11px] uppercase tracking-widest text-[#ECECEC]'>
             <span className='inline-block h-1.5 w-1.5 bg-[#FFCC02]' aria-hidden='true' />
             Recent Logs
           </div>

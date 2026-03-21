@@ -2,11 +2,11 @@
   display: flex;
   align-items: center;
   border-bottom: 1px solid #2a2a2a;
-  padding-bottom: 0.5rem;
+  padding-bottom: 1.5rem;
   font-weight: 500;
   font-size: 1.5rem;
   color: #ececec;
-  margin-top: 3rem;
+  margin-top: 1rem !important;
   margin-bottom: 1.5rem;
   letter-spacing: -0.025em;
 }

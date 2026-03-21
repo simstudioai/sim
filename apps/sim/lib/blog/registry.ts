@@ -1,6 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { cache } from 'react'
+import { slug as githubSlug } from 'github-slugger'
 import matter from 'gray-matter'
 import { compileMDX } from 'next-mdx-remote/rsc'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
@@ -33,11 +34,7 @@ async function loadAuthors(): Promise<Record<string, any>> {
 }
 
 function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
+  return githubSlug(text)
 }
 
 async function scanFrontmatters(): Promise<BlogMeta[]> {

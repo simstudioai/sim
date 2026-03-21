@@ -77,7 +77,7 @@ export function TableOfContents({ headings }: TableOfContentsProps) {
 
   return (
     <div>
-      <div className='mb-4 flex items-center gap-2 border-b border-[#2A2A2A] pb-3 font-season text-[11px] uppercase tracking-widest text-[#ECECEC]'>
+      <div className='mb-4 flex items-center gap-2 pb-2 font-season text-[11px] uppercase tracking-widest text-[#ECECEC]'>
         <List className='h-3 w-3 text-[#2ABBF8]' aria-hidden />
         Contents
       </div>
