@@ -1,6 +1,7 @@
 'use client'
 
-import { Suspense, useMemo, useState } from 'react'
+import { Suspense, useMemo, useRef, useState } from 'react'
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
 import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
@@ -90,6 +91,9 @@ function SignupFormContent({
   const [emailError, setEmailError] = useState('')
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  const turnstileRef = useRef<TurnstileInstance>(null)
+  const turnstileSiteKey = useMemo(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'), [])
   const buttonClass = useBrandedButtonClass()
 
   const redirectUrl = useMemo(
@@ -252,7 +256,14 @@ function SignupFormContent({
           name: sanitizedName,
         },
         {
+          fetchOptions: {
+            headers: {
+              ...(captchaToken ? { 'x-captcha-response': captchaToken } : {}),
+            },
+          },
           onError: (ctx) => {
+            turnstileRef.current?.reset()
+            setCaptchaToken(null)
             logger.error('Signup error:', ctx.error)
             const errorMessage: string[] = ['Failed to create account']
 
@@ -452,6 +463,17 @@ function SignupFormContent({
               )}
             </div>
           </div>
+
+          {turnstileSiteKey && (
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={turnstileSiteKey}
+              onSuccess={setCaptchaToken}
+              onError={() => setCaptchaToken(null)}
+              onExpire={() => setCaptchaToken(null)}
+              options={{ size: 'invisible' }}
+            />
+          )}
 
           <BrandedButton
             type='submit'

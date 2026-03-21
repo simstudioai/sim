@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
 import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
@@ -86,6 +87,9 @@ export default function LoginPage({
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  const turnstileRef = useRef<TurnstileInstance>(null)
+  const turnstileSiteKey = useMemo(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'), [])
   const buttonClass = useBrandedButtonClass()
 
   const callbackUrlParam = searchParams?.get('callbackUrl')
@@ -185,7 +189,14 @@ export default function LoginPage({
           callbackURL: safeCallbackUrl,
         },
         {
+          fetchOptions: {
+            headers: {
+              ...(captchaToken ? { 'x-captcha-response': captchaToken } : {}),
+            },
+          },
           onError: (ctx) => {
+            turnstileRef.current?.reset()
+            setCaptchaToken(null)
             logger.error('Login error:', ctx.error)
 
             if (ctx.error.code?.includes('EMAIL_NOT_VERIFIED')) {
@@ -459,6 +470,17 @@ export default function LoginPage({
               )}
             </div>
           </div>
+
+          {turnstileSiteKey && (
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={turnstileSiteKey}
+              onSuccess={setCaptchaToken}
+              onError={() => setCaptchaToken(null)}
+              onExpire={() => setCaptchaToken(null)}
+              options={{ size: 'invisible' }}
+            />
+          )}
 
           <BrandedButton
             type='submit'
