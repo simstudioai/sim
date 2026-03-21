@@ -47,10 +47,7 @@ export default async function StudioLayout({ children }: { children: React.React
       <header className='sticky top-0 z-50'>
         <Navbar blogPosts={blogPosts} />
       </header>
-      <div className='flex flex-1 flex-col lg:flex-row'>
-        <StudioSidebar />
-        <main className='relative flex-1'>{children}</main>
-      </div>
+      <div className='flex-1'>{children}</div>
       <div className='border-t border-[#2A2A2A]'>
         <Footer />
       </div>
