@@ -8,6 +8,7 @@ export const navTourSteps: Step[] = [
       'Your starting point. Describe what you want to build in plain language or pick a template to get started.',
     placement: 'right',
     disableBeacon: true,
+    spotlightPadding: 0,
   },
   {
     target: '[data-item-id="search"]',
@@ -15,6 +16,7 @@ export const navTourSteps: Step[] = [
     content: 'Quickly find workflows, blocks, and tools. Use Cmd+K to open it from anywhere.',
     placement: 'right',
     disableBeacon: true,
+    spotlightPadding: 0,
   },
   {
     target: '[data-item-id="tables"]',
