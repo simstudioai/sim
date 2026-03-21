@@ -562,7 +562,8 @@ export async function executeSync(
           connector.knowledgeBaseId,
           doc.id,
           {
-            filename: doc.filename ?? 'document.txt',
+            filename:
+              doc.filename && doc.filename.includes('.') ? doc.filename : 'document.txt',
             fileUrl: doc.fileUrl ?? '',
             fileSize: doc.fileSize ?? 0,
             mimeType: 'text/plain',
