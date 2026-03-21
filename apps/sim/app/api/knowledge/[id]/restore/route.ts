@@ -3,6 +3,7 @@ import { knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { restoreKnowledgeBase } from '@/lib/knowledge/service'
@@ -23,6 +24,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const [kb] = await db
       .select({
         id: knowledgeBase.id,
+        name: knowledgeBase.name,
         workspaceId: knowledgeBase.workspaceId,
         userId: knowledgeBase.userId,
       })
@@ -46,6 +48,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await restoreKnowledgeBase(id, requestId)
 
     logger.info(`[${requestId}] Restored knowledge base ${id}`)
+
+    recordAudit({
+      workspaceId: kb.workspaceId,
+      actorId: auth.userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      action: AuditAction.KNOWLEDGE_BASE_RESTORED,
+      resourceType: AuditResourceType.KNOWLEDGE_BASE,
+      resourceId: id,
+      resourceName: kb.name,
+      description: `Restored knowledge base "${kb.name}"`,
+      request,
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

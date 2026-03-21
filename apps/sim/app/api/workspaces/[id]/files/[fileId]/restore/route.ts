@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { restoreWorkspaceFile } from '@/lib/uploads/contexts/workspace'
@@ -28,6 +29,19 @@ export async function POST(
     await restoreWorkspaceFile(workspaceId, fileId)
 
     logger.info(`[${requestId}] Restored workspace file ${fileId}`)
+
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.FILE_RESTORED,
+      resourceType: AuditResourceType.FILE,
+      resourceId: fileId,
+      resourceName: fileId,
+      description: `Restored workspace file ${fileId}`,
+      request,
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

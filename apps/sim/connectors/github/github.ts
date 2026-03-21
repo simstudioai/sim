@@ -2,12 +2,13 @@ import { createLogger } from '@sim/logger'
 import { GithubIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, parseTagDate } from '@/connectors/utils'
+import { parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('GitHubConnector')
 
 const GITHUB_API_URL = 'https://api.github.com'
 const BATCH_SIZE = 30
+const GIT_SHA_PREFIX = 'git-sha:'
 
 /**
  * Parses the repository string into owner and repo.
@@ -89,58 +90,25 @@ async function fetchTree(
 }
 
 /**
- * Fetches file content via the Blobs API and decodes base64.
+ * Creates a lightweight stub ExternalDocument from a tree item.
+ * Uses the Git blob SHA as contentHash for change detection, avoiding
+ * the need to fetch blob content for every file during listing.
+ * Content is deferred and only fetched for new/changed documents.
  */
-async function fetchBlobContent(
-  accessToken: string,
-  owner: string,
-  repo: string,
-  sha: string
-): Promise<string> {
-  const url = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/blobs/${sha}`
-
-  const response = await fetchWithRetry(url, {
-    method: 'GET',
-    headers: {
-      Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${accessToken}`,
-      'X-GitHub-Api-Version': '2022-11-28',
-    },
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch blob ${sha}: ${response.status}`)
-  }
-
-  const data = await response.json()
-
-  if (data.encoding === 'base64') {
-    return Buffer.from(data.content, 'base64').toString('utf-8')
-  }
-
-  return data.content || ''
-}
-
-/**
- * Converts a tree item to an ExternalDocument by fetching its content.
- */
-async function treeItemToDocument(
-  accessToken: string,
+function treeItemToStub(
   owner: string,
   repo: string,
   branch: string,
   item: TreeItem
-): Promise<ExternalDocument> {
-  const content = await fetchBlobContent(accessToken, owner, repo, item.sha)
-  const contentHash = await computeContentHash(content)
-
+): ExternalDocument {
   return {
     externalId: item.path,
     title: item.path.split('/').pop() || item.path,
-    content,
+    content: '',
+    contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: `https://github.com/${owner}/${repo}/blob/${encodeURIComponent(branch)}/${item.path.split('/').map(encodeURIComponent).join('/')}`,
-    contentHash,
+    contentHash: `${GIT_SHA_PREFIX}${item.sha}`,
     metadata: {
       path: item.path,
       sha: item.sha,
@@ -245,24 +213,7 @@ export const githubConnector: ConnectorConfig = {
       batchSize: batch.length,
     })
 
-    const BLOB_CONCURRENCY = 5
-    const documents: ExternalDocument[] = []
-    for (let i = 0; i < batch.length; i += BLOB_CONCURRENCY) {
-      const chunk = batch.slice(i, i + BLOB_CONCURRENCY)
-      const results = await Promise.all(
-        chunk.map(async (item) => {
-          try {
-            return await treeItemToDocument(accessToken, owner, repo, branch, item)
-          } catch (error) {
-            logger.warn(`Failed to fetch content for ${item.path}`, {
-              error: error instanceof Error ? error.message : String(error),
-            })
-            return null
-          }
-        })
-      )
-      documents.push(...(results.filter(Boolean) as ExternalDocument[]))
-    }
+    const documents = batch.map((item) => treeItemToStub(owner, repo, branch, item))
 
     const nextOffset = offset + BATCH_SIZE
     const hasMore = nextOffset < capped.length
@@ -308,7 +259,6 @@ export const githubConnector: ConnectorConfig = {
         data.encoding === 'base64'
           ? Buffer.from(data.content as string, 'base64').toString('utf-8')
           : (data.content as string) || ''
-      const contentHash = await computeContentHash(content)
 
       return {
         externalId,
@@ -316,7 +266,7 @@ export const githubConnector: ConnectorConfig = {
         content,
         mimeType: 'text/plain',
         sourceUrl: `https://github.com/${owner}/${repo}/blob/${encodeURIComponent(branch)}/${path.split('/').map(encodeURIComponent).join('/')}`,
-        contentHash,
+        contentHash: `${GIT_SHA_PREFIX}${data.sha as string}`,
         metadata: {
           path,
           sha: data.sha as string,
