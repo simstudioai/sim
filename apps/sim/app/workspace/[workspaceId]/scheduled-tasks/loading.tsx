@@ -6,7 +6,7 @@ const COLUMN_COUNT = 4
 export default function ScheduledTasksLoading() {
   return (
     <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
-      <div className='border-b border-[var(--border)] px-[24px] py-[10px]'>
+      <div className='border-[var(--border)] border-b px-[24px] py-[10px]'>
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-[12px]'>
             <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
@@ -17,7 +17,7 @@ export default function ScheduledTasksLoading() {
           </div>
         </div>
       </div>
-      <div className='border-b border-[var(--border)] px-[24px] py-[10px]'>
+      <div className='border-[var(--border)] border-b px-[24px] py-[10px]'>
         <div className='flex items-center'>
           <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
           <Skeleton className='ml-[10px] h-[14px] w-[160px] rounded-[4px]' />
@@ -26,7 +26,7 @@ export default function ScheduledTasksLoading() {
       <div className='min-h-0 flex-1 overflow-auto'>
         <table className='w-full'>
           <thead>
-            <tr className='border-b border-[var(--border)]'>
+            <tr className='border-[var(--border)] border-b'>
               <th className='w-[40px] px-[12px] py-[8px]'>
                 <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
               </th>
@@ -39,7 +39,7 @@ export default function ScheduledTasksLoading() {
           </thead>
           <tbody>
             {Array.from({ length: SKELETON_ROW_COUNT }).map((_, rowIndex) => (
-              <tr key={rowIndex} className='border-b border-[var(--border)]'>
+              <tr key={rowIndex} className='border-[var(--border)] border-b'>
                 <td className='w-[40px] px-[12px] py-[10px]'>
                   <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
                 </td>
